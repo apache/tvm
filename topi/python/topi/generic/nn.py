@@ -53,6 +53,22 @@ def schedule_conv2d_nhwc(outs):
     """
     return _default_schedule(outs, False)
 
+@tvm.target.generic_func
+def schedule_qdense(outs):
+    """Schedule for qdense
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of qdense
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
 
 @tvm.target.generic_func
 def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding, outs):
@@ -133,7 +149,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
     return _default_schedule(outs, False)
 
 @tvm.target.generic_func
-def schedule_qconv2d_nchw(outs):
+def schedule_bitserial_conv2d_nchw(outs):
     """Schedule for qconv2d_nchw
 
     Parameters
@@ -151,7 +167,7 @@ def schedule_qconv2d_nchw(outs):
 
 
 @tvm.target.generic_func
-def schedule_qconv2d_nhwc(outs):
+def schedule_bitserial_conv2d_nhwc(outs):
     """Schedule for qconv2d_nhwc
 
     Parameters

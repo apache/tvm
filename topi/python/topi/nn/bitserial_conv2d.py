@@ -5,25 +5,18 @@ from collections import namedtuple
 import tvm
 from .pad import pad
 from .util import get_pad_tuple, bitpack
-from ..util import simplify, get_const_int, get_const_tuple
-import numpy as np
-
+from ..util import simplify, get_const_tuple
 
 # workload description of qconv2d
 Workload = namedtuple('Workload',
                       ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
-QuantizedSpatialPackNCHW = namedtuple('SpatialPack', 
-                        ['vh', 'vw', 'vc', 'ba', 'bc'])
+SpatialPackNCHW = namedtuple('SpatialPack',
+                             ['vh', 'vw', 'vc', 'ba', 'bc'])
 
-QuantizedSpatialPackNHWC= namedtuple('SpatialPack', 
-                        ['vh', 'vw', 'vc', 'ba', 'bc'])
-
-# RPI version - broken right now
-RaspQuantizedSpatialPack = namedtuple('SpatialPack', 
-                        ['vh', 'vw', 'vc', 'ba', 'bc', 'split_ci', 'kfactor'])
-
+SpatialPackNHWC = namedtuple('SpatialPack',
+                              ['vh', 'vw', 'vc', 'ba', 'bc'])
 
 _WORKLOADS = [
     # workloads of resnet18 on imagenet
@@ -39,17 +32,23 @@ _WORKLOADS = [
     Workload('uint32', 'int32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
     Workload('uint32', 'int32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
     Workload('uint32', 'int32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+
+    # workload of alexnet on cifar10
+    Workload('int32', 'int32', 27, 27, 96, 192, 5, 5, 2, 2, 1, 1),
+    Workload('int32', 'int32', 13, 13, 192, 384, 3, 3, 1, 1, 1, 1),
+    Workload('int32', 'int32', 13, 13, 384, 384, 3, 3, 1, 1, 1, 1),
+    Workload('int32', 'int32', 13, 13, 384, 256, 3, 3, 1, 1, 1, 1),
 ]
 
 @tvm.target.generic_func
-def qconv2d(data, kernel, stride, padding,  activation_bits, weight_bits, layout='NCHW', 
-           pack_dtype='uint32', out_dtype='int32', dorefa=True):
+def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits,
+                     layout='NCHW', pack_dtype='uint32', out_dtype='int32', dorefa=True):
     """Conv2D operator.
 
     Parameters
     ----------
     input : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width] or 
+        4-D with shape [batch, in_channel, in_height, in_width] or
                        [batch, in_height, in_width, in_channel]
 
     filter : tvm.Tensor
@@ -73,7 +72,7 @@ def qconv2d(data, kernel, stride, padding,  activation_bits, weight_bits, layout
 
     pack_dtype: str
         bit packing type
-    
+
     dorefa: bool
         method of preforming popcount
 
@@ -85,13 +84,12 @@ def qconv2d(data, kernel, stride, padding,  activation_bits, weight_bits, layout
     # search platform specific declaration first
     # default declaration
     if layout == 'NCHW':
-        return spatial_pack_nchw(data, kernel, stride, padding, activation_bits, weight_bits, pack_dtype=pack_dtype, 
-                                 out_dtype=out_dtype, dorefa=dorefa)
+        return spatial_pack_nchw(data, kernel, stride, padding, activation_bits, weight_bits,
+                                 pack_dtype=pack_dtype, out_dtype=out_dtype, dorefa=dorefa)
     elif layout == 'NHWC':
-        return spatial_pack_nhwc(data, kernel, stride, padding, activation_bits, weight_bits, pack_dtype=pack_dtype, 
-                                 out_dtype=out_dtype, dorefa=dorefa)
-    else:
-        raise ValueError("not support this layout {} yet".format(layout))
+        return spatial_pack_nhwc(data, kernel, stride, padding, activation_bits, weight_bits,
+                                 pack_dtype=pack_dtype, out_dtype=out_dtype, dorefa=dorefa)
+    raise ValueError("not support this layout {} yet".format(layout))
 
 def _get_workload(data, kernel, stride, padding, out_dtype, layout):
     """ Get the workload structure. """
@@ -109,7 +107,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype, layout):
         HSTR, WSTR = stride
     else:
         HSTR, WSTR = stride, stride
-    
+
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 @tvm.target.generic_func
@@ -123,7 +121,8 @@ def _get_schedule(wkl, layout):
     return wkl
 
 
-def qconv2d_nchw(Input, Filter, stride, padding, activation_bits, weight_bits, out_dtype='int32', pack_type='uint32'):
+def bitserial_conv2d_nchw(Input, Filter, stride, padding, activation_bits, weight_bits,
+                 out_dtype='int32', pack_type='uint32'):
     assert isinstance(stride, int) or len(stride) == 2
     Input_q = bitpack(Input, activation_bits, pack_axis=1, bit_axis=2, pack_type=pack_type)
     Filter_q = bitpack(Filter, weight_bits, pack_axis=1, bit_axis=4, pack_type=pack_type)
@@ -153,16 +152,16 @@ def qconv2d_nchw(Input, Filter, stride, padding, activation_bits, weight_bits, o
 
     def _conv(nn, ff, yy, xx):
         b1b2 = (b1+b2).astype(out_dtype)
-        return tvm.sum( 
-            (tvm.popcount(PadInput_q[nn, rc, b1, yy * stride_h + ry, xx * stride_w + rx] & 
-                Filter_q[ff, rc, ry, rx, b2])<< (b1b2)).astype(out_dtype),
-            axis=[rc, ry, rx, b2, b1]).astype(out_dtype)
+        return tvm.sum((tvm.popcount(
+            PadInput_q[nn, rc, b1, yy * stride_h + ry, xx * stride_w + rx] &
+            Filter_q[ff, rc, ry, rx, b2])<< (b1b2)).astype(out_dtype),
+                       axis=[rc, ry, rx, b2, b1]).astype(out_dtype)
 
-    return tvm.compute((batch, out_channel, out_height, out_width), _conv, 
-        name="QConv2dOutput", tag="qconv2d_nchw")
+    return tvm.compute((batch, out_channel, out_height, out_width), _conv,
+                       name="Conv2dOutput", tag="bitserial_conv2d_nchw")
 
-
-def qconv2d_nhwc(Input, Filter, stride, padding, activation_bits, weight_bits, out_dtype='int32', pack_type='uint32'):
+def bitserial_conv2d_nhwc(Input, Filter, stride, padding, activation_bits, weight_bits,
+                 out_dtype='int32', pack_type='uint32'):
     assert isinstance(stride, int) or len(stride) == 2
     Input_q = bitpack(Input, activation_bits, pack_axis=3, bit_axis=4, pack_type=pack_type)
     Filter_q = bitpack(Filter, weight_bits, pack_axis=2, bit_axis=4, pack_type=pack_type)
@@ -189,16 +188,17 @@ def qconv2d_nhwc(Input, Filter, stride, padding, activation_bits, weight_bits, o
     b2 = tvm.reduce_axis((0, weight_bits), name='b2')
 
     def _conv(nn, yy, xx, ff):
-        return tvm.sum( 
-            (tvm.popcount(PadInput_q[nn, yy * stride_h + ry, xx * stride_w + rx, rc, b1] & 
-                Filter_q[ry, rx, rc, ff, b2])<< b1b2).astype(out_dtype),
-            axis=[rc, ry, rx, b2, b1])
-    
-    return tvm.compute( (batch, out_height, out_width, out_channel), _conv,
-        name="QConv2dOutput", tag="qconv2d_nhwc")
+        b1b2 = (b1+b2).astype(out_dtype)
+        return tvm.sum((tvm.popcount(
+            PadInput_q[nn, yy * stride_h + ry, xx * stride_w + rx, rc, b1] &
+            Filter_q[ry, rx, rc, ff, b2]) << b1b2).astype(out_dtype),
+                       axis=[rc, ry, rx, b2, b1])
 
+    return tvm.compute((batch, out_height, out_width, out_channel), _conv,
+                       name="Conv2dOutput", tag="bitserial_conv2d_nhwc")
 
-def spatial_pack_nchw(data, kernel, stride, padding, in_bits, weight_bits, pack_dtype, out_dtype, dorefa=False):
+def spatial_pack_nchw(data, kernel, stride, padding, in_bits, weight_bits,
+                      pack_dtype, out_dtype, dorefa=False):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=1, bit_axis=0, pack_type=pack_dtype)
@@ -251,31 +251,31 @@ def spatial_pack_nchw(data, kernel, stride, padding, in_bits, weight_bits, pack_
     dw = tvm.reduce_axis((0, KW), name='dw')
     b1 = tvm.reduce_axis((0, IB), name='ib')
     b2 = tvm.reduce_axis((0, KB), name='kb')
-    
+
     def _conv(n, co, h, w, vh, vw, vc):
         b1b2 = (b1+b2).astype(out_dtype)
         if dorefa:
-            return tvm.sum( 
-                (tvm.popcount(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                    kernel_vec[co, ci, dh, dw, b2, vc])  -
-                tvm.popcount(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                    ~kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
+            return tvm.sum((tvm.popcount(
+                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
+                kernel_vec[co, ci, dh, dw, b2, vc])  -
+                tvm.popcount(
+                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
+                ~kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
                 axis=[ci, dh, dw, b1, b2])
-        else:
-            return tvm.sum( 
-                (tvm.popcount(data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                    kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
-                axis=[ci, dh, dw, b1, b2])
+
+        return tvm.sum((tvm.popcount(
+            data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
+            kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
+                        axis=[ci, dh, dw, b1, b2])
 
     conv = tvm.compute(ovshape, _conv, name='conv_out')
 
     return tvm.compute(oshape, lambda n, co, h, w:
-        conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
-        name='conv_vec', tag='spatial_qconv_nchw')
-        
+                       conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
+                       name='conv_vec', tag='spatial_bitserial_conv_nchw')
 
-
-def spatial_pack_nhwc(data, kernel, stride, padding, in_bits, weight_bits, pack_dtype, out_dtype, dorefa=False):
+def spatial_pack_nhwc(data, kernel, stride, padding, in_bits, weight_bits,
+                      pack_dtype, out_dtype, dorefa=False):
     """ Compute convolution with pack on spatial axes. """
     assert data.shape[0].value == 1, "spatial pack convolution only support batch size=1"
     data_q = bitpack(data, in_bits, pack_axis=3, bit_axis=4, pack_type=pack_dtype)
@@ -326,25 +326,25 @@ def spatial_pack_nhwc(data, kernel, stride, padding, in_bits, weight_bits, pack_
     def _conv(n, h, w, co, vh, vw, vc):
         b1b2 = (b1+b2).astype(out_dtype)
         if dorefa:
-            return tvm.sum( 
+            return tvm.sum(
                 (tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
                     kernel_vec[co, dh, dw, ci, vc, b2]) -
                 tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
                     ~kernel_vec[co, dh, dw, ci, vc, b2])).astype(out_dtype) << b1b2,
                 axis=[dh, dw, ci, b1, b2])
-        else:
-            return tvm.sum( 
-                tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                    kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) << b1b2,
-                axis=[dh, dw, ci, b1, b2])
+
+        return tvm.sum(tvm.popcount(
+            data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
+            kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype) << b1b2,
+                       axis=[dh, dw, ci, b1, b2])
 
     conv = tvm.compute(ovshape, _conv, name='conv')
 
     return tvm.compute(oshape, lambda n, h, w, co:
-        conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
-        name='output_unpack', tag='spatial_qconv_nhwc')
+                       conv[n][h//VH][w//VW][co//VC][h%VH][w%VW][co%VC],
+                       name='output_unpack', tag='spatial_bitserial_conv_nhwc')
 
 _SCH_TO_DECL_FUNC_QUANT = {
-    QuantizedSpatialPackNCHW: spatial_pack_nchw,
-    QuantizedSpatialPackNHWC: spatial_pack_nhwc,
+    SpatialPackNCHW: spatial_pack_nchw,
+    SpatialPackNHWC: spatial_pack_nhwc,
 }
