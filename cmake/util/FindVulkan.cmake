@@ -46,5 +46,10 @@ macro(find_vulkan use_vulkan)
     get_filename_component(VULKAN_LIBRARY_PATH ${Vulkan_LIBRARY} DIRECTORY)
     find_library(Vulkan_SPIRV_TOOLS_LIBRARY SPIRV-Tools
       ${VULKAN_LIBRARY_PATH}/spirv-tools)
+
+    find_path(_libspirv libspirv.h HINTS ${Vulkan_INCLUDE_DIRS} PATH_SUFFIXES vulkan spirv-tools)
+    find_path(_spirv spirv.hpp HINTS ${Vulkan_INCLUDE_DIRS} PATH_SUFFIXES vulkan spirv/unified1)
+    find_path(_glsl_std GLSL.std.450.h HINTS ${Vulkan_INCLUDE_DIRS} PATH_SUFFIXES vulkan spirv/unified1)
+    list(APPEND Vulkan_INCLUDE_DIRS ${_libspirv} ${_spirv} ${_glsl_std})
   endif(Vulkan_FOUND)
 endmacro(find_vulkan)

@@ -4,7 +4,7 @@
  * \brief Build SPIRV block
  */
 // Use libspirv for parsing and validating code.
-#include <vulkan/libspirv.h>
+#include <libspirv.h>
 #include <dmlc/memory_io.h>
 #include <tvm/ir_pass.h>
 
