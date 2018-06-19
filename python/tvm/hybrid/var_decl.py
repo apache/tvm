@@ -1,4 +1,5 @@
 """Determines the declaration, r/w status, and last use of each variable"""
+
 import ast
 import sys
 from ._intrin import HYBRID_GLOBALS
