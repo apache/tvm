@@ -1,6 +1,8 @@
 # For lint test
 FROM ubuntu:16.04
 
-RUN apt-get update && apt-get install -y python-pip sudo
+RUN apt-get update && apt-get install -y sudo wget
+COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
+RUN bash /install/ubuntu_install_python.sh
 RUN apt-get install -y doxygen graphviz
-RUN pip install cpplint pylint
+RUN pip3 install cpplint pylint

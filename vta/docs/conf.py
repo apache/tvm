@@ -171,7 +171,7 @@ intersphinx_mapping = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
     'scipy': ('http://docs.scipy.org/doc/scipy/reference', None),
     'matplotlib': ('http://matplotlib.org/', None),
-    'tvm': ('http://docs.tvmlang.org/', None),
+    'tvm': ('https://docs.tvm.ai/', None),
 }
 
 from sphinx_gallery.sorting import ExplicitOrder
@@ -201,7 +201,7 @@ sphinx_gallery_conf = {
     'doc_module': ('vta', 'numpy'),
 'reference_url': {
     'vta': None,
-    'tvm': 'http://docs.tvmlang.org',
+    'tvm': 'https://docs.tvm.ai',
     'matplotlib': 'http://matplotlib.org',
     'numpy': 'http://docs.scipy.org/doc/numpy-1.9.1'},
     'examples_dirs': examples_dirs,
