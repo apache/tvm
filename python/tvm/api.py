@@ -189,7 +189,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
         shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute", tag=""):
+def compute(shape, fcompute, name="compute", tag="", attrs=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -204,6 +204,12 @@ def compute(shape, fcompute, name="compute", tag=""):
 
     name: str, optional
         The name hint of the tensor
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
 
     Returns
     -------
@@ -232,13 +238,13 @@ def compute(shape, fcompute, name="compute", tag=""):
         body = [body]
     body = convert(body)
     op_node = _api_internal._ComputeOp(
-        name, tag, dim_var, body)
+        name, tag, attrs, dim_var, body)
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
 
 
-def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
+def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attrs=None):
     """Construct new tensors by scanning over axis.
 
     Parameters
@@ -258,6 +264,12 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
 
     name: str, optional
         The name hint of the tensor
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
 
     Returns
     -------
@@ -294,7 +306,8 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
-    op = _api_internal._ScanOp(name, tag, axis, init, update,
+    op = _api_internal._ScanOp(name, tag, attrs,
+                               axis, init, update,
                                state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
@@ -307,7 +320,8 @@ def extern(shape,
            dtype=None,
            in_buffers=None,
            out_buffers=None,
-           tag=""):
+           tag="",
+           attrs=None):
     """Compute several tensor via extern function.
 
     Parameters
@@ -344,6 +358,13 @@ def extern(shape,
 
     out_buffers: Buffer or list of Buffers, optional
         Output buffers.
+
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
 
     Returns
     -------
@@ -406,7 +427,8 @@ def extern(shape,
     if isinstance(body, _expr.Expr):
         body = _make.Evaluate(body)
 
-    op = _api_internal._ExternOp(name, tag, inputs, input_placeholders,
+    op = _api_internal._ExternOp(name, tag, attrs,
+                                 inputs, input_placeholders,
                                  output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res

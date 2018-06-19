@@ -7,6 +7,7 @@ Open source code is maintained by a community with diverse backend, and it is ev
 
 Here are some checklists for code reviews, it is also helpful reference for contributors
 
+
 Hold the Highest Standard
 -------------------------
 The first rule for code reviewers is to always keep the highest standard, and do not approve code just to "be friendly". Good, informative critics each other learn and prevents technical debt in early stages.
@@ -46,8 +47,17 @@ Respect each other
 ------------------
 The code reviewers and contributors are paying the most precious currencies in the world -- time. We are volunteers in the community to spend the time to build good code, help each other, learn and have fun hacking.
 
-Approve Changes
----------------
+Learn from other Code Reviews
+-----------------------------
+There can be multiple reviewers reviewing the same changes. Many cases other reviewers
+may spot things you did not find. Try to learn from other code reviews,
+when possible, document these lessons.
+
+Approve and Request Changes Explicitly
+--------------------------------------
 The contributor and code owner can request code reviews from multiple reviewers.
-Code owner can decide if the code can be merged in case by case if some of the reviewers did not respond in time(e.g. a week) and existing reviews are sufficient. 
 Remember to approve changes when your comments are addressed in a code review.
+To do so -- please click on changes tab in the pull request, then select approve,
+or comment on the code and click request changes.
+Code owner can decide if the code can be merged in case by case if some of the reviewers
+did not respond in time(e.g. a week) and existing reviews are sufficient.

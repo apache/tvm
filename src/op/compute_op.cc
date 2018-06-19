@@ -66,7 +66,8 @@ Array<Expr> ComputeOpNode::output_shape(size_t idx) const {
 Tensor compute(Array<Expr> shape,
                FCompute fcompute,
                std::string name,
-               std::string tag) {
+               std::string tag,
+               Map<std::string, NodeRef> attrs) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -80,13 +81,15 @@ Tensor compute(Array<Expr> shape,
     args.push_back(axis.back()->var);
   }
 
-  return ComputeOpNode::make(name, tag, axis, {fcompute(args)}).output(0);
+  return ComputeOpNode::make(
+      name, tag, attrs, axis, {fcompute(args)}).output(0);
 }
 
 Array<Tensor> compute(Array<Expr> shape,
                       FBatchCompute fcompute,
                       std::string name,
-                      std::string tag) {
+                      std::string tag,
+                      Map<std::string, NodeRef> attrs) {
   auto op_node = std::make_shared<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
@@ -100,7 +103,7 @@ Array<Tensor> compute(Array<Expr> shape,
     args.push_back(axis.back()->var);
   }
 
-  Operation op = ComputeOpNode::make(name, tag, axis, fcompute(args));
+  Operation op = ComputeOpNode::make(name, tag, attrs, axis, fcompute(args));
   Array<Tensor> outputs;
   for (int idx = 0; idx < op->num_outputs(); ++idx) {
     outputs.push_back(op.output(idx));
@@ -110,13 +113,15 @@ Array<Tensor> compute(Array<Expr> shape,
 
 Operation ComputeOpNode::make(std::string name,
                               std::string tag,
+                              Map<std::string, NodeRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
   auto n = std::make_shared<ComputeOpNode>();
-  n->name = name;
-  n->tag = tag;
-  n->axis = axis;
-  n->body = body;
+  n->name = std::move(name);
+  n->tag = std::move(tag);
+  n->attrs = std::move(attrs);
+  n->axis = std::move(axis);
+  n->body = std::move(body);
   if (n->body[0]->is_type<ir::Reduce>()) {
     const ir::Reduce* reduce = n->body[0].as<ir::Reduce>();
     n->reduce_axis = reduce->axis;
@@ -171,7 +176,8 @@ Operation ComputeOpNode::ReplaceInputs(
       });
   }
   if (!arr.same_as(this->body)) {
-    return ComputeOpNode::make(name, tag, axis, arr);
+    return ComputeOpNode::make(
+        this->name, this->tag, this->attrs, this->axis, arr);
   } else {
     return self;
   }
