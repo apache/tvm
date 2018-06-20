@@ -43,7 +43,6 @@ class DevContext(object):
     QID_LOAD_OUT = 2
     QID_STORE_OUT = 3
     QID_COMPUTE = 2
-    QID_STORE_INP = 3
 
     def __init__(self, env):
         self.vta_axis = tvm.thread_axis("vta")
@@ -157,6 +156,7 @@ class Environment(object):
         self.acc_dtype = "int%d" % self.ACC_WIDTH
         self.inp_dtype = "int%d" % self.INP_WIDTH
         self.wgt_dtype = "int%d" % self.WGT_WIDTH
+        self.out_dtype = "int%d" % self.OUT_WIDTH
         # lazy cached members
         self.mock_mode = False
         self._mock_env = None
