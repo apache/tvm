@@ -271,6 +271,40 @@ def verify_concatenate_broadcast(shapes, axis, rhs_shape):
     for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
 
+def verify_crop(input_shapes, offsets, h_w, center_crop):
+    inputs = []
+    if len(input_shapes) == 2:
+        oshape = input_shapes[1]
+    else:
+        oshape = (input_shapes[0][0], input_shapes[0][1]) + h_w
+    for i, input_shape in enumerate(input_shapes):
+        inputs.append(tvm.placeholder(input_shape, name="data_%d" % i))
+    out = topi.cpp.crop(inputs, offsets, h_w, center_crop)
+    if center_crop:
+        offsets = ((input_shapes[0][2] - oshape[2]) // 2, (input_shapes[0][3] - oshape[3]) // 2)
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        target = topi.cpp.TEST_create_target(device)
+        if device == "llvm":
+            s = topi.cpp.generic.schedule_injective(target, [out])
+        else:
+            s = topi.cpp.cuda.schedule_injective(target, [out])
+        ctx = tvm.context(device, 0)
+        foo = tvm.build(s, inputs + [out], device, name="crop_like")
+        np_data = [np.random.normal(size=shape).astype(inputs[0].dtype) for shape in input_shapes]
+        nd_data = [tvm.nd.array(data_npy, ctx) for data_npy in np_data]
+        nd_out = tvm.nd.array(np.empty(oshape).astype(inputs[0].dtype), ctx)
+        foo(*(nd_data + [nd_out]))
+        expected_out = np_data[0][:, :, offsets[0]:offsets[0]+oshape[2], offsets[1]:offsets[1]+oshape[3]]
+        np.testing.assert_allclose(nd_out.asnumpy(), expected_out, rtol=1E-4, atol=1E-4)
+
+    for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)
@@ -322,6 +356,12 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
 
+def test_crop():
+    verify_crop([(1, 3, 32, 32), (1, 3, 16, 16)], (0, 0), (0, 0), False)
+    verify_crop([(1, 3, 32, 32), (1, 3, 8, 8)], (2, 3), (0, 0), False)
+    verify_crop([(1, 3, 32, 32)], (3, 5), (9, 9), False)
+    verify_crop([(1, 3, 32, 32), (1, 3, 14, 14)], (3, 5), (1, 1), True)
+
 def test_regression_1():
     verify_concatenate_split([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1, [3, 7])
     verify_concatenate_split([(3, 4), (2, 4), (3, 4)], 0, [1, 2, 3, 4])
@@ -338,5 +378,6 @@ if __name__ == "__main__":
     test_squeeze()
     test_split()
     test_take()
+    test_crop()
     test_regression_1()
     test_regression_2()

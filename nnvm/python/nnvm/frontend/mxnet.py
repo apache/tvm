@@ -237,6 +237,15 @@ def _elemwise_sum(inputs, _):
     new_attrs = {'num_args':len(inputs)}
     return _get_nnvm_op('elemwise_sum')(*inputs, **new_attrs)
 
+def _crop_like(inputs, attrs):
+    new_attrs = {}
+    new_attrs["offsets"] = tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').
+                                 split(',')]) if attrs.get('offsets') is not None else (0, 0)
+    new_attrs["center_crop"] = _parse_bool_str(attrs, 'center_crop', default="False")
+    if len(inputs) < 2:
+        raise RuntimeError("Only support crop_like pattern.")
+    return _get_nnvm_op('crop_like')(inputs[0], inputs[1], **new_attrs)
+
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -265,6 +274,7 @@ _convert_map = {
     'Concat'        : _concat,
     'Convolution'   : _conv2d,
     'Convolution_v1': _conv2d,
+    'Crop'          : _crop_like,
     'Deconvolution' : _conv2d_transpose,
     'Dropout'       : _dropout,
     'Flatten'       : _rename('flatten'),

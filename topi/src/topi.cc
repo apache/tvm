@@ -271,6 +271,11 @@ TVM_REGISTER_GLOBAL("topi.take")
   }
   });
 
+TVM_REGISTER_GLOBAL("topi.crop")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = crop(args[0], args[1], args[2], args[3]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = strided_slice(args[0], args[1], args[2], args[3]);

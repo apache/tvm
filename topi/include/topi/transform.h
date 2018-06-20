@@ -563,5 +563,54 @@ inline Tensor take(const Tensor& a,
         }, name, tag);
 }
 
+/*!
+* \brief Crop the 2nd and 3rd dim of input tensor, with the corresponding size
+* of h_w or with width and height of the second input tensor.
+*
+* \param inputs The input tensors.
+* \param offset Crop offset coordinate.
+* \param h_w Crop height and width. Only used when there is only one input tensors.
+* \param center_crop Whether to center crop.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return Cropped tensor
+*/
+inline Tensor crop(const Array<Tensor>& inputs,
+                   Array<Expr> offset,
+                   Array<Expr> h_w,
+                   bool center_crop = false,
+                   std::string name = "tensor",
+                   std::string tag = kInjective) {
+  const Array<Expr>& ishape = inputs[0]->shape;
+  Array<Expr> oshape;
+  if (inputs.size() > 1) {
+    oshape = inputs[1]->shape;
+  }
+  else {
+    oshape.push_back(ishape[0]);
+    oshape.push_back(ishape[1]);
+    oshape.push_back(h_w[0]);
+    oshape.push_back(h_w[1]);
+  };
+  if (center_crop) {
+    offset.Set(0, (ishape[2] - oshape[2]) / 2);
+    offset.Set(1, (ishape[3] - oshape[3]) / 2);
+  }
+  return compute(
+    oshape, [&](const Array<Var>& out_index) {
+      Array<Expr> in_index;
+      in_index.push_back(out_index[0]);
+      in_index.push_back(out_index[1]);
+      in_index.push_back(out_index[2] + offset[0]);
+      in_index.push_back(out_index[3] + offset[1]);
+      for (int i = 4; i < out_index.size(); ++i) {
+        in_index.push_back(out_index[i]);
+      }
+      return inputs[0](in_index);
+    });
+
+}
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

@@ -5,7 +5,8 @@ from .. import generic, tag
 from .. import nn
 from ..nn.util import infer_pad, infer_stride
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
-                        _get_workload, _get_schedule, Workload
+    _get_workload, _get_schedule, _get_schedule_NCHWc, \
+    _get_alter_layout_schedule, Workload
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
@@ -99,6 +100,13 @@ def _get_schedule_conv(wkl):
     sch = _SCHEDULES_AVX[idx]
     return sch
 
+@_get_schedule_NCHWc.register("cpu")
+def _get_schedule_NCHWc_x86(wkl, layout, out_layout):
+    return _get_schedule_conv(wkl)
+
+@_get_alter_layout_schedule.register("cpu")
+def _get_alter_layout_schedule_x86(wkl):
+    return _get_schedule_conv(wkl)
 
 @conv2d.register("cpu")
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
@@ -139,7 +147,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     stride = ast.literal_eval(attrs['strides'])
 
     wkl = _get_workload(data, kernel, stride, padding, data.dtype)
-    sch = _get_schedule_conv(wkl)
+    sch = _get_alter_layout_schedule(wkl)
     is_kernel_1x1 = isinstance(sch, AVXConv1x1Fwd)
     ic_bn, oc_bn = sch.ic_bn, sch.oc_bn
 

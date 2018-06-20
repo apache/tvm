@@ -320,7 +320,7 @@ inline bool ElemwiseBinaryKeepLeftLayout(const NodeAttrs& attrs,
   .set_attr<nnvm::FInferShape>("FInferShape",                       \
     ElementWiseReduceShape)                                         \
   .set_attr<FCorrectLayout>("FCorrectLayout",                       \
-    ElemwiseFixedLayoutCopyToOut<1, 1>)                             \
+    ElemwiseFixedLayoutCopyToOut<-1, 1>)                             \
   .set_attr<nnvm::FInferType>("FInferType", ElementWiseReduceType)  \
   .add_argument("args", "Symbol[]", "Positional input arguments")
 

@@ -468,6 +468,24 @@ def test_nms():
     out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
     np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
+def test_crop_like():
+    dshape1 = (1, 3, 32, 32)
+    dshape2 = (1, 3, 16, 16)
+    dtype = "float32"
+    offsets = (4, 5)
+    data1 = sym.Variable("data1")
+    data2 = sym.Variable("data2")
+    net = sym.crop_like(data=data1, crop_like_tensor=data2, offsets=offsets)
+    np_data1 = np.random.uniform(size=dshape1).astype(dtype)
+    np_data2 = np.random.uniform(size=dshape2).astype(dtype)
+    np_result = np.array(np_data1[:, :, offsets[0]:offsets[0]+dshape2[2], offsets[1]:offsets[1]+dshape2[3]])
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(net, target, {"data1": dshape1, "data2": dshape2})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input(**{"data1": np_data1, "data2": np_data2})
+        m.run()
+        out = m.get_output(0, tvm.nd.empty(dshape2, "float32"))
+        np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 
 if __name__ == "__main__":
@@ -486,4 +504,5 @@ if __name__ == "__main__":
     test_multibox_prior()
     test_multibox_transform_loc()
     test_nms()
+    test_crop_like()
     print(nnvm.compiler.engine.dump())

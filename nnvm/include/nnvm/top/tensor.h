@@ -259,6 +259,17 @@ struct ClipParam : public dmlc::Parameter<ClipParam> {
   }
 };
 
+struct CropLikeParam : public dmlc::Parameter<CropLikeParam> {
+  Tuple<int> offsets;
+  bool center_crop;
+  DMLC_DECLARE_PARAMETER(CropLikeParam) {
+    DMLC_DECLARE_FIELD(offsets).set_default(Tuple<int>{0, 0})
+      .describe("Crop offset coordinate.");
+    DMLC_DECLARE_FIELD(center_crop).set_default(false)
+    .describe("Whether to center crop.");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 

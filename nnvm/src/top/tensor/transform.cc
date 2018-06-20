@@ -879,5 +879,48 @@ Examples::
     return Array<Tensor>{ topi::flip(inputs[0], param.axis) };
 });
 
+// CropLike
+DMLC_REGISTER_PARAMETER(CropLikeParam);
+
+inline bool CropLikeShape(const nnvm::NodeAttrs& attrs,
+                          std::vector<TShape>* in_attrs,
+                          std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, (*in_attrs)[1]);
+  return true;
+}
+
+NNVM_REGISTER_OP(crop_like)
+.describe(R"code(Crop the 2nd and 3rd dim of input data,
+with width and height of the second input symbol.
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data to be cropped.")
+.add_argument("crop_like_tensor", "Tensor", "Input data to be crop target.")
+.set_num_inputs(2)
+.set_num_outputs(1)
+.add_arguments(CropLikeParam::__FIELDS__())
+.set_attr_parser(ParamParser<CropLikeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<CropLikeParam>)
+.set_attr<FInferShape>("FInferShape", CropLikeShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseBinaryKeepLeftLayout)
+.set_attr<FTVMCompute>(
+"FTVMCompute", [](const NodeAttrs& attrs,
+const Array<Tensor>& inputs,
+const Array<Tensor>& out_info) {
+const CropLikeParam& param = nnvm::get<CropLikeParam>(attrs.parsed);
+Array<Expr> offsets, h_w;
+offsets.push_back(make_const(tvm::Int(32), param.offsets[0]));
+offsets.push_back(make_const(tvm::Int(32), param.offsets[1]));
+h_w.push_back(make_const(tvm::Int(32), 0));
+h_w.push_back(make_const(tvm::Int(32), 0));
+return Array<Tensor>{ topi::crop(inputs, offsets, h_w, param.center_crop) };
+})
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+return std::vector<std::string>{"data", "crop_like_tensor"};
+})
+.set_support_level(4);
+
 }  // namespace top
 }  // namespace nnvm
