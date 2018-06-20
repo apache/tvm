@@ -296,7 +296,7 @@ class DebugAnalyzer(object):
         tensor is the value of the dumped tensor as an numpy.ndarray object.
         The return value of the function is a bool.
         This is the same signature as the input argument to
-        data_dump.DebugDumpDir.find().
+        dbg_dump.DebugDumpDir.find().
 
         Args:
           filter_name: (str) name of the filter. Cannot be empty.
@@ -1268,7 +1268,7 @@ def create_analyzer_ui(debug_dump,
     """Create an instance of CursesUI based on a DebugDumpDir object.
 
     Args:
-      debug_dump: (data_dump.DebugDumpDir) The debug dump to use.
+      debug_dump: (dbg_dump.DebugDumpDir) The debug dump to use.
       tensor_filters: (dict) A dict mapping tensor filter name (str) to tensor
         filter (Callable).
       ui_type: (str) requested UI type, e.g., "curses", "readline".

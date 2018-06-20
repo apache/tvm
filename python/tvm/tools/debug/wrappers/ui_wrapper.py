@@ -14,7 +14,7 @@ from tvm.tools.debug.ui import ui_common
 from tvm.tools.debug.ui import ui_factory
 from tvm.tools.debug.ui.analyzer import analyzer
 from tvm.tools.debug.util import common
-from tvm.tools.debug.util import data_dump
+from tvm.tools.debug.util import debug_dump as dbg_dump
 from tvm.tools.debug.wrappers import ui_framework as framework
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
@@ -232,9 +232,9 @@ class LocalCLIDebugWrapperModule(framework.BaseDebugWrapperModule):
                 # unwrapped Session does.
                 raise request.tvm_error
 
-            debug_dump = data_dump.DebugDumpDir(self._ctx,
-                                                self._dump_root, partition_graphs=partition_graphs)
-
+            debug_dump = dbg_dump.DebugDumpDir(self._ctx,
+                                               self._dump_root,
+                                               partition_graphs=partition_graphs)
             passed_filter = None
             self._prep_debug_cli_for_run_end(
                 debug_dump, request.tvm_error, passed_filter)
@@ -259,7 +259,7 @@ class LocalCLIDebugWrapperModule(framework.BaseDebugWrapperModule):
         """Prepare (but not launch) CLI for run-end, with debug dump from the run.
 
         Args:
-          debug_dump: (data_dump.DebugDumpDir) The debug dump directory from this
+          debug_dump: (dbg_dump.DebugDumpDir) The debug dump directory from this
             run.
           tvm_error: (None or OpError) OpError that happened during the run() call
             (if any).
