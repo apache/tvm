@@ -4,7 +4,7 @@
 // See documents at https://jenkins.io/doc/book/pipeline/jenkinsfile/
 
 // nnvm libraries
-vta_lib = "lib/libvta.so, lib/libvta.so.json"
+vta_lib = "lib/libvta.so, lib/libvta.so.json, config.json"
 vta_lib += ", tvm/build/libtvm.so, tvm/build/libtvm_topi.so, tvm/build/libnnvm_compiler.so"
 
 
