@@ -239,8 +239,9 @@ def _elemwise_sum(inputs, _):
 
 def _crop_like(inputs, attrs):
     new_attrs = {}
-    new_attrs["offsets"] = tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').
-                                 split(',')]) if attrs.get('offsets') is not None else (0, 0)
+    new_attrs["offsets"] = \
+        tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').split(',')]) \
+            if attrs.get('offsets') is not None else (0, 0)
     new_attrs["center_crop"] = _parse_bool_str(attrs, 'center_crop', default="False")
     if len(inputs) < 2:
         raise RuntimeError("Only support crop_like pattern.")
