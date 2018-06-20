@@ -165,7 +165,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
 
 @conv2d_NCHWc.register("cpu")
-def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride, padding, out_dtype):
+def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride,
+                            padding, layout, out_layout, out_dtype):
     _AVX_SCH_TO_DECL_FUNC = {
         AVXConvCommonFwd: conv2d_avx_common._declaration_conv_NCHWc,
         AVXConv1x1Fwd: conv2d_avx_1x1._declaration_conv_NCHWc
@@ -176,7 +177,7 @@ def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride, paddi
     wkl = _get_workload(tvm.placeholder((n, ic, h, w), dtype=out_dtype),
                         tvm.placeholder((num_filter, ic, kh, kw), dtype=out_dtype),
                         stride, padding, out_dtype)
-    sch = _get_schedule(wkl)
+    sch = _get_schedule_NCHWc(wkl, layout, out_layout)
     return _AVX_SCH_TO_DECL_FUNC[type(sch)](wkl, sch, data, kernel)
 
 
@@ -319,7 +320,8 @@ def schedule_conv2d_nhwc(outs):
 
 
 @generic.schedule_conv2d_NCHWc.register(["cpu"])
-def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
+def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding,
+                          layout, out_layout, outs):
     """Create schedule for tensors"""
     _AVX_SCH_TO_SCH_FUNC = {
         AVXConvCommonFwd: conv2d_avx_common._schedule_conv_NCHWc,
@@ -356,7 +358,7 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, outs):
             original_kernel = tvm.placeholder((num_filter, ic, kh, kw), dtype=conv_out.dtype)
 
             wkl = _get_workload(original_data, original_kernel, stride, padding, conv_out.dtype)
-            sch = _get_schedule(wkl)
+            sch = _get_schedule_NCHWc(wkl, layout, out_layout)
             _AVX_SCH_TO_SCH_FUNC[type(sch)](s, wkl, sch, data_vec,
                                             kernel, conv_out, outs[0])
 
