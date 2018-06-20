@@ -1,4 +1,4 @@
-"""Test cuda verifier"""
+"""Test gpu code verifier"""
 import tvm
 
 global valid
@@ -6,7 +6,7 @@ global valid
 def cuda_verify_pass(max_shared_memory, max_num_thread):
     def verify_pass(stmt):
         global valid
-        valid = tvm.ir_pass.VerifyCuda(stmt, max_shared_memory, max_num_thread)
+        valid = tvm.ir_pass.VerifyGPUCode(stmt, max_shared_memory, max_num_thread)
         return stmt
     return verify_pass
 

@@ -1,8 +1,9 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file cuda_verifier.cc
- * \brief Verify the correctness of a cuda IR.
- *        It will check the amount of shared memory and the number of threads in a block
+ * \file verify_gpu_code.cc
+ * \brief Verify the correctness of a GPU IR.
+ *        It will check the whether the amount of shared memory or
+ *        the number of threads in a block exceeds the limit
  */
 
 #include <tvm/api_registry.h>
@@ -12,11 +13,11 @@
 namespace tvm {
 namespace ir {
 
-class CUDAVerifier : public IRVisitor {
+class GPUCodeVerifier : public IRVisitor {
  public:
-  bool verify(tvm::Stmt stmt, size_t max_shared_memory_per_block, size_t max_thread_per_block) {
-    max_shared_memory_per_block_ = max_shared_memory_per_block;
-    max_thread_per_block_ = max_thread_per_block;
+  bool verify(tvm::Stmt stmt, int max_shared_memory_per_block, int max_thread_per_block) {
+    max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
+    max_thread_per_block_ = static_cast<size_t>(max_thread_per_block);
 
     this->Visit(stmt);
 
@@ -103,10 +104,10 @@ class CUDAVerifier : public IRVisitor {
   }
 };
 
-bool VerifyCuda(Stmt stmt,
-                size_t max_shared_memory_per_block,
-                size_t max_thread_per_block) {
-  CUDAVerifier verifier;
+bool VerifyGPUCode(Stmt stmt,
+                   int max_shared_memory_per_block,
+                   int max_thread_per_block) {
+  GPUCodeVerifier verifier;
   return verifier.verify(stmt, max_shared_memory_per_block, max_thread_per_block);
 }
 

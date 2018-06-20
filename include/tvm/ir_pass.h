@@ -479,18 +479,18 @@ bool VerifyMemory(LoweredFunc func, int device_type);
 
 
 /*!
- * \brief Verify the correctness of a cuda ir
+ * \brief Verify the correctness of a GPU code
  *        It will check the whether the amount of shared memory or the number of threads
  *        in a block exceeds the limit
  * \param stmt The statement to be checked
  * \param max_shared_memory_per_block Total amount of shared memory per block (in bytes).
  * \param max_thread_per_block Maximum number of threads per block.
- * \return valid Whether it is a valid cuda ir
+ * \return valid Whether it is a valid GPU code
  *
  */
-bool VerifyCuda(Stmt stmt,
-                size_t max_shared_memory_per_block,
-                size_t max_thread_per_block);
+bool VerifyGPUCode(Stmt stmt,
+                   int max_shared_memory_per_block,
+                   int max_thread_per_block);
 
 
 }  // namespace ir
