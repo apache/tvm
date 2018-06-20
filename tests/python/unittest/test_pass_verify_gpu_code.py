@@ -27,14 +27,17 @@ def test_shared_memory():
     # shared memory usage: M * 4B
     # thread usage: M
 
-    global valid
-    with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(4 * M - 1, M))]}):
-        tvm.build(s, [A, B], 'cuda')
-    assert not valid
+    for target in ['opencl', 'cuda']:
+        if not tvm.context(target).exist:
+            continue
+        global valid
+        with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(4 * M - 1, M))]}):
+            tvm.build(s, [A, B], target)
+        assert not valid
 
-    with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(4 * M, M))]}):
-        tvm.build(s, [A, B], 'cuda')
-    assert valid
+        with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(4 * M, M))]}):
+            tvm.build(s, [A, B], target)
+        assert valid
 
 
 def test_num_thread():
@@ -53,14 +56,17 @@ def test_num_thread():
     # shared memory usage: 0
     # thread usage: N
 
-    global valid
-    with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(0, N - 1))]}):
-        tvm.build(s, [A, B], 'cuda')
-    assert not valid
+    for target in ['opencl', 'cuda']:
+        if not tvm.context(target).exist:
+            continue
+        global valid
+        with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(0, N - 1))]}):
+            tvm.build(s, [A, B], target)
+        assert not valid
 
-    with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(0, N))]}):
-        tvm.build(s, [A, B], 'cuda')
-    assert valid
+        with tvm.build_config(**{"add_lower_pass": [(2, cuda_verify_pass(0, N))]}):
+            tvm.build(s, [A, B], target)
+        assert valid
 
 
 if __name__ == "__main__":
