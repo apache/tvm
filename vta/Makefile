@@ -63,6 +63,7 @@ doc:
 
 clean:
 	$(RM) -rf build lib bin *~ */*~ */*/*~ */*/*/*~ */*.o */*/*.o */*/*/*.o
+	$(RM) -rf cat.jpg quantize_graph.json quantize_params.pkl synset.txt
 
 
 -include build/*.d
