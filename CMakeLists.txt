@@ -201,17 +201,14 @@ endif()
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
 
-# Installation rulse
+
+# Installation rules
+install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_topi DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
-if(WIN32)
-  install(TARGETS nnvm_compiler RUNTIME DESTINATION bin)
-  install(TARGETS nnvm_compiler ARCHIVE DESTINATION lib)
-else()
-  install(TARGETS nnvm_compiler LIBRARY DESTINATION lib)
-endif()
+install(TARGETS nnvm_compiler DESTINATION lib${LIB_SUFFIX})
 
 if (INSTALL_DEV)
-  install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
   install(
     DIRECTORY "include/." DESTINATION "include"
     FILES_MATCHING
