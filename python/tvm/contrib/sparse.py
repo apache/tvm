@@ -168,7 +168,24 @@ float32 = "float32"
 csr = "csr"
 
 class Placeholder(object):
+    """Placeholder class for csr based sparse tensor representation."""
     def __init__(self, shape, dtype, name, stype):
+        """Contructing a bare bone structure for a csr_matrix
+
+        Parameters
+        ----------
+        shape: Tuple of Expr
+            The shape of the tensor
+
+        dtype: str, optional
+            The data type of the tensor
+
+        name: str, optional
+            The name hint of the tensor
+
+        stype: str, optional
+            The storage type of the tensor
+        """
         super(Placeholder, self).__init__()
         self.shape = shape
         self.dtype = dtype
@@ -176,8 +193,8 @@ class Placeholder(object):
         self.stype = stype
         shape = (0,)
         self.data = _api.placeholder(shape, dtype, name+'_data')
-        self.indices = _api.placeholder(shape, dtype, name+'_indices')
-        self.indptr = _api.placeholder(shape, dtype, name+'_indptr')
+        self.indices = _api.placeholder(shape, 'int32', name+'_indices')
+        self.indptr = _api.placeholder(shape, 'int32', name+'_indptr')
 
 def placeholder(shape, dtype=None, name="placeholder", stype=None):
     """Construct an empty tensor object.
@@ -250,5 +267,3 @@ def compute(shape, fcompute, name="compute", tag=""):
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
-
-

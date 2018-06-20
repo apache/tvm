@@ -13,13 +13,11 @@ def test_tensor():
     l = tvm.var('l')
     A = tvmsp.placeholder((m, ), name='A', stype=stype, dtype=dtype)
     B = tvmsp.placeholder((n, ), name='B', stype=stype, dtype=dtype)
-    print(A)
+    print(vars(A))
     assert(A.stype == 'csr')
     assert(B.stype == 'csr')
-    assert(A.data.shape == (0,))
-    assert(A.indices.shape == (0,))
-    assert(A.indptr.shape == (0,))
-    # T = tvmsp.compute((m, n, l), lambda i, j, k: A[i, k] * B[j, k])
+    shape = [0]
+    assert(str(A.data.shape) == str(shape))
 
 if __name__ == "__main__":
     test_tensor()
