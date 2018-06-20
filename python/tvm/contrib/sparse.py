@@ -167,7 +167,7 @@ class ExternOp(Operation):
 float32 = "float32"
 csr = "csr"
 
-class Placeholder(object):
+class Placeholder(PlaceholderOp):
     """Placeholder class for csr based sparse tensor representation."""
     def __init__(self, shape, dtype, name, stype):
         """Contructing a bare bone structure for a csr_matrix
@@ -186,7 +186,7 @@ class Placeholder(object):
         stype: str, optional
             The storage type of the tensor
         """
-        super(Placeholder, self).__init__()
+        super(Placeholder, self).__init__(self)
         self.shape = shape
         self.dtype = dtype
         self.name = name
@@ -267,3 +267,4 @@ def compute(shape, fcompute, name="compute", tag=""):
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
+

@@ -9,10 +9,8 @@ def test_tensor():
     dtype = 'float32'
     stype = 'csr'
     m = tvm.var('m')
-    n = tvm.var('n')
-    l = tvm.var('l')
     A = tvmsp.placeholder((m, ), name='A', stype=stype, dtype=dtype)
-    B = tvmsp.placeholder((n, ), name='B', stype=stype, dtype=dtype)
+    B = tvmsp.placeholder((m, ), name='B', stype=stype, dtype=dtype)
     print(vars(A))
     assert(A.stype == 'csr')
     assert(B.stype == 'csr')
