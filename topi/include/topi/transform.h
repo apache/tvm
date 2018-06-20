@@ -604,7 +604,7 @@ inline Tensor crop(const Array<Tensor>& inputs,
       in_index.push_back(out_index[1]);
       in_index.push_back(out_index[2] + offset[0]);
       in_index.push_back(out_index[3] + offset[1]);
-      for (int i = 4; i < out_index.size(); ++i) {
+      for (uint32_t i = 4; i < out_index.size(); ++i) {
         in_index.push_back(out_index[i]);
       }
       return inputs[0](in_index);
