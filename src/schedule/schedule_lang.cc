@@ -350,15 +350,19 @@ Stage& Stage::parallel(IterVar var) {   // NOLINT(*)
   return *this;
 }
 
-Stage& Stage::pragma(IterVar var, const std::string& pragma_type) {   // NOLINT(*)
+Stage& Stage::pragma(IterVar var,
+                     const std::string& pragma_type,
+                     const Expr& pragma_value) {   // NOLINT(*)
   if (pragma_type == "unroll") {
     this->unroll(var);
   } else if (pragma_type == "vectorize") {
     this->vectorize(var);
   } else {
-    UpdateIterVarAttr(operator->(), var, [pragma_type](IterVarAttrNode* n) {
-        n->pragmas.push_back(ir::StringImm::make(pragma_type));
-      });
+    UpdateIterVarAttr(
+        operator->(), var, [pragma_type, pragma_value](IterVarAttrNode* n) {
+          n->pragma_keys.push_back(ir::StringImm::make(pragma_type));
+          n->pragma_values.push_back(pragma_value);
+        });
   }
   return *this;
 }
@@ -394,6 +398,48 @@ Stage& Stage::double_buffer() {
   StageNode *self = operator->();
   CHECK(!self->is_output) << "Cannot apply double buffer on output";
   self->double_buffer = true;
+  return *this;
+}
+
+Stage& Stage::opengl() {
+  CHECK(!is_scheduled()) << "Must be a fresh schedule";
+  StageNode *self = operator->();
+
+  auto all_iter_vars = self->all_iter_vars;  // curr version of all_iter_vars
+  CHECK(!all_iter_vars.empty()) << "At least one iter var";
+
+  // Fuse all data parallel dimensions to 1.
+  IterVar fused = all_iter_vars[0];
+  for (size_t i = 1; i != all_iter_vars.size(); ++i) {
+    auto iter_var = all_iter_vars[i];
+    switch (iter_var->iter_type) {
+      case IterVarType::kDataPar: {
+        fuse(fused, all_iter_vars[i], &fused);
+        break;
+      }
+      case IterVarType::kThreadIndex: {
+        LOG(ERROR) << "A fresh schedule shouldn't have thread index iter var";
+        break;
+      }
+      case IterVarType::kCommReduce:
+      case IterVarType::kOrdered:
+      case IterVarType::kOpaque: {
+        break;
+      }
+      default: {
+        LOG(ERROR) << "Invalid iter var type "
+                   << IterVarType2String(iter_var->iter_type);
+        break;
+      }
+    }
+  }
+
+  // Bind the only dimension to threadIdx.x.
+  bind(fused, thread_axis(Range(nullptr), "threadIdx.x"));
+
+  // Mark this stage as OpenGL.
+  (*this)->is_opengl = true;
+
   return *this;
 }
 

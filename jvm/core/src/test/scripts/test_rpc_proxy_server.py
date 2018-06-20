@@ -1,8 +1,8 @@
 import time
-from tvm.contrib import rpc_proxy
+from tvm.contrib.rpc import proxy
 
 def start_proxy_server(port, timeout):
-    prox = rpc_proxy.Proxy("localhost", port=port, port_end=port+1)
+    prox = proxy.Proxy("localhost", port=port, port_end=port+1)
     if timeout > 0:
         import time
         time.sleep(timeout)
@@ -17,4 +17,3 @@ if __name__ == "__main__":
     port = int(sys.argv[1])
     timeout = 0 if len(sys.argv) == 2 else float(sys.argv[2])
     start_proxy_server(port, timeout)
-

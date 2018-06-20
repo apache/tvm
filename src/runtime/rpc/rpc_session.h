@@ -116,42 +116,48 @@ class RPCSession {
    * \param from_offset The byte offeset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
-   * \param size The size of the memory.
+   * \param nbytes The size of the memory in bytes.
    * \param ctx_to The target context.
+   * \param type_hint Hint of content data type.
    */
   void CopyToRemote(void* from,
                     size_t from_offset,
                     void* to,
                     size_t to_offset,
-                    size_t size,
-                    TVMContext ctx_to);
+                    size_t nbytes,
+                    TVMContext ctx_to,
+                    TVMType type_hint);
   /*!
    * \brief Copy bytes from remote array content.
    * \param from The source host data.
    * \param from_offset The byte offeset in the from.
    * \param to The target array.
    * \param to_offset The byte offset in the to.
-   * \param size The size of the memory.
+   * \param nbytes The size of the memory in bytes.
    * \param ctx_from The source context.
+   * \param type_hint Hint of content data type.
    */
   void CopyFromRemote(void* from,
                       size_t from_offset,
                       void* to,
                       size_t to_offset,
-                      size_t size,
-                      TVMContext ctx_from);
+                      size_t nbytes,
+                      TVMContext ctx_from,
+                      TVMType type_hint);
   /*!
    * \brief Get a remote timer function on ctx.
    *  This function consumes fhandle, caller should not call Free on fhandle.
    *
    * \param fhandle The function handle.
    * \param ctx The ctx to run measurement on.
-   * \param nstep Number of steps to run.
+   * \param number How many steps to run in each time evaluation
+   * \param repeat How many times to repeat the timer
    * \return A remote timer function
    */
   RPCFuncHandle GetTimeEvaluator(RPCFuncHandle fhandle,
                                  TVMContext ctx,
-                                 int nstep);
+                                 int number,
+                                 int repeat);
   /*!
    * \brief Call a remote defined system function with arguments.
    * \param fcode The function code.
@@ -169,12 +175,15 @@ class RPCSession {
   /*!
    * \brief Create a RPC session with given channel.
    * \param channel The communication channel.
-   * \param name The name of the session, used for debug
-   * \return The session.
+   * \param name The local name of the session, used for debug
+   * \param remote_key The remote key of the session
+   *   if remote_key equals "%toinit", we need to re-intialize
+   *   it by event handler.
    */
   static std::shared_ptr<RPCSession> Create(
       std::unique_ptr<RPCChannel> channel,
-      std::string name);
+      std::string name,
+      std::string remote_key);
   /*!
    * \brief Try get session from the global session table by table index.
    * \param table_index The table index of the session.
@@ -206,15 +215,18 @@ class RPCSession {
   int table_index_{0};
   // The name of the session.
   std::string name_;
+  // The remote key
+  std::string remote_key_;
 };
 
 /*!
  * \brief Wrap a timer function for a given packed function.
  * \param f The function argument.
  * \param ctx The context.
- * \param nstep Number of repeative steps.
+ * \param number Number of steps in the inner iteration
+ * \param repeat How many steps to repeat the time evaluation.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int nstep);
+PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.

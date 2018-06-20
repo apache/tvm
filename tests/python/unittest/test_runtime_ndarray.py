@@ -7,6 +7,7 @@ def enabled_ctx_list():
                 ('cl', tvm.opencl(0)),
                 ('metal', tvm.metal(0)),
                 ('rocm', tvm.rocm(0)),
+                ('vulkan', tvm.vulkan(0)),
                 ('vpi', tvm.vpi(0))]
     for k, v  in ctx_list:
         assert tvm.context(k, 0) == v
@@ -19,7 +20,8 @@ print("Testing using contexts:", ENABLED_CTX_LIST)
 
 def test_nd_create():
     for ctx in ENABLED_CTX_LIST:
-        for dtype in ["float32", "int8", "uint16"]:
+        for dtype in ["uint8", "int8", "uint16", "int16", "uint32", "int32",
+                      "float32"]:
             x = np.random.randint(0, 10, size=(3, 4))
             x = np.array(x, dtype=dtype)
             y = tvm.nd.array(x, ctx=ctx)

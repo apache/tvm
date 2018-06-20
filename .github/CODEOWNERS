@@ -1,0 +1,27 @@
+# Github owner file
+# List of code reviewers for TVM modules
+
+# Global reviewers
+*        @dmlc/tvm-committers
+
+# LLVM backends
+src/codegen/llvm/*          @aatluri
+
+# ROCM runtime
+src/runtime/rocm/*    @aatluri
+
+# SGX support
+src/runtime/sgx/*       @nhynes
+apps/sgx/*              @nhynes
+
+# JVM language
+jvm/*   @yzhliu
+
+# WebGL backends
+src/runtime/opengl/*    @phisiart
+src/codegen/*opengl*    @phisiart
+
+# TOPI
+topi/python/topi/*  @Laurawly @Huyuwei
+
+

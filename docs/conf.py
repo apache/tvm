@@ -25,6 +25,7 @@ from recommonmark.transform import AutoStructify
 curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
 sys.path.insert(0, os.path.join(curr_path, '../python/'))
 sys.path.insert(0, os.path.join(curr_path, '../topi/python'))
+sys.path.insert(0, os.path.join(curr_path, '../nnvm/python'))
 
 # -- General configuration ------------------------------------------------
 
@@ -40,6 +41,7 @@ source_parsers = {
     '.md': CommonMarkParser
 }
 os.environ['TVM_BUILD_DOC'] = '1'
+os.environ['NNVM_BUILD_DOC'] = '1'
 # Version information.
 import tvm
 version = tvm.__version__
@@ -137,6 +139,14 @@ if not on_rtd and html_theme == 'rtd':
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+html_theme_options = {
+    'analytics_id': 'UA-75982049-2',
+    'logo_only': True,
+}
+
+html_logo = "_static/img/tvm-logo-small.png"
+
+
 # Output file base name for HTML help builder.
 htmlhelp_basename = project + 'doc'
 
@@ -179,7 +189,10 @@ gallery_dirs = ['tutorials']
 subsection_order = ExplicitOrder(
     ['../tutorials/language',
      '../tutorials/optimize',
-     '../tutorials/deployment'])
+     '../tutorials/topi',
+     '../tutorials/deployment',
+     '../tutorials/nnvm'])
+
 
 def generate_doxygen_xml(app):
     """Run the doxygen make commands if we're on the ReadTheDocs server"""

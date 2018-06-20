@@ -19,7 +19,9 @@ package ml.dmlc.tvm.tvmrpc;
 
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -86,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
         }
       }
     });
+    enableInputView(true);
   }
 
   @Override
@@ -104,6 +107,13 @@ public class MainActivity extends AppCompatActivity {
     final String key = edAppKey.getText().toString();
 
     tvmServerWorker.connect(proxyHost, proxyPort, key);
+
+    SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
+    SharedPreferences.Editor editor = pref.edit();
+    editor.putString("input_address", proxyHost);
+    editor.putString("input_port", edProxyPort.getText().toString());
+    editor.putString("input_key", key);
+    editor.commit();
   }
 
   private void disconnect() {
@@ -118,5 +128,18 @@ public class MainActivity extends AppCompatActivity {
     edProxyAddress.setEnabled(enable);
     edProxyPort.setEnabled(enable);
     edAppKey.setEnabled(enable);
+
+    if (enable) {
+    SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
+    String inputAddress = pref.getString("input_address", null);
+    if (null != inputAddress)
+        edProxyAddress.setText(inputAddress);
+    String inputPort = pref.getString("input_port", null);
+    if (null != inputPort)
+        edProxyPort.setText(inputPort);
+    String inputKey = pref.getString("input_key", null);
+    if (null != inputKey)
+        edAppKey.setText(inputKey);
+    }
   }
 }

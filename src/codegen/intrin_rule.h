@@ -30,18 +30,14 @@ struct FloatSuffix {
   }
 };
 
-// Add float suffix to the intrinsics
-struct FloatDirect {
+// Return the intrinsic name
+struct Direct {
   std::string operator()(Type t, std::string name) const {
-    if (t.is_float()) {
-      return name;
-    } else {
-      return "";
-    }
+    return name;
   }
 };
 
-// Directly call pure extern function for floats.
+// Call pure extern function.
 template<typename T>
 inline void DispatchExtern(const TVMArgs& args, TVMRetValue* rv) {
   Expr e = args[0];

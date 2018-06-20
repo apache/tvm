@@ -1,0 +1,1 @@
+Thanks for contributing to TVM!   Please refer to guideline https://docs.tvm.ai/contribute/ for useful information and tips. After the pull request is submitted, please request code reviews from others in the community.

@@ -13,12 +13,12 @@ def test_add_pipeline():
     # GPU schedule have to split by gridIdx and threadIdx
     num_thread = 256
     xo, xi = s[C].split(C.op.axis[0], factor=num_thread)
-    s[C].bind(xo, tvm.thread_axis("threadIdx.x"))
-    s[C].bind(xi, tvm.thread_axis("blockIdx.x"))
+    s[C].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[C].bind(xo, tvm.thread_axis("blockIdx.x"))
 
     xo, xi = s[D].split(D.op.axis[0], factor=num_thread)
-    s[D].bind(xo, tvm.thread_axis("threadIdx.x"))
-    s[D].bind(xi, tvm.thread_axis("blockIdx.x"))
+    s[D].bind(xi, tvm.thread_axis("threadIdx.x"))
+    s[D].bind(xo, tvm.thread_axis("blockIdx.x"))
 
     # compile to IR
     s = s.normalize()
@@ -35,11 +35,11 @@ def test_add_pipeline():
     fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
 
     def check_target(device, host="stackvm"):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            return
         if not tvm.module.enabled(host):
             return
-        if not tvm.module.enabled(device):
-            return
-        ctx = tvm.context(device, 0)
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
         mhost.import_module(mdev)
@@ -55,12 +55,12 @@ def test_add_pipeline():
             d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     def check_module_save(device, host="stackvm"):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            return
         if not tvm.module.enabled(host):
             return
-        if not tvm.module.enabled(device):
-            return
-        ctx = tvm.context(device, 0)
-        fmt = "ptx" if device == "cuda" else "cl"
+        fmt = "ptx" if device == "cuda" else device
         mhost = tvm.codegen.build_module(fsplits[0], host)
         mdev = tvm.codegen.build_module(fsplits[1:], device)
         temp = util.tempdir()
@@ -82,7 +82,9 @@ def test_add_pipeline():
     check_target("cuda", host="llvm")
     check_module_save("cuda", host="stackvm")
     check_target("nvptx", host="llvm")
+    check_target("vulkan", host="llvm")
     check_target("rocm", host="llvm")
+    check_module_save("vulkan", host="stackvm")
 
 
 if __name__ == "__main__":

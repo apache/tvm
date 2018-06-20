@@ -51,13 +51,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     BackendPackedCFunc faddr =
         reinterpret_cast<BackendPackedCFunc>(GetFunctionAddr(fname));
     if (faddr == nullptr) return PackedFunc();
-    return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-        int ret = (*faddr)(
-            (void*)args.values, // NOLINT(*)
-            (int*)args.type_codes, // NOLINT(*)
-            args.num_args);
-        CHECK_EQ(ret, 0) << TVMGetLastError();
-      });
+    return WrapPackedFunc(faddr, sptr_to_self);
   }
 
   void SaveToFile(const std::string& file_name,
@@ -68,25 +62,49 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK_EQ(ecode.value(), 0) << "Cannot open file: " << file_name
                                << " " << ecode.message();
     if (fmt == "o" || fmt == "obj") {
+#if TVM_LLVM_VERSION <= 60
       std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+#else
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+#endif
       llvm::legacy::PassManager pass;
       CHECK(tm_);
+#if TVM_LLVM_VERSION <= 60
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_ObjectFile) == 0)
           << "Cannot emit target CGFT_ObjectFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+          << "Cannot emit target CGFT_ObjectFile";
+#endif
       pass.run(*m);
     } else if (fmt == "s" || fmt == "asm") {
+#if TVM_LLVM_VERSION <= 60
       std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+#else
+      std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+#endif
       llvm::legacy::PassManager pass;
       CHECK(tm_);
+#if TVM_LLVM_VERSION <= 60
       CHECK(tm_->addPassesToEmitFile(
           pass, dest, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
           << "Cannot emit target CGFT_AssemblyFile";
+#else
+      CHECK(tm_->addPassesToEmitFile(
+          pass, dest, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+          << "Cannot emit target CGFT_AssemblyFile";
+#endif
       pass.run(*m);
     } else if (fmt == "ll") {
       mptr_->print(dest, nullptr);
     } else if (fmt == "bc") {
+#if TVM_LLVM_VERSION <= 60
       llvm::WriteBitcodeToFile(mptr_, dest);
+#else
+      llvm::WriteBitcodeToFile(*mptr_, dest);
+#endif
     } else {
       LOG(FATAL) << "Do not know how to save file "
                  << file_name << " with format=\'"<< format << "\'";
@@ -99,11 +117,41 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   }
 
   std::string GetSource(const std::string& format) final {
+    std::string fmt = runtime::GetFileFormat("", format);
     std::string type_str;
-    llvm::raw_string_ostream rso(type_str);
-    CHECK(mptr_ != nullptr);
-    mptr_->print(rso, nullptr);
-    return rso.str();
+    llvm::SmallString<256> str;
+    llvm::raw_svector_ostream rso(str);
+
+    if (fmt == "s" || fmt == "asm") {
+    #if TVM_LLVM_VERSION <= 60
+          std::unique_ptr<llvm::Module> m = llvm::CloneModule(mptr_);
+    #else
+          std::unique_ptr<llvm::Module> m = llvm::CloneModule(*mptr_);
+    #endif
+          llvm::legacy::PassManager pass;
+          CHECK(tm_);
+    #if TVM_LLVM_VERSION <= 60
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #else
+          CHECK(tm_->addPassesToEmitFile(
+              pass, rso, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+              << "Cannot emit target CGFT_AssemblyFile";
+    #endif
+          pass.run(*m);
+          return rso.str().str();
+    } else if (fmt == "" || fmt == "ll") {
+      std::string type_str;
+      llvm::raw_string_ostream rso(type_str);
+      CHECK(mptr_ != nullptr);
+      mptr_->print(rso, nullptr);
+      return rso.str();
+    } else {
+      LOG(FATAL) << "Do not know how to get source code with format: "
+                 << format << "\'";
+    }
+    return "";
   }
 
   void Init(const Array<LoweredFunc>& funcs, std::string target) {
@@ -120,6 +168,10 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     }
     cg->AddMainFunction(funcs[0]->name);
     module_ = cg->Finish();
+    module_->addModuleFlag(
+        llvm::Module::Warning, "tvm_target",
+        llvm::MDString::get(*ctx_, target));
+    target_ = target;
     mptr_ = module_.get();
   }
 
@@ -133,11 +185,19 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       LOG(FATAL) << "Fail to load ir file " << file_name << "\n"
                  << "line " << err.getLineNo() << ":" << msg;
     }
-    std::string target = module_->getTargetTriple();
+    std::string target_;
+    llvm::Metadata* mtarget = module_->getModuleFlag("tvm_target");
+    if (mtarget != nullptr) {
+      llvm::MDString* pstr = llvm::dyn_cast<llvm::MDString>(mtarget);
+      CHECK(pstr != nullptr);
+      target_ = pstr->getString();
+    } else {
+      std::ostringstream os;
+      os << "llvm -target " << module_->getTargetTriple();
+      target_ = os.str();
+    }
     mptr_ = module_.get();
-    std::ostringstream os;
-    os << "llvm -target " << target;
-    tm_ = GetLLVMTargetMachine(os.str());
+    tm_ = GetLLVMTargetMachine(target_);
   }
 
  private:
@@ -145,8 +205,19 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     CHECK(ee_ == nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
     llvm::EngineBuilder builder(std::move(module_));
+    std::string triple, mcpu, mattr;
+    llvm::TargetOptions opt;
+    ParseLLVMTargetOptions(target_, &triple, &mcpu, &mattr, &opt);
     builder.setEngineKind(llvm::EngineKind::JIT);
     builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
+    if (mcpu.length() != 0) {
+      builder.setMCPU(mcpu);
+    }
+    if (mattr.length() != 0) {
+      std::vector<std::string> mattrs{mattr};
+      builder.setMAttrs(mattrs);
+    }
+    builder.setTargetOptions(opt);
     llvm::TargetMachine *tm = builder.selectTarget();
     llvm::TargetMachine *tm_sys = GetLLVMTargetMachine("llvm");
     if (tm_sys->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {

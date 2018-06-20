@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import target as _target
 from .. import tag
-from ..nn.conv2d import conv2d, _get_schedule
+from ..nn.conv2d import conv2d as _conv2d, _get_schedule
 from ..nn.conv2d import SpatialPack, Im2ColPack
 from ..nn.conv2d import _WORKLOADS, _SCH_TO_DECL_FUNC
 from ..nn.conv2d import _get_workload
@@ -37,10 +37,36 @@ _SCHEDULES = [
     SpatialPack(2, 2, 8, 1, 8, False),
     Im2ColPack(7, 4, 1, 16, False),
     Im2ColPack(7, 4, 1, 4, True),
+
+    # int8 imagenet
+    SpatialPack(2, 2, 4, 19, 8, False),
+    SpatialPack(2, 2, 8, 1, 4, True),
+    SpatialPack(2, 2, 8, 7, 4, False),
+    SpatialPack(2, 4, 4, 7, 16, False),
+    SpatialPack(1, 7, 4, 14, 4, True),
+    SpatialPack(2, 2, 8, 5, 1, False),
+    SpatialPack(1, 2, 16, 3, 8, True),
+    SpatialPack(1, 7, 4, 1, 16, True),
+    SpatialPack(2, 2, 8, 2, 16, True),
+    SpatialPack(1, 1, 8, 4, 4, True),
+    SpatialPack(1, 1, 4, 1, 8, False),
+    SpatialPack(1, 1, 8, 1, 16, True),
+
+    # int8 mobilenet
+    SpatialPack(2, 2, 8, 8, 1, True),
+    SpatialPack(1, 7, 4, 16, 4, True),
+    SpatialPack(1, 4, 8, 1, 1, True),
+    SpatialPack(1, 4, 8, 1, 1, True),
+    SpatialPack(1, 4, 8, 4, 8, True),
+    SpatialPack(1, 4, 8, 7, 1, True),
+    SpatialPack(1, 2, 8, 2, 32, True),
+    SpatialPack(1, 2, 16, 2, 16, True),
+    SpatialPack(1, 1, 32, 1, 16, False),
+    SpatialPack(1, 1, 16, 1, 32, True),
 ]
 
 @_get_schedule.register("rasp")
-def _schedule_conv2d(wkl):
+def _get_schedule_conv2d(wkl):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
     idx = _WORKLOADS.index(wkl)
@@ -48,8 +74,10 @@ def _schedule_conv2d(wkl):
     return sch
 
 
-@conv2d.register("rasp")
+@_conv2d.register("rasp")
 def _declaration_conv2d(data, kernel, stride, padding, layout, out_dtype):
+    if out_dtype is None:
+        out_dtype = data.dtype
     assert layout == 'NCHW', "only support NCHW convolution on rasp"
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
     wkl = _get_workload(data, kernel, stride, padding, out_dtype)
@@ -281,7 +309,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
     return s
 
 @generic.schedule_conv2d_nchw.register(["rasp"])
-def schedule_conv2d(outs):
+def schedule_conv2d_nchw(outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
 
@@ -300,6 +328,8 @@ def schedule_conv2d(outs):
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[1]
             kernel = kernel_vec.op.input_tensors[0]
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                s[kernel].compute_inline()
             data_vec = conv_out.op.input_tensors[0]
             data = data_vec.op.input_tensors[0]
             data_pad = None

@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name,unused-argument
 """Generic nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
@@ -25,6 +26,50 @@ def schedule_conv2d_nchw(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv2d_nhwc(outs):
+    """Schedule for conv2d_nhwc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of conv2d_nchw
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding, outs):
+    """Schedule for conv2d_NCHW[x]c
+
+    Parameters
+    ----------
+    num_filter: int
+                The number of filter, i.e., the output channel.
+    kernel_size: tuple of int
+                 (kernel_height, kernel_width)
+    strides: tuple of int
+             (stride_of_height, stride_of_width)
+    padding: tuple of int
+             (pad_of_height, pad_of_width)
+    outs: Array of Tensor
+          The computation graph description of conv2d_NCHWc
           in the format of an array of tensors.
 
     Returns
@@ -88,7 +133,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
     return _default_schedule(outs, False)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_reduce")
 def schedule_reduce(outs):
     """Schedule for reduction
 
@@ -106,7 +151,7 @@ def schedule_reduce(outs):
     return _default_schedule(outs, True)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_softmax")
 def schedule_softmax(outs):
     """Schedule for softmax
 
@@ -124,7 +169,7 @@ def schedule_softmax(outs):
     return _default_schedule(outs, False)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_dense")
 def schedule_dense(outs):
     """Schedule for dense
 
@@ -142,7 +187,7 @@ def schedule_dense(outs):
     return _default_schedule(outs, False)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_pool")
 def schedule_pool(outs):
     """Schedule for pool
 
@@ -160,7 +205,7 @@ def schedule_pool(outs):
     return _default_schedule(outs, False)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_global_pool")
 def schedule_global_pool(outs):
     """Schedule for global pool
 
@@ -177,8 +222,7 @@ def schedule_global_pool(outs):
     """
     return _default_schedule(outs, False)
 
-
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_binarize_pack")
 def schedule_binarize_pack(outs):
     """Schedule for binarize_pack
 
@@ -196,7 +240,7 @@ def schedule_binarize_pack(outs):
     return _default_schedule(outs, False)
 
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_binary_dense")
 def schedule_binary_dense(outs):
     """Schedule for binary_dense
 
@@ -204,6 +248,42 @@ def schedule_binary_dense(outs):
     ----------
     outs: Array of Tensor
           The computation graph description of binary_dense
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_lrn(outs):
+    """Schedule for lrn
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of lrn
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_l2norm(outs):
+    """Schedule for l2norm
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of l2norm
           in the format of an array of tensors.
 
     Returns

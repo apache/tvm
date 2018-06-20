@@ -53,6 +53,29 @@ def test_bound3():
     assert(bounds[A1.op.axis[0]].extent.value==32)
     assert(bounds[A1.op.axis[1]].extent.value==16)
 
+
+def test_bound_warp():
+    m = tvm.var('m')
+    l = tvm.var('l')
+    A = tvm.placeholder((m, l), name='A')
+    A1 = tvm.compute((m, l), lambda i, j: A[i, j], name='A1')
+    A2 = tvm.compute((m, l), lambda i, j: A1[i, j] + 3, name='A2')
+
+    s = tvm.create_schedule(A2.op)
+    s[A1].set_scope("warp")
+    xo, xi = s[A2].split(A2.op.axis[0], 32)
+    xi0, xi1 = s[A2].split(xi, factor=16)
+    tx = tvm.thread_axis("threadIdx.x")
+    s[A2].bind(xi1, tx)
+    s[A2].bind(xi0, tvm.thread_axis("threadIdx.y"))
+    y = s[A2].op.axis[1]
+    s[A1].compute_at(s[A2], y)
+    xo, xi = s[A1].split(s[A1].op.axis[0], factor=16)
+    s[A1].bind(xi, tx)
+    bounds = tvm.schedule.InferBound(s)
+    assert isinstance(bounds, tvm.container.Map)
+    assert(bounds[A1.op.axis[0]].extent.value==16)
+
 def test_bound_scan():
     m = tvm.var("m")
     n = tvm.var("n")
@@ -249,3 +272,4 @@ if __name__ == "__main__":
     test_bound_conv1d()
     test_bound2()
     test_gemm_bound()
+    test_bound_warp()

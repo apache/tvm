@@ -16,8 +16,9 @@
 namespace tvm {
 namespace schedule {
 
-using runtime::ThreadScope;
+using runtime::StorageRank;
 using runtime::StorageScope;
+using runtime::ThreadScope;
 
 /*! \brief The graph context used during bound inference. */
 struct GraphContext {
@@ -41,7 +42,16 @@ bool NeedRelax(const IterVar& iv,
   if (tag.length() == 0 || tag == "pipeline") {
     return !found_attach;
   }
-  return scope.rank <= ThreadScope::make(tag).rank;
+  ThreadScope ts = ThreadScope::make(tag);
+
+  // When there is warp memory
+  // threadIdx.x must be set to be warp index.
+  if (scope.rank == StorageRank::kWarp &&
+      ts.rank == 1 &&
+      ts.dim_index == 0) {
+    return true;
+  }
+  return static_cast<int>(scope.rank) <= ts.rank;
 }
 
 // infer storage scope, if not given
@@ -50,16 +60,17 @@ StorageScope InferStorageScope(
   if (stage->scope.length() != 0) {
     return StorageScope::make(stage->scope);
   }
-  int max_rank = 0;
+  int max_rank = -1;
   for (IterVar iv : ctx.attach_path.at(stage->op)) {
     auto it = ctx.bind_map.find(iv);
     const std::string& tag = (
         it != ctx.bind_map.end() ? it->second->thread_tag : iv->thread_tag);
     if (tag != "pipeline" && tag.length() != 0) {
-      max_rank = std::max(max_rank, ThreadScope::make(tag).rank + 1);
+      max_rank = std::max(max_rank, ThreadScope::make(tag).rank);
     }
   }
-  StorageScope s; s.rank = max_rank;
+  StorageScope s;
+  s.rank = runtime::DefaultStorageRank(max_rank);
   return s;
 }
 

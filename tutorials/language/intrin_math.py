@@ -116,7 +116,7 @@ def my_cuda_mylog_rule(op):
     if op.dtype == "float32":
         return tvm.call_pure_extern("float32", "logf", op.args[0])
     elif op.dtype == "float64":
-        return tvm.call_pure_extern("float32", "log", op.args[0])
+        return tvm.call_pure_extern("float64", "log", op.args[0])
     else:
         return op
 tvm.register_intrin_rule("cuda", "mylog", my_cuda_mylog_rule, override=True)

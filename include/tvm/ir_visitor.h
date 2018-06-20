@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_visitor.h
+ * \file tvm/ir_visitor.h
  * \brief Visitor to quickly visit IR trees
  */
 #ifndef TVM_IR_VISITOR_H_

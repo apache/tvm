@@ -1,15 +1,38 @@
+# pylint: disable=redefined-outer-name, invalid-name
 """Start an RPC server"""
 from __future__ import absolute_import
 
-import logging
 import argparse
-import os
-import ctypes
+import multiprocessing
+import sys
+import logging
 from ..contrib import rpc
-from .._ffi.libinfo import find_lib_path
 
-def main():
-    """Main funciton"""
+def main(args):
+    """Main function"""
+
+    if args.tracker:
+        url, port = args.tracker.split(":")
+        port = int(port)
+        tracker_addr = (url, port)
+        if not args.key:
+            raise RuntimeError(
+                "Need key to present type of resource when tracker is available")
+    else:
+        tracker_addr = None
+
+    server = rpc.Server(args.host,
+                        args.port,
+                        args.port_end,
+                        key=args.key,
+                        tracker_addr=tracker_addr,
+                        load_library=args.load_library,
+                        custom_addr=args.custom_addr,
+                        silent=args.silent)
+    server.proc.join()
+
+
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
@@ -17,27 +40,32 @@ def main():
                         help='The port of the PRC')
     parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the PRC')
-    parser.add_argument('--with-executor', type=bool, default=False,
-                        help="Whether to load executor runtime")
+    parser.add_argument('--key', type=str, default="",
+                        help="RPC key used to identify the connection type.")
     parser.add_argument('--load-library', type=str, default="",
                         help="Additional library to load")
+    parser.add_argument('--tracker', type=str, default="",
+                        help="Report to RPC tracker")
+    parser.add_argument('--no-fork', dest='fork', action='store_false',
+                        help="Use spawn mode to avoid fork. This option \
+                         is able to avoid potential fork problems with Metal, OpenCL \
+                         and ROCM compilers.")
+    parser.add_argument('--custom-addr', type=str,
+                        help="Custom IP Address to Report to RPC Tracker")
+    parser.add_argument('--silent', action='store_true',
+                        help="Whether run in silent mode.")
+
+    parser.set_defaults(fork=True)
     args = parser.parse_args()
-
     logging.basicConfig(level=logging.INFO)
-    load_library = [lib for lib in args.load_library.split(":") if len(lib) != 0]
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    apps_path = os.path.join(curr_path, "../../../apps/graph_executor/lib/")
-    libs = []
-    if args.with_executor:
-        load_library += ["libtvm_graph_exec.so"]
-    for file_name in load_library:
-        file_name = find_lib_path(file_name, apps_path)[0]
-        libs.append(ctypes.CDLL(file_name, ctypes.RTLD_GLOBAL))
-        logging.info("Load additional library %s", file_name)
-
-    server = rpc.Server(args.host, args.port, args.port_end)
-    server.libs += libs
-    server.proc.join()
-
-if __name__ == "__main__":
-    main()
+    if args.fork is False:
+        if sys.version_info[0] < 3:
+            raise RuntimeError(
+                "Python3 is required for spawn mode."
+            )
+        multiprocessing.set_start_method('spawn')
+    else:
+        if not args.silent:
+            logging.info("If you are running ROCM/Metal, fork will cause "
+                         "compiler internal error. Try to launch with arg ```--no-fork```")
+    main(args)

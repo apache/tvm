@@ -17,9 +17,9 @@ def rpc_proxy_check():
     """
 
     try:
-        from tvm.contrib import rpc_proxy
+        from tvm.contrib.rpc import proxy
         web_port = 8888
-        prox = rpc_proxy.Proxy("localhost", web_port=web_port)
+        prox = proxy.Proxy("localhost", web_port=web_port)
         def check():
             if not tvm.module.enabled("rpc"):
                 return
@@ -30,7 +30,7 @@ def rpc_proxy_check():
             def addone(name, x):
                 return "%s:%d" % (name, x)
             server = multiprocessing.Process(
-                target=rpc_proxy.websocket_proxy_server,
+                target=proxy.websocket_proxy_server,
                 args=("ws://localhost:%d/ws" % web_port,"x1"))
             # Need to make sure that the connection start after proxy comes up
             time.sleep(0.1)

@@ -13,8 +13,8 @@ namespace runtime {
 
 class SystemLibModuleNode : public ModuleNode {
  public:
-  SystemLibModuleNode() {
-  }
+  SystemLibModuleNode() = default;
+
   const char* type_key() const final {
     return "system_lib";
   }
@@ -23,6 +23,13 @@ class SystemLibModuleNode : public ModuleNode {
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final {
     std::lock_guard<std::mutex> lock(mutex_);
+
+    if (module_blob_ != nullptr) {
+      // If we previously recorded submodules, load them now.
+      ImportModuleBlob(reinterpret_cast<const char*>(module_blob_), &imports_);
+      module_blob_ = nullptr;
+    }
+
     auto it = tbl_.find(name);
     if (it != tbl_.end()) {
       return WrapPackedFunc(
@@ -38,19 +45,22 @@ class SystemLibModuleNode : public ModuleNode {
       void** ctx_addr = reinterpret_cast<void**>(ptr);
       *ctx_addr = this;
     } else if (name == symbol::tvm_dev_mblob) {
-      ImportModuleBlob(reinterpret_cast<const char*>(ptr), &imports_);
+      // Record pointer to content of submodules to be loaded.
+      // We defer loading submodules to the first call to GetFunction().
+      // The reason is that RegisterSymbol() gets called when initializing the
+      // syslib (i.e. library loading time), and the registeries aren't ready
+      // yet. Therefore, we might not have the functionality to load submodules
+      // now.
+      CHECK(module_blob_ == nullptr) << "Resetting mobule blob?";
+      module_blob_ = ptr;
     } else {
       auto it = tbl_.find(name);
-      if (it != tbl_.end()) {
-        if (ptr != it->second) {
-          LOG(WARNING) << "SystemLib symbol " << name
-                       << " get overriden to a different address "
-                   << ptr << "->" << it->second;
-          tbl_[name] = ptr;
-        }
-      } else {
-        tbl_[name] = ptr;
+      if (it != tbl_.end() && ptr != it->second) {
+        LOG(WARNING) << "SystemLib symbol " << name
+                     << " get overriden to a different address "
+                     << ptr << "->" << it->second;
       }
+      tbl_[name] = ptr;
     }
   }
 
@@ -65,6 +75,8 @@ class SystemLibModuleNode : public ModuleNode {
   std::mutex mutex_;
   // Internal symbol table
   std::unordered_map<std::string, void*> tbl_;
+  // Module blob to be imported
+  void* module_blob_{nullptr};
 };
 
 TVM_REGISTER_GLOBAL("module._GetSystemLib")

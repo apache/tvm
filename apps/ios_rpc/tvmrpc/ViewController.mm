@@ -143,7 +143,7 @@
   [outputStream_ scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
   [outputStream_ open];
   [inputStream_ open];
-  handler_ = tvm::runtime::CreateServerEventHandler(outputStream_, key_);
+  handler_ = tvm::runtime::CreateServerEventHandler(outputStream_, key_, "%toinit");
   CHECK(handler_ != nullptr);
   self.infoText.text = @"";
   self.statusLabel.text = @"Connecting...";
@@ -169,7 +169,6 @@
 }
 
 - (IBAction)disconnect:(id)sender {
-
   [self close];
 }
 

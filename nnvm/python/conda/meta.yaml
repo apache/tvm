@@ -1,0 +1,32 @@
+{% set version = "0.1.dev" %}
+
+package:
+  name: nnvm
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  number: 1
+  skip: True  # [win]
+
+requirements:
+  build:
+    - cmake
+    - python >=3
+    - numpy
+    - setuptools
+    - nose
+    - decorator
+  run:
+    - tvm
+    - topi
+    - python >=3
+    - numpy
+    - decorator
+
+about:
+  home: https://github.com/dmlc/nnvm
+  license: Apache2
+  summary: Bring deep learning to bare metal

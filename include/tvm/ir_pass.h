@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir_pass.h
+ * \file tvm/ir_pass.h
  * \brief Collection of IR pass functions
  *
  *  When the pass functions in this file are for Stmt,
@@ -28,7 +28,7 @@ namespace ir {
  * \param vrange The range information about the variable.
  * \return Canonicalized statement.
  */
-Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
+EXPORT Expr Simplify(Expr expr, Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Simplify the statement.
@@ -53,8 +53,8 @@ Stmt CanonicalSimplify(Stmt stmt,
  * \param vrange The range information about the variable.
  * \return Canonicalized expression.
  */
-Expr CanonicalSimplify(Expr expr,
-                       Map<Var, Range> vrange = Map<Var, Range>());
+EXPORT Expr CanonicalSimplify(Expr expr,
+                              Map<Var, Range> vrange = Map<Var, Range>());
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -62,7 +62,7 @@ Expr CanonicalSimplify(Expr expr,
  * \param rhs The right operand
  * \return The comparison result.
  */
-bool Equal(const Expr& lhs, const Expr& rhs);
+EXPORT bool Equal(const Expr& lhs, const Expr& rhs);
 
 /*!
  * \brief Deep compare lhs and rhs
@@ -408,6 +408,29 @@ LoweredFunc ThreadSync(LoweredFunc stmt, std::string storage_scope);
 LoweredFunc LowerThreadAllreduce(LoweredFunc f, int warp_size);
 
 /*!
+ * \brief Lower warp memory in stmt.
+ * \param f The device function to be lowered.
+ * \param warp_size the size of warp where no sync is needed.
+ *        this function will only take in effect if warp_size is bigger than one.
+ * \return Transformed function.
+ */
+LoweredFunc LowerWarpMemory(LoweredFunc f, int warp_size);
+
+/*!
+ * \brief Remap the thread axis
+ *
+ *  This can be used to get equivalent program which uses
+ *  threadIdx.y in place of threadIdx.x by passing
+ *  {"threadIdx.x": thread_axis("threadIdx.y")}
+ *
+ *
+ * \param f The device function to be lowered.
+ * \param axis_map The map from StringImm -> ItrVar
+ * \return Transformed function.
+ */
+LoweredFunc RemapThreadAxis(LoweredFunc f, Map<Expr, IterVar> axis_map);
+
+/*!
  * \brief Lower packed function call.
  * \param f The function to be lowered.
  * \return Transformed function.
@@ -422,12 +445,38 @@ LoweredFunc LowerTVMBuiltin(LoweredFunc f);
 LoweredFunc CombineContextCall(LoweredFunc f);
 
 /*!
+ * \brief Rewrite the pointer content type of arguments,
+ *  as well as Alloc internal to the function to use
+ *  the most frequently accessed type for load/store
+ *  to avoid pointer casting in backend when possible.
+ *
+ * \note implemeneted in storage_rewrite.cc
+ * \param f The function to be trasnformed
+ * \return Transformed function.
+ */
+LoweredFunc PointerValueTypeRewrite(LoweredFunc f);
+
+/*!
  * \brief Lower intrinsic function calls.
  * \param f The device function to be lowered.
  * \param target The target device.
  * \return Transformed function.
  */
 LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
+
+/*!
+ * \brief Verify if memory accesses are legal for a specific target device type.
+ *
+ *  In the case that tgt is cuda, if not all workload is bound with
+ *  threads, CPU code is generated that tries to access GPU memory,
+ *  which is illegal. This pass performs verification for this case.
+ *
+ * \param func The function to be verified.
+ * \param device_type The target device type.
+ * \return Success of memory verification.
+ */
+bool VerifyMemory(LoweredFunc func, int device_type);
+
 }  // namespace ir
 }  // namespace tvm
 

@@ -2,12 +2,13 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_opencl.cc
  */
-#include <tvm/runtime/config.h>
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
 #include "./codegen_opencl.h"
+#include "./build_common.h"
 #include "../runtime/thread_storage_scope.h"
+#include "../runtime/opencl/opencl_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -157,7 +158,8 @@ void CodeGenOpenCL::PrintVecStore(const Variable* buffer,
 void CodeGenOpenCL::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "warp") {
-    LOG(FATAL) << "warp sync not supported in opencl";
+    this->PrintIndent();
+    this->stream << "sub_group_barrier(CLK_LOCAL_MEM_FENCE);\n";
   } else if (sync == "shared") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -175,6 +177,22 @@ void CodeGenOpenCL::PrintStorageScope(
   }
 }
 
+std::string CodeGenOpenCL::CastFromTo(std::string value, Type from, Type target) {
+  if (from == target) return value;
+  std::ostringstream os;
+  if (target.lanes() == 1) {
+    os << "((";
+    this->PrintType(target, os);
+    os << ")" << value << ")";
+  } else {  // convert vector type
+    os << "(";
+    os << "convert_";
+    this->PrintType(target, os);
+    os << "(" << value << "))";
+  }
+  return os.str();
+}
+
 void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLINT(*)
   std::string v = PrintExpr(op->value);
   os << "((";
@@ -186,5 +204,26 @@ void CodeGenOpenCL::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOL
   }
   os << "))";
 }
+
+
+runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
+  using tvm::runtime::Registry;
+  bool output_ssa = false;
+  CodeGenOpenCL cg;
+  cg.Init(output_ssa);
+  for (LoweredFunc f : funcs) {
+    cg.AddFunction(f);
+  }
+  std::string code = cg.Finish();
+  if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
+    code = (*f)(code).operator std::string();
+  }
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
+}
+
+TVM_REGISTER_API("codegen.build_opencl")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildOpenCL(args[0]);
+  });
 }  // namespace codegen
 }  // namespace tvm

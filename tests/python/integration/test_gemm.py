@@ -2,6 +2,7 @@ import tvm
 import numpy as np
 import time
 
+
 def test_gemm():
     # graph
     nn = 1024
@@ -64,13 +65,14 @@ def test_gemm():
 
     # one line to build the function.
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("skip because %s is not enabled.." % device)
             return
 
         with tvm.target.create(device):
             f = tvm.build(s, [A, B, C])
-        ctx = tvm.context(device, 0)
+
         # launch the kernel.
         n = nn
         m = n
@@ -86,12 +88,12 @@ def test_gemm():
         np.testing.assert_allclose(
             c.asnumpy(), np.dot(a_np, b_np.T), rtol=1e-5)
 
+    check_device("vulkan")
     check_device("nvptx -mcpu=sm_20")
     check_device("rocm")
     check_device("metal")
     check_device("opencl")
     check_device("cuda")
-    #check_device("nvptx -mcpu=sm_20")
 
 if __name__ == "__main__":
     test_gemm()

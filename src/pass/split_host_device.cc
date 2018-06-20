@@ -146,6 +146,11 @@ class IRUseDefAnalysis : public IRMutator {
 
 class HostDeviceSplitter : public IRMutator {
  public:
+  Stmt Mutate_(const Allocate* op, const Stmt& s) final {
+    handle_data_type_[op->buffer_var.get()] = make_const(op->type, 0);
+    return IRMutator::Mutate_(op, s);
+  }
+
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope) {
@@ -191,9 +196,6 @@ class HostDeviceSplitter : public IRMutator {
         auto it = handle_data_type_.find(v.get());
         if (it != handle_data_type_.end()) {
           n->handle_data_type.Set(v, it->second);
-        } else {
-          // int32 as a placeholder
-          n->handle_data_type.Set(v, make_const(UInt(32), 0));
         }
       }
     }

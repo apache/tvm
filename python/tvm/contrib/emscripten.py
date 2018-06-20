@@ -1,7 +1,9 @@
 """Util to invoke emscripten compilers in the system."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
+
 import subprocess
+from .._ffi.base import py_str
 from .._ffi.libinfo import find_lib_path
 
 def create_js(output,
@@ -58,5 +60,7 @@ def create_js(output,
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
+
+create_js.object_format = "bc"

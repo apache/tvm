@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file c_dsl_api.h
+ * \file tvm/c_dsl_api.h
  *
  * \brief TVM DSL Node C API, used to interact to DSL compilation.
  *
@@ -17,7 +17,7 @@
 #include "./runtime/c_runtime_api.h"
 
 #ifdef __cplusplus
-TVM_EXTERN_C {
+extern "C" {
 #endif
 
 /*! \brief handle to node */

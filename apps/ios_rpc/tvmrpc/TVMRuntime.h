@@ -31,9 +31,12 @@ using FEventHandler = std::function<int(const std::string& in_bytes, int event_f
  *
  * \param outputStream The output stream used to send outputs.
  * \param name The name of the server.
+ * \param remote_key The remote key
  * \return The event handler.
  */
-FEventHandler CreateServerEventHandler(NSOutputStream *outputStream, std::string name);
+FEventHandler CreateServerEventHandler(NSOutputStream *outputStream,
+                                       std::string name,
+                                       std::string remote_key);
 
 }  // namespace runtime
 }  // namespace tvm

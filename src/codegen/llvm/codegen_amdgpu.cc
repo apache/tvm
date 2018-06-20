@@ -4,13 +4,13 @@
  * \brief AMDGPU code generator.
  */
 #ifdef TVM_LLVM_VERSION
-#if TVM_ROCM_RUNTIME
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/registry.h>
 #include "./codegen_llvm.h"
 #include "../build_common.h"
+#include "../codegen_source_base.h"
 #include "../../pass/ir_util.h"
 #include "../../runtime/rocm/rocm_module.h"
 
@@ -44,7 +44,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       if (info.alignment > 16) {
         info.alignment = 16;
       }
-      if (info.scope.rank == 2) {
+      if (info.scope.rank == runtime::StorageRank::kLocal) {
         // const int local_address_space = 5;
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = builder_->CreateAlloca(
@@ -54,7 +54,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        CHECK_EQ(info.scope.rank, 1)
+        CHECK(info.scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
@@ -102,7 +102,6 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   llvm::Value* CreateStorageSync(const Call* op) final {
     const std::string& sync = op->args[0].as<StringImm>()->value;
     if (sync == "warp") {
-      // TODO(tqchen) warp sync in CUDA9
       return nullptr;
     } else if (sync == "shared") {
       llvm::Function* f = llvm::Intrinsic::getDeclaration(
@@ -131,19 +130,27 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-inline int DetectROCMComputeVersion() {
+inline int DetectROCMComputeVersion(const std::string& target) {
+  size_t pos = target.find("=gfx");
+  if (pos != std::string::npos) {
+    int value;
+    std::stringstream is(target.substr(pos + 4));
+    if (is >> value) return value;
+  }
   TVMContext tvm_ctx;
   tvm_ctx.device_type = kDLROCM;
   tvm_ctx.device_id = 0;
-  TVMRetValue val;
-  tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(
-      tvm_ctx, tvm::runtime::kExist, &val);
-  if (val.operator int() == 1) {
-    tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
-    return val.operator int();
-  } else {
-    return 803;
+  tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_ctx, true);
+  if (api != nullptr) {
+    TVMRetValue val;
+    api->GetAttr(tvm_ctx, tvm::runtime::kExist, &val);
+    if (val.operator int() == 1) {
+      tvm::runtime::DeviceAPI::Get(tvm_ctx)->GetAttr(tvm_ctx, tvm::runtime::kComputeVersion, &val);
+      return val.operator int();
+    }
   }
+  LOG(WARNING) << "Cannot find -mcpu to specify rocm compute version assume gfx803";
+  return 803;
 }
 
 runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
@@ -151,7 +158,7 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
         target.substr(0, 4) == "rocm");
   std::ostringstream config;
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
-         << DetectROCMComputeVersion()
+         << DetectROCMComputeVersion(target)
          << target.substr(4, target.length() - 4);
   llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
@@ -189,20 +196,37 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   dest_ll.SetUnbuffered();
   destAsm.SetUnbuffered();
   module->print(dest_ll, nullptr);
+#if TVM_LLVM_VERSION <= 60
   std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(module.get());
   std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(module.get());
+#else
+  std::unique_ptr<llvm::Module> mAsm = llvm::CloneModule(*module.get());
+  std::unique_ptr<llvm::Module> mObj = llvm::CloneModule(*module.get());
+#endif
   llvm::legacy::PassManager pass;
 
+#if TVM_LLVM_VERSION <= 60
   CHECK(tm->addPassesToEmitFile(
             pass, destObj, llvm::TargetMachine::CGFT_ObjectFile) == 0)
             << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+            pass, destObj, nullptr, llvm::TargetMachine::CGFT_ObjectFile) == 0)
+            << "Cannot emit target CGFT_ObjectFile";
+#endif
   pass.run(*mObj);
   std::string obj(dataObj.begin(), dataObj.end());
 
   llvm::legacy::PassManager passAsm;
+#if TVM_LLVM_VERSION <= 60
   CHECK(tm->addPassesToEmitFile(passAsm, destAsm,
                                 llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_AssemblyFile";
+#else
+  CHECK(tm->addPassesToEmitFile(passAsm, destAsm, nullptr,
+                                llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_AssemblyFile";
+#endif
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
@@ -215,7 +239,6 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
 
   std::string hsaco = (*f)(arr);
   std::string ll(data_ll.begin(), data_ll.end());
-
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(funcs), ll, assembly);
 }
 
@@ -226,5 +249,4 @@ TVM_REGISTER_API("codegen.build_rocm")
 
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_ROCM_RUNTIME
 #endif  // TVM_LLVM_VERSION

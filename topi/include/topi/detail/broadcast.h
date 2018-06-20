@@ -12,6 +12,7 @@
 
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
+#include "topi/detail/constant_utils.h"
 
 namespace topi {
 namespace detail {
@@ -32,15 +33,15 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   int i;
   for (i = 1; i <= std::min(s1_size, s2_size); ++i) {
     bh.all_vars.push_front(tvm::Var());
-    if (tvm::ir::Equal(shape1[s1_size - i], shape2[s2_size - i])) {
+    if (topi::detail::EqualCheck(shape1[s1_size - i], shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
       bh.vars2.push_front(bh.all_vars[0]);
-    } else if (tvm::ir::Equal(one, shape1[s1_size - i])) {
-      CHECK(!tvm::ir::Equal(one, shape2[s2_size - i]));
+    } else if (topi::detail::EqualCheck(one, shape1[s1_size - i])) {
+      CHECK(!topi::detail::EqualCheck(one, shape2[s2_size - i]));
       bh.common_shape.push_front(shape2[s2_size - i]);
       bh.vars2.push_front(bh.all_vars[0]);
-    } else if (tvm::ir::Equal(one, shape2[s2_size - i])) {
+    } else if (topi::detail::EqualCheck(one, shape2[s2_size - i])) {
       bh.common_shape.push_front(shape1[s1_size - i]);
       bh.vars1.push_front(bh.all_vars[0]);
     } else {
@@ -55,7 +56,7 @@ inline BroadcastHelper BroadcastShape(const tvm::Array<tvm::Expr>& shape1,
   auto max_size = std::max(s1_size, s2_size);
   auto& shape = (s1_size > s2_size) ? shape1 : shape2;
   auto& vars = (s1_size > s2_size) ? bh.vars1 : bh.vars2;
-  for (i = i; i <= max_size; ++i) {
+  for (; i <= max_size; ++i) {
     bh.all_vars.push_front(tvm::Var());
     bh.common_shape.push_front(shape[max_size - i]);
     vars.push_front(bh.all_vars[0]);
@@ -69,10 +70,10 @@ inline tvm::Array<tvm::Expr> InputIndexFromBroadcast(
   tvm::Array<tvm::Expr> ivars;
   CHECK_EQ(ovars.size(), all_vars.size());
   // N^2, could use a map but NBD..
-  int expected_dims = T->shape.size();
-  for (int i = 0; i < ovars.size(); ++i) {
+  size_t expected_dims = T->shape.size();
+  for (size_t i = 0; i < ovars.size(); ++i) {
     bool found = false;
-    for (int j = 0; j < my_vars.size(); ++j) {
+    for (size_t j = 0; j < my_vars.size(); ++j) {
     if (all_vars[i].same_as(my_vars[j])) {
         ivars.push_back(ovars[i]);
         found = true;

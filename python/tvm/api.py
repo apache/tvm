@@ -8,7 +8,7 @@ from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
 from ._ffi.node import convert_to_node as _convert_to_node
 from ._ffi.function import Function
-from ._ffi.function import _init_api, register_func, get_global_func
+from ._ffi.function import _init_api, register_func, get_global_func, extract_ext_funcs
 from ._ffi.function import convert_to_tvm_func as _convert_tvm_func
 from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
@@ -19,6 +19,7 @@ from . import schedule as _schedule
 from . import container as _container
 from . import tag as _tag
 
+int8 = "int8"
 int32 = "int32"
 float32 = "float32"
 handle = "handle"
@@ -188,7 +189,7 @@ def placeholder(shape, dtype=None, name="placeholder"):
         shape, dtype, name)
 
 
-def compute(shape, fcompute, name="compute", tag=""):
+def compute(shape, fcompute, name="compute", tag="", attrs=None):
     """Construct a new tensor by computing over the shape domain.
 
     The compute rule is result[axis] = fcompute(axis)
@@ -203,6 +204,12 @@ def compute(shape, fcompute, name="compute", tag=""):
 
     name: str, optional
         The name hint of the tensor
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
 
     Returns
     -------
@@ -231,13 +238,13 @@ def compute(shape, fcompute, name="compute", tag=""):
         body = [body]
     body = convert(body)
     op_node = _api_internal._ComputeOp(
-        name, tag, dim_var, body)
+        name, tag, attrs, dim_var, body)
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
 
 
-def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
+def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attrs=None):
     """Construct new tensors by scanning over axis.
 
     Parameters
@@ -257,6 +264,12 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
 
     name: str, optional
         The name hint of the tensor
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
 
     Returns
     -------
@@ -293,13 +306,22 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag=""):
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
     axis = _IterVar((init[0].shape[0], update[0].shape[0]), "%s.idx" % name, 3)
-    op = _api_internal._ScanOp(name, tag, axis, init, update,
+    op = _api_internal._ScanOp(name, tag, attrs,
+                               axis, init, update,
                                state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
 
 
-def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
+def extern(shape,
+           inputs,
+           fcompute,
+           name="extern",
+           dtype=None,
+           in_buffers=None,
+           out_buffers=None,
+           tag="",
+           attrs=None):
     """Compute several tensor via extern function.
 
     Parameters
@@ -331,6 +353,19 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
         The data types of outputs,
         by default dtype will be same as inputs.
 
+    in_buffers: Buffer or list of Buffer, optional
+        Input buffers.
+
+    out_buffers: Buffer or list of Buffers, optional
+        Output buffers.
+
+
+    tag: str, optional
+        Additonal tag information about the compute.
+
+    attrs: dict, optional
+        The additional auxiliary attributes about the compute.
+
     Returns
     -------
     tensor: Tensor or list of Tensors
@@ -356,14 +391,25 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
         tag = _tag.TagScope.current.tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
-    input_placeholders = []
-    output_placeholders = []
+    if in_buffers is not None:
+        in_buffers = [in_buffers] if not isinstance(in_buffers, list) else in_buffers
+        if len(inputs) != len(in_buffers):
+            raise RuntimeError("Number of inputs and in_buffers mismatch: %d vs %d."
+                               % (len(inputs), len(in_buffers)))
+    if out_buffers is not None:
+        out_buffers = [out_buffers] if not isinstance(out_buffers, list) else out_buffers
+        if len(shape) != len(out_buffers):
+            raise RuntimeError("Number of outputs and out_buffers mismatch: %d vs %d."
+                               % (len(shape), len(out_buffers)))
+    input_placeholders = in_buffers or []
+    output_placeholders = out_buffers or []
     types = set()
     for t in inputs:
         if not isinstance(t, _tensor.Tensor):
             raise ValueError("expect inputs to be tensor")
-        input_placeholders.append(
-            decl_buffer(t.shape, t.dtype, t.op.name))
+        if in_buffers is None:
+            input_placeholders.append(
+                decl_buffer(t.shape, t.dtype, t.op.name))
         types.add(t.dtype)
 
     if dtype is None:
@@ -374,13 +420,15 @@ def extern(shape, inputs, fcompute, name="extern", dtype=None, tag=""):
     if isinstance(dtype, str):
         dtype = [dtype]
 
-    for shp, dt in zip(shape, dtype):
-        output_placeholders.append(decl_buffer(shp, dt, name))
+    if out_buffers is None:
+        for shp, dt in zip(shape, dtype):
+            output_placeholders.append(decl_buffer(shp, dt, name))
     body = fcompute(input_placeholders, output_placeholders)
     if isinstance(body, _expr.Expr):
         body = _make.Evaluate(body)
 
-    op = _api_internal._ExternOp(name, tag, inputs, input_placeholders,
+    op = _api_internal._ExternOp(name, tag, attrs,
+                                 inputs, input_placeholders,
                                  output_placeholders, body)
     res = [op.output(i) for i in range(len(output_placeholders))]
     return res[0] if len(res) == 1 else res
@@ -550,13 +598,16 @@ def reduce_axis(dom, name="rv"):
 
 
 def select(cond, t, f):
-    """Construct a select branch
+    """Construct a select branch.
+
     Parameters
     ----------
     cond : Expr
         The condition
+
     t : Expr
         The result expression if cond is true.
+
     f : Expr
         The result expression if cond is false.
 
@@ -566,6 +617,7 @@ def select(cond, t, f):
         The tvm.expr.Select node
     """
     return _make.Select(convert(cond), convert(t), convert(f))
+
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
     """Create a commutative reducer for reduction.
@@ -651,6 +703,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
                         for i in range(size))
         return outputs[0] if size == 1 else outputs
 
+    # pylint: disable=keyword-arg-before-vararg
     def reducer(expr, axis, where=None, *args):
         if isinstance(axis, (_schedule.IterVar, list, tuple)):
             assert not args

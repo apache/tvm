@@ -1,5 +1,6 @@
 import tvm
 import topi
+import topi.testing
 import numpy as np
 from tvm.contrib.pickle_memoize import memoize
 from scipy import signal
@@ -32,11 +33,11 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
     schedule = schedule_depthwise_conv2d_backward_weight_nhwc(Weight_grad)
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        ctx = tvm.context(device, 0)
         # build the kernel
         f = tvm.build(schedule, [Input, Out_grad, Weight_grad], device)
         # prepare pod type for test data closure
@@ -78,6 +79,7 @@ def verify_depthwise_conv2d_back_weight(batch, in_channel, in_h, channel_multipl
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("vulkan")
 
 def test_topi_depthwise_conv2d_backward_weight_nhwc():
     verify_depthwise_conv2d_back_weight(16, 256, 56, 1, 3, 1, 1)

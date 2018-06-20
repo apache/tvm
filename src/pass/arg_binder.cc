@@ -194,6 +194,9 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   init_nest_.emplace_back(LetStmt::make(
       v_strides, TVMArrayGet(Handle(), handle, intrinsic::kArrStrides),
       nop));
+  Expr is_null = Call::make(
+    Bool(1), intrinsic::tvm_handle_is_null,
+    {v_strides}, Call::PureIntrinsic);
   if (buffer->strides.size() == 0) {
     // Assert the buffer is compact
     Type stype = buffer->DefaultIndexType();
@@ -215,13 +218,14 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
       Stmt check =
           AssertStmt::make(arith::ComputeReduce<ir::And>(conds, Expr()),
                            stride_err_msg.str(), Evaluate::make(0));
-      Expr is_null = Call::make(
-          Bool(1), intrinsic::tvm_handle_is_null,
-          {v_strides}, Call::PureIntrinsic);
       check = IfThenElse::make(Not::make(is_null), check, Stmt());
       init_nest_.emplace_back(Block::make(check, Evaluate::make(0)));
     }
   } else {
+    std::ostringstream stride_null_err_msg;
+    stride_null_err_msg << arg_name << ".strides: expected non-null strides.";
+    asserts_.emplace_back(AssertStmt::make(Not::make(is_null), stride_null_err_msg.str(), nop));
+
     for (size_t k = 0; k < buffer->strides.size(); ++k) {
       std::ostringstream field_name;
       field_name << v_strides->name_hint << '[' << k << ']';

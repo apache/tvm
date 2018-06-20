@@ -3,10 +3,8 @@
  * \file rocm_device_api.cc
  * \brief GPU specific API
  */
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/device_api.h>
 
-#if TVM_ROCM_RUNTIME
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
@@ -44,20 +42,28 @@ class ROCMDeviceAPI final : public DeviceAPI {
         value = 64;
         break;
       }
-      case kComputeVersion:
+      case kMaxSharedMemoryPerBlock: return;
+      case kComputeVersion: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, ctx.device_id));
         *rv = prop.gcnArch;
         return;
+      }
+      case kDeviceName: return;
+      case kMaxClockRate: return;
+      case kMultiProcessorCount: return;
     }
     *rv = value;
   }
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final {
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t nbytes,
+                       size_t alignment,
+                       TVMType type_hint) final {
     ROCM_CALL(hipSetDevice(ctx.device_id));
     CHECK_EQ(256 % alignment, 0U)
         << "ROCM space is aligned at 256 bytes";
     void *ret;
-    ROCM_CALL(hipMalloc(&ret, size));
+    ROCM_CALL(hipMalloc(&ret, nbytes));
     return ret;
   }
 
@@ -73,6 +79,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final {
     hipStream_t hip_stream = static_cast<hipStream_t>(stream);
     from = static_cast<const char*>(from) + from_offset;
@@ -107,7 +114,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
         ->stream = static_cast<hipStream_t>(stream);
   }
 
-  void* AllocWorkspace(TVMContext ctx, size_t size) final {
+  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
     return ROCMThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
 
@@ -153,4 +160,3 @@ TVM_REGISTER_GLOBAL("device_api.rocm")
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_ROCM_RUNTIME

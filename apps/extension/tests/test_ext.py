@@ -44,8 +44,14 @@ def test_ext_vec():
 
     tvm.convert(ivec_cb)(ivec)
 
+def test_extract_ext():
+    fdict = tvm.extract_ext_funcs(tvm_ext._LIB.TVMExtDeclare)
+    assert fdict["mul"](3, 4) == 12
+
+
 if __name__ == "__main__":
     test_ext_dev()
     test_ext_vec()
     test_bind_add()
     test_sym_add()
+    test_extract_ext()

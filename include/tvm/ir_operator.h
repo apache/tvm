@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file ir_operator.h
+ * \file tvm/ir_operator.h
  * \brief Common operators of Expr
  */
 #ifndef TVM_IR_OPERATOR_H_
@@ -45,13 +45,21 @@ TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
-    return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureExtern); \
+    return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureIntrinsic); \
   }                                                                     \
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(tanh);
 TVM_DECLARE_INTRIN_UNARY(sigmoid);
 TVM_DECLARE_INTRIN_UNARY(sqrt);
+TVM_DECLARE_INTRIN_UNARY(log);
+TVM_DECLARE_INTRIN_UNARY(floor);
+TVM_DECLARE_INTRIN_UNARY(ceil);
+
+inline Expr pow(Expr x, Expr y) {
+  return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);
+}
+
 }  // namespace tvm
 
 #endif  // TVM_IR_OPERATOR_H_

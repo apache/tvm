@@ -96,14 +96,18 @@ class BuiltinLower : public IRMutator {
                                     {op->buffer_var}, Call::PureIntrinsic),
                          throw_last_error),
         op->body);
-    Stmt alloca = LetStmt::make(op->buffer_var,
-                                Call::make(op->buffer_var.type(),
-                                           "TVMBackendAllocWorkspace",
-                                           {cast(Int(32), device_type_),
-                                                 cast(Int(32), device_id_),
-                                                 cast(UInt(64), total_bytes)},
-                                           Call::Extern),
-                                body);
+
+    Stmt alloca = LetStmt::make(
+        op->buffer_var,
+        Call::make(op->buffer_var.type(),
+                   "TVMBackendAllocWorkspace",
+                   {cast(Int(32), device_type_),
+                    cast(Int(32), device_id_),
+                    cast(UInt(64), total_bytes),
+                    IntImm::make(Int(32), op->type.code()),
+                    IntImm::make(Int(32), op->type.bits())},
+                   Call::Extern),
+        body);
 
     Expr free_op = Call::make(Int(32),
                               "TVMBackendFreeWorkspace",

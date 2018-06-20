@@ -37,7 +37,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         DLDataType dtype
         int64_t* shape
         int64_t* strides
-        uint64_t byte_offset;
+        uint64_t byte_offset
 
     ctypedef struct TVMValue:
         int64_t v_int64
@@ -64,8 +64,8 @@ ctypedef int (*TVMPackedCFunc)(
 ctypedef void (*TVMPackedCFuncFinalizer)(void* resource_handle)
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
-    void TVMAPISetLastError(const char* msg);
-    const char *TVMGetLastError();
+    void TVMAPISetLastError(const char* msg)
+    const char *TVMGetLastError()
     int TVMFuncCall(TVMFunctionHandle func,
                     TVMValue* arg_values,
                     int* type_codes,
@@ -128,7 +128,7 @@ cdef inline c_str(pystr):
 
 cdef inline CALL(int ret):
     if ret != 0:
-        raise TVMError(TVMGetLastError())
+        raise TVMError(py_str(TVMGetLastError()))
 
 
 cdef inline object ctypes_handle(void* chandle):

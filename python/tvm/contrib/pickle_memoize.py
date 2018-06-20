@@ -5,6 +5,7 @@ import sys
 import atexit
 from decorator import decorate
 from .._ffi.base import string_types
+
 try:
     import cPickle as pickle
 except ImportError:
@@ -79,7 +80,6 @@ def memoize(key):
                 else:
                     assert isinstance(arg, allow_types)
             if key in cache.cache:
-                print("Use memoize {0}{1}".format(fkey, key))
                 return cache.cache[key]
             res = func(*args)
             cache.cache[key] = res

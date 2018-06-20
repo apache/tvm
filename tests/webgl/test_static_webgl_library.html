@@ -1,0 +1,55 @@
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>TVM RPC Test Page</title>
+</head>
+
+<body>
+  <h1>TVM Test Page</h1>
+  <div id="log"></div>
+  <canvas id="canvas"></canvas>
+  <script>
+    var Module = {};
+    Module["canvas"] = document.getElementById("canvas");
+  </script>
+  <script src="identity_static.js"></script>
+  <script src="tvm_runtime.js"></script>
+  <script>
+    var tvm = tvm_runtime.create(Module);
+    tvm.logger = function (message) {
+      console.log(message);
+      var d = document.createElement("div");
+      d.innerHTML = message;
+      document.getElementById("log").appendChild(d);
+    };
+
+    function randomArray(length, max) {
+      return Array.apply(null, Array(length)).map(function () {
+        return Math.random() * max;
+      });
+    }
+
+    setTimeout(function () {
+      this.syslib = tvm.systemLib();
+      this.identity = this.syslib.getFunction("identity");
+
+      this.n = 16;
+      this.a = randomArray(this.n, 1);
+      this.ctx = tvm.context("opengl", 0);
+      this.A = tvm.empty(this.n, "float32", ctx).copyFrom(this.a);
+      this.B = tvm.empty(this.n, "float32", ctx);
+      identity(this.A, this.B);
+
+      this.a = this.A.asArray();
+      this.b = this.B.asArray();
+      for (var i = 0; i < n; ++i) {
+        tvm.assert(this.a[i] == this.b[i]);
+      }
+      this.identity.release();
+    }, 1000);
+
+  </script>
+</body>
+
+</html>

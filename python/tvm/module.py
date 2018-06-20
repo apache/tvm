@@ -1,13 +1,14 @@
 """Container of compiled functions of TVM."""
 from __future__ import absolute_import as _abs
 
+import struct
 from collections import namedtuple
 
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
 from .contrib import cc as _cc, tar as _tar, util as _util
 
-ProfileResult = namedtuple("ProfileResult", ["mean"])
+ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
 
 
 class Module(ModuleBase):
@@ -83,6 +84,8 @@ class Module(ModuleBase):
 
         fcompile : function(target, file_list, kwargs), optional
             Compilation function to use create dynamic library.
+            If fcompile has attribute object_format, will compile host library
+            to that format. Otherwise, will use default format "o".
 
         kwargs : dict, optiona;
             Additional arguments passed to fcompile
@@ -94,7 +97,11 @@ class Module(ModuleBase):
         if self.type_key != "llvm":
             raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
         temp = _util.tempdir()
-        path_obj = temp.relpath("lib.o")
+        if fcompile is not None and hasattr(fcompile, "object_format"):
+            object_format = fcompile.object_format
+        else:
+            object_format = "o"
+        path_obj = temp.relpath("lib." + object_format)
         self.save(path_obj)
         files = [path_obj]
         is_system_lib = self.get_function("__tvm_is_system_module")()
@@ -110,7 +117,7 @@ class Module(ModuleBase):
                 fcompile = _cc.create_shared
         fcompile(file_name, files, **kwargs)
 
-    def time_evaluator(self, func_name, ctx, number):
+    def time_evaluator(self, func_name, ctx, number, repeat=1):
         """Get an evaluator that measures time cost of running function.
 
         Parameters
@@ -122,11 +129,15 @@ class Module(ModuleBase):
             The context we should run this function on.
 
         number: int
-            The number of repeative times to run evaluation.
+            The number of steps used in measuring each time interval
+
+        repeat: int, optional
+            Number of times to run the timer measurement
+            If repeat equals 3, then we will get 3 numbers in the ProfileResult.
 
         Note
         ----
-        The function will be invoked number + 1 times,
+        The function will be invoked  repeat * number + 1 times,
         with the first call discarded in case there is lazy initialization.
 
         Returns
@@ -137,13 +148,16 @@ class Module(ModuleBase):
         """
         try:
             feval = _RPCTimeEvaluator(
-                self, func_name, ctx.device_type, ctx.device_id, number)
+                self, func_name, ctx.device_type, ctx.device_id, number, repeat)
 
             def evaluator(*args):
                 """Internal wrapped evaluator."""
                 # Wrap feval so we can add more stats in future.
-                mean = feval(*args)
-                return ProfileResult(mean=mean)
+                blob = feval(*args)
+                fmt = "@" + ("d" * repeat)
+                results = struct.unpack(fmt, blob)
+                mean = sum(results) / float(repeat)
+                return ProfileResult(mean=mean, results=results)
 
             return evaluator
         except NameError:
@@ -172,7 +186,7 @@ def system_lib():
 
 
 def load(path, fmt=""):
-    """Load module from file
+    """Load module from file.
 
     Parameters
     ----------
@@ -187,7 +201,24 @@ def load(path, fmt=""):
     -------
     module : Module
         The loaded module
+
+    Note
+    ----
+    This function will automatically call
+    cc.create_shared if the path is in format .o or .tar
     """
+    # High level handling for .o and .tar file.
+    # We support this to be consistent with RPC module load.
+    if path.endswith(".o"):
+        _cc.create_shared(path + ".so", path)
+        path += ".so"
+    elif path.endswith(".tar"):
+        tar_temp = _util.tempdir()
+        _tar.untar(path, tar_temp.temp_dir)
+        files = [tar_temp.relpath(x) for x in tar_temp.listdir()]
+        _cc.create_shared(path + ".so", files)
+        path += ".so"
+    # Redirect to the load API
     return _LoadFromFile(path, fmt)
 
 

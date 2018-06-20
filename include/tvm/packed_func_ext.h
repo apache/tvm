@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file packed_func_ext.h
+ * \file tvm/packed_func_ext.h
  * \brief Extension package to PackedFunc
  *   This enales pass NodeRef types into/from PackedFunc.
  */
@@ -57,6 +57,25 @@ struct NodeTypeChecker<Array<T> > {
     os << "array<";
     NodeTypeChecker<T>::PrintName(os);
     os << ">";
+  }
+};
+
+template<typename V>
+struct NodeTypeChecker<Map<std::string, V> > {
+  static inline bool Check(Node* sptr) {
+    if (sptr == nullptr) return false;
+    if (!sptr->is_type<StrMapNode>()) return false;
+    StrMapNode* n = static_cast<StrMapNode*>(sptr);
+    for (const auto& kv : n->data) {
+      if (!NodeTypeChecker<V>::Check(kv.second.get())) return false;
+    }
+    return true;
+  }
+  static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
+    os << "map<string";
+    os << ',';
+    NodeTypeChecker<V>::PrintName(os);
+    os << '>';
   }
 };
 

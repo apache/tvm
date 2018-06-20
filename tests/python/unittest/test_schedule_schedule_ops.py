@@ -20,6 +20,7 @@ def test_schedule1():
 
     s = tvm.create_schedule(A1.op)
     xo, xi = s[A1].split(A1.op.axis[0], 8)
+    s[A1].pragma(xo, "auto_unroll_max_step", 10)
     bounds = tvm.schedule.InferBound(s)
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -248,10 +249,37 @@ def test_schedule_cache_relayout3():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+def test_schedule_cache_relayout4():
+    def _compute(*indice):
+        return A(*indice) + 1, B(*indice) / 2
+    m = tvm.var('m')
+    n = tvm.var('n')
+    A = tvm.placeholder((m*4, n), name='A')
+    B = tvm.placeholder((m*4, n), name='B')
+    C1, C2 = tvm.compute(A.shape, _compute, name='C')
+    s = tvm.create_schedule([C1.op, C2.op])
+    C1_cache, C2_cache = s.cache_write([C1, C2], "local")
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
+def test_schedule_bound_condition():
+   A = tvm.placeholder((64,), name='A', dtype="float32")
+   Apad = tvm.compute((66,), lambda i: tvm.select(tvm.all(i>0, i < 65), A[i-1], tvm.const(0.)), name='Apad')
+   Apad2 = tvm.compute((66,), lambda i: Apad[i]*2, name='Apad2')
+   s = tvm.create_schedule(Apad2.op)
+   AL1 = s.cache_read(A,"local",[Apad])
+   s = s.normalize()
+   bounds = tvm.schedule.InferBound(s)
+   stmt = tvm.schedule.ScheduleOps(s, bounds)
+   stmt = tvm.ir_pass.Simplify(stmt)
+   assert (isinstance(stmt.body.body.first.body.body.then_case, tvm.stmt.IfThenElse))
 
 if __name__ == "__main__":
     test_schedule_middle_cache()
     test_inline_multi_reduce()
+    test_schedule_cache_relayout4()
     test_schedule_cache_relayout3()
     test_schedule_cache_relayout2()
     test_schedule_cache_relayout1()
@@ -265,3 +293,4 @@ if __name__ == "__main__":
     test_schedule1()
     test_schedule2()
     test_schedule_cache()
+    test_schedule_bound_condition()

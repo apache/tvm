@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 
 import tvm
 
-@tvm.target.generic_func
+@tvm.target.override_native_generic_func("schedule_injective")
 def schedule_injective(outs):
     """Schedule for injective op.
 

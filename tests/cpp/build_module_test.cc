@@ -27,11 +27,14 @@ TEST(BuildModule, Basic) {
   auto args = Array<Tensor>({ A, B, C });
   std::unordered_map<Tensor, Buffer> binds;
 
-  BuildConfig config;
+  auto config = build_config();
   auto target = target::llvm();
 
   auto lowered = lower(s, args, "func", binds, config);
-  auto module = build(lowered, target, nullptr, config);
+  auto module = build(lowered, target, Target(), config);
+
+  auto mali_target = Target::create("opencl -model=Mali-T860MP4@800Mhz -device=mali");
+  CHECK_EQ(mali_target->str(), "opencl -model=Mali-T860MP4@800Mhz -device=mali"); 
 }
 
 

@@ -6,7 +6,6 @@
 #ifndef TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 #define TVM_RUNTIME_CUDA_CUDA_MODULE_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/module.h>
 #include <memory>
 #include <vector>

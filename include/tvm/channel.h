@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file channel.h
+ * \file tvm/channel.h
  * \brief Channel object for pipeline.
  */
 #ifndef TVM_CHANNEL_H_

@@ -9,13 +9,13 @@ def verify_broadcast_to_ele(in_shape, out_shape):
     A = tvm.placeholder(shape=in_shape, name="A")
     B = topi.broadcast_to(A, out_shape)
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(B)
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B], device, name="broadcast_to")
         data_npy = np.random.uniform(size=in_shape).astype(A.dtype)
         out_npy = np.broadcast_to(data_npy, out_shape)
@@ -25,6 +25,7 @@ def verify_broadcast_to_ele(in_shape, out_shape):
             foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
+    check_device("vulkan")
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
@@ -50,13 +51,13 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
     else:
         raise NotImplementedError
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(C)
-        ctx = tvm.context(device, 0)
         foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
         lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
         rhs_npy = np.random.uniform(size=rhs_shape).astype(A.dtype)
@@ -82,6 +83,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
             foo(lhs_nd, rhs_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
+    check_device("vulkan")
     check_device("opencl")
     check_device("cuda")
     check_device("metal")
@@ -105,5 +107,5 @@ def test_broadcast_binary():
 
 
 if __name__ == "__main__":
-    test_broadcast_to()
     test_broadcast_binary()
+    test_broadcast_to()

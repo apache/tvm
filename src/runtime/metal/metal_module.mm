@@ -2,16 +2,13 @@
  *  Copyright (c) 2017 by Contributors
  * \file metal_module.cc
  */
-#include "./metal_module.h"
-
-#if TVM_METAL_RUNTIME
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/module.h>
 #include <array>
 #include <string>
 #include <mutex>
+#include "./metal_module.h"
 #include "./metal_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
@@ -82,14 +79,24 @@ class MetalModuleNode final :public runtime::ModuleNode {
     NSError* err_msg = nil;
     if (e.lib == nil) {
       if (fmt_ == "metal") {
+        MTLCompileOptions *opts = [MTLCompileOptions alloc];
+        // Use the Metal 1.2 for now.
+        opts.languageVersion = MTLLanguageVersion1_2;
+        opts.fastMathEnabled = YES;
+        // opts = nil;
         e.lib = [
             w->devices[device_id]
              newLibraryWithSource:[NSString stringWithUTF8String:data_.c_str()]
-             options:nil
+             options:opts
              error:&err_msg];
-        if (err_msg != nil || e.lib == nil) {
+        [opts dealloc];
+        if (e.lib == nil) {
           LOG(FATAL) << "Fail to compile metal lib:"
                      << [[err_msg localizedDescription] UTF8String];
+        }
+        if (err_msg != nil) {
+          LOG(INFO) << "Warning: "
+                    << [[err_msg localizedDescription] UTF8String];
         }
       } else {
         // Build from library.
@@ -205,7 +212,7 @@ class MetalWrappedFunc {
     MTLSize dimGrid = MTLSizeMake(
         wl.grid_dim(0), wl.grid_dim(1), wl.grid_dim(2));
     MTLSize dimBlock = MTLSizeMake(
-        wl.block_dim(0), wl.block_dim(1), wl.work_size[2]);
+        wl.block_dim(0), wl.block_dim(1), wl.block_dim(2));
     [encoder dispatchThreadgroups: dimGrid
              threadsPerThreadgroup: dimBlock];
     [encoder endEncoding];
@@ -294,4 +301,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_metal")
   });
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_METAL_RUNTIME

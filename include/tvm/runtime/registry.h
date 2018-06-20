@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file registry.h
+ * \file tvm/runtime/registry.h
  * \brief This file defines the TVM global function registry.
  *
  *  The registered functions will be made available to front-end
@@ -76,7 +76,7 @@ class Registry {
   // Internal class.
   struct Manager;
 
- private:
+ protected:
   /*! \brief name of the function */
   std::string name_;
   /*! \brief internal packed function */

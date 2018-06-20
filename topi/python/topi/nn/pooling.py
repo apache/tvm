@@ -1,56 +1,67 @@
 """TVM operator pooling compute."""
 from __future__ import absolute_import
-import tvm
-from .pad import pad
-from .util import get_pad_tuple
-from .. import util
-from .. import tag
+from .. import cpp
 
+POOL_TYPE_CODE = {
+    "avg": 0,
+    "max": 1
+}
 
-def global_pool(data, pool_type):
-    """Perform global pooling on the data
+def global_pool(data, pool_type, layout="NCHW"):
+    """Perform global pooling on height and width dimension of data.
+       It decides the height and width dimension according to the layout string,
+       in which 'W' and 'H' means width and height respectively.
+       Width and height dimension cannot be split.
+       For example, NCHW, NCHW16c, etc. are valid for pool,
+       while NCHW16w, NCHW16h are not.
+       See parameter `layout` for more information of the layout string convention.
 
     Parameters
     ----------
     data : tvm.Tensor
-        4-D with shape [batch, channel, in_height, in_width]
+        n-D with shape of layout
 
     pool_type : str
         Pool type, 'max' or 'avg'
 
+    layout : str
+        Layout of the input data.
+        The layout is supposed to be composed of upper cases, lower cases and numbers,
+        where upper case indicates a dimension and
+        the corresponding lower case with factor size indicates the split dimension.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block],
+        in which channel_block=16 is a split of dimension channel.
+
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, channel, 1, 1]
+        n-D in same layout with height and width dimension size of 1.
+        e.g., for NCHW, the output shape will be [batch, channel, 1, 1]
     """
-    assert len(data.shape) == 4, "only support 4-dim pooling"
-    batch, channel, height, width = data.shape
-
-    dheight = tvm.reduce_axis((0, height))
-    dwidth = tvm.reduce_axis((0, width))
-
-    if pool_type == 'max':
-        return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-                            tvm.max(data[n, c, dheight, dwidth], axis=[dheight, dwidth]), \
-                            tag="global_pool_max")
-    elif pool_type == 'avg':
-        tsum = tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-                            tvm.sum(data[n, c, dheight, dwidth], axis=[dheight, dwidth]), \
-                            tag="global_pool_sum")
-        return tvm.compute((batch, channel, 1, 1), lambda n, c, h, w: \
-                            tsum[n, c, h, w] / (height*width).astype(tsum.dtype), \
-                            tag=tag.ELEMWISE)
-    else:
-        raise ValueError("Pool type should be 'avg' or 'max'.")
+    return cpp.nn.global_pool(data, POOL_TYPE_CODE[pool_type], layout)
 
 
-def pool(data, kernel, stride, padding, pool_type, ceil_mode=False):
-    """Perform pooling on the data
+def pool(data,
+         kernel,
+         stride,
+         padding,
+         pool_type,
+         ceil_mode=False,
+         layout="NCHW",
+         count_include_pad=True):
+    """Perform pooling on height and width dimension of data.
+       It decides the height and width dimension according to the layout string,
+       in which 'W' and 'H' means width and height respectively.
+       Width and height dimension cannot be split.
+       For example, NCHW, NCHW16c, etc. are valid for pool,
+       while NCHW16w, NCHW16h are not.
+       See parameter `layout` for more information of the layout string convention.
 
     Parameters
     ----------
     data : tvm.Tensor
-        4-D with shape [batch, channel, in_height, in_width]
+        n-D with shape of layout
 
     kernel : list/tuple of two ints
         Kernel size, [kernel_height, kernel_width]
@@ -67,53 +78,22 @@ def pool(data, kernel, stride, padding, pool_type, ceil_mode=False):
     ceil_mode : bool
         Whether to use ceil when caculate output size.
 
+    layout: string
+        Layout of the input data.
+        The layout is supposed to be composed of upper cases, lower cases and numbers,
+        where upper case indicates a dimension and
+        the corresponding lower case with factor size indicates the split dimension.
+        For example, NCHW16c can describe a 5-D tensor of
+        [batch_size, channel, height, width, channel_block],
+        in which channel_block=16 is a split of dimension channel.
+
+    count_include_pad: bool
+        Whether include padding in the calculation when pool_type is 'avg'
+
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, channel, out_height, out_width]
+        n-D in the same layout
     """
-    assert len(data.shape) == 4, "only support 4-dim pooling"
-    assert len(stride) == 2, "only support 2-dim stride"
-    kernel_height, kernel_width = kernel
-    stride_height, stride_width = stride
-    batch, channel, height, width = data.shape
-
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (kernel_height, kernel_width))
-
-    if ceil_mode:
-        # Additional padding to ensure we do ceil instead of floor when divide stride.
-        pad_down += stride_height -1
-        pad_right += stride_width - 1
-
-    pad_before = [0, 0, pad_top, pad_left]
-    pad_after = [0, 0, pad_down, pad_right]
-
-    out_height = util.simplify((height - kernel_height + pad_top + pad_down) // stride_height + 1)
-    out_width = util.simplify((width - kernel_width + pad_left + pad_right) // stride_width + 1)
-
-    dheight = tvm.reduce_axis((0, kernel_height))
-    dwidth = tvm.reduce_axis((0, kernel_width))
-
-    if pool_type == 'max':
-        temp = pad(data, pad_before, pad_after, name="pad_temp", \
-            pad_value=tvm.min_value(data.dtype))
-        return tvm.compute((batch, channel, out_height, out_width), \
-                            lambda n, c, h, w: \
-                            tvm.max(temp[n, c, h*stride_height+dheight, w*stride_width+dwidth], \
-                                axis=[dheight, dwidth]), \
-                            tag="pool_max")
-    elif pool_type == 'avg':
-        temp = pad(data, pad_before, pad_after, name="pad_temp", \
-            pad_value=tvm.const(0.).astype(data.dtype))
-        tsum = tvm.compute((batch, channel, out_height, out_width), \
-                            lambda n, c, h, w: \
-                            tvm.sum(temp[n, c, h*stride_height+dheight, w*stride_width+dwidth], \
-                                axis=[dheight, dwidth]), \
-                            tag="pool_avg")
-        return tvm.compute((batch, channel, out_height, out_width), \
-                            lambda n, c, h, w: \
-                            tsum[n, c, h, w] / (kernel_height*kernel_width), \
-                            tag=tag.ELEMWISE)
-    else:
-        raise ValueError("Pool type should be 'avg' or 'max'.")
+    return cpp.nn.pool(data, kernel, stride, padding,
+                       POOL_TYPE_CODE[pool_type], ceil_mode, layout, count_include_pad)

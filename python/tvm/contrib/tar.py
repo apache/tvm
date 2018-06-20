@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from . import util
+from .._ffi.base import py_str
 
 def tar(output, files):
     """Create tarball containing all files in root.
@@ -38,7 +39,7 @@ def tar(output, files):
 
     if proc.returncode != 0:
         msg = "Tar error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)
 
 
@@ -64,5 +65,5 @@ def untar(tar_file, directory):
 
     if proc.returncode != 0:
         msg = "Tar error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)

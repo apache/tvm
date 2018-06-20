@@ -4,6 +4,7 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/serializer.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
 #include <numeric>
@@ -57,14 +58,18 @@ class GraphRuntime : public ModuleNode {
   }
   /*!
    * \brief Initialize the graph executor with graph and context.
-   * \param graph The execution graph.
+   * \param graph_json The execution graph.
    * \param module The module containing the compiled functions.
    * \param ctx The context where the graph should sit on
    */
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
             TVMContext ctx) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
     std::istringstream is(graph_json);
+#else
+    std::string is = graph_json;
+#endif
     dmlc::JSONReader reader(&is);
     this->Load(&reader);
     module_ = module;
@@ -84,18 +89,28 @@ class GraphRuntime : public ModuleNode {
         return static_cast<int>(i);
       }
     }
-    LOG(FATAL) << "cannot find " << name << " among input";
+    LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
     return -1;
   }
   /*!
    * \brief set index-th input to the graph.
    * \param index The input index.
-   * \param data The input data.
+   * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
     TVM_CCALL(TVMArrayCopyFromTo(data_in, &data_entry_[eid], nullptr));
+  }
+  /*!
+   * \brief Copy index-th input to data_out
+   * \param index The input index.
+   * \param data_out The output
+   */
+  void GetInput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+    uint32_t eid = this->entry_id(input_nodes_[index], 0);
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
   /*!
    * \brief Copy index-th output to data_out.
@@ -107,7 +122,44 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = this->entry_id(outputs_[index]);
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
+#ifdef TVM_GRAPH_RUNTIME_DEBUG
+  /*!
+   * \brief Get the node index given the name of node.
+   * \param name The name of the node.
+   * \return The index of node.
+   */
+  int GetNodeIndex(const std::string& name) {
+    for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
+      if (nodes_[nid].name == name) {
+        return static_cast<int>(nid);
+      }
+    }
+    LOG(FATAL) << "cannot find " << name << " among nodex";
+    return -1;
+  }
 
+  /*!
+   * \brief Copy index-th node to data_out.
+   *
+   * This method will do a partial run of the the graph
+   * from begining upto the index-th node and return output of index-th node.
+   * This is costly operation and suggest to use only for debug porpose.
+   *
+   * \param index: The  index of the node.
+   * \param data_out the node data.
+   */
+  void DebugGetNodeOutput(int index, DLTensor* data_out) {
+    CHECK_LT(static_cast<size_t>(index), nodes_.size());
+    uint32_t eid = index;
+
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) op_execs_[i]();
+      if (static_cast<int>(i) == index) break;
+    }
+
+    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+  }
+#endif
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
@@ -161,27 +213,19 @@ class GraphRuntime : public ModuleNode {
       std::string key, value;
       reader->BeginObject();
       while (reader->NextObjectItem(&key)) {
+        reader->Read(&value);
         if (key == "func_name") {
-          reader->Read(&value);
           param->func_name = value;
           bitmask |= 1;
         } else if (key == "num_inputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_inputs;
+          param->num_inputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 2;
         } else if (key == "num_outputs") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->num_outputs;
+          param->num_outputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 4;
         } else if (key == "flatten_data") {
-          reader->Read(&value);
-          std::istringstream is(value);
-          is >> param->flatten_data;
+          param->flatten_data = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 8;
-        } else {
-          reader->Read(&value);
         }
       }
       CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
@@ -354,24 +398,25 @@ class GraphRuntime : public ModuleNode {
 
 
 void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
+  // always use strm->Read to maintain endianness conversion
   uint64_t header, reserved;
-  CHECK(strm->Read(&header, sizeof(header)))
+  CHECK(strm->Read(&header))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&reserved, sizeof(reserved)))
+  CHECK(strm->Read(&reserved))
       << "Invalid DLTensor file format";
   CHECK(header == kTVMNDArrayMagic)
       << "Invalid DLTensor file format";
 
   DLTensor tensor;
-  CHECK(strm->Read(&tensor.ctx, sizeof(tensor.ctx)))
+  CHECK(strm->Read(&(tensor.ctx)))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&tensor.ndim, sizeof(tensor.ndim)))
+  CHECK(strm->Read(&(tensor.ndim)))
       << "Invalid DLTensor file format";
-  CHECK(strm->Read(&tensor.dtype, sizeof(tensor.dtype)))
+  CHECK(strm->Read(&(tensor.dtype)))
       << "Invalid DLTensor file format";
   std::vector<int64_t> shape(tensor.ndim);
   if (tensor.ndim != 0) {
-    CHECK(strm->Read(&shape[0], sizeof(int64_t) * tensor.ndim))
+    CHECK(strm->ReadArray(&shape[0], tensor.ndim))
         << "Invalid DLTensor file format";
   }
   CHECK_EQ(tensor.ndim, dst->ndim) << "param dimension mismatch";
@@ -382,18 +427,23 @@ void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
     CHECK_EQ(shape[i], dst->shape[i]) << "param shape mismatch";
   }
   size_t bits = dst->dtype.bits * dst->dtype.lanes;
-  size_t size = (bits + 7) / 8;
+  size_t elem_bytes = (bits + 7) / 8;
+  size_t num_elems = 1;
   for (int i = 0; i < dst->ndim; ++i) {
-    size *= dst->shape[i];
+    num_elems *= dst->shape[i];
   }
-  int64_t data_byte_size;
-  CHECK(strm->Read(&data_byte_size, sizeof(data_byte_size)))
+  uint64_t data_byte_size;
+  CHECK(strm->Read(&data_byte_size))
       << "Invalid DLTensor file format";
-  CHECK(data_byte_size == size)
+  CHECK_EQ(data_byte_size, elem_bytes * num_elems)
       << "Invalid DLTensor file format";
   std::vector<uint8_t> bytes(data_byte_size + 1);
   CHECK(strm->Read(&bytes[0], data_byte_size))
       << "Invalid DLTensor file format";
+  // explicitly swap endian when necessary.
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    dmlc::ByteSwap(&bytes[0], elem_bytes, num_elems);
+  }
   TVM_CCALL(TVMArrayCopyFromBytes(dst, &bytes[0], data_byte_size));
 }
 
@@ -410,13 +460,13 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(strm->Read(&names))
       << "Invalid parameters file format";
   uint64_t sz;
-  strm->Read(&sz, sizeof(sz));
+  strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-
   CHECK(size == names.size())
       << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
-    uint32_t in_idx = GetInputIndex(names[i]);
+    int in_idx = GetInputIndex(names[i]);
+    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
     LoadDLTensor(strm, &data_entry_[eid]);
@@ -430,14 +480,6 @@ void GraphRuntime::SetupStorage() {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
   data_entry_.resize(num_node_entries());
-  // Find the maximum space size.
-  int max_id = 0;
-  for (size_t i = 0; i < attrs_.shape.size(); ++i) {
-    max_id = std::max(attrs_.storage_id[i] + 1, max_id);
-  }
-  for (uint32_t nid : input_nodes_) {
-    attrs_.storage_id[this->entry_id(nid, 0)] = max_id++;
-  }
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
@@ -527,6 +569,9 @@ std::function<void()> GraphRuntime::CreateTVMOp(
       t->shape = &(arg_ptr->shape_data[i]);
     }
   }
+  if (param.func_name == "__nop") {
+    return [](){};
+  }
   // get compiled function from module.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, false);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
@@ -547,7 +592,8 @@ PackedFunc GraphRuntime::GetFunction(
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         if (args[0].type_code() == kStr) {
-          this->SetInput(this->GetInputIndex(args[0]), args[1]);
+          int in_idx = this->GetInputIndex(args[0]);
+          if (in_idx >= 0) this->SetInput(in_idx, args[1]);
         } else {
           this->SetInput(args[0], args[1]);
         }
@@ -556,6 +602,26 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->GetOutput(args[0], args[1]);
       });
+  } else if (name == "get_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          int in_idx = this->GetInputIndex(args[0]);
+          CHECK_GE(in_idx, 0);
+          this->GetInput(in_idx, args[1]);
+        } else {
+          this->GetInput(args[0], args[1]);
+        }
+      });
+#ifdef TVM_GRAPH_RUNTIME_DEBUG
+  } else if (name == "debug_get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+        } else {
+          this->DebugGetNodeOutput(args[0], args[1]);
+        }
+      });
+#endif
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();

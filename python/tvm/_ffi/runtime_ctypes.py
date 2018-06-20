@@ -94,9 +94,11 @@ class TVMContext(ctypes.Structure):
         1 : 'cpu',
         2 : 'gpu',
         4 : 'opencl',
+        7 : 'vulkan',
         8 : 'metal',
         9 : 'vpi',
         10: 'rocm',
+        11: 'opengl',
         12: 'ext_dev',
     }
     STR2MASK = {
@@ -108,9 +110,11 @@ class TVMContext(ctypes.Structure):
         'nvptx': 2,
         'cl': 4,
         'opencl': 4,
+        'vulkan': 7,
         'metal': 8,
         'vpi': 9,
         'rocm': 10,
+        'opengl': 11,
         'ext_dev': 12,
     }
     def __init__(self, device_type, device_id):
@@ -137,6 +141,12 @@ class TVMContext(ctypes.Structure):
             self.device_type, self.device_id, 2)
 
     @property
+    def max_shared_memory_per_block(self):
+        """Total amount of shared memory per block in bytes."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 3)
+
+    @property
     def compute_version(self):
         """Get compute verison number in string.
 
@@ -148,7 +158,25 @@ class TVMContext(ctypes.Structure):
             The version string in `major.minor` format.
         """
         return _api_internal._GetDeviceAttr(
-            self.device_type, self.device_id, 3)
+            self.device_type, self.device_id, 4)
+
+    @property
+    def device_name(self):
+        """Return the string name of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 5)
+
+    @property
+    def max_clock_rate(self):
+        """Return the max clock frequency of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 6)
+
+    @property
+    def multi_processor_count(self):
+        """Return the number of compute units of device."""
+        return _api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 7)
 
     def sync(self):
         """Synchronize until jobs finished at the context."""

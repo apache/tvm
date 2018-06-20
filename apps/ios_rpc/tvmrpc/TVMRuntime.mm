@@ -8,6 +8,7 @@
 #include "../../src/runtime/cpu_device_api.cc"
 #include "../../src/runtime/workspace_pool.cc"
 #include "../../src/runtime/thread_pool.cc"
+#include "../../src/runtime/threading_backend.cc"
 #include "../../src/runtime/module_util.cc"
 #include "../../src/runtime/system_lib_module.cc"
 #include "../../src/runtime/module.cc"
@@ -59,9 +60,10 @@ class NSStreamChannel final : public RPCChannel {
   NSOutputStream* stream_;
 };
 
-FEventHandler CreateServerEventHandler(NSOutputStream *outputStream, std::string name) {
+FEventHandler CreateServerEventHandler(
+    NSOutputStream *outputStream, std::string name, std::string remote_key) {
   std::unique_ptr<NSStreamChannel> ch(new NSStreamChannel(outputStream));
-  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name);
+  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name, remote_key);
   return [sess](const std::string& in_bytes, int flag) {
     return sess->ServerEventHandler(in_bytes, flag);
   };

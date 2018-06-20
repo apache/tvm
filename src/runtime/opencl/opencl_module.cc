@@ -2,16 +2,14 @@
  *  Copyright (c) 2017 by Contributors
  * \file opencl_module.cc
  */
-#include "./opencl_common.h"
-#include "./opencl_module.h"
-
-#if TVM_OPENCL_RUNTIME
-
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include "./opencl_common.h"
+#include "./opencl_module.h"
+
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"
@@ -176,7 +174,7 @@ class OpenCLModuleNode : public ModuleNode {
 
 class OpenCLWrappedFunc {
  public:
-  // initialize the CUDA function.
+  // initialize the OpenCL function.
   void Init(OpenCLModuleNode* m,
             std::shared_ptr<ModuleNode> sptr,
             OpenCLModuleNode::KTRefEntry entry,
@@ -254,9 +252,14 @@ PackedFunc OpenCLModuleNode::GetFunction(
   for (size_t i = 0; i < info.arg_types.size(); ++i) {
     TVMType t = info.arg_types[i];
     CHECK_EQ(t.lanes, 1U);
-    uint32_t bits = t.bits;
-    CHECK_EQ(bits % 8, 0U);
-    arg_size[i] = bits / 8;
+    if (t.code == kHandle) {
+      // specially store pointer type size in OpenCL driver
+      arg_size[i] = sizeof(void*);
+    } else {
+      uint32_t bits = t.bits;
+      CHECK_EQ(bits % 8, 0U);
+      arg_size[i] = bits / 8;
+    }
   }
   // initialize the wrapped func.
   f.Init(this, sptr_to_self, kid_map_.at(name),
@@ -313,5 +316,3 @@ TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
   });
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENCL_RUNTIME

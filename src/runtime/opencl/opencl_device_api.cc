@@ -2,12 +2,9 @@
  *  Copyright (c) 2017 by Contributors
  * \file opencl_device_api.cc
  */
-#include "./opencl_common.h"
-
-#if TVM_OPENCL_RUNTIME
-
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include "./opencl_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -32,9 +29,9 @@ void OpenCLWorkspace::GetAttr(
   }
   CHECK_LT(index, devices.size())
       << "Invalid device id " << index;
-  size_t value;
   switch (kind) {
     case kMaxThreadsPerBlock: {
+      size_t value;
       OPENCL_CALL(clGetDeviceInfo(
           devices[index],  CL_DEVICE_MAX_WORK_GROUP_SIZE,
           sizeof(size_t), &value, nullptr));
@@ -42,16 +39,53 @@ void OpenCLWorkspace::GetAttr(
       break;
     }
     case kWarpSize: {
+      /* TODO: the warp size of OpenCL device is not always 1
+               e.g. Intel GPU has a sub group concept which contains 8 - 32 work items,
+               corresponding to the number of SIMD entries the heardware configures.
+               We need to figure out a way to query this information from the hardware.
+      */
       *rv = 1;
       break;
     }
+    case kMaxSharedMemoryPerBlock: {
+      cl_ulong value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_LOCAL_MEM_SIZE,
+          sizeof(cl_ulong), &value, nullptr));
+      *rv = static_cast<int64_t>(value);
+      break;
+    }
     case kComputeVersion: return;
+    case kDeviceName: {
+      char value[128] = {0};
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_NAME,
+          sizeof(value) - 1, value, nullptr));
+      *rv = std::string(value);
+      break;
+    }
+    case kMaxClockRate: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_CLOCK_FREQUENCY,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
+      break;
+    }
+    case kMultiProcessorCount: {
+      cl_uint value;
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_COMPUTE_UNITS,
+          sizeof(cl_uint), &value, nullptr));
+      *rv = static_cast<int32_t>(value);
+      break;
+    }
     case kExist: break;
   }
 }
 
 void* OpenCLWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
@@ -73,6 +107,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      size_t size,
                                      TVMContext ctx_from,
                                      TVMContext ctx_to,
+                                     TVMType type_hint,
                                      TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
@@ -108,7 +143,9 @@ void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
-void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx,
+                                      size_t size,
+                                      TVMType type_hint) {
   return OpenCLThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 
@@ -178,7 +215,7 @@ bool MatchPlatformInfo(
 
 void OpenCLWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mu);
+  std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
   if (context != nullptr) return;
@@ -237,5 +274,3 @@ TVM_REGISTER_GLOBAL("device_api.opencl")
 }  // namespace cl
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_OPENCL_RUNTIME

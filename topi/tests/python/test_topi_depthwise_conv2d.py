@@ -1,5 +1,6 @@
 import tvm
 import topi
+import topi.testing
 import numpy as np
 from scipy import signal
 from topi.util import get_const_tuple
@@ -7,24 +8,24 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nhwc
 
 
-def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
+def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
     in_width = in_height
     filter_channel = in_channel
     filter_width = filter_height
-    stride_w = stride_h
     # placeholder
     Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
     Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
+    DilatedFilter = topi.nn.dilate(Filter, (1, 1, dilation, dilation), name='DilatedFilter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter, stride=[stride_h, stride_w], padding=padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, DilatedFilter, stride=stride, padding=padding)
     ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
 
-
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -33,7 +34,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
             s2 = topi.generic.schedule_depthwise_conv2d_nchw(ScaleShift)
             s3 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
-        ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
@@ -52,11 +52,12 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         def get_ref_data():
             input_np = np.random.uniform(size=input_shape).astype(dtype)
             filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+            dilated_filter_np = topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation))
             scale_np = np.random.uniform(size=scale_shape).astype(dtype)
             shift_np = np.random.uniform(size=shift_shape).astype(dtype)
             # correctness with scipy
             depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
-                input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+                input_np, dilated_filter_np, stride=stride, padding=padding)
             scale_shift_scipy = np.zeros(shape=scale_shift_shape)
             for c in range(in_channel * channel_multiplier):
                 scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
@@ -91,8 +92,10 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("vulkan")
 
-def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding):
+
+def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding, dilation=1):
     in_width = in_height
     filter_channel = in_channel
     filter_width = filter_height
@@ -100,16 +103,18 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     # placeholder
     Input = tvm.placeholder((batch, in_height, in_width, in_channel), name='Input')
     Filter = tvm.placeholder((filter_height, filter_width,filter_channel, channel_multiplier), name='Filter')
+    DilatedFilter = topi.nn.dilate(Filter, (1, 1, dilation, dilation), name='DilatedFilter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
     # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, Filter, stride=[stride_h, stride_w], padding=padding)
+    DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, DilatedFilter, stride=[stride_h, stride_w], padding=padding)
     ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
     Relu = topi.nn.relu(ScaleShift)
     # schedule
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
@@ -118,7 +123,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
             s1 = topi.generic.schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)
             s2 = topi.generic.schedule_depthwise_conv2d_nhwc(ScaleShift)
             s3 = topi.generic.schedule_depthwise_conv2d_nhwc(Relu)
-        ctx = tvm.context(device, 0)
         # build the kernels
         f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
         f2 = tvm.build(s2, [Input, Filter, Scale, Shift, ScaleShift], device)
@@ -137,11 +141,12 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         def get_ref_data():
             input_np = np.random.uniform(size=input_shape).astype(dtype)
             filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+            dilated_filter_np = topi.testing.dilate_python(filter_np, (1, 1, dilation, dilation))
             scale_np = np.random.uniform(size=scale_shape).astype(dtype)
             shift_np = np.random.uniform(size=shift_shape).astype(dtype)
             # correctness with scipy
             depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nhwc(
-                input_np, filter_np, stride=[stride_h, stride_w], padding=padding)
+                input_np, dilated_filter_np, stride=[stride_h, stride_w], padding=padding)
             scale_shift_scipy = np.zeros(shape=scale_shift_shape)
             for c in range(in_channel * channel_multiplier):
                 scale_shift_scipy[:,:,:,c] = depthwise_conv2d_scipy[:,:,:,c] * scale_np[c] + shift_np[c]
@@ -178,6 +183,7 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("vulkan")
 
 def test_depthwise_conv2d():
     print("testing nchw")
@@ -189,6 +195,8 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nchw(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_with_workload_nchw(4, 256, 64, 2, 5, 2, "VALID")
     depthwise_conv2d_with_workload_nchw(4, 256, 32, 2, 5, 2, "VALID")
+    # dilation = 2
+    depthwise_conv2d_with_workload_nchw(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
     print("testing nhwc")
     depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME")
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, "SAME")
@@ -198,6 +206,8 @@ def test_depthwise_conv2d():
     depthwise_conv2d_with_workload_nhwc(1, 728, 32, 1, 3, 1, "VALID")
     depthwise_conv2d_with_workload_nhwc(4, 256, 64, 2, 5, 2, "VALID")
     depthwise_conv2d_with_workload_nhwc(4, 256, 32, 2, 5, 2, "VALID")
+    # dilation = 2
+    depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
 
 if __name__ == "__main__":
     test_depthwise_conv2d()

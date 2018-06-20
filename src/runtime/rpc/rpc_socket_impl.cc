@@ -68,7 +68,14 @@ RPCConnect(std::string url, int port, std::string key) {
     sock.Close();
     LOG(FATAL) << "URL " << url << ":" << port << " is not TVM RPC server";
   }
-  return RPCSession::Create(std::unique_ptr<SockChannel>(new SockChannel(sock)), key);
+  CHECK_EQ(sock.RecvAll(&keylen, sizeof(keylen)), sizeof(keylen));
+  std::string remote_key;
+  if (keylen != 0) {
+    remote_key.resize(keylen);
+    CHECK_EQ(sock.RecvAll(&remote_key[0], keylen), keylen);
+  }
+  return RPCSession::Create(
+      std::unique_ptr<SockChannel>(new SockChannel(sock)), key, remote_key);
 }
 
 Module RPCClientConnect(std::string url, int port, std::string key) {
@@ -80,7 +87,7 @@ void RPCServerLoop(int sockfd) {
       static_cast<common::TCPSocket::SockType>(sockfd));
   RPCSession::Create(
       std::unique_ptr<SockChannel>(new SockChannel(sock)),
-                     "SockServerLoop")->ServerLoop();
+      "SockServerLoop", "")->ServerLoop();
 }
 
 TVM_REGISTER_GLOBAL("contrib.rpc._Connect")

@@ -95,7 +95,7 @@ def test_device_module_dump():
             f = tvm.build(s, [A, B], device, "llvm", name=name)
         else:
             raise ValueError("Unsupported platform")
-       
+
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
 
@@ -110,6 +110,7 @@ def test_device_module_dump():
             np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     check_device("cuda")
+    check_device("vulkan")
     check_device("opencl")
     check_device("metal")
 
@@ -172,7 +173,7 @@ def test_combine_module_llvm():
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
         mm['myadd2'](a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-    
+
     if sys.platform != "win32":
         check_system_lib()
     check_llvm()

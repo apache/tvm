@@ -18,7 +18,7 @@ def lower(s, args, name):
     stmt = tvm.ir_pass.CanonicalSimplify(stmt)
     stmt = tvm.ir_pass.Simplify(stmt)
     stmt = tvm.ir_pass.SplitPipeline(stmt, True)
-    fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0)
+    fapi = tvm.ir_pass.MakeAPI(stmt, name, arg_list, 0, True)
     return fapi
 
 @tvm.register_func

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file ir.h
+ * \file tvm/ir.h
  * \brief Additional high level nodes in the IR
  */
 #ifndef TVM_IR_H_
@@ -177,8 +177,8 @@ constexpr const char* device_context_type = "device_context_type";
 constexpr const char* loop_scope = "loop_scope";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
-/*! \brief Mark region is guarded by the pragma */
-constexpr const char* pragma_scope = "pragma_scope";
+/*! \brief Mark region is guarded by the pragma extension */
+constexpr const char* pragma_scope_prefix = "pragma_";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope
@@ -226,6 +226,23 @@ constexpr const char* channel_write_advance = "channel_write_advance";
 constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
 /*! \brief pipeline execution scope, implies the scope can be pipelined. */
 constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
+/*!
+ * \brief Mark that this stage is an OpenGL shader. Since OpenGL shader only
+ * allows writing out to one element of the output texture, the Provide node
+ * gets translated to a special Call::glsl_texture_store statement instead of a
+ * Store statement.
+ */
+constexpr const char* opengl_stage_scope = "opengl_stage_scope";
+
+/*!
+ * \brief Check if attr_key is a pragma key extension
+ * \param attr_key The attr key to be compared
+ * \return true if it is a pragma key
+ */
+inline bool IsPragmaKey(const std::string& attr_key) {
+  return attr_key.compare(0, 7, "pragma_") == 0;
+}
+
 }  // namespace attr
 
 /*! \brief namespace of TVM Intrinsic functions */
@@ -404,6 +421,14 @@ constexpr const char* tvm_call_packed_lowered = "tvm_call_packed_lowered";
  *  }
  */
 constexpr const char* tvm_storage_sync = "tvm_storage_sync";
+/*!
+ * \brief See pseudo code
+ *
+ *  Type tvm_warp_shuffle(Type value, warp_id) {
+ *     return (value passed in by warp indicated by warp_id);
+ *  }
+ */
+constexpr const char* tvm_warp_shuffle = "tvm_warp_shuffle";
 /*!
  * \brief Initialize the global barrier.
  *  Call this at beginning of kernel that need global barrier.

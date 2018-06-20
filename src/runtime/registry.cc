@@ -46,7 +46,7 @@ Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
 
 Registry& Registry::Register(const std::string& name, bool override) {  // NOLINT(*)
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
     Registry* r = new Registry();
@@ -62,7 +62,7 @@ Registry& Registry::Register(const std::string& name, bool override) {  // NOLIN
 
 bool Registry::Remove(const std::string& name) {
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) return false;
   m->fmap.erase(it);
@@ -71,7 +71,7 @@ bool Registry::Remove(const std::string& name) {
 
 const PackedFunc* Registry::Get(const std::string& name) {
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) return nullptr;
   return &(it->second->func_);
@@ -79,7 +79,7 @@ const PackedFunc* Registry::Get(const std::string& name) {
 
 std::vector<std::string> Registry::ListNames() {
   Manager* m = Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   std::vector<std::string> keys;
   keys.reserve(m->fmap.size());
   for (const auto &kv : m->fmap) {
@@ -101,7 +101,7 @@ ExtTypeVTable* ExtTypeVTable::RegisterInternal(
     int type_code, const ExtTypeVTable& vt) {
   CHECK(type_code > kExtBegin && type_code < kExtEnd);
   Registry::Manager* m = Registry::Manager::Global();
-  std::lock_guard<std::mutex>(m->mutex);
+  std::lock_guard<std::mutex> lock(m->mutex);
   ExtTypeVTable* pvt = &(m->ext_vtable[type_code]);
   pvt[0] = vt;
   return pvt;

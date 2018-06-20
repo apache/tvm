@@ -483,7 +483,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
     // create the function handle
     hptr = new llvm::GlobalVariable(
         *module_, t_tvm_func_handle_, false,
-        llvm::GlobalValue::LinkOnceAnyLinkage, 0, ".tvm_func." + fname);
+        llvm::GlobalValue::InternalLinkage, nullptr, ".tvm_func." + fname);
     hptr->setAlignment(align);
     hptr->setInitializer(llvm::Constant::getNullValue(t_tvm_func_handle_));
     func_handle_map_[fname] = hptr;
@@ -683,16 +683,15 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
     this->CreateStaticInit(op->value.as<StringImm>()->value, op->body);
   } else  if (op->attr_key == ir::attr::compute_scope) {
     this->CreateComputeScope(op);
-  } else if (op->attr_key == ir::attr::pragma_scope) {
-    const std::string& pname = op->value.as<StringImm>()->value;
-    if (pname == "parallel_stride_pattern") {
+  } else if (attr::IsPragmaKey(op->attr_key)) {
+    if (op->attr_key == "pragma_parallel_stride_pattern") {
       CHECK(parallel_env_.penv != nullptr)
           << "Pragma parallel_stride_pattern only valid in parallel launch";
       parallel_env_.stride_pattern = true;
       this->VisitStmt(op->body);
-    } else if (pname == "parallel_launch_point") {
+    } else if (op->attr_key == "pragma_parallel_launch_point") {
       CreateParallelLaunch(op->body, 0);
-    } else if (pname == "parallel_barrier_when_finish") {
+    } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
       CHECK(parallel_env_.penv != nullptr)
           << "Cannot run barrier without parallel environment";
       CHECK(!parallel_env_.in_parallel_loop)
@@ -703,7 +702,7 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
           RuntimeTVMParallelBarrier(),
           {MakeValue(parallel_env_.task_id),  parallel_env_.penv});
     } else {
-      LOG(WARNING) << "Unknown pragma " << pname;
+      LOG(WARNING) << "Unknown pragma " << op->attr_key;
       this->VisitStmt(op->body);
     }
   } else {

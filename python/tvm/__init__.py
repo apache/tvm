@@ -15,9 +15,11 @@ from . import module
 from . import node
 from . import ir_builder
 from . import target
+from . import generic
 
 from . import ndarray as nd
-from .ndarray import context, cpu, gpu, opencl, cl, metal, mtl, vpi, rocm, ext_dev
+from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
+from .ndarray import vpi, rocm, opengl, ext_dev
 
 from ._ffi.runtime_ctypes import TypeCode
 from ._ffi.function import Function

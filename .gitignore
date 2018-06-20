@@ -98,7 +98,6 @@ build_*
 Win32
 *.dir
 perf
-nnvm
 *.wasm
 .emscripten
 
@@ -132,6 +131,32 @@ xcuserdata/
 .emscripten*
 .m2
 
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
 ## Other
 *.moved-aside
 *.xccheckout
@@ -139,7 +164,27 @@ xcuserdata/
 .DS_Store
 tags
 cscope*
+*.lock
 
 # vim temporary files
 *.swp
 *.swo
+
+# TVM generated code
+perf
+.bash_history
+*.json
+*.params
+*.onnx
+*.h5
+synset.txt
+cat.jpg
+docs.tgz
+cat.png
+*.mlmodel
+# Mac OS X
+.DS_Store
+build*
+
+# Jetbrain
+.idea

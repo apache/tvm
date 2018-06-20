@@ -2,11 +2,9 @@
  *  Copyright (c) 2017 by Contributors
  * \file metal_device_api.mm
  */
-#include "./metal_common.h"
-
-#if TVM_METAL_RUNTIME
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include "./metal_common.h"
 
 namespace tvm {
 namespace runtime {
@@ -39,7 +37,11 @@ void MetalWorkspace::GetAttr(
       *rv = 1;
       break;
     }
+    case kMaxSharedMemoryPerBlock: return;
     case kComputeVersion: return;
+    case kDeviceName: return;
+    case kMaxClockRate: return;
+    case kMultiProcessorCount: return;
     case kExist: break;
   }
 }
@@ -96,7 +98,7 @@ MetalWorkspace::~MetalWorkspace() {
 
 void MetalWorkspace::Init() {
   if (initialized_) return;
-  std::lock_guard<std::mutex>(this->mutex);
+  std::lock_guard<std::mutex> lock(this->mutex);
   if (initialized_) return;
   initialized_ = true;
   if (devices.size() != 0) return;
@@ -112,7 +114,7 @@ void MetalWorkspace::Init() {
       devices.push_back([d retain]);
       queues.push_back([[d newCommandQueue] retain]);
       LOG(INFO) << "Intializing Metal device " << i
-                <<  ", name=" << d.name;
+                <<  ", name=" << [d.name UTF8String];
       warp_size.push_back(GetWarpSize(d));
     }
 #endif
@@ -123,13 +125,21 @@ void MetalWorkspace::SetDevice(TVMContext ctx) {
 }
 
 void* MetalWorkspace::AllocDataSpace(
-    TVMContext ctx, size_t size, size_t alignment) {
+    TVMContext ctx, size_t nbytes, size_t alignment, TVMType type_hint) {
   this->Init();
   id<MTLDevice> dev = GetDevice(ctx);
-  // allocate buffer in GPU only mode.
+  // GPU memory only
+  MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
+  /*
+  #if TARGET_OS_IPHONE
+  storage_mode = MTLResourceStorageModeShared;
+  #else
+  storage_mode = MTLResourceStorageModeManaged;
+  #endif
+  */
   id<MTLBuffer> buf = [
-      dev newBufferWithLength:size
-          options:MTLResourceStorageModePrivate];
+      dev newBufferWithLength:nbytes
+          options:storage_mode];
   CHECK(buf != nil);
   return (__bridge void*)([buf retain]);
 }
@@ -146,6 +156,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from,
                                     size_t size,
                                     TVMContext ctx_from,
                                     TVMContext ctx_to,
+                                    TVMType type_hint,
                                     TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
@@ -228,7 +239,9 @@ void MetalWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   [cb waitUntilCompleted];
 }
 
-void* MetalWorkspace::AllocWorkspace(TVMContext ctx, size_t size) {
+void* MetalWorkspace::AllocWorkspace(TVMContext ctx,
+                                     size_t size,
+                                     TVMType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
 }
 
@@ -274,5 +287,3 @@ TVM_REGISTER_GLOBAL("device_api.metal")
 }  // namespace metal
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // TVM_METAL_RUNTIME

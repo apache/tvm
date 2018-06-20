@@ -53,7 +53,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**
@@ -72,7 +72,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**
@@ -91,7 +91,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**
@@ -110,7 +110,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**
@@ -129,7 +129,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**
@@ -161,7 +161,7 @@ public class NDArray extends NDArrayBase {
     }
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   private void checkCopySize(int sourceLength) {
@@ -179,7 +179,7 @@ public class NDArray extends NDArrayBase {
   public void copyFromRaw(byte[] sourceArray) {
     NDArray tmpArr = empty(shape(), this.dtype);
     Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
-    Base.checkCall(Base._LIB.tvmArrayFree(tmpArr.handle));
+    tmpArr.release();
   }
 
   /**

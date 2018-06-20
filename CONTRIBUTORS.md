@@ -1,35 +1,32 @@
-Contributors of TVM
-===================
-TVM adopts Apache style committer model. The package is developed and used by the community.
+TVM Contributors
+================
+TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use,
+contribute to, and influence the direction of the project. We actively invite contributors who have earned the merit to be part of the development community.
 
-We actively seek committers that comes from contributors who:
-- Made substantial contribution to the project.
-- Willing to spent time on maintaining and lead the project.
+See the [community structure document](http://docs.tvm.ai/contribute/community.html) for the explanation of community structure and contribution guidelines.
 
-How to Contribute
------------------
-See [Contributor guide](docs/how_to/contribute.md) on how to contribute
-
-Committers
-----------
-Committers are people who have made substantial contribution to the project and granted write access to the project.
-- [Tianqi Chen](https://github.com/tqchen), University of Washington
+## Committers
+- [Tianqi Chen](https://github.com/tqchen) (PMC), University of Washington
 - [Thierry Moreau](http://homes.cs.washington.edu/~moreau/), University of Washington
-- [Haichen Shen](http://homes.cs.washington.edu/~haichen/), University of Washington
 - [Ziheng Jiang](https://github.com/ZihengJiang), Fudan University
+- [Haichen Shen](http://homes.cs.washington.edu/~haichen/), University of Washington
 
-Code Owners
------------
-[Code owners](CODEOWNERS) are people who make substantial contribution to a module
-and are qualified to lead development and review changes of the owned module.
-
+## Code Owners
 - [Aditya Atluri](https://github.com/adityaatluri) ROCM
 - [Leyuan Wang](https://github.com/Laurawly) TOPI
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
-- [Yizhi Liu](https://github.com/javelinjs) JVM package
+- [Yizhi Liu](https://github.com/yzhliu) JVM package
+- [Zhixun Tan](https://github.com/phisiart) OpenGL/WebGL backend
+- [Nick Hynes](https://github.com/nhynes) SGX and secured computing
 
-List of Contributors
---------------------
+## Reviewers
+- [Masahiro Masuda](https://github.com/masahi)
+- [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
+- [Eddie Yan](https://github.com/eqy)
+- [Joshua Z. Zhang](https://github.com/zhreshold)
+- [Lianmin Zheng](https://github.com/merrymercy)
+
+## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
@@ -37,3 +34,6 @@ List of Contributors
 - [Masahiro Masuda](https://github.com/masahi)
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
+- [Chris Nuernberger](https://github.com/cnuernber)
+- [Tatsuya Nishiyama](https://github.com/nishi-t)
+- [Kazutaka Morita](https://github.com/kazum)

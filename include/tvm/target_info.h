@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file target_info.h
+ * \file tvm/target_info.h
  * \brief Various information about target.
  */
 #ifndef TVM_TARGET_INFO_H_

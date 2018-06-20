@@ -125,8 +125,11 @@ REGISTER_PASS2(SplitPipeline);
 REGISTER_PASS2(LiftAttrScope);
 REGISTER_PASS1(NarrowChannelAccess);
 REGISTER_PASS2(LowerThreadAllreduce);
+REGISTER_PASS2(LowerWarpMemory);
+REGISTER_PASS2(RemapThreadAxis);
 REGISTER_PASS2(LowerIntrin);
 REGISTER_PASS1(LowerTVMBuiltin);
 REGISTER_PASS1(CombineContextCall);
+REGISTER_PASS2(VerifyMemory);
 }  // namespace ir
 }  // namespace tvm

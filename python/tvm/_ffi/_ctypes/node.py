@@ -30,6 +30,7 @@ RETURN_SWITCH[TypeCode.NODE_HANDLE] = _return_node
 C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
     _return_node, TypeCode.NODE_HANDLE)
 
+
 class NodeBase(object):
     __slots__ = ["handle"]
     # pylint: disable=no-member
@@ -44,7 +45,8 @@ class NodeBase(object):
         self.handle = handle
 
     def __del__(self):
-        check_call(_LIB.TVMNodeFree(self.handle))
+        if _LIB is not None:
+            check_call(_LIB.TVMNodeFree(self.handle))
 
     def __getattr__(self, name):
         ret_val = TVMValue()

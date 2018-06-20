@@ -20,3 +20,6 @@ RUN bash /install/ubuntu_install_java.sh
 
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
+
+COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
+RUN bash /install/ubuntu_install_opengl.sh

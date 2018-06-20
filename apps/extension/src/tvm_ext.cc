@@ -22,11 +22,10 @@ struct extension_class_info<tvm_ext::IntVector> {
 }  // namespace tvm
 }  // namespace runtime
 
-
-namespace tvm_ext {
-
 using namespace tvm;
 using namespace tvm::runtime;
+
+namespace tvm_ext {
 
 TVM_REGISTER_EXT_TYPE(IntVector);
 
@@ -66,3 +65,18 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev")
     *rv = (*tvm::runtime::Registry::Get("device_api.cpu"))();
   });
 }  // namespace tvm_ext
+
+// This callback approach allows extension allows tvm to extract
+// This way can be helpful when we want to use a header only
+// minimum version of TVM Runtime.
+extern "C" int TVMExtDeclare(TVMFunctionHandle pregister) {
+  const PackedFunc& fregister =
+      *static_cast<PackedFunc*>(pregister);
+  auto mul = [](TVMArgs args, TVMRetValue *rv) {
+    int x = args[0];
+    int y = args[1];
+    *rv = x * y;
+  };
+  fregister("mul", PackedFunc(mul));
+  return 0;
+}

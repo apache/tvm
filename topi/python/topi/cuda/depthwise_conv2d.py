@@ -102,6 +102,7 @@ def schedule_depthwise_conv2d_nchw(outs):
         s[FS].bind(tx, thread_x)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -113,6 +114,8 @@ def schedule_depthwise_conv2d_nchw(outs):
         if OP.tag == 'depthwise_conv2d_nchw':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
+            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
+                s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
 
@@ -178,6 +181,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
         s[FS].bind(fused, thread_x)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -189,6 +193,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
         if OP.tag == 'depthwise_conv2d_nhwc':
             PaddedInput = OP.input_tensors[0]
             Filter = OP.input_tensors[1]
+            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
+                s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
 

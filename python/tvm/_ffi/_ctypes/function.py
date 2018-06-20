@@ -165,7 +165,7 @@ class FunctionBase(object):
         self.is_global = is_global
 
     def __del__(self):
-        if not self.is_global:
+        if not self.is_global and _LIB is not None:
             check_call(_LIB.TVMFuncFree(self.handle))
 
     def __call__(self, *args):

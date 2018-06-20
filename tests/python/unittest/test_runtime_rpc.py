@@ -1,8 +1,40 @@
 import tvm
+import os
 import logging
 import numpy as np
 import time
 from tvm.contrib import rpc, util
+
+
+def test_bigendian_rpc():
+    """Test big endian rpc when there is a PowerPC RPC server available"""
+    host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
+    port = os.environ.get("TVM_POWERPC_TEST_PORT", 9090)
+    if host is None:
+        return
+    def verify_rpc(remote, target, shape, dtype):
+        A = tvm.placeholder(shape, dtype=dtype)
+        B = tvm.compute(A.shape, lambda i: A[i]+tvm.const(1, A.dtype))
+        s = tvm.create_schedule(B.op)
+        f = tvm.build(s, [A, B], target, name="myadd")
+
+        ctx = remote.cpu(0)
+        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), ctx=ctx)
+        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), ctx=ctx)
+        temp = util.tempdir()
+        path_dso = temp.relpath("dev_lib.o")
+        f.save(path_dso)
+        remote.upload(path_dso)
+        f = remote.load_module("dev_lib.o")
+        f(a, b)
+        np.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
+
+    print("Test RPC connection to PowerPC...")
+    remote = rpc.connect(host, port)
+    target = "llvm -mtriple=powerpc-linux-gnu"
+    for dtype in ["float32", "float64", "int32", "int8"]:
+        verify_rpc(remote, target, (10,), dtype)
+
 
 def test_rpc_simple():
     if not tvm.module.enabled("rpc"):
@@ -18,7 +50,7 @@ def test_rpc_simple():
     def remotethrow(name):
         raise ValueError("%s" % name)
 
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.addone")
     assert f1(10) == 11
@@ -41,7 +73,6 @@ def test_rpc_array():
         np.testing.assert_equal(y.asnumpy(), x)
     server = rpc.Server("localhost")
     remote = rpc.connect(server.host, server.port)
-    print("second connect")
     r_cpu = tvm.nd.array(x, remote.cpu(0))
     assert str(r_cpu.context).startswith("remote")
     np.testing.assert_equal(r_cpu.asnumpy(), x)
@@ -62,14 +93,14 @@ def test_rpc_remote_module():
     if not tvm.module.enabled("rpc"):
         return
     server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
+    client = rpc.connect(server.host, server.port)
     # graph
     n = tvm.convert(1024)
     A = tvm.placeholder((n,), name='A')
     B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
     s = tvm.create_schedule(B.op)
 
-    def check_remote():
+    def check_remote(remote):
         if not tvm.module.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
@@ -87,7 +118,7 @@ def test_rpc_remote_module():
         print('%g secs/op' % cost)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    def check_remote_link_cl():
+    def check_remote_link_cl(remote):
         """Test function to run remote code such as cl
 
         This is not enabled because there is forking issue
@@ -135,23 +166,42 @@ def test_rpc_remote_module():
         fhost(a, b)
         np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    check_remote()
+    check_remote(client)
+    check_remote(rpc.LocalSession())
+
 
 def test_rpc_return_func():
     @tvm.register_func("rpc.test.remote_func")
     def addone(x):
         return lambda y: x+y
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.remote_func")
     fadd = f1(10)
     assert fadd(12) == 22
 
 
+def test_local_func():
+    @tvm.register_func("rpc.test.remote_func2")
+    def addone(x):
+        return lambda y: x+y
+    client = rpc.LocalSession()
+    f1 = client.get_function("rpc.test.remote_func2")
+    fadd = f1(10)
+    assert fadd(12) == 22
+
+    blob = bytearray(np.random.randint(0, 10, size=(10)))
+    client.upload(blob, "dat.bin")
+    rev = client.download("dat.bin")
+    assert rev == blob
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_bigendian_rpc()
     test_rpc_remote_module()
     test_rpc_return_func()
     test_rpc_file_exchange()
     test_rpc_array()
     test_rpc_simple()
+    test_local_func()

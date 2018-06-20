@@ -110,7 +110,7 @@ def test_pragma():
     s[T].pragma(xo, "pragma1")
     s[T].pragma(xi, "vectorize")
     VECTORIZE = tvm.schedule.IterVar.Vectorized
-    assert s[T].iter_var_attrs[xo].pragmas[0].value == "pragma1"
+    assert s[T].iter_var_attrs[xo].pragma_keys[0].value == "pragma1"
     assert s[T].iter_var_attrs[xi].iter_type == VECTORIZE
 
 
@@ -134,6 +134,16 @@ def test_rfactor():
     BF = s.rfactor(B, ki)
     assert(BF.shape[0].value == 4)
     assert(BF.shape[1] == n)
+    assert(BF.op.body[0].axis[0] ==  k2)
+    assert(BF.op.body[0].axis[1].var ==  ko.var)
+    assert(s[B].op.body[0].axis[0].dom.extent.value == 4)
+    # schedule with factor_axis
+    s = tvm.create_schedule(B.op)
+    ko, ki = s[B].split(k1, factor=4)
+    xo, xi = s[B].split(B.op.axis[0], factor=8)
+    BF = s.rfactor(B, ki, 1)
+    assert(n == BF.shape[0])
+    assert(BF.shape[1].value == 4)
     assert(BF.op.body[0].axis[0] ==  k2)
     assert(BF.op.body[0].axis[1].var ==  ko.var)
     assert(s[B].op.body[0].axis[0].dom.extent.value == 4)

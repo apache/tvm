@@ -32,9 +32,12 @@ class CallbackChannel final : public RPCChannel {
   PackedFunc fsend_;
 };
 
-PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name) {
+PackedFunc CreateEventDrivenServer(PackedFunc fsend,
+                                   std::string name,
+                                   std::string remote_key) {
   std::unique_ptr<CallbackChannel> ch(new CallbackChannel(fsend));
-  std::shared_ptr<RPCSession> sess = RPCSession::Create(std::move(ch), name);
+  std::shared_ptr<RPCSession> sess =
+      RPCSession::Create(std::move(ch), name, remote_key);
   return PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
       int ret = sess->ServerEventHandler(args[0], args[1]);
       *rv = ret;
@@ -43,7 +46,7 @@ PackedFunc CreateEventDrivenServer(PackedFunc fsend, std::string name) {
 
 TVM_REGISTER_GLOBAL("contrib.rpc._CreateEventDrivenServer")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = CreateEventDrivenServer(args[0], args[1]);
+    *rv = CreateEventDrivenServer(args[0], args[1], args[2]);
   });
 }  // namespace runtime
 }  // namespace tvm

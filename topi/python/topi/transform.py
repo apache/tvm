@@ -2,8 +2,10 @@
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 import tvm
+import topi
 from . import tag
 from .util import ravel_index, unravel_index, get_const_int, get_const_tuple
+from . import cpp
 
 @tvm.tag_scope(tag=tag.BROADCAST)
 def expand_dims(a, axis, num_newaxis=1):
@@ -27,6 +29,60 @@ def expand_dims(a, axis, num_newaxis=1):
         idx = indices[:axis] + indices[axis + num_newaxis:]
         return a(*idx)
     return tvm.compute(new_shape, _compute)
+
+
+@tvm.tag_scope(tag=tag.BROADCAST)
+def expand_like(a, shape_like, axis):
+    """Expand an input array with the shape of second array.
+    This operation can always be composed of unsqueezing and
+    expanding dims on those unsqueezed axes.
+
+    Examples::
+    input = [ 12.  19.  27.]
+    input.shape = (3,)
+
+    new_shape_array = [[[1,2],[2,3],[1,3]],
+                      [[1,4],[4,3],[5,2]],
+                      [[7,1],[7,2],[7,3]]]
+    new_shape_array.shape = (3, 3, 2)
+
+    expand_like(input, [1,2], new_shape_array) =
+                      [[[12,12],[12,12],[12,12]],
+                      [[19,19],[19,19],[19,19]],
+                      [[27,27],[27,27],[27,27]]]
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+    shape_like : tvm.Tensor
+        The tensor to with target shape.
+    axis: list of int
+        axis to be expanded on
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    odim = len(axis) + len(a.shape)
+    if odim != len(shape_like.shape):
+        raise ValueError("shape inconsistent when expand_like ({}, {}, {})".format(
+            len(axis), len(a.shape), len(shape_like.shape)))
+
+    real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
+    real_axis = sorted(real_axis)
+
+    if not real_axis:
+        return a
+
+    def _compute(*idxs):
+        indices = []
+        axis_index = 0
+        for i in range(0, len(idxs)):
+            if i not in real_axis:
+                indices.append(idxs[i])
+                axis_index += 1
+        return a(*indices)
+    return tvm.compute(shape_like.shape, _compute)
 
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
@@ -55,6 +111,49 @@ def transpose(a, axes=None):
         return a(*idx)
     return tvm.compute(new_shape, _compute)
 
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def flip(a, axis=0):
+    """Flip/reverse elements of an array in a particular axis.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be expanded.
+
+    axis : int, optional
+        The axis along which the tensors will be reveresed.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.flip(a, axis)
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def strided_slice(a, begin, end, strides=None):
+    """Slice of an array.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The tensor to be sliced.
+
+    begin: list of int
+        The indices to begin with in the slicing.
+
+    end: list of int
+        Indicies indicating end of the slice.
+
+    strides: list of int, optional
+        Specifies the stride values, it can be negative
+        in that case, the input tensor will be reversed
+        in that particular axis.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    return cpp.strided_slice(a, begin, end, strides)
 
 @tvm.tag_scope(tag=tag.INJECTIVE)
 def reshape(a, newshape):
@@ -153,6 +252,7 @@ def concatenate(a_tuple, axis=0):
     axis_sizes = [a_tuple[i].shape[axis] for i in range(len(a_tuple))]
     out_shape = [a_tuple[0].shape[i] for i in range(0, axis)] + [sum(axis_sizes)]\
                 + [a_tuple[0].shape[i] for i in range(axis + 1, len(a_tuple[0].shape))]
+    out_shape[axis] = tvm.ir_pass.Simplify(out_shape[axis])
 
     def _compute(*indices):
         ret = a_tuple[0](*indices)
@@ -199,7 +299,7 @@ def split(ary, indices_or_sections, axis=0):
             "Should be sorted, recieved %s" % str(indices_or_sections)
         begin_ids = [0] + list(indices_or_sections)
     else:
-        raise NotImplementedError
+        raise NotImplementedError()
     out_shapes = []
     for i in range(len(begin_ids)):
         if i == len(begin_ids) - 1:
@@ -213,3 +313,28 @@ def split(ary, indices_or_sections, axis=0):
                         lambda *indices: _compute(begin_id, *indices), name="s%d" %i)
             for i, (out_shape, begin_id) in enumerate(zip(out_shapes, begin_ids))]
     # pylint: enable=cell-var-from-loop
+
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def take(a, indices, axis=None):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    a : tvm.Tensor
+        The source array.
+
+    indices : tvm.Tensor
+        The indices of the values to extract.
+
+    axis : int, optional
+        The axis over which to select values. By default,
+        the flattened input array is used.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    if axis is None:
+        return cpp.take(a, indices)
+    return cpp.take(a, indices, int(axis))

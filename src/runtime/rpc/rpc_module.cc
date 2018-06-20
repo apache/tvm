@@ -26,7 +26,11 @@ struct RPCWrappedFunc {
     sess_->CallFunc(handle_, args, rv, &fwrap_);
   }
   ~RPCWrappedFunc() {
-    sess_->CallRemote(RPCCode::kFreeFunc, handle_);
+    try {
+      sess_->CallRemote(RPCCode::kFreeFunc, handle_);
+    } catch (const dmlc::Error& e) {
+      // fault tolerance to remote close
+    }
   }
 
   static void WrapRemote(std::shared_ptr<RPCSession> sess,
@@ -48,7 +52,12 @@ class RPCModuleNode final : public ModuleNode {
   }
   ~RPCModuleNode() {
     if (module_handle_ != nullptr) {
-      sess_->CallRemote(RPCCode::kModuleFree, module_handle_);
+      try {
+        sess_->CallRemote(RPCCode::kModuleFree, module_handle_);
+      } catch (const dmlc::Error& e) {
+        // fault tolerance to remote close
+      }
+      module_handle_ = nullptr;
     }
   }
 
@@ -77,10 +86,11 @@ class RPCModuleNode final : public ModuleNode {
 
   PackedFunc GetTimeEvaluator(const std::string& name,
                               TVMContext ctx,
-                              int nstep) {
+                              int number,
+                              int repeat) {
     RPCFuncHandle handle = GetFuncHandle(name);
     if (handle == nullptr) return PackedFunc();
-    handle = sess_->GetTimeEvaluator(handle, ctx, nstep);
+    handle = sess_->GetTimeEvaluator(handle, ctx, number, repeat);
     return WrapRemote(handle);
   }
 
@@ -148,10 +158,10 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
     ctx.device_id = args[3];
     if (tkey == "rpc") {
       *rv = static_cast<RPCModuleNode*>(m.operator->())
-          ->GetTimeEvaluator(args[1], ctx, args[4]);
+          ->GetTimeEvaluator(args[1], ctx, args[4], args[5]);
     } else {
       *rv = WrapTimeEvaluator(
-          m.GetFunction(args[1], false), ctx, args[4]);
+          m.GetFunction(args[1], false), ctx, args[4], args[5]);
     }
   });
 
@@ -197,5 +207,6 @@ TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
     CHECK_EQ(tkey, "rpc");
     *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
   });
+
 }  // namespace runtime
 }  // namespace tvm

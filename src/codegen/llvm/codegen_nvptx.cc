@@ -4,7 +4,6 @@
  * \brief NVPTX code generator.
  */
 #ifdef TVM_LLVM_VERSION
-#if TVM_CUDA_RUNTIME
 
 #include <tvm/runtime/device_api.h>
 #include "./codegen_llvm.h"
@@ -47,7 +46,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       if (info.alignment > 16) {
         info.alignment = 16;
       }
-      if (info.scope.rank == 2) {
+      if (info.scope.rank == runtime::StorageRank::kLocal) {
         // const int local_address_space = 5;
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
         llvm::AllocaInst* alloca = builder_->CreateAlloca(
@@ -57,7 +56,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
         }
         buf = alloca;
       } else {
-        CHECK_EQ(info.scope.rank, 1)
+        CHECK(info.scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space  == 3
         const unsigned shared_address_space = 3;
@@ -194,9 +193,15 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   std::string ll(data_ll.begin(), data_ll.end());
   // emit ptx
   llvm::legacy::PassManager pass;
+#if TVM_LLVM_VERSION <= 60
   CHECK(tm->addPassesToEmitFile(
       pass, dest_ptx, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
       << "Cannot emit target CGFT_ObjectFile";
+#else
+  CHECK(tm->addPassesToEmitFile(
+      pass, dest_ptx, nullptr, llvm::TargetMachine::CGFT_AssemblyFile) == 0)
+      << "Cannot emit target CGFT_ObjectFile";
+#endif
   pass.run(*module);
   std::string ptx(data_ptx.begin(), data_ptx.end());
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(funcs), ll);
@@ -209,5 +214,4 @@ TVM_REGISTER_API("codegen.build_nvptx")
 
 }  // namespace codegen
 }  // namespace tvm
-#endif   // TVM_CUDA_RUNTIME
 #endif  // TVM_LLVM_VERSION

@@ -312,9 +312,23 @@ class Canonical::Internal : public IRMutator {
       return e;
     }
   }
-  // binary ops
+  // Div operator
   Expr Mutate_(const Div* op, const Expr& e) final {
-    return Binary(op, e);
+    if (!EnableOpt(op->type)) {
+      return Binary(op, e);
+    }
+    CacheEntry a = Produce(op->a);
+    CacheEntry b = Produce(op->b);
+    if (a.has_side_effect || b.has_side_effect) {
+      return Binary_(op, e, a.value, b.value);
+    }
+    if (is_const(a.value) && is_const(b.value)) {
+      return ComputeExpr<Div>(a.value, b.value);
+    } else if (is_const(b.value)) {
+      return SumDivConst(a.AsSum(), b.value);
+    } else {
+      return Binary(op, e);
+    }
   }
   // Mod operator
   Expr Mutate_(const Mod* op, const Expr& e) final {
@@ -445,29 +459,80 @@ class Canonical::Internal : public IRMutator {
     }
     return value;
   }
+  // Detect if a = x * coeff + y, where y \in [0, coeff), x >= 0
+  // return true if such detection is successful
+  // return false if it is not.
+  std::vector<ComExpr> TryLinearEquation(const ComExpr& a,
+                                         const Expr& coeff) {
+    Type type = coeff.type();
+    int64_t value = GetConstIntValue(coeff);
+    if (value < 0) return {};
+    std::shared_ptr<ComExprNode> xnode = std::make_shared<ComExprNode>();
+    std::shared_ptr<ComExprNode> ynode = std::make_shared<ComExprNode>();
+    if (a->base % value == 0) {
+      xnode->base = a->base;
+    } else {
+      ynode->base = a->base;
+    }
+    for (const auto& e : a->elem) {
+      if (e.scale % value == 0) {
+        xnode->elem.push_back(e);
+      } else {
+        ynode->elem.push_back(e);
+      }
+    }
+    Expr yres = Sum2Expr(ComExpr(ynode), type);
+    IntSet yset = EvalSet(yres, var_range_);
+    // This relies on the integer division rounds down
+    // Most cases it is good for integer division.
+    if (yset.min().type() == type &&
+        can_prove(yset.min() >= make_zero(type)) &&
+        yset.max().type() == type &&
+        can_prove(yset.max() < coeff)) {
+      xnode->base /= value;
+      for (auto &e : xnode->elem) {
+        e.scale /= value;
+      }
+      return {ComExpr(xnode), ComExpr(ynode)};
+    } else {
+      return {};
+    }
+  }
   // subroutine to do produce a % v
   Expr SumModConst(ComExpr a, Expr v) {
-    int64_t value = GetConstIntValue(v);
-    std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
-    int mod_level = 0;
-    n->base = a->base % value;
-    if (n->base != 0) mod_level = 1;
-    for (auto e : a->elem) {
-      if (e.scale % value == 0) continue;
-      e.scale = e.scale % value;
-      if (!EvalSet(v - e.value, var_range_).can_prove_positive()) {
-        mod_level = 2;
-      } else {
-        ++mod_level;
+    std::vector<ComExpr> pair = TryLinearEquation(a, v);
+    if (pair.size() == 0) {
+      int64_t value = GetConstIntValue(v);
+      std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
+      n->base = a->base % value;
+      for (auto e : a->elem) {
+        if (e.scale % value == 0) continue;
+        e.scale = e.scale % value;
+        n->elem.push_back(e);
       }
-      n->elem.push_back(e);
-    }
-    // cannot remove mode because there are more than two parts
-    if (mod_level >= 2) {
       Expr ret = Sum2Expr(ComExpr(n), v.type()) % v;
       return Binary(ret.as<Mod>(), ret);
     }
-    ret_entry_.sum = ComExpr(n);
+    ret_entry_.sum = pair[1];
+    ret_entry_.max_level = stack_.back().max_level;
+    ret_entry_.has_side_effect = stack_.back().has_side_effect;
+    auto it = cache_sum_.find(ret_entry_.sum);
+    if (it != cache_sum_.end()) {
+      ret_entry_ = it->second;
+    } else {
+      ret_entry_.value = Sum2Expr(ret_entry_.sum, v.type());
+      cache_sum_[ret_entry_.sum] = ret_entry_;
+    }
+    return ret_entry_.value;
+  }
+  // subroutine to do produce a % v
+  Expr SumDivConst(ComExpr a, Expr v) {
+    std::vector<ComExpr> pair = TryLinearEquation(a, v);
+    if (pair.size() == 0) {
+      Expr ret = Sum2Expr(a, v.type()) / v;
+      return Binary(ret.as<Div>(), ret);
+    }
+    ret_entry_.sum = pair[0];
     ret_entry_.max_level = stack_.back().max_level;
     ret_entry_.has_side_effect = stack_.back().has_side_effect;
     auto it = cache_sum_.find(ret_entry_.sum);

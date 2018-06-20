@@ -47,6 +47,7 @@ def schedule_global_pool(outs):
             s[Pool].compute_at(s[Out], tx)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:
@@ -83,7 +84,8 @@ def schedule_pool(outs):
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
     def _schedule(PaddedInput, Pool):
-        s[PaddedInput].compute_inline()
+        if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
+            s[PaddedInput].compute_inline()
         num_thread = tvm.target.current_target(allow_none=False).max_num_threads
         if Pool.op in s.outputs:
             Out = Pool
@@ -101,6 +103,7 @@ def schedule_pool(outs):
             s[Pool].compute_at(s[Out], tx)
 
     def traverse(OP):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(OP.tag):
             if OP not in s.outputs:

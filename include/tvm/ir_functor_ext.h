@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file ir_functor_ext.h
+ * \file tvm/ir_functor_ext.h
  * \brief More powerful Visitor that allows define function signatures.
  */
 #ifndef TVM_IR_FUNCTOR_EXT_H_

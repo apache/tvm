@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file codegen.h
+ * \file tvm/codegen.h
  * \brief Collection of Lowlevel IR pass to codegen.
  */
 #ifndef TVM_CODEGEN_H_

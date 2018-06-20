@@ -23,7 +23,8 @@ MakeLoopNest(const Stage& stage,
              size_t begin_iter_pos,
              bool new_loop_var,
              const std::unordered_set<IterVar>& skip_iter,
-             std::unordered_map<IterVar, Expr>* p_value_map) {
+             std::unordered_map<IterVar, Expr>* p_value_map,
+             bool debug_keep_trivial_loop) {
   auto leaf_iter_vars = stage->leaf_iter_vars;
   Stmt no_op = Evaluate::make(0);
   // create the loop nest
@@ -70,12 +71,18 @@ MakeLoopNest(const Stage& stage,
                               << it_attr->iter_type
                               << " in the iter_var_attrs";
         }
-        for (Expr p : it_attr->pragmas) {
+        CHECK_EQ(it_attr->pragma_keys.size(), it_attr->pragma_values.size());
+        for (size_t k = 0; k < it_attr->pragma_keys.size(); ++k) {
+          const std::string& pkey = it_attr->pragma_keys[k].as<StringImm>()->value;
+          Expr pvalue = it_attr->pragma_values[k];
+          if (!pvalue.defined()) {
+            pvalue = make_const(Int(32), 1);
+          }
           nest[i + 1].emplace_back(
-              AttrStmt::make(iv, ir::attr::pragma_scope, p, no_op));
+              AttrStmt::make(iv, ir::attr::pragma_scope_prefix + pkey, pvalue, no_op));
         }
       }
-      if (is_one(dom->extent)) {
+      if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         nest[i + 1].emplace_back(
             LetStmt::make(var, dom->min, no_op));
         value_map[iv] = dom->min;
@@ -130,7 +137,7 @@ MakeLoopNest(const Stage& stage,
       // annotate the extent of the IterVar
       nest[i + 1].emplace_back(
           AttrStmt::make(bind_iv, ir::attr::thread_extent, dom->extent, no_op));
-      if (is_one(dom->extent)) {
+      if (!debug_keep_trivial_loop && is_one(dom->extent)) {
         value_map[iv] = dom->min;
       } else {
         value_map[iv] = var;

@@ -6,13 +6,11 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
-#include <tvm/runtime/config.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/device_api.h>
 #include <dmlc/logging.h>
 
-#if TVM_OPENCL_RUNTIME
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
@@ -142,7 +140,10 @@ class OpenCLWorkspace final : public DeviceAPI {
   // override device API
   void SetDevice(TVMContext ctx) final;
   void GetAttr(TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) final;
-  void* AllocDataSpace(TVMContext ctx, size_t size, size_t alignment) final;
+  void* AllocDataSpace(TVMContext ctx,
+                       size_t size,
+                       size_t alignment,
+                       TVMType type_hint) final;
   void FreeDataSpace(TVMContext ctx, void* ptr) final;
   void CopyDataFromTo(const void* from,
                       size_t from_offset,
@@ -151,9 +152,10 @@ class OpenCLWorkspace final : public DeviceAPI {
                       size_t size,
                       TVMContext ctx_from,
                       TVMContext ctx_to,
+                      TVMType type_hint,
                       TVMStreamHandle stream) final;
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
-  void* AllocWorkspace(TVMContext ctx, size_t size) final;
+  void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
   static const std::shared_ptr<OpenCLWorkspace>& Global();
@@ -188,5 +190,4 @@ class OpenCLThreadEntry {
 }  // namespace cl
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_OPENCL_RUNTIME
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_

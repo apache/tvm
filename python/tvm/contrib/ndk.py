@@ -1,8 +1,10 @@
 """Util to invoke NDK compiler toolchain."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
+
 import subprocess
 import os
+from .._ffi.base import py_str
 
 def create_shared(output,
                   objects,
@@ -43,5 +45,5 @@ def create_shared(output,
 
     if proc.returncode != 0:
         msg = "Compilation error:\n"
-        msg += out
+        msg += py_str(out)
         raise RuntimeError(msg)

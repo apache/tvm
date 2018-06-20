@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <cctype>
 #include "./codegen_c.h"
+#include "../pass/ir_util.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
@@ -26,6 +27,7 @@ void CodeGenC::AddFunction(LoweredFunc f) {
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
+  GetUniqueName("extern");
   // add to alloc buffer type.
   for (const auto & kv : f->handle_data_type) {
     RegisterHandleType(kv.first.get(), kv.second.type());
@@ -38,14 +40,17 @@ void CodeGenC::AddFunction(LoweredFunc f) {
     if (i != 0) stream << ", ";
     if (v.type().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end()) {
+      if (it != alloc_storage_scope_.end())
         PrintStorageScope(it->second, stream);
-        stream << ' ';
+      stream << ' ';
+
+      if (handle_data_type_.count(v.get())) {
+        PrintType(handle_data_type_.at(v.get()), stream);
+      } else {
+        stream << "void";
       }
-    }
-    if (handle_data_type_.count(v.get())) {
-      PrintType(handle_data_type_.at(v.get()), stream);
       stream << "*";
+
       if (f->is_restricted && restrict_keyword_.length() != 0) {
         stream << ' ' << restrict_keyword_;
       }
@@ -402,12 +407,9 @@ inline void PrintBinaryIntrinsitc(const Call* op,
   }
 }
 void CodeGenC::VisitExpr_(const Cast *op, std::ostream& os) {  // NOLINT(*)
-  os << "(";
-  this->PrintType(op->type, os);
-  os << ")";
-  os << '(';
-  this->PrintExpr(op->value, os);
-  os << ')';
+  std::stringstream value;
+  this->PrintExpr(op->value, value);
+  os << CastFromTo(value.str(), op->value.type(), op->type);
 }
 void CodeGenC::VisitExpr_(const Variable *op, std::ostream& os) {  // NOLINT(*)
   os << GetVarID(op);
@@ -544,15 +546,6 @@ void CodeGenC::PrintVecBinaryOp(
   }
 }
 
-inline bool TryGetRamp1Base(Expr index, int lanes, Expr *base) {
-  const Ramp* r = index.as<Ramp>();
-  if (!r) return false;
-  if (!is_one(r->stride)) return false;
-  CHECK_EQ(r->lanes, lanes);
-  *base = r->base;
-  return true;
-}
-
 void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
   int lanes = op->type.lanes();
   // delcare type.
@@ -563,7 +556,7 @@ void CodeGenC::VisitExpr_(const Load* op, std::ostream& os) {  // NOLINT(*)
     CHECK(is_one(op->predicate))
         << "predicated load is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, op->type.lanes(), &base)) {
+    if (GetRamp1Base(op->index, op->type.lanes(), &base)) {
       std::string ref = GetVecLoad(op->type, op->buffer_var.get(), base);
       os << ref;
     } else {
@@ -617,7 +610,7 @@ void CodeGenC::VisitStmt_(const Store* op) {
     CHECK(is_one(op->predicate))
         << "Predicated store is not supported";
     Expr base;
-    if (TryGetRamp1Base(op->index, t.lanes(), &base)) {
+    if (GetRamp1Base(op->index, t.lanes(), &base)) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer_var.get(), t, base, value);
     } else {
@@ -666,6 +659,8 @@ void CodeGenC::VisitExpr_(const Let* op, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenC::VisitExpr_(const Ramp* op, std::ostream& os) {  // NOLINT(*)
+  // constraint of current logic
+  CHECK_EQ(op->base.type(), Int(32));
   os << "((int" << op->lanes << ")(";
   for (int i = 0; i < op->lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")" << "+(" << PrintExpr(op->stride) << "*" << i <<")";

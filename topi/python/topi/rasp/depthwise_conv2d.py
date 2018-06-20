@@ -24,6 +24,15 @@ _WORKLOADS = [
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
     _Workload('float32', 'float32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
     _Workload('float32', 'float32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 112, 112, 32, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 112, 112, 64, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 56, 56, 128, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 28, 28, 256, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 1, 1),
+    _Workload('int16', 'int32', 14, 14, 512, 1, 3, 3, 1, 1, 2, 2),
+    _Workload('int16', 'int32', 7, 7, 1024, 1, 3, 3, 1, 1, 1, 1),
 ]
 
 _SCHEDULES = [
@@ -36,6 +45,15 @@ _SCHEDULES = [
     _Schedule(1, 1, 8, 8, True),
     _Schedule(1, 1, 4, 1, False),
     _Schedule(1, 1, 4, 4, False),
+    _Schedule(2, 4, 4, 2, False),
+    _Schedule(2, 7, 4, 1, True),
+    _Schedule(2, 4, 4, 4, False),
+    _Schedule(2, 2, 4, 4, False),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(2, 2, 4, 4, True),
+    _Schedule(2, 2, 8, 4, False),
+    _Schedule(1, 2, 8, 4, True),
+    _Schedule(1, 1, 4, 8, True),
 ]
 
 def _get_workload(data, kernel, stride, padding, out_dtype):
@@ -146,7 +164,7 @@ def _schedule(s, data, data_pad, kernel, output, last):
 
 
 @generic.schedule_depthwise_conv2d_nchw.register(["cpu", "rasp"])
-def schedule_depthwise_conv2d(outs):
+def schedule_depthwise_conv2d_nchw(outs):
     """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
@@ -164,6 +182,7 @@ def schedule_depthwise_conv2d(outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
+        """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
@@ -175,6 +194,8 @@ def schedule_depthwise_conv2d(outs):
         if op.tag == 'depthwise_conv2d_nchw':
             output = op.output(0)
             kernel = op.input_tensors[1]
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+                s[kernel].compute_inline()
             data = op.input_tensors[0]
             data_pad = None
             if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
