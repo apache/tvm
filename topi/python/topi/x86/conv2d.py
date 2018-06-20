@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,invalid-name
+# pylint: disable=invalid-name,unused-variable,invalid-name,unused-argument
 """Conv2D schedule on x86"""
 import tvm
 from .. import generic, tag

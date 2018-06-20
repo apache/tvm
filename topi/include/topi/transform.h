@@ -586,13 +586,12 @@ inline Tensor crop(const Array<Tensor>& inputs,
   Array<Expr> oshape;
   if (inputs.size() > 1) {
     oshape = inputs[1]->shape;
-  }
-  else {
+  } else {
     oshape.push_back(ishape[0]);
     oshape.push_back(ishape[1]);
     oshape.push_back(h_w[0]);
     oshape.push_back(h_w[1]);
-  };
+  }
   if (center_crop) {
     offset.Set(0, (ishape[2] - oshape[2]) / 2);
     offset.Set(1, (ishape[3] - oshape[3]) / 2);
@@ -609,7 +608,6 @@ inline Tensor crop(const Array<Tensor>& inputs,
       }
       return inputs[0](in_index);
     });
-
 }
 
 }  // namespace topi
