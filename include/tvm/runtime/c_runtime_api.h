@@ -142,6 +142,16 @@ typedef struct {
   size_t size;
 } TVMByteArray;
 
+/*!
+ * \brief A Device context for Tensor and operator.
+ */
+typedef struct {
+  /*! \brief DL Tensor to collect the output. */
+  DLTensor out_tensor;
+  /*! \brief The timestamp of each output */
+  int64_t time_stamp;
+} TVMDbgTensor;
+
 /*! \brief Handle to TVM runtime modules. */
 typedef void* TVMModuleHandle;
 /*! \brief Handle to packed function handle. */

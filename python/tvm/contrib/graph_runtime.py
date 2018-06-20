@@ -3,9 +3,10 @@ from .._ffi.base import string_types
 from .._ffi.function import get_global_func
 from .rpc import base as rpc_base
 from .. import ndarray as nd
+from ..tools.debug.runtime import debugruntime
+from ..tools.debug.util import common
 
-
-def create(graph_json_str, libmod, ctx):
+def create(graph_json_str, libmod, ctx, debug=False):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -20,6 +21,9 @@ def create(graph_json_str, libmod, ctx):
 
     ctx : TVMContext
         The context to deploy the module, can be local or remote.
+
+    debug : bool
+        To enable or disable the debugging
 
     Returns
     -------
@@ -39,9 +43,11 @@ def create(graph_json_str, libmod, ctx):
         hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx._rpc_sess.get_function("tvm.graph_runtime.remote_create")
         device_type = device_type % rpc_base.RPC_SESS_MASK
-        return GraphModule(fcreate(graph_json_str, hmod, device_type, device_id), ctx)
+        func_obj = fcreate(graph_json_str, hmod, device_type, device_id)
+        return GraphModule(func_obj, ctx, graph_json_str, debug)
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, device_type, device_id), ctx)
+    func_obj = fcreate(graph_json_str, libmod, device_type, device_id)
+    return GraphModule(func_obj, ctx, graph_json_str, debug)
 
 
 class GraphModule(object):
@@ -67,18 +73,19 @@ class GraphModule(object):
     ctx : TVMContext
         The context this module is under
     """
-    def __init__(self, module, ctx):
+    def __init__(self, module, ctx, graph_json_str, debug):
         self.module = module
         self._set_input = module["set_input"]
         self._run = module["run"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
-        try:
-            self._debug_get_output = module["debug_get_output"]
-        except AttributeError:
-            pass
+        self._set_debug_buffer = module["set_debug_buffer"]
+        self._debug_run = module["debug_run"]
         self._load_params = module["load_params"]
         self.ctx = ctx
+        self.debug = debug
+        if self.debug:
+            self.dbgobj = debugruntime.create(self, graph_json_str, ctx)
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -98,7 +105,35 @@ class GraphModule(object):
             self._set_input(key, nd.array(value, ctx=self.ctx))
         for k, v in params.items():
             self._set_input(k, nd.array(v, ctx=self.ctx))
+        if self.debug:
+            self.dbgobj.set_input(key, value, **params)
         return self
+
+    def set_debug_buffer(self):
+        """Set the debug out buffers for each tvm nodes
+
+        Parameters
+        ----------
+        None
+        """
+
+        for eid in range(self.dbgobj.get_debug_buffer_count()):
+            self._set_debug_buffer(self.dbgobj.get_debug_buffer(eid))
+
+    def _debug_cli_run(self):
+        """Invoke cli and when user execute any command get_run_start_resp will return response"""
+        cli_command = self.dbgobj.get_run_command()
+        run_start_resp = cli_command.get_run_start_resp()
+        retvals = True
+        if run_start_resp.action == common.CLIRunStartAction.DEBUG_RUN:
+            self.set_debug_buffer()
+            retvals = self._debug_run()
+            self.dbgobj.dump_output()
+            self.dbgobj.run_end(cli_command, retvals)
+
+        elif run_start_resp.action == common.CLIRunStartAction.NON_DEBUG_RUN:
+            retvals = self._run()
+            self.dbgobj.run_end(cli_command, retvals)
 
     def run(self, **input_dict):
         """Run forward execution of the graph
@@ -110,7 +145,11 @@ class GraphModule(object):
         """
         if input_dict:
             self.set_input(**input_dict)
-        self._run()
+
+        if not self.debug:
+            self._run()
+        else:
+            self._debug_cli_run()
 
     def get_input(self, index, out):
         """Get index-th input to out
@@ -138,23 +177,6 @@ class GraphModule(object):
             The output array container
         """
         self._get_output(index, out)
-        return out
-
-    def debug_get_output(self, node, out):
-        """Run graph upto node and get the output to out
-
-        Parameters
-        ----------
-        node : int / str
-            The node index or name
-
-        out : NDArray
-            The output array container
-        """
-        if hasattr(self, '_debug_get_output'):
-            self._debug_get_output(node, out)
-        else:
-            raise RuntimeError("Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
         return out
 
     def load_params(self, params_bytes):
