@@ -375,41 +375,43 @@ class NodeAttrSetter : public AttrVisitor {
   std::string type_key;
   std::unordered_map<std::string, runtime::TVMArgValue> attrs;
 
-  template<typename T>
-  void SetValue(const char* key, T* value) {
+  void Visit(const char* key, double* value) final {
+    *value = GetAttr(key).operator double();
+  }
+  void Visit(const char* key, int64_t* value) final {
+    *value = GetAttr(key).operator int64_t();
+  }
+  void Visit(const char* key, uint64_t* value) final {
+    *value = GetAttr(key).operator uint64_t();
+  }
+  void Visit(const char* key, int* value) final {
+    *value = GetAttr(key).operator int();
+  }
+  void Visit(const char* key, bool* value) final {
+    *value = GetAttr(key).operator bool();
+  }
+  void Visit(const char* key, std::string* value) final {
+    *value = GetAttr(key).operator std::string();
+  }
+  void Visit(const char* key, void** value) final {
+    *value = GetAttr(key).operator void*();
+  }
+  void Visit(const char* key, Type* value) final {
+    *value = GetAttr(key).operator Type();
+  }
+  void Visit(const char* key, NodeRef* value) final {
+    *value = GetAttr(key).operator NodeRef();
+  }
+
+ private:
+  runtime::TVMArgValue GetAttr(const char* key) {
     auto it = attrs.find(key);
     if (it == attrs.end()) {
       LOG(FATAL) << type_key << ": require field " << key;
     }
-    *value = it->second.operator T();
+    runtime::TVMArgValue v = it->second;
     attrs.erase(it);
-  }
-  void Visit(const char* key, double* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, int64_t* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, int* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, bool* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, std::string* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, void** value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, Type* value) final {
-    SetValue(key, value);
-  }
-  void Visit(const char* key, NodeRef* value) final {
-    SetValue(key, value);
+    return v;
   }
 };
 
