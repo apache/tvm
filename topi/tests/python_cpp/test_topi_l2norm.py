@@ -5,7 +5,7 @@ import topi
 import logging
 from topi.util import get_const_tuple
 
-def l2normalize_instance_python(a_np, eps, axis=None):
+def l2normalize_python(a_np, eps, axis=None):
     """L2 normalize operator in NCHW layout.
 
     Parameters
@@ -23,7 +23,6 @@ def l2normalize_instance_python(a_np, eps, axis=None):
     l2normalize_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    batch = a_np.shape[0]
     dot_value = np.power(a_np, 2.0)
     sqr_sum = np.sum(dot_value, axis, keepdims=True)
     sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
@@ -33,11 +32,11 @@ def l2normalize_instance_python(a_np, eps, axis=None):
 def verify_l2normalize(shape, eps, axis=None):
     '''Verify l2 normalization operator by comparing outputs from tvm and numpy implementation'''
     A = tvm.placeholder(shape, name='A')
-    B = topi.cpp.nn.l2normalize_instance(A, eps, axis)
+    B = topi.cpp.nn.l2_normalize(A, eps, axis)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=shape).astype(dtype)
-    b_np = l2normalize_instance_python(a_np, eps, axis)
+    b_np = l2normalize_python(a_np, eps, axis)
 
     def check_device(device):
         if not tvm.module.enabled(device):
@@ -48,7 +47,7 @@ def verify_l2normalize(shape, eps, axis=None):
         if device == "llvm":
             s = topi.cpp.generic.default_schedule(target, [B], False)
         else:
-            s = topi.cpp.cuda.schedule_l2normalize(target, [B])
+            s = topi.cpp.cuda.schedule_l2_normalize(target, [B])
         ctx = tvm.context(device, 0)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)

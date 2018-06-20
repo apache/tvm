@@ -5,7 +5,7 @@ import tvm
 from .. import cpp
 
 @tvm.target.generic_func
-def l2normalize_instance(data, eps, axis=None):
+def l2_normalize(data, eps, axis=None):
     """Perform L2 normalization on the input data
 
     For axis=None, y(i, j) = x(i, j) / sqrt(max(sum(x^2), eps))
@@ -26,4 +26,4 @@ def l2normalize_instance(data, eps, axis=None):
     output : tvm.Tensor
         4-D output with same shape
     """
-    return cpp.nn.l2normalize_instance(data, eps, axis)
+    return cpp.nn.l2_normalize(data, eps, axis)

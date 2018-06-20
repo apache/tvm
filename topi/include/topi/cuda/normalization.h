@@ -59,7 +59,7 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
 *
 * \return A schedule for the given ops.
 */
-inline Schedule schedule_l2normalize(const Target &target, const Array<Tensor>& outs) {
+inline Schedule schedule_l2_normalize(const Target &target, const Array<Tensor>& outs) {
   Array<Operation> out_ops;
   for (auto t : outs) {
     out_ops.push_back(t->op);
@@ -69,7 +69,7 @@ inline Schedule schedule_l2normalize(const Target &target, const Array<Tensor>& 
   std::function<void(Operation)> traverse;
   traverse = [&](const Operation& op) {
     // Inline all one-to-one-mapping operators except the last stage (output)
-    if (is_injective(op->tag) || op->tag == "l2normalize") {
+    if (is_injective(op->tag) || op->tag == "l2_normalize") {
       if (!detail::contains(s->outputs, op)) {
         s[op].compute_inline();
       }

@@ -747,7 +747,7 @@ inline bool L2normalizeInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-NNVM_REGISTER_OP(l2normalize)
+NNVM_REGISTER_OP(l2_normalize)
 .describe(R"code(L2NORMALIZE layer)code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tesndor", "Input data.")
 .set_attr_parser(ParamParser<L2normalizeParam>)
@@ -756,6 +756,7 @@ NNVM_REGISTER_OP(l2normalize)
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", L2normalizeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_support_level(1);
 
 }  // namespace top

@@ -278,7 +278,7 @@ def schedule_lrn(outs):
     return cpp.generic.default_schedule(cpp_target, outs, False)
 
 @tvm.target.generic_func
-def schedule_l2normalize(outs):
+def schedule_l2_normalize(outs):
     """Schedule for l2normalize
 
     Parameters

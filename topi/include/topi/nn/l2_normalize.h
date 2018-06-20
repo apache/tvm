@@ -25,11 +25,11 @@ using namespace tvm;
 *
 * \return A Tensor whose op member is the l2 normalization operation
 */
-inline Tensor l2normalize_instance(const Tensor& data,
+inline Tensor l2_normalize(const Tensor& data,
                               float eps,
                               const Array<Expr>& axis,
                               std::string name = "tensor",
-                              std::string tag = "l2normalize") {
+                              std::string tag = "l2_normalize") {
   CHECK_EQ(data->shape.size(), 4) << "L2 normalization requires 4-D input";
   auto input_shape = data->shape;
   Tensor dot_value = pow(data, static_cast<float>(2.0));

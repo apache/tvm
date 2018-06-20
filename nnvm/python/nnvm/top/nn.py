@@ -260,19 +260,19 @@ def schedule_lrn(attrs, outs, target):
     with tvm.target.create(target):
         return topi.generic.schedule_lrn(outs)
 
-reg.register_pattern("lrn", OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_pattern("lrn", OpPattern.OPAQUE)
 
-@reg.register_compute("l2normalize")
-def compute_l2normalize(attrs, inputs, _):
+@reg.register_compute("l2_normalize")
+def compute_l2_normalize(attrs, inputs, _):
     """Compute definition of l2normalize"""
     eps = attrs.get_float("eps")
     axis = attrs.get_int_tuple("axis")
-    return topi.nn.l2normalize_instance(inputs[0], eps, axis)
+    return topi.nn.l2_normalize(inputs[0], eps, axis)
 
-@reg.register_schedule("l2normalize")
-def schedule_l2normalize(attrs, outs, target):
+@reg.register_schedule("l2_normalize")
+def schedule_l2_normalize(attrs, outs, target):
     """Schedule definition of l2normalize"""
     with tvm.target.create(target):
-        return topi.generic.schedule_l2normalize(outs)
+        return topi.generic.schedule_l2_normalize(outs)
 
-reg.register_pattern("l2normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_pattern("l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)

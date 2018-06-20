@@ -33,8 +33,8 @@ inline Schedule schedule_lrn(const Target &target, const Array<Tensor>& outs) {
 *
 * \return A schedule for the given ops.
 */
-inline Schedule schedule_l2normalize(const Target &target, const Array<Tensor>& outs) {
-  return topi::cuda::schedule_l2normalize(target, outs);
+inline Schedule schedule_l2_normalize(const Target &target, const Array<Tensor>& outs) {
+  return topi::cuda::schedule_l2_normalize(target, outs);
 }
 }  // namespace rocm
 }  // namespace topi

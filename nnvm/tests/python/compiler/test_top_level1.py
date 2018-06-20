@@ -435,13 +435,25 @@ def verify_lrn(ishape, size, axis, bias, alpha, beta):
         out_np = lrn_python(x_np, size, axis, bias, alpha, beta)
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
+    #Checking LRN op followed by elementwise op relu
+    z = sym.relu(y)
+    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = lrn_python(x_np, size, axis, bias, alpha, beta)
+        out_np = (out_np > 0) * out_np
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
 def verify_l2normalize(ishape, eps, axis):
     x = sym.Variable("x")
-    y = sym.l2normalize(x, eps=eps, axis=axis)
+    y = sym.l2_normalize(x, eps=eps, axis=axis)
     dtype = "float32"
     x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    def l2normalize_instance_python(a_np, eps, axis=None):
+    def l2normalize_python(a_np, eps, axis=None):
         """L2 normalize operator in NCHW layout.
 
         Parameters
@@ -459,7 +471,6 @@ def verify_l2normalize(ishape, eps, axis):
         l2normalize_out : np.ndarray
             4-D with shape [batch, out_channel, out_height, out_width]
         """
-        batch = a_np.shape[0]
         dot_value = np.power(a_np, 2.0)
         sqr_sum = np.sum(dot_value, axis, keepdims=True)
         sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
@@ -471,7 +482,19 @@ def verify_l2normalize(ishape, eps, axis):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = l2normalize_instance_python(x_np, eps, axis)
+        out_np = l2normalize_python(x_np, eps, axis)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+    #Checking L2 normalization op followed by elementwise op relu
+    z = sym.relu(y)
+    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = l2normalize_python(x_np, eps, axis)
+        out_np = (out_np > 0) * out_np
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 def test_lrn():
