@@ -18,14 +18,17 @@ halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
 
 # Useful constants. In avoid of runtime dependences, we use function calls to return them.
 def make_nop():
+    """Returns a 'no operation' node in HalideIR."""
     return _make.Evaluate(_api.const(0, dtype='int32'))
 
 
 def make_range_one():
+    """Returns a [0, 1] range node in HalideIR."""
     return _make.range_by_min_extent(0, 1)
 
 
 def make_const_true():
+    """Returns a constant True node in HalideIR."""
     return _api.convert(True)
 
 

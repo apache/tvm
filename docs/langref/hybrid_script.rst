@@ -1,14 +1,14 @@
 Hybrid Frontend Language Reference
-----------------------------------
+==================================
 
 Overview
-========
+--------
 
 This hybrid frontend allows users to write preliminary versions of some idioms that yet have
 been supported by TVM officially.
 
 Features
-========
+--------
 
 Software Emulation
 ~~~~~~~~~~~~~~~~~~

@@ -1,4 +1,4 @@
-"""Compiling a TVM Hybrid Script Python to HalideIR"""
+"""Hybrid Script Parser"""
 
 import ast
 import operator

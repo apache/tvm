@@ -29,14 +29,38 @@ class bind(_range): #pylint: disable=invalid-name
 serial = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 
-def allocate(shape, dtype=None):
-    """Allocate a buffer with given shape"""
-    dtype = 'float32' if dtype is None else dtype
+def allocate(shape, dtype='float32'):
+    """Allocate a buffer with given shape
+
+    Parameters
+    ----------
+    shape: Tuple
+        The shape of the tensor to be allocated
+    dtype: string
+        The data type of the tensor
+
+    Returns
+    -------
+    tensor: numpy.array
+        The tensor allocated
+    """
     return numpy.zeros(shape).astype(dtype)
 
 
 def popcount(x):
-    """Software emulated popcount function which counts 1's in a number's binary representation."""
+    """
+    Count ones in the binary representation of number x
+
+    Parameters
+    ----------
+    x: Integer
+        The number to be counted
+
+    Returns
+    -------
+    cnt: Integer
+        The number of ones in the binary representation of number x
+    """
     cnt = 0
     while x:
         x -= x & -x
@@ -45,12 +69,22 @@ def popcount(x):
 
 
 def sigmoid(x):
-    """Software emulated sigmoid function, which returns 1/(1+exp(-x))."""
+    """
+    Sigmoid function of x, aka 1/(1+exp(-x)).
+    
+    Parameters
+    ----------
+    x: a real number
+
+    Returns
+    -------
+    res: a real number
+        The result of sigmoid function
+    """
     return 1 / (1 + numpy.exp(-x))
 
 
 HYBRID_GLOBALS = {
-    'serial'    : serial,
     'unroll'    : unroll,
     'vectorize' : vectorize,
     'parallel'  : parallel,
@@ -68,7 +102,6 @@ HYBRID_GLOBALS = {
 
 LOOP_INTRIN = {
     'range'    : For.Serial,
-    'serial'   : For.Serial,
     'unroll'   : For.Unrolled,
     'parallel' : For.Parallel,
     'vectorize': For.Vectorized,

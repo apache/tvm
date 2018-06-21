@@ -34,9 +34,8 @@ def parse(func, args):
 
     Returns
     -------
-    (halide_ir, parser) : (Stmt, PyAST2HalideIR)
+    root : Stmt
         The result Halide IR and the parser class instance.
-        TODO: Later we deprecate this return value, use a dedicated OP node type instead
     """
     if isinstance(func, str):
         src = func

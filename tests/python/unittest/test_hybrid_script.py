@@ -4,7 +4,7 @@ from tvm.hybrid._intrin import HYBRID_GLOBALS
 
 @script
 def outer_product(n, m, a, b, c):
-    for i in serial(n):
+    for i in range(n):
         for j in range(m):
             c[i, j] = a[i] * b[j]
 
@@ -66,9 +66,9 @@ def test_fanout():
     @script
     def fanout(n, a, b):
         three = 3.0
-        for i in serial(a.shape[0] - 3):
+        for i in range(a.shape[0] - 3):
             sigma = 0.0
-            for j in serial(3):
+            for j in range(3):
                 sigma = sigma + a[i + j]
             sigma = sigma / three
             b[i] = sigma
@@ -133,7 +133,7 @@ def test_fanout():
 
 @script
 def failure():
-    for i in serial(1, 100):
+    for i in range(1, 100):
         i = 0
 
 def test_failure():
@@ -167,7 +167,7 @@ def test_looptype():
 def test_if():
     @script
     def if_then_else(a, b):
-        for i in serial(10):
+        for i in range(10):
             if i % 2 == 0:
                 a[i] = -1
             else:
