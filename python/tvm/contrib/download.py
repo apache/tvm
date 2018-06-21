@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name, no-member, import-error, no-name-in-module, global-variable-undefined, bare-except
 """Helper utility for downloading"""
 from __future__ import print_function
 from __future__ import absolute_import as _abs
@@ -6,28 +5,12 @@ from __future__ import absolute_import as _abs
 import os
 import sys
 import time
-import urllib
 import requests
 
 if sys.version_info >= (3,):
     import urllib.request as urllib2
 else:
     import urllib2
-
-def _download_progress(count, block_size, total_size):
-    """Show the download progress.
-    """
-    global start_time
-    if count == 0:
-        start_time = time.time()
-        return
-    duration = time.time() - start_time
-    progress_size = int(count * block_size)
-    speed = int(progress_size / (1024 * duration))
-    percent = int(count * block_size * 100 / total_size)
-    sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
-                     (percent, progress_size / (1024 * 1024), speed, duration))
-    sys.stdout.flush()
 
 def download(url, path, overwrite=False, size_compare=False):
     """Downloads the file from the internet.
@@ -62,8 +45,29 @@ def download(url, path, overwrite=False, size_compare=False):
         print('File {} exists, skip.'.format(path))
         return
     print('Downloading from url {} to {}'.format(url, path))
-    try:
-        urllib.request.urlretrieve(url, path, reporthook=_download_progress)
-        print('')
-    except:
-        urllib.urlretrieve(url, path, reporthook=_download_progress)
+
+    # Stateful start time
+    start_time = time.time()
+
+    def _download_progress(count, block_size, total_size):
+        #pylint: disable=unused-argument
+        """Show the download progress.
+        """
+        if count == 0:
+            return
+        duration = time.time() - start_time
+        progress_size = int(count * block_size)
+        speed = int(progress_size / (1024 * duration))
+        percent = min(int(count * block_size * 100 / total_size), 100)
+        sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
+                         (percent, progress_size / (1024 * 1024), speed, duration))
+        sys.stdout.flush()
+
+    if sys.version_info >= (3,):
+        urllib2.urlretrieve(url, path, reporthook=_download_progress)
+        print("")
+    else:
+        f = urllib2.urlopen(url)
+        data = f.read()
+        with open(path, "wb") as code:
+            code.write(data)
