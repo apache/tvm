@@ -31,6 +31,54 @@ Used to produce invalide node during optimization.
 .set_num_outputs(1)
 .set_num_inputs(0);
 
+// floor
+NNVM_REGISTER_ELEMWISE_UNARY_OP(floor)
+.describe(R"code(Take floor input array, computed element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::floor(inputs[0]) };
+});
+
+// ceil
+NNVM_REGISTER_ELEMWISE_UNARY_OP(ceil)
+.describe(R"code(Take ceil input array, computed element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::ceil(inputs[0]) };
+});
+
+// trunc
+NNVM_REGISTER_ELEMWISE_UNARY_OP(trunc)
+.describe(R"code(Take truncated value of the input, element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::trunc(inputs[0]) };
+});
+
+// round
+NNVM_REGISTER_ELEMWISE_UNARY_OP(round)
+.describe(R"code(Round elements of the input to nearest integer.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::round(inputs[0]) };
+});
+
 // sigmoid
 NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 .describe(R"code(Computes sigmoid.

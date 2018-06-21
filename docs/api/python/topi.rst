@@ -9,6 +9,10 @@ List of operators
 
    topi.identity
    topi.negative
+   topi.floor
+   topi.ceil
+   topi.trunc
+   topi.round
    topi.exp
    topi.tanh
    topi.log
@@ -68,6 +72,10 @@ topi
 ~~~~
 .. autofunction:: topi.negative
 .. autofunction:: topi.identity
+.. autofunction:: topi.floor
+.. autofunction:: topi.ceil
+.. autofunction:: topi.trunc
+.. autofunction:: topi.round
 .. autofunction:: topi.exp
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log

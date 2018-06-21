@@ -10,6 +10,10 @@ tvm.intrin
    tvm.register_intrin_rule
    tvm.exp
    tvm.log
+   tvm.floor
+   tvm.ceil
+   tvm.trunc
+   tvm.round
 
 
 .. autofunction:: tvm.call_packed
@@ -18,3 +22,7 @@ tvm.intrin
 .. autofunction:: tvm.register_intrin_rule
 .. autofunction:: tvm.exp
 .. autofunction:: tvm.log
+.. autofunction:: tvm.floor
+.. autofunction:: tvm.ceil
+.. autofunction:: tvm.trunc
+.. autofunction:: tvm.round
