@@ -88,11 +88,16 @@ Variables
 All the mutatable variables will be lowered to an array with size 1.
 It regards the first store of a variable as its declaration.
 
-**NOTE**: Unlike conventional Python, in hybrid script, the declared variable
-          can only be used in the scope level it is declared.
+.. note::
 
-**NOTE**: Currently, you can ONLY use basic-typed variables, i.e. the type of the
-          variable should be either ``float32``, or ``int32``.
+        Unlike conventional Python, in hybrid script, the declared variable
+        can only be used in the scope level it is declared.
+
+
+.. note::
+
+        Currently, you can ONLY use basic-typed variables, i.e. the type of the
+        variable should be either ``float32``, or ``int32``.
 
 .. code-block:: python
 

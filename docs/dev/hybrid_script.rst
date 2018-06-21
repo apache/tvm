@@ -50,10 +50,14 @@ Loops
 In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, ``parallel``, and ``vectorized``.
 
 
+.. note::
+
     Unlike what that is in HalideIR, in ``loop_type(a, b)``, ``a`` is the starting point and ``b``
     is the trip count of iterations. Here ``loop_type(a, b)`` indicates ``[a, b)``. Thus, when lowering it
     to HalideIR, we need to do ``start, extent = a, b - a``
 
+
+.. note::
 
     In HalideIR those are enums, they are in passive form.
     Here we use active form to annotate loops, because they are ready to run.
