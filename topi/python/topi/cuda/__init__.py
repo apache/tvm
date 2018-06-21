@@ -21,3 +21,4 @@ from .nn import schedule_lrn, schedule_l2_normalize
 from .vision import schedule_multibox_prior
 from . import ssd
 from .ssd import multibox_prior
+from .nms import *
