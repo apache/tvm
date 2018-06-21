@@ -28,7 +28,7 @@ you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid fun
     c = numpy.zeros((100, 99))
     outer_product(a, b, c)
 
-This decorator will import `keywords <Keywords>`_ required spontaneously when software emulation.
+This decorator will import `Keywords`_ required spontaneously when software emulation.
 After software emulation is done, the imported keywords will be cleaned up. Users do not need
 worry about keyword conflict and pollution.
 
