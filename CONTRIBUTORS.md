@@ -22,6 +22,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 ## Reviewers
 - [Masahiro Masuda](https://github.com/masahi)
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
+- [Siva](https://github.com/srkreddy1238)
 - [Eddie Yan](https://github.com/eqy)
 - [Joshua Z. Zhang](https://github.com/zhreshold)
 - [Lianmin Zheng](https://github.com/merrymercy)
