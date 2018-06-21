@@ -127,13 +127,13 @@ inline Tensor cast(const Tensor& x,
 /*!
 * \brief Creates an operation that sum each element of a tensor
 *
-* \param x The input tensor
-* \param num_args The number of arguments
+* \param xs The input tensor array
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the sum operation
 */
 inline Tensor elemwise_sum(const Array<Tensor>& xs,
-                           int num_args,
                            std::string name = "tensor",
                            std::string tag = kElementWise) {
   CHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
@@ -150,10 +150,12 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
 * \brief Creates an operation that fill a tensor with fill_value
 *
 * \param shape The shape of a tensor
-* \param dtype The number of arguments
+* \param dtype The Type of fill_value
 * \param fill_value The value to be filled
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
-* \return A Tensor filled with fill_value
+* \return A Tensor whose op member is the full operation
 */
 inline Tensor full(const Array<Expr>& shape,
                    Type dtype,
@@ -168,12 +170,14 @@ inline Tensor full(const Array<Expr>& shape,
 
 /*!
 * \brief Creates an operation that construct a tensor with same shape as input tensor, 
-*        then fill a tensor with fill_value
+* then fill a tensor with fill_value
 *
-* \param shape The input tensor
+* \param x The input tensor
 * \param fill_value The value to be filled
+* \param name The name of the operation
+* \param tag The tag to mark the operation
 *
-* \return A Tensor filled with fill_value
+* \return A Tensor whose op memeber is the full_like operation
 */
 inline Tensor full_like(const Tensor& x,
                         Expr fill_value,
@@ -182,50 +186,6 @@ inline Tensor full_like(const Tensor& x,
   Expr ev = lossless_cast(x->dtype, fill_value);
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
-  }, name, tag);
-}
-
-/*!
-* \brief Creates an operation that compare two compare input tensors element-wise
-*        and return an mask tensor which contains 1 if lhs > rhs holds else 0
-*
-* \param lhs The input tensor
-* \param rhs The input tensor
-* \param out_type The type of output
-*
-* \return A Tensor filled with fill_value
-*/
-inline Tensor greater(const Tensor& lhs,
-                      const Tensor& rhs,
-                      Type out_type,
-                      std::string name = "tensor",
-                      std::string tag = kElementWise) {
-  Expr one = HalideIR::Internal::make_one(out_type);
-  Expr zero = HalideIR::Internal::make_zero(out_type);
-  return compute(lhs->shape, [&](const Array<Var>& i) {
-      return select(lhs(i) > rhs(i), one, zero);
-  }, name, tag);
-}
-
-/*!
-* \brief Creates an operation that compare two compare input tensors element-wise
-*        and return an mask tensor which contains 1 if lhs < rhs holds else 0
-*
-* \param lhs The input tensor
-* \param rhs The input tensor
-* \param out_type The type of output
-*
-* \return A Tensor filled with fill_value
-*/
-inline Tensor less(const Tensor& lhs,
-                      const Tensor& rhs,
-                      Type out_type,
-                      std::string name = "tensor",
-                      std::string tag = kElementWise) {
-  Expr one = HalideIR::Internal::make_one(out_type);
-  Expr zero = HalideIR::Internal::make_zero(out_type);
-  return compute(lhs->shape, [&](const Array<Var>& i) {
-      return select(lhs(i) < rhs(i), one, zero);
   }, name, tag);
 }
 

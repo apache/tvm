@@ -2,6 +2,7 @@
 """Elementwise operators"""
 from __future__ import absolute_import as _abs
 import tvm
+from . import cpp
 from . import tag
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -20,12 +21,7 @@ def elemwise_sum(xs, num_args):
     y : tvm.Tensor
         The result.
     """
-    assert len(xs) > 0, "elemwise sum must have at least one input tensor."
-
-    def _compute(*i):
-        return sum([x(*i) for x in xs])
-
-    return tvm.compute(xs[0].shape, _compute)
+    return cpp.elemwise_sum(xs, num_args)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -46,7 +42,7 @@ def full(shape, dtype, fill_value):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(shape, lambda *i: tvm.const(fill_value, dtype))
+    return cpp.full(shape, dtype, fill_value)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -66,5 +62,4 @@ def full_like(x, fill_value):
     y : tvm.Tensor
         The result.
     """
-    dtype = x.dtype
-    return tvm.compute(x.shape, lambda *i: tvm.const(fill_value, dtype))
+    return cpp.full_like(x, fill_value)

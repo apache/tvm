@@ -178,16 +178,6 @@ TVM_REGISTER_GLOBAL("topi.full_like")
   *rv = full_like(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.greater")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = greater(args[0], args[1], args[2]);
-  });
-
-TVM_REGISTER_GLOBAL("topi.less")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = less(args[0], args[1], args[2]);
-  });
-
 /* Ops from nn.h */
 TVM_REGISTER_GLOBAL("topi.nn.relu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
