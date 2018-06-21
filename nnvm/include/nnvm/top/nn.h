@@ -391,11 +391,11 @@ struct LRNParam : public dmlc::Parameter<LRNParam> {
   static const constexpr int kData = 0;
 };
 
-struct L2normalizeParam : public dmlc::Parameter<L2normalizeParam> {
+struct L2NormalizeParam : public dmlc::Parameter<L2NormalizeParam> {
   float eps;
   Tuple<int> axis;
 
-  DMLC_DECLARE_PARAMETER(L2normalizeParam) {
+  DMLC_DECLARE_PARAMETER(L2NormalizeParam) {
     DMLC_DECLARE_FIELD(eps)
       .describe("float type epsilon value.");
     DMLC_DECLARE_FIELD(axis)

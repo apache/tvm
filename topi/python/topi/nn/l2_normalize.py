@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name
-"""TVM operator for l2normalize"""
+"""TVM operator for l2 normalize"""
 from __future__ import absolute_import
 import tvm
 from .. import cpp

@@ -90,14 +90,14 @@ inline Schedule schedule_l2_normalize(const Target &target, const Array<Tensor>&
 
   traverse(outs[0]->op);
   int num_thread = 64;
-  Tensor l2normalize = outs[0];
+  Tensor l2_normalize = outs[0];
   IterVar block_x = tvm::thread_axis(Range(), "blockIdx.x");
   IterVar thread_x = tvm::thread_axis(Range(0, num_thread), "threadIdx.x");
   IterVar xto, xti;
-  s[l2normalize].split_by_nparts(l2normalize->op.as<ComputeOpNode>()->axis[1],
+  s[l2_normalize].split_by_nparts(l2_normalize->op.as<ComputeOpNode>()->axis[1],
                                  num_thread, &xto, &xti);
-  s[l2normalize].bind(l2normalize->op.as<ComputeOpNode>()->axis[0], block_x);
-  s[l2normalize].bind(xto, thread_x);
+  s[l2_normalize].bind(l2_normalize->op.as<ComputeOpNode>()->axis[0], block_x);
+  s[l2_normalize].bind(xto, thread_x);
   return s;
 }
 }  // namespace cuda

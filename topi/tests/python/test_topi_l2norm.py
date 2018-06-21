@@ -4,7 +4,7 @@ import tvm
 import topi
 from topi.util import get_const_tuple
 
-def l2normalize_python(a_np, eps, axis=None):
+def l2_normalize_python(a_np, eps, axis=None):
     """L2 normalize operator in NCHW layout.
 
     Parameters
@@ -19,23 +19,23 @@ def l2normalize_python(a_np, eps, axis=None):
 
     Returns
     -------
-    l2normalize_out : np.ndarray
+    l2_normalize_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
     dot_value = np.power(a_np, 2.0)
     sqr_sum = np.sum(dot_value, axis, keepdims=True)
     sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-    l2normalize_out = np.divide(a_np, sqrt_sum)
-    return l2normalize_out
+    l2_normalize_out = np.divide(a_np, sqrt_sum)
+    return l2_normalize_out
 
-def verify_l2normalize(ishape, eps, axis=None):
+def verify_l2_normalize(ishape, eps, axis=None):
 
     A = tvm.placeholder(ishape, name='A')
     B = topi.nn.l2_normalize(A, eps, axis)
     dtype = A.dtype
 
     a_np = np.random.uniform(size=ishape).astype(dtype)
-    b_np = l2normalize_python(a_np, eps, axis)
+    b_np = l2_normalize_python(a_np, eps, axis)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -57,14 +57,14 @@ def verify_l2normalize(ishape, eps, axis=None):
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
 
-def test_l2normalize():
-    verify_l2normalize((1, 3, 20, 20), 0.001)
-    verify_l2normalize((1, 3, 20, 20), 0.001, (1,))
-    verify_l2normalize((1, 3, 20, 20), 0.001, (1, 2))
-    verify_l2normalize((1, 3, 20, 20), 0.001, (2, 3))
-    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 3))
-    verify_l2normalize((1, 3, 20, 20), 0.001, (0, 2, 3))
+def test_l2_normalize():
+    verify_l2_normalize((1, 3, 20, 20), 0.001)
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1,))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (2, 3))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (0, 3))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (0, 2, 3))
 
 
 if __name__ == "__main__":
-    test_l2normalize()
+    test_l2_normalize()

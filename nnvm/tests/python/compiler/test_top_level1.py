@@ -447,13 +447,13 @@ def verify_lrn(ishape, size, axis, bias, alpha, beta):
         out_np = (out_np > 0) * out_np
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
-def verify_l2normalize(ishape, eps, axis):
+def verify_l2_normalize(ishape, eps, axis):
     x = sym.Variable("x")
     y = sym.l2_normalize(x, eps=eps, axis=axis)
     dtype = "float32"
     x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    def l2normalize_python(a_np, eps, axis=None):
+    def l2_normalize_python(a_np, eps, axis=None):
         """L2 normalize operator in NCHW layout.
 
         Parameters
@@ -468,21 +468,21 @@ def verify_l2normalize(ishape, eps, axis):
 
         Returns
         -------
-        l2normalize_out : np.ndarray
+        l2_normalize_out : np.ndarray
             4-D with shape [batch, out_channel, out_height, out_width]
         """
         dot_value = np.power(a_np, 2.0)
         sqr_sum = np.sum(dot_value, axis, keepdims=True)
         sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-        l2normalize_out = np.divide(a_np, sqrt_sum)
-        return l2normalize_out
+        l2_normalize_out = np.divide(a_np, sqrt_sum)
+        return l2_normalize_out
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = l2normalize_python(x_np, eps, axis)
+        out_np = l2_normalize_python(x_np, eps, axis)
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
     #Checking L2 normalization op followed by elementwise op relu
@@ -493,7 +493,7 @@ def verify_l2normalize(ishape, eps, axis):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = l2normalize_python(x_np, eps, axis)
+        out_np = l2_normalize_python(x_np, eps, axis)
         out_np = (out_np > 0) * out_np
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
@@ -501,9 +501,9 @@ def test_lrn():
     verify_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
     verify_lrn((1, 3, 20, 20), 3, 1, 2.0, 1.0, 0.75)
 
-def test_l2normalize():
-    verify_l2normalize((1, 3, 20, 20), 0.001, (1,))
-    verify_l2normalize((1, 3, 20, 20), 0.001, (1, 2))
+def test_l2_normalize():
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1,))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
 
 if __name__ == "__main__":
     test_split()
@@ -524,4 +524,4 @@ if __name__ == "__main__":
     test_squeeze()
     test_pad()
     test_lrn()
-    test_l2normalize()
+    test_l2_normalize()

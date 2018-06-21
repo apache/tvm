@@ -279,12 +279,12 @@ def schedule_lrn(outs):
 
 @tvm.target.generic_func
 def schedule_l2_normalize(outs):
-    """Schedule for l2normalize
+    """Schedule for l2 normalize
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of l2normalize
+          The computation graph description of l2 normalize
           in the format of an array of tensors.
 
     Returns

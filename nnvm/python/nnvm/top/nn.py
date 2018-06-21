@@ -264,14 +264,14 @@ reg.register_pattern("lrn", OpPattern.OPAQUE)
 
 @reg.register_compute("l2_normalize")
 def compute_l2_normalize(attrs, inputs, _):
-    """Compute definition of l2normalize"""
+    """Compute definition of l2 normalize"""
     eps = attrs.get_float("eps")
     axis = attrs.get_int_tuple("axis")
     return topi.nn.l2_normalize(inputs[0], eps, axis)
 
 @reg.register_schedule("l2_normalize")
 def schedule_l2_normalize(attrs, outs, target):
-    """Schedule definition of l2normalize"""
+    """Schedule definition of l2 normalize"""
     with tvm.target.create(target):
         return topi.generic.schedule_l2_normalize(outs)
 

@@ -27,12 +27,12 @@ def schedule_lrn(outs):
 
 @generic.schedule_l2_normalize.register(["cuda"])
 def schedule_l2_normalize(outs):
-    """Schedule for L2normalize
+    """Schedule for L2 normalize
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of L2normalize
+          The computation graph description of L2 normalize
           in the format of an array of tensors.
 
     Returns

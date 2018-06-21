@@ -735,9 +735,9 @@ NNVM_REGISTER_OP(lrn)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_support_level(1);
 
-DMLC_REGISTER_PARAMETER(L2normalizeParam);
+DMLC_REGISTER_PARAMETER(L2NormalizeParam);
 
-inline bool L2normalizeInferShape(const nnvm::NodeAttrs& attrs,
+inline bool L2NormalizeInferShape(const nnvm::NodeAttrs& attrs,
                                   std::vector<TShape>* in_shape,
                                   std::vector<TShape>* out_shape) {
   TShape dshape = (*in_shape)[0];
@@ -750,11 +750,11 @@ inline bool L2normalizeInferShape(const nnvm::NodeAttrs& attrs,
 NNVM_REGISTER_OP(l2_normalize)
 .describe(R"code(L2NORMALIZE layer)code" NNVM_ADD_FILELINE)
 .add_argument("data", "4D Tesndor", "Input data.")
-.set_attr_parser(ParamParser<L2normalizeParam>)
-.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2normalizeParam>)
+.set_attr_parser(ParamParser<L2NormalizeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2NormalizeParam>)
 .set_num_inputs(1)
 .set_num_outputs(1)
-.set_attr<FInferShape>("FInferShape", L2normalizeInferShape)
+.set_attr<FInferShape>("FInferShape", L2NormalizeInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_support_level(1);
