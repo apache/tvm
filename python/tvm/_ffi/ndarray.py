@@ -260,6 +260,24 @@ class NDArrayBase(_NDArrayBase):
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
 
+    def tostype(self, stype):
+        """Convert this array to numpy array
+
+        Returns
+        -------
+        np_arr : numpy.ndarray
+            The corresponding numpy array.
+        """
+        from ..contrib import sparse as tvmsp
+        if stype == 'csr':
+            return tvmsp.CSRTensor(shape=self.shape, dtype=self.dtype)
+        elif stype == 'dense':
+            return self
+        else:
+            raise RuntimeError("unknown stype: %s, valid options "
+                               "are `csr` and `dense`." % (stype,))
+            return None
+
 def free_extension_handle(handle, type_code):
     """Free c++ extension type handle
 
