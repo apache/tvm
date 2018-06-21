@@ -24,7 +24,7 @@ import tvm
 import os
 
 from ctypes import *
-from nnvm.testing.download import download
+from tvm.contrib.download import download
 from nnvm.testing.darknet import __darknetffi__
 
 ######################################################################

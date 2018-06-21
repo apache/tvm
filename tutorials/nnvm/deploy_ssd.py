@@ -16,7 +16,7 @@ import numpy as np
 
 from nnvm import compiler
 from nnvm.frontend import from_mxnet
-from nnvm.testing.download import download
+from tvm.contrib.download import download
 from tvm.contrib import graph_runtime
 from mxnet.model import load_checkpoint
 
