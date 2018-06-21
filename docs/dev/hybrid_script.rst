@@ -4,7 +4,7 @@ Hybrid Frontend Developer Guide
 If you are a developer:
 
 1. who is trying writing some preliminary patterns that have not been supported by TVM yet,
-maybe `language ref <../lang_ref/hybrid_script>`_ is a better place for you.
+maybe `language ref <../lang_ref/hybrid_script.rst>`_ is a better place for you.
 
 2. who wants to know the implementing details of this module, you are right here!
 
