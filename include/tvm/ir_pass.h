@@ -480,17 +480,22 @@ bool VerifyMemory(LoweredFunc func, int device_type);
 
 /*!
  * \brief Verify the correctness of a GPU code
- *        It will check the whether the amount of shared memory or the number of threads
+ *        It will check the whether the amount of memory usage or the number of threads
  *        in a block exceeds the limit
  * \param stmt The statement to be checked
- * \param max_shared_memory_per_block Total amount of shared memory per block (in bytes).
- * \param max_thread_per_block Maximum number of threads per block.
+ * \param constraints The dict to specify constraints to check.
+ *        Possible keys are
+ *
+ *        'max_local_memory_per_block': Total amount of local memory per block (in bytes).
+ *        'max_shared_memory_per_block': Total amount of shared memory per block (in bytes).
+ *        'max_thread_per_block': Maximum number of threads per block.
+ *
+ *        If one key is missing in this argument, the pass won't check for it.
  * \return valid Whether it is a valid GPU code
  *
  */
 bool VerifyGPUCode(Stmt stmt,
-                   int max_shared_memory_per_block,
-                   int max_thread_per_block);
+                   Map<std::string, Expr> constraints);
 
 
 }  // namespace ir

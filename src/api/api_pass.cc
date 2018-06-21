@@ -131,6 +131,6 @@ REGISTER_PASS2(LowerIntrin);
 REGISTER_PASS1(LowerTVMBuiltin);
 REGISTER_PASS1(CombineContextCall);
 REGISTER_PASS2(VerifyMemory);
-REGISTER_PASS3(VerifyGPUCode);
+REGISTER_PASS2(VerifyGPUCode);
 }  // namespace ir
 }  // namespace tvm
