@@ -139,7 +139,7 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
   CHECK_GT(xs.size(), 0) << "elemwise sum must have at least one input tensor.";
   return compute(xs[0]->shape, [&](const Array<Var>& i) {
       auto sum_expr = xs[0](i);
-      for (int j = 1; j < xs.size(); j++) {
+      for (size_t j = 1; j < xs.size(); j++) {
         sum_expr = sum_expr + xs[j](i);
       }
       return sum_expr;
@@ -163,6 +163,9 @@ inline Tensor full(const Array<Expr>& shape,
                    std::string name = "tensor",
                    std::string tag = kElementWise) {
   Expr ev = lossless_cast(dtype, fill_value);
+  if (!ev.defined()) {
+    LOG(ERROR) << "Can't cast fill_value to " << dtype;
+  }
   return compute(shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);
@@ -184,6 +187,9 @@ inline Tensor full_like(const Tensor& x,
                         std::string name = "tensor",
                         std::string tag = kElementWise) {
   Expr ev = lossless_cast(x->dtype, fill_value);
+  if (!ev.defined()) {
+    LOG(ERROR) << "Can't cast fill_value to " << x->dtype;
+  }
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);
