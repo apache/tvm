@@ -19,6 +19,7 @@ Python API
    bridge
    contrib
    dev
+   autotvm
    topi
    nnvm/index
    hybrid
