@@ -726,7 +726,7 @@ inline bool LRNInferShape(const nnvm::NodeAttrs& attrs,
 
 NNVM_REGISTER_OP(lrn)
 .describe(R"code(LRN layer)code" NNVM_ADD_FILELINE)
-.add_argument("data", "4D Tesndor", "Input data.")
+.add_argument("data", "4D Tensor", "Input data.")
 .set_attr_parser(ParamParser<LRNParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<LRNParam>)
 .set_num_inputs(1)
@@ -749,7 +749,7 @@ inline bool L2NormalizeInferShape(const nnvm::NodeAttrs& attrs,
 
 NNVM_REGISTER_OP(l2_normalize)
 .describe(R"code(L2NORMALIZE layer)code" NNVM_ADD_FILELINE)
-.add_argument("data", "4D Tesndor", "Input data.")
+.add_argument("data", "4D Tensor", "Input data.")
 .set_attr_parser(ParamParser<L2NormalizeParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2NormalizeParam>)
 .set_num_inputs(1)

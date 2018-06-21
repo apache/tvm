@@ -3,6 +3,7 @@ import numpy as np
 import tvm
 import topi
 from topi.util import get_const_tuple
+from itertools import product
 
 def lrn_python(a_np, size, axis, bias, alpha, beta):
     """Local response norm operator in NCHW layout.
@@ -32,10 +33,9 @@ def lrn_python(a_np, size, axis, bias, alpha, beta):
     lrn_out : np.ndarray
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    axis0, axis1, axis2, axis3 = a_np.shape
     radius = size // 2
     sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
-    def sum_dot_values(i, j, k, l):
+    for i, j, k, l in product(*[range(_axis) for _axis in a_np.shape]):
         axis_size = a_np.shape[axis]
         if (axis == 1):
             #NCHW layout
@@ -49,12 +49,6 @@ def lrn_python(a_np, size, axis, bias, alpha, beta):
             sum_end = l+radius+1 if l+radius+1 < axis_size else axis_size
             sqr_sum[i, j, k, l] = sum(a_np[i, j, k, sum_start:sum_end] * \
                                       a_np[i, j, k, sum_start:sum_end])
-
-    for i in range(axis0):
-        for j in range(axis1):
-            for k in range(axis2):
-                for l in range(axis3):
-                    sum_dot_values(i, j, k, l)
 
     sqr_sum_up = np.power((bias + (alpha * sqr_sum /size)), beta)
     lrn_out = np.divide(a_np, sqr_sum_up)
