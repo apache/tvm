@@ -1,4 +1,4 @@
-{% set version = "0.1.dev" %}
+{% set version = "0.4.dev" %}
 
 package:
   name: tvm
@@ -8,14 +8,15 @@ source:
   path: ../..
 
 build:
-  number: 1
+  number: 0
   skip: True  # [win]
-  script_env:
-    - CONDA_CUDA_HOME
 
 requirements:
   build:
-    - llvmdev ==4.0.0
+    # The compiler on mac comes bundled with a broken llvm that overwrites
+    # the llvmdev package
+    - {{ compiler('cxx') }}  # [not osx]
+    - llvmdev ==6.0.0
     - cmake
     - python >=3
     - numpy

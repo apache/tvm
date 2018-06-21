@@ -201,6 +201,11 @@ endif()
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
 
+# Targets for the conda build
+add_custom_target(tvm-libs DEPENDS tvm tvm_runtime)
+add_custom_target(topi-libs DEPENDS tvm_topi)
+add_custom_target(nnvm-libs DEPENDS nnvm_compiler)
+
 
 # Installation rules
 install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})

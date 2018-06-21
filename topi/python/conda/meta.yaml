@@ -1,15 +1,14 @@
-{% set version = "0.1.dev" %}
+{% set version = "0.4.dev" %}
 
 package:
   name: topi
   version: {{ version }}
 
 source:
-  path: ..
+  path: ../../..
 
 build:
   number: 0
-  script: $PYTHON setup.py install
 
 requirements:
   build:

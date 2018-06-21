@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 if [ "$(uname)" = 'Darwin' ]
 then
     # Without this, Apple's default shipped clang will refuse to see any
@@ -12,10 +10,9 @@ fi
 rm -rf build || true
 mkdir -p build
 cd build
-cmake ..
-make -j4 VERBOSE=1 nnvm-libs
+cmake -DUSE_LLVM=ON ..
+make -j4 VERBOSE=1 topi-libs
 cd ..
 
-cd nnvm/python
-$PYTHON setup.py install
-cd ..
+cd topi/python
+python setup.py install
