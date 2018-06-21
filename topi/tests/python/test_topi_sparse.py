@@ -41,12 +41,14 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_dense(D)
-        a = tvm.nd.array(a_np, ctx).tostype('csr')
+        a = tvmsp.array(a_np, ctx)
         print(type(a))
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
-        f = tvm.build(s, [A, B, C, D], device, name="dense")
+        Ab = tvm.decl_buffer(A.shape, A.dtype, name="A")
+        binds = {A: Ab, }
+        f = tvm.build(s, [A, B, C, D], device, name="dense", binds=binds)
         f(a, b, c, d)
         print(d.asnumpy()[0,:5])
         print(d_np[0,:5])

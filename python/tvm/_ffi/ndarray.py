@@ -270,7 +270,7 @@ class NDArrayBase(_NDArrayBase):
         """
         from ..contrib import sparse as tvmsp
         if stype == 'csr':
-            return tvmsp.CSRTensor(shape=self.shape, dtype=self.dtype)
+            return tvmsp.CSRTensor(self.numpy())
         elif stype == 'dense':
             return self
         else:

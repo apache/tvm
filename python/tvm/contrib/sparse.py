@@ -8,9 +8,13 @@ from .. import expr as _expr
 from .. import api as _api
 from .. import tag as _tag
 from .. import tensor as _tensor
+from .. import schedule as _schedule
+
+float32 = "float32"
+csr = "csr"
 
 @register_node
-class CSRTensor(object):
+class CSRNDArray(object):
     """Tensor object, to construct, see function.Tensor"""
     def __init__(self, shape, dtype='float32', name='',
                  data=None, indices=None, indptr=None):
@@ -34,8 +38,12 @@ class CSRTensor(object):
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
 
-float32 = "float32"
-csr = "csr"
+def array(source_array, ctx=None, dtype=None):
+    ret = None
+    import numpy
+    if isinstance(source_array, numpy.ndarray):
+        return CSRNDArray(shape=source_array.shape, dtype=str(source_array.dtype))
+    return ret
 
 @register_node
 class CSRPlaceholderOp(_tensor.Operation):
@@ -67,6 +75,38 @@ class CSRPlaceholderOp(_tensor.Operation):
         self.indices = _api.placeholder(shape, 'int32', name+'_indices')
         self.indptr = _api.placeholder(shape, 'int32', name+'_indptr')
 
+# 
+# @register_node
+# class CSRBuffer(_schedule.Buffer):
+#     """Placeholder class for csr based sparse tensor representation."""
+#     def __init__(self, shape, dtype, name, stype):
+#         """Contructing a bare bone structure for a csr_matrix
+# 
+#         Parameters
+#         ----------
+#         shape: Tuple of Expr
+#             The shape of the tensor
+# 
+#         dtype: str, optional
+#             The data type of the tensor
+# 
+#         name: str, optional
+#             The name hint of the tensor
+# 
+#         stype: str, optional
+#             The storage type of the tensor
+#         """
+#         super(CSRBuffer, self).__init__(self)
+#         self.shape = shape
+#         self.dtype = dtype
+#         self.name = name
+#         self.stype = stype
+#         shape = (0,)
+#         self.data = _api.decl_buffer(shape, dtype, name+'_data')
+#         self.indices = _api.decl_buffer(shape, 'int32', name+'_indices')
+#         self.indptr = _api.decl_buffer(shape, 'int32', name+'_indptr')
+# 
+
 def placeholder(shape, dtype=None, name="placeholder", stype=None):
     """Construct an empty tensor object.
 
@@ -83,7 +123,7 @@ def placeholder(shape, dtype=None, name="placeholder", stype=None):
 
     Returns
     -------
-    tensor: CSRTensor
+    tensor: CSRNDArray
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
