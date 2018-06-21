@@ -35,7 +35,8 @@ class CSRNDArray(object):
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
 
-def array(source_array):
+def array(source_array, ctx=None):
+    # pylint: disable=unused-argument
     """Construct a CSRNDArray from numpy.ndarray"""
     ret = None
     import numpy
