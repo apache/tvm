@@ -55,6 +55,8 @@ TVM_DECLARE_INTRIN_UNARY(sqrt);
 TVM_DECLARE_INTRIN_UNARY(log);
 TVM_DECLARE_INTRIN_UNARY(floor);
 TVM_DECLARE_INTRIN_UNARY(ceil);
+TVM_DECLARE_INTRIN_UNARY(round);
+TVM_DECLARE_INTRIN_UNARY(trunc);
 
 inline Expr pow(Expr x, Expr y) {
   return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);

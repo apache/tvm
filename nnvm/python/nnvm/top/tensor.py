@@ -61,6 +61,22 @@ def compute_cast(attrs, inputs, _):
 reg.register_pattern("cast", OpPattern.ELEMWISE)
 reg.register_schedule("cast", _fschedule_broadcast)
 
+# floor
+reg.register_pattern("floor", OpPattern.ELEMWISE)
+reg.register_schedule("floor", _fschedule_broadcast)
+
+# ceil
+reg.register_pattern("ceil", OpPattern.ELEMWISE)
+reg.register_schedule("ceil", _fschedule_broadcast)
+
+# round
+reg.register_pattern("round", OpPattern.ELEMWISE)
+reg.register_schedule("round", _fschedule_broadcast)
+
+# trunc
+reg.register_pattern("trunc", OpPattern.ELEMWISE)
+reg.register_schedule("trunc", _fschedule_broadcast)
+
 # exp
 reg.register_pattern("exp", OpPattern.ELEMWISE)
 reg.register_schedule("exp", _fschedule_broadcast)
