@@ -10,8 +10,8 @@ been supported by TVM officially.
 Features
 ========
 
-Software emulation
-^^^^^^^^^^^^^^^^^^
+Software Emulation
+~~~~~~~~~~~~~~~~~~
 
 Both software emulation and compilation are supported. To define a function,
 you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid function:
@@ -28,7 +28,7 @@ you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid fun
     c = numpy.zeros((100, 99))
     outer_product(a, b, c)
 
-This decorator will import `Keywords`_ required spontaneously when software emulation.
+This decorator will import `keywords <Keywords>`_ required spontaneously when software emulation.
 After software emulation is done, the imported keywords will be cleaned up. Users do not need
 worry about keyword conflict and pollution.
 
@@ -36,7 +36,7 @@ Every element passed for software emulation in the argument list is either a pyt
 or ``numpy`` numeric type.
 
 Backend Compilation
-^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~
 
 The current parse interface looks like:
 
@@ -59,7 +59,7 @@ If we pass these tvm tensors to this function, it returns a op node:
    op = outer_product(a, b, c) # return the corresponding op node
 
 Tuning
-^^^^^^
+~~~~~~
 
 **Under construction, not truly supported yet.**
 
@@ -74,23 +74,16 @@ Follow up the example above, you can use some tvm like interfaces to tune the co
 ``split``, ``reorder``, and loop_annotation will be supported!
 
 Loops
-^^^^^
+~~~~~
 
 In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, ``parallel``, and ``vectorized``.
 
-Here we use ``range``, ``serial``, ``unroll``, ``parallel``, and ``vectorize``,
-these **5** keywords to annotate the types of for loops. The the usage is roughly
-the same as Python standard ``range``.
-
-**NOTE**: In HalideIR those are enums, they are in passive form.
-          Here we use active form to annotate loops, because they are ready to run.
-
-**NOTE**: Unlike what that is in HalideIR, in ``loop_type(a, b)``,
-          ``a`` is the starting point and ``b`` is the trip count of iterations.
-          Here ``loop_type(a, b)`` indicates ``[a, b)``.
+Here we use ``range`` aka ``serial``, ``unroll``, ``parallel``, and ``vectorize``,
+these **4** keywords to annotate the corresponding types of for loops.
+The the usage is roughly the same as Python standard ``range``.
 
 Variables
-^^^^^^^^^
+~~~~~~~~~
 
 All the mutatable variables will be lowered to an array with size 1.
 It regards the first store of a variable as its declaration.
@@ -111,8 +104,9 @@ It regards the first store of a variable as its declaration.
    a[0] = s # you CANNOT use s here, even though it is allowed in conventional Python
    b = (1, 2) # this has NOT been supported yet!
 
+
 Attributes
-^^^^^^^^^^
+~~~~~~~~~~
 
 So far, ONLY tensors' ``shape`` attribute is supported! The ``shape`` atrribute is essentailly a
 tuple, so you MUST access it as an array. Also, currently, only constant-indexed access is supported.
@@ -126,7 +120,7 @@ tuple, so you MUST access it as an array. Also, currently, only constant-indexed
 
 
 Conditional Statement and Expression
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -138,14 +132,14 @@ However, NO ``True`` and ``False`` keyword supported yet.
 
 
 Math Intrinsics
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 So far, these math intrinsics, ``log``, ``exp``, ``sigmoid``,
 ``tanh``, ``power``, and ``popcount``, are supported.
 No import is required, just as it is mentioned in `Software Emulation`_, just use it!
 
 Array Allocation
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 **Under construction, this function will be supported later!**
 
@@ -154,7 +148,9 @@ The basic usage is roughly the same as a normal array.
 
 
 Thread Bind
-^^^^^^^^^^^
+~~~~~~~~~~~
+
+
 You can also do loop-thread bind by writing code like this:
 
 .. code-block:: python
@@ -164,6 +160,6 @@ You can also do loop-thread bind by writing code like this:
 
 
 Keywords
---------
+~~~~~~~~
 - For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``
 - Math keywords: ``log``, ``exp``, ``sigmoid``, ``tanh``, ``power``, ``popcount``
