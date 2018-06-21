@@ -35,6 +35,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.ceil")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.round")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.trunc")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 
