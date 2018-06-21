@@ -48,6 +48,15 @@ struct SplitParam : public dmlc::Parameter<SplitParam> {
   }
 };
 
+struct TakeParam : public dmlc::Parameter<TakeParam> {
+  dmlc::optional<int> axis;
+
+  DMLC_DECLARE_PARAMETER(TakeParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(dmlc::optional<int>())
+        .describe("the axis over which to select values.");
+  }
+};
+
 enum TypeFlag {
   kFloat32 = 0,
   kFloat64 = 1,
