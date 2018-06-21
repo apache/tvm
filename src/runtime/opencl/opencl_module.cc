@@ -87,9 +87,9 @@ class OpenCLModuleNode : public ModuleNode {
   }
 
   // Initialize the programs
-  void Init() {
+  void Init(const std::vector<std::string>& device_types, const std::string& platform_name) {
     workspace_ = cl::OpenCLWorkspace::Global();
-    workspace_->Init();
+    workspace_->Init(device_types, platform_name);
     CHECK(workspace_->context != nullptr) << "No OpenCL device";
     if (fmt_ == "cl") {
       const char* s = data_.c_str();
@@ -283,26 +283,31 @@ Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source) {
+    std::string source,
+    std::vector<std::string> device_types,
+    std::string platform_name) {
   std::shared_ptr<OpenCLModuleNode> n =
       std::make_shared<OpenCLModuleNode>(data, fmt, fmap, source);
-  n->Init();
+  n->Init(device_types, platform_name);
   return Module(n);
 }
 
 // Load module from module.
 Module OpenCLModuleLoadFile(const std::string& file_name,
-                            const std::string& format) {
+                            const std::string& format,
+                            const std::vector<std::string>& device_types,
+                            const std::string& platform_name = "") {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenCLModuleCreate(data, fmt, fmap, std::string());
+  return OpenCLModuleCreate(data, fmt, fmap, std::string(), device_types, platform_name);
 }
 
-Module OpenCLModuleLoadBinary(void* strm) {
+Module OpenCLModuleLoadBinary(void* strm, const std::vector<std::string>& device_types,
+                              const std::string& platform_name = "") {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
@@ -310,32 +315,32 @@ Module OpenCLModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return OpenCLModuleCreate(data, fmt, fmap, std::string());
+  return OpenCLModuleCreate(data, fmt, fmap, std::string(), device_types, platform_name);
 }
 
 TVM_REGISTER_GLOBAL("module.loadfile_cl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1], {"gpu", "cpu"});
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_clbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1], {"gpu", "cpu"});
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1], {"accelerator"}, "Xilinx");
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1], {"accelerator"}, "Xilinx");
   });
 
 TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLModuleLoadBinary(args[0]);
+    *rv = OpenCLModuleLoadBinary(args[0], {"gpu", "cpu"});
   });
 }  // namespace runtime
 }  // namespace tvm

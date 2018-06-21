@@ -24,7 +24,6 @@ void OpenCLWorkspace::SetDevice(TVMContext ctx) {
 
 void OpenCLWorkspace::GetAttr(
     TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
-  this->Init();
   size_t index = static_cast<size_t>(ctx.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index< devices.size());
@@ -99,7 +98,6 @@ void OpenCLWorkspace::GetAttr(
 
 void* OpenCLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
-  this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
   cl_int err_code;
   cl_mem mptr = clCreateBuffer(
@@ -122,15 +120,14 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      TVMContext ctx_to,
                                      TVMType type_hint,
                                      TVMStreamHandle stream) {
-  this->Init();
   CHECK(stream == nullptr);
-  if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLOpenCL) {
+  if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueCopyBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
         static_cast<cl_mem>(to),
         from_offset, to_offset, size, 0, nullptr, nullptr));
-  } else if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLCPU) {
+  } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
     OPENCL_CALL(clEnqueueReadBuffer(
         this->GetQueue(ctx_from),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
@@ -138,7 +135,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
         static_cast<char*>(to) + to_offset,
         0, nullptr, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenCL) {
+  } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueWriteBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>(to),
@@ -226,38 +223,40 @@ bool MatchPlatformInfo(
   return param_value.find(value) != std::string::npos;
 }
 
-void OpenCLWorkspace::Init() {
-  if (initialized_) return;
+void OpenCLWorkspace::Init(const std::vector<std::string>& device_types,
+                           const std::string& platform_name) {
+  if (context != nullptr) return;
   std::lock_guard<std::mutex> lock(this->mu);
-  if (initialized_) return;
-  initialized_ = true;
   if (context != nullptr) return;
   // matched platforms
-  std::vector<cl_platform_id> platform_matched = cl::GetPlatformIDs();
-  if (platform_matched.size() == 0) {
+  std::vector<cl_platform_id> platform_ids = cl::GetPlatformIDs();
+  if (platform_ids.size() == 0) {
     LOG(WARNING) << "No OpenCL platform matched given existing options ...";
     return;
   }
-  if (platform_matched.size() > 1) {
-    LOG(WARNING) << "Multiple OpenCL platforms matched, use the first one ... ";
-  }
-  this->platform_id = platform_matched[0];
-  LOG(INFO) << "Initialize OpenCL platform \'"
-            << cl::GetPlatformInfo(this->platform_id, CL_PLATFORM_NAME) << '\'';
-  std::string device_types[] = {"accelerator", "gpu", "cpu"};
-  std::vector<cl_device_id> devices_matched;
-  for (auto type : device_types) {
-    devices_matched = cl::GetDeviceIDs(this->platform_id, type);
-    if (devices_matched.size() > 0) {
-      break;
+  this->platform_id = nullptr;
+  for (auto platform_id : platform_ids) {
+    if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
+      continue;
     }
-    LOG(INFO) << "No OpenCL device any device matched given the options: " << type << " mode";
+    for (auto device_type : device_types) {
+      std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
+      if (devices_matched.size() > 0) {
+        this->platform_id = platform_id;
+        this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
+        this->device_type = device_type;
+        this->devices = devices_matched;
+        LOG(INFO) << "Initialize OpenCL platform \'" << this->platform_name << '\'';
+        break;
+      }
+      LOG(INFO) << "\'" << cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME)
+                << "\' platform has no OpenCL device: " << device_type << " mode";
+    }
   }
-  if (devices_matched.size() == 0) {
+  if (this->platform_id == nullptr) {
     LOG(WARNING) << "No OpenCL device";
     return;
   }
-  this->devices = devices_matched;
   cl_int err_code;
   this->context = clCreateContext(
       nullptr, this->devices.size(), &(this->devices[0]),
@@ -275,15 +274,22 @@ void OpenCLWorkspace::Init() {
   }
 }
 
-bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
-  cl::OpenCLWorkspace::Global()->Init();
-  return true;
-}
-
 TVM_REGISTER_GLOBAL("device_api.opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = OpenCLWorkspace::Global().get();
-    *rv = static_cast<void*>(ptr);
+    OpenCLWorkspace* w = OpenCLWorkspace::Global().get();
+    w->Init({"gpu", "cpu"});
+    *rv = static_cast<void*>(w);
+  });
+
+TVM_REGISTER_GLOBAL("device_api.sdaccel")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    OpenCLWorkspace* w = OpenCLWorkspace::Global().get();
+    w->Init({"accelerator"}, "Xilinx");
+    if (w->context == nullptr) {
+      LOG(WARNING) << "Failed to set up SDAccel, falling back to other platforms for testing.";
+      w->Init({"gpu", "cpu"});
+    }
+    *rv = static_cast<void*>(w);
   });
 
 }  // namespace cl

@@ -104,10 +104,12 @@ class OpenCLWorkspace final : public DeviceAPI {
  public:
   // global platform id
   cl_platform_id platform_id;
+  // global platform name
+  std::string platform_name;
   // global context of this process
   cl_context context{nullptr};
-  // whether the workspace it initialized.
-  bool initialized_{false};
+  // the device type
+  std::string device_type;
   // the devices
   std::vector<cl_device_id> devices;
   // the queues
@@ -128,11 +130,15 @@ class OpenCLWorkspace final : public DeviceAPI {
     }
   }
   // Initialzie the device.
-  void Init();
+  void Init(const std::vector<std::string>& device_types, const std::string& platform_name = "");
+  // Check whether the context is OpenCL or not.
+  bool IsOpenCLDevice(TVMContext ctx) {
+    return ctx.device_type == kDLOpenCL ||
+        ctx.device_type == static_cast<DLDeviceType>(kDLSDAccel);
+  }
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kDLOpenCL);
-    this->Init();
+    CHECK(IsOpenCLDevice(ctx));
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
     return queues[ctx.device_id];

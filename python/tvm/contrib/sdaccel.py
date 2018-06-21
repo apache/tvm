@@ -27,11 +27,12 @@ def _vhls_to_opencl(code):
     return out
 
 
+@register_func("tvm_callback_sdaccel_fake_compile")
 def _fake_compile_vhls(code):
     """Fake compile Vivado HLS code for SDAccel.
 
-    Compile the Vivado HLS code as an OpenCL code, and generate a program
-    binary for GPU which can be used instead of xclbin.
+    Compile the Vivado HLS code as an OpenCL code, and generate a program binary
+    with other platforms.  The generated binary can be used for testing instead of xclbin.
 
     Parameters
     ----------
@@ -46,8 +47,11 @@ def _fake_compile_vhls(code):
     try:
         import pyopencl as cl
     except ImportError:
-        raise ImportError('PyOpenCL is required for testing SDAccel backend.')
-    ctx = cl.Context(dev_type=cl.device_type.GPU)
+        raise RuntimeError('PyOpenCL is required for testing SDAccel backend.')
+    platforms = [pf for pf in cl.get_platforms() if pf.name != "Xilinx"]
+    if not platforms:
+        raise RuntimeError("No OpenCL platform is available.")
+    ctx = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])])
     program = cl.Program(ctx, _vhls_to_opencl(code)).build()
     binary = bytearray(program.binaries[0])
     return binary
@@ -87,9 +91,7 @@ def compile_vhls(code, kernel):
     platform = os.environ.get("XCL_PLATFORM", os.environ.get("AWS_PLATFORM"))
 
     if platform is None:
-        # If we don't have the Xilinx toolchain, create a program binary for
-        # GPU and use it for testing.
-        return _fake_compile_vhls(code)
+        raise RuntimeError("No Xlinx device specified.")
 
     # build xo
     args = [xocc, "-c", "-t", target, "--platform", platform, "-o", tmp_xo, "-k", kernel] + \
