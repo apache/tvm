@@ -9,25 +9,25 @@ namespace tvm {
 namespace codegen {
 namespace intrin {
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.exp")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.exp")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.log")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.log")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.tanh")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.tanh")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.sqrt")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.sqrt")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.pow")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.pow")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.popcount")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.popcount")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.vhls.tvm_warp_shuffle")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.tvm_warp_shuffle")
 .set_body(DispatchExtern<Direct>);
 
 
