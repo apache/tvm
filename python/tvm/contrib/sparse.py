@@ -59,7 +59,7 @@ def array(source_array, ctx=None):
     return ret
 
 @register_node
-class CSRPlaceholderOp(_tensor.Operation):
+class CSRPlaceholderOp(object):
     """Placeholder class for csr based sparse tensor representation."""
     def __init__(self, shape, dtype, name, stype):
         """Contructing a bare bone structure for a csr_matrix
@@ -78,7 +78,6 @@ class CSRPlaceholderOp(_tensor.Operation):
         stype: str, optional
             The storage type of the tensor
         """
-        super(CSRPlaceholderOp, self).__init__(self)
         self.shape = shape
         self.dtype = dtype
         self.name = name
