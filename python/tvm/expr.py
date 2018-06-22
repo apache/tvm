@@ -137,7 +137,7 @@ class ExprOp(object):
         expr : Expr
             Expression with new type
         """
-        return _make.static_cast(dtype, self)
+        return _generic.cast(self, dtype)
 
 
 class EqualOp(NodeGeneric, ExprOp):
