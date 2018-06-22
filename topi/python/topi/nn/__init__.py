@@ -16,4 +16,4 @@ from .conv2d_transpose import *
 from .bnn import *
 from .upsampling import *
 from .local_response_norm import *
-from .l2_norm import *
+from .l2_normalize import *
