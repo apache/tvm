@@ -42,6 +42,7 @@ def test_vta_conv2d():
         res = my_clip(res, 0, 127)
         res = topi.cast(res, "int8")
 
+        # To compute number of ops, use a x2 factor for FMA
         num_ops = 2 * batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
 
         a_shape = (batch_size, wl.in_filter, wl.height, wl.width)
@@ -118,7 +119,7 @@ def test_vta_conv2d():
                     print(vta.lower(s, [data, kernel, bias, res], simple_mode=True))
             cost = verify(s, True)
             gops = (num_ops / cost.mean) / float(10 ** 9)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
 
         conv_normal(False)
 

@@ -66,7 +66,7 @@ elif env.TARGET == "sim":
 # :code:`BATCH`, :code:`BLOCK_IN`, and :code:`BLOCK_OUT` respectively.
 #
 # We've added extra operators to the matrix multiplication that apply
-# shifting and clipping to the output in order to mimic the a fixed-point
+# shifting and clipping to the output in order to mimic a fixed-point
 # matrix multiplication followed by a rectified linear activation.
 # We describe the TVM dataflow graph of the fully connected layer below:
 #
@@ -152,7 +152,7 @@ res = tvm.compute(output_shape,
 # Those include:
 #
 # - Computation blocking
-# - Computation lowering to VTA hardware intrinsics
+# - Lowering to VTA hardware intrinsics
 
 
 # Create TVM schedule
@@ -161,8 +161,8 @@ s = tvm.create_schedule(res.op)
 print(tvm.lower(s, [data, weight, res], simple_mode=True))
 
 ######################################################################
-# Tiling the Computation
-# ~~~~~~~~~~~~~~~~~~~~~~
+# Blocking the Computation
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 # The matrix multiplication is by default too large for activations or weights
 # to fit on VTA's on-chip buffers all at once.
 # We block the (1, 1024) by (1024, 1024) matrix multiplication into
@@ -180,8 +180,7 @@ print(tvm.lower(s, [data, weight, res], simple_mode=True))
 #
 # .. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/tutorial/blocking.png
 #      :align: center
-#      :height: 367px
-#      :width: 387px
+#      :width: 480px
 #
 # .. note::
 # 
@@ -236,7 +235,7 @@ s[res_shr].compute_at(s[res], oc_out)
 s[res_max].compute_at(s[res], oc_out)
 s[res_min].compute_at(s[res], oc_out)
 
-# Apply additional loop split along input channel axis
+# Apply additional loop split along reduction axis (input channel)
 b_inn, oc_inn, b_tns, oc_tns = s[res_gemm].op.axis
 ic_out, ic_inn = s[res_gemm].split(ic, i_block)
 
@@ -273,6 +272,8 @@ s[data_buf].pragma(s[data_buf].op.axis[0], env.dma_copy)
 s[weight_buf].pragma(s[weight_buf].op.axis[0], env.dma_copy)
 
 # Use DMA copy pragma on SRAM->DRAM operation
+# (this implies that these copies should be performed along b_inn,
+# or result axis 2)
 s[res].pragma(s[res].op.axis[2], env.dma_copy)
 
 ######################################################################
@@ -313,21 +314,21 @@ f = remote.load_module("gemm.o")
 # Get the remote device context
 ctx = remote.ext_dev(0)
 
-# Initialize the A and B arrays randomly in the int range of (-128, 128]
-data = np.random.randint(
+# Initialize the data and weight arrays randomly in the int range of (-128, 128]
+data_np = np.random.randint(
     -128, 128, size=(batch_size, in_channels)).astype(data.dtype)
-weight = np.random.randint(
+weight_np = np.random.randint(
     -128, 128, size=(out_channels, in_channels)).astype(weight.dtype)
 
-# Apply packing to the A and B arrays from a 2D to a 4D packed layout
-data_packed = data.reshape(batch_size // env.BATCH,
-                           env.BATCH,
-                           in_channels // env.BLOCK_IN,
-                           env.BLOCK_IN).transpose((0, 2, 1, 3))
-weight_packed = weight.reshape(out_channels // env.BLOCK_OUT,
-                               env.BLOCK_OUT,
-                               in_channels // env.BLOCK_IN,
-                               env.BLOCK_IN).transpose((0, 2, 1, 3))
+# Apply packing to the data and weight arrays from a 2D to a 4D packed layout
+data_packed = data_np.reshape(batch_size // env.BATCH,
+                              env.BATCH,
+                              in_channels // env.BLOCK_IN,
+                              env.BLOCK_IN).transpose((0, 2, 1, 3))
+weight_packed = weight_np.reshape(out_channels // env.BLOCK_OUT,
+                                  env.BLOCK_OUT,
+                                  in_channels // env.BLOCK_IN,
+                                  env.BLOCK_IN).transpose((0, 2, 1, 3))
 
 # Format the input/output arrays with tvm.nd.array to the DLPack standard
 data_nd = tvm.nd.array(data_packed, ctx)
@@ -338,8 +339,8 @@ res_nd = tvm.nd.array(np.zeros(output_shape).astype(res.dtype), ctx)
 f(data_nd, weight_nd, res_nd)
 
 # Verify against numpy implementation
-res_ref = np.dot(data.astype(env.acc_dtype),
-               weight.T.astype(env.acc_dtype))
+res_ref = np.dot(data_np.astype(env.acc_dtype),
+                 weight_np.T.astype(env.acc_dtype))
 res_ref = res_ref >> env.INP_WIDTH
 res_ref = np.clip(res_ref, 0, inp_max)
 res_ref = res_ref.astype(res.dtype)
