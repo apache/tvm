@@ -368,6 +368,41 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   }
 };
 
+struct LRNParam : public dmlc::Parameter<LRNParam> {
+  int size;
+  int axis;
+  float alpha;
+  float beta;
+  float bias;
+
+  DMLC_DECLARE_PARAMETER(LRNParam) {
+    DMLC_DECLARE_FIELD(size)
+      .describe("The size of the local region to be considered for normalization.");
+    DMLC_DECLARE_FIELD(axis)
+      .describe("input data layout channel axis");
+    DMLC_DECLARE_FIELD(alpha)
+      .describe("The scaling parameter.");
+    DMLC_DECLARE_FIELD(beta)
+      .describe("The exponent parameter.");
+    DMLC_DECLARE_FIELD(bias)
+      .describe("The offset parameter.");
+  }
+  // constants
+  static const constexpr int kData = 0;
+};
+
+struct L2NormalizeParam : public dmlc::Parameter<L2NormalizeParam> {
+  float eps;
+  Tuple<int> axis;
+
+  DMLC_DECLARE_PARAMETER(L2NormalizeParam) {
+    DMLC_DECLARE_FIELD(eps)
+      .describe("float type epsilon value.");
+    DMLC_DECLARE_FIELD(axis)
+      .describe("axis over the normalization applied");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 
