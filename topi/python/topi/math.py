@@ -258,14 +258,14 @@ def clip(x, a_min, a_max):
     return tvm.compute(x.shape, _compute)
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
 def cast(x, dtype):
     """Cast input to specified data type.
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.Tensor or Expr
         Input argument.
+
     dtype : str
         Data type.
 
@@ -274,4 +274,7 @@ def cast(x, dtype):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: x(*i).astype(dtype))
+    if isinstance(x, tvm.tensor.Tensor):
+        return tvm.compute(
+            x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
+    return tvm.make.static_cast(dtype, x)

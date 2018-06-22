@@ -200,7 +200,7 @@ inline bool BinaryBroadcastCorrectLayout(const NodeAttrs& attrs,
   return true;
 }
 
-#define NNVM_REGISTER_BINARY_BROADCAST_OP(name)                     \
+#define NNVM_REGISTER_BINARY_BROADCAST_OP(name, TOPIOp)             \
   NNVM_REGISTER_OP(name)                                            \
   .set_num_inputs(2)                                                \
   .set_num_outputs(1)                                               \
@@ -217,13 +217,13 @@ inline bool BinaryBroadcastCorrectLayout(const NodeAttrs& attrs,
       const Array<Tensor>& inputs,                                  \
       const Array<Tensor>& out_info) {                              \
         return Array<Tensor>{                                       \
-          topi::name(inputs[0], inputs[1]) };                       \
+          topi::TOPIOp(inputs[0], inputs[1]) };                     \
     })                                                              \
   .add_argument("lhs", "Tensor", "first input")                     \
   .add_argument("rhs", "Tensor", "second input")
 
 
-NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_add)
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_add, add)
 .add_alias("__add_symbol__")
 .describe(R"code(Returns element-wise sum of the input arrays with broadcasting.
 
@@ -241,7 +241,7 @@ Example::
 )code" NNVM_ADD_FILELINE);
 
 
-NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_sub)
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_sub, subtract)
 .add_alias("__sub_symbol__")
 .describe(R"code(Returns element-wise difference of the input arrays with broadcasting.
 
@@ -259,7 +259,7 @@ Example::
 )code" NNVM_ADD_FILELINE);
 
 
-NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_mul)
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_mul, multiply)
 .add_alias("__mul_symbol__")
 .describe(R"code(Returns element-wise product of the input arrays with broadcasting.
 
@@ -276,7 +276,7 @@ Example::
 )code" NNVM_ADD_FILELINE);
 
 
-NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_div)
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_div, divide)
 .add_alias("__div_symbol__")
 .describe(R"code(Returns element-wise division of the input arrays with broadcasting.
 

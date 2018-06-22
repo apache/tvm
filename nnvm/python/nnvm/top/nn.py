@@ -105,7 +105,7 @@ def compute_conv2d(attrs, inputs, _):
         bias = inputs[2]
         expand_axis = 1 if layout == "NCHW" else 0
         bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
-        out = topi.broadcast_add(out, bias)
+        out = topi.add(out, bias)
     return out
 
 @reg.register_schedule("conv2d")
@@ -146,7 +146,7 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
         bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
-        out = topi.broadcast_add(out, bias)
+        out = topi.add(out, bias)
     return out
 
 @reg.register_schedule("_contrib_conv2d_NCHWc")
@@ -181,7 +181,7 @@ def compute_conv2d_transpose(attrs, inputs, _):
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
         bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
-        out = topi.broadcast_add(out, bias)
+        out = topi.add(out, bias)
     output_padding = attrs.get_int_tuple("output_padding")
     out = topi.nn.pad(out, \
         [0, 0, 0, 0], [0, 0, output_padding[0], output_padding[1]])

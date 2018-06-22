@@ -63,13 +63,14 @@ inline Tensor lrn(const Tensor& data,
                                            {rxs});
                            });
   }
-  auto sqrt_sum_up = tvm::compute(input_shape,
-                                  [&](Var i, Var j, Var k, Var l) {
-                                  return tvm::pow(bias +
-                                                  (alpha * sqr_sum(i, j, k, l) / size),
-                                                  beta);
-                                  });
-  return topi::broadcast_div(data, sqrt_sum_up);
+  auto sqrt_sum_up = tvm::compute(
+      input_shape,
+      [&](Var i, Var j, Var k, Var l) {
+        return tvm::pow(bias +
+                        (alpha * sqr_sum(i, j, k, l) / size),
+                        beta);
+      });
+  return topi::divide(data, sqrt_sum_up);
 }
 }  // namespace nn
 }  // namespace topi
