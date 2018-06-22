@@ -26,7 +26,7 @@ class bind(_range): #pylint: disable=invalid-name
         self.tag = tag
 
 
-serial = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
+unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 
 def allocate(shape, dtype='float32'):
