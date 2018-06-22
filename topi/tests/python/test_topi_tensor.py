@@ -69,44 +69,6 @@ def verify_full(shape, dtype, fill_value):
         check_device(device)
 
 
-def verify_comparator(shape, dtype, out_type='int8'):
-    A = tvm.placeholder(shape, dtype, name="A")
-    B = tvm.placeholder(shape, dtype, name="B")
-    C = topi.less(A, B)
-    s_less = tvm.create_schedule([C.op])
-
-    D = tvm.placeholder(shape, dtype, name="D")
-    E = tvm.placeholder(shape, dtype, name="E")
-    F = topi.greater(D, E, out_type)
-    s_greater = tvm.create_schedule([F.op])
-
-    @memoize("topi.tests.test_topi_indicator")
-    def get_ref_data():
-        return [np.random.uniform(0, 10, size=shape).astype(dtype),
-                np.random.uniform(0, 10, size=shape).astype(dtype)]
-    [np_l, np_r] = get_ref_data()
-
-    def check_device(device):
-        if not tvm.module.enabled(device):
-            print("Skip because %s is not enabled" % device)
-            return
-
-        ctx = tvm.context(device, 0)
-        out = tvm.nd.array(np.zeros(shape, dtype=out_type), ctx)
-        tvm_l = tvm.nd.array(np_l, ctx)
-        tvm_r = tvm.nd.array(np_r, ctx)
-
-        f = tvm.build(s_less, [A, B, C], device, name="less")
-        f(tvm_l, tvm_r, out)
-        np.testing.assert_allclose(out.asnumpy(), np.less(np_l, np_r).astype(out_type), rtol=1e-5)
-
-        f = tvm.build(s_greater, [D, E, F], device, name="greater")
-        f(tvm_l, tvm_r, out)
-        np.testing.assert_allclose(out.asnumpy(), np.greater(np_l, np_r).astype(out_type), rtol=1e-5)
-
-    for device in ["llvm"]:
-        check_device(device)
-
 def test_elemwise_sum():
     verify_elemwise_sum(1, "float32")
     verify_elemwise_sum(5, "float32")
@@ -118,12 +80,6 @@ def test_full():
     verify_full((10,), "int32", 7)
 
 
-def test_comparator():
-    verify_comparator((3,4,5), "float32")
-    verify_comparator((7,), "int32")
-    verify_comparator((3,4,5), "float32", "int8")
-
 if __name__ == "__main__":
     test_elemwise_sum()
     test_full()
-    test_comparator()

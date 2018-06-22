@@ -244,7 +244,7 @@ reg.register_schedule("ones_like", _fschedule_elemwise)
 @reg.register_compute("greater")
 def compute_greater(_, inputs, out_info):
     """Compute definition of greater"""
-    return topi.tensor.greater(inputs[0], inputs[1], 'float32')
+    return topi.greater(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("greater", OpPattern.ELEMWISE)
 reg.register_schedule("greater", _fschedule_elemwise)
 
@@ -252,7 +252,7 @@ reg.register_schedule("greater", _fschedule_elemwise)
 @reg.register_compute("less")
 def compute_less(_, inputs, out_info):
     """Compute definition of less"""
-    return topi.tensor.less(inputs[0], inputs[1], 'float32')
+    return topi.less(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("less", OpPattern.ELEMWISE)
 reg.register_schedule("less", _fschedule_elemwise)
 

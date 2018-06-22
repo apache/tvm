@@ -31,8 +31,6 @@ List of operators
    topi.take
    topi.full
    topi.full_like
-   topi.greater
-   topi.less
    topi.nn.relu
    topi.nn.leaky_relu
    topi.nn.dilate
@@ -49,12 +47,16 @@ List of operators
    topi.sum
    topi.min
    topi.broadcast_to
-   topi.broadcast_add
-   topi.broadcast_sub
-   topi.broadcast_mul
-   topi.broadcast_div
-   topi.broadcast_maximum
-   topi.broadcast_minimum
+   topi.add
+   topi.subtract
+   topi.multiply
+   topi.divide
+   topi.mod
+   topi.maximum
+   topi.minimum
+   topi.power
+   topi.greater
+   topi.less
    topi.image.resize
 
 
@@ -94,19 +96,20 @@ topi
 .. autofunction:: topi.take
 .. autofunction:: topi.full
 .. autofunction:: topi.full_like
-.. autofunction:: topi.greater
-.. autofunction:: topi.less
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min
 .. autofunction:: topi.broadcast_to
-.. autofunction:: topi.broadcast_add
-.. autofunction:: topi.broadcast_sub
-.. autofunction:: topi.broadcast_mul
-.. autofunction:: topi.broadcast_div
-.. autofunction:: topi.broadcast_maximum
-.. autofunction:: topi.broadcast_minimum
-
+.. autofunction:: topi.add
+.. autofunction:: topi.subtract
+.. autofunction:: topi.multiply
+.. autofunction:: topi.divide
+.. autofunction:: topi.mod
+.. autofunction:: topi.maximum
+.. autofunction:: topi.minimum
+.. autofunction:: topi.power
+.. autofunction:: topi.greater
+.. autofunction:: topi.less
 
 topi.nn
 ~~~~~~~
