@@ -332,12 +332,20 @@ def lower(sch,
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
     lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
-    # normalize schedule first
-    sch = sch.normalize()
+
     # Phase 0
-    bounds = schedule.InferBound(sch)
-    stmt = schedule.ScheduleOps(sch, bounds)
-    stmt = ir_pass.InjectPrefetch(stmt)
+    if isinstance(sch, schedule.Schedule):
+        # normalize schedule first
+        sch = sch.normalize()
+        bounds = schedule.InferBound(sch)
+        stmt = schedule.ScheduleOps(sch, bounds)
+        stmt = ir_pass.InjectPrefetch(stmt)
+    else:
+        #So far there is no op for hybrid script, so a plain ir body is given
+        if not isinstance(sch, _stmt.Stmt):
+            raise ValueError("sch should be either a Schedule or a Stmt")
+        stmt = sch
+
     for f in lower_phase0:
         stmt = f(stmt)
     # Phase 1
