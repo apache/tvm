@@ -5,7 +5,6 @@ import topi.testing
 import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
-from itertools import product
 
 def helper(symbol, inputs, dtype,
            np_forward, np_backward=None, need_input=True, need_head_grads=True):
@@ -371,61 +370,12 @@ def verify_lrn(ishape, size, axis, bias, alpha, beta):
     dtype = "float32"
     x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    def lrn_python(a_np, size, axis, bias, alpha, beta):
-        """Local response normalization operator in NCHW layout.
-
-        Parameters
-        ----------
-        a_np : numpy.ndarray
-            4-D with shape [batch, in_channel, in_height, in_width]
-
-        size : int
-            normalization window size
-
-        axis : int
-            input data layout channel axis
-
-        bias : float
-            offset to avoid dividing by 0. constant value
-
-        alpha : float
-            constant value
-
-        beta : float
-            exponent constant value
-
-        Returns
-        -------
-        lrn_out : np.ndarray
-            4-D with shape [batch, out_channel, out_height, out_width]
-        """
-        radius = size // 2
-        sqr_sum = np.zeros(shape=a_np.shape).astype(a_np.dtype)
-        for i, j, k, l in product(*[range(_axis) for _axis in a_np.shape]):
-            axis_size = a_np.shape[axis]
-            if (axis == 1):
-                #NCHW layout
-                sum_start = j-radius if j-radius >= 0 else 0
-                sum_end = j+radius+1 if j+radius+1 < axis_size else axis_size
-                sqr_sum[i, j, k, l] = sum(a_np[i, sum_start:sum_end, k, l] * \
-                                          a_np[i, sum_start:sum_end, k, l])
-            elif (axis == 3):
-                #NHWC layout
-                sum_start = l-radius if l-radius >= 0 else 0
-                sum_end = l+radius+1 if l+radius+1 < axis_size else axis_size
-                sqr_sum[i, j, k, l] = sum(a_np[i, j, k, sum_start:sum_end] * \
-                                          a_np[i, j, k, sum_start:sum_end])
-
-        sqr_sum_up = np.power((bias + (alpha * sqr_sum /size)), beta)
-        lrn_out = np.divide(a_np, sqr_sum_up)
-        return lrn_out
-
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = lrn_python(x_np, size, axis, bias, alpha, beta)
+        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
     #Checking LRN op followed by elementwise op relu
@@ -436,7 +386,7 @@ def verify_lrn(ishape, size, axis, bias, alpha, beta):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = lrn_python(x_np, size, axis, bias, alpha, beta)
+        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
         out_np = (out_np > 0) * out_np
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
@@ -446,36 +396,12 @@ def verify_l2_normalize(ishape, eps, axis):
     dtype = "float32"
     x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    def l2_normalize_python(a_np, eps, axis=None):
-        """L2 normalize operator in NCHW layout.
-
-        Parameters
-        ----------
-        a_np : numpy.ndarray
-            4-D with shape [batch, in_channel, in_height, in_width]
-
-        eps : float
-            epsilon constant value
-        axis : list of int
-            axis over the normalization applied
-
-        Returns
-        -------
-        l2_normalize_out : np.ndarray
-            4-D with shape [batch, out_channel, out_height, out_width]
-        """
-        dot_value = np.power(a_np, 2.0)
-        sqr_sum = np.sum(dot_value, axis, keepdims=True)
-        sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-        l2_normalize_out = np.divide(a_np, sqrt_sum)
-        return l2_normalize_out
-
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = l2_normalize_python(x_np, eps, axis)
+        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
     #Checking L2 normalization op followed by elementwise op relu
@@ -486,7 +412,7 @@ def verify_l2_normalize(ishape, eps, axis):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = l2_normalize_python(x_np, eps, axis)
+        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
         out_np = (out_np > 0) * out_np
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 

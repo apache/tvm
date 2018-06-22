@@ -3,30 +3,7 @@ import numpy as np
 import tvm
 import topi
 from topi.util import get_const_tuple
-
-def l2_normalize_python(a_np, eps, axis=None):
-    """L2 normalize operator in NCHW layout.
-
-    Parameters
-    ----------
-    a_np : numpy.ndarray
-        4-D with shape [batch, in_channel, in_height, in_width]
-
-    eps : float
-        epsilon constant value
-    axis : list of int
-        axis over the normalization applied
-
-    Returns
-    -------
-    l2_normalize_out : np.ndarray
-        4-D with shape [batch, out_channel, out_height, out_width]
-    """
-    dot_value = np.power(a_np, 2.0)
-    sqr_sum = np.sum(dot_value, axis, keepdims=True)
-    sqrt_sum = np.sqrt(np.maximum(np.broadcast_to(sqr_sum, a_np.shape), eps))
-    l2_normalize_out = np.divide(a_np, sqrt_sum)
-    return l2_normalize_out
+import topi.testing
 
 def verify_l2_normalize(ishape, eps, axis=None):
 
@@ -35,7 +12,7 @@ def verify_l2_normalize(ishape, eps, axis=None):
     dtype = A.dtype
 
     a_np = np.random.uniform(size=ishape).astype(dtype)
-    b_np = l2_normalize_python(a_np, eps, axis)
+    b_np = topi.testing.l2_normalize_python(a_np, eps, axis)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
