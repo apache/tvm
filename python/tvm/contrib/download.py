@@ -5,12 +5,6 @@ from __future__ import absolute_import as _abs
 import os
 import sys
 import time
-import requests
-
-if sys.version_info >= (3,):
-    import urllib.request as urllib2
-else:
-    import urllib2
 
 def download(url, path, overwrite=False, size_compare=False):
     """Downloads the file from the internet.
@@ -30,6 +24,13 @@ def download(url, path, overwrite=False, size_compare=False):
     size_compare : bool, optional
         Whether to do size compare to check downloaded file.
     """
+
+    import requests
+    if sys.version_info >= (3,):
+        import urllib.request as urllib2
+    else:
+        import urllib2
+
     if os.path.isfile(path) and not overwrite:
         if size_compare:
             file_size = os.path.getsize(path)
