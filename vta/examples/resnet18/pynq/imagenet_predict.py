@@ -1,17 +1,18 @@
 # some standard imports
 import nnvm
 import tvm
-from nnvm.compiler import graph_attr
 import vta
 import vta.testing
 import os
 import numpy as np
-from PIL import Image
 import pickle
 import json
 import logging
-import wget
+
+from PIL import Image
+from nnvm.compiler import graph_attr
 from tvm.contrib import graph_runtime, rpc, util
+from tvm.contrib.download import download
 
 bfactor = 1
 cfactor = 16
@@ -20,15 +21,20 @@ verbose = False
 debug_fpga_only = False
 
 # Obtain model and hardware files (they're too large to check-in)
+# Download them into _data dir
+data_dir = "_data/"
 url = "https://homes.cs.washington.edu/~moreau/media/vta/"
 TEST_FILE = 'cat.jpg'
 CATEG_FILE = 'synset.txt'
 RESNET_GRAPH_FILE = 'quantize_graph.json'
 RESNET_PARAMS_FILE = 'quantize_params.pkl'
+# Create data dir
+if not os.path.exists(data_dir):
+    os.makedirs(data_dir)
+# Download files
 for file in [TEST_FILE, CATEG_FILE, RESNET_GRAPH_FILE, RESNET_PARAMS_FILE]:
     if not os.path.isfile(file):
-        print ("Downloading {}".format(file))
-        wget.download(url+file)
+        download(os.path.join(url, file), os.path.join(data_dir, file))
 
 if verbose:
     logging.basicConfig(level=logging.DEBUG)
@@ -40,8 +46,8 @@ target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+
 if vta.get_env().TARGET == "sim":
     target_host = "llvm"
 
-synset = eval(open(os.path.join(CATEG_FILE)).read())
-image = Image.open(os.path.join(TEST_FILE)).resize((224, 224))
+synset = eval(open(os.path.join(data_dir, CATEG_FILE)).read())
+image = Image.open(os.path.join(data_dir, TEST_FILE)).resize((224, 224))
 
 def transform_image(image):
     image = np.array(image) - np.array([123., 117., 104.])
@@ -88,9 +94,9 @@ print('x', x.shape)
 import nnvm.compiler
 np.random.seed(0)
 sym = nnvm.graph.load_json(
-    open(os.path.join(RESNET_GRAPH_FILE)).read())
+    open(os.path.join(data_dir, RESNET_GRAPH_FILE)).read())
 params = pickle.load(
-    open(os.path.join(RESNET_PARAMS_FILE)))
+    open(os.path.join(data_dir, RESNET_PARAMS_FILE), 'rb'))
 
 shape_dict = {"data": x.shape}
 dtype_dict = {"data": 'float32'}

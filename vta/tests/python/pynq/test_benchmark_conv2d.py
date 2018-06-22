@@ -46,10 +46,10 @@ def get_insn_count(layer, sched):
     env = vta.get_env()
     b, h, w, ci, co = sched
     b_factor = b
-    h_factor = layer.height / h
-    w_factor = layer.width / w
-    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * env.BLOCK_IN)))
-    co_factor = int(np.ceil(float(layer.out_filter) / (co * env.BLOCK_OUT)))
+    h_factor = layer.height // h
+    w_factor = layer.width // w
+    ci_factor = layer.in_filter // (ci * env.BLOCK_IN)
+    co_factor = layer.out_filter // (co * env.BLOCK_OUT)
     input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     output_xfers = b_factor * h_factor * w_factor * co_factor
@@ -69,11 +69,11 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
                 factors.append(i)
         return factors
     # Scheduling exploration
-    batch_factors = find_factors(int(np.ceil(float(layer.batch) / env.BATCH)))
-    height_factors = find_factors(layer.height / layer.hstride)
-    width_factors = find_factors(layer.width / layer.wstride)
-    cin_factors = find_factors(int(np.ceil(float(layer.in_filter) / env.BLOCK_IN)))
-    cout_factors = find_factors(int(np.ceil(float(layer.out_filter) / env.BLOCK_OUT)))
+    batch_factors = find_factors(layer.batch // env.BATCH)
+    height_factors = find_factors(layer.height // layer.hstride)
+    width_factors = find_factors(layer.width // layer.wstride)
+    cin_factors = find_factors(layer.in_filter // env.BLOCK_IN)
+    cout_factors = find_factors(layer.out_filter // env.BLOCK_OUT)
     ht_factors = [1, 2]
     cot_factors = [1, 2]
     # Explore schedules
@@ -124,7 +124,7 @@ def find_schedules(layer, mtOnly=False, bestOnly=False):
                         if input_tile_elems*input_elem_size_b <= input_brams_capacity_b/(cot*ht) and \
                            weight_tile_elems*weight_elem_size_b <= weight_brams_capacity_b and \
                            output_tile_elems*output_elem_size_b <= output_brams_capacity_b/(cot*ht) and \
-                           insn_count <= env.MAX_XFER / 16 and \
+                           insn_count <= env.MAX_XFER // 16 and \
                            h > 2 and w > 2:
                             schedule = Schedule(oc_factor=co, ko_factor=ci, h_factor=h,
                                                 w_factor=w, oc_nthread=cot, h_nthread=ht)
@@ -154,19 +154,19 @@ def get_data_movementB(sched, layer):
     weight_tile_elems = layer.hkernel * layer.wkernel * ci
     output_tile_elems = b * h * w * co
     # Derive factors
-    b_factor = int(np.ceil(float(layer.batch) / (b * env.BATCH)))
-    h_factor = (layer.height / layer.hstride) / h
-    w_factor = (layer.width / layer.wstride) / w
-    ci_factor = int(np.ceil(float(layer.in_filter) / (ci * env.BLOCK_IN)))
-    co_factor = int(np.ceil(float(layer.out_filter) / (co * env.BLOCK_OUT)))
+    b_factor = layer.batch // (b * env.BATCH)
+    h_factor = (layer.height // layer.hstride) // h
+    w_factor = (layer.width // layer.wstride) // w
+    ci_factor = int(np.ceil(float(layer.in_filter) // (ci * env.BLOCK_IN)))
+    co_factor = int(np.ceil(float(layer.out_filter) // (co * env.BLOCK_OUT)))
     # Derive transfers
     input_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     weight_xfers = b_factor * h_factor * w_factor * co_factor * ci_factor
     output_xfers = b_factor * h_factor * w_factor * co_factor
     # Compute total transfer sizes
-    input_xfer_B = input_tile_elems * input_xfers * input_elem_size_b / 8
-    weight_xfer_B = weight_tile_elems * weight_xfers * weight_elem_size_b / 8
-    output_xfer_B = output_tile_elems * output_xfers * output_elem_size_b / 8
+    input_xfer_B = input_tile_elems * input_xfers * input_elem_size_b // 8
+    weight_xfer_B = weight_tile_elems * weight_xfers * weight_elem_size_b // 8
+    output_xfer_B = output_tile_elems * output_xfers * output_elem_size_b // 8
     total_xfer_B = input_xfer_B + weight_xfer_B + output_xfer_B
     return total_xfer_B
 
@@ -175,13 +175,13 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
     assert batch_size % env.BATCH == 0
     assert wl.in_filter % env.BLOCK_IN == 0
     assert wl.out_filter % env.BLOCK_OUT == 0
-    data_shape = (batch_size//env.BATCH, wl.in_filter//env.BLOCK_IN,
+    data_shape = (batch_size // env.BATCH, wl.in_filter // env.BLOCK_IN,
                   wl.height, wl.width, env.BATCH, env.BLOCK_IN)
-    kernel_shape = (wl.out_filter//env.BLOCK_OUT, wl.in_filter//env.BLOCK_IN,
+    kernel_shape = (wl.out_filter // env.BLOCK_OUT, wl.in_filter // env.BLOCK_IN,
                     wl.hkernel, wl.wkernel, env.BLOCK_OUT, env.BLOCK_IN)
     fout_height = (wl.height + 2 * wl.hpad - wl.hkernel) // wl.hstride + 1
     fout_width = (wl.width + 2 * wl.wpad - wl.wkernel) // wl.wstride + 1
-    res_shape = (batch_size//env.BATCH, wl.out_filter//env.BLOCK_OUT,
+    res_shape = (batch_size // env.BATCH, wl.out_filter // env.BLOCK_OUT,
                  fout_height, fout_width, env.BATCH, env.BLOCK_OUT)
     data = tvm.placeholder(data_shape, name="data", dtype=env.inp_dtype)
     kernel = tvm.placeholder(kernel_shape, name="kernel", dtype=env.wgt_dtype)
@@ -201,7 +201,8 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             kernel_buf[co, ko, di, dj, ci, ki].astype(env.acc_dtype),
         axis=[ko, di, dj, ki]),
         name="res_cnv")
-    res_shf = tvm.compute(res_shape, lambda *i: res_cnv(*i) >> 8, name="res_shf")
+    # res_shf = tvm.compute(res_shape, lambda *i: res_cnv(*i) >> 8, name="res_shf")
+    res_shf = topi.right_shift(res_cnv, 8)
     res = tvm.compute(res_shape, lambda *i: res_shf(*i).astype(env.inp_dtype), name="res")
     num_ops = batch_size * fout_height * fout_width * wl.hkernel * wl.wkernel * wl.out_filter * wl.in_filter
     total_xfer_B = get_data_movementB(sched, wl)
@@ -310,7 +311,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                 print_ir, check_correctness)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             log_frame["key"].append(key)
             log_frame["layer"].append(layer)
             log_frame["total-data"].append(total_xfer_B)
@@ -347,7 +348,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             log_frame["skip-alu-gops"].append(gops)
             log_frame["skip-alu-cost"].append(cost.mean)
 
@@ -365,7 +366,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             log_frame["gemm-gops"].append(gops)
             log_frame["gemm-cost"].append(cost.mean)
         with vta.build_config():
@@ -382,7 +383,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                 print_ir, False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+            print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             log_frame["alu-gops"].append(gops)
             log_frame["alu-cost"].append(cost.mean)
         with vta.build_config():
@@ -401,7 +402,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             bandwith = (batch_size * wl.in_filter * wl.height *
                         wl.width * env.INP_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
+            print("\tTime cost = %g sec/op, %g GOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["ld-inp-gbits"].append(bandwith)
             log_frame["ld-inp-cost"].append(cost.mean)
@@ -421,7 +422,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             bandwith = (wl.out_filter * wl.in_filter * wl.hkernel *
                         wl.wkernel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
+            print("\tTime cost = %g sec/op, %g GOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["ld-wgt-gbits"].append(bandwith)
             log_frame["ld-wgt-cost"].append(cost.mean)
@@ -441,7 +442,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
             bandwith = (batch_size * wl.out_filter * fout_height *
                         fout_width * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS, bandwith=%g gbits" % (
+            print("\tTime cost = %g sec/op, %g GOPS, bandwith=%g gbits" % (
                 cost.mean, gops, bandwith))
             log_frame["st-out-gbits"].append(bandwith)
             log_frame["st-out-cost"].append(cost.mean)
@@ -460,7 +461,7 @@ def test_conv2d_chwv(layer, key, batch_size, wl, sched, log_frame, profile=True)
                 False)
             gops = (num_ops / cost.mean) / float(10 ** 9)
             print(header)
-            print("\tTime cost = %g sec/op, %g GFLOPS" % (
+            print("\tTime cost = %g sec/op, %g GOPS" % (
                 cost.mean, gops))
         with vta.build_config():
             run_test("NORMAL", print_ir)
@@ -532,10 +533,11 @@ for x in resnet_schedules:
         key = "resnet-cfg[{}-{}]".format(l, plan)
         test_conv2d_chwv(l, key, batch_size, resnet[l], plan, log_frame, profile)
 
-pd.set_option('expand_frame_repr', False)
-log_df = pd.DataFrame()
-for k  in keys:
-    log_df[k] = log_frame[k]
-print(log_df)
 
-log_df.to_csv("conv2d.csv")
+if profile:
+    pd.set_option('expand_frame_repr', False)
+    log_df = pd.DataFrame()
+    for k  in keys:
+        log_df[k] = log_frame[k]
+    print(log_df)
+    log_df.to_csv("conv2d.csv")

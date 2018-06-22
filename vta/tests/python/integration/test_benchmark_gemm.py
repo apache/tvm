@@ -18,7 +18,8 @@ def test_gemm():
                      channel // env.BLOCK_OUT,
                      env.BATCH,
                      env.BLOCK_OUT)
-        num_ops = channel * channel * batch_size
+        # To compute number of ops, use a x2 factor for FMA
+        num_ops = 2 * channel * channel * batch_size
 
         ko = tvm.reduce_axis((0, channel // env.BLOCK_IN), name='ko')
         ki = tvm.reduce_axis((0, env.BLOCK_IN), name='ki')
@@ -157,14 +158,14 @@ def test_gemm():
 
         def gemm_normal(print_ir):
             mock = env.mock
-            print("----- GEMM GFLOPS End-to-End Test-------")
+            print("----- GEMM GOPS End-to-End Test-------")
             def run_test(header, print_ir, check_correctness):
                 cost = run_schedule(
                     env.dma_copy, env.dma_copy, env.gemm, env.alu, env.dma_copy,
                     print_ir, check_correctness)
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+                print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             with vta.build_config():
                 run_test("NORMAL", print_ir, True)
 
@@ -177,7 +178,7 @@ def test_gemm():
                     print_ir, False)
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+                print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             with vta.build_config():
                 run_test("NORMAL", print_ir)
 
@@ -190,7 +191,7 @@ def test_gemm():
                     print_ir, False)
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS" % (cost.mean, gops))
+                print("\tTime cost = %g sec/op, %g GOPS" % (cost.mean, gops))
             with vta.build_config():
                 run_test("NORMAL", print_ir)
             print("")
@@ -204,7 +205,7 @@ def test_gemm():
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.INP_WIDTH / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
+                print("\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits" % (
                     cost.mean, gops, bandwith))
             with vta.build_config():
                 run_test("NORMAL", print_ir)
@@ -219,7 +220,7 @@ def test_gemm():
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (channel * channel * env.WGT_WIDTH / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
+                print("\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits" % (
                     cost.mean, gops, bandwith))
             with vta.build_config():
                 run_test("NORMAL", print_ir)
@@ -235,7 +236,7 @@ def test_gemm():
                 gops = (num_ops / cost.mean) / float(10 ** 9)
                 bandwith = (batch_size * channel * env.OUT_WIDTH / cost.mean) / float(10 ** 9)
                 print(header)
-                print("\tTime cost = %g sec/op, %g GFLOPS, bandwidth=%g Gbits" % (
+                print("\tTime cost = %g sec/op, %g GOPS, bandwidth=%g Gbits" % (
                     cost.mean, gops, bandwith))
             with vta.build_config():
                 run_test("NORMAL", print_ir)

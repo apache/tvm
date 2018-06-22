@@ -2,8 +2,15 @@
 from __future__ import absolute_import as _abs
 
 import os
-import urllib
+import sys
+
+from tvm.contrib.download import download
 from .environment import get_env
+
+if sys.version_info >= (3,):
+    import urllib.error as urllib2
+else:
+    import urllib2
 
 # bitstream repo
 BITSTREAM_URL = "https://github.com/uwsaml/vta-distro/raw/master/bitstreams/"
@@ -41,15 +48,25 @@ def download_bitstream():
     url = os.path.join(BITSTREAM_URL, env.TARGET)
     url = os.path.join(url, env.HW_VER)
     url = os.path.join(url, env.BITSTREAM)
-    # Check that the bitstream is accessible from the server
-    if urllib.urlopen(url).getcode() == 404:
-        # Raise error - the solution when this happens it to build your own bitstream and add it
-        # to your VTA_CACHE_PATH
-        raise RuntimeError(
-            "Error: {} is not available. It appears that this configuration has not been built."
-            .format(url))
-    else:
-        urllib.urlretrieve(url, bit)
-        success = True
+
+    try:
+        download(url, bit)
+    except urllib2.HTTPError as err:
+        if err.code == 404:
+            raise RuntimeError(
+                # Raise error - the solution when this happens it to build your
+                # own bitstream and add it to your $VTA_CACHE_PATH
+                "{} is not available. It appears that this configuration \
+bistream has not been cached. Please compile your own bitstream (see hardware \
+compilation guide to get Xilinx toolchains setup) and add it to your \
+$VTA_CACHE_PATH. Alternatively edit your config.json back to its default \
+settings. You can see the list of available bitstreams under {}"
+                .format(url, BITSTREAM_URL))
+        else:
+            raise RuntimeError(
+                # This could happen when trying to access the URL behind a proxy
+                "Something went wrong when trying to access {}. Check your \
+internet connection or proxy settings."
+                .format(url))
 
     return success
