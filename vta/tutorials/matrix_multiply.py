@@ -91,6 +91,7 @@ elif env.TARGET == "sim":
 #
 #   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/tutorial/tensor_core.png
 #        :align: center
+#        :width: 480px
 #
 #   The dimensions of that matrix-matrix multiplication are specified in
 #   the :code:`config.json` configuration file.
@@ -109,6 +110,7 @@ elif env.TARGET == "sim":
 # 
 #   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/tutorial/data_tiling.png
 #        :align: center
+#        :width: 480px
 #
 # We first define the variables :code:`m`, :code:`n`, :code:`o` to represent
 # the shape of the matrix multiplication. These variables are multiplicative
@@ -118,7 +120,6 @@ elif env.TARGET == "sim":
 # :code:`BLOCK_OUT` to be 1, 16 and 16 respectively (:code:`BATCH` being set to
 # 1 implies that our compute building block is vector-matrix multiply).
 #
-
 
 ######################################################################
 # .. note::
