@@ -47,7 +47,7 @@ def test_target_string_parse():
     assert str(target) == str(tvm.target.cuda("-libs=cublas,cudnn"))
 
 
-    assert tvm.target.intel_gpu().device_name == "intel_gpu"
+    assert tvm.target.intel_graphics().device_name == "intel_graphics"
 
 if __name__ == "__main__":
     test_target_dispatch()
