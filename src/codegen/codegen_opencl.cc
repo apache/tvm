@@ -159,7 +159,7 @@ void CodeGenOpenCL::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "warp") {
     this->PrintIndent();
-    this->stream << "sub_group_barrier(CLK_LOCAL_MEM_FENCE);\n";
+    this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
   } else if (sync == "shared") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
