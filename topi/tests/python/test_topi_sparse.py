@@ -20,9 +20,9 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
-    @memoize("topi.tests.test_topi_dense")
+    # @memoize("topi.tests.test_topi_dense")
     def get_ref_data():
-        a_np = np.random.uniform(size=(batch, in_dim)).astype(dtype)-0.5
+        a_np = np.maximum(np.random.uniform(size=(batch, in_dim)).astype(dtype)-0.5, 0.)
         b_np = np.random.uniform(size=(out_dim, in_dim)).astype(dtype)-0.5
         c_np = np.random.uniform(size=(out_dim,)).astype(dtype)
         if use_bias:
@@ -39,15 +39,15 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             print("Skip because %s is not enabled" % device)
             return
         print("Running on target: %s" % device)
-        with tvm.target.create(device):
-            s = topi.generic.schedule_dense(D)
+        s = tvm.create_schedule(D.op)
         a = tvmsp.array(a_np, ctx)
-        print(type(a))
+        print(a_np)
+        print(a.data)
+        print(a.indices)
+        print(a.indptr)
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
-        Ab = tvm.decl_buffer(A.shape, A.dtype, name="A")
-        # binds = {A: Ab, }
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
         f(a, b, c, d)
         print(d.asnumpy()[0,:5])
@@ -58,8 +58,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         check_device(device)
 
 def test_dense():
-    verify_dense(1, in_dim=1024, out_dim=1, use_bias=True)
-    verify_dense(1, in_dim=1024, out_dim=1, use_bias=False)
+    verify_dense(3, in_dim=3, out_dim=1, use_bias=False)
 
 if __name__ == "__main__":
     test_dense()

@@ -23,23 +23,37 @@ def dense_default(data, indices, indptr, weight, bias=None):
     output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
-    assert len(data.shape) == 1 and len(weight.shape) == 2, \
+    assert len(data.shape) == 2 and len(weight.shape) == 2, \
         "only support 2-dim dense"
-    # assert data.stype == 'csr', \
-    #     "data matrix is assumed to be sparse matrix, but data is `%s`" % (type(data),)
     assert isinstance(weight, tvm.tensor.Tensor), \
         "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
-    batch, in_dim = 1, data.shape[0]
+    batch = 1
     out_dim, _ = weight.shape
-    k = tvm.reduce_axis((0, in_dim), name='k')
-    # matmul = tvm.compute((batch, out_dim), \
-    #                      lambda i, j: tvm.sum(data.data[i, k] * weight[j, k], axis=k), \
-    #                      tag='dense')
-    matmul = tvm.compute((batch, out_dim), \
-                         lambda i, j: tvm.sum(data[i] * weight[i, k], axis=k), \
-                         tag='spmm')
+    def dense_default_ir(data, indices, indptr, weight, out):
+        # pylint: disable=invalid-name
+        """Define IR for SpMM"""
+        ib = tvm.ir_builder.create()
+        data_ptr = ib.buffer_ptr(data)
+        indices_ptr = ib.buffer_ptr(indices)
+        indptr_ptr = ib.buffer_ptr(indptr)
+        weight_ptr = ib.buffer_ptr(weight)
+        out_ptr = ib.buffer_ptr(out)
+        num_rows = indptr.shape[0]-1
+        with ib.for_range(0, num_rows, name='row') as row:
+            dot = ib.allocate('float32', (1,), name='dot', scope='local')
+            dot[0] = 0.
+            row_start = indptr_ptr[row]
+            row_end = indptr_ptr[row+1]
+            with ib.for_range(row_start, row_end, name='elem') as elem:
+                dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]]
+            out_ptr[row] += dot[0]
+        return ib.get()
+    oshape = (out_dim, 1)
+    matmul = tvm.extern(oshape, [data, indices, indptr, weight],
+                        lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="dense", dtype='float32')
     print(matmul.op.body)
     if bias is not None:
         matmul = tvm.compute((batch, out_dim), \
