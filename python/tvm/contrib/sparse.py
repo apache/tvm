@@ -1,47 +1,61 @@
 """Tensor and Operation class for computation declaration."""
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
+import numpy as _np
 from .._ffi.node import register_node
 from .. import expr as _expr
 from .. import api as _api
 from .. import tensor as _tensor
 from .. import schedule as _schedule
+from .. import ndarray as _nd
 
 float32 = "float32"
 csr = "csr"
 
 @register_node
 class CSRNDArray(object):
-    """Tensor object, to construct, see function.Tensor"""
-    def __init__(self, shape, dtype='float32', name='',
-                 data=None, indices=None, indptr=None):
+    """Sparse tensor object in CSR format."""
+    def __init__(self, source_array=None,
+                 data=None, indices=None, indptr=None, ctx=None):
+        """Construct a sparse matrix in CSR format."""
         self.stype = 'csr'
-        self.shape = shape
-        self.dtype = dtype
-        self.name = name
+        self.shape = source_array.shape
+        self.dtype = source_array.dtype
         if data is None:
-            self.data = _api.placeholder(shape, dtype, name+'_data')
+            ridx, cidx = _np.nonzero(source_array)
+            print(ridx, cidx)
+            data = source_array[ridx, cidx]
+            self.data = _nd.array(data, ctx)
         else:
             self.data = data
         if indices is None:
-            self.indices = _api.placeholder(shape, 'int32', name+'_indices')
+            indices = _np.nonzero(source_array)[1]
+            self.indices = _nd.array(indices, ctx)
         else:
             self.indices = indices
         if indptr is None:
-            self.indptr = _api.placeholder(shape, 'int32', name+'_indptr')
+            indptr = [0]+_np.apply_along_axis(_np.count_nonzero, axis=1, arr=source_array).tolist()
+            indptr = _np.cumsum(_np.array(indptr, 'int32'))
+            self.indptr = _nd.array(indptr, ctx)
         else:
             self.indptr = indptr
-        assert isinstance(self.data, _tensor.Tensor)
-        assert isinstance(self.indices, _tensor.Tensor)
-        assert isinstance(self.indptr, _tensor.Tensor)
+        assert isinstance(self.data, _nd.NDArray)
+        assert isinstance(self.indices, _nd.NDArray)
+        assert isinstance(self.indptr, _nd.NDArray)
+
+    def asnumpy(self):
+        """Construct a full matrix and convert it to numpy array."""
+        full = _np.zeros(self.shape, self.dtype)
+        ridx = _np.diff(self.indptr.asnumpy())
+        ridx = _np.hstack((_np.ones((v,), 'int32')*i for i, v in enumerate(ridx)))
+        full[ridx, self.indices.asnumpy().astype('int32')] = self.data.asnumpy()
+        return full
 
 def array(source_array, ctx=None):
-    # pylint: disable=unused-argument
     """Construct a CSRNDArray from numpy.ndarray"""
     ret = None
-    import numpy
-    if isinstance(source_array, numpy.ndarray):
-        return CSRNDArray(shape=source_array.shape, dtype=str(source_array.dtype))
+    if isinstance(source_array, _np.ndarray):
+        return CSRNDArray(source_array=source_array, ctx=ctx)
     return ret
 
 @register_node
@@ -69,10 +83,13 @@ class CSRPlaceholderOp(_tensor.Operation):
         self.dtype = dtype
         self.name = name
         self.stype = stype
-        shape = (0,)
+        # shape = (0,)
         self.data = _api.placeholder(shape, dtype, name+'_data')
         self.indices = _api.placeholder(shape, 'int32', name+'_indices')
         self.indptr = _api.placeholder(shape, 'int32', name+'_indptr')
+        assert isinstance(self.data, _tensor.Tensor)
+        assert isinstance(self.indices, _tensor.Tensor)
+        assert isinstance(self.indptr, _tensor.Tensor)
 
 
 @register_node
