@@ -2,7 +2,7 @@
 
 import inspect
 import numpy
-from ._intrin import HYBRID_GLOBALS
+from .intrin import HYBRID_GLOBALS
 from .._ffi.base import numeric_types
 from .. import api as _api
 from .. import make as _make

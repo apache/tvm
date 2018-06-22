@@ -71,7 +71,7 @@ def popcount(x):
 def sigmoid(x):
     """
     Sigmoid function of x, aka 1/(1+exp(-x)).
-    
+
     Parameters
     ----------
     x: a real number

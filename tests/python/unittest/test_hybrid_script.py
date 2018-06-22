@@ -1,6 +1,6 @@
 import tvm, inspect, sys, traceback, numpy
 from tvm.hybrid import script
-from tvm.hybrid._intrin import HYBRID_GLOBALS
+from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @script
 def outer_product(n, m, a, b, c):

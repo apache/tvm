@@ -2,7 +2,7 @@
 
 import ast
 import sys
-from ._intrin import HYBRID_GLOBALS
+from .intrin import HYBRID_GLOBALS
 
 
 class PyVariableUsage(ast.NodeVisitor):

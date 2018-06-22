@@ -3,8 +3,8 @@
 import ast
 import operator
 import sys
-from ._util import make_nop, make_const_true, make_range_one, halide_imm_types
-from ._intrin import LOOP_INTRIN, MATH_INTRIN
+from .util import make_nop, make_const_true, make_range_one, halide_imm_types
+from .intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
 from .. import expr as _expr

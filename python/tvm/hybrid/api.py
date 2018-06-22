@@ -4,12 +4,12 @@ from __future__ import absolute_import as _abs
 import types
 import decorator
 from .parser import parse_python
-from ._util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types, _pruned_source
 
 @decorator.decorator
 def script(func, *args):
     """If the arguments are tvm types, compile it to HalideIR.
     O.W. return the python emulated result"""
+    from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
     if _is_tvm_arg_types(args):
         return parse(func, args)
     else:
@@ -37,6 +37,7 @@ def parse(func, args):
     root : Stmt
         The result Halide IR and the parser class instance.
     """
+    from .util import _pruned_source
     if isinstance(func, str):
         src = func
     else:
