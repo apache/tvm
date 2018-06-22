@@ -97,6 +97,7 @@ void OpenGLWorkspace::GetAttr(
     case kDeviceName: return;
     case kMaxClockRate: return;
     case kMultiProcessorCount: return;
+    case kMaxThreadDimensions: return;
   }
 }
 

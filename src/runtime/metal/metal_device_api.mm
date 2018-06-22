@@ -42,6 +42,7 @@ void MetalWorkspace::GetAttr(
     case kDeviceName: return;
     case kMaxClockRate: return;
     case kMultiProcessorCount: return;
+    case kMaxThreadDimensions: return;
     case kExist: break;
   }
 }

@@ -5,10 +5,12 @@
  */
 #include <tvm/runtime/device_api.h>
 
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
+#include <tvm/container.h>
+#include <tvm/ir.h>
+#include <tvm/packed_func_ext.h>
 #include "./cuda_common.h"
 
 namespace tvm {
@@ -69,6 +71,20 @@ class CUDADeviceAPI final : public DeviceAPI {
         CUDA_CALL(cudaDeviceGetAttribute(
             &value, cudaDevAttrMultiProcessorCount, ctx.device_id));
         break;
+      }
+      case kMaxThreadDimensions: {
+        int dims[3];
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[0], cudaDevAttrMaxBlockDimX, ctx.device_id));
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[1], cudaDevAttrMaxBlockDimY, ctx.device_id));
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[2], cudaDevAttrMaxBlockDimZ, ctx.device_id));
+
+        *rv = tvm::Array<tvm::Expr>({static_cast<int32_t>(dims[0]),
+                                     static_cast<int32_t>(dims[1]),
+                                     static_cast<int32_t>(dims[2])});
+        return;
       }
     }
     *rv = value;

@@ -178,6 +178,18 @@ class TVMContext(ctypes.Structure):
         return _api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 7)
 
+    @property
+    def max_thread_dimensions(self):
+        """Return the maximum size of each thread axis
+
+        Returns
+        -------
+        dims: Tuple of int
+            The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
+        """
+        return tuple(_api_internal._GetDeviceAttr(
+            self.device_type, self.device_id, 8))
+
     def sync(self):
         """Synchronize until jobs finished at the context."""
         check_call(_LIB.TVMSynchronize(self.device_type, self.device_id, None))

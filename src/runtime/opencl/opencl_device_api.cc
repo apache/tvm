@@ -4,6 +4,9 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include <tvm/container.h>
+#include <tvm/ir.h>
+#include <tvm/packed_func_ext.h>
 #include "./opencl_common.h"
 
 namespace tvm {
@@ -30,6 +33,7 @@ void OpenCLWorkspace::GetAttr(
   CHECK_LT(index, devices.size())
       << "Invalid device id " << index;
   switch (kind) {
+    case kExist: break;
     case kMaxThreadsPerBlock: {
       size_t value;
       OPENCL_CALL(clGetDeviceInfo(
@@ -80,7 +84,16 @@ void OpenCLWorkspace::GetAttr(
       *rv = static_cast<int32_t>(value);
       break;
     }
-    case kExist: break;
+    case kMaxThreadDimensions: {
+      size_t dims[3];
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
+
+      *rv = tvm::Array<tvm::Expr>({static_cast<int32_t>(dims[0]),
+                                   static_cast<int32_t>(dims[1]),
+                                   static_cast<int32_t>(dims[2])});
+      break;
+    }
   }
 }
 
