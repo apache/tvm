@@ -329,6 +329,31 @@ def test_split():
     verify_split((5, 3), [3], axis=0)
     verify_split((5, 9, 3), [3, 4], axis=1)
 
+def verify_strided_slice(ishape, begin, end, stride=None):
+    stride = stride if stride else [1, 1, 1]
+    x = sym.Variable("x")
+    y = sym.strided_slice(x, begin = begin, end = end, stride = stride) + 1
+    x_np = np.random.uniform(size=ishape).astype("float32")
+    def test_forward(x, begin, end, stride):
+        return x[begin[0]:end[0]:stride[0],
+                    begin[1]:end[1]:stride[1], begin[2]:end[2]:stride[2]] + 1
+
+    for target, ctx in ctx_list():
+        # set input
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        res = test_forward(x_np, begin, end, stride)
+        out = m.get_output(0, tvm.nd.empty(res.shape))
+        np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
+
+def test_strided_slice():
+    verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
+    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
+    verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1])
+    verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2])
+    verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
+    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
 
 def verify_squeeze(dshape, axis):
     x = sym.Variable("x")
@@ -448,3 +473,4 @@ if __name__ == "__main__":
     test_pad()
     test_lrn()
     test_l2_normalize()
+    test_strided_slice()
