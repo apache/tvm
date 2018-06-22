@@ -10,7 +10,7 @@ def verify_elemwise_sum(num_args, dtype):
     for i in range(num_args):
         tvm_placeholders.append(
             tvm.placeholder(shape, name="data"+str(i), dtype=dtype))
-    esum = topi.cpp.elemwise_sum(tvm_placeholders, num_args)
+    esum = topi.cpp.elemwise_sum(tvm_placeholders)
 
     def get_ref_data():
         np_nd = [np.random.uniform(0, 10, size=shape).astype(dtype)

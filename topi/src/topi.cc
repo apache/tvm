@@ -165,7 +165,7 @@ TVM_REGISTER_GLOBAL("topi.cast")
 
 TVM_REGISTER_GLOBAL("topi.elemwise_sum")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = elemwise_sum(args[0], args[1]);
+  *rv = elemwise_sum(args[0]);
   });
 
 TVM_REGISTER_GLOBAL("topi.full")

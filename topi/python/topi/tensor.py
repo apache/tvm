@@ -6,22 +6,20 @@ from . import cpp
 from . import tag
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def elemwise_sum(xs, num_args):
+def elemwise_sum(xs):
     """Perform element-wise sum on inputs
 
     Parameters
     ----------
     xs : list of tvm.Tensor
         Input arguments.
-    num_args : int
-        Number of arguments
 
     Returns
     -------
     y : tvm.Tensor
         The result.
     """
-    return cpp.elemwise_sum(xs, num_args)
+    return cpp.elemwise_sum(xs)
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
