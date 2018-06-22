@@ -244,7 +244,7 @@ def _elemwise_sum(inputs, _):
 def _expand_dims(inputs, attrs):
     op_name, new_attrs = "expand_dims", {}
     new_attrs['axis'] = _required_attr(attrs, 'axis')
-    return _get_nnvm_op('expand_dims')(*inputs, **new_attrs)
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
