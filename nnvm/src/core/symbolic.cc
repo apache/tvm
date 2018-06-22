@@ -315,18 +315,25 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
         const Symbol *sym;
         if (idx < arg_vec.size()) {
           sym = arg_vec[idx];
-          arg_vec.erase(arg_vec.begin() + idx);
         } else {
           auto it = kwarg_map.find(arg_names[idx]);
           CHECK(it != kwarg_map.end());
           sym = it->second;
           kwarg_map.erase(it);
         }
-
         if (n_req != kVarg)
           n_req--;
-        arg_names.erase(arg_names.begin() + idx);
         n->attrs.subgraphs.push_back(std::make_shared<Symbol>(*sym));
+      }
+      // Because idxes does not contain duplicates, the loop below functions well.
+      // Note that it is as slow as O(|idxes| * |args|),
+      // but given that |idxes| is small, it is just fine
+      sort(std::begin(idxes), std::end(idxes), std::greater<int>());
+      for (auto idx : idxes) {
+        if (idx < arg_vec.size()) {
+          arg_vec.erase(arg_vec.begin() + idx);
+        }
+        arg_names.erase(arg_names.begin() + idx);
       }
     }
 
