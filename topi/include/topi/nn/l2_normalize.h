@@ -26,20 +26,20 @@ using namespace tvm;
 * \return A Tensor whose op member is the l2 normalization operation
 */
 inline Tensor l2_normalize(const Tensor& data,
-                              float eps,
-                              const Array<Expr>& axis,
-                              std::string name = "tensor",
-                              std::string tag = "l2_normalize") {
+                           float eps,
+                           const Array<Expr>& axis,
+                           std::string name = "tensor",
+                           std::string tag = "l2_normalize") {
   CHECK_EQ(data->shape.size(), 4) << "L2 normalization requires 4-D input";
   auto input_shape = data->shape;
-  Tensor dot_value = pow(data, static_cast<float>(2.0));
+  Tensor dot_value = topi::power(data, static_cast<float>(2.0));
   Tensor sum_value = topi::sum(dot_value, axis, true);
   Tensor expand_sum = topi::broadcast_to(sum_value, input_shape);
-  return topi::broadcast_div(data,
-                             topi::sqrt(tvm::compute(expand_sum->shape,
-                                                     [&](const Array<Var>& i){
-                                                     return (max(expand_sum(i), eps));
-                                                     }, name = name, tag = tag)));
+  return topi::divide(data,
+                      topi::sqrt(tvm::compute(expand_sum->shape,
+                                              [&](const Array<Var>& i){
+                                                return (max(expand_sum(i), eps));
+                                              }, name = name, tag = tag)));
 }
 }  // namespace nn
 }  // namespace topi
