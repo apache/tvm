@@ -49,7 +49,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
-        f(a, b, c, d)
+        f(a.data, a.indices, a.indptr, b, c, d)
         print(d.asnumpy()[0,:5])
         print(d_np[0,:5])
         np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-3)
