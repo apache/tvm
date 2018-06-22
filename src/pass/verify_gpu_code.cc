@@ -18,10 +18,18 @@ class GPUCodeVerifier : public IRVisitor {
   bool Verify(tvm::Stmt stmt,
               int64_t max_local_memory_per_block,
               int64_t max_shared_memory_per_block,
-              int64_t max_thread_per_block) {
+              int64_t max_thread_per_block,
+              int64_t max_thread_x,
+              int64_t max_thread_y,
+              int64_t max_thread_z) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
     max_thread_per_block_ = static_cast<size_t>(max_thread_per_block);
+    max_thread_x_ = static_cast<size_t>(max_thread_x);
+    max_thread_y_ = static_cast<size_t>(max_thread_y);
+    max_thread_z_ = static_cast<size_t>(max_thread_z);
+
+    Reset_();
 
     this->Visit(stmt);
 
@@ -44,13 +52,10 @@ class GPUCodeVerifier : public IRVisitor {
 
     if (nest_level_ == 0) {
       // exit a kernel, check the validity
-      if (thread_per_block_ > max_thread_per_block_) {
-        valid_ = false;
-      }
-      if (local_memory_per_block_ > max_local_memory_per_block_ ||
-          shared_memory_per_block_ > max_shared_memory_per_block_) {
-        valid_ = false;
-      }
+      valid_ &= thread_per_block_ <= max_thread_per_block_;
+
+      valid_ &= local_memory_per_block_ <= max_local_memory_per_block_;
+      valid_ &= shared_memory_per_block_ <= max_shared_memory_per_block_;
     }
   }
 
@@ -83,7 +88,16 @@ class GPUCodeVerifier : public IRVisitor {
       if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
-          thread_per_block_ *= extent->value;
+          size_t length = static_cast<size_t>(extent->value);
+          thread_per_block_ *= length;
+
+          if (name == "threadIdx.x") {
+            valid_ &= length <= max_thread_x_;
+          } else if (name == "threadIdx.y") {
+            valid_ &= length <= max_thread_y_;
+          } else if (name == "threadIdx.z") {
+            valid_ &= length <= max_thread_z_;
+          }
         }
       }
     }
@@ -104,6 +118,7 @@ class GPUCodeVerifier : public IRVisitor {
   size_t max_local_memory_per_block_;
   size_t max_shared_memory_per_block_;
   size_t max_thread_per_block_;
+  size_t max_thread_x_, max_thread_y_, max_thread_z_;
 
   bool valid_{true};
 
@@ -132,11 +147,19 @@ bool VerifyGPUCode(Stmt stmt,
   };
 
   int64_t max_local_memory_per_block = get_int("max_local_memory_per_block", INT64_MAX);
-  int64_t max_shared_memory_per_block = get_int("max_shared_memory_per_block", INT64_MAX);;
-  int64_t max_thread_per_block = get_int("max_thread_per_block", INT64_MAX);;
+  int64_t max_shared_memory_per_block = get_int("max_shared_memory_per_block", INT64_MAX);
+  int64_t max_thread_per_block = get_int("max_thread_per_block", INT64_MAX);
+  int64_t max_thread_x = get_int("max_thread_x", INT64_MAX);
+  int64_t max_thread_y = get_int("max_thread_y", INT64_MAX);
+  int64_t max_thread_z = get_int("max_thread_z", INT64_MAX);
 
-  return verifier.Verify(stmt, max_local_memory_per_block,
-                         max_shared_memory_per_block, max_thread_per_block);
+  return verifier.Verify(stmt,
+                         max_local_memory_per_block,
+                         max_shared_memory_per_block,
+                         max_thread_per_block,
+                         max_thread_x,
+                         max_thread_y,
+                         max_thread_z);
 }
 
 }  // namespace ir

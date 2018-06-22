@@ -108,6 +108,20 @@ def test_num_thread():
             tvm.build(s, [A, B], target)
         assert valid
 
+        with tvm.build_config(**{"add_lower_pass": [
+            (2, get_verify_pass(max_shared_memory_per_block=0,
+                                max_thread_per_block=N,
+                                max_thread_y=M-1))]}):
+            tvm.build(s, [A, B], target)
+        assert not valid
+
+        with tvm.build_config(**{"add_lower_pass": [
+            (2, get_verify_pass(max_shared_memory_per_block=0,
+                                max_thread_per_block=N,
+                                max_thread_y=M))]}):
+            tvm.build(s, [A, B], target)
+        assert valid
+
 def test_multiple_kernels():
     N = 1024
 
