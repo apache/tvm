@@ -34,7 +34,7 @@ def test_exp():
         np.testing.assert_allclose(
             b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
 
-    check_device("opencl -device=intel_gpu")
+    check_device("opencl -device=intel_graphics")
     check_device("cuda", "llvm")
     check_device("vulkan")
 
