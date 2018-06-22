@@ -1,3 +1,5 @@
+.. _hybrid-langref-label:
+
 Hybrid Frontend Language Reference
 ==================================
 
