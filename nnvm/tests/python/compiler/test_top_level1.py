@@ -7,17 +7,20 @@ import nnvm.compiler
 from nnvm.testing.config import ctx_list
 
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None, need_input=True, need_head_grads=True):
+           np_forward, np_backward=None,
+           need_input=True, need_head_grads=True):
     ishapes = {}
+    itypes = {}
     input_syms = []
     np_inputs = {}
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
-        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        itypes.update({name: dtype})
+        np_inputs.update({name: np.random.uniform(-100, 100, size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes, itypes)
         m = graph_runtime.create(graph, lib, ctx)
         m.run(**np_inputs)
         y_np = np_forward(**np_inputs)

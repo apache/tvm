@@ -88,6 +88,8 @@ This level enables typical convnet models.
    nnvm.symbol.__rdiv_scalar__
    nnvm.symbol.__pow_scalar__
    nnvm.symbol.__rpow_scalar__
+   nnvm.symbol.__lshift_scalar__
+   nnvm.symbol.__rshift_scalar__
 
 **Level 4: Broadcast and Reductions**
 
@@ -164,6 +166,8 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.__rdiv_scalar__
 .. autofunction:: nnvm.symbol.__pow_scalar__
 .. autofunction:: nnvm.symbol.__rpow_scalar__
+.. autofunction:: nnvm.symbol.__lshift_scalar__
+.. autofunction:: nnvm.symbol.__rshift_scalar__
 
 .. autofunction:: nnvm.symbol.transpose
 .. autofunction:: nnvm.symbol.broadcast_to

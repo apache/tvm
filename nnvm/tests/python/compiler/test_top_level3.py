@@ -7,10 +7,9 @@ import nnvm.compiler
 from nnvm.testing.config import ctx_list
 from test_top_level1 import helper
 
-def check_map(symfunc, np_func, np_backward=None):
+def check_map(symfunc, np_func, np_backward=None, dtype="float32"):
     x = sym.Variable("x")
     y = symfunc(x)
-    dtype = "float32"
     dshape = (1, 3, 32, 32)
     inputs = [('x', dshape, x)]
     helper(y, inputs, dtype, lambda x: np_func(x), np_backward)
@@ -29,7 +28,14 @@ def test_round():
     check_map(sym.round, np.round)
 
 
+def test_shift():
+    n = 3
+    for dtype in ["int32", "int8"]:
+        check_map(lambda x : x >> n, lambda x: x >> n, dtype=dtype)
+        check_map(lambda x : x << n, lambda x: x << n, dtype=dtype)
+
 if __name__ == "__main__":
+    test_shift()
     test_floor()
     test_ceil()
     test_round()

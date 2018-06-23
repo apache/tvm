@@ -512,6 +512,39 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rsub_scalar__)
     };
 });
 
+
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__lshift_scalar__)
+.describe(R"code(Tensor left shift by scalar
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ScalarParam& param = nnvm::get<ScalarParam>(attrs.parsed);
+    int scalar_val = static_cast<int>(param.scalar);
+    return Array<Tensor>{
+      topi::left_shift(inputs[0],
+                       make_const(inputs[0]->dtype, scalar_val))};
+    });
+
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rshift_scalar__)
+.describe(R"code(Tensor right shift by scalar
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ScalarParam& param = nnvm::get<ScalarParam>(attrs.parsed);
+    int scalar_val = static_cast<int>(param.scalar);
+    return Array<Tensor>{
+      topi::right_shift(inputs[0],
+                        make_const(inputs[0]->dtype, scalar_val))};
+  });
+
 NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__mul_scalar__)
 .describe(R"code(Tensor multiplies scalar
 
