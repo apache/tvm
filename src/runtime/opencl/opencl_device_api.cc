@@ -6,6 +6,8 @@
 #include <dmlc/thread_local.h>
 #include "./opencl_common.h"
 
+#include <string>
+
 namespace tvm {
 namespace runtime {
 namespace cl {
@@ -39,12 +41,33 @@ void OpenCLWorkspace::GetAttr(
       break;
     }
     case kWarpSize: {
-      /* TODO: the warp size of OpenCL device is not always 1
-               e.g. Intel GPU has a sub group concept which contains 8 - 32 work items,
-               corresponding to the number of SIMD entries the heardware configures.
-               We need to figure out a way to query this information from the hardware.
-      */
-      *rv = 1;
+      static const std::string dummy_kernel("__kernel void tvm_dummy_kernel(__global int* a)"
+      "{a[get_global_id(0)] = 0;}");
+      cl_kernel kernel{nullptr};
+      cl_program program{nullptr};
+      size_t prefered_mul = 0;
+      size_t kernel_src_size = dummy_kernel.size();
+      const char* src = dummy_kernel.c_str();
+      cl_int err;
+
+      program = clCreateProgramWithSource(context, 1, &src, &kernel_src_size, &err);
+      OPENCL_CALL(err);
+      OPENCL_CALL(clBuildProgram(
+        program, 1,
+        &devices[index], "",
+        nullptr, nullptr));
+
+      kernel = clCreateKernel(program, "tvm_dummy_kernel", &err);
+      OPENCL_CALL(err);
+      OPENCL_CALL(clGetKernelWorkGroupInfo(
+        kernel, devices[index],
+        CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+        sizeof(prefered_mul), &prefered_mul, nullptr));
+
+      OPENCL_CALL(clReleaseKernel(kernel));
+      OPENCL_CALL(clReleaseProgram(program));
+
+      *rv = (int)prefered_mul;
       break;
     }
     case kMaxSharedMemoryPerBlock: {

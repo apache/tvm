@@ -9,6 +9,8 @@
 #include <tvm/ir_pass.h>
 #include <tvm/codegen.h>
 
+#include "../runtime/opencl/opencl_common.h"
+
 #include <algorithm>
 #include <mutex>
 #include <stack>
@@ -70,15 +72,21 @@ Target CreateTarget(const std::string& target_name,
     // For now assume rocm schedule for opencl
     if (target_name == "opencl") {
       t->device_type = kDLOpenCL;
+      auto workspace = runtime::cl::OpenCLWorkspace::Global();
+      cl::OpenCLThreadEntry* clt = cl::OpenCLThreadEntry::ThreadLocal();
+      TVMContext context = clt->context;
+      TVMRetValue rv;
+
+      workspace->GetAttr(context, kMaxThreadsPerBlock, &rv);
+      t->max_num_threads = rv.operator int();
+
+      workspace->GetAttr(context, kWarpSize, &rv);
+      t->thread_warp_size = rv.operator int();
     } else {
       t->device_type = kDLROCM;
     }
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
-    t->max_num_threads = 256;
-    if (t->device_name == "intel_gpu") {
-      t->thread_warp_size = 16;
-    }
   } else if (target_name == "metal" || target_name == "vulkan") {
     if (target_name == "metal") {
       t->device_type = kDLMetal;
@@ -252,6 +260,7 @@ Target rocm(const std::vector<std::string>& options) {
 }
 
 Target opencl(const std::vector<std::string>& options) {
+  std::cout << "Creating opencl target" << std::endl;
   return CreateTarget("opencl", options);
 }
 
