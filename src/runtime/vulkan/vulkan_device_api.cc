@@ -73,6 +73,7 @@ void VulkanWorkspace::GetAttr(
     case kMaxClockRate: return;
     case kMultiProcessorCount: return;
     case kExist: break;
+    case kMaxThreadDimensions: break;
   }
 }
 
