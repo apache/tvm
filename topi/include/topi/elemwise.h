@@ -159,7 +159,7 @@ inline Tensor elemwise_sum(const Array<Tensor>& xs,
 */
 inline Tensor full(const Array<Expr>& shape,
                    Type dtype,
-                   Expr fill_value,
+                   const Expr fill_value,
                    std::string name = "tensor",
                    std::string tag = kElementWise) {
   Expr ev = lossless_cast(dtype, fill_value);
@@ -183,7 +183,7 @@ inline Tensor full(const Array<Expr>& shape,
 * \return A Tensor whose op memeber is the full_like operation
 */
 inline Tensor full_like(const Tensor& x,
-                        Expr fill_value,
+                        const Expr fill_value,
                         std::string name = "tensor",
                         std::string tag = kElementWise) {
   Expr ev = lossless_cast(x->dtype, fill_value);
