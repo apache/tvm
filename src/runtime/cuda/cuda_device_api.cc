@@ -81,9 +81,9 @@ class CUDADeviceAPI final : public DeviceAPI {
         CUDA_CALL(cudaDeviceGetAttribute(
             &dims[2], cudaDevAttrMaxBlockDimZ, ctx.device_id));
 
-        *rv = tvm::Array<tvm::Expr>({static_cast<int32_t>(dims[0]),
-                                     static_cast<int32_t>(dims[1]),
-                                     static_cast<int32_t>(dims[2])});
+        std::stringstream ss;  // use json string to return multiple int values;
+        ss << "[" << dims[0] <<", " << dims[1] << ", " << dims[2] << "]";
+        *rv = ss.str();
         return;
       }
     }

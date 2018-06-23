@@ -89,9 +89,9 @@ void OpenCLWorkspace::GetAttr(
       OPENCL_CALL(clGetDeviceInfo(
           devices[index], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
 
-      *rv = tvm::Array<tvm::Expr>({static_cast<int32_t>(dims[0]),
-                                   static_cast<int32_t>(dims[1]),
-                                   static_cast<int32_t>(dims[2])});
+      std::stringstream ss;  // use json string to return multiple int values;
+      ss << "[" << dims[0] <<", " << dims[1] << ", " << dims[2] << "]";
+      *rv = ss.str();
       break;
     }
   }

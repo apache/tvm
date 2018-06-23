@@ -3,6 +3,7 @@
 from __future__ import absolute_import
 
 import ctypes
+import json
 import numpy as np
 from .base import _LIB, check_call
 from .. import _api_internal
@@ -184,10 +185,10 @@ class TVMContext(ctypes.Structure):
 
         Returns
         -------
-        dims: Tuple of int
+        dims: List of int
             The maximum length of threadIdx.x, threadIdx.y, threadIdx.z
         """
-        return tuple(_api_internal._GetDeviceAttr(
+        return json.loads(_api_internal._GetDeviceAttr(
             self.device_type, self.device_id, 8))
 
     def sync(self):
