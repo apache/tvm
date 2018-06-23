@@ -1,13 +1,9 @@
 """Test gpu code verifier"""
 import tvm
 
-global valid
-
-def get_verify_pass(**kwargs):
+def get_verify_pass(valid, **kwargs):
     def verify_pass(stmt):
-        global valid
-
-        valid = tvm.ir_pass.VerifyGPUCode(stmt, kwargs)
+        valid[0] = tvm.ir_pass.VerifyGPUCode(stmt, kwargs)
         return stmt
     return verify_pass
 
@@ -31,18 +27,20 @@ def test_shared_memory():
     for target in ['opencl', 'cuda']:
         if not tvm.context(target).exist:
             continue
-        global valid
+        valid = [None]
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=4 * M - 1,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=4 * M - 1,
                                 max_thread_per_block=M))]}):
             tvm.build(s, [A, B], target)
-        assert not valid
+        assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=4 * M,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=4 * M,
                                 max_thread_per_block=M))]}):
             tvm.build(s, [A, B], target)
-        assert valid
+        assert valid[0]
 
 def test_local_memory():
     N = 1024
@@ -63,18 +61,21 @@ def test_local_memory():
     for target in ['opencl', 'cuda']:
         if not tvm.context(target).exist:
             continue
-        global valid
+
+        valid = [None]
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_local_memory_per_block=4 * M - 1,
+            (2, get_verify_pass(valid,
+                                max_local_memory_per_block=4 * M - 1,
                                 max_thread_per_block=1))]}):
             tvm.build(s, [A, B], target)
-        assert not valid
+        assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_local_memory_per_block=4 * M,
+            (2, get_verify_pass(valid,
+                                max_local_memory_per_block=4 * M,
                                 max_thread_per_block=1))]}):
             tvm.build(s, [A, B], target)
-        assert valid
+        assert valid[0]
 
 def test_num_thread():
     N = 1024
@@ -95,32 +96,37 @@ def test_num_thread():
     for target in ['opencl', 'cuda']:
         if not tvm.context(target).exist:
             continue
-        global valid
+
+        valid = [None]
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N - 1))]}):
             tvm.build(s, [A, B], target)
-        assert not valid
+        assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N))]}):
             tvm.build(s, [A, B], target)
-        assert valid
+        assert valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N,
                                 max_thread_y=M-1))]}):
             tvm.build(s, [A, B], target)
-        assert not valid
+        assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N,
                                 max_thread_y=M))]}):
             tvm.build(s, [A, B], target)
-        assert valid
+        assert valid[0]
 
 def test_multiple_kernels():
     N = 1024
@@ -141,18 +147,20 @@ def test_multiple_kernels():
         if not tvm.context(target).exist:
             continue
 
-        global valid
+        valid = [None]
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N - 1))]}):
             tvm.build(s, [A, C], target)
-        assert not valid
+        assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
-            (2, get_verify_pass(max_shared_memory_per_block=0,
+            (2, get_verify_pass(valid,
+                                max_shared_memory_per_block=0,
                                 max_thread_per_block=N))]}):
             tvm.build(s, [A, C], target)
-        assert valid
+        assert valid[0]
 
 if __name__ == "__main__":
     test_local_memory()
