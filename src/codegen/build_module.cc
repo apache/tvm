@@ -260,7 +260,6 @@ Target rocm(const std::vector<std::string>& options) {
 }
 
 Target opencl(const std::vector<std::string>& options) {
-  std::cout << "Creating opencl target" << std::endl;
   return CreateTarget("opencl", options);
 }
 
