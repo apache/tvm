@@ -35,7 +35,7 @@ class HybridParser(ast.NodeVisitor):
         ast.Add   : operator.add,
         ast.Sub   : operator.sub,
         ast.Mult  : operator.mul,
-        ast.Div   : _make.Div,
+        ast.Div   : operator.div if sys.version_info[0] == 2 else operator.truediv,
         ast.Mod   : operator.mod,
         ast.BitOr : operator.or_,
         ast.BitAnd: operator.and_,
