@@ -241,6 +241,12 @@ def _elemwise_sum(inputs, _):
     return _get_nnvm_op('elemwise_sum')(*inputs, **new_attrs)
 
 
+def _expand_dims(inputs, attrs):
+    op_name, new_attrs = "expand_dims", {}
+    new_attrs['axis'] = _required_attr(attrs, 'axis')
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
+
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -288,7 +294,8 @@ _convert_map = {
     'reshape'       : _reshape,
     'sum_axis'      : _rename('sum'),
     'UpSampling'    : _upsampling,
-    'clip'          : _clip
+    'clip'          : _clip,
+    'expand_dims'   : _expand_dims
 }
 
 def _convert_symbol(op_name, inputs, attrs,
