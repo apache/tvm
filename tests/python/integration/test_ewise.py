@@ -44,10 +44,10 @@ def test_multiple_cache_write():
     n = tvm.convert(1024)
     A0 = tvm.placeholder((n,), name='A0', dtype = "float32")
     A1 = tvm.placeholder((n,), name='A1', dtype = "float32")
-    B0, B1 = tvm.compute((n,), 
-            lambda *i: (A0(*i) + A1(*i), A0(*i) * A1(*i)), 
+    B0, B1 = tvm.compute((n,),
+            lambda *i: (A0(*i) + A1(*i), A0(*i) * A1(*i)),
             name='B')
-    C = tvm.compute((n,), lambda *i: B0(*i) + B1(*i), 
+    C = tvm.compute((n,), lambda *i: B0(*i) + B1(*i),
             name='C')
     s = tvm.create_schedule(C.op)
     # create iter var and assign them tags.
@@ -76,7 +76,7 @@ def test_multiple_cache_write():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         func(a0, a1, c)
         np.testing.assert_allclose(
-            c.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()), 
+            c.asnumpy(), a0.asnumpy() + a1.asnumpy() + (a0.asnumpy() * a1.asnumpy()),
             rtol=1e-5)
 
     check_device("cuda", "llvm")
@@ -235,7 +235,6 @@ def try_warp_memory():
         f(a, b)
         np.testing.assert_allclose(
             b.asnumpy(), a.asnumpy() + 3, rtol=1e-6)
-
     check_device("cuda")
 
 
