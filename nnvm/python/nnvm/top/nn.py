@@ -84,6 +84,7 @@ def compute_conv2d(attrs, inputs, _):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
+    kernel_layout = attrs["kernel_layout"]
     assert layout == "NCHW" or layout == "NHWC"
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
@@ -97,10 +98,18 @@ def compute_conv2d(attrs, inputs, _):
 
     if groups == 1:
         out = topi.nn.conv2d(inputs[0], kernel, strides, padding, layout)
-    elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
+    elif layout == "NCHW" and \
+         groups == get_const_int(inputs[0].shape[1]) and \
+         groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(inputs[0], kernel, strides, padding)
+    elif layout == "NHWC" and \
+         kernel_layout == "HWOI" and \
+         groups == get_const_int(inputs[0].shape[3]) and \
+         groups == channels:
+        out = topi.nn.depthwise_conv2d_nhwc(inputs[0], kernel, strides, padding)
     else:
         raise ValueError("not support arbitrary group number for now")
+
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
         expand_axis = 1 if layout == "NCHW" else 0
@@ -112,13 +121,20 @@ def compute_conv2d(attrs, inputs, _):
 def schedule_conv2d(attrs, outs, target):
     """Schedule definition of conv2d"""
     groups = attrs.get_int("groups")
+    channels = attrs.get_int("channels")
     layout = attrs["layout"]
+    kernel_layout = attrs["kernel_layout"]
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
         elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
-        return topi.generic.schedule_depthwise_conv2d_nchw(outs)
+        elif groups == channels and layout == "NCHW":
+            return topi.generic.schedule_depthwise_conv2d_nchw(outs)
+        elif groups == channels and layout == "NHWC" and kernel_layout == "HWOI":
+            return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
+        else:
+            raise ValueError("No compatible schedule")
 
 @reg.register_alter_op_layout("conv2d")
 def alter_conv2d_layout(attrs, inputs, tinfos):
