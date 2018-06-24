@@ -110,9 +110,8 @@ class HybridParser(ast.NodeVisitor):
             raise ValueError("%s, a buffer cannot be both argument and allocated!" % s)
         if s in self._args.keys():
             return self._args[s]
-        else:
-            return self.alloc_buffers[s][0]
-            
+        return self.alloc_buffers[s][0]
+
 
 
     #pylint: disable=invalid-name, missing-docstring
