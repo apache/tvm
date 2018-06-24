@@ -112,7 +112,7 @@ echo "Running '${COMMAND[@]}' inside ${DOCKER_IMG_NAME}..."
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 echo ${DOCKER_BINARY}
-${DOCKER_BINARY} run --rm --pid=host \
+${DOCKER_BINARY} run --rm --tmpfs=/tmp --pid=host \
     -v ${WORKSPACE}:/workspace \
     -w /workspace \
     -e "CI_BUILD_HOME=/workspace" \
