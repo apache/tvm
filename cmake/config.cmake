@@ -77,8 +77,11 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether use BLAS, choices: openblas, atlas, blas, apple
+# Whether use BLAS, choices: openblas, mkl, atlas, blas, apple
 set(USE_BLAS none)
+
+# /path/to/mkl: mkl root path when use mkl blas library
+set(MKL_PATH none)
 
 # Whether use contrib.random in runtime
 set(USE_RANDOM OFF)
