@@ -8,7 +8,8 @@ from nnvm.testing.config import ctx_list
 
 def helper(symbol, inputs, dtype,
            np_forward, np_backward=None,
-           need_input=True, need_head_grads=True):
+           need_input=True, need_head_grads=True,
+           rnd_min=-1, rnd_max=1):
     ishapes = {}
     itypes = {}
     input_syms = []
@@ -16,7 +17,7 @@ def helper(symbol, inputs, dtype,
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
         itypes.update({name: dtype})
-        np_inputs.update({name: np.random.uniform(-100, 100, size=shape).astype(dtype)})
+        np_inputs.update({name: np.random.uniform(rnd_min, rnd_max, size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
@@ -167,7 +168,7 @@ def test_log():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     inputs = [('x', dshape, x)]
-    helper(y, inputs, dtype, forward, backward)
+    helper(y, inputs, dtype, forward, backward, rnd_min=0.001)
 
 
 def test_tanh():
@@ -280,7 +281,7 @@ def test_batchnorm():
         ('moving_var', (20,), moving_mean)
     ]
 
-    helper(y, inputs,  dtype, forward)
+    helper(y, inputs,  dtype, forward, rnd_min=0.001)
 
 
 def verify_concatenate(ishape, axis):
