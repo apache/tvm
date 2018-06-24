@@ -64,7 +64,6 @@ class PyVariableUsage(ast.NodeVisitor):
             self.status[node.id] = (node, self.scope_level[-1], set())
         else:
             decl, loop, usage = self.status[node.id]
-            loop = self.scope_level[-1]
             usage.add(type(node.ctx))
             self.status[node.id] = (decl, loop, usage)
 

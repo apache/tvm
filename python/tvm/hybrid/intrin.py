@@ -29,7 +29,7 @@ class bind(_range): #pylint: disable=invalid-name
 unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 
-def allocate(shape, dtype='float32'):
+def allocate(shape, dtype='float32', scope='global'):
     """Allocate a buffer with given shape
 
     Parameters
