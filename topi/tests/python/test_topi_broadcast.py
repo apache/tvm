@@ -94,6 +94,8 @@ def test_broadcast_to():
 
 def test_add():
     verify_broadcast_binary_ele(
+        (), (), topi.add, np.add)
+    verify_broadcast_binary_ele(
         (5, 2, 3), (2, 1), topi.add, np.add)
 
 def test_subtract():
@@ -113,6 +115,8 @@ def test_multiply():
 def test_divide():
     verify_broadcast_binary_ele(
         None, (10,), topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (), None, topi.divide, np.divide, rhs_min=0.0001)
     verify_broadcast_binary_ele(
         (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
 
@@ -157,10 +161,10 @@ def test_shift():
 
 
 if __name__ == "__main__":
+    test_add()
     test_shift()
     test_cmp()
     test_mod()
-    test_add()
     test_subtract()
     test_multiply()
     test_divide()
