@@ -149,7 +149,7 @@ void PassUpIndex(const Stage& stage,
       } else {
         state[s->parent] = value;
       }
-    } else if (const SingletonNode* r = rel.as<SingletonNode>()) {
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -301,7 +301,7 @@ void PassUpDomain(const Stage& stage,
                    state.at(r->rebased),
                    &parent);
       state[r->parent] = parent;
-    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -350,7 +350,7 @@ void PassUpBitMaskOr(const Stage& stage,
       } else {
         state[s->parent] |= state[s->rebased];
       }
-    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -447,7 +447,7 @@ void PassUpBoundCheck(const Stage& s,
     } else if (rel.as<RebaseNode>()) {
       const RebaseNode* s = rel.as<RebaseNode>();
       state[s->parent] = state.at(s->rebased);
-    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+    } else if (rel.as<SingletonNode>()) {
       // nop
     } else {
       LOG(FATAL) << "unknown relation type";
