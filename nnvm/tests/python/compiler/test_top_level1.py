@@ -7,17 +7,21 @@ import nnvm.compiler
 from nnvm.testing.config import ctx_list
 
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None, need_input=True, need_head_grads=True):
+           np_forward, np_backward=None,
+           need_input=True, need_head_grads=True,
+           rnd_min=-1, rnd_max=1):
     ishapes = {}
+    itypes = {}
     input_syms = []
     np_inputs = {}
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
-        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        itypes.update({name: dtype})
+        np_inputs.update({name: np.random.uniform(rnd_min, rnd_max, size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes, itypes)
         m = graph_runtime.create(graph, lib, ctx)
         m.run(**np_inputs)
         y_np = np_forward(**np_inputs)
@@ -164,7 +168,7 @@ def test_log():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     inputs = [('x', dshape, x)]
-    helper(y, inputs, dtype, forward, backward)
+    helper(y, inputs, dtype, forward, backward, rnd_min=0.001)
 
 
 def test_tanh():
@@ -277,7 +281,7 @@ def test_batchnorm():
         ('moving_var', (20,), moving_mean)
     ]
 
-    helper(y, inputs,  dtype, forward)
+    helper(y, inputs,  dtype, forward, rnd_min=0.001)
 
 
 def verify_concatenate(ishape, axis):

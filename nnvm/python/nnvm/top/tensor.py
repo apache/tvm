@@ -133,6 +133,14 @@ reg.register_schedule("__pow_scalar__", _fschedule_broadcast)
 reg.register_pattern("__rpow_scalar__", OpPattern.ELEMWISE)
 reg.register_schedule("__rpow_scalar__", _fschedule_broadcast)
 
+# lshift_scalar
+reg.register_pattern("__lshift_scalar__", OpPattern.ELEMWISE)
+reg.register_schedule("__lshift_scalar__", _fschedule_broadcast)
+
+# rshift_scalar
+reg.register_pattern("__rshift_scalar__", OpPattern.ELEMWISE)
+reg.register_schedule("__rshift_scalar__", _fschedule_broadcast)
+
 # elemwise_add
 reg.register_pattern("elemwise_add", OpPattern.BROADCAST)
 reg.register_schedule("elemwise_add", _fschedule_broadcast)
