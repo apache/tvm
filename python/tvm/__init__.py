@@ -18,6 +18,7 @@ from . import target
 from . import generic
 from . import hybrid
 
+from . import tools
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, opengl, ext_dev

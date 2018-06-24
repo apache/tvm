@@ -134,6 +134,11 @@ class NDArrayBase(_NDArrayBase):
         """context of this array"""
         return self.ctx
 
+    @property
+    def time_stamp(self):
+        """Timestamp of this array"""
+        return self.handle.contents.time_stamp
+
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
         if (not isinstance(in_slice, slice) or

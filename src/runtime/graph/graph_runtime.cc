@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file graph_runtime.cc
  */
+#include <sys/time.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
@@ -56,6 +57,25 @@ class GraphRuntime : public ModuleNode {
       if (op_execs_[i]) op_execs_[i]();
     }
   }
+
+  void DebugRun() {
+    struct timeval tp;
+    // Execute each op and copy the outs
+    for (size_t i = 0; i < op_execs_.size(); ++i) {
+      if (op_execs_[i]) op_execs_[i]();
+      gettimeofday(&tp, NULL);
+      int64_t mstime = int64_t(tp.tv_sec * 1000000L + tp.tv_usec);
+      size_t num_outputs = (nodes_[i].op_type == "null") ? 1: nodes_[i].param.num_outputs;
+      for (size_t j = 0; j < num_outputs; j++) {
+          uint32_t eid = this->entry_id(i, j);
+          TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid],
+                                       &debug_buffers_[eid]->out_tensor,
+                                       nullptr));
+          debug_buffers_[eid]->time_stamp = mstime;
+      }
+    }
+  }
+
   /*!
    * \brief Initialize the graph executor with graph and context.
    * \param graph_json The execution graph.
@@ -113,6 +133,14 @@ class GraphRuntime : public ModuleNode {
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
   /*!
+   * \brief Set the debug buffer to copy the output of each operation.
+   * \param data The data pointer.
+   */
+  void SetDebugBuffer(void* data) {
+      debug_buffers_.push_back(reinterpret_cast<TVMDbgTensor*>(data));
+  }
+
+  /*!
    * \brief Copy index-th output to data_out.
    * \param index The output index.
    * \param data_out the output data.
@@ -122,44 +150,6 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = this->entry_id(outputs_[index]);
     TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
   }
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  /*!
-   * \brief Get the node index given the name of node.
-   * \param name The name of the node.
-   * \return The index of node.
-   */
-  int GetNodeIndex(const std::string& name) {
-    for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
-      if (nodes_[nid].name == name) {
-        return static_cast<int>(nid);
-      }
-    }
-    LOG(FATAL) << "cannot find " << name << " among nodex";
-    return -1;
-  }
-
-  /*!
-   * \brief Copy index-th node to data_out.
-   *
-   * This method will do a partial run of the the graph
-   * from begining upto the index-th node and return output of index-th node.
-   * This is costly operation and suggest to use only for debug porpose.
-   *
-   * \param index: The  index of the node.
-   * \param data_out the node data.
-   */
-  void DebugGetNodeOutput(int index, DLTensor* data_out) {
-    CHECK_LT(static_cast<size_t>(index), nodes_.size());
-    uint32_t eid = index;
-
-    for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (op_execs_[i]) op_execs_[i]();
-      if (static_cast<int>(i) == index) break;
-    }
-
-    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
-  }
-#endif
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
@@ -394,6 +384,8 @@ class GraphRuntime : public ModuleNode {
   std::vector<DLTensor> data_entry_;
   /*! \brief operator on each node */
   std::vector<std::function<void()> > op_execs_;
+  /*! \brief debug buffer storage pool */
+  std::vector<TVMDbgTensor*> debug_buffers_;
 };
 
 
@@ -612,19 +604,17 @@ PackedFunc GraphRuntime::GetFunction(
           this->GetInput(args[0], args[1]);
         }
       });
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  } else if (name == "debug_get_output") {
+  } else if (name == "set_debug_buffer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        if (args[0].type_code() == kStr) {
-          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
-        } else {
-          this->DebugGetNodeOutput(args[0], args[1]);
-        }
+        this->SetDebugBuffer(args[0]);
       });
-#endif
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();
+      });
+  } else if (name == "debug_run") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        this->DebugRun();
       });
   } else if (name == "load_params") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
