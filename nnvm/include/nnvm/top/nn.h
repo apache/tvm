@@ -349,7 +349,7 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
       .describe("Clip out-of-boundary boxes.");
     DMLC_DECLARE_FIELD(threshold).set_default(0.01)
     .describe("Threshold to be a positive prediction.");
-    DMLC_DECLARE_FIELD(variances).set_default(Tuple<float>{0.1, 0.1, 0.2, 0.2})
+    DMLC_DECLARE_FIELD(variances).set_default(Tuple<float>({0.1f, 0.1f, 0.2f, 0.2f}))
     .describe("Variances to be decoded from box regression output.");
   }
 };
