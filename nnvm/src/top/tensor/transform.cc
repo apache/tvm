@@ -893,7 +893,7 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
   Tuple<dim_t> end_idx;
   end_idx = Tuple<dim_t>(src_shape);
   if (param.axis.ndim() == 0) {
-    for (int i = 0; i < src_shape.ndim(); ++i) {
+    for (size_t i = 0; i < src_shape.ndim(); ++i) {
       if (i < target_shape.ndim()) {
         end_idx[i] = target_shape[i];
       }
@@ -935,10 +935,10 @@ NNVM_REGISTER_OP(slice_like)
     Array<Expr> src_shape = inputs[0]->shape;
     Array<Expr> target_shape = inputs[1]->shape;
     Array<Expr> begin_idx, end_idx, strides;
-    for (int i = 0; i < src_shape.size(); ++i) {
+    for (size_t i = 0; i < src_shape.size(); ++i) {
       begin_idx.push_back(make_const(tvm::Int(32), 0));
     }
-    for (int i = 0; i < src_shape.size(); ++i) {
+    for (size_t i = 0; i < src_shape.size(); ++i) {
       strides.push_back(make_const(tvm::Int(32), 1));
     }
     end_idx = Array<Expr>(src_shape);
