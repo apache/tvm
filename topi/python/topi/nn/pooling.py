@@ -69,14 +69,14 @@ def pool(data,
     stride : list/tuple of two ints
         Stride size, [stride_height, stride_width]
 
-    paddding : list/tuple of two ints
+    padding : list/tuple of two ints
         Pad size, [pad_height, pad_width]
 
     pool_type : str
         Pool type, 'max' or 'avg'
 
     ceil_mode : bool
-        Whether to use ceil when caculate output size.
+        Whether to use ceil when calculating output size.
 
     layout: string
         Layout of the input data.
