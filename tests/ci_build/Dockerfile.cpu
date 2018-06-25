@@ -9,17 +9,8 @@ RUN bash /install/ubuntu_install_core.sh
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
 RUN bash /install/ubuntu_install_python.sh
 
-COPY install/ubuntu_install_iverilog.sh /install/ubuntu_install_iverilog.sh
-RUN bash /install/ubuntu_install_iverilog.sh
-
 COPY install/ubuntu_install_python_package.sh /install/ubuntu_install_python_package.sh
 RUN bash /install/ubuntu_install_python_package.sh
 
-COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
-RUN bash /install/ubuntu_install_java.sh
-
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
-
-COPY install/ubuntu_install_opengl.sh /install/ubuntu_install_opengl.sh
-RUN bash /install/ubuntu_install_opengl.sh

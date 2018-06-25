@@ -7,7 +7,7 @@
 #define TOPI_BROADCAST_H_
 
 #include <string>
-
+#include <algorithm>
 #include "topi/detail/broadcast.h"
 #include "topi/detail/constant_utils.h"
 #include "topi/tags.h"
@@ -47,167 +47,215 @@ inline tvm::Tensor broadcast_to(const tvm::Tensor& t,
       tag);
 }
 
+#define TOPI_DEFINE_BCAST_OP(Name, ComputeRule)                   \
+  inline tvm::Expr Name(const tvm::Expr& a,                       \
+                        const tvm::Expr& b) {                     \
+    ComputeRule;                                                  \
+  }                                                               \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                   \
+                          const tvm::Tensor& B,                   \
+                          std::string name = "tensor",            \
+                          std::string tag = kBroadcast) {         \
+    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };       \
+    return detail::WithBroadcast(l, A, B, name, tag);             \
+  }                                                               \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                   \
+                          const tvm::Expr& B,                     \
+                          std::string name = "tensor",            \
+                          std::string tag = kElementWise) {       \
+    auto l = [](tvm::Expr a, tvm::Expr b) { ComputeRule; };           \
+    return compute(A->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
+        return l(A(i), B);                                        \
+      }, name, tag);                                              \
+  }                                                               \
+  inline tvm::Tensor Name(const tvm::Expr& A,                     \
+                          const tvm::Tensor& B,                   \
+                          std::string name = "tensor",            \
+                          std::string tag = kElementWise) {       \
+    auto l = [&](tvm::Expr a, tvm::Expr b) { ComputeRule; };      \
+    return compute(B->shape, [&](const ::tvm::Array<::tvm::Var>& i) { \
+        return l(A, B(i));                                        \
+      }, name, tag);                                              \
+  }
+
+
+#define TOPI_DEFINE_OP_OVERLOAD(Name, OpName)                       \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                     \
+                          const tvm::Tensor& B) {                   \
+    return topi::OpName(A, B);                                      \
+  }                                                                 \
+  inline tvm::Tensor Name(const tvm::Expr& A,                       \
+                          const tvm::Tensor& B) {                   \
+    return topi::OpName(A, B);                                      \
+  }                                                                 \
+  inline tvm::Tensor Name(const tvm::Tensor& A,                     \
+                          const tvm::Expr& B) {                     \
+    return topi::OpName(A, B);                                      \
+  }
+
+
 /*!
- * \brief Creates an operation that performs pointwise addition of 2 tensors
- * and broadcasts them into a common compatible shape where necessary,
- * according to numpy's rules
+ * \fn add
+ * \brief Compute A + B with auto-broadcasting.
  *
- * \param A The first tensor to add
- * \param B The second tensor to add
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is a pointwise addition with broadcast
+ * \return The result.
  */
-inline tvm::Tensor broadcast_add(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return a + b; };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+TOPI_DEFINE_BCAST_OP(add, { return a + b; });
+TOPI_DEFINE_OP_OVERLOAD(operator+, add);
 
 /*!
- * \brief Creates an operation that performs pointwise subtraction of 2 tensors
- * and broadcasts them into a common compatible shape where necessary,
- * according to numpy's rules
+ * \fn subtract
+ * \brief Compute A - B with auto-broadcasting.
  *
- * \param A The first tensor
- * \param B The second tensor to subtract from the first
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is a pointwise subtraction with broadcast
+ * \return The result.
  */
-inline tvm::Tensor broadcast_sub(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return a - b; };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+TOPI_DEFINE_BCAST_OP(subtract, { return a - b; });
+TOPI_DEFINE_OP_OVERLOAD(operator-, subtract);
 
 /*!
- * \brief Creates an operation that performs pointwise multiplication of 2
- * tensors and broadcasts them into a common compatible shape where necessary,
- * according to numpy's rules
+ * \fn multiply
+ * \brief Compute A * B with auto-broadcasting.
  *
- * \param A The first tensor to multiply
- * \param B The second tensor to multiply
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is a pointwise multiplication with broadcast
+ * \return The result.
  */
-inline tvm::Tensor broadcast_mul(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return a * b; };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+TOPI_DEFINE_BCAST_OP(multiply, { return a * b; });
+TOPI_DEFINE_OP_OVERLOAD(operator*, multiply);
 
 /*!
- * \brief Creates an operation that performs pointwise division of 2 tensors
- * and broadcasts them into a common compatible shape where necessary,
- * according to numpy's rules
+ * \fn divide
+ * \brief Compute A / B with auto-broadcasting.
  *
- * \param A The first tensor
- * \param B The second tensor to divide the first tensor with
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is a pointwise division with broadcast
+ * \return The result.
  */
-inline tvm::Tensor broadcast_div(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return a / b; };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+TOPI_DEFINE_BCAST_OP(divide, { return a / b; });
+TOPI_DEFINE_OP_OVERLOAD(operator/, divide);
 
 /*!
- * \brief Creates an operation that performs pointwise modulo remainder of 2
- * tensors and broadcasts them into a common compatible shape where necessary,
- * according to numpy's rules
+ * \fn mod
+ * \brief Compute A % B with auto-broadcasting.
  *
- * \param A The first tensor
- * \param B The second tensor to compute A % B
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is a pointwise modulo remainder with
- * broadcast
+ * \return The result.
  */
-inline tvm::Tensor broadcast_mod(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return a % b; };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+TOPI_DEFINE_BCAST_OP(mod, { return a % b; });
+TOPI_DEFINE_OP_OVERLOAD(operator%, mod);
 
 /*!
-* \brief Creates an operation that performs pointwise maximum of 2 tensors
-* and broadcasts them into a common compatible shape where necessary,
-* according to numpy's rules
-*
-* \param A The first tensor
-* \param B The second tensor
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is a pointwise maximum with broadcast
-*/
-inline tvm::Tensor broadcast_maximum(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::max(a, b); };  // NOLINT(*)
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+ * \fn maximum
+ * \brief Compute maximum(A, B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(maximum, { return tvm::max(a, b); });
 
 /*!
-* \brief Creates an operation that performs pointwise minimum of 2 tensors
-* and broadcasts them into a common compatible shape where necessary,
-* according to numpy's rules
-*
-* \param A The first tensor
-* \param B The second tensor
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is a pointwise minimum with broadcast
-*/
-inline tvm::Tensor broadcast_minimum(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::min(a, b); };  // NOLINT(*)
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+ * \fn minimum
+ * \brief Compute minimum(A, B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(minimum, { return tvm::min(a, b); });
 
 /*!
-* \brief Creates an operation that raises one tensor to the power of another
-* pointwise and broadcasts them into a common compatible shape where necessary,
-* according to numpy's rules
-*
-* \param A The first tensor
-* \param B The second tensor to compute pow(A, B)
-* \param name The name of the operation
-* \param tag The tag to mark the operation
-*
-* \return A Tensor whose op member is a pointwise pow with
-* broadcast
-*/
-inline tvm::Tensor broadcast_pow(const tvm::Tensor& A,
-                                 const tvm::Tensor& B,
-                                 std::string name = "tensor",
-                                 std::string tag = kBroadcast) {
-  auto l = [&](tvm::Expr a, tvm::Expr b) { return tvm::pow(a, b); };
-  return detail::WithBroadcast(l, A, B, name, tag);
-}
+ * \fn power
+ * \brief Compute power(A, B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(power, { return tvm::pow(a, b); });
+
+/*!
+ * \fn left_shift
+ * \brief Compute A << B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(left_shift, { return a << b; });
+TOPI_DEFINE_OP_OVERLOAD(operator<<, left_shift);
+
+/*!
+ * \fn right_shift
+ * \brief Compute A >> B with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(right_shift, { return a >> b; });
+TOPI_DEFINE_OP_OVERLOAD(operator>>, right_shift);
+
+/*!
+ * \fn greater
+ * \brief Compute (A > B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(greater, { return (a > b); });
+
+/*!
+ * \fn less
+ * \brief Compute (A < B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(less, { return (a < b); });
 
 }  // namespace topi
 

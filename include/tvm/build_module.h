@@ -157,9 +157,9 @@ EXPORT Target rasp(const std::vector<std::string>& options =
 EXPORT Target mali(const std::vector<std::string>& options =
                    std::vector<std::string>());
 
-/*! \return A target for Intel GPU */
-EXPORT Target intel_gpu(const std::vector<std::string>& options =
-                   std::vector<std::string>());
+/*! \return A target for Intel Graphics */
+EXPORT Target intel_graphics(const std::vector<std::string>& options =
+                             std::vector<std::string>());
 
 /*! \return A target for stackvm */
 EXPORT Target stackvm(const std::vector<std::string>& options =

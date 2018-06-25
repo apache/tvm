@@ -712,5 +712,52 @@ the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
 })
 .set_support_level(1);
 
+DMLC_REGISTER_PARAMETER(LRNParam);
+
+inline bool LRNInferShape(const nnvm::NodeAttrs& attrs,
+                          std::vector<TShape>* in_shape,
+                          std::vector<TShape>* out_shape) {
+  TShape dshape = (*in_shape)[0];
+  TShape oshape = dshape;
+
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(lrn)
+.describe(R"code(LRN layer)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.set_attr_parser(ParamParser<LRNParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<LRNParam>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", LRNInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_support_level(1);
+
+DMLC_REGISTER_PARAMETER(L2NormalizeParam);
+
+inline bool L2NormalizeInferShape(const nnvm::NodeAttrs& attrs,
+                                  std::vector<TShape>* in_shape,
+                                  std::vector<TShape>* out_shape) {
+  TShape dshape = (*in_shape)[0];
+  TShape oshape = dshape;
+
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(l2_normalize)
+.describe(R"code(L2NORMALIZE layer)code" NNVM_ADD_FILELINE)
+.add_argument("data", "4D Tensor", "Input data.")
+.set_attr_parser(ParamParser<L2NormalizeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<L2NormalizeParam>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", L2NormalizeInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
+.set_support_level(1);
+
 }  // namespace top
 }  // namespace nnvm

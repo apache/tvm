@@ -33,9 +33,8 @@ def schedule_global_pool(outs):
         else:
             Out = outs[0].op.output(0)
             s[Pool].set_scope("local")
-        i, c, h, w = s[Out].op.axis
-        by, ty = s[Out].split(i, factor=num_thread)
-        bx, tx = s[Out].split(c, factor=num_thread)
+        by, ty = s[Out].split(s[Out].op.axis[0], factor=num_thread)
+        bx, tx = s[Out].split(s[Out].op.axis[1], factor=num_thread)
         s[Out].reorder(by, bx, ty, tx)
         s[Out].bind(ty, thread_y)
         s[Out].bind(tx, thread_x)

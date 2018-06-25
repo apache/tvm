@@ -33,9 +33,9 @@ def test_ewise():
             print("Running on target: %s" % device)
             with tvm.target.create(device):
                 s = topi.generic.schedule_injective(B)
+            foo = tvm.build(s, [A, B], device, name=name)
             a = tvm.nd.array(a_np, ctx)
             b = tvm.nd.array(np.zeros_like(b_np), ctx)
-            foo = tvm.build(s, [A, B], device, name=name)
             foo(a, b)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
@@ -45,6 +45,8 @@ def test_ewise():
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
+    test_apply(topi.trunc, "trunc", np.trunc, -100, 100)
+    test_apply(topi.round, "round", np.round, -100, 100)
     test_apply(topi.exp, "exp", np.exp, -1, 1)
     test_apply(topi.tanh, "tanh", np.tanh, -10, 10)
     test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)

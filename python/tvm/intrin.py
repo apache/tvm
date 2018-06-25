@@ -1,4 +1,5 @@
 """Expression Intrinsics and math functions in TVM."""
+# pylint: disable=redefined-builtin
 from __future__ import absolute_import as _abs
 
 from ._ffi.function import register_func as _register_func
@@ -263,6 +264,41 @@ def ceil(x):
         The result.
     """
     return call_pure_intrin(x.dtype, "ceil", x)
+
+
+def trunc(x):
+    """Get truncated value of the input.
+
+    The truncated value of the scalar x is the
+    nearest integer i which is closer to zero than x is.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "trunc", x)
+
+
+def round(x):
+    """Round elements of the array to the nearest integer.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "round", x)
 
 
 def power(x, y):

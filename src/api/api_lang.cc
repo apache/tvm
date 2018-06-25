@@ -350,7 +350,7 @@ TVM_REGISTER_API("_StageFuse")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     IterVar fused;
     args[0].operator Stage()
-        .fuse(args[1], args[2], &fused);
+        .fuse(args[1], &fused);
     *ret = fused;
   });
 
