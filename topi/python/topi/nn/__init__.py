@@ -18,4 +18,3 @@ from .upsampling import *
 from .local_response_norm import *
 from .l2_norm import *
 from .bitserial_conv2d import *
-from .qdense import *

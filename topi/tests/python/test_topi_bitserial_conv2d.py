@@ -90,7 +90,12 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     func(a, w, b)
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-def test_bitserial_conv2d(in_size, ic, oc, k, stride, pad):
+def test_bitserial_conv2d():
+    in_size = 56
+    ic, oc = 64, 64
+    k = 3
+    stride = 1
+    pad = 1
     verify_bitserial_conv2d_nchw(1, in_size, ic, oc, k, stride, pad, 1, 1, True)
     verify_bitserial_conv2d_nchw(1, in_size, ic, oc, k, stride, pad, 2, 1, True)
     verify_bitserial_conv2d_nchw(1, in_size, ic, oc, k, stride, pad, 1, 1, False)
@@ -103,7 +108,5 @@ def test_bitserial_conv2d(in_size, ic, oc, k, stride, pad):
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, False)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 2, False)
 
-
 if __name__ == "__main__":
-    test_bitserial_conv2d(56, 64, 128, 3, 2, 1)
-
+    test_bitserial_conv2d()

@@ -55,7 +55,7 @@ def _get_schedule_bitserial_conv2d(wkl, layout):
 
 @bitserial_conv2d.register("cpu")
 def _declaration_bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits,
-                         layout='NCHW', pack_dtype=None, out_dtype=None, dorefa=False):
+                                  layout='NCHW', pack_dtype=None, out_dtype=None, dorefa=False):
     if out_dtype is None:
         out_dtype = data.dtype
     assert data.shape[0].value == 1, "only support batch size=1 convolution on rasp"
@@ -69,12 +69,14 @@ def _declaration_bitserial_conv2d(data, kernel, stride, padding, activation_bits
 @generic.schedule_bitserial_conv2d_nchw.register(["cpu"])
 @generic.schedule_bitserial_conv2d_nhwc.register(["cpu"])
 def schedule_bitserial_conv2d(outs):
+    """CPU schedule for bitserial convolutions NCHW and NHWC"""
     s = tvm.create_schedule([x.op for x in outs])
 
     def traverse(op):
+        """Traverse operators from computation graph"""
         output = op.output(0)
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag) or 'elemwise' in op.tag or 'uquantize' in op.tag:
+        if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:

@@ -1,13 +1,13 @@
-# pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
-"""Conv2D operators"""
+# pylint: disable=invalid-name, unused-variable, too-many-locals, too-many-arguments, unused-argument
+"""Bitserial Conv2D operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
 from .pad import pad
 from .util import get_pad_tuple, bitpack
-from ..util import simplify, get_const_tuple
+from ..util import get_const_tuple
 
-# workload description of qconv2d
+# workload description of conv2d
 Workload = namedtuple('Workload',
                       ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
@@ -16,7 +16,7 @@ SpatialPackNCHW = namedtuple('SpatialPack',
                              ['vh', 'vw', 'vc', 'ba', 'bc'])
 
 SpatialPackNHWC = namedtuple('SpatialPack',
-                              ['vh', 'vw', 'vc', 'ba', 'bc'])
+                             ['vh', 'vw', 'vc', 'ba', 'bc'])
 
 _WORKLOADS = [
     # workloads of resnet18 on imagenet
@@ -43,7 +43,7 @@ _WORKLOADS = [
 @tvm.target.generic_func
 def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits,
                      layout='NCHW', pack_dtype='uint32', out_dtype='int32', dorefa=True):
-    """Conv2D operator.
+    """Bitserial Conv2D operator.
 
     Parameters
     ----------
@@ -52,7 +52,8 @@ def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits
                        [batch, in_height, in_width, in_channel]
 
     filter : tvm.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        4-D with shape [num_filter, in_channel, filter_height, filter_width] or
+		       [filter_height, filter_width, in_channel, num_filter]
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -64,8 +65,10 @@ def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits
         layout of data
 
     activation_bits: int
+        number of bits used for activations/input elements
 
     weight_bits: int
+        number of bits used for weight elements
 
     out_dtype: str
         return type of convolution
@@ -74,12 +77,13 @@ def bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits
         bit packing type
 
     dorefa: bool
-        method of preforming popcount
+        preform the bitserial dot-product using 2 popcounts (required for DoReFa-Net)
 
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
+        4-D with shape [batch, out_channel, out_height, out_width] or
+                       [batch, out_height, out_width, out_channel]
     """
     # search platform specific declaration first
     # default declaration
@@ -181,15 +185,15 @@ def spatial_pack_nchw(data, kernel, stride, padding, in_bits, weight_bits,
             return tvm.sum((tvm.popcount(
                 data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
                 kernel_vec[co, ci, dh, dw, b2, vc])  -
-                tvm.popcount(
-                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                ~kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
-                axis=[ci, dh, dw, b1, b2])
+                            tvm.popcount(
+                                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
+                                ~kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
+                           axis=[ci, dh, dw, b1, b2])
 
         return tvm.sum((tvm.popcount(
             data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
             kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
-                        axis=[ci, dh, dw, b1, b2])
+                       axis=[ci, dh, dw, b1, b2])
 
     conv = tvm.compute(ovshape, _conv, name='conv_out')
 
@@ -251,9 +255,9 @@ def spatial_pack_nhwc(data, kernel, stride, padding, in_bits, weight_bits,
         if dorefa:
             return tvm.sum(
                 (tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                    kernel_vec[co, dh, dw, ci, vc, b2]) -
-                tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                    ~kernel_vec[co, dh, dw, ci, vc, b2])).astype(out_dtype) << b1b2,
+                              kernel_vec[co, dh, dw, ci, vc, b2]) -
+                 tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
+                              ~kernel_vec[co, dh, dw, ci, vc, b2])).astype(out_dtype) << b1b2,
                 axis=[dh, dw, ci, b1, b2])
 
         return tvm.sum(tvm.popcount(
