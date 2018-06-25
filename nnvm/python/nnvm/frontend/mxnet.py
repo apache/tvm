@@ -239,13 +239,18 @@ def _elemwise_sum(inputs, _):
 
 def _crop_like(inputs, attrs):
     new_attrs = {}
-    new_attrs["offsets"] = \
+    offsets = \
         tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').split(',')]) \
             if attrs.get('offsets') is not None else (0, 0)
-    new_attrs["center_crop"] = _parse_bool_str(attrs, 'center_crop', default="False")
+    if offsets != (0, 0):
+        raise RuntimeError("Currently only supports offsets to be zero.")
+    center_crop = _parse_bool_str(attrs, 'center_crop', default="False")
+    if center_crop:
+        raise RuntimeError("center crop is not supported.")
     if len(inputs) < 2:
         raise RuntimeError("Only support crop_like pattern.")
-    return _get_nnvm_op('crop_like')(inputs[0], inputs[1], **new_attrs)
+    new_attrs["axis"] = [2, 3]
+    return _get_nnvm_op('slice_like')(inputs[0], inputs[1], **new_attrs)
 
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
@@ -256,7 +261,8 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'broadcast_sub', 'broadcast_to', 'cast', 'elemwise_add',
                   'elemwise_div', 'elemwise_mul', 'elemwise_sub', 'exp',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
-                  'relu', 'sigmoid', 'softmax', 'sum', 'tanh', 'transpose']
+                  'relu', 'sigmoid', 'slice_like', 'softmax', 'sum', 'tanh',
+                  'transpose']
 
 _convert_map = {
     '_copy'         : _rename('copy'),

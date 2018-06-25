@@ -61,6 +61,6 @@ reg.register_schedule("concatenate", _fschedule_injective)
 reg.register_pattern("split", OpPattern.INJECTIVE)
 reg.register_schedule("split", _fschedule_injective)
 
-# crop_like
-reg.register_pattern("crop_like", OpPattern.INJECTIVE)
-reg.register_schedule("crop_like", _fschedule_injective)
+# slice_like
+reg.register_pattern("slice_like", OpPattern.INJECTIVE)
+reg.register_schedule("slice_like", _fschedule_injective)

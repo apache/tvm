@@ -468,24 +468,57 @@ def test_nms():
     out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
     np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
-def test_crop_like():
-    dshape1 = (1, 3, 32, 32)
-    dshape2 = (1, 3, 16, 16)
+def verify_slice_like(np_data, np_shape_like, axis=[]):
     dtype = "float32"
-    offsets = (4, 5)
+    np_data = np_data.astype(dtype)
+    np_shape_like = np_shape_like.astype(dtype)
+    begin_idx = [0 for _ in np_data.shape]
+    end_idx = list(np_data.shape)
+    if len(axis) > 0:
+        for i in axis:
+            if i < 0:
+                i = len(np_data.shape) + i
+            end_idx[i] = np_shape_like.shape[i]
+    else:
+        for i in range(len(np_data.shape)):
+            if i < len(np_shape_like.shape):
+                end_idx[i] = np_shape_like.shape[i]
+    slice_idx = []
+    for b, e in zip(begin_idx, end_idx):
+        slice_idx.append(slice(b, e))
+    np_result = np_data[slice_idx]
+
     data1 = sym.Variable("data1")
     data2 = sym.Variable("data2")
-    net = sym.crop_like(data=data1, crop_like_tensor=data2, offsets=offsets)
-    np_data1 = np.random.uniform(size=dshape1).astype(dtype)
-    np_data2 = np.random.uniform(size=dshape2).astype(dtype)
-    np_result = np.array(np_data1[:, :, offsets[0]:offsets[0]+dshape2[2], offsets[1]:offsets[1]+dshape2[3]])
+    net = sym.slice_like(data=data1, shape_like=data2, axis=axis)
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(net, target, {"data1": dshape1, "data2": dshape2})
+        graph, lib, _ = nnvm.compiler.build(net, target, {"data1": np_data.shape,
+                                                          "data2": np_shape_like.shape})
         m = graph_runtime.create(graph, lib, ctx)
-        m.set_input(**{"data1": np_data1, "data2": np_data2})
+        m.set_input(**{"data1": np_data, "data2": np_shape_like})
         m.run()
-        out = m.get_output(0, tvm.nd.empty(dshape2, "float32"))
+        out = m.get_output(0, tvm.nd.empty(np_result.shape, dtype))
         np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+
+def test_slice_like():
+    np_data = np.random.uniform(size=(3, 4, 5))
+    np_shape_like = np.random.uniform(size=(1, 2, 3))
+    verify_slice_like(np_data, np_shape_like)
+    np_data = np.random.uniform(size=(3, 4, 5))
+    np_shape_like = np.random.uniform(size=(1, 2))
+    verify_slice_like(np_data, np_shape_like)
+    np_data = np.random.uniform(size=(3, 4, 5))
+    np_shape_like = np.random.uniform(size=(1, 2, 3))
+    axis = (1, 2)
+    verify_slice_like(np_data, np_shape_like, axis)
+    np_data = np.random.uniform(size=(3, 4, 5))
+    np_shape_like = np.random.uniform(size=(1, 2, 3))
+    axis = (-1, -3)
+    verify_slice_like(np_data, np_shape_like, axis)
+    np_data = np.random.uniform(size=(1, 3, 224, 224))
+    np_shape_like = np.random.uniform(size=(1, 3, 112, 112))
+    axis = (2, 3)
+    verify_slice_like(np_data, np_shape_like, axis)
 
 
 if __name__ == "__main__":
@@ -504,5 +537,5 @@ if __name__ == "__main__":
     test_multibox_prior()
     test_multibox_transform_loc()
     test_nms()
-    test_crop_like()
+    test_slice_like()
     print(nnvm.compiler.engine.dump())
