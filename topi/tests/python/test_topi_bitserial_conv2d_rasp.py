@@ -56,10 +56,10 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
 
     # upload to rpi
     temp = util.tempdir()
-    path = temp.relpath('qconv_nhwc.o')
+    path = temp.relpath('conv_nhwc.o')
     func.save(path)
     remote.upload(path)
-    func = remote.load_module('qconv_nhwc.o')
+    func = remote.load_module('conv_nhwc.o')
 
     func(a, w, b)
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
@@ -105,14 +105,13 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
     func = tvm.build(s, [A, W, B], target)
     # Upload to pi
     temp = util.tempdir()
-    path = temp.relpath('qconv_nhwc.o')
+    path = temp.relpath('conv_nhwc.o')
     func.save(path)
     remote.upload(path)
-    func = remote.load_module('qconv_nhwc.o')
+    func = remote.load_module('conv_nhwc.o')
 
     func(a, w, b)
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-
 
 def test_bitserial_conv2d():
     in_size = 56
@@ -128,7 +127,7 @@ def test_bitserial_conv2d():
 
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 1, 1, False)
     verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, False)
-    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 1, False)
+    verify_bitserial_conv2d_nhwc(1, in_size, ic, oc, k, stride, pad, 2, 2, False)
 
 if __name__ == "__main__":
     test_bitserial_conv2d()

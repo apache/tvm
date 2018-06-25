@@ -5,9 +5,9 @@ from collections import namedtuple
 import tvm
 from .. import tag
 from ..nn.pad import pad
-from ..nn.bitserial_conv2d import bitserial_conv2d, _get_schedule, _get_workload
+from ..nn.bitserial_conv2d import bitserial_conv2d, _get_schedule, _get_workload, bitpack
 from ..nn.bitserial_conv2d import SpatialPackNCHW, _WORKLOADS, spatial_pack_nchw
-from ..nn.util import get_pad_tuple, bitpack
+from ..nn.util import get_pad_tuple
 from ..util import get_const_int
 from .. import generic
 
@@ -214,7 +214,6 @@ def _intrin_popcount(m, k_i, w_b, x_b):
     with tvm.build_config(offset_factor=1, partition_const_loop=True):
         return tvm.decl_tensor_intrin(z.op, _intrin_func, binds={w: Wb, x:Xb})
 
-
 # ARM specific schedule that using custom microkernel
 def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
                                   kernel, kernel_q, kernel_vec,
@@ -274,7 +273,6 @@ def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
     s[data_vec].pragma(paxis, "parallel_stride_pattern")
     s[data_vec].pragma(oaxis, "parallel_barrier_when_finish")
 
-
     ##### Schedule kernel packing
     co, _, _, _, _, _ = s[kernel_vec].op.axis
     if bc == 1:
@@ -289,7 +287,6 @@ def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
     s[kernel_vec].pragma(oaxis, "parallel_launch_point")
     s[kernel_vec].pragma(paxis, "parallel_stride_pattern")
     s[kernel_vec].pragma(oaxis, "parallel_barrier_when_finish")
-
 
     ##### Schedule Convolution
     n, oh, ow, co, vh, vw, vc = s[conv_out].op.axis
@@ -326,7 +323,6 @@ def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
     s = s.normalize()
     return s
 
-
 @generic.schedule_bitserial_conv2d_nhwc.register(["rasp"])
 def schedule_bitserial_conv2d_nhwc(outs):
     """Raspverry pi schedule for bitserial conv2d"""
@@ -342,7 +338,6 @@ def schedule_bitserial_conv2d_nhwc(outs):
                     traverse(tensor.op)
 
         if 'spatial_bitserial_conv_nhwc' in op.tag:
-            # print "spatial"
             output = op.output(0)
             conv_out = op.input_tensors[0]
             kernel_vec = conv_out.op.input_tensors[0]
