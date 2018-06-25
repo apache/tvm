@@ -258,10 +258,11 @@ class Reshape(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         if inputs[1].list_output_names()[0] in params:
             shape = tuple(params[inputs[1].list_output_names()[0]].asnumpy())
+            out = _sym.reshape(inputs[0], shape=shape)
         else:
-            raise RuntimeError('Shape is not contained in graph initializer.')
-        return _sym.reshape(inputs[0], shape=shape)
+            out = _sym.reshape_like(inputs[0], inputs[1])
 
+        return out
 
 class Scale(OnnxOpConverter):
 
@@ -405,6 +406,16 @@ def _fully_connected(opset):
     return _impl
 
 
+class Shape(OnnxOpConverter):
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # Result of this operator is prominently used by reshape operator.
+        # Just pass the input as it is so that reshape_like can be used there.
+        print("Shape: Differently implemented in NNVM as a bypass (dummy operator)")
+        return inputs[0]
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -514,6 +525,7 @@ def _get_convert_map(opset):
         # 'Gather'
         # 'Squeeze'
         'Pad': Pad.get_converter(opset),
+        'Shape': Shape.get_converter(opset),
     }
 
 
@@ -705,6 +717,9 @@ def from_onnx(model):
     """
     g = GraphProto()
     graph = model.graph
-    opset = model.opset_import[0].version if model.opset_import else 1
+    try:
+        opset = model.opset_import[0].version if model.opset_import else 1
+    except AttributeError:
+        opset = 1
     sym, params = g.from_onnx(graph, opset)
     return sym, params
