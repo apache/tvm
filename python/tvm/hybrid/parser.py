@@ -341,6 +341,11 @@ class HybridParser(ast.NodeVisitor):
             else:
                 scope = 'global'
             return (shape, dtype, scope)
+        elif func_id == 'max' or func_id == 'min':
+            if n != 2:
+                raise ValueError("Max/Min function should have 2 elements")
+            a, b = self.visit(node.args[0]), self.visit(node.args[1])
+            return getattr(_make, func_id.title())(a, b)
         else:
             raise ValueError("Function call not supported yet!")
 

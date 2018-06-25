@@ -274,12 +274,14 @@ def test_math_intrin():
         a[3] = sigmoid(a[3])
         a[4] = power(a[4], a[5])
         a[5] = tanh(a[5])
+        a[6] = min(a[4], a[5])
+        a[7] = max(a[5], a[6])
 
-    a6 = tvm.placeholder((6, ), dtype='float32', name='a')
+    a6 = tvm.placeholder((8, ), dtype='float32', name='a')
     ir = intrin_real(a6)
     func = tvm.build(tvm.lower(ir, [a6]))
     assert func
-    a = numpy.arange(2, 8).astype('float32')
+    a = numpy.arange(2, 10).astype('float32')
     tvm_a = tvm.ndarray.array(a)
     func(tvm_a)
     intrin_real(a)
