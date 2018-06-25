@@ -243,7 +243,7 @@ def verify_concatenate_broadcast(shapes, axis, rhs_shape):
     for i, shape in enumerate(shapes):
         tensor_l.append(tvm.placeholder(shape, name="A" + str(i)))
     out_tensor = topi.cpp.concatenate(tensor_l, axis)
-    C = topi.cpp.broadcast_add(out_tensor, B)
+    C = out_tensor + B
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:

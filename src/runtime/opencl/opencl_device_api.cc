@@ -4,6 +4,9 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
+#include <tvm/container.h>
+#include <tvm/ir.h>
+#include <tvm/packed_func_ext.h>
 #include "./opencl_common.h"
 
 namespace tvm {
@@ -30,6 +33,7 @@ void OpenCLWorkspace::GetAttr(
   CHECK_LT(index, devices.size())
       << "Invalid device id " << index;
   switch (kind) {
+    case kExist: break;
     case kMaxThreadsPerBlock: {
       size_t value;
       OPENCL_CALL(clGetDeviceInfo(
@@ -40,7 +44,7 @@ void OpenCLWorkspace::GetAttr(
     }
     case kWarpSize: {
       /* TODO: the warp size of OpenCL device is not always 1
-               e.g. Intel GPU has a sub group concept which contains 8 - 32 work items,
+               e.g. Intel Graphics has a sub group concept which contains 8 - 32 work items,
                corresponding to the number of SIMD entries the heardware configures.
                We need to figure out a way to query this information from the hardware.
       */
@@ -80,7 +84,16 @@ void OpenCLWorkspace::GetAttr(
       *rv = static_cast<int32_t>(value);
       break;
     }
-    case kExist: break;
+    case kMaxThreadDimensions: {
+      size_t dims[3];
+      OPENCL_CALL(clGetDeviceInfo(
+          devices[index], CL_DEVICE_MAX_WORK_ITEM_SIZES, sizeof(dims), dims, nullptr));
+
+      std::stringstream ss;  // use json string to return multiple int values;
+      ss << "[" << dims[0] <<", " << dims[1] << ", " << dims[2] << "]";
+      *rv = ss.str();
+      break;
+    }
   }
 }
 

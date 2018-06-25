@@ -4,7 +4,7 @@
  */
 #include <tvm/packed_func_ext.h>
 #include <tvm/ir.h>
-#include <vulkan/GLSL.std.450.h>
+#include <GLSL.std.450.h>
 
 namespace tvm {
 namespace codegen {
@@ -34,6 +34,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.floor")
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.ceil")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Ceil>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.round")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Round>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.trunc")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);

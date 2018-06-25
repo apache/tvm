@@ -79,3 +79,19 @@ def divide(lhs, rhs):
         The result Expr of divide operaton.
     """
     return _make.Div(lhs, rhs)
+
+
+def cast(src, dtype):
+    """Generic cast operator.
+
+    Parameters
+    ----------
+    src : object
+        The source operand.
+
+    Returns
+    -------
+    op : tvm.Expr
+        The result Expr of divide operaton.
+    """
+    return _make.static_cast(dtype, src)

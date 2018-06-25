@@ -5,10 +5,12 @@
  */
 #include <tvm/runtime/device_api.h>
 
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
+#include <tvm/container.h>
+#include <tvm/ir.h>
+#include <tvm/packed_func_ext.h>
 #include "./cuda_common.h"
 
 namespace tvm {
@@ -69,6 +71,20 @@ class CUDADeviceAPI final : public DeviceAPI {
         CUDA_CALL(cudaDeviceGetAttribute(
             &value, cudaDevAttrMultiProcessorCount, ctx.device_id));
         break;
+      }
+      case kMaxThreadDimensions: {
+        int dims[3];
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[0], cudaDevAttrMaxBlockDimX, ctx.device_id));
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[1], cudaDevAttrMaxBlockDimY, ctx.device_id));
+        CUDA_CALL(cudaDeviceGetAttribute(
+            &dims[2], cudaDevAttrMaxBlockDimZ, ctx.device_id));
+
+        std::stringstream ss;  // use json string to return multiple int values;
+        ss << "[" << dims[0] <<", " << dims[1] << ", " << dims[2] << "]";
+        *rv = ss.str();
+        return;
       }
     }
     *rv = value;

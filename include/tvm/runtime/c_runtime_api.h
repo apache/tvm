@@ -42,6 +42,10 @@
 #endif
 #endif
 
+// TVM version
+#define TVM_VERSION "0.4.0"
+
+
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
 

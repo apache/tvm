@@ -40,7 +40,7 @@ inline Tensor cublas_matmul(const Tensor& lhs,
         pack_buffer(outs[0]),
         transa,
         transb });
-    }, "C", "")[0];
+    }, "C", "", {})[0];
 }
 
 }  // namespace contrib

@@ -319,6 +319,90 @@ struct LayoutTransformParam : public dmlc::Parameter<LayoutTransformParam> {
   }
 };
 
+struct MultiBoxPriorParam : public dmlc::Parameter<MultiBoxPriorParam> {
+  Tuple<float> sizes;
+  Tuple<float> ratios;
+  Tuple<float> steps;
+  Tuple<float> offsets;
+  bool clip;
+
+  DMLC_DECLARE_PARAMETER(MultiBoxPriorParam) {
+    DMLC_DECLARE_FIELD(sizes).set_default(Tuple<float>({1.0}))
+      .describe("List of sizes of generated MultiBoxPriores.");
+    DMLC_DECLARE_FIELD(ratios).set_default(Tuple<float>({1.0}))
+    .describe("List of aspect ratios of generated MultiBoxPriores.");
+    DMLC_DECLARE_FIELD(steps).set_default(Tuple<float>({-1.0, -1.0}))
+    .describe("Priorbox step across y and x, -1 for auto calculation.");
+    DMLC_DECLARE_FIELD(offsets).set_default(Tuple<float>({0.5, 0.5}))
+    .describe("Priorbox center offsets, y and x respectively.");
+    DMLC_DECLARE_FIELD(clip).set_default(false)
+    .describe("Whether to clip out-of-boundary boxes.");
+  }
+};
+
+struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocParam> {
+  bool clip;
+  float threshold;
+  Tuple<float> variances;
+  DMLC_DECLARE_PARAMETER(MultiBoxTransformLocParam) {
+    DMLC_DECLARE_FIELD(clip).set_default(true)
+      .describe("Clip out-of-boundary boxes.");
+    DMLC_DECLARE_FIELD(threshold).set_default(0.01)
+    .describe("Threshold to be a positive prediction.");
+    DMLC_DECLARE_FIELD(variances).set_default(Tuple<float>({0.1f, 0.1f, 0.2f, 0.2f}))
+    .describe("Variances to be decoded from box regression output.");
+  }
+};
+
+struct NMSParam : public dmlc::Parameter<NMSParam> {
+  float nms_threshold;
+  bool force_suppress;
+  int nms_topk;
+  DMLC_DECLARE_PARAMETER(NMSParam) {
+    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
+      .describe("Non-maximum suppression threshold.");
+    DMLC_DECLARE_FIELD(force_suppress).set_default(false)
+    .describe("Suppress all detections regardless of class_id.");
+    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
+    .describe("Keep maximum top k detections before nms, -1 for no limit.");
+  }
+};
+
+struct LRNParam : public dmlc::Parameter<LRNParam> {
+  int size;
+  int axis;
+  float alpha;
+  float beta;
+  float bias;
+
+  DMLC_DECLARE_PARAMETER(LRNParam) {
+    DMLC_DECLARE_FIELD(size)
+      .describe("The size of the local region to be considered for normalization.");
+    DMLC_DECLARE_FIELD(axis)
+      .describe("input data layout channel axis");
+    DMLC_DECLARE_FIELD(alpha)
+      .describe("The scaling parameter.");
+    DMLC_DECLARE_FIELD(beta)
+      .describe("The exponent parameter.");
+    DMLC_DECLARE_FIELD(bias)
+      .describe("The offset parameter.");
+  }
+  // constants
+  static const constexpr int kData = 0;
+};
+
+struct L2NormalizeParam : public dmlc::Parameter<L2NormalizeParam> {
+  float eps;
+  Tuple<int> axis;
+
+  DMLC_DECLARE_PARAMETER(L2NormalizeParam) {
+    DMLC_DECLARE_FIELD(eps)
+      .describe("float type epsilon value.");
+    DMLC_DECLARE_FIELD(axis)
+      .describe("axis over the normalization applied");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 

@@ -11,6 +11,18 @@ def test_const_saveload_json():
     assert tvm.save_json(zz) == tvm.save_json(z)
 
 
+def test_make_smap():
+    # save load json
+    x = tvm.const(1)
+    y = tvm.const(10)
+    z = x + y
+    smap = tvm.convert({"z": z, "x": x})
+    json_str = tvm.save_json(tvm.convert([smap]))
+    arr = tvm.load_json(json_str)
+    assert len(arr) == 1
+    assert arr[0]["z"].a == arr[0]["x"]
+
+
 def test_make_node():
     x = tvm.make.node("IntImm", dtype="int32", value=10)
     assert isinstance(x, tvm.expr.IntImm)
@@ -35,5 +47,6 @@ def test_make_sum():
 
 if __name__ == "__main__":
     test_make_node()
+    test_make_smap()
     test_const_saveload_json()
     test_make_sum()

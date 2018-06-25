@@ -6,7 +6,7 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 from tvm.contrib import rpc, util
-
+from tvm.contrib.pickle_memoize import memoize
 
 def generate_quantized_np(shape, bits, out_dtype):
     min_val = 0
@@ -30,6 +30,7 @@ def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel,
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype
 
+    @memoize("topi.tests.test_topi_conv2d.verify_conv2d")
     def get_ref_data():
         a_np = generate_quantized_np(get_const_tuple(A.shape), activation_bits, input_type)
         w_np = generate_quantized_np(get_const_tuple(W.shape), weight_bits, input_type)

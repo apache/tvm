@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import tvm
 from tvm.contrib import graph_runtime
@@ -356,6 +357,118 @@ def test_full():
             np.full(shape, fill_value=0, dtype=dtype),
             atol=1e-5, rtol=1e-5)
 
+def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
+                          offsets=(0.5, 0.5), clip=False):
+    data = sym.Variable("data")
+    out = sym.multibox_prior(data=data, sizes=sizes, ratios=ratios, steps=steps,
+                             offsets=offsets, clip=clip)
+
+    in_height = dshape[2]
+    in_width = dshape[3]
+    num_sizes = len(sizes)
+    num_ratios = len(ratios)
+    size_ratio_concat = sizes + ratios
+    steps_h = steps[0] if steps[0] > 0 else 1.0 / in_height
+    steps_w = steps[1] if steps[1] > 0 else 1.0 / in_width
+    offset_h = offsets[0]
+    offset_w = offsets[1]
+
+    oshape = (1, in_height * in_width * (num_sizes + num_ratios - 1), 4)
+    dtype = "float32"
+    np_out = np.zeros(oshape).astype(dtype)
+
+    for i in range(in_height):
+        center_h = (i + offset_h) * steps_h
+        for j in range(in_width):
+            center_w = (j + offset_w) * steps_w
+            for k in range(num_sizes + num_ratios - 1):
+                w = size_ratio_concat[k] * in_height / in_width / 2.0 if k < num_sizes else \
+                    size_ratio_concat[0] * in_height / in_width * math.sqrt(size_ratio_concat[k + 1]) / 2.0
+                h = size_ratio_concat[k] / 2.0 if k < num_sizes else \
+                    size_ratio_concat[0] / math.sqrt(size_ratio_concat[k + 1]) / 2.0
+                count = i * in_width * (num_sizes + num_ratios - 1) + j * (num_sizes + num_ratios - 1) + k
+                np_out[0][count][0] = center_w - w
+                np_out[0][count][1] = center_h - h
+                np_out[0][count][2] = center_w + w
+                np_out[0][count][3] = center_h + h
+    if clip:
+        np_out = np.clip(np_out, 0, 1)
+
+    target = "llvm"
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
+    np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+
+def test_multibox_prior():
+    verify_multibox_prior((1, 3, 50, 50))
+    verify_multibox_prior((1, 3, 224, 224), sizes=(0.5, 0.25, 0.1), ratios=(1, 2, 0.5))
+    verify_multibox_prior((1, 32, 32, 32), sizes=(0.5, 0.25), ratios=(1, 2), steps=(2, 2), clip=True)
+
+def test_multibox_transform_loc():
+    batch_size = 1
+    num_anchors = 3
+    num_classes = 3
+    cls_prob = sym.Variable("cls_prob")
+    loc_preds = sym.Variable("loc_preds")
+    anchors = sym.Variable("anchors")
+    transform_loc_data, valid_count = sym.multibox_transform_loc(cls_prob=cls_prob, loc_pred=loc_preds,
+                                                                 anchor=anchors)
+    out = sym.nms(data=transform_loc_data, valid_count=valid_count)
+
+    # Manually create test case
+    np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
+    np_loc_preds = np.array([[0.1, -0.2, 0.3, 0.2, 0.2, 0.4, 0.5, -0.3, 0.7, -0.2, -0.4, -0.8]])
+    np_anchors = np.array([[[-0.1, -0.1, 0.1, 0.1], [-0.2, -0.2, 0.2, 0.2], [1.2, 1.2, 1.5, 1.5]]])
+
+    expected_np_out = np.array([[[1, 0.69999999, 0, 0, 0.10818365, 0.10008108],
+                                 [0, 0.44999999, 1, 1, 1, 1],
+                                 [0, 0.30000001, 0, 0, 0.22903419, 0.20435292]]])
+
+    target = "llvm"
+    dtype = "float32"
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"cls_prob": (batch_size, num_anchors, num_classes),
+                                                      "loc_preds": (batch_size, num_anchors * 4),
+                                                      "anchors": (1, num_anchors, 4)})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
+    np.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
+
+def test_nms():
+    dshape = (1, 5, 6)
+    data = sym.Variable("data")
+    valid_count = sym.Variable("valid_count", dtype="int32")
+    nms_threshold = 0.7
+    force_suppress = True
+    nms_topk = 2
+    out = sym.nms(data=data, valid_count=valid_count, nms_threshold=nms_threshold,
+                  force_suppress=force_suppress, nms_topk=nms_topk)
+
+    np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
+                         [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
+                         [1, 0.5, 100, 60, 70, 110]]]).astype("float32")
+    np_valid_count = np.array([4]).astype("int32")
+    np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
+                           [0, 0.4, 4, 21, 19, 40], [-1, 0.9, 35, 61, 52, 79],
+                           [-1, -1, -1, -1, -1, -1]]])
+
+    target = "llvm"
+    ctx = tvm.cpu()
+    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape, "valid_count": (dshape[0],)},
+                                        dtype={"data": "float32", "valid_count": "int32"})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input(**{"data": np_data, "valid_count": np_valid_count})
+    m.run()
+    out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
+    np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+
+
 
 if __name__ == "__main__":
     test_reshape()
@@ -370,4 +483,7 @@ if __name__ == "__main__":
     test_block_grad()
     test_full()
     test_flip()
+    test_multibox_prior()
+    test_multibox_transform_loc()
+    test_nms()
     print(nnvm.compiler.engine.dump())

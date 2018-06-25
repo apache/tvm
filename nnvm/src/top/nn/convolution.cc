@@ -79,7 +79,8 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
                  param.kernel_size[1]});
 
   wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
-  wshape[0] *= param.groups;
+
+  wshape[kernel_layout.indexof('O')] *= param.groups;
 
   NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
   if (param.use_bias) {
