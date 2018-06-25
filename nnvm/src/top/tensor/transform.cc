@@ -899,7 +899,7 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
       }
     }
   } else {
-    for(auto i: param.axis) {
+    for (auto i : param.axis) {
       if (i < 0) {
         i = src_shape.ndim() + i;
       }
@@ -949,7 +949,7 @@ NNVM_REGISTER_OP(slice_like)
         }
       }
     } else {
-      for (int axis: param.axis) {
+      for (int axis : param.axis) {
         if (axis < 0) {
           axis = static_cast<int>(src_shape.size()) + axis;
         }
