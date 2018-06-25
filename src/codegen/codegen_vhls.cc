@@ -11,13 +11,13 @@
 namespace tvm {
 namespace codegen {
 
-void CodeGenVHLS::Init(bool output_ssa) {
+void CodeGenVivadoHLS::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
 
   this->stream << "#include <ap_int.h>\n\n";
 }
 
-void CodeGenVHLS::PrintType(Type t, std::ostream& os) {
+void CodeGenVivadoHLS::PrintType(Type t, std::ostream& os) {
   if (t.is_uint()) {
     switch (t.bits()) {
       case 8:
@@ -49,12 +49,12 @@ void CodeGenVHLS::PrintType(Type t, std::ostream& os) {
   }
 }
 
-void CodeGenVHLS::AddFunction(LoweredFunc f) {
+void CodeGenVivadoHLS::AddFunction(LoweredFunc f) {
   this->stream << "extern \"C\" ";
   CodeGenC::AddFunction(f);
 }
 
-void CodeGenVHLS::PreFunctionBody(LoweredFunc f) {
+void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
   for (size_t i = 0; i < f->args.size(); ++i) {
     Var v = f->args[i];
     std::string vid = GetVarID(v.get());
@@ -70,7 +70,7 @@ void CodeGenVHLS::PreFunctionBody(LoweredFunc f) {
 runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenVHLS cg;
+  CodeGenVivadoHLS cg;
 
   CHECK_EQ(funcs.size(), 1);
   const std::string funcname = funcs[0]->name;

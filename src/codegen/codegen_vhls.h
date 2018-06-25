@@ -14,7 +14,7 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenVHLS final : public CodeGenC {
+class CodeGenVivadoHLS final : public CodeGenC {
  public:
   void Init(bool output_ssa);
   void PrintType(Type t, std::ostream& os);

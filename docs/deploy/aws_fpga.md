@@ -1,7 +1,9 @@
-Deploy to AWS F1 FPGA Instance
-==============================
+HLS Backend Example
+===================
 
 TVM supports Xilinx FPGA board with SDAccel.  Here is a tutorial for how to deploy TVM to AWS F1 FPGA instance.
+
+***Note***: This feature is still experimental.  We cannot use SDAccel to deploy an end to end neural networks for now.
 
 We use two python scripts for this tutorial.
 

@@ -27,9 +27,6 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.popcount")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.sdaccel.tvm_warp_shuffle")
-.set_body(DispatchExtern<Direct>);
-
 
 }  // namespace intrin
 }  // namespace codegen
