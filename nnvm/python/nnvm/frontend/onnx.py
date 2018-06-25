@@ -407,6 +407,8 @@ def _fully_connected(opset):
 
 
 class Shape(OnnxOpConverter):
+    """ Operator converter for Shape.
+    """
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -414,6 +416,24 @@ class Shape(OnnxOpConverter):
         # Just pass the input as it is so that reshape_like can be used there.
         print("Shape: Differently implemented in NNVM as a bypass (dummy operator)")
         return inputs[0]
+
+class Cast(OnnxOpConverter):
+    """ Operator converter for Cast.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
+
+    @classmethod
+    def _impl_v5(cls, inputs, attr, params):
+        try:
+            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+            attr['to'] = TENSOR_TYPE_TO_NP_TYPE[attr['to']]
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import onnx.mapping which is required {}".format(e))
+        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
 
 
 # compatible operators that do NOT require any conversion.
@@ -516,7 +536,7 @@ def _get_convert_map(opset):
         # 'ArgMin'
 
         # defs/tensor
-        'Cast': AttrCvt('cast', {'to': 'dtype'}),
+        'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
         'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
