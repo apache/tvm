@@ -227,3 +227,31 @@ def get_workload_inception_v1():
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
         return (image_data, tvm_data, graph_def)
+
+def get_workload_mobilenet():
+    """ Import mobilenet workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/MobilenetV1/'
+    model_name = 'mobilenet_v1_1.0_224_frozen-with-shapes.pb'
+    model_url = os.path.join(repo_base, model_name)
+
+    from mxnet.gluon.utils import download
+    download(model_url, model_name)
+
+    # Creates graph from saved graph_def.pb.
+    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+        graph = tf.import_graph_def(graph_def, name='')
+        return graph_def
