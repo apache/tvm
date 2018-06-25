@@ -77,11 +77,12 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether use BLAS, choices: openblas, mkl, atlas, blas, apple
+# Whether use BLAS, choices: openblas, mkl, atlas, apple
 set(USE_BLAS none)
 
 # /path/to/mkl: mkl root path when use mkl blas library
-set(MKL_PATH none)
+# set(USE_INTEL_PATH /opt/intel/) for UNIX
+# set(USE_INTEL_PATH ../IntelSWTools/compilers_and_libraries_2018/windows/) for WIN32
 
 # Whether use contrib.random in runtime
 set(USE_RANDOM OFF)

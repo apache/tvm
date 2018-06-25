@@ -42,6 +42,7 @@ tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
+tvm_option(USE_INTEL_PATH "The Intel PATH when use MKL" none)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_MIOPEN "Build with ROCM:MIOpen" OFF)
