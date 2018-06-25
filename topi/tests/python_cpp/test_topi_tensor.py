@@ -11,6 +11,7 @@ def verify_elemwise_sum(num_args, dtype):
         tvm_placeholders.append(
             tvm.placeholder(shape, name="data"+str(i), dtype=dtype))
     esum = topi.cpp.elemwise_sum(tvm_placeholders)
+    s = tvm.create_schedule([esum.op])
 
     def get_ref_data():
         np_nd = [np.random.uniform(0, 10, size=shape).astype(dtype)
@@ -22,8 +23,7 @@ def verify_elemwise_sum(num_args, dtype):
         if not tvm.module.enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        target = topi.cpp.TEST_create_target(device)
-        s = topi.cpp.generic.default_schedule(target, [esum], False)
+
         ctx = tvm.context(device, 0)
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         f = tvm.build(s, tvm_placeholders + [esum], device, name="elemwise_sum")
@@ -32,7 +32,7 @@ def verify_elemwise_sum(num_args, dtype):
         np_out = np.sum(np.array(np_nd), axis=0)
         np.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
 
-    for device in ["llvm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
@@ -40,6 +40,8 @@ def verify_full(shape, dtype, fill_value):
     A = tvm.placeholder(shape, dtype=dtype, name="A")
     B = topi.cpp.full_like(A, fill_value)
     C = topi.cpp.full(shape, dtype, fill_value)
+    s1 = tvm.create_schedule([B.op])
+    s2 = tvm.create_schedule([C.op])
 
     def get_ref_data():
         return np.full(shape, fill_value, dtype)
@@ -50,8 +52,6 @@ def verify_full(shape, dtype, fill_value):
             print("Skip because %s is not enabled" % device)
             return
         target = topi.cpp.TEST_create_target(device)
-        s1 = topi.cpp.generic.default_schedule(target, [B], False)
-        s2 = topi.cpp.generic.default_schedule(target, [C], False)
         ctx = tvm.context(device, 0)
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         f = tvm.build(s1, [A, B], device, name="full_like")
@@ -62,7 +62,7 @@ def verify_full(shape, dtype, fill_value):
         f(out)
         np.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
 
-    for device in ["llvm"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
         check_device(device)
 
 
