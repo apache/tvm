@@ -11,7 +11,6 @@ vendor provided library CuDNN in many cases.
 import logging
 import sys
 
-import numpy as np
 import tvm
 import topi
 
@@ -22,7 +21,7 @@ from tvm import autotvm
 # ---------------------------------
 # There are plenty of useful schedule primitives in tvm. You can also find 
 # some tutorials that describe them in more details, such as 
-# (1). `Optimizing Conv2d on CUDA GPU <https://docs.tvm.ai/tutorials/optimize/opt_conv_cuda.html#sphx-glr-tutorials-optimize-opt-conv-cuda-py>`_
+# (1). :doc:``Optimizing Conv2d on CUDA GPU <../optimize/opt_conv_cuda>`
 # (2). `Optimizing DepthwiseConv on CUDA GPU <https://tvm.ai/2017/08/22/Optimize-Deep-Learning-GPU-Operators-with-TVM-A-Depthwise-Convolution-Example.html>`_
 # 
 # However, their implementations are manually tuned for some special input
@@ -33,7 +32,7 @@ from tvm import autotvm
 # If you are familier with wring cude schedule, you can find the following 
 # template is very general. Actually this template can be easily modified 
 # to tune other operators such as depthwise convolution and gemm.
-## In order to fully understand this template, you should be familiar with
+# In order to fully understand this template, you should be familiar with
 # the schedule primitives and auto tuning API. You can refer to the above
 # tutorials and :doc:`autotvm tutorial <tune_simple_template>`
 #
@@ -41,7 +40,7 @@ from tvm import autotvm
 # can be very large (at the level of 10^9 for some input shapes)
 #
 
-@autotvm.simple_template
+@autotvm.template
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
@@ -131,11 +130,15 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 # In practice, making 1000 trials usually can find some good kernels
 # for this template
 
+import numpy as np
+np.random.seed(10)
+
+
 # logging config (for printing tuning log to screen)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
 # the last layer in resnet 
-task = autotvm.create_task(conv2d_no_batching,
+task = autotvm.task.create(conv2d_no_batching,
                            args=(1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)),
                            target='cuda')
 print(task.config_space)
@@ -149,7 +152,7 @@ measure_option = autotvm.measure_option(mode='local',
 
 # begin tuning, log records to file `cache.tsv`
 tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(n_trial=20,
+tuner.tune(n_trial=200,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('cache.tsv')])
 

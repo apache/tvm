@@ -8,7 +8,7 @@
 #include "feature_visitor.h"
 
 namespace tvm {
-namespace ir {
+namespace autotvm {
 
 // for loop
 void FeatureVisitor::Visit_(const For *op) {
@@ -89,5 +89,5 @@ void FeatureVisitor::Visit_(const Store *op) {
   ExitMem_();
 }
 
-}  // namespace ir
+}  // namespace autotvm
 }  // namespace tvm

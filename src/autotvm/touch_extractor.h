@@ -4,8 +4,8 @@
  * \brief Extract feature of touch pattern of axes in lowered IR
  */
 
-#ifndef TVM_PASS_TOUCH_EXTRACTOR_H_
-#define TVM_PASS_TOUCH_EXTRACTOR_H_
+#ifndef TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
+#define TVM_AUTOTVM_TOUCH_EXTRACTOR_H_
 
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
@@ -18,7 +18,7 @@
 #include "feature_visitor.h"
 
 namespace tvm {
-namespace ir {
+namespace autotvm {
 
 using TouchedBuffer = std::string;
 
@@ -118,7 +118,7 @@ class TouchExtractor : public FeatureVisitor {
   using IRVisitor::Visit_;
 };
 
-}  // namespace ir
+}  // namespace autotvm
 }  // namespace tvm
 
-#endif  // TVM_PASS_TOUCH_EXTRACTOR_H_
+#endif  // TVM_AUTOTVM_TOUCH_EXTRACTOR_H_

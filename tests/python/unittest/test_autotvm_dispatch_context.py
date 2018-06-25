@@ -3,13 +3,13 @@ The dispatcher can choose which template to use according
 to the parameters of workload"""
 
 from collections import namedtuple
-from tvm.autotvm import template
+from tvm.autotvm.task import dispatcher, DispatchContext
 
 SimpleWorkload = namedtuple("SimpleWorkload", ["key"])
 SimpleConfig = namedtuple("SimpleConfig", ["template_key"])
 
 def test_dispatch():
-    @template.dispatcher
+    @dispatcher
     def my_dispatcher(a, b):
         return SimpleWorkload(key=a + b)
 
@@ -21,7 +21,7 @@ def test_dispatch():
     def _im2col_add(cfg, a, b):
         return a + 1
 
-    class SimpleDispatcher(template.DispatchContext):
+    class SimpleDispatcher(DispatchContext):
         def query(self, target, workload):
             tkey = "spatial_pack" if workload.key > 2 else "im2col"
             return SimpleConfig(tkey)

@@ -16,8 +16,8 @@ import math
 from collections import namedtuple, OrderedDict
 import numpy as np
 
-from ... import schedule, thread_axis
-from ..util import get_const_int
+from tvm import schedule, thread_axis
+from tvm.autotvm.util import get_const_int
 
 Axis = namedtuple('Axis', ['space', 'index'])
 
@@ -29,22 +29,24 @@ class InstantiationError(ValueError):
     """
     pass
 
-"""
-We can regard our schedule code as a transformation graph of axes.
-Starting from raw axes in the definition of tvm.compute, we can transform these axes 
-by some operators. The operator includes 'split', 'reorder' and 'annotate'.
-Each operator has some tunable parameters (e.g. the split factor).
-Then the tuning process is just to find good parameters of these op.
 
-So the all the combinations of the parameters of these op forms our search space.
-
-Naming convention:
-We call the set of all possible values as XXXSpace. (XXX can be Split, Reorder, Config ...)
-We call a specific entity in a space as XXXEntity.
-"""
 class TransformSpace(object):
     """Base class for transform space
     TransformSpace is the node in the computation graph of axes
+
+    Note
+    ----
+    We can regard our schedule code as a transformation graph of axes.
+    Starting from raw axes in the definition of tvm.compute, we can transform these axes
+    by some operators. The operator includes 'split', 'reorder' and 'annotate'.
+    Each operator has some tunable parameters (e.g. the split factor).
+    Then the tuning process is just to find good parameters of these op.
+
+    So the all the combinations of the parameters of these op forms our search space.
+
+    Naming convention:
+    We call the set of all possible values as XXXSpace. (XXX can be Split, Reorder, Config ...)
+    We call a specific entity in a space as XXXEntity.
     """
     def __init__(self):
         self.ins = []

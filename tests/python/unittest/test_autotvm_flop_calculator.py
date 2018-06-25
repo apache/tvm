@@ -7,7 +7,7 @@ from tvm.autotvm.task.task import compute_flop
 
 def test_conv():
     for i in range(5):
-        N, H, W, CO, CI, KH, KW = [np.random.randint(10, 1024) for _ in range(7)]
+        N, H, W, CO, CI, KH, KW = [np.random.randint(10, 32) for _ in range(7)]
         D = tvm.placeholder((N, CI, H, W))
         K = tvm.placeholder((CO, CI, KH, KW))
 

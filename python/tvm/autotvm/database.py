@@ -44,75 +44,44 @@ class Database(object):
         """
         raise NotImplementedError()
 
-    def filter_inputs(self, measure_inputs, retry=False):
-        """
-        Filter a measure_inputs batch based on saved db results
 
-        Parameters
-        ----------
-        measure_inputs: Array of MeasureInput
-            measure_inputs as expected in measure_batch
-        retry: bool
-            whether to retry if the saved result is a failure
-
-        Returns
-        -------
-        partial_results: Array of MeasureResult
-            a full list of result, where None denotes no corresponding saved result
-        unsaved: Array of MeasureInput
-            a list that only contains unsaved inputs
-        """
-        partial_results = [None] * len(measure_inputs)
-        unsaved = list()
-        for i, inp in enumerate(measure_inputs):
-            inp = measure_inputs[i]
-            res = self.load(inp)
-            skip = (res is not None and
-                    (not retry or (retry and res.error_no == 0)))
-            if skip:
-                partial_results[i] = res
-            else:
-                unsaved.append(inp)
-        return partial_results, unsaved
-
-
-def unpack_existing(current):
+def filter_inputs(db, measure_inputs, retry=False):
     """
-    Unpack existing MeasureResults (in str format)
+    Filter a measure_inputs batch based on saved db results
 
     Parameters
     ----------
-    current: str
-        The current list of MeasureResults (in str format)
+    db: Database
+        database object
+    measure_inputs: Array of MeasureInput
+        measure_inputs as expected in measure_batch
+    retry: bool
+        whether to retry if the saved result is a failure
+
+    Returns
+    -------
+    partial_results: Array of MeasureResult
+        a full list of result, where None denotes no corresponding saved result
+    unsaved: Array of MeasureInput
+        a list that only contains unsaved inputs
     """
-    # pylint: disable = eval-used
-    return eval(current)
-
-
-def extend_existing(current, new):
-    """
-    Extend a list of MeasureResults (str-format in db) to add a new result.
-    Duplicate results are ignored.
-
-    Parameters
-    ----------
-    current: str
-        The current MeasureResults (in str format)
-    new: str
-        The new MeasureResult (in str format)
-    """
-    current_list = unpack_existing(current)
-    if new in current_list:
-        return current_list
-    current_list.append(new)
-    return current_list
-
+    partial_results = [None] * len(measure_inputs)
+    unsaved = list()
+    for i, inp in enumerate(measure_inputs):
+        inp = measure_inputs[i]
+        res = db.load(inp)
+        skip = (res is not None and
+                (not retry or (retry and res.error_no == 0)))
+        if skip:
+            partial_results[i] = res
+        else:
+            unsaved.append(inp)
+    return partial_results, unsaved
 
 class RedisDatabase(Database):
     """
     Redis version of record database
     """
-
     REDIS_PROD = 15
     REDIS_LOCA = 14
     REDIS_TEST = 13        # for unit test
@@ -128,11 +97,18 @@ class RedisDatabase(Database):
         self.db = redis.StrictRedis(host=host, port=6379, db=db_index)
         self.db_index = db_index
 
+    def set(self, key, value):
+        self.db.set(key, value)
+
+    def get(self, key):
+        return self.db.get(key)
+
     def load(self, inp, get_all=False):
-        current = self.db.get(measure_str_key(inp))
+        current = self.get(measure_str_key(inp))
         if current is not None:
-            records = unpack_existing(current)
-            results = [decode(rec)[1] for rec in records]
+            current = str(current)
+            records = [decode(x) for x in current.split("$")]
+            results = [rec[1] for rec in records]
             if get_all:
                 return results
             if len(results) < 1:
@@ -141,47 +117,64 @@ class RedisDatabase(Database):
         return current
 
     def save(self, inp, res, extend=False):
-        current = self.db.get(measure_str_key(inp))
+        current = self.get(measure_str_key(inp))
         if not extend or current is None:
-            return self.db.set(measure_str_key(inp), [encode(inp, res)])
-        return self.db.set(measure_str_key(inp), extend_existing(current,
-                                                                 encode(inp, res)))
+            self.set(measure_str_key(inp), "$".join([encode(inp, res)]))
+        else:
+            current = current.split("$")
+            self.set(measure_str_key(inp), "$".join(current + [encode(inp, res)]))
 
-    def dump_target(self, target):
+    def filter(self, func):
         """
         Dump all of the records for a particular target
 
         Parameters
         ----------
-        target: tvm.target.Target
-            The target to dump
+        func: callable
+            The signature of the function is bool (MeasureInput, Array of MeasureResult)
 
         Returns
         -------
         list of records (inp, result) matching the target
+
+        Examples
+        --------
+        get records for a target
+        >>> db.filter(lambda inp, resulst: "cuda" in inp.target.keys)
         """
         matched_records = list()
         # may consider filtering in iterator in the future
-        for key in self.db.scan_iter():
-            current = self.db.get(key)
-            records = unpack_existing(current)
-            decoded = list()
-            for rec in records:
-                try:
-                    decoded.append(decode(rec))
-                except TypeError: # got a badly formatted/old format record
-                    continue
-            if len(decoded) < 1:
+        for key in self.db:
+            current = self.get(key)
+            try:
+                records = [decode(x) for x in current.spilt("$")]
+            except TypeError:  # got a badly formatted/old format record
                 continue
 
-            inps, results = zip(*decoded)
+            inps, results = zip(*records)
             inp = inps[0]
-            if inp.target.__repr__() != target.__repr__():
+            if not func(inp, results):
                 continue
             result = max(results, key=lambda res: res.timestamp)
             matched_records.append((inp, result))
         return matched_records
 
     def flush(self):
-        """Flush the database."""
         self.db.flushdb()
+
+class DummyDatabase(RedisDatabase):
+    """
+    A database based on python dictionary for testing.
+    """
+
+    def __init__(self):
+        self.db = {}
+
+    def set(self, key, value):
+        self.db[key] = value
+
+    def get(self, key):
+        return self.db.get(key)
+
+    def flush(self):
+        self.db = {}

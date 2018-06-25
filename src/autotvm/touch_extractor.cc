@@ -10,7 +10,7 @@
 #include <algorithm>
 
 namespace tvm {
-namespace ir {
+namespace autotvm {
 
 int ParallelLevel(AnnotationType ann) {
   switch (ann) {
@@ -505,5 +505,5 @@ TVM_REGISTER_API("autotvm.feature.GetCurveSampleFeatureFlatten")
 });
 
 
-}  // namespace ir
+}  // namespace autotvm
 }  // namespace tvm

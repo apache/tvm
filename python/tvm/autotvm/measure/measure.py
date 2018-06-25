@@ -3,10 +3,14 @@
 import time
 from collections import namedtuple
 
+import numpy as np
+
 from ...contrib.util import tempdir
 from ...contrib.rpc.tracker import Tracker
 from ...contrib.rpc.server import Server
+from ... import build, nd, target as _target
 
+from ..util import get_const_tuple
 from .local_executor import LocalExecutor
 
 
@@ -60,13 +64,12 @@ def measure_option(mode,
                    pack_size=1,
                    check_correctness=False,
                    build_option=None,
-
                    replay_db=None,
-                   save_to_replay_db=False,
-
+                   save_to_replay_db=True,
                    rpc_device_key=None,
                    rpc_priority=1,
                    rpc_timeout=60,
+                   rpc_tracker_addr=None,
                    use_ndk=False,
                    custom_measure_batch=None):
     """Configure how to do measurement
@@ -116,9 +119,13 @@ def measure_option(mode,
         The device key of registered devices in tracker
     rpc_timeout: int, optional
         Timeout of rpc session
+    rpc_tracker_addr: Tuple(str, int), optional
+        The address of rpc tracker in Tuple(host, port) format.
+        If is set, will use this address.
+        If is not set, will use environment variable "TVM_TRACKER_HOST" and "TVM_TRACKER_PORT"
+
     use_ndk: bool, option
         Whether export requires ndk
-
     custom_measure_batch: callable, optional
         custom measure function
 
@@ -143,17 +150,20 @@ def measure_option(mode,
         'rpc_device_key': rpc_device_key,
         'rpc_priority': rpc_priority,
         'rpc_timeout': rpc_timeout,
-        'use_ndk': use_ndk,
+        'rpc_tracker_addr': rpc_tracker_addr,
 
+        'use_ndk': use_ndk,
         'custom_measure_batch': custom_measure_batch
     }
 
 
-def create_measure_batch(options):
+def create_measure_batch(task, options):
     """Get a standard measure_batch function.
 
     Parameters
     ----------
+    task: tvm.task.Task
+        The tuning task
     options: dict
         The option for measuring generated code.
         You should use the return value of :any:`autotvm.measure_option` for this argument
@@ -164,6 +174,7 @@ def create_measure_batch(options):
         a callback function to measure a batch of configs
     """
     from . import measure_methods
+    from ..database import filter_inputs
 
     mode = options['mode']
     number, repeat = options['number'], options['repeat']
@@ -192,13 +203,13 @@ def create_measure_batch(options):
                         tracker_addr=(tracker.host, tracker.port))
 
         fmeasure = measure_methods.measure_rpc
-        kwargs['device_key'] = rpc_device_key
+        kwargs['rpc_device_key'] = rpc_device_key
         kwargs['rpc_tracker_addr'] = (tracker.host, tracker.port)
         kwargs['rpc_timeout'] = timeout
         kwargs['tmp_dir'] = tempdir()
     elif mode == 'rpc':
         fmeasure = measure_methods.measure_rpc
-        kwargs['device_key'] = rpc_device_key
+        kwargs['rpc_device_key'] = rpc_device_key
         kwargs['rpc_priority'] = rpc_priority
         kwargs['rpc_timeout'] = rpc_timeout
         kwargs['use_ndk'] = use_ndk
@@ -213,11 +224,25 @@ def create_measure_batch(options):
     else:
         raise RuntimeError("Invalid mode: " + mode)
 
+    if 'cuda' in task.target.keys and 'rpc_device_key' in kwargs:  # query cuda device info
+        add_cuda_device_info(kwargs['rpc_device_key'], kwargs['rpc_tracker_addr'], kwargs)
+
+    if check_correctness:  # use llvm to generate a reference input/output
+        with _target.create("llvm"):
+            s, arg_bufs = task.instantiate(task.config_space.get(0))
+        ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
+                     for x in arg_bufs]
+        func = build(s, arg_bufs, "llvm")
+        tvm_buf = [nd.array(x) for x in ref_input]
+        func(*tvm_buf)
+        ref_output = [x.asnumpy() for x in tvm_buf]
+        kwargs['ref_input'], kwargs['ref_outpu'] = ref_input, ref_output
+
     def measure_batch(measure_inputs):
         """measure the time cost for a batch of configs in real machines"""
         if replay_db is not None:
             partial_results, measure_inputs =\
-                replay_db.filter_inputs(measure_inputs, retry=False)
+                filter_inputs(replay_db, measure_inputs, retry=False)
 
         # pack configs
         input_packs = []
@@ -269,5 +294,16 @@ def create_measure_batch(options):
 
     measure_batch.parallel_num = parallel_num
     if mode == 'local':
-        measure_batch.aux_objects = (server, tracker)
+        measure_batch.aux_objects = {"server": server, "tracker": tracker}
     return measure_batch
+
+
+def add_cuda_device_info(device_key, rpc_tracker_addr, kwargs):
+    from .measure_methods import request_remote
+
+    remote = request_remote(device_key, rpc_tracker_addr)
+    ctx = remote.context('cuda', 0)
+    kwargs['check_gpu'] = True
+    kwargs["gpu_max_shared_memory_per_block"] = ctx.max_shared_memory_per_block
+    kwargs["gpu_max_threads_per_block"] = ctx.max_threads_per_block
+    kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))

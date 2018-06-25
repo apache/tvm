@@ -10,8 +10,10 @@ from functools import wraps
 import numpy as np
 
 from ... import build, nd, tensor, expr, target as _target
-from ..template import DispatchContext, ConfigSpace, ApplyConfig, dispatcher
+
 from ..util import get_const_tuple, get_const_int
+from .dispatcher import DispatchContext, ApplyConfig, dispatcher
+from .space import ConfigSpace, ConfigEntity
 
 
 class Task(object):
@@ -24,16 +26,14 @@ class Task(object):
     args: list
         Positional argument of func
     """
-    def __init__(self, name, func, args):
+    def __init__(self, name, args):
         self.name = name
         self.args = args
         self.kwargs = {}  # currently unused
 
-        self.func = func
-
         # init null config space
         self.config_space = None
-        self.ref_input, self.ref_output = None, None
+        self.func = TASK_TABLE[name]
 
         # auxiliary info, available after `init_space` is called
         self.workload = None
@@ -41,59 +41,9 @@ class Task(object):
         self.target = None
         self.target_host = None
 
-    def init_ref_data(self, arg_bufs, check_correctness=False):
-        """Get reference input/output by building a llvm function
-
-        Parameters
-        ----------
-        arg_bufs: Array of tvm.Tensor
-            args to extract type and shape for input
-        check_correctness: bool
-            whether check correctness by a llvm reference implementation
-        """
-        self.ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
-                          for x in arg_bufs]
-        if not check_correctness:
-            return
-        with _target.create("llvm"):
-            s, args = self.instantiate(self.config_space.get(0))
-        func = build(s, args, "llvm")
-        tvm_buf = [nd.array(x) for x in self.ref_input]
-        func(*tvm_buf)
-        self.ref_output = [x.asnumpy() for x in tvm_buf]
-
-    def init_space(self, target, target_host=None, template_key=None):
-        """Initialize task for a specific target.
-        This function should be called before a task is used by tuner.
-
-        Parameters
-        ----------
-        target: tvm.target.Target
-            The hardware target
-        target_host: tvm.target.Target, optional
-            The host side target
-        template_key: str, optional
-            The template key to use
-        """
-        if isinstance(target, str):
-            target = _target.create(target)
-
-        self.config_space = ConfigSpace()
-        self.config_space.template_key = template_key or ""
-
-        ctx = ApplyConfig(self.config_space)
-        with ctx:
-            with target:
-                sch, _ = self.func(*self.args, **self.kwargs)
-                self.config_space.code_hash = getattr(sch, 'code_hash', None)
-        self.workload = ctx.last_workload
-        self.flop = self.config_space.flop or compute_flop(sch)
-
-        self.target = target
-        self.target_host = target_host
-
     def instantiate(self, config):
-        """Instantiate a task function (template) with a config.
+        """Instantiate this task function (template) with a config.
+        Returns corresponding schedule.
 
         Parameters
         ----------
@@ -118,7 +68,6 @@ class Task(object):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
             self.name, self.args, self.kwargs, self.workload
         )
-
 
 TASK_TABLE = {
 }
@@ -150,38 +99,14 @@ def register(name, func=None, override=False):
         return _do_reg(func)
     return _do_reg
 
-
-def create(func_name, args):
-    """Create a new tuning task.
-
-    Parameters
-    ----------
-    func_name : str or callable
-        The task function
-    args : tuple
-        Positional arguments for the task function
-    """
-    if callable(func_name):
-        func = func_name
-        func_name = func.func_name if hasattr(func, 'func_name') else func.__name__
-        if func_name in TASK_TABLE:
-            assert func == TASK_TABLE[func_name], "Find name conflict in task registration. " \
-                                                  "Consider to choose another name for this task"
-        else:
-            register(func_name, func=func)
-    func = TASK_TABLE[func_name]
-    return Task(func_name, func, args)
-
-def create_task(func_name, args, target, target_host=None):
-    """Create a new task and initialize its config space.
-    This is a shortcut for :any:`task.create` + :any:`Task.init_space`.
-    Note that kwargs is not supported
+def create(func_name, args, target, target_host=None, template_key=None):
+    """Create a tuning task and initialize its search space
 
     Parameters
     ----------
     func_name : str or callable
         The task function
-    args : tuple
+    args : List
         Positional arguments
     target : Target
         The compilation target
@@ -193,12 +118,39 @@ def create_task(func_name, args, target, target_host=None):
     tsk: Task
         a task object
     """
-    ret = create(func_name, args)
-    ret.init_space(target, target_host=target_host)
+    if callable(func_name):
+        func = func_name
+    func_name = func.func_name if hasattr(func, 'func_name') else func.__name__
+    if func_name in TASK_TABLE:
+        assert func == TASK_TABLE[func_name], "Find name conflict in task registration. " \
+                                              "Consider to choose another name for this task"
+    else:
+        register(func_name, func=func)
+    func = TASK_TABLE[func_name]
+
+    ret = Task(func_name, args)
+
+    if isinstance(target, str):
+        target = _target.create(target)
+
+    # init config space
+    ret.config_space = ConfigSpace()
+    ret.config_space.template_key = template_key or ""
+
+    ctx = ApplyConfig(ret.config_space)
+    with ctx:
+        with target:
+            sch, _ = func(*args)
+            ret.config_space.code_hash = getattr(sch, 'code_hash', None)
+
+    ret.workload = ctx.last_workload
+    ret.flop = ret.config_space.flop or compute_flop(sch)
+    ret.target = target
+    ret.target_host = target_host
 
     return ret
 
-def simple_template(func):
+def template(func):
     """
     decorate a function as a template
 

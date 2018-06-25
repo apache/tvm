@@ -64,7 +64,7 @@ def matmul_v0(N, L, M, dtype):
 # In autotvm, we can define a tunable parameter, or a "knob" for such kind of value.
 
 # Matmul V1: List candidate values
-@autotvm.simple_template  # 1. use a decorator 
+@autotvm.template  # 1. use a decorator
 def matmul_v1(N, L, M, dtype):
     A = tvm.placeholder((N, L), name='A', dtype=dtype)
     B = tvm.placeholder((L, M), name='B', dtype=dtype)
@@ -144,7 +144,7 @@ def matmul_v1(N, L, M, dtype):
 # When the high level API cannot meet your requirement, you can alwasy fall
 # back to use low level API.
 
-@autotvm.simple_template
+@autotvm.template
 def matmul(N, L, M, dtype):
     A = tvm.placeholder((N, L), name='A', dtype=dtype)
     B = tvm.placeholder((L, M), name='B', dtype=dtype)
@@ -234,7 +234,7 @@ def matmul(N, L, M, dtype):
 # In this case, for a 512x512 square matrix mutiplication, the space size
 # is 10x10=100
 N, L, M = 512, 512, 512
-task = autotvm.create_task(matmul, args=(N, L, M, 'float32'), target='llvm')
+task = autotvm.task.create(matmul, args=(N, L, M, 'float32'), target='llvm')
 print(task.config_space)
 
 ################################################################

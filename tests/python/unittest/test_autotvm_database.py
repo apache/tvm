@@ -20,7 +20,7 @@ def test_save_load():
     inp2, res2 = records[1]
     inp3, _ = records[2]
 
-    _db = database.RedisDatabase(database.RedisDatabase.REDIS_TEST)
+    _db = database.DummyDatabase()
     _db.flush()
     _db.save(inp1, res1)
     _db.save(inp2, res2)
@@ -48,7 +48,7 @@ def test_db_filter():
     batch_size = 2
 
     measure_option = autotvm.measure_option(mode='local-nofork', timeout=2)
-    measure_batch = autotvm.measure.create_measure_batch(measure_option)
+    measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     ct = 0
     all_inputs = list()
@@ -68,12 +68,12 @@ def test_db_filter():
 
     del measure_batch
 
-    db = database.RedisDatabase(database.RedisDatabase.REDIS_TEST)
+    db = database.DummyDatabase()
     db.flush()
 
     # First setting, memoize one input at a time, check that each is saved and replayed
     measure_option = autotvm.measure_option(mode='local-nofork', timeout=2, replay_db=db)
-    measure_batch = autotvm.measure.create_measure_batch(measure_option)
+    measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     for i in range(len(all_inputs)+1):
         db.flush()
@@ -106,7 +106,7 @@ def test_db_hash():
     # set timestamp
     res2l[-1] = -1
     res2 = MeasureResult(*res2l)
-    _db = database.RedisDatabase(database.RedisDatabase.REDIS_TEST)
+    _db = database.DummyDatabase()
     _db.flush()
     _db.save(inp1, res1, extend=True)
     _db.save(inp2, res2, extend=True)
@@ -132,7 +132,7 @@ def test_db_latest_all():
     res2 = MeasureResult(*lis2)
     res3 = MeasureResult(*lis3)
 
-    _db = database.RedisDatabase(database.RedisDatabase.REDIS_TEST)
+    _db = database.DummyDatabase()
     _db.flush()
     _db.save(inp1, res1, extend=True)
     load1 = _db.load(inp1)
@@ -151,7 +151,7 @@ def test_db_latest_all():
 
 def test_db_save_replay():
     logging.info("test db save (from measure_batch) and replay ...")
-    _db = database.RedisDatabase(database.RedisDatabase.REDIS_TEST)
+    _db = database.DummyDatabase()
     _db.flush()
 
     task, target = get_sample_task()
@@ -163,7 +163,7 @@ def test_db_save_replay():
     measure_option = autotvm.measure_option(mode='local-nofork',
                                             timeout=2,
                                             replay_db=_db, save_to_replay_db=True)
-    measure_batch = autotvm.measure.create_measure_batch(measure_option)
+    measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     batch_size = 2
 
@@ -208,7 +208,7 @@ def test_check_hashmismatch():
         logging.warning("Skip this test because there is no supported device for test")
 
     measure_option = autotvm.measure_option(mode='local-nofork')
-    measure_batch = autotvm.measure.create_measure_batch(measure_option)
+    measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     inputs = list()
     cfg = task.config_space.get(np.random.randint(len(task.config_space)))
@@ -227,8 +227,8 @@ def test_check_hashmismatch():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     test_save_load()
-    test_db_filter()
-    test_db_hash()
-    test_db_latest_all()
-    test_db_save_replay()
-    test_check_hashmismatch()
+    # test_db_filter()
+    # test_db_hash()
+    # test_db_latest_all()
+    # test_db_save_replay()
+    # test_check_hashmismatch()

@@ -15,7 +15,7 @@ import numpy as np
 from .. import target, build, lower
 
 from . import task
-from .template import DispatchContext
+from .task import DispatchContext
 from .measure import MeasureInput, MeasureResult
 
 def measure_str_key(inp, include_config=True):
@@ -34,7 +34,7 @@ def measure_str_key(inp, include_config=True):
         The str representation of key
     """
     config_str = str(inp.config) if include_config else ""
-    return "".join([str(inp.target), str(inp.task.func.__name__), str(inp.task.args),
+    return "".join([str(inp.target), inp.task.name, str(inp.task.args),
                     str(inp.task.kwargs), config_str])
 
 
@@ -86,12 +86,8 @@ def decode(row, delimiter='\t'):
     result = pickle.loads(base64.b64decode(items[3].encode()))
 
     result = MeasureResult(*result)
-    try:
-        tsk = task.create(task_tuple[0], task_tuple[1])
-        tsk.workload = task_tuple[3]
-    except KeyError:
-        tsk = task.Task(task_tuple[0], None, task_tuple[1])
-        tsk.workload = task_tuple[3]
+    tsk = task.Task(task_tuple[0], task_tuple[1])
+    tsk.workload = task_tuple[3]
     return MeasureInput(tgt, tsk, config), result
 
 def load_from_file(filename):

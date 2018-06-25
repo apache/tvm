@@ -9,7 +9,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
-@autotvm.simple_template
+@autotvm.template
 def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
     import topi
 

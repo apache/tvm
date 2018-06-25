@@ -5,15 +5,17 @@
  *        These features are used for machine learning cost model
  */
 
-#ifndef TVM_PASS_FEATURE_VISITOR_H_
-#define TVM_PASS_FEATURE_VISITOR_H_
+#ifndef TVM_AUTOTVM_FEATURE_VISITOR_H_
+#define TVM_AUTOTVM_FEATURE_VISITOR_H_
 
 #include <tvm/ir.h>
 #include <tvm/ir_visitor.h>
 #include <string>
 
 namespace tvm {
-namespace ir {
+namespace autotvm {
+
+using namespace tvm::ir;
 
 /*!
  * \brief Type of for loop, used as one-hot encoding in features
@@ -59,7 +61,7 @@ class FeatureVisitor : public IRVisitor {
   virtual void ExitMem_() = 0;
 };
 
-}  // namespace ir
+}  // namespace autotvm
 }  // namespace tvm
 
-#endif  // TVM_PASS_FEATURE_VISITOR_H_
+#endif  // TVM_AUTOTVM_FEATURE_VISITOR_H_

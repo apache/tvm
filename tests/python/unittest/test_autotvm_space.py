@@ -1,7 +1,7 @@
 """Test space definition primitives"""
 
 import tvm
-from tvm.autotvm.template.space import ConfigSpace
+from tvm.autotvm.task.space import ConfigSpace
 
 def gemm_func(cfg, N):
     A = tvm.placeholder((N, N), name='A')

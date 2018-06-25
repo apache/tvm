@@ -14,7 +14,7 @@ from __future__ import absolute_import as _abs
 
 from decorator import decorate
 
-from ... import target as _target
+from tvm import target as _target
 
 class DispatchContext(object):
     """

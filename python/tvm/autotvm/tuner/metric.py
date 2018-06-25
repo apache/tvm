@@ -98,64 +98,6 @@ def cover_curve(trial_ranks):
         ret[i] = keep + 1
     return ret / len(trial_ranks)
 
-
-# feval wrapper for xgboost
-def xgb_max_curve_score(N):
-    """evaluate max curve score for xgb"""
-    def feval(preds, labels):
-        labels = labels.get_label()
-        trials = np.argsort(preds)[::-1]
-        scores = labels[trials]
-        curve = max_curve(scores)
-        return "Smax@%d" % N, curve[N] / np.max(labels)
-    return feval
-
-def xgb_recalln_curve_score(N):
-    """evaluate recall-n curve score for xgb"""
-    def feval(preds, labels):
-        labels = labels.get_label()
-        trials = np.argsort(preds)[::-1]
-        ranks = get_rank(labels[trials])
-        curve = recall_curve(ranks)
-        return "recall@%d" % N, curve[N]
-    return feval
-
-def xgb_average_recalln_curve_score(N):
-    """evaluate average recall-n curve score for xgb"""
-    def feval(preds, labels):
-        labels = labels.get_label()
-        trials = np.argsort(preds)[::-1]
-        ranks = get_rank(labels[trials])
-        curve = recall_curve(ranks)
-        return "a-recall@%d" % N, np.sum(curve[:N]) / N
-    return feval
-
-def xgb_recallk_curve_score(N, topk):
-    """evaluate recall-k curve score for xgb"""
-    def feval(preds, labels):
-        labels = labels.get_label()
-        trials = np.argsort(preds)[::-1]
-        ranks = get_rank(labels[trials])
-        curve = recall_curve(ranks, topk)
-        return "recall@%d" % topk, curve[N]
-    return feval
-
-def xgb_cover_curve_score(N):
-    """evaluate cover curve score for xgb"""
-    def feval(preds, labels):
-        labels = labels.get_label()
-        trials = np.argsort(preds)[::-1]
-        ranks = get_rank(labels[trials])
-        curve = cover_curve(ranks)
-        return "cover@%d" % N, curve[N]
-    return feval
-
-def xgb_null_score(_):
-    """empty score function for xgb"""
-    def feval(__, ___):
-        return "null", 0
-    return feval
-
 def average_recall(preds, labels, N):
     """evaluate average recall-n for predictions and labels"""
     trials = np.argsort(preds)[::-1]

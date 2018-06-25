@@ -15,8 +15,10 @@ import numpy as np
 from ...contrib import rpc, ndk, nvcc
 from ... import ir_pass, build, build_config, nd, context, TVMError, register_func
 
+from ..util import get_const_tuple
+from ..env import AutotvmGlobalScope
 from .measure import MeasureResult, MeasureErrorNo
-from ..template.space import InstantiationError
+from ..task.space import InstantiationError
 
 
 class HashMismatchError(ValueError):
@@ -56,7 +58,7 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
     return remote
 
 
-def _measure_generic(fbuild, input_pack, check_correctness):
+def _measure_generic(fbuild, input_pack, ref_input, ref_output):
     """Generic measurement function
 
     Parameters
@@ -65,8 +67,10 @@ def _measure_generic(fbuild, input_pack, check_correctness):
         The build function used to build each input.
     input_pack : list of MeasureInput
         The inputs we need to evaluate
-    check_correctness: bool
-        Whether check correctness after measurement.
+    ref_input: Array of np.ndarray
+        Reference input for checking correctness
+    ref_output: Array of np.ndarray
+        Reference output for checking correctness
 
     Returns
     -------
@@ -77,7 +81,7 @@ def _measure_generic(fbuild, input_pack, check_correctness):
     for inp in input_pack:
         tic = time.time()
         try:
-            time_f, ctx, args = fbuild(inp)
+            time_f, ctx, arg_bufs = fbuild(inp)
         except TVMError as e:
             tstamp = time.time()
             res_pack.append(MeasureResult((e,),
@@ -94,16 +98,18 @@ def _measure_generic(fbuild, input_pack, check_correctness):
         # measure time
         errno = MeasureErrorNo.NO_ERROR
         try:
-            if inp.task.ref_input is None:
-                inp.task.init_ref_data(args, check_correctness)
-            arg_bufs = [nd.array(x, ctx) for x in inp.task.ref_input]
-            costs = time_f(*arg_bufs).results
+            if ref_input:
+                args = [nd.array(x, ctx) for x in ref_input]
+            else:
+                args = [nd.array(np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype),
+                                 ctx) for x in arg_bufs]
+            costs = time_f(*args).results
             if len(costs) > 2:  # remove largest and smallest value to reduce variance
                 costs = list(costs)
                 costs.sort()
                 costs = tuple(costs[1:-1])
-            if check_correctness:
-                for expected, real in zip(inp.task.ref_output, arg_bufs):
+            if ref_output:
+                for expected, real in zip(ref_output, args):
                     if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
                         logging.warning("Wrong Answer!")
                         errno = MeasureErrorNo.WRONG_ANSWER
@@ -119,7 +125,7 @@ def _measure_generic(fbuild, input_pack, check_correctness):
     return res_pack
 
 def measure_rpc(input_pack,
-                device_key,
+                rpc_device_key,
                 number,
                 repeat=1,
                 check_correctness=False,
@@ -128,14 +134,14 @@ def measure_rpc(input_pack,
                 rpc_priority=1,
                 rpc_timeout=60,
                 tmp_dir=None,
-                use_ndk=False):
+                **kwargs):
     """Measure the time cost on a device by rpc
 
     Parameters
     ----------
     input_pack : list of MeasureInput
         The inputs we need to evaluate
-    device_key: str
+    rpc_device_key: str
         The device key of registered devices in tracker
     number : int
         Number of times to get the running measurement
@@ -157,8 +163,8 @@ def measure_rpc(input_pack,
     tmp_dir: tvm.contrib.util.TempDirectory, optional
         directory to store temp file
 
-    use_ndk : bool, optional
-        Whether export requires ndk
+    kwargs: dict, optional
+        Additional key word arguments
 
     Returns
     -------
@@ -177,25 +183,26 @@ def measure_rpc(input_pack,
                                         .format(str(inp.config.code_hash), str(code_hash)))
 
             opts = build_option or {}
-            if "cuda" in inp.target.keys:
+            if "check_gpu" in kwargs:
                 # Add cuda verify pass to filter out invalid configs in advance.
                 # This can accelerate the tuning process
-                max_shared_memory_per_block, max_threads_per_block, arch = \
-                    get_cuda_device_info(device_key, rpc_tracker_addr, tmp_dir)
-                set_cuda_target_arch(arch)
-                opts["add_lower_pass"] = \
-                    [(2, cuda_verify_pass(max_shared_memory_per_block=max_shared_memory_per_block,
-                                          max_thread_per_block=max_threads_per_block))]
+                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block']
+                opts["add_lower_pass"] = [
+                    (2, cuda_verify_pass(**{key: kwargs["gpu_" + key] for key in check_keys}))]
+
+            if 'cuda_arch' in kwargs:
+                set_cuda_target_arch(kwargs['cuda_arch'])
+
             with build_config(**opts):
                 func = build(s, args, target_host=inp.task.target_host)
 
         file_name = "tmp_func_%0x.tar" % getrandbits(64)
         path = tmp_dir.relpath(file_name)
-        if not use_ndk:
+        if not kwargs.get('use_ndk', False):
             func.export_library(path)
         else:
             func.export_library(path, ndk.create_shared)
-        remote = request_remote(device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)
+        remote = request_remote(rpc_device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)
         remote.upload(path)
         func = remote.load_module(file_name)
         ctx = remote.context(str(inp.target), 0)
@@ -203,7 +210,8 @@ def measure_rpc(input_pack,
             func.entry_name, ctx, number=number, repeat=repeat)
         return time_f, ctx, args
 
-    ret = _measure_generic(_fbuild, input_pack, check_correctness)
+    ret = _measure_generic(_fbuild, input_pack,
+                           kwargs.get("ref_input", None), kwargs.get("ref_output", None))
     return ret
 
 
@@ -211,7 +219,8 @@ def measure_local(input_pack,
                   number,
                   repeat=1,
                   check_correctness=False,
-                  build_option=None):
+                  build_option=None,
+                  **kwargs):
     """Measure the time cost on a local machine.
 
     Parameters
@@ -225,7 +234,9 @@ def measure_local(input_pack,
     check_correctness: bool, optional
         Whether check correctness after measurement.
     build_option: dict, optional
-        build options for tvm.build_config
+        Build options for tvm.build_config
+    kwargs: dict, optional
+        Additional key word arguments
 
     Returns
     -------
@@ -245,21 +256,26 @@ def measure_local(input_pack,
                                         .format(str(inp.config.code_hash), str(code_hash)))
 
             opts = build_option or {}
-            ctx = context(str(inp.target), 0)
-            if "cuda" in inp.target.keys:
+            if "check_gpu" in kwargs:
                 # Add cuda verify pass to filter out invalid configs in advance.
                 # This can accelerate the tuning process
-                opts["add_lower_pass"] = \
-                    [(2, cuda_verify_pass(ctx.max_shared_memory_per_block,
-                                          ctx.max_threads_per_block))]
+                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block']
+                opts["add_lower_pass"] = [
+                    (2, cuda_verify_pass(**{key: kwargs[key] for key in check_keys}))]
+
+            if 'cuda_arch' in kwargs:
+                set_cuda_target_arch(kwargs['cuda_arch'])
+
             with build_config(**opts):
                 func = build(s, args, target_host=inp.task.target_host)
 
+        ctx = context(str(inp.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat)
         return time_f, ctx, args
 
-    ret = _measure_generic(_fbuild, input_pack, check_correctness)
+    ret = _measure_generic(_fbuild, input_pack,
+                           kwargs.get("ref_input", None), kwargs.get("ref_output", None))
     return ret
 
 
@@ -275,70 +291,12 @@ def cuda_verify_pass(**kwargs):
     return verify_pass
 
 
-_cuda_target_arch = None
 @register_func
 def tvm_callback_cuda_compile(code):
     """use nvcc to generate ptx code for better optimization"""
-    global _cuda_target_arch
-    ptx = nvcc.compile_cuda(code, target="ptx", arch=_cuda_target_arch)
+    ptx = nvcc.compile_cuda(code, target="ptx", arch=AutotvmGlobalScope.current.cuda_target_arch)
     return ptx
 
 def set_cuda_target_arch(arch):
     """set target architecture of nvcc compiler"""
-    global _cuda_target_arch
-    _cuda_target_arch = arch
-
-
-def get_cuda_device_info(device_key, rpc_tracker_addr=None, tmp_dir=None):
-    """get device query result from remote cuda device
-
-    Parameters
-    ----------
-    device_key: str
-        The device key of registered device in RPC tracker.
-    rpc_tracker_addr: Tuple(string, int), optional
-        The address of rpc tracker.
-        If is none, will use environment variable
-    tmp_dir: tvm.contrib.TempDirectory, optional
-        Temporary directory to store cache
-
-    Returns
-    -------
-    max_shared_memory_per_block: int
-    max_threads_per_block: int
-    """
-    if tmp_dir:
-        file_name = tmp_dir.relpath(".autotvm_cuda_device_query_%s.cache" % device_key)
-        find_cache = False
-        if os.path.isfile(file_name):
-            # find cache file, try to parse it
-            try:
-                lines = list(open(file_name).readlines())
-                max_shared_memory_per_block = int(lines[1])
-                max_threads_per_block = int(lines[2])
-                arch = lines[3].strip()
-                find_cache = True
-            except Exception:  # pylint: disable=broad-except
-                pass
-    else:
-        find_cache = False
-
-    if not find_cache:
-        remote = request_remote(device_key, rpc_tracker_addr)
-        ctx = remote.context('cuda', 0)
-        max_shared_memory_per_block = ctx.max_shared_memory_per_block
-        max_threads_per_block = ctx.max_threads_per_block
-        arch = "sm_" + "".join(ctx.compute_version.split('.'))
-        if tmp_dir:
-            with open(file_name, 'w') as fout:
-                fout.writelines(["%s\n" % x for x in [
-                    "# This is a cache file to store the compilation options for cuda nvcc. "
-                    "You can delete this safely",
-                    max_shared_memory_per_block,
-                    max_threads_per_block,
-                    arch]])
-        # release remote session
-        del ctx
-        del remote
-
-    return max_shared_memory_per_block, max_threads_per_block, arch
+    AutotvmGlobalScope.current.cuda_target_arch = arch

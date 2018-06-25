@@ -87,7 +87,7 @@ class Tuner(object):
             with no return value. These callback functions will be called on
             every measurement pair. See autotvm/tuner/callback.py for some examples.
         """
-        measure_batch = create_measure_batch(measure_option)
+        measure_batch = create_measure_batch(self.task, measure_option)
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
 
         i = 0
