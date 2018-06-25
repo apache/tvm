@@ -128,7 +128,6 @@ def measure_rpc(input_pack,
                 rpc_device_key,
                 number,
                 repeat=1,
-                check_correctness=False,
                 build_option=None,
                 rpc_tracker_addr=None,
                 rpc_priority=1,
@@ -147,8 +146,6 @@ def measure_rpc(input_pack,
         Number of times to get the running measurement
     repeat : int, optional
         How many times we want to repeat the measurement.
-    check_correctness: bool, optional
-        Whether check correctness after measurement.
     build_option: Dict
         build options for tvm.build_config
 
@@ -218,7 +215,6 @@ def measure_rpc(input_pack,
 def measure_local(input_pack,
                   number,
                   repeat=1,
-                  check_correctness=False,
                   build_option=None,
                   **kwargs):
     """Measure the time cost on a local machine.
@@ -231,8 +227,6 @@ def measure_local(input_pack,
         Number of times to get the running measurement
     repeat : int, optional
         How many times we want to repeat the measurement.
-    check_correctness: bool, optional
-        Whether check correctness after measurement.
     build_option: dict, optional
         Build options for tvm.build_config
     kwargs: dict, optional

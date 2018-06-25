@@ -16,7 +16,7 @@ from ..util import sample_ints, get_rank
 from .. import feature
 from .model_based_basetuner import ModelBasedBaseTuner, random_walk, point2knob
 from .opt_method import sa_find_maximum, submodular_pick
-from .metric import max_curve, mean_curve, recall_curve, cover_curve
+from .metric import max_curve, recall_curve, cover_curve
 
 class XGBTuner(ModelBasedBaseTuner):
     """Tuner that use xgboost as cost model

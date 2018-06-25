@@ -9,11 +9,11 @@ from functools import wraps
 
 import numpy as np
 
-from ... import build, nd, tensor, expr, target as _target
+from ... import tensor, expr, target as _target
 
-from ..util import get_const_tuple, get_const_int
+from ..util import get_const_int
 from .dispatcher import DispatchContext, ApplyConfig, dispatcher
-from .space import ConfigSpace, ConfigEntity
+from .space import ConfigSpace
 
 
 class Task(object):

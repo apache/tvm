@@ -95,7 +95,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
     """return a sample task for testing"""
-    task = autotvm.create_task(conv2d_no_batching,
+    task = autotvm.task.create(conv2d_no_batching,
                                args=(1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)),
                                target=target, target_host=target_host)
     return task, target

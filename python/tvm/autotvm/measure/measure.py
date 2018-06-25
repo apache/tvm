@@ -256,7 +256,6 @@ def create_measure_batch(task, options):
                 fmeasure, input_pack,
                 number=number,
                 repeat=repeat,
-                check_correctness=check_correctness,
                 build_option=build_option,
                 **kwargs
             )

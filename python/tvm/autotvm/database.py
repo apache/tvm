@@ -168,6 +168,7 @@ class DummyDatabase(RedisDatabase):
     """
 
     def __init__(self):
+        # pylint: disable=super-init-not-called
         self.db = {}
 
     def set(self, key, value):

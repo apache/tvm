@@ -9,4 +9,4 @@ class AutotvmGlobalScope(object):
 
         self.cuda_target_arch = None
 
-global_scope = AutotvmGlobalScope()
+GLOBAL_SCOPE = AutotvmGlobalScope()
