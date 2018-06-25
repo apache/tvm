@@ -128,6 +128,7 @@ def verify_flip(ishape, axis):
         out = m.get_output(0, tvm.nd.empty(res.shape))
         np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
 
+
 def test_flip():
     verify_flip((3, 4, 3), 1)
     verify_flip((3, 4, 3), 0)
@@ -135,6 +136,7 @@ def test_flip():
     verify_flip((3, 4, 3), -1)
     verify_flip((3, 4, 3), -3)
     verify_flip((3, 4, 3), -2)
+
 
 def verify_reshape(dshape, oshape):
     x = sym.Variable("x")
@@ -176,6 +178,45 @@ def test_clip():
     dtype = "float32"
     inputs = [('x', (3, 4, 5), x)]
     helper(y, inputs, dtype, forward, backward)
+
+
+def test_broadcast():
+    a = sym.Variable("a")
+    b = sym.Variable("b")
+    inputs = [('a', (3, 4, 5), a),
+              ('b', (1, 5), b)]
+    dtype = "float32"
+
+    def _collapse(g):
+        return g.reshape(-1, inputs[-1][1][-1]).sum(0, keepdims=True)
+
+    y = sym.broadcast_add(a, b)
+    def _backward_add(head_grads, a, b):
+        da = head_grads
+        db = _collapse(head_grads)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a + b, _backward_add)
+
+    y = sym.broadcast_sub(a, b)
+    def _backward_sub(head_grads, a, b):
+        da = head_grads
+        db = -_collapse(head_grads)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a - b, _backward_sub)
+
+    y = sym.broadcast_mul(a, b)
+    def _backward_mul(head_grads, a, b):
+        da = head_grads * b
+        db = _collapse(head_grads * a)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a * b, _backward_mul)
+
+    y = sym.broadcast_div(a, b)
+    def _backward_div(head_grads, a, b):
+        da = head_grads / b
+        db = _collapse(head_grads * a / (2 * b**2))
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
 
 def test_greater():
@@ -494,6 +535,7 @@ def test_nms():
 
 if __name__ == "__main__":
     test_reshape()
+    test_broadcast()
     test_reduce()
     test_collapse()
     test_tranpose()

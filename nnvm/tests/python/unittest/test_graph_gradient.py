@@ -1,9 +1,5 @@
-import nnvm
 import nnvm.symbol as sym
 from nnvm.compiler import graph_util
-import numpy as np
-import tvm
-from tvm.contrib import graph_runtime
 
 def test_cnn_gradients():
     # input data
@@ -134,61 +130,7 @@ def test_multi_loss_graph_gradients():
     # test reverse infer type for label
     assert grad_g.apply('InferType').json_attr('dtype_num_unknown_nodes') == 0
 
-def _run_op_grad(op):
-    ishapes = {
-        'a': (4,),
-        'b': (5, 4),
-        'g': (5, 4),
-    }
-    arrs = {}
-    syms = {}
-    params = {}
-    for n, s in ishapes.items():
-        syms[n] = sym.Variable(n, shape=s, dtype='float32')
-        arrs[n] = np.random.randn(*s).astype('float32')
-        params[n] = tvm.nd.array(arrs[n])
-
-    op = getattr(sym, 'broadcast_' + op)(syms['a'], syms['b'])
-    gop = graph_util.get_gradient_graph(op, [syms['a'], syms['b']], syms['g'])
-    net = nnvm.graph.create(gop)
-    with nnvm.compiler.build_config(opt_level=-1):
-        graph, lib, params = nnvm.compiler.build(net, 'llvm', params=params)
-
-    mod = graph_runtime.create(graph, lib, tvm.cpu(0))
-    mod.set_input(**params)
-    mod.run()
-
-    oshapes = ((4,), (5, 4))
-    outs = []
-    for i, s in enumerate(oshapes):
-        outs.append(mod.get_output(
-            i,tvm.nd.array(np.zeros(s, dtype='float32'))).asnumpy())
-
-    return [arrs['a'], arrs['b'], arrs['g']] + outs
-
-def test_broadcast_grads():
-    # add
-    a, b, g, da, db = _run_op_grad('add')
-    assert np.allclose(da, g.sum(0))
-    assert np.allclose(db, g)
-
-    # sub
-    a, b, g, da, db = _run_op_grad('sub')
-    assert np.allclose(da, g.sum(0))
-    assert np.allclose(db, -g)
-
-    # mul
-    a, b, g, da, db = _run_op_grad('mul')
-    assert np.allclose(da, (g * b).sum(0))
-    assert np.allclose(db, g * a)
-
-    # div
-    a, b, g, da, db = _run_op_grad('div')
-    assert np.allclose(da, (g / b).sum(0))
-    assert np.allclose(db, g * a / (2*b**2))
-
 
 if __name__ == "__main__":
     test_cnn_gradients()
     test_multi_loss_graph_gradients()
-    test_broadcast_grads()
