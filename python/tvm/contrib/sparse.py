@@ -29,19 +29,21 @@ class CSRNDArray(object):
         else:
             self.data = data
         if indices is None:
-            indices = _np.nonzero(source_array)[1]
+            indices = _np.nonzero(source_array)[1].astype('int32')
             self.indices = _nd.array(indices, ctx)
         else:
             self.indices = indices
         if indptr is None:
             indptr = [0]+_np.apply_along_axis(_np.count_nonzero, axis=1, arr=source_array).tolist()
-            indptr = _np.cumsum(_np.array(indptr, 'int32'))
+            indptr = _np.cumsum(_np.array(indptr, 'int32')).astype('int32')
             self.indptr = _nd.array(indptr, ctx)
         else:
             self.indptr = indptr
         assert isinstance(self.data, _nd.NDArray)
         assert isinstance(self.indices, _nd.NDArray)
+        assert str(self.indices.dtype) == 'int32', str(self.indices.dtype)
         assert isinstance(self.indptr, _nd.NDArray)
+        assert str(self.indptr.dtype) == 'int32', str(self.indptr.dtype)
 
     def asnumpy(self):
         """Construct a full matrix and convert it to numpy array."""
@@ -82,10 +84,9 @@ class CSRPlaceholderOp(object):
         self.dtype = dtype
         self.name = name
         self.stype = stype
-        # shape = (0,)
-        self.data = _api.placeholder(shape, dtype, name+'_data')
-        self.indices = _api.placeholder(shape, 'int32', name+'_indices')
-        self.indptr = _api.placeholder(shape, 'int32', name+'_indptr')
+        self.data = _api.placeholder((0,), dtype, name+'_data')
+        self.indices = _api.placeholder((0,), 'int32', name+'_indices')
+        self.indptr = _api.placeholder((self.shape[0]+1,), 'int32', name+'_indptr')
         assert isinstance(self.data, _tensor.Tensor)
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
