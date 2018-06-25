@@ -72,26 +72,34 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
 
-  CHECK_EQ(funcs.size(), 1);
-  const std::string funcname = funcs[0]->name;
-
+  // Generate source code for get_source().
   cg.Init(output_ssa);
-
   for (LoweredFunc f : funcs) {
     cg.AddFunction(f);
   }
-  std::string code = cg.Finish();
-  if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
-    code = (*f)(code).operator std::string();
+  std::string whole_code = cg.Finish();
+
+  // Generate source code for compilation.
+  Array<Expr> codes, funcnames;
+  for (LoweredFunc f : funcs) {
+    CodeGenVivadoHLS cg;
+    cg.Init(output_ssa);
+    cg.AddFunction(f);
+    std::string code = cg.Finish();
+    if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
+      code = (*f)(code).operator std::string();
+    }
+    codes.push_back(code);
+    funcnames.push_back(f->name);
   }
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    xclbin = (*f)(code, funcname).operator std::string();
+    xclbin = (*f)(codes, funcnames).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
-  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), code);
+  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), whole_code);
 }
 
 TVM_REGISTER_API("codegen.build_sdaccel")
