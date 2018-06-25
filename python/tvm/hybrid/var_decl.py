@@ -41,7 +41,8 @@ class PyVariableUsage(ast.NodeVisitor):
         #No function pointer supported so far
         if not isinstance(node.func, ast.Name):
             raise ValueError("Function call should be an id")
-        if (node.func.id not in HYBRID_GLOBALS.keys()) and node.func.id != 'range':
+        func_id = node.func.id
+        if func_id not in list(HYBRID_GLOBALS.keys()) + ['range', 'max', 'min']:
             raise ValueError("Function call id not in intrinsics' list")
         for elem in node.args:
             self.visit(elem)
@@ -64,7 +65,6 @@ class PyVariableUsage(ast.NodeVisitor):
             self.status[node.id] = (node, self.scope_level[-1], set())
         else:
             decl, loop, usage = self.status[node.id]
-            loop = self.scope_level[-1]
             usage.add(type(node.ctx))
             self.status[node.id] = (decl, loop, usage)
 
