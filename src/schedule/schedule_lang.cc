@@ -237,7 +237,6 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
   IterVar fused = IterVarNode::make(
       Range(), Var(fused_name, outer->var.type()), iter_type);
 
-  *p_target = fused;
   ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
   ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
 
@@ -255,6 +254,31 @@ Stage& Stage::fuse(IterVar outer, IterVar inner, IterVar* p_target) {  // NOLINT
                         leaf_vars->data.begin() + pos_inner + 1);
   leaf_vars->data.insert(leaf_vars->data.begin() + pos_outer,
                          fused.node_);
+  *p_target = fused;
+  return *this;
+}
+
+Stage& Stage::fuse(const Array<IterVar>& axes, IterVar* p_target) {  // NOLINT(*)
+  if (axes.size() != 0) {
+    IterVar fused = axes[0];
+    for (size_t i = 1; i < axes.size(); ++i) {
+      this->fuse(fused, axes[i], &fused);
+    }
+    *p_target = std::move(fused);
+  } else {
+    StageNode* self = operator->();
+    // special handle fuse empty array.
+    // insert at the outer most loop
+    IterVar singleton = IterVarNode::make(
+        Range::make_by_min_extent(0, 1),
+        Var("singleton", Int(32)), kDataPar);
+    self->relations.push_back(SingletonNode::make(singleton));
+    ArrayNode* all_vars = self->all_iter_vars.CopyOnWrite();
+    ArrayNode* leaf_vars = self->leaf_iter_vars.CopyOnWrite();
+    all_vars->data.push_back(singleton.node_);
+    leaf_vars->data.insert(leaf_vars->data.begin(), singleton.node_);
+    *p_target = singleton;
+  }
   return *this;
 }
 
@@ -732,11 +756,18 @@ IterVarRelation RebaseNode::make(IterVar parent, IterVar rebased) {
   return IterVarRelation(n);
 }
 
+IterVarRelation SingletonNode::make(IterVar iter) {
+  auto n = std::make_shared<SingletonNode>();
+  n->iter = iter;
+  return IterVarRelation(n);
+}
+
 TVM_REGISTER_NODE_TYPE(StageNode);
 TVM_REGISTER_NODE_TYPE(IterVarAttrNode);
 TVM_REGISTER_NODE_TYPE(SplitNode);
 TVM_REGISTER_NODE_TYPE(FuseNode);
 TVM_REGISTER_NODE_TYPE(RebaseNode);
+TVM_REGISTER_NODE_TYPE(SingletonNode);
 TVM_REGISTER_NODE_TYPE(ScheduleNode);
 
 // Printer
@@ -776,6 +807,11 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->print(op->parent);
     p->stream << ", rebased=";
     p->print(op->rebased);
+    p->stream << ')';
+})
+.set_dispatch<SingletonNode>([](const SingletonNode *op, IRPrinter *p) {
+    p->stream << "singleton(";
+    p->print(op->iter);
     p->stream << ')';
 })
 .set_dispatch<ScheduleNode>([](const ScheduleNode *op, IRPrinter *p) {

@@ -68,7 +68,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         if rhs_shape is None:
             rhs_npy = float(np.random.uniform(low=rhs_min, high=rhs_max))
             if dtype.startswith('int'):
-                lhs_npy = int(lhs_npy)
+                rhs_npy = int(rhs_npy)
             rhs_nd = rhs_npy
         else:
             rhs_npy = np.random.uniform(low=rhs_min, high=rhs_max,
@@ -77,8 +77,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
 
         out_npy = fnumpy(lhs_npy, rhs_npy)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
-        for _ in range(1):
-            foo(lhs_nd, rhs_nd, out_nd)
+        foo(lhs_nd, rhs_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     check_device("opencl")
@@ -94,6 +93,8 @@ def test_broadcast_to():
     verify_broadcast_to_ele((1, 128, 1, 32), (64, 128, 64, 32), topi.broadcast_to)
 
 def test_add():
+    verify_broadcast_binary_ele(
+        (), (), topi.add, np.add)
     verify_broadcast_binary_ele(
         (5, 2, 3), (2, 1), topi.add, np.add)
 
@@ -114,6 +115,8 @@ def test_multiply():
 def test_divide():
     verify_broadcast_binary_ele(
         None, (10,), topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (), None, topi.divide, np.divide, rhs_min=0.0001)
     verify_broadcast_binary_ele(
         (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
 
@@ -142,11 +145,26 @@ def test_cmp():
     verify_broadcast_binary_ele(
         (2, 1, 2), (2, 3, 1), less, np.less)
 
+def test_shift():
+    # explicit specify the output type
+    verify_broadcast_binary_ele(
+        (2, 1, 2), None, topi.right_shift, np.right_shift,
+        dtype="int32", rhs_min=0, rhs_max=32)
+
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
+        dtype="int32", rhs_min=0, rhs_max=32)
+
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
+        dtype="int8", rhs_min=0, rhs_max=32)
+
 
 if __name__ == "__main__":
+    test_add()
+    test_shift()
     test_cmp()
     test_mod()
-    test_add()
     test_subtract()
     test_multiply()
     test_divide()

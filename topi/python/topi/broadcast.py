@@ -210,7 +210,7 @@ def right_shift(lhs, rhs):
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
-    return _cpp.left_shift(lhs, rhs)
+    return _cpp.right_shift(lhs, rhs)
 
 
 def greater(lhs, rhs):
