@@ -81,6 +81,20 @@ def verify_reduce(dshape, fnp, fsym, **kwargs):
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
+def verify_collapse(dshape, target_shape):
+    x = sym.Variable("x", shape=dshape)
+    t = sym.Variable("t", shape=target_shape)
+    y = sym.collapse_sum(x, t)
+    dtype = "float32"
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target,
+                                            {"x": dshape, "t": target_shape})
+        m = graph_runtime.create(graph, lib, ctx)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        m.get_output(0, tvm.nd.empty(target_shape))
+
+
 def test_tranpose():
     verify_transpose((2, 3, 4), (0, 2, 1))
     verify_transpose((2, 3, 4), None)
@@ -90,6 +104,14 @@ def test_reduce():
     verify_reduce((2, 3, 4), np.max, sym.max, axis=1, keepdims=True)
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
+
+
+def test_collapse():
+    verify_collapse((2, 3, 4), (1,))
+    verify_collapse((2, 3, 4), (1, 1))
+    verify_collapse((2, 3, 4), (3, 4))
+    verify_collapse((2, 3, 4), (2, 3, 4))
+
 
 def verify_flip(ishape, axis):
     x = sym.Variable("x")
@@ -473,6 +495,7 @@ def test_nms():
 if __name__ == "__main__":
     test_reshape()
     test_reduce()
+    test_collapse()
     test_tranpose()
     test_clip()
     test_greater()
