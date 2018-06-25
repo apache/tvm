@@ -1,34 +1,18 @@
-Auto-tuning API
----------------
+tvm.autotvm
+-----------
 .. automodule:: tvm.autotvm
 
 tvm.autotvm.measure
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.measure.measure
 
-.. class:: tvm.autotvm.MeasureInput(target, task, config)
+.. autoclass:: tvm.autotvm.measure.MeasureInput
+    :members:
 
-      stores all the necessary inputs for a measurement.
+.. autoclass:: tvm.autotvm.measure.MeasureResult
+    :members:
 
-      :param Target target: The target device
-      :param Task task: Task function
-      :param ConfigEntity config: Specific configuration
-
-.. class:: tvm.autotvm.MeasureResult(costs, error_no, all_cost, timestamp)
-
-      stores all the results of a measurement
-
-     :param tuple costs:
-        If no error occurs for this measure, it is an array of measured running times.
-        If some error occurs during the measure, it is an array of the exception objections.
-     :param int error_no:
-        denote error type, defined by MeasureErrorNo
-     :param float all_cost:
-        all cost of this measure, including rpc, compilation, test runs
-     :param float timestamp:
-        The absolute time stamp when we finish measurement.
-
-.. autofunction:: tvm.autotvm.measure_option
+.. autofunction:: tvm.autotvm.measure.measure_option
 
 .. autofunction:: tvm.autotvm.measure.create_measure_batch
 
@@ -70,7 +54,7 @@ tvm.autotvm.template
     :members:
 
 tvm.autotvm.task
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.task
     :members:
 
@@ -78,6 +62,6 @@ tvm.autotvm.task
     :members:
 
 tvm.autotvm.record
-~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.record
     :members:

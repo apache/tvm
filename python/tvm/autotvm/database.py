@@ -64,7 +64,7 @@ class Database(object):
         """
         partial_results = [None] * len(measure_inputs)
         unsaved = list()
-        for i in range(len(measure_inputs)):
+        for i, inp in enumerate(measure_inputs):
             inp = measure_inputs[i]
             res = self.load(inp)
             skip = (res is not None and

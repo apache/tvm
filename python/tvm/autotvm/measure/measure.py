@@ -9,36 +9,37 @@ from ...contrib.rpc.server import Server
 
 from .local_executor import LocalExecutor
 
-"""
-MeasureInput stores all the necessary inputs for a measurement.
 
-Parameters
-----------
-target : tvm.target.Target
-    The target device
-task : task.Task
-    Task function
-config : ConfigEntity
-    Specific configuration.
-"""
-MeasureInput = namedtuple("MeasureInput", ["target", "task", "config"])
+class MeasureInput(namedtuple("MeasureInput", ["target", "task", "config"])):
+    """
+    Stores all the necessary inputs for a measurement.
 
-"""
-MeasureResult stores all the results of a measurement
+    Parameters
+    ----------
+    target : tvm.target.Target
+        The target device
+    task : task.Task
+        Task function
+    config : ConfigEntity
+        Specific configuration.
+    """
 
-Parameters
-----------
-costs: Array of float or Array of Exception
-    if no error occurs for this measure, it is an array of measured running times
-    if some error occurs during the measure, it is an array of the exception objections.
-error_no: int
-    denote error type, defined by MeasureErrorNo
-all_cost: float
-    all cost of this measure, including rpc, compilation, test runs
-timestamp: float
-    The absolute time stamp when we finish measurement.
-"""
-MeasureResult = namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])
+class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost", "timestamp"])):
+    """
+    Stores all the results of a measurement
+
+    Parameters
+    ----------
+    costs: Array of float or Array of Exception
+        if no error occurs for this measure, it is an array of measured running times
+        if some error occurs during the measure, it is an array of the exception objections.
+    error_no: int
+        denote error type, defined by MeasureErrorNo
+    all_cost: float
+        all cost of this measure, including rpc, compilation, test runs
+    timestamp: float
+        The absolute time stamp when we finish measurement.
+    """
 
 class MeasureErrorNo(object):
     """Error type for MeasureResult"""
