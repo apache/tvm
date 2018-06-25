@@ -7,7 +7,7 @@
 #include <dmlc/logging.h>
 
 extern "C" {
-#if USE_MKL_BLAS==1
+#if USE_MKL_BLAS == 1
 #include <mkl_cblas.h>
 #else
 #include <cblas.h>
