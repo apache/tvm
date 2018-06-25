@@ -15,14 +15,18 @@ def test_tensor():
     A = tvmsp.placeholder(shape=(m, ), name='A', dtype=dtype)
     print(vars(A))
     assert(A.stype == 'csr')
+    n = 3
+    a = np.maximum(np.random.uniform(size=(n,n)).astype(dtype)-.6, 0.)
+    a = tvmsp.array(a, ctx)
+    print(a.data.shape)
+    A.data = tvm.placeholder(a.data.shape, dtype, name='A_data')
+    Ab = tvm.decl_buffer(a.data.shape, dtype, name='A_data')
+    binds = {A.data: Ab}
     C = tvm.compute(A.data.shape, lambda i: A.data[i] * 2., tag='cs_scatter')
     print(C.shape)
     s = tvm.create_schedule(C.op)
-    f = tvm.build(s, [A.data, C], target)
-    n = 3
-    a = np.maximum(np.random.uniform(size=(n,n)).astype(dtype)-.6, 0.)
+    f = tvm.build(s, [A.data, C], target, binds=binds)
     print(a)
-    a = tvmsp.array(a, ctx)
     c = tvmsp.array(np.zeros((n,n), dtype), ctx)
     c.data = tvm.nd.empty(a.data.shape, dtype)
     c.indices = a.indices

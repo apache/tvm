@@ -23,7 +23,6 @@ class CSRNDArray(object):
         self.dtype = source_array.dtype
         if data is None:
             ridx, cidx = _np.nonzero(source_array)
-            print(ridx, cidx)
             data = source_array[ridx, cidx]
             self.data = _nd.array(data, ctx)
         else:
