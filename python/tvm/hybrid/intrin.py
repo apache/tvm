@@ -29,7 +29,7 @@ class bind(_range): #pylint: disable=invalid-name
 unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 
-def allocate(shape, dtype='float32'):
+def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-argument
     """Allocate a buffer with given shape
 
     Parameters
@@ -38,6 +38,8 @@ def allocate(shape, dtype='float32'):
         The shape of the tensor to be allocated
     dtype: string
         The data type of the tensor
+    scope: string
+        The storage scope of the tensor
 
     Returns
     -------
