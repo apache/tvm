@@ -11,7 +11,9 @@
 #include <vector>
 #include <iterator>
 
+#include "topi/elemwise.h"
 #include "topi/tags.h"
+#include "topi/transform.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
@@ -279,6 +281,36 @@ inline Expr MaxOp(Expr source, Array<IterVar> axis) {
 */
 inline Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   return CommReduce(data, axis, tvm::sum, keepdims);
+}
+
+inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
+  CHECK_GE(data->shape.size(), target_shape.size());
+  auto ishape = detail::GetConstIntValues(data->shape, "ishape");
+  auto oshape = detail::GetConstIntValues(target_shape, "oshape");
+  std::vector<Expr> r_axes;
+  bool keepdims = false;
+  std::vector<Expr> squeeze_axes;
+  for (int i_ax = ishape.size() - 1,
+      o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
+    if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
+      --o_ax;
+      continue;
+    }
+    r_axes.push_back(i_ax);
+    if (o_ax < 0) {  // squeeze o_ax if was added during expansion
+      squeeze_axes.push_back(i_ax);
+    } else if (oshape[o_ax] == 1) {
+      keepdims = true;
+      --o_ax;
+    }
+  }
+
+  if (r_axes.size() == 0) return topi::identity(data);
+
+  Tensor collapsed = sum(data, r_axes, keepdims);
+  if (keepdims && squeeze_axes.size())
+    collapsed = topi::squeeze(collapsed, squeeze_axes);
+  return collapsed;
 }
 
 /*!

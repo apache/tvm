@@ -120,29 +120,21 @@ inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
   attrs->parsed = std::move(param);
 }
 
-#define NNVM_REGISTER_REDUCE_OP(op)                                     \
-  NNVM_REGISTER_OP(op)                                                  \
-  .add_argument("data", "Tensor", "The input")                          \
-  .add_arguments(ReduceParam::__FIELDS__())                             \
-  .set_attr_parser(AxesParamParser<ReduceParam>)                        \
+#define NNVM_REGISTER_BASE_REDUCE_OP(op)                                 \
+  NNVM_REGISTER_OP(op)                                                   \
+  .add_arguments(ReduceParam::__FIELDS__())                              \
+  .set_attr_parser(AxesParamParser<ReduceParam>)                         \
   .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<ReduceParam>) \
+  .set_num_outputs(1)
+
+#define NNVM_REGISTER_REDUCE_OP(op)                                     \
+  NNVM_REGISTER_BASE_REDUCE_OP(op)                                      \
+  .add_argument("data", "Tensor", "The input")                          \
   .set_attr<FInferShape>("FInferShape", ReduceShape)                    \
   .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)               \
   .set_attr<FCorrectLayout>("FCorrectLayout",                           \
     ElemwiseFixedLayoutUnknownOut<1, 1>)                                \
-  .set_num_inputs(1)                                                    \
-  .set_num_outputs(1)
-
-#define NNVM_REGISTER_COLLAPSE_OP(op)                                     \
-  NNVM_REGISTER_OP(collapse_ ## op)                                      \
-  .add_argument("data", "Tensor", "The input")                          \
-  .add_argument("as", "Tensor", "The reference")                          \
-  .add_arguments(ReduceParam::__FIELDS__())                             \
-  .set_attr_parser(AxesParamParser<ReduceParam>)                        \
-  .set_attr<FInferShape>("FInferShape", CollapseShape)                    \
-  .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)               \
-  .set_num_inputs(2)                                                    \
-  .set_num_outputs(1)
+  .set_num_inputs(1)
 
 NNVM_REGISTER_REDUCE_OP(sum)
 .describe(R"code(Computes the sum of array elements over given axes.
@@ -255,40 +247,19 @@ NNVM_REGISTER_REDUCE_OP(min)
     };
 });
 
-NNVM_REGISTER_COLLAPSE_OP(sum)
+NNVM_REGISTER_BASE_REDUCE_OP(collapse_sum)
+.add_argument("data", "Tensor", "The input")
+.add_argument("as", "Tensor", "The reference")
+.set_attr<FInferShape>("FInferShape", CollapseShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<2, 1>)
+.set_num_inputs(2)
 .describe(R"code(Reduces lhs to the shape of rhs via sum)code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-    auto ishape = topi::detail::GetConstIntValues(inputs[0]->shape, "ishape");
-    auto oshape = topi::detail::GetConstIntValues(inputs[1]->shape, "oshape");
-    CHECK_GE(ishape.size(), oshape.size()) << attrs.name;
-    std::vector<dim_t> r_axes;
-    bool keepdims = false;
-    std::vector<dim_t> squeeze_axes;
-    for (int i_ax = ishape.size() - 1,
-             o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
-      if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
-        --o_ax;
-        continue;
-      }
-      r_axes.push_back(i_ax);
-      if (o_ax < 0) {  // squeeze o_ax if was added during expansion
-        squeeze_axes.push_back(i_ax);
-      } else if (oshape[o_ax] == 1) {
-        keepdims = true;
-        --o_ax;
-      }
-    }
-
-    if (r_axes.size() == 0) return Array<Tensor>{topi::identity(inputs[0])};
-
-    Tensor sum = topi::sum(inputs[0], ShapeToArray(TShape(r_axes)), keepdims);
-    if (keepdims && squeeze_axes.size())
-      sum = topi::squeeze(sum, ShapeToArray(TShape(squeeze_axes)));
-
-    return Array<Tensor>{ sum };
+    return Array<Tensor>{ topi::collapse_sum(inputs[0], inputs[1]->shape) };
 });
 
 }  // namespace top
