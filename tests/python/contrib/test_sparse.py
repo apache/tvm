@@ -44,29 +44,28 @@ def test_dynamic_tensor():
     stype = 'csr'
     target = 'llvm'
     ctx = tvm.context(target, 0)
-    m = tvm.var('m')
-    n = tvm.var('n')
-    nr, nc = 3, 5
-    A = tvmsp.placeholder(shape=(m, n), name='A', dtype=dtype)
+    nr, nc, n = tvm.var('nr'), tvm.var('nc'), tvm.var('n')
+    A = tvmsp.placeholder(shape=(nr, nc), nonzeros=n, name='A', dtype=dtype)
     print(vars(A))
     assert(A.stype == 'csr')
     C = tvm.compute(A.data.shape, lambda i: A.data[i] * 2., tag='cs_scatter')
     print(C.shape)
     s = tvm.create_schedule(C.op)
-    a = np.maximum(np.random.uniform(size=(nr, nc)).astype(dtype)-.6, 0.)
+    _nr, _nc = 3, 5
+    a = np.maximum(np.random.uniform(size=(_nr, _nc)).astype(dtype)-.6, 0.)
     a = tvmsp.array(a, ctx)
     print(a.data.shape)
     Ab = namedtuple('CSRBuffer', ['data', 'indices', 'indptr'])
     Ab.data = tvm.decl_buffer(a.data.shape, a.data.dtype, name='A_data')
     Ab.indices = tvm.decl_buffer(a.data.shape, a.data.dtype, name='A_indices')
     binds = {A.data: Ab.data, A.indices: Ab.indices}
-    f = tvm.build(s, [m, n, A.data, C], target, binds=binds)
+    f = tvm.build(s, [nr, A.data, C], target, binds=binds)
     print(a)
-    c = tvmsp.array(np.zeros((nr, nc), dtype), ctx)
+    c = tvmsp.array(np.zeros((_nr, _nc), dtype), ctx)
     c.data = tvm.nd.empty(a.data.shape, dtype)
     c.indices = a.indices
     c.indptr = a.indptr
-    f(nr, a.data.shape[0], a.data, c.data)
+    f(a.data.shape[0], a.data, c.data)
     print('==== output ====')
     print(a.asnumpy()*2.)
     print(c.asnumpy())
