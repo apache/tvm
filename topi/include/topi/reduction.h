@@ -6,6 +6,7 @@
 #ifndef TOPI_REDUCTION_H_
 #define TOPI_REDUCTION_H_
 
+#include <algorithm>
 #include <string>
 #include <set>
 #include <vector>
@@ -101,6 +102,55 @@ inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
  * \brief Create a reduction operation.
  *
  * \param data The input tensor.
+ * \param func The reduction function eg. tvm::sum
+ * \param target_shape The output Tensor shape.
+ * \param reduce_axes The real axes along which the reduction is performed.
+ * \param squeeze_axes The real axes to squeeze. Unsqueezed, reduced axes will
+ *                     have shape 1 in the output tensor.
+ *
+ * \return The result tensor.
+ */
+inline Tensor DoCommReduce(const Tensor& data,
+                           FReduce func,
+                           const Array<Expr>& target_shape,
+                           const std::vector<int>& reduce_axes,
+                           const std::vector<int>& squeeze_axes) {
+  auto r_axes = MakeReduceAxes(reduce_axes, data);
+  auto compute = [&](const Array<Var>& indices) {
+    Array<Expr> eval_range;
+    Array<Var> eval_indices;
+    int arg_counter = 0;
+    int red_counter = 0;
+    int keep_counter = 0;
+
+    for (size_t i = 0; i < data->shape.size(); ++i) {
+      bool squeeze_i = std::find(squeeze_axes.begin(), squeeze_axes.end(), i) != squeeze_axes.end();
+      if (std::find(reduce_axes.begin(), reduce_axes.end(), i) != reduce_axes.end()) {
+        // real_axis contains i
+        eval_range.push_back(r_axes[red_counter]);
+        eval_indices.push_back(r_axes[red_counter]->var);
+        red_counter++;
+        keep_counter += squeeze_i;
+        continue;
+      }
+      if (squeeze_i) {
+        eval_range.push_back(indices[arg_counter]);
+        arg_counter++;
+      } else {
+        eval_range.push_back(indices[keep_counter]);
+      }
+    }
+
+    return func(data(eval_range), r_axes);
+  };
+
+  return tvm::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
+}
+
+/*!
+ * \brief Create a reduction operation.
+ *
+ * \param data The input tensor.
  * \param axis The axes along which the reduction is performed.
  * \param func The reduction function eg. tvm::sum
  * \param keepdims If this is set to true, the axes which are reduced are
@@ -117,36 +167,9 @@ inline Tensor CommReduce(const Tensor& data,
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto axis_val = detail::GetConstIntValues(axis, "axis");
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis_val);
-  auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
-
-  auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
-  (const Array<Var>& indices) {
-    Array<Expr> eval_range;
-    Array<Var> eval_indices;
-    int arg_counter = 0;
-    int red_counter = 0;
-
-    for (size_t i = 0; i < ndim; ++i) {
-      if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
-        // real_axis contains i
-        eval_range.push_back(reduce_axes[red_counter]);
-        eval_indices.push_back(reduce_axes[red_counter]->var);
-        red_counter++;
-      } else {
-        if (!keepdims) {
-          eval_range.push_back(indices[arg_counter]);
-          arg_counter++;
-        } else {
-          eval_range.push_back(indices[i]);
-        }
-      }
-    }
-
-    return func(data(eval_range), reduce_axes);
-  };
-
-  return tvm::compute(target_shape, compute, data->op->name + "_red", kCommReduce);
+  return DoCommReduce(data, func, target_shape, real_axis,
+      keepdims ? std::vector<int>() : real_axis);
 }
 
 /*!
@@ -287,30 +310,28 @@ inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
   CHECK_GE(data->shape.size(), target_shape.size());
   auto ishape = detail::GetConstIntValues(data->shape, "ishape");
   auto oshape = detail::GetConstIntValues(target_shape, "oshape");
-  std::vector<Expr> r_axes;
-  bool keepdims = false;
-  std::vector<Expr> squeeze_axes;
+
+  std::vector<int> reduce_axes;
+  std::vector<int> squeeze_axes;
   for (int i_ax = ishape.size() - 1,
       o_ax = oshape.size() - 1; i_ax >= 0; --i_ax) {
     if (o_ax >= 0 && ishape[i_ax] == oshape[o_ax]) {
       --o_ax;
       continue;
     }
-    r_axes.push_back(i_ax);
+    reduce_axes.push_back(i_ax);
     if (o_ax < 0) {  // squeeze o_ax if was added during expansion
       squeeze_axes.push_back(i_ax);
     } else if (oshape[o_ax] == 1) {
-      keepdims = true;
       --o_ax;
     }
   }
 
-  if (r_axes.size() == 0) return topi::identity(data);
+  if (reduce_axes.size() == 0) return topi::identity(data);
 
-  Tensor collapsed = sum(data, r_axes, keepdims);
-  if (keepdims && squeeze_axes.size())
-    collapsed = topi::squeeze(collapsed, squeeze_axes);
-  return collapsed;
+  std::reverse(reduce_axes.begin(), reduce_axes.end());
+  std::reverse(squeeze_axes.begin(), squeeze_axes.end());
+  return DoCommReduce(data, tvm::sum, target_shape, reduce_axes, squeeze_axes);
 }
 
 /*!
