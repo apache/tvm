@@ -6,19 +6,22 @@ import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
 
-
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None, need_input=True, need_head_grads=True):
+           np_forward, np_backward=None,
+           need_input=True, need_head_grads=True,
+           rnd_min=-1, rnd_max=1):
     ishapes = {}
+    itypes = {}
     input_syms = []
     np_inputs = {}
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
-        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        itypes.update({name: dtype})
+        np_inputs.update({name: np.random.uniform(rnd_min, rnd_max, size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes, itypes)
         m = graph_runtime.create(graph, lib, ctx)
         m.run(**np_inputs)
         y_np = np_forward(**np_inputs)
@@ -165,7 +168,7 @@ def test_log():
     dtype = "float32"
     dshape = (1, 3, 32, 32)
     inputs = [('x', dshape, x)]
-    helper(y, inputs, dtype, forward, backward)
+    helper(y, inputs, dtype, forward, backward, rnd_min=0.001)
 
 
 def test_tanh():
@@ -278,7 +281,7 @@ def test_batchnorm():
         ('moving_var', (20,), moving_mean)
     ]
 
-    helper(y, inputs,  dtype, forward)
+    helper(y, inputs,  dtype, forward, rnd_min=0.001)
 
 
 def verify_concatenate(ishape, axis):
@@ -365,6 +368,65 @@ def test_pad():
     inputs = [('x', (1, 3, 28, 28), x)]
     helper(y, inputs, dtype, forward)
 
+def verify_lrn(ishape, size, axis, bias, alpha, beta):
+    x = sym.Variable("x")
+    y = sym.lrn(x, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+    dtype = "float32"
+    x_np = np.random.uniform(size=ishape).astype(dtype)
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+    #Checking LRN op followed by elementwise op relu
+    z = sym.relu(y)
+    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
+        out_np = (out_np > 0) * out_np
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def verify_l2_normalize(ishape, eps, axis):
+    x = sym.Variable("x")
+    y = sym.l2_normalize(x, eps=eps, axis=axis)
+    dtype = "float32"
+    x_np = np.random.uniform(size=ishape).astype(dtype)
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+    #Checking L2 normalization op followed by elementwise op relu
+    z = sym.relu(y)
+    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(x=x_np)
+        out = m.get_output(0, tvm.nd.empty(ishape))
+        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
+        out_np = (out_np > 0) * out_np
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def test_lrn():
+    verify_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
+    verify_lrn((1, 3, 20, 20), 3, 1, 2.0, 1.0, 0.75)
+
+def test_l2_normalize():
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1,))
+    verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
 
 if __name__ == "__main__":
     test_split()
@@ -384,3 +446,5 @@ if __name__ == "__main__":
     test_softmax()
     test_squeeze()
     test_pad()
+    test_lrn()
+    test_l2_normalize()

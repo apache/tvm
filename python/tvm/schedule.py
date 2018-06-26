@@ -153,6 +153,12 @@ class Fuse(NodeBase):
 
 
 @register_node
+class Singleton(NodeBase):
+    """Singleton axis."""
+    pass
+
+
+@register_node
 class IterVar(NodeBase, _expr.ExprOp):
     """Represent iteration variable.
 
@@ -380,10 +386,7 @@ class Stage(NodeBase):
         fused : IterVar
             The fused variable of iteration.
         """
-        assert len(args) >= 1, "Length of the arguments must be >=1 for fuse."
-        fused = args[0]
-        for i in range(1, len(args)):
-            fused = _api_internal._StageFuse(self, fused, args[i])
+        fused = _api_internal._StageFuse(self, args)
         return fused
 
     def set_scope(self, scope):

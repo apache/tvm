@@ -2,8 +2,7 @@
 """TVM operator for local response norm compute."""
 from __future__ import absolute_import
 import tvm
-import topi
-from .pad import pad
+from .. import cpp
 
 @tvm.target.generic_func
 def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
@@ -42,27 +41,4 @@ def lrn(data, size, axis=1, alpha=0.0001, beta=0.75, bias=2):
     output : tvm.Tensor
         4-D output with same shape
     """
-    assert len(data.shape) == 4, "only support 4-dim lrn"
-    assert (size % 2) == 1, "size should be odd number"
-    assert (axis == 1) or (axis == 3), "axis should 1 or 3 for NCHW and NHWC"
-    ##Add padding on left & right of size radius first
-    pad_after = pad_before = [0, 0, 0, 0]
-    pad_after[axis] = pad_before[axis] = (size//2)
-    pad_data = pad(data, pad_before, pad_after, name="pad_data")
-
-    rxs = tvm.reduce_axis((0, size), name='rxs')
-    if axis == 1:
-        #NCHW layout
-        sqr_sum = tvm.compute(data.shape, lambda i, j, k, l: tvm.sum(
-            pad_data[i, j + rxs, k, l] * pad_data[i, j + rxs, k, l],
-            axis=rxs))
-    elif axis == 3:
-        #NHWC layout
-        sqr_sum = tvm.compute(data.shape, lambda i, j, k, l: tvm.sum(
-            pad_data[i, j, k, l + rxs] * pad_data[i, j, k, l + rxs],
-            axis=rxs))
-
-    sqr_sum_up = tvm.compute(data.shape, lambda i, j, k, l: tvm.power(
-        (bias + (alpha * sqr_sum[i, j, k, l] / size)), beta))
-
-    return topi.broadcast_div(data, sqr_sum_up)
+    return cpp.nn.lrn(data, size, axis, alpha, beta, bias)

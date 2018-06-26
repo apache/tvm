@@ -32,6 +32,12 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.floor")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.ceil")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::ceil, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 

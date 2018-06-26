@@ -82,6 +82,8 @@ void PassDownDomain(const Stage& stage,
       Update(p_state, r->rebased,
              Range::make_by_min_extent(
                  0, state.at(r->parent)->extent));
+    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+      Update(p_state, s->iter, Range::make_by_min_extent(0, 1));
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -147,6 +149,7 @@ void PassUpIndex(const Stage& stage,
       } else {
         state[s->parent] = value;
       }
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -192,6 +195,8 @@ void PassDownIndex(const Stage& stage,
       Expr parent_min = dom_map.at(s->parent)->min;
       CHECK(is_zero(parent_min));
       state[s->rebased] = value;
+    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+      state[s->iter] = make_zero(s->iter->var.type());
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -296,6 +301,7 @@ void PassUpDomain(const Stage& stage,
                    state.at(r->rebased),
                    &parent);
       state[r->parent] = parent;
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -344,6 +350,7 @@ void PassUpBitMaskOr(const Stage& stage,
       } else {
         state[s->parent] |= state[s->rebased];
       }
+    } else if (rel.as<SingletonNode>()) {
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -390,6 +397,8 @@ void PassDownBitMaskOr(const Stage& stage,
       } else {
         state[s->rebased] |= state.at(s->parent);
       }
+    } else if (const SingletonNode* s = rel.as<SingletonNode>()) {
+      state[s->iter] = 0;
     } else {
       LOG(FATAL) << "unknown relation type";
     }
@@ -438,6 +447,8 @@ void PassUpBoundCheck(const Stage& s,
     } else if (rel.as<RebaseNode>()) {
       const RebaseNode* s = rel.as<RebaseNode>();
       state[s->parent] = state.at(s->rebased);
+    } else if (rel.as<SingletonNode>()) {
+      // nop
     } else {
       LOG(FATAL) << "unknown relation type";
     }

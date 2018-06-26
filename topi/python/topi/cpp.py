@@ -5,7 +5,6 @@ import ctypes
 from imp import new_module as _new_module
 from tvm._ffi.function import _init_api_prefix
 from tvm._ffi import libinfo
-import tvm as _tvm
 
 def _get_lib_names():
     if sys.platform.startswith('win32'):
@@ -35,7 +34,6 @@ def _create_module(name):
     return mod
 
 # pylint: disable-msg=C0103
-
 nn = _create_module("nn")
 _init_api_prefix("topi.cpp.nn", "topi.nn")
 generic = _create_module("generic")
@@ -52,41 +50,3 @@ yolo2 = _create_module("vision.yolo2")
 _init_api_prefix("topi.cpp.vision.yolo2", "topi.vision.yolo2")
 image = _create_module("image")
 _init_api_prefix("topi.cpp.image", "topi.image")
-
-class IntVector(object):
-    """Handle to std::vector<int> instance """
-    _tvm_tcode = 27
-
-    def __init__(self, handle):
-        self.handle = handle
-
-    def __del__(self):
-        _tvm.nd.free_extension_handle(self.handle, 27)
-
-    @property
-    def _tvm_handle(self):
-        return self.handle.value
-
-    def __getitem__(self, idx):
-        return ivec_get(self, idx)
-
-_tvm.register_extension(IntVector, IntVector)
-
-class Target(object):
-    """Handle to C++ Target instance """
-    _tvm_tcode = 28
-
-    def __init__(self, handle):
-        self.handle = handle
-
-    def __del__(self):
-        _tvm.nd.free_extension_handle(self.handle, 28)
-
-    @property
-    def _tvm_handle(self):
-        return self.handle.value
-
-    def __getitem__(self, idx):
-        return ivec_get(self, idx)
-
-_tvm.register_extension(Target, Target)

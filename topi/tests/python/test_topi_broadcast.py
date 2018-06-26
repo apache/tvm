@@ -4,10 +4,10 @@ import numpy as np
 import tvm
 import topi
 
-def verify_broadcast_to_ele(in_shape, out_shape):
+def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.broadcast_to(A, out_shape)
+    B = fbcast(A, out_shape)
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -32,24 +32,20 @@ def verify_broadcast_to_ele(in_shape, out_shape):
     check_device("rocm")
 
 
-def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
+def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
+                                ftopi, fnumpy,
+                                lhs_min=-100, lhs_max=100,
+                                rhs_min=-100, rhs_max=100,
+                                dtype="float32"):
     # Build the logic and compile the function
-    A = tvm.placeholder(shape=lhs_shape, name="A")
-    B = tvm.placeholder(shape=rhs_shape, name="B")
-    if typ == "add":
-        C = topi.broadcast_add(A, B)
-    elif typ == "sub":
-        C = topi.broadcast_sub(A, B)
-    elif typ == "div":
-        C = topi.broadcast_div(A, B)
-    elif typ == "mul":
-        C = topi.broadcast_mul(A, B)
-    elif typ == "maximum":
-        C = topi.broadcast_maximum(A, B)
-    elif typ == "minimum":
-        C = topi.broadcast_minimum(A, B)
-    else:
-        raise NotImplementedError
+    A = (tvm.var("A", dtype=dtype) if lhs_shape is None
+         else tvm.placeholder(shape=lhs_shape, name="A", dtype=dtype))
+    B = (tvm.var("B", dtype=dtype) if rhs_shape is None
+         else tvm.placeholder(shape=rhs_shape, name="B", dtype=dtype))
+    C = ftopi(A, B)
+    if (isinstance(A, tvm.expr.Expr) and isinstance(B, tvm.expr.Expr)):
+        assert(isinstance(C, tvm.expr.Expr))
+        return
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -58,54 +54,120 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape, typ="add"):
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             s = topi.generic.schedule_broadcast(C)
-        foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + typ)
-        lhs_npy = np.random.uniform(size=lhs_shape).astype(A.dtype)
-        rhs_npy = np.random.uniform(size=rhs_shape).astype(A.dtype)
-        if typ == "add":
-            out_npy = lhs_npy + rhs_npy
-        elif typ == "sub":
-            out_npy = lhs_npy - rhs_npy
-        elif typ == "div":
-            rhs_npy = np.abs(rhs_npy) + 0.001
-            out_npy = lhs_npy / rhs_npy
-        elif typ == "mul":
-            out_npy = lhs_npy * rhs_npy
-        elif typ == "maximum":
-            out_npy = np.maximum(lhs_npy, rhs_npy)
-        elif typ == "minimum":
-            out_npy = np.minimum(lhs_npy, rhs_npy)
+        foo = tvm.build(s, [A, B, C], device, name="broadcast_binary" + "_" + ftopi.__name__)
+        if lhs_shape is None:
+            lhs_npy = float(np.random.uniform(low=lhs_min, high=lhs_max))
+            if dtype.startswith('int'):
+                lhs_npy = int(lhs_npy)
+            lhs_nd = lhs_npy
         else:
-            raise NotImplementedError
-        lhs_nd = tvm.nd.array(lhs_npy, ctx)
-        rhs_nd = tvm.nd.array(rhs_npy, ctx)
-        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
-        for _ in range(1):
-            foo(lhs_nd, rhs_nd, out_nd)
+            lhs_npy = np.random.uniform(low=lhs_min, high=lhs_max,
+                                        size=lhs_shape).astype(A.dtype)
+            lhs_nd = tvm.nd.array(lhs_npy, ctx)
+
+        if rhs_shape is None:
+            rhs_npy = float(np.random.uniform(low=rhs_min, high=rhs_max))
+            if dtype.startswith('int'):
+                rhs_npy = int(rhs_npy)
+            rhs_nd = rhs_npy
+        else:
+            rhs_npy = np.random.uniform(low=rhs_min, high=rhs_max,
+                                        size=rhs_shape).astype(A.dtype)
+            rhs_nd = tvm.nd.array(rhs_npy, ctx)
+
+        out_npy = fnumpy(lhs_npy, rhs_npy)
+        out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
+        foo(lhs_nd, rhs_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
-    check_device("vulkan")
     check_device("opencl")
+    check_device("vulkan")
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
 
 def test_broadcast_to():
-    verify_broadcast_to_ele((1,), (10,))
-    verify_broadcast_to_ele((), (10,))
-    verify_broadcast_to_ele((1, 1, 5, 4), (3, 4, 4, 4, 5, 4))
-    verify_broadcast_to_ele((1, 128, 1, 32), (64, 128, 64, 32))
+    verify_broadcast_to_ele((1,), (10,), topi.broadcast_to)
+    verify_broadcast_to_ele((), (10,), topi.broadcast_to)
+    verify_broadcast_to_ele((1, 1, 5, 4), (3, 4, 4, 4, 5, 4), topi.broadcast_to)
+    verify_broadcast_to_ele((1, 128, 1, 32), (64, 128, 64, 32), topi.broadcast_to)
 
+def test_add():
+    verify_broadcast_binary_ele(
+        (), (), topi.add, np.add)
+    verify_broadcast_binary_ele(
+        (5, 2, 3), (2, 1), topi.add, np.add)
 
-def test_broadcast_binary():
-    verify_broadcast_binary_ele((5, 2, 3), (2, 1), typ="add")
-    verify_broadcast_binary_ele((5, 2, 3), (), typ="add")
-    verify_broadcast_binary_ele((5, 64, 128), (2, 5, 64, 1), typ="mul")
-    verify_broadcast_binary_ele((2, 3, 1, 32), (64, 32), typ="div")
-    verify_broadcast_binary_ele((1, 32), (64, 32), typ="sub")
-    verify_broadcast_binary_ele((32,), (64, 32), typ="maximum")
-    verify_broadcast_binary_ele((1, 2, 2, 1, 32), (64, 32), typ="minimum")
+def test_subtract():
+    verify_broadcast_binary_ele(
+        (5, 2, 3), (), topi.subtract, np.subtract)
+    verify_broadcast_binary_ele(
+        (5, 2, 3), None, topi.subtract, np.subtract)
+    verify_broadcast_binary_ele(
+        None, None, topi.subtract, np.subtract)
+    verify_broadcast_binary_ele(
+        (1, 32), (64, 32), topi.subtract, np.subtract)
+
+def test_multiply():
+    verify_broadcast_binary_ele(
+        (5, 64, 128), (2, 5, 64, 1), topi.multiply, np.multiply)
+
+def test_divide():
+    verify_broadcast_binary_ele(
+        None, (10,), topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (), None, topi.divide, np.divide, rhs_min=0.0001)
+    verify_broadcast_binary_ele(
+        (2, 3, 1, 32), (64, 32), topi.divide, np.divide, rhs_min=0.0001)
+
+def test_maximum_minmum():
+    verify_broadcast_binary_ele(
+        (32,), (64, 32), topi.maximum, np.maximum)
+    verify_broadcast_binary_ele(
+        (1, 2, 2, 1, 32), (64, 32), topi.minimum, np.minimum)
+
+def test_power():
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.power, np.power, lhs_min=0.001, rhs_min=0.001, rhs_max=2)
+
+def test_mod():
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.mod, np.mod, lhs_min=0.001, rhs_min=1, dtype="int32")
+
+def test_cmp():
+    # explicit specify the output type
+    def greater(x, y):
+        return topi.greater(x, y).astype("int8")
+    def less(x, y):
+        return topi.less(x, y).astype("int8")
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), greater, np.greater)
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 3, 1), less, np.less)
+
+def test_shift():
+    # explicit specify the output type
+    verify_broadcast_binary_ele(
+        (2, 1, 2), None, topi.right_shift, np.right_shift,
+        dtype="int32", rhs_min=0, rhs_max=32)
+
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
+        dtype="int32", rhs_min=0, rhs_max=32)
+
+    verify_broadcast_binary_ele(
+        (1, 2, 2), (2,), topi.left_shift, np.left_shift,
+        dtype="int8", rhs_min=0, rhs_max=32)
 
 
 if __name__ == "__main__":
-    test_broadcast_binary()
+    test_add()
+    test_shift()
+    test_cmp()
+    test_mod()
+    test_subtract()
+    test_multiply()
+    test_divide()
+    test_maximum_minmum()
+    test_power()
     test_broadcast_to()

@@ -21,3 +21,4 @@ Python API
    dev
    topi
    nnvm/index
+   hybrid

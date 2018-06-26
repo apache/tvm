@@ -159,7 +159,7 @@ void CodeGenOpenCL::PrintStorageSync(const Call* op) {
   const std::string& sync = op->args[0].as<StringImm>()->value;
   if (sync == "warp") {
     this->PrintIndent();
-    this->stream << "sub_group_barrier(CLK_LOCAL_MEM_FENCE);\n";
+    this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
   } else if (sync == "shared") {
     this->PrintIndent();
     this->stream << "barrier(CLK_LOCAL_MEM_FENCE);\n";
@@ -218,7 +218,7 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
 }
 
 TVM_REGISTER_API("codegen.build_opencl")

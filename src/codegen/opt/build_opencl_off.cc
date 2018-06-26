@@ -11,7 +11,8 @@ namespace runtime {
 Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap) {
+    std::unordered_map<std::string, FunctionInfo> fmap,
+    std::string source) {
   LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
   return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
 }

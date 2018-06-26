@@ -75,6 +75,10 @@ This level enables typical convnet models.
    nnvm.symbol.reshape
    nnvm.symbol.copy
    nnvm.symbol.negative
+   nnvm.symbol.floor
+   nnvm.symbol.ceil
+   nnvm.symbol.round
+   nnvm.symbol.trunc
    nnvm.symbol.leaky_relu
    nnvm.symbol.__add_scalar__
    nnvm.symbol.__sub_scalar__
@@ -84,6 +88,8 @@ This level enables typical convnet models.
    nnvm.symbol.__rdiv_scalar__
    nnvm.symbol.__pow_scalar__
    nnvm.symbol.__rpow_scalar__
+   nnvm.symbol.__lshift_scalar__
+   nnvm.symbol.__rshift_scalar__
 
 **Level 4: Broadcast and Reductions**
 
@@ -147,6 +153,10 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.reshape
 .. autofunction:: nnvm.symbol.copy
 .. autofunction:: nnvm.symbol.negative
+.. autofunction:: nnvm.symbol.floor
+.. autofunction:: nnvm.symbol.ceil
+.. autofunction:: nnvm.symbol.round
+.. autofunction:: nnvm.symbol.trunc
 .. autofunction:: nnvm.symbol.leaky_relu
 .. autofunction:: nnvm.symbol.__add_scalar__
 .. autofunction:: nnvm.symbol.__sub_scalar__
@@ -156,6 +166,8 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.__rdiv_scalar__
 .. autofunction:: nnvm.symbol.__pow_scalar__
 .. autofunction:: nnvm.symbol.__rpow_scalar__
+.. autofunction:: nnvm.symbol.__lshift_scalar__
+.. autofunction:: nnvm.symbol.__rshift_scalar__
 
 .. autofunction:: nnvm.symbol.transpose
 .. autofunction:: nnvm.symbol.broadcast_to

@@ -16,6 +16,7 @@ from . import node
 from . import ir_builder
 from . import target
 from . import generic
+from . import hybrid
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
@@ -34,4 +35,4 @@ from .build_module import build, lower, build_config
 from .tag import tag_scope
 
 # Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc
+from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

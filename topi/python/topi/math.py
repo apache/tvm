@@ -1,4 +1,5 @@
 """Elementwise operators"""
+# pylint: disable=redefined-builtin
 from __future__ import absolute_import as _abs
 import tvm
 from . import tag
@@ -105,6 +106,40 @@ def ceil(x):
         The result.
     """
     return tvm.compute(x.shape, lambda *i: tvm.ceil(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def trunc(x):
+    """Take truncated value of the input of x, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.trunc(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
+def round(x):
+    """Round elements of x to nearest integer.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.round(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
@@ -223,14 +258,14 @@ def clip(x, a_min, a_max):
     return tvm.compute(x.shape, _compute)
 
 
-@tvm.tag_scope(tag=tag.ELEMWISE)
 def cast(x, dtype):
     """Cast input to specified data type.
 
     Parameters
     ----------
-    x : tvm.Tensor
+    x : tvm.Tensor or Expr
         Input argument.
+
     dtype : str
         Data type.
 
@@ -239,4 +274,7 @@ def cast(x, dtype):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: x(*i).astype(dtype))
+    if isinstance(x, tvm.tensor.Tensor):
+        return tvm.compute(
+            x.shape, lambda *i: x(*i).astype(dtype), tag=tag.ELEMWISE)
+    return tvm.make.static_cast(dtype, x)

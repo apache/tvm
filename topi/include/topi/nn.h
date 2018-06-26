@@ -214,14 +214,14 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the matmult operation
+ * \return A Tensor whose op member is the matmul operation
  */
-inline tvm::Tensor matmult(const tvm::Tensor& A,
+inline tvm::Tensor matmul(const tvm::Tensor& A,
                            const tvm::Tensor& B,
                            bool trans_a = false,
                            bool trans_b = false,
                            std::string name = "tensor",
-                           std::string tag = kMatMult) {
+                           std::string tag = kMatMul) {
   tvm::Array<tvm::Expr> output_shape{A->shape[trans_a ? 1 : 0],
                                      B->shape[trans_b ? 0 : 1]};
   auto k = tvm::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");

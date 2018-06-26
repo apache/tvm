@@ -76,7 +76,7 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make("rocm"));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
-    if (t->device_name == "intel_gpu") {
+    if (t->device_name == "intel_graphics") {
       t->thread_warp_size = 16;
     }
   } else if (target_name == "metal" || target_name == "vulkan") {
@@ -88,6 +88,9 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
+  } else if (target_name == "sdaccel") {
+    t->device_type = kDLOpenCL;
+    t->keys_array.push_back(ir::StringImm::make("sdaccel"));
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
     t->keys_array.push_back(ir::StringImm::make("opengl"));
@@ -274,9 +277,9 @@ Target mali(const std::vector<std::string>& options) {
   }));
 }
 
-Target intel_gpu(const std::vector<std::string>& options) {
+Target intel_graphics(const std::vector<std::string>& options) {
   return CreateTarget("opencl", MergeOptions(options, {
-    "-device=intel_gpu"
+    "-device=intel_graphics"
   }));
 }
 

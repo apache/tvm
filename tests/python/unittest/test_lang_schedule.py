@@ -84,6 +84,19 @@ def test_fuse():
     assert any(isinstance(x, tvm.schedule.Fuse) for x in s[T].relations)
     assert tuple(s[T].leaf_iter_vars) == (fused, xi, yi)
 
+
+def test_singleton():
+    A = tvm.placeholder((), name='A')
+    T = tvm.compute((), lambda : A() + 1)
+    s = tvm.create_schedule(T.op)
+    fused = s[T].fuse()
+    assert any(isinstance(x, tvm.schedule.Singleton) for x in s[T].relations)
+    assert tuple(s[T].leaf_iter_vars) == (fused,)
+    dump = pkl.dumps(s)
+    s_loaded = pkl.loads(dump)
+    assert isinstance(s_loaded, tvm.schedule.Schedule)
+
+
 def test_vectorize():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -174,6 +187,7 @@ def test_tensor_intrin():
 
 
 if __name__ == "__main__":
+    test_singleton()
     test_pragma()
     test_tensor_intrin()
     test_rfactor()

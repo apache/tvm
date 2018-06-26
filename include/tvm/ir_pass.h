@@ -477,6 +477,30 @@ LoweredFunc LowerIntrin(LoweredFunc f, const std::string& target);
  */
 bool VerifyMemory(LoweredFunc func, int device_type);
 
+
+/*!
+ * \brief Verify the correctness of a GPU code
+ *        It will check the whether the amount of memory usage or the number of threads
+ *        in a block exceeds the limit
+ * \param stmt The statement to be checked
+ * \param constraints The dict to specify constraints to check.
+ *        Possible keys are
+ *
+ *        "max_local_memory_per_block": Total amount of local memory per block (in bytes).
+ *        "max_shared_memory_per_block": Total amount of shared memory per block (in bytes).
+ *        "max_thread_per_block": Maximum number of threads per block.
+ *        "max_thread_x": Maximum length of threadIdx.x.
+ *        "max_thread_y": Maximum length of threadIdx.y.
+ *        "max_thread_z": Maximum length of threadIdx.z.
+ *
+ *        If one key is missing in this argument, the pass won't check for that item.
+ * \return valid Whether it is a valid GPU code
+ *
+ */
+bool VerifyGPUCode(Stmt stmt,
+                   Map<std::string, Expr> constraints);
+
+
 }  // namespace ir
 }  // namespace tvm
 

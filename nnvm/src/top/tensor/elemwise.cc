@@ -31,6 +31,54 @@ Used to produce invalide node during optimization.
 .set_num_outputs(1)
 .set_num_inputs(0);
 
+// floor
+NNVM_REGISTER_ELEMWISE_UNARY_OP(floor)
+.describe(R"code(Take floor input array, computed element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::floor(inputs[0]) };
+});
+
+// ceil
+NNVM_REGISTER_ELEMWISE_UNARY_OP(ceil)
+.describe(R"code(Take ceil input array, computed element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::ceil(inputs[0]) };
+});
+
+// trunc
+NNVM_REGISTER_ELEMWISE_UNARY_OP(trunc)
+.describe(R"code(Take truncated value of the input, element-wise.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::trunc(inputs[0]) };
+});
+
+// round
+NNVM_REGISTER_ELEMWISE_UNARY_OP(round)
+.describe(R"code(Round elements of the input to nearest integer.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::round(inputs[0]) };
+});
+
 // sigmoid
 NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 .describe(R"code(Computes sigmoid.
@@ -182,7 +230,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_add)
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-      return Array<Tensor>{ topi::broadcast_add(inputs[0], inputs[1]) };
+      return Array<Tensor>{ topi::add(inputs[0], inputs[1]) };
   })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -205,7 +253,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_sub)
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-      return Array<Tensor>{ topi::broadcast_sub(inputs[0], inputs[1]) };
+    return Array<Tensor>{ topi::subtract(inputs[0], inputs[1]) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -228,7 +276,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_mul)
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-      return Array<Tensor>{ topi::broadcast_mul(inputs[0], inputs[1]) };
+      return Array<Tensor>{ topi::multiply(inputs[0], inputs[1]) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -253,7 +301,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_div)
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
-      return Array<Tensor>{ topi::broadcast_div(inputs[0], inputs[1]) };
+      return Array<Tensor>{ topi::divide(inputs[0], inputs[1]) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -463,6 +511,39 @@ NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rsub_scalar__)
       MakeNode("negative", n->attrs.name + "_grad_0", {ograds[0]})
     };
 });
+
+
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__lshift_scalar__)
+.describe(R"code(Tensor left shift by scalar
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ScalarParam& param = nnvm::get<ScalarParam>(attrs.parsed);
+    int scalar_val = static_cast<int>(param.scalar);
+    return Array<Tensor>{
+      topi::left_shift(inputs[0],
+                       make_const(inputs[0]->dtype, scalar_val))};
+    });
+
+NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__rshift_scalar__)
+.describe(R"code(Tensor right shift by scalar
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ScalarParam& param = nnvm::get<ScalarParam>(attrs.parsed);
+    int scalar_val = static_cast<int>(param.scalar);
+    return Array<Tensor>{
+      topi::right_shift(inputs[0],
+                        make_const(inputs[0]->dtype, scalar_val))};
+  });
 
 NNVM_REGISTER_ELEMWISE_BINARY_SCALAR(__mul_scalar__)
 .describe(R"code(Tensor multiplies scalar

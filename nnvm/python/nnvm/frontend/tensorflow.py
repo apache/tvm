@@ -33,6 +33,13 @@ class AttrCvt(object):
         self._ignores.append('_input_shapes')
         self._ignores.append('T')
         self._ignores.append('use_cudnn_on_gpu')
+        self._ignores.append('_node_name')
+        self._ignores.append('is_training')
+        # Retain the names
+        try:
+            attrs['name'] = attrs['_node_name']
+        except KeyError:
+            pass
         return AttrConvert(self._op_name, self._transforms, self._excludes,
                            self._disables, self._ignores, self._extras,
                            self._custom_check)(inputs, attrs, *args)
@@ -230,6 +237,85 @@ def _conv():
             custom_check=_dimension_constraint())(inputs, attr)
     return _impl
 
+def _depthwise_conv():
+    def _impl(inputs, attr, params):
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        input_shapes = attr['_input_shapes'][inputs[0]]
+
+        # Extract kernel shape from params
+        conv_param_weights = params[inputs[1].list_output_names()[0]]
+
+        if attr['data_format'] == 'NHWC':
+            kernel_h, kernel_w, _, depth_mult = conv_param_weights.shape
+            attr['kernel_shape'] = (conv_param_weights.shape[0], conv_param_weights.shape[1])
+            attr['channels'] = input_shapes[0][3] * depth_mult
+            if 'dilations' in attr:
+                attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
+        elif attr['data_format'] == 'NCHW':
+            depth_mult, _, kernel_h, kernel_w = conv_param_weights.shape
+            attr['kernel_shape'] = (conv_param_weights.shape[2], conv_param_weights.shape[3])
+            attr['channels'] = input_shapes[0][1] * depth_mult
+            if 'dilations' in attr:
+                attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
+        else:
+            raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
+
+        # Fix strides
+        attr['strides'] = (attr['strides'][1], attr['strides'][2])
+
+        # Fix groups
+        attr['groups'] = attr['channels']
+
+        # Fix padding
+        attr['padding'] = attr['padding'].decode("utf-8")
+
+        if attr['padding'] == 'VALID':
+            attr['padding'] = [0, 0]
+        elif attr['padding'] == 'SAME':
+            stride_h, stride_w = attr['strides']
+            kernel_h, kernel_w = attr['kernel_shape']
+            if attr['data_format'] == 'NHWC':
+                in_h = input_shapes[0][1]
+                in_w = input_shapes[0][2]
+            else:
+                in_h = input_shapes[0][2]
+                in_w = input_shapes[0][3]
+
+            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+
+            if attr['data_format'] == 'NHWC':
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1]),
+                                                (0, 0)))
+            else:
+                inputs[0] = _sym.pad(data=inputs[0],
+                                     pad_width=((0, 0),
+                                                (0, 0),
+                                                (pad_v[0], pad_v[1]),
+                                                (pad_h[0], pad_h[1])))
+
+            attr['padding'] = [0, 0]
+
+        else:
+            raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+
+        if 'kernel_layout' not in attr:
+            attr['kernel_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
+
+        return AttrCvt(
+            op_name=_dimension_picker('conv'),
+            transforms={
+                'kernel_shape': 'kernel_size',
+                'data_format': 'layout',
+                'dilations': ('dilation', (0, 0)),
+                'group': ('groups', 1)},
+            extras={'use_bias': len(inputs) == 3},
+            custom_check=_dimension_constraint())(inputs, attr)
+    return _impl
+
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
@@ -324,13 +410,19 @@ def _concat():
 
 def _reshape():
     def _impl(inputs, attr, params):
-        pop_node = inputs.pop(1)
-        shape_arg = params[pop_node.list_output_names()[0]]
-        params.pop(pop_node.list_output_names()[0])
-        return AttrCvt(
-            op_name="reshape",
-            extras={'shape':tuple(shape_arg.asnumpy())},
-            ignores=['Tshape'])(inputs, attr)
+        try:
+            pop_node = inputs[1]
+            shape_arg = params.pop(pop_node.list_output_names()[0])
+            inputs.pop(1)
+
+            return AttrCvt(
+                op_name="reshape",
+                extras={'shape':tuple(shape_arg.asnumpy())},
+                ignores=['Tshape'])(inputs, attr)
+        except KeyError:
+            return AttrCvt(
+                op_name="reshape_like",
+                ignores=['Tshape'])(inputs, attr)
     return _impl
 
 def _bias_add():
@@ -346,6 +438,18 @@ def _squeeze():
             ignores=['T'])(inputs, attr)
     return _impl
 
+def _fused_batch_norm():
+    def _impl(inputs, attr, params):
+        # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
+        # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
+        return AttrCvt(
+            op_name='batch_norm',
+            transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
+            extras={'axis': 3}, # Fix axis
+            ignores=['data_format'],
+            disables=['momentum'])(inputs, attr)
+    return _impl
+
 def _batch_norm():
     def _impl(inputs, attr, params):
         # Rearrange inputs from
@@ -358,7 +462,20 @@ def _batch_norm():
             op_name='batch_norm',
             transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
             extras={'axis': 3}, # Fix axis
+            ignores=['data_format'],
             disables=['momentum'])(new_inputs, attr)
+    return _impl
+
+def _relu6():
+    def _impl(inputs, attr, params):
+        return _sym.clip(inputs[0], a_min=0, a_max=6, name=attr['_node_name'])
+    return _impl
+
+def _shape():
+    def _impl(inputs, attr, params):
+        # Result of this operator is prominently used by reshape operator.
+        # Just pass the input as it is so that reshape_like can be used there.
+        return inputs[0]
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -392,6 +509,10 @@ _convert_map = {
     'Add'                               : _elemwise('add'),
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
+    'FusedBatchNorm'                    : _fused_batch_norm(),
+    'Relu6'                             : _relu6(),
+    'DepthwiseConv2dNative'             : _depthwise_conv(),
+    'Shape'                             : _shape(),
 }
 
 
@@ -458,9 +579,13 @@ class GraphProto(object):
                 self._num_input += 1
                 self._nodes[node.name] = _sym.Variable(name=node.name)
 
-                self._output_shapes[node.name] = \
-                     [tensor_util.TensorShapeProtoToList(shape) \
-                     for shape in self._parse_attr(node.attr)['_output_shapes']]
+                try:
+                    self._output_shapes[node.name] = \
+                         [tensor_util.TensorShapeProtoToList(shape) \
+                         for shape in self._parse_attr(node.attr)['_output_shapes']]
+                except KeyError:
+                    raise NotImplementedError( \
+                        "Please freeze the graph with add_shapes=True")
             elif node.op == "Const":
                 # Assuming first Const node as Graph Input node
                 if self._input_node == '':
@@ -476,16 +601,28 @@ class GraphProto(object):
                         raise NotImplementedError( \
                             "Const {} couldn't be converted to Param.".format(node.name))
 
-                self._output_shapes[node.name] = \
-                     [tensor_util.TensorShapeProtoToList(shape) \
-                     for shape in self._parse_attr(node.attr)['_output_shapes']]
+                try:
+                    self._output_shapes[node.name] = \
+                         [tensor_util.TensorShapeProtoToList(shape) \
+                         for shape in self._parse_attr(node.attr)['_output_shapes']]
+                except KeyError:
+                    raise NotImplementedError( \
+                        "Please freeze the graph with add_shapes=True")
             else:
                 attr = self._parse_attr(node.attr)
-                self._output_shapes[node.name] = \
-                     [tensor_util.TensorShapeProtoToList(shape) for shape in attr['_output_shapes']]
+                try:
+                    self._output_shapes[node.name] = \
+                         [tensor_util.TensorShapeProtoToList(shape) \
+                          for shape in attr['_output_shapes']]
+                except KeyError:
+                    raise NotImplementedError( \
+                        "Please freeze the graph with add_shapes=True")
 
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = self._output_shapes[node.name]
+
+                # Pass the node name too in attr
+                attr["_node_name"] = node.name
 
                 try:
                     inputs = [self._nodes[i] for i in node.input]
