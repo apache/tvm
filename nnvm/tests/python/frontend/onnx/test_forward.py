@@ -107,6 +107,43 @@ def test_reshape_like():
 
     np.testing.assert_allclose(ref_shape, tvm_out.shape)
 
+def test_squeeze():
+    in_shape = (1, 3, 1, 3, 1, 1)
+    out_shape = (3, 3)
+    y = helper.make_node("Squeeze", ['in'], ['out'])
+
+    graph = helper.make_graph([y],
+                              'squeeze_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='squeeze_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=in_shape)
+        tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
+
+    np.testing.assert_allclose(out_shape, tvm_out.shape)
+
+def test_unsqueeze():
+    in_shape = (3, 3)
+    axis = (0, 3, 4)
+    out_shape = (1, 3, 3, 1, 1)
+    y = helper.make_node("Unsqueeze", ['in'], ['out'], axes=list(axis))
+
+    graph = helper.make_graph([y],
+                              'squeeze_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='squeeze_test')
+
+    for target, ctx in ctx_list():
+        x = np.random.uniform(size=in_shape)
+        tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
+
+    np.testing.assert_allclose(out_shape, tvm_out.shape)
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -114,3 +151,5 @@ if __name__ == '__main__':
     verify_resnet18()
     test_reshape()
     test_reshape_like()
+    test_squeeze()
+    test_unsqueeze()
