@@ -83,7 +83,7 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    run_and_test(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
@@ -162,7 +162,7 @@ def test_fanout():
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
 
-    run_and_test(fanout, [n, a, b], [b], {n: 10})
+    run_and_check(fanout, [n, a, b], [b], {n: 10})
 
 
 @script
@@ -201,7 +201,7 @@ def test_looptype():
     assert jloop.for_type == tvm.stmt.For.Vectorized
     assert kloop.for_type == tvm.stmt.For.Unrolled
 
-    run_and_test(looptype, [a, b, c], [a, b, c])
+    run_and_check(looptype, [a, b, c], [a, b, c])
 
 
 def test_if():
@@ -218,7 +218,7 @@ def test_if():
     a = tvm.placeholder((10, ), dtype='int32', name='a')
     b = tvm.placeholder((10, ), dtype='int32', name='b')
 
-    run_and_test(if_then_else, [a, b], [a, b])
+    run_and_check(if_then_else, [a, b], [a, b])
 
 
 def test_bind():
@@ -234,7 +234,7 @@ def test_bind():
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
     c = tvm.placeholder((1000, ), dtype='float32', name='c')
 
-    run_and_test(vec_add, [a, b, c], [c], target='cuda')
+    run_and_check(vec_add, [a, b, c], [c], target='cuda')
 
 def test_math_intrin():
     @script
@@ -285,7 +285,7 @@ def test_non_zero():
     try:
         a = tvm.placeholder((32, 32), 'float32', 'a')
         b = tvm.placeholder((30, 30), 'float32', 'b')
-        run_and_test(blur, [a, b], [b])
+        run_and_check(blur, [a, b], [b])
     except IOError as err:
         assert sys.version_info[0] == 2
         print('[Warning] Case test_non_zero is skipped by Python2 because "%s"' % str(err))
@@ -300,7 +300,7 @@ def test_non_zero():
     b = tvm.placeholder((10, ), dtype='float32', name='b')
     c = tvm.placeholder((10, 10), dtype='float32', name='c')
 
-    run_and_test(triangle, [a, b, c], [c])
+    run_and_check(triangle, [a, b, c], [c])
 
 def test_allocate():
     @tvm.hybrid.script
@@ -316,7 +316,7 @@ def test_allocate():
     a = tvm.placeholder((32, 32), 'float32', 'a')
     b = tvm.placeholder((30, 30), 'float32', 'b')
 
-    run_and_test(blur2d, [a, b], [b])
+    run_and_check(blur2d, [a, b], [b])
 
     if tvm.gpu().exist:
         @tvm.hybrid.script
@@ -333,7 +333,7 @@ def test_allocate():
         a = tvm.placeholder((256, ), dtype='float32', name='a')
         b = tvm.placeholder((256, ), dtype='float32', name='b')
         c = tvm.placeholder((256, ), dtype='float32', name='c')
-        run_and_test(share_vec_add, [a, b, c], [c], target='cuda')
+        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 

@@ -9,7 +9,6 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/api_registry.h>
-#include <map>
 
 namespace tvm {
 namespace ir {
