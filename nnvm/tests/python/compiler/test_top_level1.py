@@ -329,10 +329,13 @@ def test_split():
     verify_split((5, 3), [3], axis=0)
     verify_split((5, 9, 3), [3, 4], axis=1)
 
-def verify_strided_slice(ishape, begin, end, stride=None):
-    stride = stride if stride else [1, 1, 1]
+def verify_strided_slice(ishape, begin, end, strideinp=None):
+    stride = strideinp if strideinp else [1, 1, 1]
     x = sym.Variable("x")
-    y = sym.strided_slice(x, begin = begin, end = end, stride = stride) + 1
+    if strideinp:
+        y = sym.strided_slice(x, begin = begin, end = end, stride = stride) + 1
+    else:
+        y = sym.strided_slice(x, begin = begin, end = end) + 1
     x_np = np.random.uniform(size=ishape).astype("float32")
     def test_forward(x, begin, end, stride):
         return x[begin[0]:end[0]:stride[0],
