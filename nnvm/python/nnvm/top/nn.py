@@ -73,6 +73,9 @@ def schedule_dense(_, outs, target):
 
 reg.register_pattern("dense", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+#matmul
+reg.register_pattern("matmul", OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_schedule("matmul", _fschedule_injective)
 
 # conv2d
 @reg.register_compute("conv2d")

@@ -3,15 +3,19 @@
  * \file matrix_op.cc
  * \brief Matrix operators
  */
+#include <topi/nn.h>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/top/tensor.h>
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 
 namespace nnvm {
 namespace top {
+
+using namespace nnvm::compiler;
 
 DMLC_REGISTER_PARAMETER(MatMulParam);
 
@@ -93,6 +97,15 @@ NNVM_REGISTER_OP(matmul)
 .set_attr<FInferShape>("FInferShape", DotShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
 .set_attr<FCorrectLayout>("FCorrectLayout", DotCorrectLayout)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const MatMulParam& param = nnvm::get<MatMulParam>(attrs.parsed);
+    return Array<Tensor>{
+      topi::matmul(inputs[0], inputs[1], param.transpose_a, param.transpose_b)
+    };
+  })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds) {
