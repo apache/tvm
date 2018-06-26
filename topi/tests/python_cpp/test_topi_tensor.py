@@ -32,7 +32,7 @@ def verify_elemwise_sum(num_args, dtype):
         np_out = np.sum(np.array(np_nd), axis=0)
         np.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm"]:
         check_device(device)
 
 
@@ -62,7 +62,7 @@ def verify_full(shape, dtype, fill_value):
         f(out)
         np.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm"]:
         check_device(device)
 
 
