@@ -24,7 +24,8 @@ namespace runtime {
 Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap);
+    std::unordered_map<std::string, FunctionInfo> fmap,
+    std::string source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

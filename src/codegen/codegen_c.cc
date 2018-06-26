@@ -60,6 +60,7 @@ void CodeGenC::AddFunction(LoweredFunc f) {
     stream << ' ' << vid;
   }
   stream << ") {\n";
+  this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
   this->EndScope(func_scope);
