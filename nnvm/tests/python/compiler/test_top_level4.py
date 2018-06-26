@@ -95,7 +95,7 @@ def verify_collapse(dshape, target_shape):
         m.get_output(0, tvm.nd.empty(target_shape))
 
 
-def test_tranpose():
+def test_transpose():
     verify_transpose((2, 3, 4), (0, 2, 1))
     verify_transpose((2, 3, 4), None)
 
@@ -538,7 +538,7 @@ if __name__ == "__main__":
     test_broadcast()
     test_reduce()
     test_collapse()
-    test_tranpose()
+    test_transpose()
     test_clip()
     test_greater()
     test_less()
