@@ -440,18 +440,14 @@ def _squeeze():
 
 def _fused_batch_norm():
     def _impl(inputs, attr, params):
-        # Rearrange inputs from
-        # (data, gamma, beta, moving_mean, moving_variance)
-        #     to
-        # (data, gamma, beta, moving_mean, moving_varience)
-        new_inputs = [inputs[0], inputs[1], inputs[2], inputs[3], inputs[4]]
-
+        # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
+        # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
         return AttrCvt(
             op_name='batch_norm',
             transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
             extras={'axis': 3}, # Fix axis
             ignores=['data_format'],
-            disables=['momentum'])(new_inputs, attr)
+            disables=['momentum'])(inputs, attr)
     return _impl
 
 def _batch_norm():
