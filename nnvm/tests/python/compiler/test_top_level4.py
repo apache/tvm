@@ -106,6 +106,7 @@ def test_reduce():
     verify_reduce((2, 3, 4), np.max, sym.max, axis=1, keepdims=True)
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
+    verify_reduce((4, 4, 3), np.sum, sym.sum)
 
 
 def test_collapse():

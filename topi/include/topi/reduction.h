@@ -94,6 +94,9 @@ inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
         target_shape.push_back(data->shape[i]);
       }
     }
+    if (target_shape.size() == 0) {
+      target_shape.push_back(1);
+    }
   }
   return target_shape;
 }
