@@ -6,7 +6,6 @@ from .._ffi.node import register_node
 from .. import expr as _expr
 from .. import api as _api
 from .. import tensor as _tensor
-from .. import schedule as _schedule
 from .. import ndarray as _nd
 
 float32 = "float32"
@@ -17,7 +16,25 @@ class CSRNDArray(object):
     """Sparse tensor object in CSR format."""
     def __init__(self, source_array=None,
                  data=None, indices=None, indptr=None, ctx=None):
-        """Construct a sparse matrix in CSR format."""
+        """Construct a sparse matrix in CSR format.
+
+        Parameters
+        ----------
+        source_array : numpy.ndarray
+            The corresponding numpy array.
+
+        data : tvm.ndarray (optional)
+            The data array for constructing sparse matrix
+
+        indices : tvm.ndarray (optional)
+            The indices array for constructing sparse matrix
+
+        indptr : tvm.ndarray (optional)
+            The indptr array for constructing sparse matrix
+
+        ctx: tvm.TVMContext
+            The corresponding context.
+        """
         self.stype = 'csr'
         self.shape = source_array.shape
         self.dtype = source_array.dtype
@@ -61,7 +78,7 @@ def array(source_array, ctx=None):
 
 @register_node
 class CSRPlaceholderOp(object):
-    """Placeholder class for csr based sparse tensor representation."""
+    """Placeholder class for CSR based sparse tensor representation."""
     def __init__(self, shape, nonzeros, dtype, name, stype):
         """Contructing a bare bone structure for a csr_matrix
 
@@ -90,40 +107,8 @@ class CSRPlaceholderOp(object):
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
 
-
-@register_node
-class CSRBuffer(_schedule.Buffer):
-    """Placeholder class for csr based sparse tensor representation."""
-    def __init__(self, shape, dtype, name, stype):
-        """Contructing a bare bone structure for a csr_matrix
-
-        Parameters
-        ----------
-        shape: Tuple of Expr
-            The shape of the tensor
-
-        dtype: str, optional
-            The data type of the tensor
-
-        name: str, optional
-            The name hint of the tensor
-
-        stype: str, optional
-            The storage type of the tensor
-        """
-        super(CSRBuffer, self).__init__(self)
-        self.shape = shape
-        self.dtype = dtype
-        self.name = name
-        self.stype = stype
-        shape = (0,)
-        self.data = _api.decl_buffer(shape, dtype, name+'_data')
-        self.indices = _api.decl_buffer(shape, 'int32', name+'_indices')
-        self.indptr = _api.decl_buffer(shape, 'int32', name+'_indptr')
-
-
 def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None):
-    """Construct an empty tensor object.
+    """Construct an empty sparse tensor object.
 
     Parameters
     ----------

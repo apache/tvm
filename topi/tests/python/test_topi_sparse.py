@@ -91,12 +91,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros((_nr, 1), dtype=dtype), ctx)
-        Ab = namedtuple('CSRBuffer', ['data','indices','indptr'])
-        Ab.data = tvm.decl_buffer(A.data.shape, A.data.dtype, name='A_data')
-        Ab.indices = tvm.decl_buffer(A.indices.shape, A.indices.dtype, name='A_indices')
-        Ab.indptr = tvm.decl_buffer(A.indptr.shape, A.indptr.dtype, name='A_indptr')
-        binds = {A.data: Ab.data, A.indices: Ab.indices, A.indptr: Ab.indptr}
-        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv", binds=binds)
+        f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         print(d.asnumpy().T)
         print(d_np.T)
