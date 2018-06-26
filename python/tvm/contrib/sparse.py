@@ -83,8 +83,8 @@ class CSRPlaceholderOp(object):
         self.dtype = dtype
         self.name = name
         self.stype = stype
-        self.data = _api.placeholder((0,), dtype, name+'_data')
-        self.indices = _api.placeholder((0,), 'int32', name+'_indices')
+        self.data = _api.placeholder((shape[1],), dtype, name+'_data')
+        self.indices = _api.placeholder((shape[1],), 'int32', name+'_indices')
         self.indptr = _api.placeholder((self.shape[0]+1,), 'int32', name+'_indptr')
         assert isinstance(self.data, _tensor.Tensor)
         assert isinstance(self.indices, _tensor.Tensor)
