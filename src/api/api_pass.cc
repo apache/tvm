@@ -9,6 +9,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/api_registry.h>
+#include <map>
 
 namespace tvm {
 namespace ir {
@@ -44,6 +45,15 @@ TVM_REGISTER_API("ir_pass.CanonicalSimplify")
       } else {
         *ret = CanonicalSimplify(args[0].operator Expr());
       }
+    }
+  });
+
+TVM_REGISTER_API("ir_pass.Substitute")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args[0].IsNodeType<Stmt>()) {
+      *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, Expr>());
+    } else {
+      *ret = Substitute(args[0].operator Expr(), args[1].operator Map<Var, Expr>());
     }
   });
 
