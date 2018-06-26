@@ -2,15 +2,7 @@
 """Schedule for cudnn and miopen extern op"""
 import tvm
 from .. import generic
-
-def _schedule_output(op, sch):
-    x = op.output(0)
-    fused = sch[x].fuse(*sch[x].op.axis)
-    num_thread = tvm.target.current_target(allow_none=False).max_num_threads
-    bx, tx = sch[x].split(fused, factor=num_thread)
-    sch[x].bind(bx, tvm.thread_axis("blockIdx.x"))
-    sch[x].bind(tx, tvm.thread_axis("threadIdx.x"))
-    return sch
+from .injective import _schedule_injective
 
 
 @generic.schedule_extern.register(["cuda", "gpu"])
@@ -36,5 +28,5 @@ def schedule_extern(outs):
     for out in outs:
         if isinstance(out.op, tvm.tensor.ExternOp):
             continue
-        _schedule_output(out.op, s)
+        _schedule_injective(out.op, s)
     return s
