@@ -436,6 +436,16 @@ class Cast(OnnxOpConverter):
         return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
 
 
+class Unsqueeze(OnnxOpConverter):
+    """ Operator converter for Unsqueeze.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        for axes in attr['axes']:
+            inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
+        return inputs[0]
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -543,7 +553,8 @@ def _get_convert_map(opset):
         # 'Slice'
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         # 'Gather'
-        # 'Squeeze'
+        'Squeeze': Renamer('squeeze'),
+        'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
         'Shape': Shape.get_converter(opset),
     }
