@@ -1,10 +1,5 @@
 # pylint: disable=unused-argument, no-self-use, invalid-name
-"""Base class of tuner
-
-A tuner takes a task as input. It proposes some promising ConfigEntity in the
-ConfigSpace and measure them on the real hardware. Then it proposed the next batch
- of ConfigEntity according to the measure results. This tuning loop is repeated.
-"""
+"""Base class of tuner"""
 import logging
 
 import numpy as np
@@ -138,6 +133,7 @@ class Tuner(object):
         Parameters
         ----------
         data_set: Array of (MeasureInput, MeasureResult) pair
+            Previous tuning records
         """
         raise NotImplementedError()
 

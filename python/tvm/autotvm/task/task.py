@@ -152,7 +152,7 @@ def create(func_name, args, target, target_host=None, template_key=None):
 
 def template(func):
     """
-    decorate a function as a template
+    Decorate a function as a tunable schedule template
 
     Parameters
     ----------
@@ -165,6 +165,39 @@ def template(func):
     -------
     func: callable
         The decorated function
+
+    Examples
+    --------
+    The following code is a tunable template for a blocked matrix multiplication
+
+    .. code-block:: python
+
+        @autotvm.template
+        def matmul(N, L, M, dtype):
+            A = tvm.placeholder((N, L), name='A', dtype=dtype)
+            B = tvm.placeholder((L, M), name='B', dtype=dtype)
+
+            k = tvm.reduce_axis((0, L), name='k')
+            C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
+            s = tvm.create_schedule(C.op)
+
+            # schedule
+            y, x = s[C].op.axis
+            k = s[C].op.reduce_axis[0]
+
+            ##### define space begin #####
+            cfg = autotvm.get_config()
+            cfg.define_split("tile_y", y, num_outputs=2)
+            cfg.define_split("tile_x", x, num_outputs=2)
+            ##### define space end #####
+
+            # schedule according to config
+            yo, yi = cfg["tile_y"].apply(s, C, y)
+            xo, xi = cfg["tile_x"].apply(s, C, x)
+
+            s[C].reorder(yo, xo, k, yi, xi)
+
+            return s, [A, B, C]
     """
     # pylint: disable=unused-variable
 
@@ -256,6 +289,7 @@ def compute_flop(sch):
         else:
             raise FlopCalculationError("Found unsupported operator in the compute expr")
 
+
     def traverse(ops):
         """accumulate flops"""
         ret = 0
@@ -270,6 +304,7 @@ def compute_flop(sch):
 
                 ret += num_element * _count_flop(exp)
                 ret += traverse([sch[t].op for t in op.input_tensors])
+
             elif isinstance(op, tensor.PlaceholderOp):
                 pass
             else:

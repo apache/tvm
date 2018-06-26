@@ -44,21 +44,15 @@ tvm.autotvm.tuner
 .. automodule:: tvm.autotvm.tuner.callback
     :members:
 
-
-tvm.autotvm.template
-~~~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.autotvm.template
-    :members:
-
-.. automodule:: tvm.autotvm.template.space
-    :members:
-
 tvm.autotvm.task
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.task
     :members:
 
 .. automodule:: tvm.autotvm.task.task
+    :members:
+
+.. automodule:: tvm.autotvm.task.space
     :members:
 
 tvm.autotvm.record

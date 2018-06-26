@@ -165,7 +165,7 @@ class ApplyHistoryBest(DispatchContext):
             "Cannot find config for target=%s, workload=%s" % (target, workload))
 
     def dump_best(self, out_file):
-        """dump record in self._best_map to a file
+        """Dump the best records for each workload to a file
 
         Parameters
         ----------
@@ -179,7 +179,7 @@ class ApplyHistoryBest(DispatchContext):
 
 
 def split_workload(in_file, clean=True):
-    """split a log file into separate files, each of which contains only a single workload
+    """Split a log file into separate files, each of which contains only a single workload
     This function can also delete duplicated records in log file
 
     Parameters

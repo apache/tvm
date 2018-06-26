@@ -181,11 +181,13 @@ def measure_rpc(input_pack,
 
             opts = build_option or {}
             if "check_gpu" in kwargs:
+                values = kwargs['check_gpu']
                 # Add cuda verify pass to filter out invalid configs in advance.
                 # This can accelerate the tuning process
-                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block']
+                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block',
+                              'max_thread_x', 'max_thread_y', 'max_thread_z']
                 opts["add_lower_pass"] = [
-                    (2, cuda_verify_pass(**{key: kwargs["gpu_" + key] for key in check_keys}))]
+                    (2, cuda_verify_pass(**{key: values[key] for key in check_keys}))]
 
             if 'cuda_arch' in kwargs:
                 set_cuda_target_arch(kwargs['cuda_arch'])

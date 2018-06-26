@@ -35,12 +35,12 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
     Parameters
     ----------
     costs: Array of float or Array of Exception
-        if no error occurs for this measure, it is an array of measured running times
-        if some error occurs during the measure, it is an array of the exception objections.
+        If no error occurs for this measurement, it is an array of measured running times.
+        If some error occurs during the measurement, it is an array of the exception objections.
     error_no: int
-        denote error type, defined by MeasureErrorNo
+        Denote error type, defined by MeasureErrorNo
     all_cost: float
-        all cost of this measure, including rpc, compilation, test runs
+        All cost of this measure, including rpc, compilation, test runs
     timestamp: float
         The absolute time stamp when we finish measurement.
     """
@@ -77,9 +77,11 @@ def measure_option(mode,
     Parameters
     ----------
     mode: str
-        'local': use the local device for measurement
+        'local': use the local device for measurement. In this mode,
+        the tuner starts a tracker and a RPC server silently for the user.
 
-        'rpc': request devices for measurement from rpc tracker
+        'rpc': request devices for measurement from rpc tracker. In this mode,
+        you should start a rpc tracker in a separate processing.
 
         'custom': use custom measure function
 
@@ -94,9 +96,10 @@ def measure_option(mode,
         where the first one is warm up. The returned result contains `repeat` costs,
         each of which is the average of `number` test run.
     timeout: int, optional
-        Timeout for a whole batch. TimeoutError will be returned as the result.
+        Timeout for a whole batch. TimeoutError will be returned as the result if a
+        task timeouts.
     parallel_num: int, optional
-        The number of measurement task that can run in parallel
+        The number of measurement task that can run in parallel.
         Set this according to the number of cpu cores (for compilation) and
         the number of devices you have (for measuring generate code).
     pack_size : int, optional
@@ -162,7 +165,7 @@ def create_measure_batch(task, options):
 
     Parameters
     ----------
-    task: tvm.task.Task
+    task: tvm.autotvm.task.Task
         The tuning task
     options: dict
         The option for measuring generated code.
@@ -227,7 +230,9 @@ def create_measure_batch(task, options):
     if 'cuda' in task.target.keys and 'rpc_device_key' in kwargs:  # query cuda device info
         add_cuda_device_info(kwargs['rpc_device_key'], kwargs['rpc_tracker_addr'], kwargs)
 
-    if check_correctness:  # use llvm to generate a reference input/output
+    if check_correctness:
+        # use llvm to generate a reference input/output
+        # this option works for tuning topi, but might not work for you custom op
         with _target.create("llvm"):
             s, arg_bufs = task.instantiate(task.config_space.get(0))
         ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
@@ -298,11 +303,19 @@ def create_measure_batch(task, options):
 
 
 def add_cuda_device_info(device_key, rpc_tracker_addr, kwargs):
+    """Query cuda device info. This is used to set the flags for nvcc compiler
+    and check the validity of a generated code."""
     from .measure_methods import request_remote
 
     remote = request_remote(device_key, rpc_tracker_addr)
     ctx = remote.context('cuda', 0)
-    kwargs['check_gpu'] = True
-    kwargs["gpu_max_shared_memory_per_block"] = ctx.max_shared_memory_per_block
-    kwargs["gpu_max_threads_per_block"] = ctx.max_threads_per_block
+    max_dims = ctx.max_thread_dimensions
+    kwargs['check_gpu'] = {
+        'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
+        'max_threads_per_block': ctx.max_threads_per_block,
+        'max_thread_x': max_dims[0],
+        'max_thread_y': max_dims[1],
+        'max_thread_z': max_dims[2],
+    }
+
     kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))

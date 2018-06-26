@@ -130,10 +130,6 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 # In practice, making 1000 trials usually can find some good kernels
 # for this template
 
-import numpy as np
-np.random.seed(10)
-
-
 # logging config (for printing tuning log to screen)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
@@ -152,7 +148,7 @@ measure_option = autotvm.measure_option(mode='local',
 
 # begin tuning, log records to file `cache.tsv`
 tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(n_trial=200,
+tuner.tune(n_trial=20,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('cache.tsv')])
 

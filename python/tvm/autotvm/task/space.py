@@ -540,7 +540,7 @@ class AnnotateEntity(object):
 
 
 class OtherOptionSpace(TransformSpace):
-    """The parameter space for global build option in tvm.build_config"""
+    """The parameter space for general option"""
     def __init__(self, axes, policy, **kwargs):
         super(OtherOptionSpace, self).__init__()
 
@@ -556,6 +556,7 @@ class OtherOptionSpace(TransformSpace):
 
 
 class OtherOptionEntity(object):
+    """The parameter entity for general option, with a detailed value"""
     def __init__(self, val):
         self.val = val
 

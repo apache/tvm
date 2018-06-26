@@ -11,6 +11,9 @@ def test_conv():
         D = tvm.placeholder((N, CI, H, W))
         K = tvm.placeholder((CO, CI, KH, KW))
 
+        KH = min(H, KH)
+        KW = min(W, KW)
+
         ci = tvm.reduce_axis((0, CI))
         kh = tvm.reduce_axis((0, KH))
         kw = tvm.reduce_axis((0, KW))
