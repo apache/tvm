@@ -59,7 +59,7 @@ struct StridedSliceParam : public dmlc::Parameter<StridedSliceParam> {
         .describe("Indices for begin of slice");
     DMLC_DECLARE_FIELD(end)
         .describe("Indices for end of the slice");
-    DMLC_DECLARE_FIELD(stride)
+    DMLC_DECLARE_FIELD(stride).set_default(Tuple<int64_t>())
         .describe("Stride values of the slice");
   }
 };

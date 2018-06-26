@@ -896,6 +896,7 @@ NNVM_REGISTER_OP(strided_slice)
 .set_attr_parser(StridedSliceParamParser)
 .set_attr<FInferShape>("FInferShape", StridedSliceInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
 .set_attr<FTVMCompute>(
