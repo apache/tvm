@@ -62,7 +62,7 @@ def array(source_array, ctx=None):
 @register_node
 class CSRPlaceholderOp(object):
     """Placeholder class for csr based sparse tensor representation."""
-    def __init__(self, shape, dtype, name, stype):
+    def __init__(self, shape, nonzeros, dtype, name, stype):
         """Contructing a bare bone structure for a csr_matrix
 
         Parameters
@@ -83,9 +83,9 @@ class CSRPlaceholderOp(object):
         self.dtype = dtype
         self.name = name
         self.stype = stype
-        self.data = _api.placeholder((shape[1],), dtype, name+'_data')
-        self.indices = _api.placeholder((shape[1],), 'int32', name+'_indices')
-        self.indptr = _api.placeholder((self.shape[0]+1,), 'int32', name+'_indptr')
+        self.data = _api.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
+        self.indices = _api.placeholder((nonzeros,), dtype='int32', name=self.name+'_indices')
+        self.indptr = _api.placeholder((self.shape[0]+1,), dtype='int32', name=self.name+'_indptr')
         assert isinstance(self.data, _tensor.Tensor)
         assert isinstance(self.indices, _tensor.Tensor)
         assert isinstance(self.indptr, _tensor.Tensor)
@@ -122,7 +122,7 @@ class CSRBuffer(_schedule.Buffer):
         self.indptr = _api.decl_buffer(shape, 'int32', name+'_indptr')
 
 
-def placeholder(shape, dtype=None, name="placeholder", stype=None):
+def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None):
     """Construct an empty tensor object.
 
     Parameters
@@ -142,6 +142,7 @@ def placeholder(shape, dtype=None, name="placeholder", stype=None):
         The created tensor
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    nonzeros = 0 if nonzeros is None else nonzeros
     dtype = float32 if dtype is None else dtype
     stype = csr if stype is None else stype
-    return CSRPlaceholderOp(shape, dtype, name, stype)
+    return CSRPlaceholderOp(shape=shape, nonzeros=nonzeros, dtype=dtype, name=name, stype=stype)
