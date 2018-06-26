@@ -136,23 +136,3 @@ class Tuner(object):
             Previous tuning records
         """
         raise NotImplementedError()
-
-    def save_state(self, filename):
-        """save the tuning state to file
-
-        Parameters
-        ----------
-        filename: str
-            name of file
-        """
-        raise NotImplementedError()
-
-    def load_state(self, filename):
-        """load the tuning state from file
-
-        Parameters
-        ----------
-        filename: str
-            name of file
-        """
-        raise NotImplementedError()

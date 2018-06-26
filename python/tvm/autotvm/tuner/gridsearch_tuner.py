@@ -1,6 +1,5 @@
 # pylint: disable=abstract-method
 """Grid search tuner and random tuner"""
-import pickle
 
 import numpy as np
 
@@ -26,13 +25,11 @@ class GridSearchTuner(Tuner):
     def has_next(self):
         return self.counter < len(self.task.config_space)
 
-    def save_state(self, filename):
-        with open(filename, "wb") as fout:
-            pickle.dump(self.counter, fout)
+    def __getstate__(self):
+        return {"counter": self.counter}
 
-    def load_state(self, filename):
-        with open(filename, "rb") as fin:
-            self.counter = pickle.load(fin)
+    def __setstate__(self, state):
+        self.counter = state['counter']
 
 
 class RandomTuner(Tuner):
@@ -59,10 +56,8 @@ class RandomTuner(Tuner):
     def has_next(self):
         return len(self.visited) < len(self.task.config_space)
 
-    def save_state(self, filename):
-        with open(filename, "wb") as fout:
-            pickle.dump(self.visited, fout)
+    def __getstate__(self):
+        return {"visited": self.counter}
 
-    def load_state(self, filename):
-        with open(filename, "rb") as fin:
-            self.visited = pickle.load(fin)
+    def __setstate__(self, state):
+        self.counter = state['visited']

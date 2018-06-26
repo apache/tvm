@@ -4,8 +4,6 @@ This type of tuner will fit a cost model and use simulated annealing to
 find optimums in space according to the cost model.
 """
 
-import pickle
-
 import numpy as np
 
 from .tuner import Tuner
@@ -114,23 +112,24 @@ class ModelBasedBaseTuner(Tuner):
     def has_next(self):
         return len(self.visited) < len(self.space)
 
-    def save_state(self, filename):
-        data_pack = (self.visited, self.trials, self.trial_pt,
-                     self.xs, self.ys, self.train_ct,
-                     self.flops_max)
-        if filename is not None:
-            with open(filename, 'wb') as fout:
-                pickle.dump(data_pack, fout)
-        return data_pack
+    def __getstate__(self):
+        state = {"visited": self.visited,
+                 "trials": self.trials,
+                 "trial_pt": self.trial_pt,
+                 "xs": self.xs,
+                 "ys": self.ys,
+                 "train_ct": self.train_ct,
+                 "flops_max": self.flops_max}
+        return state
 
-    def load_state(self, filename):
-        with open(filename, 'rb') as fin:
-            data_pack = pickle.load(fin)
-            self.visited, self.trials, self.trial_pt, \
-                self.xs, self.ys, self.train_ct, \
-                self.flops_max = data_pack
-
-        return data_pack
+    def __setstate__(self, state):
+        self.visited = state["visited"]
+        self.trials = state["trials"]
+        self.trial_pt = state["trial_pt"]
+        self.xs = state["xs"]
+        self.ys = state["ys"]
+        self.train_ct = state["train_ct"]
+        self.flops_max = state["flops_max"]
 
 def point2knob(p, dims):
     """convert point form (single integer) to knob form (multi dimension)"""
