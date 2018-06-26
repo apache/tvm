@@ -319,6 +319,22 @@ def test_allocate():
 
     run_and_test(blur2d, [a, b], [b])
 
+    @tvm.hybrid.script
+    def share_vec_add(a, b, c):
+        shared = allocate((256, ), 'float32', 'shared')
+        for i in bind("threadIdx.x", 256):
+            shared[i] = a[i]
+        local = allocate((256, ), 'float32', 'local')
+        for i in bind("threadIdx.x", 256):
+            local[i] = b[i]
+        for i in bind("threadIdx.x", 256):
+            c[i] = shared[i] + local[i]
+
+    a = tvm.placeholder((256, ), dtype='float32', name='a')
+    b = tvm.placeholder((256, ), dtype='float32', name='b')
+    c = tvm.placeholder((256, ), dtype='float32', name='c')
+    run_and_test(share_vec_add, [a, b, c], [c], target='cuda')
+
 
 if __name__ == "__main__":
     test_outer_product()
