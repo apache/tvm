@@ -407,6 +407,29 @@ def test_forward_inception_v1():
         np.testing.assert_allclose(tf_output, tvm_output, rtol=2e-2, atol=2e-2)
 
 #######################################################################
+# Mobilenet
+# ---------
+def test_forward_mobilenet():
+    '''test mobilenet model'''
+    with tf.Graph().as_default():
+        graph_def = nnvm.testing.tf.get_workload_mobilenet()
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
+
+        data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
+        out_node = 'MobilenetV1/Predictions/Reshape_1'
+
+        with tf.Session() as sess:
+            tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
+
+            out_shape = tf_output.shape
+            tvm_output = run_tvm_graph(graph_def, data, 'input', out_shape, 'float32')
+            top_tvm = np.squeeze(tvm_output).argsort()[-10:][::-1]
+            top_tf = np.squeeze(tf_output).argsort()[-10:][::-1]
+
+            np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -419,3 +442,4 @@ if __name__ == '__main__':
     test_forward_multi_input()
     test_forward_inception_v3()
     test_forward_inception_v1()
+    test_forward_mobilenet()

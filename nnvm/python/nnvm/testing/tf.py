@@ -153,6 +153,35 @@ def read_normalized_tensor_from_image_file(file_name,
     np_array = normalized.eval()
     return np_array
 
+def get_workload(model_path):
+    """ Import workload from frozen protobuf
+
+    Parameters
+    ----------
+    model_path: str
+        model_path on remote repository to download from.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
+    model_name = os.path.basename(model_path)
+    model_url = os.path.join(repo_base, model_path)
+
+    from mxnet.gluon.utils import download
+    download(model_url, model_name)
+
+    # Creates graph from saved graph_def.pb.
+    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+        graph_def = tf.GraphDef()
+        graph_def.ParseFromString(f.read())
+        graph = tf.import_graph_def(graph_def, name='')
+        return graph_def
+
 def get_workload_inception_v3():
     """ Import Inception V3 workload from frozen protobuf
 
@@ -168,23 +197,15 @@ def get_workload_inception_v3():
     """
 
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
-    model_name = 'inception_v3_2016_08_28_frozen-with_shapes.pb'
-    model_url = os.path.join(repo_base, model_name)
+    model_path = 'InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb'
+
     image_name = 'elephant-299.jpg'
     image_url = os.path.join(repo_base, image_name)
-
     from mxnet.gluon.utils import download
-    download(model_url, model_name)
     download(image_url, image_name)
-
     normalized = read_normalized_tensor_from_image_file(os.path.join("./", image_name))
 
-    # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
-        graph_def = tf.GraphDef()
-        graph_def.ParseFromString(f.read())
-        graph = tf.import_graph_def(graph_def, name='')
-        return (normalized, graph_def)
+    return (normalized, get_workload(model_path))
 
 def get_workload_inception_v1():
     """ Import Inception V1 workload from frozen protobuf
@@ -203,13 +224,11 @@ def get_workload_inception_v1():
     """
 
     repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
-    model_name = 'classify_image_graph_def-with_shapes.pb'
-    model_url = os.path.join(repo_base, model_name)
+    model_path = 'InceptionV1/classify_image_graph_def-with_shapes.pb'
     image_name = 'elephant-299.jpg'
     image_url = os.path.join(repo_base, image_name)
 
     from mxnet.gluon.utils import download
-    download(model_url, model_name)
     download(image_url, image_name)
 
     if not tf.gfile.Exists(os.path.join("./", image_name)):
@@ -221,9 +240,20 @@ def get_workload_inception_v1():
     tvm_data = Image.open(os.path.join("./", image_name)).resize((299, 299))
     tvm_data = np.array(tvm_data)
 
-    # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
-        graph_def = tf.GraphDef()
-        graph_def.ParseFromString(f.read())
-        graph = tf.import_graph_def(graph_def, name='')
-        return (image_data, tvm_data, graph_def)
+    return (image_data, tvm_data, get_workload(model_path))
+
+def get_workload_mobilenet():
+    """ Import mobilenet workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    return get_workload("MobilenetV1/mobilenet_v1_1.0_224_frozen-with-shapes.pb")
