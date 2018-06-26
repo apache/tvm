@@ -218,7 +218,7 @@ runtime::Module BuildOpenCL(Array<LoweredFunc> funcs) {
   if (const auto* f = Registry::Get("tvm_callback_opencl_postproc")) {
     code = (*f)(code).operator std::string();
   }
-  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs));
+  return OpenCLModuleCreate(code, "cl", ExtractFuncInfo(funcs), code);
 }
 
 TVM_REGISTER_API("codegen.build_opencl")
