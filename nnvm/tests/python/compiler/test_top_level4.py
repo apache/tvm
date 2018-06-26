@@ -81,7 +81,7 @@ def verify_reduce(dshape, fnp, fsym, **kwargs):
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
-def verify_collapse(dshape, target_shape):
+def verify_collapse(dshape, target_shape, fnp):
     x = sym.Variable("x", shape=dshape)
     t = sym.Variable("t", shape=target_shape)
     y = sym.collapse_sum(x, t)
@@ -92,7 +92,9 @@ def verify_collapse(dshape, target_shape):
         m = graph_runtime.create(graph, lib, ctx)
         data = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=data)
-        m.get_output(0, tvm.nd.empty(target_shape))
+        out = m.get_output(0, tvm.nd.empty(target_shape))
+        out_np = fnp(data)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
 def test_transpose():
@@ -107,10 +109,17 @@ def test_reduce():
 
 
 def test_collapse():
-    verify_collapse((2, 3, 4), (1,))
-    verify_collapse((2, 3, 4), (1, 1))
-    verify_collapse((2, 3, 4), (3, 4))
-    verify_collapse((2, 3, 4), (2, 3, 4))
+    verify_collapse((2, 3, 4), (1,), lambda x: x.sum())
+    verify_collapse((2, 3, 4), (1, 1, 1), lambda x: x.sum(keepdims=True))
+    verify_collapse((2, 3, 4), (1, 1), lambda x: x.sum().reshape(1, 1))
+    verify_collapse((2, 3, 4), (1, 4), lambda x: x.reshape(-1, 4).sum(0, keepdims=True))
+    verify_collapse((2, 3, 4), (3, 4), lambda x: x.sum(0))
+    verify_collapse((2, 3, 4), (1, 3, 4), lambda x: x.sum(0, keepdims=True))
+    verify_collapse((2, 3, 4), (1, 1, 4), lambda x: x.sum((0, 1), keepdims=True))
+    verify_collapse((2, 3, 4), (2, 3, 4), lambda x: x)
+    verify_collapse((2, 3, 4), (2, 1, 4), lambda x: x.sum(1, keepdims=True))
+    verify_collapse((2, 3, 4), (2, 1, 1), lambda x: x.sum((1, 2), keepdims=True))
+    verify_collapse((2, 3, 4), (2, 3, 1), lambda x: x.sum(2, keepdims=True))
 
 
 def verify_flip(ishape, axis):

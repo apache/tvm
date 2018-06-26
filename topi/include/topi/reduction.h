@@ -121,7 +121,6 @@ inline Tensor DoCommReduce(const Tensor& data,
     Array<Var> eval_indices;
     int arg_counter = 0;
     int red_counter = 0;
-    int keep_counter = 0;
 
     for (size_t i = 0; i < data->shape.size(); ++i) {
       bool squeeze_i = std::find(squeeze_axes.begin(), squeeze_axes.end(), i) != squeeze_axes.end();
@@ -130,15 +129,11 @@ inline Tensor DoCommReduce(const Tensor& data,
         eval_range.push_back(r_axes[red_counter]);
         eval_indices.push_back(r_axes[red_counter]->var);
         red_counter++;
-        keep_counter += squeeze_i;
+        arg_counter += !squeeze_i;
         continue;
       }
-      if (squeeze_i) {
-        eval_range.push_back(indices[arg_counter]);
-        arg_counter++;
-      } else {
-        eval_range.push_back(indices[keep_counter]);
-      }
+      eval_range.push_back(indices[arg_counter]);
+      arg_counter++;
     }
 
     return func(data(eval_range), r_axes);
