@@ -3,7 +3,7 @@ from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @nose.tools.nottest
-def run_and_test(func, args, outs, var_dict={}, target='llvm'):
+def run_and_check(func, args, outs, var_dict={}, target='llvm'):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
