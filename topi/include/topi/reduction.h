@@ -325,7 +325,7 @@ inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
     }
   }
 
-  if (reduce_axes.size() == 0) return topi::identity(data);
+  if (reduce_axes.size() == 0) return topi::identity(data, "tensor", kCommReduce);
 
   std::reverse(reduce_axes.begin(), reduce_axes.end());
   std::reverse(squeeze_axes.begin(), squeeze_axes.end());

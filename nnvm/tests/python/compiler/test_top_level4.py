@@ -117,10 +117,10 @@ def test_collapse():
     verify_collapse((2, 3, 4), (3, 4), lambda x: x.sum(0))
     verify_collapse((2, 3, 4), (1, 3, 4), lambda x: x.sum(0, keepdims=True))
     verify_collapse((2, 3, 4), (1, 1, 4), lambda x: x.sum((0, 1), keepdims=True))
-    verify_collapse((2, 3, 4), (2, 3, 4), lambda x: x)
     verify_collapse((2, 3, 4), (2, 1, 4), lambda x: x.sum(1, keepdims=True))
     verify_collapse((2, 3, 4), (2, 1, 1), lambda x: x.sum((1, 2), keepdims=True))
     verify_collapse((2, 3, 4), (2, 3, 1), lambda x: x.sum(2, keepdims=True))
+    verify_collapse((2, 3, 4), (2, 3, 4), lambda x: x)
 
 
 def verify_flip(ishape, axis):
