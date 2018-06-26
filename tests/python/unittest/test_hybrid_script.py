@@ -1,7 +1,8 @@
-import tvm, inspect, sys, traceback, numpy
+import tvm, inspect, sys, traceback, numpy, nose
 from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
+@nose.tools.nottest
 def run_and_test(func, args, outs, var_dict={}, target='llvm'):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
@@ -9,10 +10,8 @@ def run_and_test(func, args, outs, var_dict={}, target='llvm'):
         assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm))
         return val.value
 
-    if target == 'llvm':
-        ctx = tvm.cpu()
-    else:
-        ctx = tvm.gpu()
+    ctx = tvm.context(target, 0)
+
     emu_args = []
     nd_args = []
     to_check = []
@@ -224,7 +223,7 @@ def test_if():
 
 def test_bind():
     if not tvm.gpu(0).exist:
-        print('No GPU found! Skip this test!')
+        print('[Warning] No GPU found! Skip bind test!')
         return
     @script
     def vec_add(a, b, c):
@@ -319,21 +318,24 @@ def test_allocate():
 
     run_and_test(blur2d, [a, b], [b])
 
-    @tvm.hybrid.script
-    def share_vec_add(a, b, c):
-        shared = allocate((256, ), 'float32', 'shared')
-        for i in bind("threadIdx.x", 256):
-            shared[i] = a[i]
-        local = allocate((256, ), 'float32', 'local')
-        for i in bind("threadIdx.x", 256):
-            local[i] = b[i]
-        for i in bind("threadIdx.x", 256):
-            c[i] = shared[i] + local[i]
+    if tvm.gpu().exist:
+        @tvm.hybrid.script
+        def share_vec_add(a, b, c):
+            shared = allocate((256, ), 'float32', 'shared')
+            for i in bind("threadIdx.x", 256):
+                shared[i] = a[i]
+            local = allocate((256, ), 'float32', 'local')
+            for i in bind("threadIdx.x", 256):
+                local[i] = b[i]
+            for i in bind("threadIdx.x", 256):
+                c[i] = shared[i] + local[i]
 
-    a = tvm.placeholder((256, ), dtype='float32', name='a')
-    b = tvm.placeholder((256, ), dtype='float32', name='b')
-    c = tvm.placeholder((256, ), dtype='float32', name='c')
-    run_and_test(share_vec_add, [a, b, c], [c], target='cuda')
+        a = tvm.placeholder((256, ), dtype='float32', name='a')
+        b = tvm.placeholder((256, ), dtype='float32', name='b')
+        c = tvm.placeholder((256, ), dtype='float32', name='c')
+        run_and_test(share_vec_add, [a, b, c], [c], target='cuda')
+    else:
+        print('[Warning] No GPU found! Skip shared mem test!')
 
 
 if __name__ == "__main__":
