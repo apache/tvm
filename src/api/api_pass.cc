@@ -47,6 +47,15 @@ TVM_REGISTER_API("ir_pass.CanonicalSimplify")
     }
   });
 
+TVM_REGISTER_API("ir_pass.Substitute")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args[0].IsNodeType<Stmt>()) {
+      *ret = Substitute(args[0].operator Stmt(), args[1].operator Map<Var, Expr>());
+    } else {
+      *ret = Substitute(args[0].operator Expr(), args[1].operator Map<Var, Expr>());
+    }
+  });
+
 TVM_REGISTER_API("ir_pass.Equal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
