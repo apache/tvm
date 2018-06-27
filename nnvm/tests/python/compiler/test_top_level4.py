@@ -81,7 +81,23 @@ def verify_reduce(dshape, fnp, fsym, **kwargs):
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
-def test_tranpose():
+def verify_collapse(dshape, target_shape, fnp):
+    x = sym.Variable("x", shape=dshape)
+    t = sym.Variable("t", shape=target_shape)
+    y = sym.collapse_sum(x, t)
+    dtype = "float32"
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target,
+                                            {"x": dshape, "t": target_shape})
+        m = graph_runtime.create(graph, lib, ctx)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        m.run(x=data)
+        out = m.get_output(0, tvm.nd.empty(target_shape))
+        out_np = fnp(data)
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+
+def test_transpose():
     verify_transpose((2, 3, 4), (0, 2, 1))
     verify_transpose((2, 3, 4), None)
 
@@ -90,6 +106,22 @@ def test_reduce():
     verify_reduce((2, 3, 4), np.max, sym.max, axis=1, keepdims=True)
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
+    verify_reduce((4, 4, 3), np.sum, sym.sum)
+
+
+def test_collapse():
+    verify_collapse((2, 3, 4), (1,), lambda x: x.sum())
+    verify_collapse((2, 3, 4), (1, 1, 1), lambda x: x.sum(keepdims=True))
+    verify_collapse((2, 3, 4), (1, 1), lambda x: x.sum().reshape(1, 1))
+    verify_collapse((2, 3, 4), (1, 4), lambda x: x.reshape(-1, 4).sum(0, keepdims=True))
+    verify_collapse((2, 3, 4), (3, 4), lambda x: x.sum(0))
+    verify_collapse((2, 3, 4), (1, 3, 4), lambda x: x.sum(0, keepdims=True))
+    verify_collapse((2, 3, 4), (1, 1, 4), lambda x: x.sum((0, 1), keepdims=True))
+    verify_collapse((2, 3, 4), (2, 1, 4), lambda x: x.sum(1, keepdims=True))
+    verify_collapse((2, 3, 4), (2, 1, 1), lambda x: x.sum((1, 2), keepdims=True))
+    verify_collapse((2, 3, 4), (2, 3, 1), lambda x: x.sum(2, keepdims=True))
+    verify_collapse((2, 3, 4), (2, 3, 4), lambda x: x)
+
 
 def verify_flip(ishape, axis):
     x = sym.Variable("x")
@@ -106,6 +138,7 @@ def verify_flip(ishape, axis):
         out = m.get_output(0, tvm.nd.empty(res.shape))
         np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
 
+
 def test_flip():
     verify_flip((3, 4, 3), 1)
     verify_flip((3, 4, 3), 0)
@@ -113,6 +146,7 @@ def test_flip():
     verify_flip((3, 4, 3), -1)
     verify_flip((3, 4, 3), -3)
     verify_flip((3, 4, 3), -2)
+
 
 def verify_reshape(dshape, oshape):
     x = sym.Variable("x")
@@ -154,6 +188,45 @@ def test_clip():
     dtype = "float32"
     inputs = [('x', (3, 4, 5), x)]
     helper(y, inputs, dtype, forward, backward)
+
+
+def test_broadcast():
+    a = sym.Variable("a")
+    b = sym.Variable("b")
+    inputs = [('a', (3, 4, 5), a),
+              ('b', (1, 5), b)]
+    dtype = "float32"
+
+    def _collapse(g):
+        return g.reshape(-1, inputs[-1][1][-1]).sum(0, keepdims=True)
+
+    y = sym.broadcast_add(a, b)
+    def _backward_add(head_grads, a, b):
+        da = head_grads
+        db = _collapse(head_grads)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a + b, _backward_add)
+
+    y = sym.broadcast_sub(a, b)
+    def _backward_sub(head_grads, a, b):
+        da = head_grads
+        db = -_collapse(head_grads)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a - b, _backward_sub)
+
+    y = sym.broadcast_mul(a, b)
+    def _backward_mul(head_grads, a, b):
+        da = head_grads * b
+        db = _collapse(head_grads * a)
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a * b, _backward_mul)
+
+    y = sym.broadcast_div(a, b)
+    def _backward_div(head_grads, a, b):
+        da = head_grads / b
+        db = _collapse(head_grads * a / (2 * b**2))
+        return da, db
+    helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
 
 def test_greater():
@@ -472,8 +545,10 @@ def test_nms():
 
 if __name__ == "__main__":
     test_reshape()
+    test_broadcast()
     test_reduce()
-    test_tranpose()
+    test_collapse()
+    test_transpose()
     test_clip()
     test_greater()
     test_less()

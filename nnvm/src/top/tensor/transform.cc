@@ -240,10 +240,8 @@ will return a new array with shape ``(2,1,1,1,1,1,3,4)``.
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
-    const ExpandDimsParam& param = nnvm::get<ExpandDimsParam>(n->attrs.parsed);
     return std::vector<NodeEntry> {
-      MakeNode("sum", n->attrs.name + "_grad", {ograds[0]},
-               {{"axis", std::to_string(param.axis)}})
+      MakeNode("collapse_sum", n->attrs.name + "_grad", {ograds[0], n->inputs[0]})
     };
 })
 .set_support_level(1);
