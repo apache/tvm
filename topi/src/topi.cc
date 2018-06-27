@@ -163,6 +163,21 @@ TVM_REGISTER_GLOBAL("topi.cast")
   *rv = cast(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.elemwise_sum")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = elemwise_sum(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.full")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = full(args[0], args[1], args[2]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.full_like")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = full_like(args[0], args[1]);
+  });
+
 /* Ops from nn.h */
 TVM_REGISTER_GLOBAL("topi.nn.relu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

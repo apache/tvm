@@ -179,7 +179,7 @@ class HostDeviceSplitter : public IRMutator {
  private:
   Stmt SplitDeviceFunc(Stmt body) {
     std::ostringstream os;
-    os << name_ << "__kernel" << device_funcs_.size();
+    os << name_ << "_kernel" << device_funcs_.size();
     std::shared_ptr<LoweredFuncNode> n = std::make_shared<LoweredFuncNode>();
     // isolate the device function.
     IRUseDefAnalysis m;

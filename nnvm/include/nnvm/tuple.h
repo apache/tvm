@@ -53,11 +53,18 @@ class Tuple {
     this->assign(init.begin(), init.end());
   }
   /*!
+   * \brief constructor from vector
+   * \param init the vector
+   */
+  inline Tuple(std::vector<ValueType> init) {  // NOLINT(runtime/explicit)
+    this->assign(init.begin(), init.end());
+  }
+  /*!
    * \brief move constructor from Tuple
    * \param src the source shape
    */
 
-  inline Tuple(Tuple<ValueType>&& src) { // NOLINT(*)
+  inline Tuple(Tuple<ValueType>&& src) {   // NOLINT(runtime/explicit)
     this->swap(src);
   }
   /*!

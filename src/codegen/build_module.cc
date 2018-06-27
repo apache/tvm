@@ -88,6 +88,9 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
+  } else if (target_name == "sdaccel") {
+    t->device_type = kDLOpenCL;
+    t->keys_array.push_back(ir::StringImm::make("sdaccel"));
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
     t->keys_array.push_back(ir::StringImm::make("opengl"));
