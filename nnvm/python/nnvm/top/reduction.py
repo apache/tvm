@@ -37,3 +37,7 @@ reg.register_schedule("max", _fschedule_reduce)
 # min
 reg.register_pattern("min", OpPattern.COMM_REDUCE)
 reg.register_schedule("min", _fschedule_reduce)
+
+# collapse sum
+reg.register_pattern("collapse_sum", OpPattern.COMM_REDUCE)
+reg.register_schedule("collapse_sum", _fschedule_reduce)
