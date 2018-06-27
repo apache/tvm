@@ -468,10 +468,7 @@ def test_nms():
     out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
     np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
-def verify_slice_like(np_data, np_shape_like, axis=[]):
-    dtype = "float32"
-    np_data = np_data.astype(dtype)
-    np_shape_like = np_shape_like.astype(dtype)
+def np_slice_like(np_data, np_shape_like, axis=[]):
     begin_idx = [0 for _ in np_data.shape]
     end_idx = list(np_data.shape)
     if len(axis) > 0:
@@ -487,10 +484,16 @@ def verify_slice_like(np_data, np_shape_like, axis=[]):
     for b, e in zip(begin_idx, end_idx):
         slice_idx.append(slice(b, e))
     np_result = np_data[slice_idx]
+    return np_result
 
+def verify_slice_like(np_data, np_shape_like, axis=[]):
+    dtype = "float32"
+    np_data = np_data.astype(dtype)
+    np_shape_like = np_shape_like.astype(dtype)
+    np_result = np_slice_like(np_data, np_shape_like, axis)
     data1 = sym.Variable("data1")
     data2 = sym.Variable("data2")
-    net = sym.slice_like(data=data1, shape_like=data2, axis=axis)
+    net = sym.slice_like(data=data1, slice_like=data2, axis=axis)
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(net, target, {"data1": np_data.shape,
                                                           "data2": np_shape_like.shape})

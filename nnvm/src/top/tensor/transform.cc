@@ -15,6 +15,7 @@
 #include "../elemwise_op_common.h"
 #include "topi/nn/flatten.h"
 #include "topi/transform.h"
+#include "topi/detail/constant_utils.h"
 
 namespace nnvm {
 namespace top {
@@ -896,6 +897,9 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
     for (size_t i = 0; i < src_shape.ndim(); ++i) {
       if (i < target_shape.ndim()) {
         end_idx[i] = target_shape[i];
+        CHECK_LE(end_idx[i], src_shape[i])
+          << "End index of axis " << i << " exceeds input shape: "
+          << end_idx[i] << " vs " << src_shape[i];
       }
     }
   } else {
@@ -907,6 +911,9 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
         << "Axis " << i << " exceeds dimension "
         << target_shape.ndim()<< " of target_shape.";
       end_idx[i] = target_shape[i];
+      CHECK_LE(end_idx[i], src_shape[i])
+        << "End index of axis " << i << " exceeds input shape: "
+        << end_idx[i] << " vs " << src_shape[i];
     }
   }
   TShape out_shape = TShape(std::move(end_idx));
@@ -918,7 +925,7 @@ NNVM_REGISTER_OP(slice_like)
 .describe(R"code(Slice the first input respect to the second input.
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Input data to be sliced.")
-.add_argument("shape_like", "Tensor", "Shape like tensor")
+.add_argument("slice_like", "Tensor", "Tensor with target shape")
 .set_num_inputs(2)
 .set_num_outputs(1)
 .add_arguments(SliceLikeParam::__FIELDS__())
@@ -937,8 +944,6 @@ NNVM_REGISTER_OP(slice_like)
     Array<Expr> begin_idx, end_idx, strides;
     for (size_t i = 0; i < src_shape.size(); ++i) {
       begin_idx.push_back(make_const(tvm::Int(32), 0));
-    }
-    for (size_t i = 0; i < src_shape.size(); ++i) {
       strides.push_back(make_const(tvm::Int(32), 1));
     }
     end_idx = Array<Expr>(src_shape);
@@ -946,6 +951,11 @@ NNVM_REGISTER_OP(slice_like)
       for (size_t i = 0; i < src_shape.size(); ++i) {
         if (i < target_shape.size()) {
           end_idx.Set(i, target_shape[i]);
+          CHECK_LE(topi::GetConstInt(end_idx[i]),
+                   topi::GetConstInt(src_shape[i]))
+            << "End index of axis " << i << " exceeds input shape: "
+            << topi::GetConstInt(end_idx[i]) << " vs "
+            << topi::GetConstInt(src_shape[i]);
         }
       }
     } else {
@@ -954,6 +964,11 @@ NNVM_REGISTER_OP(slice_like)
           axis = static_cast<int>(src_shape.size()) + axis;
         }
         end_idx.Set(static_cast<size_t>(axis), target_shape[axis]);
+        CHECK_LE(topi::GetConstInt(end_idx[axis]),
+                 topi::GetConstInt(src_shape[axis]))
+          << "End index of axis " << axis << " exceeds input shape: "
+          << topi::GetConstInt(end_idx[axis]) << " vs "
+          << topi::GetConstInt(src_shape[axis]);
       }
     }
     return Array<Tensor>{
@@ -961,7 +976,7 @@ NNVM_REGISTER_OP(slice_like)
     };
 })
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
-    return std::vector<std::string>{"data", "shape_like"};
+    return std::vector<std::string>{"data", "slice_like"};
 })
 .set_support_level(4);
 
