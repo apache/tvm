@@ -1,3 +1,4 @@
+
 /*!
  *  Copyright (c) 2017 by Contributors
  * \file pooling.cc
@@ -44,23 +45,32 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   const auto hidx = layout.indexof('H');
   const auto widx = layout.indexof('W');
 
+  TShape pad = param.padding;
+  if (param.padding.ndim() == 4) {
+    pad[0] += pad[2];
+    pad[1] += pad[3];
+  } else {
+    pad[0] *= 2;
+    pad[1] *= 2;
+  }
+
   TShape oshape = dshape;
-  CHECK(param.pool_size[0] <= dshape[hidx] + 2 * param.padding[0])
+  CHECK(param.pool_size[0] <= dshape[hidx] + pad[0])
       << "pool size (" << param.pool_size[0] << ") exceeds input (" << dshape[hidx]
-      << " padded to " << (dshape[hidx] + 2*param.padding[0]) << ")";
-  CHECK(param.pool_size[1] <= dshape[widx] + 2 * param.padding[1])
+      << " padded to " << (dshape[hidx] + pad[0]) << ")";
+  CHECK(param.pool_size[1] <= dshape[widx] + pad[1])
       << "pool size (" << param.pool_size[1] << ") exceeds input (" << dshape[widx]
-      << " padded to " << (dshape[widx] + 2*param.padding[1]) << ")";
+      << " padded to " << (dshape[widx] + pad[1]) << ")";
 
   if (!param.ceil_mode) {
-    oshape[hidx] = ((dshape[hidx] + 2 * param.padding[0] - param.pool_size[0]) /
+    oshape[hidx] = ((dshape[hidx] + pad[0] - param.pool_size[0]) /
                     param.strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + 2 * param.padding[1] - param.pool_size[1]) /
+    oshape[widx] = ((dshape[widx] + pad[1] - param.pool_size[1]) /
                     param.strides[1]) + 1;
   } else {
-    oshape[hidx] = ((dshape[hidx] + 2 * param.padding[0] - param.pool_size[0] +
+    oshape[hidx] = ((dshape[hidx] + pad[0] - param.pool_size[0] +
                     param.strides[0] - 1) / param.strides[0]) + 1;
-    oshape[widx] = ((dshape[3] + 2 * param.padding[1] - param.pool_size[1] +
+    oshape[widx] = ((dshape[3] + pad[1] - param.pool_size[1] +
                     param.strides[1] - 1) / param.strides[1]) + 1;
   }
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
@@ -108,8 +118,12 @@ NNVM_REGISTER_OP(max_pool2d)
            (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
            out_height and out_width are calculated as::
 
+           for symetric padding:
                out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
                out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+           for asymmetric padding:
+               out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
+               out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
 
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
