@@ -337,6 +337,10 @@ def verify_strided_slice(ishape, begin, end, strideinp=None):
     else:
         y = sym.strided_slice(x, begin = begin, end = end) + 1
     x_np = np.random.uniform(size=ishape).astype("float32")
+    for i in range(len(begin), 3):
+        begin.append(0)
+    for i in range(len(end), 3):
+        end.append(ishape[i])
     def test_forward(x, begin, end, stride):
         return x[begin[0]:end[0]:stride[0],
                     begin[1]:end[1]:stride[1], begin[2]:end[2]:stride[2]] + 1
@@ -357,6 +361,9 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2])
     verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3])
+    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 1000, 3])
+    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4])
+    verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3])
 
 def verify_squeeze(dshape, axis):
     x = sym.Variable("x")

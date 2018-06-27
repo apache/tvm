@@ -860,9 +860,7 @@ inline bool StridedSliceInferShape(const NodeAttrs& attrs,
   }
 
   std::vector<int64_t> stride_vec;
-  if (param.stride.ndim() != 0) {
-    std::copy(param.stride.begin(), param.stride.end(), std::back_inserter(stride_vec));
-  }
+  std::copy(param.stride.begin(), param.stride.end(), std::back_inserter(stride_vec));
   for (dim_t i = stride_vec.size(); i < num_axis; ++i) {
     stride_vec.push_back(1);
   }
@@ -889,6 +887,27 @@ inline bool StridedSliceInferShape(const NodeAttrs& attrs,
 
 NNVM_REGISTER_OP(strided_slice)
 .describe(R"code(Strided slice of an array.
+
+Examples::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  strided_slice(x, begin=[0, 1], end=[2, 4], stride=[1, 1]) = [[ 4.,  7.,  10.],
+                                                               [ 5.,  8.,  11.]]
+
+  x = [[[ 1.,  2.],
+        [ 3.,  4.]],
+
+       [[ 5.,  6.],
+        [ 7.,  8.]]]
+
+  strided_slice(x, begin=[0, 0], end=[2, 2]) = [[[ 1.,  2.],
+                                                 [ 3.,  4.]],
+
+                                                [[ 5.,  6.],
+                                                 [ 7.,  8.]]]
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Array to be sliced")
 .add_arguments(StridedSliceParam::__FIELDS__())
