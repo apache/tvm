@@ -37,7 +37,6 @@ class RPCProcessor extends Thread {
 
   private boolean running = false;
   private ConnectProxyServerProcessor currProcessor;
-  private final Handler uiHandler;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -46,10 +45,6 @@ class RPCProcessor extends Thread {
           return ParcelFileDescriptor.fromSocket(socket).getFd();
         }
       };
-
-  RPCProcessor(Handler uiHandler) {
-    this.uiHandler = uiHandler;
-  }
 
   @Override public void run() {
     while (true) {
@@ -63,18 +58,7 @@ class RPCProcessor extends Thread {
         }
         currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
       }
-      try {
         currProcessor.run();
-      } catch (Throwable e) {
-        disconnect();
-        // turn connect switch off.
-        Message message = new Message();
-        message.what = MainActivity.MSG_RPC_ERROR;
-        Bundle bundle = new Bundle();
-        bundle.putString(MainActivity.MSG_RPC_ERROR_DATA_KEY, e.getMessage());
-        message.setData(bundle);
-        uiHandler.sendMessage(message);
-      }
     }
   }
 
