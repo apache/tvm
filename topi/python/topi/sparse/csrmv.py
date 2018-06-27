@@ -18,7 +18,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         1-D with shape [num_rows+1]
 
     weight : tvm.Tensor
-        1-D with shape [num_cols]
+        2-D with shape [num_cols, 1]
 
     bias : tvm.Tensor, optional
         1-D with shape [num_rows]
@@ -26,7 +26,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     Returns
     -------
     output : tvm.Tensor
-        1-D with shape [num_rows]
+        2-D with shape [num_rows, 1]
     """
     assert len(data.shape) == 1 and len(weight.shape) == 2, \
         "only support 2-dim csrmv"
@@ -47,6 +47,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         num_rows = indptr.shape[0]-1
         with irb.for_range(0, num_rows, name='row') as row:
             dot = irb.allocate('float32', (1,), name='dot', scope='local')
+            out_ptr[row] = 0.
             dot[0] = 0.
             row_start = indptr_ptr[row]
             row_end = indptr_ptr[row+1]
@@ -59,10 +60,9 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     oshape = (batch, 1)
     matmul = tvm.extern(oshape, [data, indices, indptr, weight],
                         lambda ins, outs: csrmv_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                        tag="csrmv", dtype='float32')
+                        tag="csrmv", dtype='float32', name='csrmv')
     if bias is not None:
-        matmul = tvm.compute((batch, out_dim), \
-                             lambda i, j: matmul[i, j] + bias[j], \
+        matmul = tvm.compute((batch, 1), lambda i, j: matmul[i, 0] + bias[i], \
                              tag=tag.BROADCAST)
     return matmul
 
