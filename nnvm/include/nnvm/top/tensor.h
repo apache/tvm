@@ -259,6 +259,16 @@ struct ClipParam : public dmlc::Parameter<ClipParam> {
   }
 };
 
+struct SliceLikeParam : public dmlc::Parameter<SliceLikeParam> {
+  Tuple<int> axis;
+  DMLC_DECLARE_PARAMETER(SliceLikeParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(Tuple<int>())
+      .describe("List of axes on which input data will be sliced according to the "
+                "corresponding size of the second input. By default will slice "
+                "on all axes. Negative axes are supported.");
+  }
+};
+
 }  // namespace top
 }  // namespace nnvm
 
