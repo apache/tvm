@@ -885,6 +885,8 @@ DMLC_REGISTER_PARAMETER(TakeParam);
 inline bool TakeInferShape(const NodeAttrs& attrs,
                            std::vector<TShape>* in_shape,
                            std::vector<TShape>* out_shape) {
+  CHECK_EQ(in_shape->size(), 2U);
+  CHECK_EQ(out_shape->size(), 1U);
   const TShape& dshape = (*in_shape)[0];
   const TShape& indicesshape = (*in_shape)[1];
   if (dshape.ndim() == 0) return false;
@@ -951,14 +953,28 @@ inline bool TakeCorrectLayout(const NodeAttrs& attrs,
 NNVM_REGISTER_OP(take)
 .describe(R"code(Take elements from an array along an axis.
 
-  When axis is not None, this function does the same thing as 'fancy' indexing
-  (indexing arrays using arrays); however, it can be easier to use if you need
-  elements along a given axis.
+When axis is not None, this function does the same thing as 'fancy' indexing
+(indexing arrays using arrays); however, it can be easier to use if you need
+elements along a given axis.
 
-  **Note** that when axis is none the flattened input array is used.
+**Note** that when axis is none the flattened input array is used.
+
+Examples::
+
+  a = [[ 1, 2],
+       [ 3, 4]]
+  indices = [3, 0, 2]
+  take(a, indices) = [ 4, 1, 3]
+
+  a = [[ 1., 2.],
+       [ 3., 4.]]
+  indices = [1, 0]
+  take(a, indices, axis=1) = [[ 2., 1.],
+                              [ 4., 3.]]
 
   )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Array to be indexed")
+.add_argument("indices", "Tensor", "The indices of the values to extract")
 .add_arguments(TakeParam::__FIELDS__())
 .set_attr_parser(ParamParser<TakeParam>)
 .set_attr<FInferShape>("FInferShape", TakeInferShape)
