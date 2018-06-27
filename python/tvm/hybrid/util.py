@@ -22,16 +22,6 @@ def make_nop():
     return _make.Evaluate(_api.const(0, dtype='int32'))
 
 
-def make_range_one():
-    """Returns a [0, 1] range node in HalideIR."""
-    return _make.range_by_min_extent(0, 1)
-
-
-def make_const_true():
-    """Returns a constant True node in HalideIR."""
-    return _api.convert(True)
-
-
 def _pruned_source(func):
     """Prune source code's extra leading spaces"""
     lines = inspect.getsource(func).split('\n')

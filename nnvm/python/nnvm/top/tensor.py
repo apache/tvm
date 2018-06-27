@@ -187,7 +187,7 @@ def compute_elemwise_sum(attrs, inputs, _):
     """Compute definition of elemwise sum"""
     num_args = attrs.get_int("num_args")
     assert num_args == len(inputs), "Number of tensors does not match num_args."
-    return topi.tensor.elemwise_sum(inputs, num_args)
+    return topi.tensor.elemwise_sum(inputs)
 reg.register_pattern("elemwise_sum", OpPattern.ELEMWISE)
 reg.register_schedule("elemwise_sum", _fschedule_elemwise)
 

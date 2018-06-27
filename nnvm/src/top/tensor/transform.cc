@@ -15,6 +15,7 @@
 #include "../elemwise_op_common.h"
 #include "topi/nn/flatten.h"
 #include "topi/transform.h"
+#include "topi/detail/constant_utils.h"
 
 namespace nnvm {
 namespace top {
@@ -240,10 +241,8 @@ will return a new array with shape ``(2,1,1,1,1,1,3,4)``.
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
-    const ExpandDimsParam& param = nnvm::get<ExpandDimsParam>(n->attrs.parsed);
     return std::vector<NodeEntry> {
-      MakeNode("sum", n->attrs.name + "_grad", {ograds[0]},
-               {{"axis", std::to_string(param.axis)}})
+      MakeNode("collapse_sum", n->attrs.name + "_grad", {ograds[0], n->inputs[0]})
     };
 })
 .set_support_level(1);
@@ -981,6 +980,107 @@ NNVM_REGISTER_OP(take)
             topi::take(inputs[0], inputs[1], param.axis.value()) };
       }
   });
+
+
+// SliceLike
+DMLC_REGISTER_PARAMETER(SliceLikeParam);
+
+inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
+                          std::vector<TShape>* in_attrs,
+                          std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const SliceLikeParam& param = nnvm::get<SliceLikeParam>(attrs.parsed);
+  const TShape& src_shape = in_attrs->at(0);
+  const TShape& target_shape = in_attrs->at(1);
+  Tuple<dim_t> end_idx;
+  end_idx = Tuple<dim_t>(src_shape);
+  if (param.axis.ndim() == 0) {
+    for (size_t i = 0; i < src_shape.ndim(); ++i) {
+      if (i < target_shape.ndim()) {
+        end_idx[i] = target_shape[i];
+        CHECK_LE(end_idx[i], src_shape[i])
+          << "End index of axis " << i << " exceeds input shape: "
+          << end_idx[i] << " vs " << src_shape[i];
+      }
+    }
+  } else {
+    for (auto i : param.axis) {
+      if (i < 0) {
+        i = src_shape.ndim() + i;
+      }
+      CHECK_LT(i, target_shape.ndim())
+        << "Axis " << i << " exceeds dimension "
+        << target_shape.ndim()<< " of target_shape.";
+      end_idx[i] = target_shape[i];
+      CHECK_LE(end_idx[i], src_shape[i])
+        << "End index of axis " << i << " exceeds input shape: "
+        << end_idx[i] << " vs " << src_shape[i];
+    }
+  }
+  TShape out_shape = TShape(std::move(end_idx));
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, out_shape);
+  return true;
+}
+
+NNVM_REGISTER_OP(slice_like)
+.describe(R"code(Slice the first input respect to the second input.
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data to be sliced.")
+.add_argument("slice_like", "Tensor", "Tensor with target shape")
+.set_num_inputs(2)
+.set_num_outputs(1)
+.add_arguments(SliceLikeParam::__FIELDS__())
+.set_attr_parser(ParamParser<SliceLikeParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<SliceLikeParam>)
+.set_attr<FInferShape>("FInferShape", SliceLikeShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseBinaryKeepLeftLayout)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const auto& param = nnvm::get<SliceLikeParam>(attrs.parsed);
+    Array<Expr> src_shape = inputs[0]->shape;
+    Array<Expr> target_shape = inputs[1]->shape;
+    Array<Expr> begin_idx, end_idx, strides;
+    for (size_t i = 0; i < src_shape.size(); ++i) {
+      begin_idx.push_back(make_const(tvm::Int(32), 0));
+      strides.push_back(make_const(tvm::Int(32), 1));
+    }
+    end_idx = Array<Expr>(src_shape);
+    if (param.axis.ndim() == 0) {
+      for (size_t i = 0; i < src_shape.size(); ++i) {
+        if (i < target_shape.size()) {
+          end_idx.Set(i, target_shape[i]);
+          CHECK_LE(topi::GetConstInt(end_idx[i]),
+                   topi::GetConstInt(src_shape[i]))
+            << "End index of axis " << i << " exceeds input shape: "
+            << topi::GetConstInt(end_idx[i]) << " vs "
+            << topi::GetConstInt(src_shape[i]);
+        }
+      }
+    } else {
+      for (int axis : param.axis) {
+        if (axis < 0) {
+          axis = static_cast<int>(src_shape.size()) + axis;
+        }
+        end_idx.Set(static_cast<size_t>(axis), target_shape[axis]);
+        CHECK_LE(topi::GetConstInt(end_idx[axis]),
+                 topi::GetConstInt(src_shape[axis]))
+          << "End index of axis " << axis << " exceeds input shape: "
+          << topi::GetConstInt(end_idx[axis]) << " vs "
+          << topi::GetConstInt(src_shape[axis]);
+      }
+    }
+    return Array<Tensor>{
+      topi::strided_slice(inputs[0], begin_idx, end_idx, strides)
+    };
+})
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+    return std::vector<std::string>{"data", "slice_like"};
+})
+.set_support_level(4);
 
 }  // namespace top
 }  // namespace nnvm

@@ -1,6 +1,45 @@
-import tvm, inspect, sys, traceback, numpy
+import tvm, inspect, sys, traceback, numpy, nose
 from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
+
+@nose.tools.nottest
+def run_and_check(func, args, outs, var_dict={}, target='llvm'):
+    def tvm_val_2_py_val(val):
+        val = tvm.ir_pass.Substitute(val, var_dict)
+        val = tvm.ir_pass.Simplify(val)
+        assert isinstance(val, (tvm.expr.IntImm, tvm.expr.UIntImm))
+        return val.value
+
+    ctx = tvm.context(target, 0)
+
+    emu_args = []
+    nd_args = []
+    to_check = []
+    for i in args:
+        if isinstance(i, tvm.tensor.Tensor):
+            shape = [tvm_val_2_py_val(j) for j in i.shape]
+            if i in outs:
+                emu_args.append(numpy.zeros(shape).astype(i.dtype))
+                nd_args.append(tvm.nd.array(emu_args[-1], ctx))
+                to_check.append((nd_args[-1], emu_args[-1]))
+            else:
+                emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
+                nd_args.append(tvm.nd.array(emu_args[-1], ctx))
+        else:
+            assert isinstance(i, tvm.expr.Var)
+            emu_args.append(tvm_val_2_py_val(i))
+            nd_args.append(emu_args[-1])
+
+    func(*emu_args)
+
+    lowerd_func = tvm.lower(func(*args), args)
+    module = tvm.build(lowerd_func, target=target)
+    assert module
+    module(*nd_args)
+
+    for nd, np in to_check:
+        numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+
 
 @script
 def outer_product(n, m, a, b, c):
@@ -44,18 +83,8 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    _n = 999
-    _m = 1001
-    _a = numpy.random.rand(_n).astype('float32')
-    _b = numpy.random.rand(_m).astype('float32')
-    c_python = numpy.zeros((_n, _m), dtype='float32')
-    outer_product(_n, _m, _a, _b, c_python)
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
 
-    tvm_a = tvm.ndarray.array(_a)
-    tvm_b = tvm.ndarray.array(_b)
-    tvm_c = tvm.ndarray.array(numpy.zeros((_n, _m), dtype='float32'))
-    func(_n, _m, tvm_a, tvm_b, tvm_c)
-    numpy.testing.assert_allclose(tvm_c.asnumpy(), c_python, rtol=1e-5)
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
         assert key not in outer_product.__globals__.keys()
@@ -74,8 +103,8 @@ def test_fanout():
             b[i] = sigma
 
     n = tvm.var('n')
-    a = tvm.placeholder((n, ), name='a')
-    b = tvm.placeholder((n-3, ), name='b')
+    a = tvm.placeholder((n, ), 'float32', name='a')
+    b = tvm.placeholder((n-3, ), 'float32', name='b')
     ir = fanout(n, a, b)
 
     #Check for i in (0, n-3)
@@ -85,12 +114,14 @@ def test_fanout():
     assert tvm.ir_pass.Equal(ir.extent, n - 3)
     #Check loopbody
     ibody = ir.body
-    assert isinstance(ibody, tvm.stmt.Realize)
-    assert ibody.bounds[0].min.value == 0
-    assert ibody.bounds[0].extent.value == 1
-    assert ibody.func.name == 'sigma'
+    assert isinstance(ibody, tvm.stmt.AttrStmt)
+    abody = ibody.body
+    assert isinstance(abody, tvm.stmt.Realize)
+    assert abody.bounds[0].min.value == 0
+    assert abody.bounds[0].extent.value == 1
+    assert abody.func.name == 'sigma'
     #Check i loop body
-    rbody = ibody.body
+    rbody = abody.body
     assert isinstance(rbody.first, tvm.stmt.Provide)
     assert rbody.first.func.name == 'sigma'
     assert len(rbody.first.args) == 1
@@ -131,6 +162,9 @@ def test_fanout():
     assert len(write.value.args) == 1
     assert write.value.args[0].value == 0
 
+    run_and_check(fanout, [n, a, b], [b], {n: 10})
+
+
 @script
 def failure():
     for i in range(1, 100):
@@ -141,28 +175,34 @@ def test_failure():
         tvm.hybrid.parse(failure, [])
     except IOError as err:
         assert sys.version_info[0] == 2
-        print('[Warning] Python2 cannot do the failure case because "%s"' % str(err))
+        print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
     except Exception as err:
         assert str(err) == 'You CAN NEVER overwrite a loop variable!'
 
 
 def test_looptype():
     @script
-    def looptype(a):
-        for i in parallel(6):
+    def looptype(a, b, c):
+        for i in parallel(8):
             a[i] = i
-        for j in vectorize(6):
-            a[j] = j
-        for k in unroll(6):
-            a[k] = k
-    a = tvm.placeholder((6, ), name='a')
-    ir = looptype(a)
+        for j in vectorize(8):
+            b[j] = j
+        for k in unroll(8):
+            c[k] = k
+
+    a = tvm.placeholder((8, ), name='a', dtype='int32')
+    b = tvm.placeholder((8, ), name='b', dtype='int32')
+    c = tvm.placeholder((8, ), name='c', dtype='int32')
+    ir = looptype(a, b, c)
     iloop = ir.first
     jloop = ir.rest.first
     kloop = ir.rest.rest
     assert iloop.for_type == tvm.stmt.For.Parallel
     assert jloop.for_type == tvm.stmt.For.Vectorized
     assert kloop.for_type == tvm.stmt.For.Unrolled
+
+    run_and_check(looptype, [a, b, c], [a, b, c])
+
 
 def test_if():
     @script
@@ -177,26 +217,13 @@ def test_if():
 
     a = tvm.placeholder((10, ), dtype='int32', name='a')
     b = tvm.placeholder((10, ), dtype='int32', name='b')
-    ir = if_then_else(a, b)
-    func = tvm.lower(ir, [a, b])
-    func = tvm.build(func)
-    assert func
 
-    _a = numpy.zeros((10, ), dtype = 'int32')
-    _b = numpy.zeros((10, ), dtype = 'int32')
-    if_then_else(_a, _b)
+    run_and_check(if_then_else, [a, b], [a, b])
 
-    tvm_a = tvm.ndarray.array(numpy.zeros((10, ), dtype='int32'))
-    tvm_b = tvm.ndarray.array(numpy.zeros((10, ), dtype='int32'))
-    func(tvm_a, tvm_b)
-
-    numpy.testing.assert_allclose(tvm_a.asnumpy(), _a, rtol=1e-5)
-    numpy.testing.assert_allclose(tvm_b.asnumpy(), _b, rtol=1e-5)
-    numpy.testing.assert_allclose(tvm_a.asnumpy(), tvm_b.asnumpy(), rtol=1e-5)
 
 def test_bind():
     if not tvm.gpu(0).exist:
-        print('No GPU found! Skip this test!')
+        print('[Warning] No GPU found! Skip bind test!')
         return
     @script
     def vec_add(a, b, c):
@@ -206,24 +233,8 @@ def test_bind():
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
     c = tvm.placeholder((1000, ), dtype='float32', name='c')
-    ir = vec_add(a, b, c)
 
-    func = tvm.lower(ir, [a, b, c])
-    func = tvm.build(func, target = 'cuda')
-
-    _a = numpy.random.rand(1000).astype('float32')
-    _b = numpy.random.rand(1000).astype('float32')
-    _c = numpy.zeros((1000, ), dtype = 'float32')
-
-
-    tvm_a = tvm.ndarray.array(_a, tvm.gpu(0))
-    tvm_b = tvm.ndarray.array(_b, tvm.gpu(0))
-    tvm_c = tvm.ndarray.array(_c, tvm.gpu(0))
-
-    func(tvm_a, tvm_b, tvm_c)
-    vec_add(_a, _b, _c)
-
-    numpy.testing.assert_allclose(_c, tvm_c.asnumpy(), rtol=1e-5)
+    run_and_check(vec_add, [a, b, c], [c], target='cuda')
 
 def test_math_intrin():
     @script
@@ -234,12 +245,14 @@ def test_math_intrin():
         a[3] = sigmoid(a[3])
         a[4] = power(a[4], a[5])
         a[5] = tanh(a[5])
+        a[6] = min(a[4], a[5])
+        a[7] = max(a[5], a[6])
 
-    a6 = tvm.placeholder((6, ), dtype='float32', name='a')
-    ir = intrin_real(a6)
-    func = tvm.build(tvm.lower(ir, [a6]))
+    a8 = tvm.placeholder((8, ), dtype='float32', name='a')
+    ir = intrin_real(a8)
+    func = tvm.build(tvm.lower(ir, [a8]))
     assert func
-    a = numpy.arange(2, 8).astype('float32')
+    a = numpy.arange(2, 10).astype('float32')
     tvm_a = tvm.ndarray.array(a)
     func(tvm_a)
     intrin_real(a)
@@ -259,22 +272,71 @@ def test_math_intrin():
     func(tvm_a)
     assert tvm_a.asnumpy()[0] == a[0]
 
-def test_allocate_buffer():
-    def blur(a):
-        for i in serail(32):
-            h_blur = allocate((4, 36))
-            for j in serail(4):
-                for k in serail(36):
-                    s = allocate((1, ), 'float32')
-                    for dj in serail(4):
-                        s[0] = s[0] + a[i, j + dj]
-                    h_blur[j, k] = s[0] / 4.
-            for j in serail(32):
-                s = 0.
-                for di in serail(4):
-                    s = s + h_blur[di, j]
-                h_blur[i, j] = s / 4.
-                                
+def test_non_zero():
+    @tvm.hybrid.script
+    def blur(a, b):
+        for i in range(2, 32):
+            for j in range(2, 32):
+                s = 0.0
+                for di in range(3):
+                    for dj in range(3):
+                        s = s + a[i-di, j-dj]
+                b[i-2, j-2] = s / 9.0
+    try:
+        a = tvm.placeholder((32, 32), 'float32', 'a')
+        b = tvm.placeholder((30, 30), 'float32', 'b')
+        run_and_check(blur, [a, b], [b])
+    except IOError as err:
+        assert sys.version_info[0] == 2
+        print('[Warning] Case test_non_zero is skipped by Python2 because "%s"' % str(err))
+
+    @tvm.hybrid.script
+    def triangle(a, b, c):
+        for i in range(10):
+            for j in range(i, 10):
+                c[i, j] = a[i] * b[j]
+
+    a = tvm.placeholder((10, ), dtype='float32', name='a')
+    b = tvm.placeholder((10, ), dtype='float32', name='b')
+    c = tvm.placeholder((10, 10), dtype='float32', name='c')
+
+    run_and_check(triangle, [a, b, c], [c])
+
+def test_allocate():
+    @tvm.hybrid.script
+    def blur2d(a, b):
+        for i in range(30):
+            ha = allocate((3, 30), 'float32')
+            for j in range(3):
+                for k in range(30):
+                    ha[j, k] = a[i+j, k] + a[i+j, k+1] + a[i+j, k+2]
+            for j in range(30):
+                b[i, j] = (ha[0, j] + ha[1, j] + ha[2, j]) / 9.0
+
+    a = tvm.placeholder((32, 32), 'float32', 'a')
+    b = tvm.placeholder((30, 30), 'float32', 'b')
+
+    run_and_check(blur2d, [a, b], [b])
+
+    if tvm.gpu().exist:
+        @tvm.hybrid.script
+        def share_vec_add(a, b, c):
+            shared = allocate((256, ), 'float32', 'shared')
+            for i in bind("threadIdx.x", 256):
+                shared[i] = a[i]
+            local = allocate((256, ), 'float32', 'local')
+            for i in bind("threadIdx.x", 256):
+                local[i] = b[i]
+            for i in bind("threadIdx.x", 256):
+                c[i] = shared[i] + local[i]
+
+        a = tvm.placeholder((256, ), dtype='float32', name='a')
+        b = tvm.placeholder((256, ), dtype='float32', name='b')
+        c = tvm.placeholder((256, ), dtype='float32', name='c')
+        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
+    else:
+        print('[Warning] No GPU found! Skip shared mem test!')
+
 
 if __name__ == "__main__":
     test_outer_product()
@@ -284,4 +346,6 @@ if __name__ == "__main__":
     test_if()
     test_bind()
     test_math_intrin()
+    test_non_zero()
+    test_allocate()
 

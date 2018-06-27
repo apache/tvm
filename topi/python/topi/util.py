@@ -2,6 +2,28 @@
 from __future__ import absolute_import as _abs
 import tvm
 
+
+def prod(x):
+    """Get the product of every items in the tuple.
+
+    Parameters
+    ----------
+    x: tuple
+        Input tuple
+
+    Returns
+    -------
+    value : Expr
+        The result value
+    """
+    if not x:
+        return tvm.const(1, "int32")
+    res = x[0]
+    for i in range(1, len(x)):
+        res = res * x[i]
+    return res
+
+
 def get_const_int(expr):
     """Verifies expr is integer and get the constant value.
 

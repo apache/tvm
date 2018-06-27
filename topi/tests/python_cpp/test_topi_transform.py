@@ -271,6 +271,7 @@ def verify_concatenate_broadcast(shapes, axis, rhs_shape):
     for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
 
+
 def test_expand_dims():
     verify_expand_dims((3, 10), (3, 10, 1, 1), 2, 2)
     verify_expand_dims((3, 10), (1, 3, 10), -3, 1)

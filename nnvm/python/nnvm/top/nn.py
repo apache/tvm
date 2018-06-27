@@ -73,6 +73,9 @@ def schedule_dense(_, outs, target):
 
 reg.register_pattern("dense", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+#matmul
+reg.register_pattern("matmul", OpPattern.OUT_ELEMWISE_FUSABLE)
+reg.register_schedule("matmul", _fschedule_injective)
 
 # conv2d
 @reg.register_compute("conv2d")
@@ -152,10 +155,13 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     kh, kw = attrs.get_int_tuple('kernel_size')
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
+    layout = attrs.get_string("layout")
+    out_layout = attrs.get_string("out_layout")
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], channels, (kh, kw), strides, padding)
+        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], channels, (kh, kw),
+                                   strides, padding, layout, out_layout)
         # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")
@@ -173,9 +179,12 @@ def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     oc = attrs.get_int("channels")
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
+    layout = attrs.get_string("layout")
+    out_layout = attrs.get_string("out_layout")
     with tvm.target.create(target):
         if groups == 1:
-            return topi.generic.schedule_conv2d_NCHWc(oc, (kh, kw), strides, padding, outs)
+            return topi.generic.schedule_conv2d_NCHWc(oc, (kh, kw), strides, padding,
+                                                      layout, out_layout, outs)
         else:
             raise ValueError("not support group number > 1 for now")
 

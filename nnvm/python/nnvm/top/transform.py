@@ -64,3 +64,7 @@ reg.register_schedule("split", _fschedule_injective)
 # take
 reg.register_pattern("take", OpPattern.INJECTIVE)
 reg.register_schedule("take", _fschedule_injective)
+
+# slice_like
+reg.register_pattern("slice_like", OpPattern.INJECTIVE)
+reg.register_schedule("slice_like", _fschedule_injective)
