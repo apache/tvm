@@ -3,8 +3,9 @@ from __future__ import absolute_import
 import tvm
 from .. import tag
 
-def csrmv_default(data, indices, indptr, weight, bias=None):
-    """The default implementation of csrmv in topi.
+def csrmm_default(data, indices, indptr, weight, bias=None):
+    # pylint: disable=invalid-name
+    """The default implementation of csrmm in topi.
 
     Parameters
     ----------
@@ -28,14 +29,15 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     output : tvm.Tensor
         2-D with shape [num_rows, 1]
     """
-    assert len(data.shape) == 1 and len(weight.shape) == 2, \
-        "only support 2-dim csrmv"
+    assert len(data.shape) == 1 and len(indices.shape) == 1 and len(indptr.shape) == 1 \
+        and len(weight.shape) == 2, "only support 2-dim csrmm"
     assert isinstance(weight, tvm.tensor.Tensor), \
         "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
-    batch = indptr.shape[0]-1
-    def csrmv_default_ir(data, indices, indptr, weight, out):
+    M = indptr.shape[0]-1
+    _, N = weight.shape
+    def csrmm_default_ir(data, indices, indptr, weight, out):
         """Define IR for SpMV"""
         irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
@@ -43,30 +45,32 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         indptr_ptr = irb.buffer_ptr(indptr)
         weight_ptr = irb.buffer_ptr(weight)
         out_ptr = irb.buffer_ptr(out)
-        num_rows = indptr.shape[0]-1
-        with irb.for_range(0, num_rows, for_type="parallel", name='row') as row:
-            dot = irb.allocate('float32', (1,), name='dot', scope='local')
-            out_ptr[row] = 0.
-            dot[0] = 0.
-            row_start = indptr_ptr[row]
-            row_end = indptr_ptr[row+1]
-            row_elems = row_end-row_start
-            with irb.for_range(0, row_elems, name='elemidx') as elemidx:
-                elem = row_start+elemidx
-                dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]]
-            out_ptr[row] += dot[0]
+        M = indptr.shape[0]-1
+        _, N = weight.shape
+        with irb.for_range(0, N, name='n') as n:
+            with irb.for_range(0, M, for_type="parallel", name='row') as row:
+                dot = irb.allocate('float32', (1,), name='dot', scope='local')
+                out_ptr[row*N+n] = 0.
+                dot[0] = 0.
+                row_start = indptr_ptr[row]
+                row_end = indptr_ptr[row+1]
+                row_elems = row_end-row_start
+                with irb.for_range(0, row_elems, name='idx') as idx:
+                    elem = row_start+idx
+                    dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]*N+n]
+                out_ptr[row*N+n] += dot[0]
         return irb.get()
-    oshape = (batch, 1)
+    oshape = (M, N)
     matmul = tvm.extern(oshape, [data, indices, indptr, weight],
-                        lambda ins, outs: csrmv_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                        tag="csrmv", dtype='float32', name='csrmv')
+                        lambda ins, outs: csrmm_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="csrmm", dtype='float32', name='out')
     if bias is not None:
-        matmul = tvm.compute((batch, 1), lambda i, j: matmul[i, 0] + bias[i], \
+        matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[i], \
                              tag=tag.BROADCAST)
     return matmul
 
 
-def csrmv(data, weight, bias=None):
+def csrmm(data, weight, bias=None):
     """Applies a linear transformation: :math:`Y = XW^T + b`.
 
     Parameters
@@ -85,4 +89,4 @@ def csrmv(data, weight, bias=None):
     output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
-    return csrmv_default(data.data, data.indices, data.indptr, weight, bias)
+    return csrmm_default(data.data, data.indices, data.indptr, weight, bias)
