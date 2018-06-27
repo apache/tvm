@@ -17,6 +17,8 @@
 
 package ml.dmlc.tvm.tvmrpc;
 
+import android.app.ActivityManager;
+import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
 
@@ -24,44 +26,52 @@ import android.content.Intent;
  * Watchdog for RPCService
  */
 class RPCWatchdog extends Thread {
-  public static final int WATCHDOG_POLL_INTERVAL = 5000;
-  private String host;
-  private int port;
-  private String key;
-  private Context context;
+  private String m_host;
+  private int m_port;
+  private String m_key;
+  private Context m_context;
   private boolean done = false;
 
   public RPCWatchdog(String host, int port, String key, Context context) {
     super();
-    this.host = host;
-    this.port = port;
-    this.key = key;
-    this.context = context;
-  }
+    m_host = host;
+    m_port = port;
+    m_key = key;
+    m_context = context;
+  } 
 
   /**
    * Polling loop to check on RPCService status
    */ 
+
   @Override public void run() {
     try {
         while (true) {
           synchronized (this) {
-              if (done) {
+              // check if rpc service exists
+              // if rpc service is missing, restart
+              boolean serviceRunning = rpcServiceRunning();
+              if (done && serviceRunning) {
+                System.err.println("watchdog done, returning...");
+                Intent intent = new Intent(m_context, RPCService.class);
+                m_context.stopService(intent);
+                return;
+              }
+              else if (done && !serviceRunning) {
                 System.err.println("watchdog done, returning...");
                 return;
               }
-              else {
-                System.err.println("polling rpc service...");                                  
+              else if (!done && !serviceRunning) {
+                System.err.println("creating rpc service...");
                 System.err.println("sending rpc service intent...");
-                Intent intent = new Intent(context, RPCService.class);
-                intent.putExtra("host", host);
-                intent.putExtra("port", port);
-                intent.putExtra("key", key);
-                // will implicilty restart the service if it died
-                context.startService(intent);
+                Intent intent = new Intent(m_context, RPCService.class);
+                intent.putExtra("host", m_host);
+                intent.putExtra("port", m_port);
+                intent.putExtra("key", m_key);
+                m_context.startService(intent);
               }
           }
-          Thread.sleep(WATCHDOG_POLL_INTERVAL);
+          Thread.sleep(5000);
         }
     } catch (InterruptedException e) {
     }
@@ -75,8 +85,17 @@ class RPCWatchdog extends Thread {
     System.err.println("watchdog disconnect call...");
     System.err.println("stopping rpc service...");
     done = true;
-    Intent intent = new Intent(context, RPCService.class);
-    intent.putExtra("kill", true); 
-    context.startService(intent); 
+  }
+
+  public boolean rpcServiceRunning() {
+    ActivityManager manager = (ActivityManager) m_context.getSystemService(Context.ACTIVITY_SERVICE);
+    for (RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+        if (RPCService.class.getName().equals(service.service.getClassName())) {
+            System.err.println("rpc service running...");
+            return true;
+        }
+    }
+    System.err.println("rpc service not running...");
+    return false;
   }
 }

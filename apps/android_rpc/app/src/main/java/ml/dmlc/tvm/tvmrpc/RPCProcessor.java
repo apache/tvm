@@ -37,8 +37,6 @@ class RPCProcessor extends Thread {
   private boolean running = false;
   private long startTime;
   private ConnectProxyServerProcessor currProcessor;
-  private boolean kill = false;
-  public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -55,12 +53,6 @@ class RPCProcessor extends Thread {
         this.rPCProcessor = rPCProcessor;    
     }
 
-    @Override
-    public void run() {
-        rPCProcessor.setStartTime();
-    }
-  }
-
   @Override public void run() {
     while (true) {
       synchronized (this) {
@@ -71,21 +63,9 @@ class RPCProcessor extends Thread {
           } catch (InterruptedException e) {
           }
         }
-        // if kill, we do nothing and wait for app restart
-        // to prevent race where timedOut was reported but restart has not
-        // happened yet
-        if (kill) {
-            System.err.println("waiting for restart...");
-            currProcessor = null;
-        }
-        else {
-            startTime = 0;
-            currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
-            currProcessor.setStartTimeCallback(new setTimeCallback(this));
-        }
+        currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
       }
-        if (currProcessor != null)
-            currProcessor.run();
+        currProcessor.run();
     }
   }
 

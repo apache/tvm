@@ -35,6 +35,8 @@ import android.content.Intent;
 
 
 public class MainActivity extends AppCompatActivity {
+  static final int MSG_RPC_ERROR = 0;
+  static final String MSG_RPC_ERROR_DATA_KEY = "msg_rpc_error_data_key";
 
   private RPCWatchdog watchdog;
 
@@ -58,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     setContentView(R.layout.activity_main);
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
+
 
     Switch switchConnect = findViewById(R.id.switch_connect);
     switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -96,7 +99,6 @@ public class MainActivity extends AppCompatActivity {
 
     System.err.println("creating watchdog thread...");
     watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this);
-    
     System.err.println("starting watchdog thread...");
     watchdog.start();
 
@@ -109,10 +111,8 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void disconnect() {
-    if (watchdog != null) {
-        watchdog.disconnect();
-        watchdog = null;
-    }
+    watchdog.disconnect();
+    watchdog = null;
   }
 
   private void enableInputView(boolean enable) {
