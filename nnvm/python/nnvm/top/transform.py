@@ -60,3 +60,11 @@ reg.register_schedule("concatenate", _fschedule_injective)
 # split
 reg.register_pattern("split", OpPattern.INJECTIVE)
 reg.register_schedule("split", _fschedule_injective)
+
+# strided_slice
+reg.register_pattern("strided_slice", OpPattern.INJECTIVE)
+reg.register_schedule("strided_slice", _fschedule_injective)
+
+# slice_like
+reg.register_pattern("slice_like", OpPattern.INJECTIVE)
+reg.register_schedule("slice_like", _fschedule_injective)
