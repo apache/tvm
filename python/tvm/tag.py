@@ -1,11 +1,5 @@
 """Tag class for TVM operators."""
-from ._ffi.base import _LIB_NAME
-try:
-    from decorator import decorate
-except ImportError as err_msg:
-    # Allow decorator to be missing in runtime
-    if _LIB_NAME != "libtvm_runtime.so":
-        raise err_msg
+from ._ffi.base import decorate
 
 class TagScope(object):
     """Tag scope object to set tag for operators, working as context
