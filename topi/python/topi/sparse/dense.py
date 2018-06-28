@@ -2,11 +2,10 @@
 from __future__ import absolute_import
 import tvm
 from .. import tag
-from ..util import simplify
 
-def csrmm_default(data, indices, indptr, weight, bias=None):
+def dense_default(data, indices, indptr, weight, bias=None):
     # pylint: disable=invalid-name
-    """The default implementation of csrmm in topi.
+    """The default implementation of dense in topi.
 
     Parameters
     ----------
@@ -31,14 +30,14 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         2-D with shape [M, N]
     """
     assert len(data.shape) == 1 and len(indices.shape) == 1 and len(indptr.shape) == 1 \
-        and len(weight.shape) == 2, "only support 2-dim csrmm"
+        and len(weight.shape) == 2, "only support 2-dim dense"
     assert isinstance(weight, tvm.tensor.Tensor), \
         "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
     M = indptr.shape[0]-1
     _, N = weight.shape
-    def csrmm_default_ir(data, indices, indptr, weight, out):
+    def dense_default_ir(data, indices, indptr, weight, out):
         """Define IR for SpMM"""
         irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
@@ -63,15 +62,15 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         return irb.get()
     oshape = (M, N)
     matmul = tvm.extern(oshape, [data, indices, indptr, weight],
-                        lambda ins, outs: csrmm_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                        tag="csrmm", dtype='float32', name='out')
+                        lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
+                        tag="dense", dtype='float32', name='out')
     if bias is not None:
         matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[i], \
                              tag=tag.BROADCAST)
     return matmul
 
 
-def csrmm(data, weight, bias=None):
+def dense(data, weight, bias=None):
     """Applies a linear transformation: :math:`Y = XW^T + b`.
 
     Parameters
@@ -90,4 +89,4 @@ def csrmm(data, weight, bias=None):
     output : tvm.Tensor
         2-D with shape [batch, out_dim]
     """
-    return csrmm_default(data.data, data.indices, data.indptr, weight, bias)
+    return dense_default(data.data, data.indices, data.indptr, weight, bias)

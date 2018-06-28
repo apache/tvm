@@ -109,6 +109,49 @@ def test_csrmm():
     verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=False)
     verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=True)
 
+
+def verify_dense(batch, in_dim, out_dim, use_bias=True):
+    A = tvmsp.placeholder((batch, in_dim), name='A')
+    B = tvm.placeholder((out_dim, in_dim), name='B')
+    C = tvm.placeholder((out_dim,), name='C')
+    D = topi.sparse.dense(A, B, C if use_bias else None)
+    s = tvm.create_schedule(D.op)
+    dtype = A.dtype
+
+    # get the test data
+    def get_ref_data():
+        a_np = np.random.uniform(size=(batch, in_dim)).astype(dtype)
+        b_np = np.random.uniform(size=(out_dim, in_dim)).astype(dtype)
+        c_np = np.random.uniform(size=(out_dim,)).astype(dtype)
+        if use_bias:
+            d_np = np.dot(a_np, b_np.T) + c_np
+        else:
+            d_np = np.dot(a_np, b_np.T)
+        return (a_np, b_np, c_np, d_np)
+    a_np, b_np, c_np, d_np = get_ref_data()
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        a = tvmsp.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(c_np, ctx)
+        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+        f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
+        f(a.data, a.indices, a.indptr, b, c, d)
+        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
+
+    check_device('llvm')
+
+def test_dense():
+    M, K, N = 5, 7, 2
+    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=False)
+    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=True)
+
 if __name__ == "__main__":
     test_csrmv()
     test_csrmm()
+    test_dense()
