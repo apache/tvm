@@ -44,7 +44,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
-    # Default mkae build directory
+    # Default make build directory
     dll_path.append(os.path.join(source_dir, "lib"))
 
     dll_path.append(install_lib_dir)
