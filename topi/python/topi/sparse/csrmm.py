@@ -47,7 +47,7 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         out_ptr = irb.buffer_ptr(out)
         M = indptr.shape[0]-1
         _, N = weight.shape
-        with irb.for_range(0, N, name='n') as n:
+        with irb.for_range(0, N, for_type="vectorize", name='n') as n:
             with irb.for_range(0, M, for_type="parallel", name='row') as row:
                 dot = irb.allocate('float32', (1,), name='dot', scope='local')
                 out_ptr[row*N+n] = 0.
