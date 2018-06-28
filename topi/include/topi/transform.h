@@ -89,6 +89,18 @@ inline Tensor transpose(const Tensor& x,
   }
 
   auto axes_val = GetConstIntValues(axes, "axes");
+  for (size_t i = 0; i < axes_val.size(); ++i) {
+    int axis = axes_val[i];
+    if (axes_val[i] < 0) {
+      axes_val[i] = static_cast<int>(x->shape.size()) + axes_val[i];
+    }
+    CHECK((0 <= axes_val[i]) && (axes_val[i] < static_cast<int>(x->shape.size())))
+      << "axis=" << axis << " is invalid for the "
+      << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
+
+    CHECK(1 == std::count(std::begin(axes_val), std::end(axes_val), axes_val[i]))
+      << "repeated axis in transpose";
+  }
 
   Array<Expr> new_shape;
   for (size_t i = 0; i < axes_val.size(); ++i) {
