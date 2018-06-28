@@ -88,6 +88,8 @@ def compute_conv2d(attrs, inputs, _):
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
     kernel_layout = attrs["kernel_layout"]
+    out_dtype = attrs["out_dtype"]
+    out_dtype = None if out_dtype == "same" else out_dtype
     assert layout == "NCHW" or layout == "NHWC"
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
@@ -100,16 +102,19 @@ def compute_conv2d(attrs, inputs, _):
         kernel = topi.nn.dilate(inputs[1], [1, dilation_h, dilation_w, 1])
 
     if groups == 1:
-        out = topi.nn.conv2d(inputs[0], kernel, strides, padding, layout)
+        out = topi.nn.conv2d(
+            inputs[0], kernel, strides, padding, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
          groups == get_const_int(inputs[0].shape[1]) and \
          groups == channels:
-        out = topi.nn.depthwise_conv2d_nchw(inputs[0], kernel, strides, padding)
+        out = topi.nn.depthwise_conv2d_nchw(
+            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
          groups == channels:
-        out = topi.nn.depthwise_conv2d_nhwc(inputs[0], kernel, strides, padding)
+        out = topi.nn.depthwise_conv2d_nhwc(
+            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
 
@@ -127,6 +132,7 @@ def schedule_conv2d(attrs, outs, target):
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
     kernel_layout = attrs["kernel_layout"]
+
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
