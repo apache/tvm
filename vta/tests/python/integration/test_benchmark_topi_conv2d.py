@@ -38,7 +38,7 @@ def test_vta_conv2d():
         res_conv = vta.top.packed_conv2d(
             data, kernel, padding=(wl.hpad, wl.wpad), strides=(wl.hstride, wl.wstride))
         res = topi.right_shift(res_conv, 8)
-        res = topi.add(res, bias)
+        res = topi.broadcast_add(res, bias)
         res = my_clip(res, 0, 127)
         res = topi.cast(res, "int8")
 
