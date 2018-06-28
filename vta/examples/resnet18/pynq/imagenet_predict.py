@@ -20,7 +20,7 @@ verbose = False
 # only run fpga component, mark non-conv ops as nop
 debug_fpga_only = False
 
-# Obtain model and hardware files (they're too large to check-in)
+# Obtain model files (they're too large to check-in)
 # Download them into _data dir
 data_dir = "_data/"
 url = "https://homes.cs.washington.edu/~moreau/media/vta/"
@@ -114,11 +114,6 @@ sym = vta.graph.clean_cast(sym)
 sym = vta.graph.clean_conv_fuse(sym)
 if target.device_name == "vta":
     sym = vta.graph.pack(sym, shape_dict, bfactor, cfactor)
-
-graph_attr.set_shape_inputs(sym, shape_dict)
-sym = sym.apply("InferShape")
-graph_attr.set_dtype_inputs(sym, dtype_dict)
-sym = sym.apply("InferType")
 
 with nnvm.compiler.build_config(opt_level=3):
     if target.device_name != "vta":
