@@ -21,5 +21,5 @@ make -j4 VERBOSE=1 tvm-libs
 cd ..
 
 cd python
-$PYTHON setup.py install
+$PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
 cd ..

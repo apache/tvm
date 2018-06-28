@@ -17,5 +17,5 @@ make -j4 VERBOSE=1 nnvm-libs
 cd ..
 
 cd nnvm/python
-$PYTHON setup.py install
+$PYTHON setup.py install --single-version-externally-managed --record=/tmp/record.txt
 cd ..

@@ -15,4 +15,4 @@ make -j4 VERBOSE=1 topi-libs
 cd ..
 
 cd topi/python
-python setup.py install
+python setup.py install --single-version-externally-managed --record=/tmp/record.txt
