@@ -130,6 +130,30 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+
+inline bool Conv2DInferType(const nnvm::NodeAttrs& attrs,
+                            std::vector<int>* in_type,
+                            std::vector<int>* out_type) {
+  const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
+  if (param.use_bias) {
+    CHECK_EQ(in_type->size(), 3U) << "Input:[data, weight, bias]";
+  } else {
+    CHECK_EQ(in_type->size(), 2U) << "Input:[data, weight]";
+  }
+  CHECK_EQ(out_type->size(), 1U);
+  if (param.out_dtype != -1) {
+    CHECK(!type_is_none((*in_type)[0]));
+    for (size_t i = 1; i < in_type->size(); ++i) {
+      NNVM_ASSIGN_INPUT_TYPE(attrs, *in_type, i, (*in_type)[0]);
+    }
+    NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_type, 0, param.out_dtype);
+  } else {
+    ElemwiseType<-1, 1>(attrs, in_type, out_type);
+  }
+  return true;
+}
+
+
 inline bool Conv2DCorrectLayout(const NodeAttrs& attrs,
                                 std::vector<Layout> *ilayouts,
                                 const std::vector<Layout> *last_ilayouts,
@@ -189,7 +213,7 @@ a bias vector is created and added to the outputs.
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FInferType>("FInferType", Conv2DInferType)
 .set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
@@ -214,7 +238,7 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FInferType>("FInferType", Conv2DInferType)
 .set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
@@ -348,7 +372,7 @@ said convolution.
 - **weight**: (in_channels, channels, kernel_size[0], kernel_size[1])
 - **bias**: (channels,)
 - **out**:  This depends on the `layout` parameter. Output is 4D array of shape
-            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
+v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 
             out_height and out_width are calculated as::
                 out_height = (height-1)*strides[0]-2*padding[0]+kernel_size[0]+output_padding[0]
