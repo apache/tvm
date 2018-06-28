@@ -118,7 +118,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
     Output = tvm.compute(
         (batch, out_height, out_width, out_channel),
         lambda b, i, j, c: tvm.sum(
-            (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier].astype(out_dtype) *
+            (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier].astype(
+                out_dtype) *
              Filter[di, dj, c/channel_multiplier, c%channel_multiplier].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")
