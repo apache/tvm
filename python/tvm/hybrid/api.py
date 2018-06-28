@@ -2,21 +2,31 @@
 from __future__ import absolute_import as _abs
 
 import types
-import decorator
+from .._ffi.base import decorate
 from .parser import parse_python
 
-@decorator.decorator
-def script(func, *args):
-    """If the arguments are tvm types, compile it to HalideIR.
-    O.W. return the python emulated result"""
-    from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
-    if _is_tvm_arg_types(args):
-        return parse(func, args)
-    else:
+
+def script(pyfunc):
+    """Decorate a python function function as  hybrid script.
+
+    The hybrid function support emulation mode and parsing to
+    the internal language IR.
+
+    Returns
+    -------
+    hybrid_func : function
+        A decorated hybrid script function.
+    """
+    def wrapped_func(func, *args, **kwargs):
+        from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
+        if _is_tvm_arg_types(args):
+            return parse(func, args)
+
         intersect = _enter_hybrid_runtime(func)
-        func(*args)
+        value = func(*args, **kwargs)
         _restore_runtime(func, intersect)
-    return func
+        return value
+    return decorate(pyfunc, wrapped_func)
 
 
 def parse(func, args):
