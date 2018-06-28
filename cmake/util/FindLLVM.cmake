@@ -35,7 +35,7 @@ macro(find_llvm use_llvm)
     # definitions
     string(REGEX MATCHALL "(^| )-D[A-Za-z0-9_]*" LLVM_DEFINITIONS ${__llvm_cxxflags})
     # include dir
-    string(REGEX MATCHALL "(^| )-I[A-Za-z0-9_/.\-]*" __llvm_include_flags ${__llvm_cxxflags})
+    string(REGEX MATCHALL "(^| )-I[^ ]*" __llvm_include_flags ${__llvm_cxxflags})    
     set(LLVM_INCLUDE_DIRS "")
     foreach(__flag IN ITEMS ${__llvm_include_flags})
       string(REGEX REPLACE "(^| )-I" "" __dir "${__flag}")
