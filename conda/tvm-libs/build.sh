@@ -1,5 +1,11 @@
 #!/bin/bash
 
+set -e
+
+if [ -z "$PREFIX" ]; then
+  PREFIX="$CONDA_PREFIX"
+fi
+
 if [ "$(uname)" = 'Darwin' ]
 then
     # Without this, Apple's default shipped clang will refuse to see any
@@ -10,9 +16,7 @@ fi
 rm -rf build || true
 mkdir -p build
 cd build
-cmake -DUSE_LLVM=ON ..
-make -j4 VERBOSE=1 topi-libs
+cmake -DUSE_LLVM=ON -DINSTALL_DEV=ON -DCMAKE_INSTALL_PREFIX="$PREFIX" ..
+make -j2 VERBOSE=1
+make install
 cd ..
-
-cd topi/python
-python setup.py install --single-version-externally-managed --record=/tmp/record.txt

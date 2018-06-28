@@ -1,7 +1,7 @@
 {% set version = "0.4.dev" %}
 
 package:
-  name: tvm
+  name: tvm-libs
   version: {{ version }}
 
 source:
@@ -9,7 +9,6 @@ source:
 
 build:
   number: 0
-  skip: True  # [win]
 
 requirements:
   build:
@@ -18,15 +17,6 @@ requirements:
     - {{ compiler('cxx') }}  # [not osx]
     - llvmdev ==6.0.0
     - cmake
-    - python >=3
-    - numpy
-    - setuptools
-    - nose
-    - decorator
-  run:
-    - python >=3
-    - numpy
-    - decorator
 
 about:
   home: https://github.com/dmlc/tvm

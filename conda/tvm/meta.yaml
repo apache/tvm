@@ -1,19 +1,23 @@
 {% set version = "0.4.dev" %}
 
 package:
-  name: topi
+  name: tvm
   version: {{ version }}
 
 source:
-  path: ../../..
+  path: ../..
 
 build:
   number: 0
+  skip: True  # [win]
 
 requirements:
   build:
-    - cmake
+    - {{ compiler('cxx') }}
+    - tvm-libs =={{ version }}
+  host:
     - python >=3
+    - cython
     - numpy
     - setuptools
     - nose
@@ -22,8 +26,9 @@ requirements:
     - python >=3
     - numpy
     - decorator
+    - tvm-libs =={{ version }}
 
 about:
   home: https://github.com/dmlc/tvm
   license: Apache2
-  summary: "TOPI: TVM Operator Inventory"
+  summary: a low level domain specific language for compiling tensor computation pipelines

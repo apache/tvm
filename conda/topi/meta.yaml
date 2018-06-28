@@ -1,11 +1,11 @@
 {% set version = "0.4.dev" %}
 
 package:
-  name: nnvm
+  name: topi
   version: {{ version }}
 
 source:
-  path: ../../..
+  path: ../..
 
 build:
   number: 0
@@ -13,20 +13,23 @@ build:
 
 requirements:
   build:
-    - cmake
+    - {{ compiler('cxx') }}
+    - tvm-libs =={{ version }}
+  host:
     - python >=3
+    - cython
     - numpy
     - setuptools
     - nose
     - decorator
   run:
-    - tvm
-    - topi
     - python >=3
     - numpy
     - decorator
+    - tvm-libs =={{ version }}
+    - tvm =={{ version }}
 
 about:
-  home: https://github.com/dmlc/nnvm
+  home: https://github.com/dmlc/tvm
   license: Apache2
-  summary: Bring deep learning to bare metal
+  summary: "TOPI: TVM Operator Inventory"
