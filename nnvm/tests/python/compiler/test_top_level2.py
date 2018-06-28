@@ -32,6 +32,35 @@ def test_conv2d():
         np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
+def test_mixed_precision():
+    x = sym.Variable("x")
+    dtype = "int8"
+    out_dtype="int32"
+    y = sym.conv2d(x,
+                   channels=10,
+                   kernel_size=(3,3),
+                   name="y",
+                   padding=(1,1),
+                   use_bias=False,
+                   out_dtype="int32")
+    dshape = (1, 3, 18, 18)
+    kshape = (10, 3, 3, 3)
+    oshape = (1, 10, 18, 18)
+    shape_dict = {"x": dshape}
+    dtype_dict = {"x": dtype}
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict, dtype_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+        data = tvm.nd.array(np.random.uniform(-127, 127, size=dshape).astype(dtype))
+        kernel = tvm.nd.array(np.random.uniform(-127, 127, size=kshape).astype(dtype))
+        m.run(x=data, y_weight=kernel)
+        out = m.get_output(0, tvm.nd.empty(oshape, out_dtype))
+        c_np = topi.testing.conv2d_nchw_python(
+            data.asnumpy().astype(out_dtype),
+            kernel.asnumpy().astype(out_dtype), 1, 1)
+        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+
+
 def test_dilated_conv2d():
     dilation = 3
     x = sym.Variable("x")
@@ -167,7 +196,7 @@ def test_avg_pool2d_no_count_pad():
     kh, kw = (4, 4)
     sh, sw = (2, 2)
     ph, pw = (2, 2)
-    
+
     x = sym.Variable("x")
     y = sym.avg_pool2d(x, pool_size=(kh, kw), strides=(sw, sw), padding=(ph, pw),
                        name="y", count_include_pad=False)
@@ -181,7 +210,7 @@ def test_avg_pool2d_no_count_pad():
     no_zero = (range(n), range(ic), (range(ph, ih+ph)), (range(pw, iw+pw)))
     pad_np[np.ix_(*no_zero)] = a_np
     b_np = np.zeros(shape=(n, oc, oh, ow)).astype(dtype)
-    
+
     for i in range(oh):
         for j in range(ow):
             pad_count = np.sum(pad_np[:, :, i*sh:i*sh+kh, j*sw:j*sw+kw] > 0, axis=(2,3))
@@ -289,6 +318,7 @@ def test_resize_bilinear():
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 if __name__ == "__main__":
+    test_mixed_precision()
     test_conv2d()
     test_dilated_conv2d()
     test_grouped_conv2d_nchw()
