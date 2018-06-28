@@ -4,9 +4,6 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
-#include <tvm/container.h>
-#include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
 #include "./opencl_common.h"
 
 namespace tvm {
