@@ -182,69 +182,30 @@ reg.register_pattern("clip", OpPattern.ELEMWISE)
 reg.register_schedule("clip", _fschedule_elemwise)
 
 # elemwise sum
-@reg.register_compute("elemwise_sum")
-def compute_elemwise_sum(attrs, inputs, _):
-    """Compute definition of elemwise sum"""
-    num_args = attrs.get_int("num_args")
-    assert num_args == len(inputs), "Number of tensors does not match num_args."
-    return topi.tensor.elemwise_sum(inputs)
 reg.register_pattern("elemwise_sum", OpPattern.ELEMWISE)
 reg.register_schedule("elemwise_sum", _fschedule_elemwise)
 
 # full
-@reg.register_compute("full")
-def compute_full(attrs, inputs, _):
-    """Compute definition of full"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    fill_value = attrs.get_float("fill_value")
-    return topi.tensor.full(shape, dtype, fill_value)
 reg.register_pattern("full", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("full", _fschedule_elemwise)
 
 # full_like
-@reg.register_compute("full_like")
-def compute_full_like(attrs, inputs, _):
-    """Compute definition of full_like"""
-    fill_value = attrs.get_float("fill_value")
-    return topi.tensor.full_like(inputs[0], fill_value)
 reg.register_pattern("full_like", OpPattern.ELEMWISE)
 reg.register_schedule("full_like", _fschedule_elemwise)
 
 # zeros
-@reg.register_compute("zeros")
-def compute_zeros(attrs, inputs, _):
-    """Compute definition of zeros"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    return topi.tensor.full(shape, dtype, 0)
 reg.register_pattern("zeros", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("zeros", _fschedule_elemwise)
 
 # zeros_like
-@reg.register_compute("zeros_like")
-def compute_zeros_like(_, inputs, out_info):
-    """Compute definition of zeros_like"""
-    return topi.tensor.full_like(inputs[0], 0)
 reg.register_pattern("zeros_like", OpPattern.ELEMWISE)
 reg.register_schedule("zeros_like", _fschedule_elemwise)
 
 # ones
-@reg.register_compute("ones")
-def compute_ones(attrs, inputs, _):
-    """Compute definition of ones"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    #tvm.tensor.Tensor()
-    return topi.tensor.full(shape, dtype, 1)
 reg.register_pattern("ones", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("ones", _fschedule_elemwise)
 
 # ones_like
-@reg.register_compute("ones_like")
-def compute_ones_like(_, inputs, out_info):
-    """Compute definition of ones_like"""
-    return topi.tensor.full_like(inputs[0], 1)
 reg.register_pattern("ones_like", OpPattern.ELEMWISE)
 reg.register_schedule("ones_like", _fschedule_elemwise)
 

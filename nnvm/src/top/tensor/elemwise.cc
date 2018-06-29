@@ -7,6 +7,7 @@
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
 #include <nnvm/compiler/op_attr_types.h>
+#include <nnvm/compiler/util.h>
 #include <nnvm/top/tensor.h>
 #include <cmath>
 #include "../op_common.h"
@@ -14,6 +15,7 @@
 #include "topi/broadcast.h"
 #include "topi/elemwise.h"
 #include "topi/tags.h"
+#include "../../compiler/compile_engine.h"
 
 namespace nnvm {
 namespace top {
@@ -382,6 +384,16 @@ NNVM_REGISTER_INIT_OP(full)
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpWithScalarParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpWithScalarParam>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ZeroLayout)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const InitOpWithScalarParam& param = nnvm::get<InitOpWithScalarParam>(attrs.parsed);
+    Array<Expr> shape = ShapeToArray(param.shape);
+    Type dtype = GetTVMType(param.dtype);
+    Expr fill_value = tvm::make_const(dtype, param.fill_value);
+    return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
+})
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_OP(zeros)
@@ -395,6 +407,16 @@ NNVM_REGISTER_INIT_OP(zeros)
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpParam>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ZeroLayout)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
+    Array<Expr> shape = ShapeToArray(param.shape);
+    Type dtype = GetTVMType(param.dtype);
+    Expr fill_value = tvm::make_const(dtype, 0);
+    return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
+})
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_OP(ones)
@@ -408,6 +430,16 @@ NNVM_REGISTER_INIT_OP(ones)
 .set_attr<FInferShape>("FInferShape", ZeroShape<InitOpParam>)
 .set_attr<FInferType>("FInferType", ZeroType<InitOpParam>)
 .set_attr<FCorrectLayout>("FCorrectLayout", ZeroLayout)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
+    Array<Expr> shape = ShapeToArray(param.shape);
+    Type dtype = GetTVMType(param.dtype);
+    Expr fill_value = tvm::make_const(dtype, 1);
+    return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
+})
 .set_support_level(4);
 
 // full_like
@@ -419,6 +451,14 @@ as the input array
 .add_arguments(FillValueParam::__FIELDS__())
 .set_attr_parser(ParamParser<FillValueParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<FillValueParam>)
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      const FillValueParam& param = nnvm::get<FillValueParam>(attrs.parsed);
+      const Expr fill_value = tvm::make_const(out_info[0]->dtype, param.fill_value);
+      return Array<Tensor> { topi::full_like(inputs[0], fill_value) };
+})
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_LIKE_OP(zeros_like)
@@ -426,6 +466,13 @@ NNVM_REGISTER_INIT_LIKE_OP(zeros_like)
 as the input array.
 
 )code")
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      return Array<Tensor> { topi::full_like(inputs[0],
+                                             tvm::make_const(out_info[0]->dtype, 0)) };
+})
 .set_support_level(4);
 
 NNVM_REGISTER_INIT_LIKE_OP(ones_like)
@@ -433,6 +480,13 @@ NNVM_REGISTER_INIT_LIKE_OP(ones_like)
 as the input array.
 
 )code")
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      return Array<Tensor> { topi::full_like(inputs[0],
+                                             tvm::make_const(out_info[0]->dtype, 1)) };
+})
 .set_support_level(4);
 
 // unary scalar op
@@ -684,6 +738,14 @@ NNVM_REGISTER_ELEMWISE_REDUCE_OP(elemwise_sum)
 .describe(R"code(Adds all input arguments element-wise.
 
 )code"  NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ElementWiseReduceParam& param = nnvm::get<ElementWiseReduceParam>(attrs.parsed);
+    CHECK_EQ(param.num_args, inputs.size()) << """Compute definition of elemwise sum""";
+    return Array<Tensor>{ topi::elemwise_sum(inputs) };
+})
 .set_attr<nnvm::FGradient>(
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
