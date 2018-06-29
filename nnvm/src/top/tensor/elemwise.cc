@@ -391,7 +391,7 @@ NNVM_REGISTER_INIT_OP(full)
     const InitOpWithScalarParam& param = nnvm::get<InitOpWithScalarParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(tvm::Float(32), param.fill_value);
+    Expr fill_value = tvm::make_const(out_info[0]->dtype, param.fill_value);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
@@ -414,7 +414,7 @@ NNVM_REGISTER_INIT_OP(zeros)
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(tvm::Float(32), 0);
+    Expr fill_value = tvm::make_const(out_info[0]->dtype, 0);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
@@ -437,7 +437,7 @@ NNVM_REGISTER_INIT_OP(ones)
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(tvm::Float(32), 1);
+    Expr fill_value = tvm::make_const(out_info[0]->dtype, 1);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
@@ -456,7 +456,7 @@ as the input array
                       const Array<Tensor>& inputs,
                       const Array<Tensor>& out_info) {
       const FillValueParam& param = nnvm::get<FillValueParam>(attrs.parsed);
-      const Expr fill_value = tvm::make_const(tvm::Float(32), param.fill_value);
+      const Expr fill_value = tvm::make_const(out_info[0]->dtype, param.fill_value);
       return Array<Tensor> { topi::full_like(inputs[0], fill_value) };
 })
 .set_support_level(4);
@@ -471,7 +471,7 @@ as the input array.
                       const Array<Tensor>& inputs,
                       const Array<Tensor>& out_info) {
       return Array<Tensor> { topi::full_like(inputs[0],
-                                             tvm::make_const(tvm::Float(32), 0)) };
+                                             tvm::make_const(out_info[0]->dtype, 0)) };
 })
 .set_support_level(4);
 
@@ -485,7 +485,7 @@ as the input array.
                       const Array<Tensor>& inputs,
                       const Array<Tensor>& out_info) {
       return Array<Tensor> { topi::full_like(inputs[0],
-                                             tvm::make_const(tvm::Float(32), 1)) };
+                                             tvm::make_const(out_info[0]->dtype, 1)) };
 })
 .set_support_level(4);
 
