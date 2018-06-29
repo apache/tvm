@@ -1,7 +1,8 @@
-"""TVM operator compute SpMM in CSR format."""
+"""TVM operator compute Dense in CSR format."""
 from __future__ import absolute_import
 import tvm
 from .. import tag
+from ..util import simplify
 
 def dense_default(data, indices, indptr, weight, bias=None):
     # pylint: disable=invalid-name
@@ -35,38 +36,41 @@ def dense_default(data, indices, indptr, weight, bias=None):
         "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
+    dtype = data.dtype
     M = indptr.shape[0]-1
-    _, N = weight.shape
+    N, K = weight.shape
     def dense_default_ir(data, indices, indptr, weight, out):
-        """Define IR for SpMM"""
+        """Define IR for Dense"""
+        dtype = data.dtype
         irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
         indptr_ptr = irb.buffer_ptr(indptr)
         weight_ptr = irb.buffer_ptr(weight)
         out_ptr = irb.buffer_ptr(out)
-        M = indptr.shape[0]-1
-        _, N = weight.shape
+        M = simplify(indptr.shape[0]-1)
+        N, K = weight.shape
         with irb.for_range(0, N, for_type="vectorize", name='n') as n:
-            with irb.for_range(0, M, for_type="parallel", name='row') as row:
-                dot = irb.allocate('float32', (1,), name='dot', scope='local')
-                out_ptr[row*N+n] = 0.
+            with irb.for_range(0, M, for_type="parallel", name='m') as m:
+                dot = irb.allocate(dtype, (1,), name='dot', scope='local')
+                out_ptr[m*N+n] = 0.
                 dot[0] = 0.
-                row_start = indptr_ptr[row]
-                row_end = indptr_ptr[row+1]
-                row_elems = row_end-row_start
-                with irb.for_range(0, row_elems, name='idx') as idx:
-                    elem = row_start+idx
-                    dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]*N+n]
-                out_ptr[row*N+n] += dot[0]
+                row_start = indptr_ptr[m]
+                row_elems = indptr_ptr[m+1]-row_start
+                with irb.for_range(0, row_elems, name='k') as k:
+                    elem = row_start+k
+                    dot[0] += data_ptr[elem] * weight_ptr[indices_ptr[elem]+n*K]
+                out_ptr[m*N+n] += dot[0]
         return irb.get()
     oshape = (M, N)
     matmul = tvm.extern(oshape, [data, indices, indptr, weight],
                         lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
-                        tag="dense", dtype='float32', name='out')
+                        tag="dense", dtype=dtype, name='out')
+    print(matmul.op.body)
     if bias is not None:
         matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[i], \
                              tag=tag.BROADCAST)
+        print(matmul.op.body)
     return matmul
 
 
