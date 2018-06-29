@@ -100,16 +100,6 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
     for device in ["llvm"]:
         check_device(device)
 
-def test_csrmv():
-    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=False)
-    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=True)
-
-def test_csrmm():
-    M, K, N = 5, 7, 2
-    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=False)
-    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=True)
-
-
 def verify_dense(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
     nonzeros = tvm.var('nonzeros')
     A = tvmsp.placeholder(shape=(batch, in_dim), nonzeros=nonzeros, dtype=dtype, name='A')
@@ -148,6 +138,15 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
         np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
     check_device('llvm')
+
+def test_csrmv():
+    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=False)
+    verify_dynamic_csrmv(batch=5, in_dim=7, out_dim=1, use_bias=True)
+
+def test_csrmm():
+    M, K, N = 5, 7, 2
+    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=False)
+    verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=True)
 
 def test_dense():
     M, K, N = 3, 5, 2
