@@ -37,8 +37,8 @@ def dense_default(data, indices, indptr, weight, bias=None):
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
-    M = indptr.shape[0]-1
-    N, K = weight.shape
+    M = simplify(indptr.shape[0]-1)
+    N, _ = weight.shape
     def dense_default_ir(data, indices, indptr, weight, out):
         """Define IR for Dense"""
         dtype = data.dtype
@@ -53,8 +53,8 @@ def dense_default(data, indices, indptr, weight, bias=None):
         with irb.for_range(0, N, for_type="vectorize", name='n') as n:
             with irb.for_range(0, M, for_type="parallel", name='m') as m:
                 dot = irb.allocate(dtype, (1,), name='dot', scope='local')
-                out_ptr[m*N+n] = 0.
-                dot[0] = 0.
+                out_ptr[m*N+n] = tvm.const(0, dtype)
+                dot[0] = tvm.const(0, dtype)
                 row_start = indptr_ptr[m]
                 row_elems = indptr_ptr[m+1]-row_start
                 with irb.for_range(0, row_elems, name='k') as k:
@@ -66,11 +66,9 @@ def dense_default(data, indices, indptr, weight, bias=None):
     matmul = tvm.extern(oshape, [data, indices, indptr, weight],
                         lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
                         tag="dense", dtype=dtype, name='out')
-    print(matmul.op.body)
     if bias is not None:
-        matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[i], \
+        matmul = tvm.compute(oshape, lambda i, j: matmul[i, j] + bias[j], \
                              tag=tag.BROADCAST)
-        print(matmul.op.body)
     return matmul
 
 

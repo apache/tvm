@@ -36,7 +36,7 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
     if bias is not None:
         assert len(bias.shape) == 1
-    M = indptr.shape[0]-1
+    M = simplify(indptr.shape[0]-1)
     _, N = weight.shape
     def csrmm_default_ir(data, indices, indptr, weight, out):
         """Define IR for SpMM"""
@@ -46,7 +46,7 @@ def csrmm_default(data, indices, indptr, weight, bias=None):
         indptr_ptr = irb.buffer_ptr(indptr)
         weight_ptr = irb.buffer_ptr(weight)
         out_ptr = irb.buffer_ptr(out)
-        M = indptr.shape[0]-1
+        M = simplify(indptr.shape[0]-1)
         _, N = weight.shape
         with irb.for_range(0, N, for_type="vectorize", name='n') as n:
             with irb.for_range(0, M, for_type="parallel", name='row') as row:
