@@ -391,7 +391,7 @@ NNVM_REGISTER_INIT_OP(full)
     const InitOpWithScalarParam& param = nnvm::get<InitOpWithScalarParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(out_info[0]->dtype, param.fill_value);
+    Expr fill_value = tvm::make_const(dtype, param.fill_value);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
@@ -414,7 +414,7 @@ NNVM_REGISTER_INIT_OP(zeros)
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(out_info[0]->dtype, 0);
+    Expr fill_value = tvm::make_const(dtype, 0);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
@@ -437,7 +437,7 @@ NNVM_REGISTER_INIT_OP(ones)
     const InitOpParam& param = nnvm::get<InitOpParam>(attrs.parsed);
     Array<Expr> shape = ShapeToArray(param.shape);
     Type dtype = GetTVMType(param.dtype);
-    Expr fill_value = tvm::make_const(out_info[0]->dtype, 1);
+    Expr fill_value = tvm::make_const(dtype, 1);
     return Array<Tensor>{ topi::full(shape, dtype, fill_value) };
 })
 .set_support_level(4);
