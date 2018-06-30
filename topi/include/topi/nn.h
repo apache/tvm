@@ -92,7 +92,6 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
  *
  * \return A Tensor whose op member is the relu operation
  */
-template <typename T>
 inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const tvm::Tensor &slope,
                          const int axis = 1,

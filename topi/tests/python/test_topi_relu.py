@@ -46,16 +46,16 @@ def verify_leaky_relu(m, alpha):
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 
-def verify_prelu(x, w):
+def verify_prelu(x, w, axis, weight_reshape):
     X = tvm.placeholder((x), name='X')
     W = tvm.placeholder((w), name='W')
     x_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(X.shape)).astype(X.dtype)
     w_np = np.random.uniform(low=-1.0, high=1.0, size=get_const_tuple(W.shape)).astype(W.dtype)
 
     def _prelu_numpy(x, W):
-        return (x < 0) * (x *W.reshape(3, 1, 1)) + (x>=0) * x
+        return (x < 0) * (x *W.reshape(weight_reshape)) + (x>=0) * x
 
-    B = topi.nn.prelu(X, W)
+    B = topi.nn.prelu(X, W, axis)
     s = tvm.create_schedule([B.op])
 
     ctx = tvm.cpu(0)
@@ -79,7 +79,8 @@ def test_leaky_relu():
     verify_leaky_relu(100, 0.1)
 
 def test_prelu():
-    verify_prelu((1, 3, 2, 2), (3,))
+    verify_prelu((1, 3, 2, 2), (3,), 1, (3, 1, 1))
+    verify_prelu((1, 3, 2, 2), (2,), 2, (2, 1))
 
 if __name__ == "__main__":
     test_schedule_big_array()
