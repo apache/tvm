@@ -563,7 +563,7 @@ where :math:`*` is an channelwise multiplication for each sample in the
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const PReLUParam& param = nnvm::get<PReLUParam>(attrs.parsed);
-    return Array<Tensor>{ topi::prelu<float>(inputs[0], inputs[1], param.axis)};
+    return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param.axis)};
   })
 .set_support_level(4);
 
