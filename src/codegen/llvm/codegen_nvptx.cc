@@ -179,8 +179,7 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
       }
       mlib->setTargetTriple(tm->getTargetTriple().str());
       mlib->setDataLayout(tm->createDataLayout());
-      // TODO(tqchen) libdevice linking not yet working.
-      // cg->AddLinkModule(std::move(mlib));
+      cg->AddLinkModule(std::move(mlib));
     }
   }
   std::unique_ptr<llvm::Module> module = cg->Finish();

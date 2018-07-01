@@ -45,7 +45,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         f(a, b, c, d)
         np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
 def test_dense():
