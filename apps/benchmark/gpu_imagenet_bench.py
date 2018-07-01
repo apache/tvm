@@ -25,7 +25,7 @@ def main():
                         choices=['resnet', 'mobilenet'],
                         help="The model type.")
     parser.add_argument('--target', type=str, required=True,
-                        choices=['cuda', 'rocm', 'opencl', 'metal'],
+                        choices=['cuda', 'rocm', 'opencl', 'metal', 'nvptx'],
                         help="Compilation target.")
     parser.add_argument('--opt-level', type=int, default=1, help="Level of optimization.")
     parser.add_argument('--num-iter', type=int, default=1000, help="Number of iteration during benchmark.")
