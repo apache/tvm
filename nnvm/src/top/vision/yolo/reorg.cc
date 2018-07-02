@@ -34,7 +34,7 @@ inline bool ReorgInferShape(const nnvm::NodeAttrs &attrs,
   return true;
 }
 
-NNVM_REGISTER_OP(yolo2_reorg)
+NNVM_REGISTER_OP(yolo_reorg)
 .describe(R"(Perform reorg operation on input array based on the stride value.
 - **data**: Input is 4D array of shape (batch_size, channels, in_height, in_width).
 - **out**: Output is 4D array of shape (batch_size, channels/(stride*stride), in_height*stride, in_width*stride).
