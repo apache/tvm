@@ -992,7 +992,7 @@ Examples::
 });
 
 
-// take
+// Take
 DMLC_REGISTER_PARAMETER(TakeParam);
 
 inline bool TakeInferShape(const NodeAttrs& attrs,
