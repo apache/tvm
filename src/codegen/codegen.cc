@@ -54,9 +54,9 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
   os << "#ifdef __cplusplus\n"
      << "extern \"C\" {\n"
      << "#endif\n";
-  os << "TVM_EXPORT extern const char " << runtime::symbol::tvm_dev_mblob << "[];\n";
+  os << "TVM_EXPORT extern const unsigned char " << runtime::symbol::tvm_dev_mblob << "[];\n";
   uint64_t nbytes = bin.length();
-  os << "const char " << runtime::symbol::tvm_dev_mblob
+  os << "const unsigned char " << runtime::symbol::tvm_dev_mblob
      << "[" << bin.length() + sizeof(nbytes) << "] = {\n  ";
   os << std::hex;
   size_t nunit = 80 / 4;
