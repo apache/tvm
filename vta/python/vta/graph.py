@@ -71,48 +71,6 @@ def _get_shape(sym, shape_dict):
     return graph_util.infer_shape(
         nnvm.graph.create(sym), **shape_dict)[1][0]
 
-
-def remove_stochastic(graph):
-    """
-    Replace stochastic rounding and shift with determinstic version.
-
-    Parameters
-    ----------
-    graph : Graph
-        The input graph
-
-    Returns
-    -------
-    replaced_graph : Graph
-        The final replaced graph.
-    """
-    gidx = graph.index
-    node_map = {}
-
-    for nid, node in enumerate(gidx.nodes):
-        children = [node_map[e[0]] for e in node["inputs"]]
-        attrs = node.get("attrs", {})
-        node_name = node["name"]
-        op_name = node["op"]
-        get_clone = lambda c, o_n, n_n, a: getattr(nnvm.symbol, o_n)(
-            *c, name=n_n, **a)
-        if op_name == "null":
-            new_node = nnvm.symbol.Variable(node_name)
-        elif op_name == "stochastic_round":
-            new_node = children[0]
-        elif op_name == "noise_lshift":
-            new_node = nnvm.symbol.left_shift(
-                children[0], **attrs)
-        else:
-            new_node = get_clone(children, op_name, node_name, attrs)
-        node_map[nid] = new_node
-
-    assert len(graph.index.output_entries) == 1
-    ret = node_map[graph.index.output_entries[0][0]]
-    ret = nnvm.graph.create(ret)
-    return ret
-
-
 def clean_conv_fuse(graph):
     """Cleanup the convolution's later fuse stages
 
@@ -131,8 +89,8 @@ def clean_conv_fuse(graph):
         if flag:
             node = nnvm.symbol.clip(node, a_max=127, a_min=-127)
             node = nnvm.symbol.cast(node, dtype="int8")
-            # Use identity as a hint to block conv2d schedules
-            node = nnvm.symbol.identity(node)
+            # Use copy as a hint to block conv2d schedules
+            node = nnvm.symbol.copy(node)
             flag = False
         return node, flag
 
@@ -166,13 +124,13 @@ def clean_conv_fuse(graph):
                 new_entry = (
                     get_clone([children[0][0]], op_name, node_name, attrs),
                     False)
-        elif op_name == "quantized_conv2d":
+        elif op_name == "conv2d" and attrs["out_dtype"] == "int32":
             data, weight = children
             data = _clean_entry(data)
-            new_node = nnvm.sym.quantized_conv2d(
+            new_node = nnvm.sym.conv2d(
                 data[0], weight[0], name=node_name, **attrs)
             new_entry = (new_node, True)
-        elif op_name in ("left_shift", "right_shift", "relu"):
+        elif op_name in ("__lshift_scalar__", "__rshift_scalar__", "relu"):
             new_entry = (
                 get_clone([children[0][0]], op_name, node_name, attrs),
                 children[0][1])
@@ -198,7 +156,6 @@ def clean_conv_fuse(graph):
     ret = node_map[graph.index.output_entries[0][0]][0]
     ret = nnvm.graph.create(ret)
     return ret
-
 
 def clean_cast(graph):
     """
@@ -232,11 +189,11 @@ def clean_cast(graph):
         elif op_name == "cast":
             dtype = attrs["dtype"]
             new_node, _ = _clean_cast(children[0], dtype)
-        elif op_name == "quantized_conv2d":
+        elif op_name == "conv2d" and attrs["out_dtype"] == "int32":
             data, weight = children
             data, _ = _clean_cast(data, "int8")
             weight, _ = _clean_cast(weight, "int8")
-            new_node = nnvm.sym.quantized_conv2d(
+            new_node = nnvm.sym.conv2d(
                 data, weight, name=node_name, **attrs)
         elif op_name == "elemwise_add":
             lhs, rhs = children
@@ -314,21 +271,21 @@ def pack(graph, shape_dict, bfactor, cfactor, start_name=None):
                     *children, name=node_name, **attrs)
             else:
                 new_node = get_clone(children, op_name, node_name, attrs)
-        elif op_name == "quantized_conv2d":
+        elif op_name == "conv2d" and attrs["out_dtype"] == "int32":
             if start_pack:
-                attrs["pack_batch"] = str(bfactor)
-                attrs["pack_channel"] = str(cfactor)
+                attrs["layout"] = "NCHW%dn%dc" % (bfactor, cfactor)
+                attrs["kernel_layout"] = "OIHW%do%di" % (cfactor, cfactor)
                 data, weight = children
                 weight = _pack_weight(weight, ishape[1], cfactor)
-                new_node = nnvm.sym.quantized_conv2d(
+                new_node = nnvm.sym.conv2d(
                     data, weight, name=node_name, **attrs)
             elif counter == 1:
-                attrs["pack_batch"] = str(bfactor)
-                attrs["pack_channel"] = str(cfactor)
+                attrs["layout"] = "NCHW%dn%dc" % (bfactor, cfactor)
+                attrs["kernel_layout"] = "OIHW%do%di" % (cfactor, cfactor)
                 data, weight = children
                 data = _pack_batch_channel(data, ishape[0], bfactor, cfactor)
                 weight = _pack_weight(weight, ishape[1], cfactor)
-                new_node = nnvm.sym.quantized_conv2d(
+                new_node = nnvm.sym.conv2d(
                     data, weight, name=node_name, **attrs)
                 new_node = _unpack_batch_channel(new_node, oshape)
                 counter = counter + 1
