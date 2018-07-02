@@ -121,6 +121,20 @@ class CodeGenNVPTX : public CodeGenLLVM {
     // Additional optimization hook to tweak the builder.
   }
 
+  void Optimize() final {
+    for (auto& f : *module_) {
+      auto fname = static_cast<std::string>(f.getName());
+      if (fname.substr(0, 4) != "__nv") continue;
+      // This is to strip off unused __nv_* functions from the final module
+      // The one that is actually used will be inlined at call site
+      // See Halide's LLVM_Runtime_Linker.cpp
+      if (!f.isDeclaration() && !f.hasFnAttribute(llvm::Attribute::NoInline)) {
+        f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
+      }
+    }
+    CodeGenLLVM::Optimize();
+  }
+
  protected:
   void InitTarget(llvm::TargetMachine* tm) final {
     // Maximum vector lane = float4
