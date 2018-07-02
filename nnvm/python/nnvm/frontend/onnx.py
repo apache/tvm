@@ -475,7 +475,7 @@ class Slice(OnnxOpConverter):
                     else:
                         new_axes.append(i)
                         new_starts.append(0)
-                        new_ends.append(10000) # very big number
+                        new_ends.append(np.iinfo(np.int32).max)
                 attr['axes'] = new_axes
                 attr['starts'] = new_starts
                 attr['ends'] = new_ends
@@ -486,7 +486,6 @@ class Slice(OnnxOpConverter):
                        transforms={'starts': 'begin',
                                    'ends': 'end'},
                        ignores=['axes'])(inputs, attr)
-
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -519,7 +518,7 @@ def _get_convert_map(opset):
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
-        # 'Constant'
+        # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'
@@ -535,8 +534,8 @@ def _get_convert_map(opset):
         'Neg': Renamer('negative'),
         'Abs': Absolute.get_converter(opset),
         'Reciprocal': Reciprocal.get_converter(opset),
-        # 'Floor'
-        # 'Ceil'
+        'Floor': Renamer('floor'),
+        'Ceil': Renamer('ceil'),
         'Sqrt': Renamer('sqrt'),
         'Relu': Renamer('relu'),
         'LeakyRelu': Renamer('leaky_relu'),
@@ -553,7 +552,7 @@ def _get_convert_map(opset):
         # 'Min' : this is the elemwise minimum
         'Sum': Sum.get_converter(opset),
         # 'Mean'
-        # 'Clip'
+        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
         # softmax default axis is different in onnx
         'Softmax': AttrCvt('softmax', {'axis': ('axis', 1)}),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
@@ -561,7 +560,7 @@ def _get_convert_map(opset):
         'Softsign': Softsign.get_converter(opset),
         'SoftPlus': SoftPlus.get_converter(opset),
         'Gemm': Gemm.get_converter(opset),
-        # 'MatMul'  batch stacked dot operation
+        'MatMul': Renamer('matmul'),
 
         # defs/nn
         'AveragePool': AveragePool.get_converter(opset),
