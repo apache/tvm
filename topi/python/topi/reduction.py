@@ -280,3 +280,36 @@ def argmin(data, axis=None, keepdims=False):
     """
     _argmin = tvm.comm_reducer(fcombine=_argmin_comp, fidentity=_argmin_init, name='argmin')
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmin, is_idx_reduce=True)
+
+
+@tvm.tag_scope(tag=tag.COMM_REDUCE)
+def count_nonzero(data, axis=None, keepdims=False):
+    """Counts the number of non-zero values in the array.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        The input tvm tensor
+
+    axis : None or int or tuple of int, optional
+        Axis or tuple of axes along which to count non-zeros. Default is None, meaning that
+        non-zeros will be counted along a flattened version of the input array.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as dimensions
+        with size one.
+        With this option, the result will broadcast correctly against the input array.
+
+    Returns
+    -------
+    ret : tvm.Tensor
+    """
+    def _count_nonzero_comp(lhs, rhs):
+        """Compare function of count_nonzero"""
+        idx = tvm.make.Select((rhs[1]==0), lhs[0], lhs[0]+1)
+        val = tvm.const(0, data.dtype)
+        return idx, val
+    _count_nonzero = tvm.comm_reducer(fcombine=_count_nonzero_comp,
+                                      fidentity=lambda t0, t1: (tvm.const(0, t0), tvm.const(0, t1)),
+                                      name='count_nonzero')
+    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_count_nonzero, is_idx_reduce=True)
