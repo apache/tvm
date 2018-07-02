@@ -446,6 +446,48 @@ class Unsqueeze(OnnxOpConverter):
             inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
+
+class Slice(OnnxOpConverter):
+    """ Operator converter for Slice.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if isinstance(attr['starts'], int):
+            attr['starts'] = (attr['starts'],)
+            attr['ends'] = (attr['ends'],)
+
+        try:
+            # Update the starts and ends according to axes if required.
+            if isinstance(attr['axes'], int):
+                attr['axes'] = (attr['axes'],)
+
+            if (max(attr['axes']) + 1) != len(attr['axes']):
+                new_axes = []
+                new_starts = []
+                new_ends = []
+                pop_index = 0
+                for i in range(max(attr['axes']) + 1):
+                    if i in attr['axes']:
+                        new_axes.append(i)
+                        new_starts.append(attr['starts'][pop_index])
+                        new_ends.append(attr['ends'][pop_index])
+                        pop_index += 1
+                    else:
+                        new_axes.append(i)
+                        new_starts.append(0)
+                        new_ends.append(10000) # very big number
+                attr['axes'] = new_axes
+                attr['starts'] = new_starts
+                attr['ends'] = new_ends
+        except KeyError:
+            pass
+
+        return AttrCvt(op_name='strided_slice',
+                       transforms={'starts': 'begin',
+                                   'ends': 'end'},
+                       ignores=['axes'])(inputs, attr)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -550,7 +592,7 @@ def _get_convert_map(opset):
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
         'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
-        # 'Slice'
+        'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         # 'Gather'
         'Squeeze': Renamer('squeeze'),

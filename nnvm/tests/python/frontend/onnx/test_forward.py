@@ -144,6 +144,32 @@ def test_unsqueeze():
 
     np.testing.assert_allclose(out_shape, tvm_out.shape)
 
+def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
+    if axes:
+        y = helper.make_node("Slice", ['in'], ['out'], axes=axes, starts=starts, ends=ends)
+    else:
+        y = helper.make_node("Slice", ['in'], ['out'], starts=starts, ends=ends)
+
+    graph = helper.make_graph([y],
+                              'slice_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name='slice_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+
+    np.testing.assert_allclose(outdata, tvm_out)
+
+def test_slice():
+    x = np.random.randn(20, 10, 5).astype(np.float32)
+    _test_slice_iteration(x, x[0:3, 0:10], (0, 0), (3, 10), (0, 1))
+    _test_slice_iteration(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
+    _test_slice_iteration(x, x[:, 1:1000], (1), (1000), (1))
+    _test_slice_iteration(x, x[:, 0:-1], (0), (-1), (1))
+    #_test_slice_iteration(x, x[:, 1000:1000], (1000), (1000), (1))
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -153,3 +179,4 @@ if __name__ == '__main__':
     test_reshape_like()
     test_squeeze()
     test_unsqueeze()
+    test_slice()
