@@ -46,7 +46,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         no_unroll_explicit = device in ["cuda", "nvptx", "rocm"]
         with tvm.build_config(auto_unroll_max_step=1400,
-                              unroll_explicit= not no_unroll_explicit):
+                              unroll_explicit=not no_unroll_explicit):
             func1 = tvm.build(s1, [A, W, B], device, name="conv2d_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func1(a, w, b)
