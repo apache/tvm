@@ -26,8 +26,8 @@ data_dir = "_data/"
 url = "https://homes.cs.washington.edu/~moreau/media/vta/"
 TEST_FILE = 'cat.jpg'
 CATEG_FILE = 'synset.txt'
-RESNET_GRAPH_FILE = 'quantize_graph.json'
-RESNET_PARAMS_FILE = 'quantize_params.pkl'
+RESNET_GRAPH_FILE = 'resnet18_qt8.json'
+RESNET_PARAMS_FILE = 'resnet18_qt8_params.pkl'
 # Create data dir
 if not os.path.exists(data_dir):
     os.makedirs(data_dir)
@@ -70,7 +70,7 @@ def mark_nop(graph, conv_layer=-1, skip_conv_layer=()):
         attrs = node["attrs"]
         node_name = node["name"]
         func_name = attrs["func_name"]
-        if func_name.find("quantized_conv2d") != -1:
+        if func_name.find("conv2d") != -1:
             if conv_layer >= 0:
                 if counter != conv_layer:
                     attrs["func_name"] = "__nop"
@@ -109,9 +109,9 @@ graph_attr.set_dtype_inputs(sym, dtype_dict)
 graph = graph.apply("InferShape").apply("InferType")
 
 dtype = "float32"
-sym = vta.graph.remove_stochastic(sym)
 sym = vta.graph.clean_cast(sym)
 sym = vta.graph.clean_conv_fuse(sym)
+
 if target.device_name == "vta":
     sym = vta.graph.pack(sym, shape_dict, bfactor, cfactor)
 
@@ -166,8 +166,10 @@ def run_e2e(graph):
     # get outputs
     tvm_output = m.get_output(
         0,tvm.nd.empty((1000,), dtype, remote.cpu(0)))
-    top1 = np.argmax(tvm_output.asnumpy())
-    print('TVM prediction top-1:', top1, synset[top1])
+
+    top = list(reversed(np.argsort(tvm_output.asnumpy())))
+    for i in range(5):
+        print('TVM prediction top-%d: %s' % (i, synset[top[i]]))
     print("t-cost=%g" % tcost.mean)
 
 

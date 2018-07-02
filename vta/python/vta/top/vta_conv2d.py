@@ -215,7 +215,7 @@ def _lower(sch, inputs, func_name, graph):
         f, (tvm.container.Array, tuple, list)) else [f]
 
 
-@reg.register_compute("clip", level=11)
+@reg.register_compute("clip", level=15)
 def compute_clip(attrs, inputs, _):
     """ Clip operator.
     """
@@ -231,11 +231,24 @@ def compute_clip(attrs, inputs, _):
             x.shape, lambda *i: tvm.max(x(*i), const_min), name="clipB")
     return x
 
+# override to force partition at copy
+reg.register_pattern("copy", OpPattern.INJECTIVE, level=15)
 
-reg.register_pattern("identity", OpPattern.INJECTIVE, level=11)
+def is_packed_layout(layout):
+    """Check if layout is packed layout"""
+    if layout == "NCHW":
+        return False
+    assert "n" in layout
+    assert "c" in layout
+    return True
 
-@reg.register_compute("quantized_conv2d", level=11)
-def compute_quantized_conv2d(attrs, inputs, out):
+@reg.register_alter_op_layout("conv2d", level=15)
+def alter_conv2d_layout(*_):
+    return None
+
+
+@reg.register_compute("conv2d", level=15)
+def compute_conv2d(attrs, inputs, out):
     """ 2D convolution algorithm.
     """
     padding = attrs.get_int_tuple("padding")
@@ -244,36 +257,30 @@ def compute_quantized_conv2d(attrs, inputs, out):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
-    out_dtype = attrs['out_type']
-    cmp_dtype = 'int32' # compute data type
-
-    assert layout == "NCHW", "only support nchw for now"
+    out_dtype = attrs['out_dtype']
     assert dilation == (1, 1), "not support dilate now"
     assert attrs.get_bool("use_bias") is False
-    pack_channel = attrs.get_int("pack_channel")
-    if pack_channel != 0:
+    if is_packed_layout(layout):
         assert groups == 1
         return packed_conv2d(inputs[0], inputs[1],
-                             padding, strides)
+                             padding, strides, out_dtype=out_dtype)
     if groups == 1:
-        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding, out_dtype=cmp_dtype)
+        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding, out_dtype=out_dtype)
     elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, padding, out_dtype=cmp_dtype)
+            inputs[0], inputs[1], strides, padding, out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
-
-    assert out_dtype == cmp_dtype
     return out
 
 
-@reg.register_schedule("quantized_conv2d", level=11)
+@reg.register_schedule("conv2d", level=15)
 def schedule_quantized_conv2d(attrs, outs, target):
     """ 2D convolution schedule.
     """
-    channels = attrs.get_int("channels")
-    pack_channel = attrs.get_int("pack_channel")
-    if channels != 0 and pack_channel:
+    layout = attrs["layout"]
+
+    if is_packed_layout(layout):
         target = tvm.target.create(target)
         if target.device_name == "vta":
             return schedule_packed_conv2d(outs)

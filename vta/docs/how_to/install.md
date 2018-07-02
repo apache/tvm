@@ -59,31 +59,7 @@ In the 'config.mk' file, make sure that:
 
 For the *Python Package Installation*, we recommend updating your `~/.bashrc` file to extend your `PYTHONPATH` with the TVM Python libraries.
 ```bash
-export PYTHONPATH=<tvm root>/python:<tvm root>/topi/python:${PYTHONPATH}
-```
-
-#### NNVM Installation
-
-Clone the NNVM repository from `tqchen` in the directory of your choosing:
-```bash
-git clone git@github.com:tqchen/nnvm.git --recursive
-```
-
-To run this example, we rely on a special branch of NNVM `qt`:
-```bash
-cd <nnvm root>
-git checkout qt
-```
-
-Launch the compilation, this takes about a minute on two threads.
-```bash
-cd <nnvm root>
-make -j2
-```
-
-Finally update your `~/.bashrc` file to include the NNVM python libraries in your `PYTHONPATH`:
-```bash
-export PYTHONPATH=<nnvm root>/python:${PYTHONPATH}
+export PYTHONPATH=<tvm root>/python:<tvm root>/topi/python:<tvm root>/nnvm/python:${PYTHONPATH}
 ```
 
 #### MxNet Installation
@@ -236,7 +212,7 @@ This time again, we will run the 2D convolution testbench. But beforehand, we'll
 * Runtime building on the Pynq, which needs to be run everytime the `config.json` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete.
 
 ```bash
-python tests/python/pynq/test_program_rpc.py 
+python tests/python/pynq/test_program_rpc.py
 ```
 
 > Tip: You can track progress of the FPGA programming and the runtime rebuilding steps by looking at the RPC server's logging messages in your Pynq `ssh` session.
@@ -244,7 +220,7 @@ python tests/python/pynq/test_program_rpc.py
 We are now ready to run the 2D convolution testbench for the ResNet-15 workload in hardware.
 
 ```bash
-python tests/python/pynq/test_benchmark_conv2d.py 
+python tests/python/pynq/test_benchmark_conv2d.py
 ```
 
 The performance metrics measured on the Pynq board will be reported for each convolutional layer.
@@ -280,7 +256,7 @@ You’ll need to install Xilinx’ FPGA compilation toolchain, [Vivado HL WebPAC
 ```bash
 chmod u+x Xilinx_Vivado_SDK_2017.1_0415_1_Lin64.bin
 ```
-5. Now you can execute the binary: 
+5. Now you can execute the binary:
 ```bash
 ./Xilinx_Vivado_SDK_2017.1_0415_1_Lin64.bin
 ```
@@ -337,7 +313,7 @@ If you just want to generate the HLS-based VTA IP cores without launching the en
 make ip
 ```
 You'll be able to view the HLS synthesis reports under `<vta root>/build/hardware/xilinx/hls/<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
-> Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters specified in the `config.json`. The `<block>` name refers to the specific module in the VTA pipeline. 
+> Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters specified in the `config.json`. The `<block>` name refers to the specific module in the VTA pipeline.
 
 Finally to run the full hardware compilation and generate the bitstream, run:
 
