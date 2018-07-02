@@ -306,7 +306,7 @@ def count_nonzero(data, axis=None, keepdims=False):
     """
     def _count_nonzero_comp(lhs, rhs):
         """Compare function of count_nonzero"""
-        idx = tvm.make.Select((rhs[1]==0), lhs[0], lhs[0]+1)
+        idx = tvm.make.Select((rhs[1] == 0), lhs[0], lhs[0]+1)
         val = tvm.const(0, data.dtype)
         return idx, val
     _count_nonzero = tvm.comm_reducer(fcombine=_count_nonzero_comp,
