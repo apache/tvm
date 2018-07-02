@@ -513,6 +513,7 @@ _convert_map = {
     'Relu6'                             : _relu6(),
     'DepthwiseConv2dNative'             : _depthwise_conv(),
     'Shape'                             : _shape(),
+    'Sigmoid'                           : AttrCvt('sigmoid'),
 }
 
 
