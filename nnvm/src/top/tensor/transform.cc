@@ -15,7 +15,9 @@
 #include "../elemwise_op_common.h"
 #include "topi/nn/flatten.h"
 #include "topi/transform.h"
+#include "topi/elemwise.h"
 #include "topi/detail/constant_utils.h"
+#include "../../compiler/compile_engine.h"
 
 namespace nnvm {
 namespace top {
@@ -413,6 +415,14 @@ NNVM_REGISTER_OP(cast)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
 .set_num_inputs(1)
 .set_num_outputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const CastParam& param = nnvm::get<CastParam>(attrs.parsed);
+    Type dtype = GetTVMType(param.dtype);
+    return Array<Tensor>{ topi::cast(inputs[0], dtype) };
+})
 .set_support_level(1);
 
 

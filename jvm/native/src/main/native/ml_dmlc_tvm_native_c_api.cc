@@ -384,7 +384,7 @@ JNIEXPORT jint JNICALL Java_ml_dmlc_tvm_LibInfo_tvmArrayGetShape(
   jmethodID arrayAppend = env->GetMethodID(arrayClass, "add", "(Ljava/lang/Object;)Z");
   for (int i = 0; i < ndim; ++i) {
     jobject data = env->NewObject(longClass, newLong, static_cast<jlong>(shape[i]));
-    env->CallObjectMethod(jshape, arrayAppend, data);
+    env->CallBooleanMethod(jshape, arrayAppend, data);
     env->DeleteLocalRef(data);
   }
   env->DeleteLocalRef(longClass);
