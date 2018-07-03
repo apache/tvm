@@ -17,7 +17,7 @@ inline void DispatchExternLibDevice(const TVMArgs& args, TVMRetValue* rv) {
   using namespace ir;
   const Call* call = e.as<Call>();
   CHECK(call != nullptr);
-  CHECK(call->type.bits() == 32 || call->type.bits() == 64) << "Only support float32 or flaot64.";
+  CHECK(call->type.bits() == 32 || call->type.bits() == 64) << "Only support float32 or float64.";
   std::ostringstream intrinsic_name;
   intrinsic_name << "__nv_" << call->name;
   if(call->type.bits() == 32) intrinsic_name << "f";
