@@ -27,7 +27,7 @@ url = "https://homes.cs.washington.edu/~moreau/media/vta/"
 TEST_FILE = 'cat.jpg'
 CATEG_FILE = 'synset.txt'
 RESNET_GRAPH_FILE = 'resnet18_qt8.json'
-RESNET_PARAMS_FILE = 'resnet18_qt8_params.pkl'
+RESNET_PARAMS_FILE = 'resnet18_qt8.params'
 # Create data dir
 if not os.path.exists(data_dir):
     os.makedirs(data_dir)
@@ -95,8 +95,8 @@ import nnvm.compiler
 np.random.seed(0)
 sym = nnvm.graph.load_json(
     open(os.path.join(data_dir, RESNET_GRAPH_FILE)).read())
-params = pickle.load(
-    open(os.path.join(data_dir, RESNET_PARAMS_FILE), 'rb'))
+params = nnvm.compiler.load_param_dict(
+    open(os.path.join(data_dir, RESNET_PARAMS_FILE), 'rb').read())
 
 shape_dict = {"data": x.shape}
 dtype_dict = {"data": 'float32'}
