@@ -71,12 +71,20 @@ public class MainActivity extends AppCompatActivity {
             Intent intent= new Intent(activity, MainActivity.class);
             int hotStart = 1;
             intent.putExtra("hotStart", hotStart);
+            System.err.println("creating watchdog shutdown intent...");
+            Intent watchdogIntent = new Intent(activity, RPCService.class);
+            System.err.println("watchdog shutdown...");
+            activity.stopService(watchdogIntent);
+
             System.err.println("creating pending intent...");
             PendingIntent pendingIntent = PendingIntent.getActivity(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
             AlarmManager alarmManager = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE); 
             alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
+
             System.err.println("restarting...");
             activity.finishAffinity();
+            System.err.println("system exit...");
+            System.exit(0); 
         }
     }
   } 
