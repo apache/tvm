@@ -30,6 +30,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("nvptx")
 
 
 def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
@@ -85,6 +86,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("nvptx")
 
 def test_broadcast_to():
     verify_broadcast_to_ele((1,), (10,), topi.broadcast_to)

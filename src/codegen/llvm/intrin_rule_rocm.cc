@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file intrin_rule_llvm.cc
+ * \file intrin_rule_rocm.cc
  */
 #ifdef TVM_LLVM_VERSION
 
