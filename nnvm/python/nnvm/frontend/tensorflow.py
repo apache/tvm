@@ -137,25 +137,7 @@ def _pooling(name):
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
-            pad_val = float("-inf") if name == "max_pool" else 0
-            if name == 'max_pool':
-                if attr['data_format'] == 'NHWC':
-                    inputs[0] = _sym.pad(data=inputs[0],
-                                         pad_width=((0, 0),
-                                                    (pad_v[0], pad_v[1]),
-                                                    (pad_h[0], pad_h[1]),
-                                                    (0, 0)),
-                                         pad_value=pad_val)
-                else:
-                    inputs[0] = _sym.pad(data=inputs[0],
-                                         pad_width=((0, 0),
-                                                    (0, 0),
-                                                    (pad_v[0], pad_v[1]),
-                                                    (pad_h[0], pad_h[1])),
-                                         pad_value=pad_val)
-                attr['padding'] = [0, 0]
-            else:
-                attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
+            attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
 
