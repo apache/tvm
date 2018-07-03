@@ -33,11 +33,11 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.content.Intent;
+import android.app.PendingIntent;
+import android.app.AlarmManager;
 
 
 public class MainActivity extends AppCompatActivity {
-  static final int MSG_RPC_ERROR = 0;
-  static final String MSG_RPC_ERROR_DATA_KEY = "msg_rpc_error_data_key";
 
   private RPCWatchdog watchdog;
 
@@ -56,16 +56,27 @@ public class MainActivity extends AppCompatActivity {
   }
 
   class PollResultReceiver extends ResultReceiver {
-    public PollResultReceiver(Handler handler) {
+    private MainActivity activity;
+
+    public PollResultReceiver(Handler handler, MainActivity activity) {
         super(handler);
+        this.activity = activity;
     }
     
     @Override
     public void onReceiveResult(int resultCode, Bundle resultData) {
-        System.err.println("got result");
         if (resultCode != 0) {
             System.err.println("abort triggered...");
-            System.err.println("restating...");
+            System.err.println("creating intent...");
+            Intent intent= new Intent(activity, MainActivity.class);
+            int hotStart = 1;
+            intent.putExtra("hotStart", hotStart);
+            System.err.println("creating pending intent...");
+            PendingIntent pendingIntent = PendingIntent.getActivity(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
+            AlarmManager alarmManager = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE); 
+            alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
+            System.err.println("restarting...");
+            activity.finishAffinity();
         }
     }
   } 
@@ -76,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
     setContentView(R.layout.activity_main);
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
-
 
     Switch switchConnect = findViewById(R.id.switch_connect);
     switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
@@ -93,6 +103,14 @@ public class MainActivity extends AppCompatActivity {
     });
     
     enableInputView(true);
+
+    Intent intent = this.getIntent();
+    // detect if app was just restarted
+    // if so, connect
+    if (intent.getIntExtra("hotStart", 0) == 1) {
+        System.err.println("hot start, trying to reconnect...");
+        switchConnect.setChecked(true);
+    }
 
   }
 
@@ -114,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
     final String key = edAppKey.getText().toString();
 
     System.err.println("creating watchdog thread...");
-    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this, new PollResultReceiver(new Handler()));
+    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this, new PollResultReceiver(new Handler(), this));
     
     System.err.println("starting watchdog thread...");
     watchdog.start();

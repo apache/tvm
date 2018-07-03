@@ -27,6 +27,7 @@ import android.os.ResultReceiver;
  * Watchdog for RPCService
  */
 class RPCWatchdog extends Thread {
+  public static final int WATCHDOG_POLL_INTERVAL = 5000;
   private String m_host;
   private int m_port;
   private String m_key;
@@ -42,8 +43,6 @@ class RPCWatchdog extends Thread {
     m_context = context;
     m_receiver = receiver;
   }
-
-
 
   /**
    * Polling loop to check on RPCService status
@@ -101,7 +100,7 @@ class RPCWatchdog extends Thread {
               //  m_context.startService(intent);
               //}
           }
-          Thread.sleep(5000);
+          Thread.sleep(WATCHDOG_POLL_INTERVAL);
         }
     } catch (InterruptedException e) {
     }
