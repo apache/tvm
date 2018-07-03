@@ -98,8 +98,17 @@ inline const char* CLGetErrorString(cl_int error) {
   }
 
 /*!
+ * \brief OpenCL platforms.
+ */
+enum class OpenCLPlatform {
+  kGPU,
+  kSDAccel,
+};
+
+/*!
  * \brief Process global OpenCL workspace.
  */
+template <OpenCLPlatform T>
 class OpenCLWorkspace final : public DeviceAPI {
  public:
   // global platform id
@@ -108,6 +117,8 @@ class OpenCLWorkspace final : public DeviceAPI {
   std::string platform_name;
   // global context of this process
   cl_context context{nullptr};
+  // whether the workspace it initialized.
+  bool initialized_{false};
   // the device type
   std::string device_type;
   // the devices
@@ -131,14 +142,15 @@ class OpenCLWorkspace final : public DeviceAPI {
   }
   // Initialzie the device.
   void Init(const std::vector<std::string>& device_types, const std::string& platform_name = "");
+  void Init();
   // Check whether the context is OpenCL or not.
   bool IsOpenCLDevice(TVMContext ctx) {
-    return ctx.device_type == kDLOpenCL ||
-        ctx.device_type == static_cast<DLDeviceType>(kDLSDAccel);
+    return ctx.device_type == kDLOpenCL;
   }
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) {
     CHECK(IsOpenCLDevice(ctx));
+    this->Init();
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
     return queues[ctx.device_id];
@@ -164,11 +176,12 @@ class OpenCLWorkspace final : public DeviceAPI {
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
   // get the global workspace
-  static const std::shared_ptr<OpenCLWorkspace>& Global();
+  static const std::shared_ptr<OpenCLWorkspace<T>>& Global();
 };
 
 
 /*! \brief Thread local workspace */
+template <OpenCLPlatform T>
 class OpenCLThreadEntry {
  public:
   // The kernel entry and version.
@@ -186,12 +199,12 @@ class OpenCLThreadEntry {
   WorkspacePool pool;
   // constructor
   OpenCLThreadEntry()
-      : pool(kDLOpenCL, OpenCLWorkspace::Global()) {
+      : pool(kDLOpenCL, OpenCLWorkspace<T>::Global()) {
     context.device_id = 0;
     context.device_type = kDLOpenCL;
   }
   // get the global workspace
-  static OpenCLThreadEntry* ThreadLocal();
+  static OpenCLThreadEntry<T>* ThreadLocal();
 };
 }  // namespace cl
 }  // namespace runtime

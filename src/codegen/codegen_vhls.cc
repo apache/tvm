@@ -85,27 +85,13 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
     code = (*f)(code).operator std::string();
   }
 
-  std::vector<std::string> device_types = {"accelerator"};
-  std::string platform_name = "Xilinx";
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    try {
-      xclbin = (*f)(code, funcname).operator std::string();
-    } catch (const dmlc::Error& e) {
-      LOG(WARNING) << e.what();
-      LOG(WARNING) << "Failed to set up SDAccel, falling back to other platforms for testing.";
-      if (const auto* f = Registry::Get("tvm_callback_sdaccel_fake_compile")) {
-        xclbin = (*f)(code).operator std::string();
-        device_types = {"gpu", "cpu"};
-        platform_name = "";
-      }
-    }
-  }
-  if (xclbin == "") {
+    xclbin = (*f)(code, funcname).operator std::string();
+  } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
-  return OpenCLModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), code, device_types,
-                            platform_name);
+  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), code);
 }
 
 TVM_REGISTER_API("codegen.build_sdaccel")
