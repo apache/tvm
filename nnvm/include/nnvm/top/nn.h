@@ -237,7 +237,7 @@ struct MaxPool2DParam : public dmlc::Parameter<MaxPool2DParam> {
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
       .describe("Specifies the strides of the convolution.");
-    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0, 0, 0}))
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
@@ -267,7 +267,7 @@ struct AvgPool2DParam : public dmlc::Parameter<AvgPool2DParam> {
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
       .describe("Specifies the strides of the convolution.");
-    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0, 0, 0}))
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
                 "Padding support both symmetric and asymmetric as"
                 "one int : same padding used on all sides"
