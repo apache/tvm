@@ -25,6 +25,19 @@ def _my_npy_argmin(arr, axis, keepdims):
         return arr.argmin(axis=axis).reshape(out_shape)
 
 
+def _my_npy_count_nonzero(arr, axis, keepdims):
+    if not keepdims:
+        ret = np.count_nonzero(arr, axis=axis)
+        if isinstance(ret, int):
+            ret = np.array([ret])
+            ret.shape = ()
+        return ret
+    else:
+        out_shape = list(arr.shape)
+        out_shape[axis] = 1
+        return np.count_nonzero(arr, axis=axis).reshape(out_shape)
+
+
 def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     # Build the logic and compile the function
     dat_dtype = "float32"
@@ -42,6 +55,9 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         out_dtype = "int32"
     elif type == "argmin":
         B = topi.argmin(A1, axis=axis, keepdims=keepdims)
+        out_dtype = "int32"
+    elif type == "count_nonzero":
+        B = topi.count_nonzero(A, axis=axis, keepdims=keepdims)
         out_dtype = "int32"
     else:
         raise NotImplementedError
@@ -69,6 +85,9 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             out_npy = _my_npy_argmax(in_npy_map, axis=axis, keepdims=keepdims)
         elif type == "argmin":
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
+        elif type == "count_nonzero":
+            in_npy = np.maximum(in_npy-.5, 0)
+            out_npy = _my_npy_count_nonzero(in_npy, axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
         data_tvm = tvm.nd.array(in_npy, ctx=ctx)
@@ -128,6 +147,18 @@ def test_reduce_map():
                           axis=None,
                           keepdims=False,
                           type="sum")
+    verify_reduce_map_ele(in_shape=(31, 21, 15),
+                          axis=1,
+                          keepdims=False,
+                          type="count_nonzero")
+    verify_reduce_map_ele(in_shape=(32, 24, 32, 24),
+                          axis=(0, 1, 2),
+                          keepdims=False,
+                          type="count_nonzero")
+    verify_reduce_map_ele(in_shape=(31, 21, 15),
+                          axis=None,
+                          keepdims=False,
+                          type="count_nonzero")
 
 if __name__ == "__main__":
     test_reduce_map()

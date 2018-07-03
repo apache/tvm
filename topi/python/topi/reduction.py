@@ -146,11 +146,10 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
                           lambda *indices: _choose_idx(temp_idx, temp_val, *indices),
                           name=data.name + "_red")
     else:
-        out = tvm.compute(target_shape, _compute, name=data.name + "_red")
+        out = tvm.compute(target_shape, _compute, name=data.name + "_red", tag=tag.COMM_REDUCE)
     return out
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def sum(data, axis=None, keepdims=False):
     """Sum of array elements over a given axis or a list of axes
 
@@ -176,7 +175,6 @@ def sum(data, axis=None, keepdims=False):
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 
@@ -202,7 +200,6 @@ def max(data, axis=None, keepdims=False):
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def min(data, axis=None, keepdims=False):
     """Minimum of array elements over a given axis or a list of axes
 
@@ -282,7 +279,6 @@ def argmin(data, axis=None, keepdims=False):
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmin, is_idx_reduce=True)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def count_nonzero(data, axis=None, keepdims=False):
     """Counts the number of non-zero values in the array.
 
@@ -304,12 +300,6 @@ def count_nonzero(data, axis=None, keepdims=False):
     -------
     ret : tvm.Tensor
     """
-    def _count_nonzero_comp(lhs, rhs):
-        """Compare function of count_nonzero"""
-        idx = tvm.make.Select((rhs[1] == 0), lhs[0], lhs[0]+1)
-        val = tvm.const(0, data.dtype)
-        return idx, val
-    _count_nonzero = tvm.comm_reducer(fcombine=_count_nonzero_comp,
-                                      fidentity=lambda t0, t1: (tvm.const(0, t0), tvm.const(0, t1)),
-                                      name='count_nonzero')
-    return comm_reduce(data, axis=axis, keepdims=keepdims, func=_count_nonzero, is_idx_reduce=True)
+    nonzeros = tvm.compute(data.shape, lambda *indices: tvm.select(data[indices] == 0, 0, 1),
+                           name="nonzeros", tag=tag.INJECTIVE)
+    return comm_reduce(nonzeros, axis=axis, keepdims=keepdims, func=tvm.sum, is_idx_reduce=False)
