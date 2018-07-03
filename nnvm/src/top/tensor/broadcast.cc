@@ -346,5 +346,141 @@ Example::
     return std::vector<NodeEntry>{ dlhs, drhs };
 });
 
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_mod, mod)
+.add_alias("__mod_symbol__")
+.describe(R"code(Returns element-wise mod of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_mod(x, y) = [[ 1.,  0.,  1.],
+                          [ 1.,  2.,  0.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_max, maximum)
+.add_alias("__max_symbol__")
+.describe(R"code(Returns element-wise max of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_max(x, y) = [[ 2.,  2.,  3.],
+                          [ 4.,  5.,  6.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_min, minimum)
+.add_alias("__min_symbol__")
+.describe(R"code(Returns element-wise minimum of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_min(x, y) = [[ 1.,  2.,  2.],
+                          [ 3.,  3.,  3.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_pow, power)
+.add_alias("__pow_symbol__")
+.describe(R"code(Returns element-wise x^y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 1.],
+        [ 2.]]
+
+   broadcast_pow(x, y) = [[ 1.,   2.,   3. ],
+                          [ 16.,  25.,  36.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_left_shift, left_shift)
+.add_alias("__left_shift_symbol__")
+.describe(R"code(Returns element-wise x << y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 1.]]
+
+   broadcast_left_shift(x, y) = [[ 4.,  8.,  12.],
+                                 [ 8.,  10., 12.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_right_shift, right_shift)
+.add_alias("__right_shift_symbol__")
+.describe(R"code(Returns element-wise x >> y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 4.,  8.,  12.],
+        [ 8.,  10., 12.]]
+
+   y = [[ 2.],
+        [ 1.]]
+
+   broadcast_right_shift(x, y) = [[ 1.,  2.,  3.],
+                                  [ 4.,  5.,  6.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_greater, greater)
+.add_alias("__greater_symbol__")
+.describe(R"code(Returns element-wise x > y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_greater(x, y) = [[ 0.,  0.,  1.],
+                              [ 1.,  1.,  1.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less, less)
+.add_alias("__less_symbol__")
+.describe(R"code(Returns element-wise x < y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_less(x, y) = [[ 1.,  0.,  0.],
+                           [ 0.,  0.,  0.]]
+
+)code" NNVM_ADD_FILELINE);
+
 }  // namespace top
 }  // namespace nnvm
