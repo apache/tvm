@@ -7,33 +7,33 @@ import android.os.ResultReceiver;
 import android.os.Bundle;
 
 public class RPCService extends Service {
-    private String m_host;
-    private int m_port;
-    private String m_key;
-    private int m_intent_num;
+    private String host;
+    private int port;
+    private String key;
+    private int intent_num;
     private RPCProcessor tvmServerWorker;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         synchronized(this) {
             System.err.println("start command intent");
-            m_host = intent.getStringExtra("host");
-            m_port = intent.getIntExtra("port", 9090);
-            m_key = intent.getStringExtra("key");
+            this.host = intent.getStringExtra("host");
+            this.port = intent.getIntExtra("port", 9090);
+            this.key = intent.getStringExtra("key");
             ResultReceiver receiver = intent.getParcelableExtra("receiver");
-            System.err.println("got the following: " + m_host + ", " + m_port + ", " + m_key);
+            System.err.println("got the following: " + this.host + ", " + this.port + ", " + this.key);
 
             if (tvmServerWorker == null) {
                 System.err.println("service created worker...");
                 tvmServerWorker = new RPCProcessor();
                 tvmServerWorker.setDaemon(true);
                 tvmServerWorker.start();
-                tvmServerWorker.connect(m_host, m_port, m_key);
+                tvmServerWorker.connect(this.host, this.port, this.key);
             }
-            System.err.println("intent num: " + m_intent_num);
-            m_intent_num++; 
+            System.err.println("intent num: " + this.intent_num);
+            this.intent_num++; 
             Bundle bundle = new Bundle();
-            receiver.send(0, bundle);
+            receiver.send(tvmServerWorker.timedOut(System.currentTimeMillis()), bundle);
         }
         // do not restart unless watchdog/app expliciltly does so
         return START_NOT_STICKY;
