@@ -25,12 +25,11 @@ def _my_npy_argmin(arr, axis, keepdims):
         return arr.argmin(axis=axis).reshape(out_shape)
 
 
-def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
+def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32"):
     # Build the logic and compile the function
-    dat_dtype = "float32"
-    A = tvm.placeholder(shape=in_shape, name="A", dtype=dat_dtype)
+    A = tvm.placeholder(shape=in_shape, name="A", dtype=dtype)
     A1 = topi.sqrt(topi.exp(A))
-    out_dtype = "float32"
+    out_dtype = dtype
     if type == "sum":
         B = topi.sum(A1, axis=axis, keepdims=keepdims)
     elif type == "max":
@@ -57,8 +56,8 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
 
         foo = tvm.build(s, [A, B], device, name=type)
         # Test
-        in_npy = np.random.uniform(size=in_shape).astype(np.float32)
-        in_npy_map = np.sqrt(np.exp(in_npy)).astype(np.float32)
+        in_npy = np.random.uniform(size=in_shape).astype(dtype)
+        in_npy_map = np.sqrt(np.exp(in_npy)).astype(dtype)
         if type == "sum":
             out_npy = in_npy_map.sum(axis=axis, keepdims=keepdims)
         elif type == "max":
@@ -91,7 +90,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
                 np.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
             np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
-    for device in ["cuda", "opencl", "metal", "llvm", "rocm", "vulkan"]:
+    for device in ["cuda", "opencl", "metal", "llvm", "rocm", "vulkan", "nvptx"]:
         check_device(device)
 
 
@@ -128,6 +127,11 @@ def test_reduce_map():
                           axis=None,
                           keepdims=False,
                           type="sum")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
+                          axis=(1, 2, 3),
+                          keepdims=True,
+                          type="sum",
+                          dtype="float64")
 
 if __name__ == "__main__":
     test_reduce_map()

@@ -158,7 +158,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
         # num_thread here could be 728, it is larger than cuda.max_num_threads
         num_thread = tvm.ir_pass.Simplify(temp.shape[3]).value
         target = tvm.target.current_target()
-        if target and target.target_name != "cuda":
+        if target and (target.target_name not in ["cuda", "nvptx"]):
             num_thread = target.max_num_threads
         xoc, xic = s[Output].split(c, factor=num_thread)
         s[Output].reorder(xoc, b, h, w, xic)
