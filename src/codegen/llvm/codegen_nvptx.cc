@@ -127,7 +127,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
       if (fname.substr(0, 4) != "__nv") continue;
       // This is to strip off unused __nv_* functions from the final module
       // The one that is actually used will be inlined at call site
-      // Adopted from Halide's runtime linker
+      // Adapted from Halide's runtime linker
       if (!f.isDeclaration() && !f.hasFnAttribute(llvm::Attribute::NoInline)) {
         f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
       }
