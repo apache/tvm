@@ -53,11 +53,6 @@ reg.register_pattern("copy", OpPattern.ELEMWISE)
 reg.register_schedule("copy", _fschedule_broadcast)
 
 # cast
-@reg.register_compute("cast")
-def compute_cast(attrs, inputs, _):
-    """Compute definition of cast"""
-    dtype = attrs.get_string("dtype")
-    return topi.cast(inputs[0], dtype)
 reg.register_pattern("cast", OpPattern.ELEMWISE)
 reg.register_schedule("cast", _fschedule_broadcast)
 
@@ -210,18 +205,10 @@ reg.register_pattern("ones_like", OpPattern.ELEMWISE)
 reg.register_schedule("ones_like", _fschedule_elemwise)
 
 # greater
-@reg.register_compute("greater")
-def compute_greater(_, inputs, out_info):
-    """Compute definition of greater"""
-    return topi.greater(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("greater", OpPattern.ELEMWISE)
 reg.register_schedule("greater", _fschedule_elemwise)
 
 # less
-@reg.register_compute("less")
-def compute_less(_, inputs, out_info):
-    """Compute definition of less"""
-    return topi.less(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("less", OpPattern.ELEMWISE)
 reg.register_schedule("less", _fschedule_elemwise)
 
