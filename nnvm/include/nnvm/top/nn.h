@@ -237,9 +237,12 @@ struct MaxPool2DParam : public dmlc::Parameter<MaxPool2DParam> {
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
       .describe("Specifies the strides of the convolution.");
-    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0, 0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding just as given");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -264,10 +267,12 @@ struct AvgPool2DParam : public dmlc::Parameter<AvgPool2DParam> {
       .describe("Size of the pooling windows..");
     DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
       .describe("Specifies the strides of the convolution.");
-    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0, 0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points"
-                "Supports asymmetric padding as (pad_top, pad_left, pad_bottom, pad_right)");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding just as given");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

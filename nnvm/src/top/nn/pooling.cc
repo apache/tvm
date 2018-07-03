@@ -46,12 +46,18 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   const auto widx = layout.indexof('W');
 
   TShape pad = param.padding;
-  if (param.padding.ndim() == 4) {
+  if (param.padding.ndim() == 1) {
+    pad[1] = pad[0];
+    pad[2] = pad[0];
+    pad[3] = pad[0];
+  } else if (param.padding.ndim() == 2) {
+    pad[0] *= 2;
+    pad[1] *= 2;
+  } else if (param.padding.ndim() == 4) {
     pad[0] += pad[2];
     pad[1] += pad[3];
   } else {
-    pad[0] *= 2;
-    pad[1] *= 2;
+    return false;
   }
 
   TShape oshape = dshape;
@@ -118,12 +124,13 @@ NNVM_REGISTER_OP(max_pool2d)
            (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
            out_height and out_width are calculated as::
 
-           for symetric padding:
-               out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
-               out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
-           for asymmetric padding:
                out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
                out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
+
+           where padding will be an expanded array based on number of values passed as::
+               one int : all sides same padding used.
+               two int : bottom, right use same as top and left.
+               four int: same as passed values.
 
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
@@ -156,6 +163,15 @@ NNVM_REGISTER_OP(max_pool2d)
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
     << "Pool2D only support 4-D input (e.g., NCHW)"
     << " or 5-D input (last dimension is a split of channel)";
+
+  if (param.padding.ndim() == 1) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+  } else if (param.padding.ndim() == 2) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[1]);
+  }
 
   return Array<Tensor>{
     topi::nn::pool(inputs[0], pool_size, strides, padding,
@@ -196,8 +212,13 @@ NNVM_REGISTER_OP(avg_pool2d)
            (batch_size, channels, out_height, out_width)  if `layout` is `NCHW`.
            out_height and out_width are calculated as::
 
-               out_height = floor((height+2*padding[0]-pool_size[0])/strides[0])+1
-               out_width = floor((width+2*padding[1]-pool_size[1])/strides[1])+1
+               out_height = floor((height+padding[0]+padding[2]-pool_size[0])/strides[0])+1
+               out_width = floor((width+padding[1]+padding[3]-pool_size[1])/strides[1])+1
+
+           where padding will be an expanded array based on number of values passed as::
+               one int : all sides same padding used.
+               two int : bottom, right use same as top and left.
+               four int: same as passed values.
 
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
@@ -229,6 +250,15 @@ NNVM_REGISTER_OP(avg_pool2d)
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
     << "Pool2D only support 4-D input (e.g., NCHW)"
     << " or 5-D input (last dimension is a split of channel)";
+
+  if (param.padding.ndim() == 1) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+    padding.push_back(padding[0]);
+  } else if (param.padding.ndim() == 2) {
+    padding.push_back(padding[0]);
+    padding.push_back(padding[1]);
+  }
 
   return Array<Tensor>{
     topi::nn::pool(inputs[0], pool_size, strides, padding,

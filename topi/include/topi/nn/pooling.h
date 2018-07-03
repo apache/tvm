@@ -52,45 +52,26 @@ inline Tensor pool_impl(const Tensor& x,
   CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
-  CHECK((padding_size.size() == 2) ||
-        (padding_size.size() == 4)) << "Pooling padding_size must have 2 or 4 elements";
+  CHECK((padding_size.size() == 4)) << "Pooling padding_size must have 4 elements";
 
   auto kernel_height = kernel_size[0];
   auto kernel_width = kernel_size[1];
   auto stride_height = stride_size[0];
   auto stride_width = stride_size[1];
-  auto padding_top = padding_size[0];
-  auto padding_left = padding_size[1];
-  auto padding_bottom = padding_size[0];
-  auto padding_right = padding_size[1];
 
   auto height = x->shape[height_axis];
   auto width = x->shape[width_axis];
 
-  auto pad_tuple = detail::GetPadTuple(padding_top, padding_left);
-  auto pad_top = pad_tuple[0];
-  auto pad_left = pad_tuple[1];
-  auto pad_bottom = pad_tuple[2];
-  auto pad_right = pad_tuple[3];
-
-  if (padding_size.size() == 4) {
-    padding_bottom = padding_size[2];
-    padding_right = padding_size[3];
-
-    pad_top = padding_size[0];
-    pad_left = padding_size[1];
-    pad_bottom = padding_size[2];
-    pad_right = padding_size[3];
-  }
+  auto pad_top = padding_size[0];
+  auto pad_left = padding_size[1];
+  auto pad_bottom = padding_size[2];
+  auto pad_right = padding_size[3];
 
   if (ceil_mode) {
     // Additional padding to ensure we do ceil instead of floor when
     // dividing by stride.
     pad_bottom += stride_height - 1;
     pad_right += stride_width - 1;
-
-    padding_bottom += stride_height - 1;
-    padding_right += stride_height - 1;
   }
 
   Array<Expr> pad_before(std::vector<Expr>(x->shape.size(), 0));
@@ -113,10 +94,10 @@ inline Tensor pool_impl(const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const int64_t *padding_h0 = HalideIR::Internal::as_const_int(padding_top);
-  const int64_t *padding_w0 = HalideIR::Internal::as_const_int(padding_left);
-  const int64_t *padding_h1 = HalideIR::Internal::as_const_int(padding_bottom);
-  const int64_t *padding_w1 = HalideIR::Internal::as_const_int(padding_right);
+  const int64_t *padding_h0 = HalideIR::Internal::as_const_int(pad_top);
+  const int64_t *padding_w0 = HalideIR::Internal::as_const_int(pad_left);
+  const int64_t *padding_h1 = HalideIR::Internal::as_const_int(pad_bottom);
+  const int64_t *padding_w1 = HalideIR::Internal::as_const_int(pad_right);
   const bool do_pad = ((padding_h0 && *padding_h0) || (padding_w0 && *padding_w0)) ||
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
@@ -144,8 +125,8 @@ inline Tensor pool_impl(const Tensor& x,
       if (count_include_pad) {
         return tsum(output) / (kernel_height * kernel_width);
       } else {
-        Expr h_start = output[height_axis] * stride_height - padding_top;
-        Expr w_start = output[width_axis] * stride_width - padding_left;
+        Expr h_start = output[height_axis] * stride_height - pad_top;
+        Expr w_start = output[width_axis] * stride_width - pad_left;
         Expr h_end = ir::Min::make(h_start + kernel_height, height);
         Expr w_end = ir::Min::make(w_start + kernel_width, width);
         h_start = ir::Max::make(h_start, make_const(Int(32), 0));
