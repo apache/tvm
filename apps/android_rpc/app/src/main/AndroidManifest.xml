@@ -17,6 +17,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".RPCService"
+                 android:process=":RPCServiceProcess"
+                 android:permission="android.permission.BIND_JOB_SERVICE"/>
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />

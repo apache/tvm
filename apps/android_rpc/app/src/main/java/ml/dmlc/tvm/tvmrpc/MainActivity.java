@@ -25,6 +25,8 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+import android.os.ResultReceiver;
+
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.widget.CompoundButton;
@@ -52,6 +54,21 @@ public class MainActivity extends AppCompatActivity {
         });
     builder.create().show();
   }
+
+  class PollResultReceiver extends ResultReceiver {
+    public PollResultReceiver(Handler handler) {
+        super(handler);
+    }
+    
+    @Override
+    public void onReceiveResult(int resultCode, Bundle resultData) {
+        System.err.println("got result");
+        if (resultCode != 0) {
+            System.err.println("abort triggered...");
+            System.err.println("restating...");
+        }
+    }
+  } 
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -95,7 +112,8 @@ public class MainActivity extends AppCompatActivity {
     final String key = edAppKey.getText().toString();
 
     System.err.println("creating watchdog thread...");
-    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this);
+    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this, new PollResultReceiver(new Handler()));
+    
     System.err.println("starting watchdog thread...");
     watchdog.start();
 
