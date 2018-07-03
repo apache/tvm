@@ -195,38 +195,64 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
     num_anchors = cls_prob.shape[2]
 
     ib = tvm.ir_builder.create()
+    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, ), name="temp_score", scope="global")
+    score = ib.allocate('float32', (batch_size * num_anchors, ), name="score", scope="local")
+    cls_id = ib.allocate('int32', (batch_size * num_anchors, ), name="id", scope="local")
+    flag = ib.allocate('int32', (batch_size * num_anchors, ), name="flag", scope="global")
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    tx = tvm.thread_axis("threadIdx.x")
+    bx = tvm.thread_axis("blockIdx.x")
+    nthread_tx = max_threads
+    nthread_bx = (batch_size * num_anchors * num_classes) // max_threads + 1
+    ib.scope_attr(tx, "thread_extent", nthread_tx)
+    ib.scope_attr(bx, "thread_extent", nthread_bx)
+    tid = bx * max_threads + tx
     p_cls_prob = ib.buffer_ptr(cls_prob)
     p_loc_pred = ib.buffer_ptr(loc_pred)
     p_anchor = ib.buffer_ptr(anchor)
     p_valid_count = ib.buffer_ptr(valid_count)
     p_out = ib.buffer_ptr(out)
-    with ib.for_range(0, batch_size, for_type="parallel", name="n") as n:
+    with ib.if_scope(tid < batch_size * num_anchors * num_classes):
+        n = tid / (num_anchors * num_classes)
+        j = (tid % (num_anchors * num_classes)) / num_anchors
+        i = tid % num_anchors
+        with ib.if_scope(j > 0):
+            temp_score[n * num_anchors * num_classes + i * (num_classes - 1) + j-1] = p_cls_prob[tid]
         p_valid_count[n] = 0
-        with ib.for_range(0, num_anchors, name="i") as i:
-            # Find the predicted class id and probability
-            score = ib.allocate('float32', (1,), name="score", scope="local")
-            cls_id = ib.allocate('int32', (1,), name="id", scope="local")
-            score[0] = -1.0
-            cls_id[0] = 0
-            with ib.for_range(0, num_classes, name="j") as j:
-                with ib.if_scope(j > 0):
-                    temp = p_cls_prob[n * num_anchors * num_classes + j * num_anchors + i]
-                    cls_id[0] = tvm.select(temp > score[0], j, cls_id[0])
-                    score[0] = tvm.make.Max(temp, score[0])
-            with ib.if_scope(tvm.all(cls_id[0] > 0, score[0] < threshold)):
-                cls_id[0] = 0
-            # [id, prob, xmin, ymin, xmax, ymax]
-            # Remove background, restore original id
-            with ib.if_scope(cls_id[0] > 0):
-                out_base_idx = n * num_anchors * 6 + p_valid_count[n] * 6
-                p_out[out_base_idx] = cls_id[0] - 1.0
-                p_out[out_base_idx + 1] = score[0]
-                offset = i * 4
-                p_out[out_base_idx + 2], p_out[out_base_idx + 3], p_out[out_base_idx + 4], \
-                p_out[out_base_idx + 5] = transform_loc(p_loc_pred, n * num_anchors * 4 + offset,
-                                                        p_anchor, offset, clip, variances[0],
-                                                        variances[1], variances[2], variances[3])
-                p_valid_count[n] += 1
+    with ib.if_scope(tid < batch_size * num_anchors):
+        n = tid / num_anchors
+        i = tid % num_anchors
+        score[tid] = -1.0
+        cls_id[tid] = 0
+        with ib.for_range(0, num_classes-1, name="k") as k:
+            temp = temp_score[tid * (num_classes-1) + k]
+            cls_id[tid] = tvm.select(temp > score[tid], k + 1, cls_id[tid])
+            score[tid] = tvm.make.Max(temp, score[tid])
+        with ib.if_scope(tvm.all(cls_id[tid] > 0, score[tid] < threshold)):
+            cls_id[tid] = 0
+        with ib.if_scope(cls_id[tid] > 0):
+            flag[tid] = 1
+        with ib.else_scope():
+            flag[tid] = 0
+    with ib.if_scope(tid < batch_size):
+        with ib.for_range(0, num_anchors, name="k") as k:
+            with ib.if_scope(k > 0):
+                flag[tid * num_anchors + k] += flag[tid * num_anchors + k - 1]
+        p_valid_count[tid] = flag[tid * num_anchors + num_anchors - 1]
+    with ib.if_scope(tid < batch_size * num_anchors):
+        n = tid / num_anchors
+        i = tid % num_anchors
+        with ib.if_scope(cls_id[tid] > 0):
+            with ib.if_scope(i == 0):
+                out_base_id = n * num_anchors * 6
+            with ib.else_scope():
+                out_base_idx = n * num_anchors * 6 + flag[tid - 1] * 6
+            p_out[out_base_idx] = cls_id[tid] - 1.0
+            p_out[out_base_idx + 1] = score[tid]
+            p_out[out_base_idx + 2], p_out[out_base_idx + 3], p_out[out_base_idx + 4], \
+            p_out[out_base_idx + 5] = transform_loc(p_loc_pred, tid * 4, p_anchor, i*4,
+                                                    clip, variances[0], variances[1],
+                                                    variances[2], variances[3])
 
     return ib.get()
 
@@ -258,6 +284,8 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
 
     Returns
     -------
+    ret : tuple of tvm.Tensor composed of
+
     out : tvm.Tensor
         3-D tensor with shape (batch_size, num_anchors, 6)
 
@@ -280,7 +308,7 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
                    dtype=[valid_count_dtype, cls_prob.dtype],
                    out_buffers=[valid_count_buf, out_buf],
                    tag="multibox_transform_loc")
-    return out, valid_count
+    return [out, valid_count]
 
 
 @multibox_detection.register(["cuda", "gpu"])
@@ -322,7 +350,7 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
     out : tvm.Tensor
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
-    inter_out, valid_count = mutibox_transform_loc(cls_prob, loc_pred, anchor,
+    inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                                    clip, threshold, variances)
-    out = nms(inter_out, valid_count, nms_threshold, force_suppress, nms_topk)
+    out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
     return out
