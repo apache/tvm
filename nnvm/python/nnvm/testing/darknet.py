@@ -9,8 +9,8 @@ These are utility functions used for testing and tutorial file.
 from __future__ import division
 import math
 import numpy as np
-import cv2
 from cffi import FFI
+import cv2
 
 def _resize_image(img, w_in, h_in):
     """Resize the image to the given height and width."""
