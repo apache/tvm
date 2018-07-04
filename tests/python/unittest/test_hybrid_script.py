@@ -1,9 +1,9 @@
-import tvm, inspect, sys, traceback, numpy, nose
+import tvm, inspect, sys, traceback, numpy, nose, types
 from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @nose.tools.nottest
-def run_and_check(func, args, outs, var_dict={}, target='llvm'):
+def run_and_check(func, args, outs, var_dict={}, target='llvm', ref_func=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
@@ -30,9 +30,13 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
 
-    func(*emu_args)
+    if callable(func):
+        func(*emu_args)
+        lowerd_func = tvm.lower(func(*args), args)
+    else:
+        ref_func(*emu_args)
+        lowerd_func = tvm.lower(func, args)
 
-    lowerd_func = tvm.lower(func(*args), args)
     module = tvm.build(lowerd_func, target=target)
     assert module
     module(*nd_args)
@@ -83,11 +87,12 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 99, m: 101})
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
         assert key not in outer_product.__globals__.keys()
+
 
 #Test local function
 #Test allocation of local variable
@@ -337,6 +342,30 @@ def test_allocate():
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
+def test_split():
+    @script
+    def outer_product(a, b, c):
+        for i in range(32):
+            for j in range(32):
+                c[i, j] = a[i] * b[j]
+    a = tvm.placeholder((32, ), dtype='float32', name='a')
+    b = tvm.placeholder((32, ), dtype='float32', name='b')
+    c = tvm.placeholder((32, 32), dtype='float32', name='c')
+    ir = outer_product(a, b, c)
+
+    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type
+    i, j = _axis(ir)
+    ir, jo, ji = _split(ir, j, 8)
+    ir = _change_loop_type(ir, ji, 2)
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.extent.value == 32
+    assert isinstance(ir.body, tvm.stmt.For)
+    assert ir.body.extent.value == 4
+    assert isinstance(ir.body.body, tvm.stmt.For)
+    assert ir.body.body.extent.value == 8
+    run_and_check(ir, [a, b, c], [c], ref_func=outer_product)
+
+
 
 if __name__ == "__main__":
     test_outer_product()
@@ -348,4 +377,5 @@ if __name__ == "__main__":
     test_math_intrin()
     test_non_zero()
     test_allocate()
+    test_split()
 
