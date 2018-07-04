@@ -239,7 +239,10 @@ struct MaxPool2DParam : public dmlc::Parameter<MaxPool2DParam> {
       .describe("Specifies the strides of the convolution.");
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -266,7 +269,10 @@ struct AvgPool2DParam : public dmlc::Parameter<AvgPool2DParam> {
       .describe("Specifies the strides of the convolution.");
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

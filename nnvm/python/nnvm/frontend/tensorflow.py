@@ -137,21 +137,12 @@ def _pooling(name):
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
-            if attr['data_format'] == 'NHWC':
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1]),
-                                                (0, 0)))
-            else:
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1])))
-            attr['padding'] = [0, 0]
+            attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+
+        if name == "avg_pool":
+            attr['count_include_pad'] = False
 
         return AttrCvt(
             op_name=_dimension_picker(name),
