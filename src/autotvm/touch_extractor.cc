@@ -8,6 +8,7 @@
 
 #include <set>
 #include <algorithm>
+#include <cmath>
 
 namespace tvm {
 namespace autotvm {

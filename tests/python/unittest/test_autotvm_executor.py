@@ -1,7 +1,7 @@
 """Test local executor"""
 import time
 
-from tvm.autotvm.measure import local_executor, TimeoutError
+from tvm.autotvm.measure import LocalExecutor, executor
 
 def slow(n):
     r = 0
@@ -13,7 +13,7 @@ def fast(n):
     return n*(n+1)//2
 
 def test_local_measure_async():
-    ex = local_executor.LocalExecutor()
+    ex = LocalExecutor()
     f1 = ex.submit(slow, 9999999)
     f2 = ex.submit(fast, 9999999)
     t1 = 0
@@ -34,13 +34,13 @@ def timeout_job(n):
 def test_timeout():
     timeout = 0.5
 
-    ex = local_executor.LocalExecutor(timeout=timeout)
+    ex = LocalExecutor(timeout=timeout)
 
     f1 = ex.submit(timeout_job, timeout)
     while not f1.done():
         pass
     res = f1.get()
-    assert isinstance(res, TimeoutError)
+    assert isinstance(res, executor.TimeoutError)
 
 if __name__ == "__main__":
     test_local_measure_async()

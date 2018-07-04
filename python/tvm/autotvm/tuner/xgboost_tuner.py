@@ -486,6 +486,7 @@ def _extract_curve_feature_log(arg):
         y = 0
     return x, y
 
+
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                     save_file="xgb_checkpoint", save_every=None,
                     maximize=False, verbose_eval=True):
@@ -601,6 +602,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
 
     return callback
 
+
 # feval wrapper for xgboost
 def xgb_max_curve_score(N):
     """evaluate max curve score for xgb"""
@@ -611,6 +613,7 @@ def xgb_max_curve_score(N):
         curve = max_curve(scores)
         return "Smax@%d" % N, curve[N] / np.max(labels)
     return feval
+
 
 def xgb_recalln_curve_score(N):
     """evaluate recall-n curve score for xgb"""
@@ -632,6 +635,7 @@ def xgb_average_recalln_curve_score(N):
         return "a-recall@%d" % N, np.sum(curve[:N]) / N
     return feval
 
+
 def xgb_recallk_curve_score(N, topk):
     """evaluate recall-k curve score for xgb"""
     def feval(preds, labels):
@@ -642,6 +646,7 @@ def xgb_recallk_curve_score(N, topk):
         return "recall@%d" % topk, curve[N]
     return feval
 
+
 def xgb_cover_curve_score(N):
     """evaluate cover curve score for xgb"""
     def feval(preds, labels):
@@ -651,6 +656,7 @@ def xgb_cover_curve_score(N):
         curve = cover_curve(ranks)
         return "cover@%d" % N, curve[N]
     return feval
+
 
 def xgb_null_score(_):
     """empty score function for xgb"""
