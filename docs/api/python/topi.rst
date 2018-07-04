@@ -46,6 +46,9 @@ List of operators
    topi.max
    topi.sum
    topi.min
+   topi.argmax
+   topi.argmin
+   topi.count_nonzero
    topi.broadcast_to
    topi.add
    topi.subtract
