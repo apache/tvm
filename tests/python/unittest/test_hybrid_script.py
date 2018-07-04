@@ -44,12 +44,15 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm', ref_func=None):
     for nd, np in to_check:
         numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
+    return module
+
 
 @script
 def outer_product(n, m, a, b, c):
     for i in range(n):
         for j in range(m):
             c[i, j] = a[i] * b[j]
+
 
 #Test global function
 #Test bridge between frontend and backend
@@ -241,6 +244,7 @@ def test_bind():
 
     run_and_check(vec_add, [a, b, c], [c], target='cuda')
 
+
 def test_math_intrin():
     @script
     def intrin_real(a):
@@ -277,6 +281,7 @@ def test_math_intrin():
     func(tvm_a)
     assert tvm_a.asnumpy()[0] == a[0]
 
+
 def test_non_zero():
     @tvm.hybrid.script
     def blur(a, b):
@@ -307,6 +312,7 @@ def test_non_zero():
 
     run_and_check(triangle, [a, b, c], [c])
 
+
 def test_allocate():
     @tvm.hybrid.script
     def blur2d(a, b):
@@ -325,22 +331,24 @@ def test_allocate():
 
     if tvm.gpu().exist:
         @tvm.hybrid.script
-        def share_vec_add(a, b, c):
-            shared = allocate((256, ), 'float32', 'shared')
-            for i in bind("threadIdx.x", 256):
-                shared[i] = a[i]
-            local = allocate((256, ), 'float32', 'local')
-            for i in bind("threadIdx.x", 256):
-                local[i] = b[i]
-            for i in bind("threadIdx.x", 256):
-                c[i] = shared[i] + local[i]
+        def shared_gemm(a, b, c):
+            for io in bind('blockIdx.x', 8):
+                for ii in bind('blockIdx.y', 8):
+                    shared_b = allocate((64, 64), 'float32', 'shared')
+                    for k in range(64):
+                        shared_b[io * 8 + ii, k] = b[io * 8 + ii, k]
+                    for jo in bind('threadIdx.y', 8):
+                        for ji in bind('threadIdx.x', 8):
+                            for k in range(64):
+                                c[io*8+ii, jo*8+ji] = c[io*8+ii, jo*8+ji] + a[io*8+ii, k] * shared_b[k, jo*8+ji]
 
-        a = tvm.placeholder((256, ), dtype='float32', name='a')
-        b = tvm.placeholder((256, ), dtype='float32', name='b')
-        c = tvm.placeholder((256, ), dtype='float32', name='c')
-        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
+        a = tvm.placeholder((64, 64), dtype='float32', name='a')
+        b = tvm.placeholder((64, 64), dtype='float32', name='b')
+        c = tvm.placeholder((64, 64), dtype='float32', name='c')
+        module = run_and_check(shared_gemm, [a, b, c], [c], target='cuda')
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
+
 
 def test_split():
     @script
