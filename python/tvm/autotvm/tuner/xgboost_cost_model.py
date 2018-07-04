@@ -160,6 +160,7 @@ class XGBoostCostModel(CostModel):
 
     def fit_log(self, records, plan_size):
         tic = time.time()
+        self._reset_pool()
 
         args = list(records)
         if self.fea_type == 'itervar':
