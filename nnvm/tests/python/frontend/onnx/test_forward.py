@@ -169,7 +169,6 @@ def test_slice():
     _test_slice_iteration(x, x[:, :, 3:4], (0, 0, 3), (20, 10, 4))
     _test_slice_iteration(x, x[:, 1:1000], (1), (1000), (1))
     _test_slice_iteration(x, x[:, 0:-1], (0), (-1), (1))
-    #_test_slice_iteration(x, x[:, 1000:1000], (1000), (1000), (1))
 
 def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     indata = np.random.uniform(size=(2, 4, 5, 6)).astype(dtype)
