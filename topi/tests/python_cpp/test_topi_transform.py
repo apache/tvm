@@ -281,6 +281,7 @@ def test_tranpose():
     verify_tranpose((3, 10, 2), (1, 0, 2))
     verify_tranpose((3, 10, 5), (2, 0, 1))
     verify_tranpose((3, 10), None)
+    verify_tranpose((3, 10, 5), (2, -3, 1))
 
 
 def test_reshape():

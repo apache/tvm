@@ -781,6 +781,12 @@ with 1.0 if (left > right), otherwise 0.0 element-wise.
 .add_argument("rhs", "Tensor", "Second input")
 .set_num_inputs(2)
 .set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<2, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::greater(inputs[0], inputs[1]), out_info[0]->dtype) };
+})
 .set_support_level(4);
 
 
@@ -793,6 +799,12 @@ with 1.0 if (left < right), otherwise 0.0 element-wise.
 .add_argument("rhs", "Tensor", "Second input")
 .set_num_inputs(2)
 .set_attr<nnvm::FInferShape>("FInferShape", ElemwiseShape<2, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::less(inputs[0], inputs[1]), out_info[0]->dtype) };
+})
 .set_support_level(4);
 
 NNVM_REGISTER_INDICATOR_OP(_max_mask)
