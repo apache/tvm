@@ -1,3 +1,6 @@
+# pylint: disable=invalid-name
+"""XGBoost as cost model"""
+
 import gc
 import multiprocessing
 import logging
@@ -15,6 +18,34 @@ from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel
 
 class XGBoostCostModel(CostModel):
+    """XGBoost as cost model
+
+    Parameters
+    ----------
+    task: Task
+        The tuning task
+    feature_type: str, optional
+        If is 'itervar', use features extracted from IterVar (loop variable).
+        If is 'knob', use flatten ConfigEntity directly.
+        If is 'curve', use sampled curve feature (relation feature).
+
+        Note on choosing feature type:
+        For single task tuning, 'itervar' and 'knob' is good.
+                                'itervar' is more accurate but 'knob' is much faster.
+        For cross-shape tuning (e.g. many convolutions with different shapes),
+                               'itervar' and 'curve' has better transferability,
+                               'knob' is faster.
+        For cross-device or cross-operator tuning, you can use 'curve' only.
+    loss_type: str
+        If is 'reg', use regression loss to train cost model.
+                     The cost model predicts the normalized flops.
+        If is 'rank', use pairwise rank loss to train cost model.
+                     The cost model predicts relative rank score.
+    num_threads: int, optional
+        The number of threads.
+    verbose: int, optional
+        If is not none, the cost model will print training log every `verbose` iterations.
+    """
     def __init__(self, task, feature_type, loss_type, num_threads=None, verbose=20):
         super(XGBoostCostModel, self).__init__()
 
@@ -179,8 +210,8 @@ class XGBoostCostModel(CostModel):
             feature_cache[self.fea_type] = {}
         self.fea_cache = feature_cache[self.fea_type]
 
-    def load_basemodel(self, model):
-        self.base_model = model
+    def load_basemodel(self, base_model):
+        self.base_model = base_model
 
     def clone_new(self):
         return XGBoostCostModel(self.task, self.fea_type, self.loss_type,
@@ -223,8 +254,7 @@ def _extract_itervar_feature_index(index):
     fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
     if config.other_option_keys:
         return np.concatenate((fea, list(config.get_other_option().values())))
-    else:
-        return np.array(fea)
+    return np.array(fea)
 
 def _extract_itervar_feature_log(arg):
     """extract iteration var feature for log items"""
@@ -271,8 +301,7 @@ def _extract_curve_feature_index(index):
     fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
     if config.other_option_keys:
         return np.concatenate((fea, list(config.get_other_option().values())))
-    else:
-        return np.array(fea)
+    return np.array(fea)
 
 def _extract_curve_feature_log(arg):
     """extract sampled curve feature for log items"""

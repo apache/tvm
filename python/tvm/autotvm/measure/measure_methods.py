@@ -287,11 +287,11 @@ def cuda_verify_pass(**kwargs):
     return verify_pass
 
 
-# @register_func
-# def tvm_callback_cuda_compile(code):
-#     """use nvcc to generate ptx code for better optimization"""
-#     ptx = nvcc.compile_cuda(code, target="ptx", arch=AutotvmGlobalScope.current.cuda_target_arch)
-#     return ptx
+@register_func
+def tvm_callback_cuda_compile(code):
+    """use nvcc to generate ptx code for better optimization"""
+    ptx = nvcc.compile_cuda(code, target="ptx", arch=AutotvmGlobalScope.current.cuda_target_arch)
+    return ptx
 
 def set_cuda_target_arch(arch):
     """set target architecture of nvcc compiler"""

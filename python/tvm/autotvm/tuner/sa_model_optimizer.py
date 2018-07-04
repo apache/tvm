@@ -1,3 +1,7 @@
+# pylint: disable=consider-using-enumerate
+"""
+Cost model optimizer based on simulated annealing
+"""
 
 import heapq
 import logging
@@ -9,9 +13,25 @@ from ..util import sample_ints
 from .model_based_tuner import ModelOptimizer
 
 class SimulatedAnnealingOptimizer(ModelOptimizer):
+    """parallel simulated annealing optimization algorithm
+
+    Parameters
+    ----------
+    task: Task
+        The tuning task
+    n_iter: int
+        The number of iterations of simulated annealing
+    temp: float or Array of float
+        If is a single float, then use a constant temperature.
+        If is an Array, then perform linear cooling from temp[0] to temp[1]
+    early_stop: int, optional
+        Stop iteration if the optimal set do not change in `early_stop` rounds
+    verbose: int, optional
+        Print log every `verbose` iterations
+    """
     def __init__(self, task, n_iter=500, temp=(1, 0), persistent=True, parallel_size=128,
                  early_stop=30, verbose=50):
-        super(ModelOptimizer, self).__init__()
+        super(SimulatedAnnealingOptimizer, self).__init__()
 
         self.task = task
         self.dims = [len(x) for x in self.task.config_space.space_map.values()]
@@ -124,9 +144,9 @@ def random_walk(p, dims):
 
     # mutate
     while new == old:
-        ii = np.random.randint(len(old))
-        to = np.random.randint(dims[ii])
-        new[ii] = to
+        from_i = np.random.randint(len(old))
+        to_v = np.random.randint(dims[from_i])
+        new[from_i] = to_v
 
     # transform to index form
     p = 0

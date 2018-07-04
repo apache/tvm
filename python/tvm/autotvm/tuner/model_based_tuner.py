@@ -1,43 +1,118 @@
 # pylint: disable=no-else-return,invalid-name,consider-using-enumerate,abstract-method
 """Base class for model-based tuner
-This type of tuner will fit a cost model and use simulated annealing to
-find optimums in space according to the cost model.
+This type of tuner will fit a cost model and use some optimization methods to
+find optimums points of cost model in space.
 """
 
 import numpy as np
 
 from .tuner import Tuner
-from .submodular import submodular_pick
 
 
 class CostModel(object):
+    """Cost model to predict the speed of a config"""
     def __init__(self):
         pass
 
     def fit(self, xs, ys, plan_size):
+        """Fit to training data
+
+        Parameters
+        ----------
+        xs: Array of int
+            indexes of configs in the config space
+        ys: Array of float
+            The speed (flop, float number operations per second)
+        plan_size: int
+            The plan size of tuner
+        """
         raise NotImplementedError()
 
     def fit_log(self, records, plan_size):
+        """Fit training data from log.
+
+        Parameters
+        ----------
+        records: Array of Tuple(MeasureInput, MeasureResult)
+            The tuning records
+        plan_size: int
+            The plan size of tuner
+        """
         raise NotImplementedError()
 
-    def predict(self, xs):
+    def predict(self, xs, output_margin=False):
+        """Predict the speed of configs
+
+        Parameters
+        ----------
+        xs: Array of int
+            The indexes of configs to predict
+        output_margin: bool, optional
+            Whether output the untransformed margin.
+            When a model is used as base model, it should output untransformed margin
+
+        Returns
+        -------
+        preds: Array of float
+            The prediction
+        """
         raise NotImplementedError()
 
     def set_feature_cache(self, feature_cache):
+        """Set feature cache. If a model used cache for feature extraction, it should
+        use global cache from the tuner. This enables cache sharing between different models
+
+        Parameters
+        ----------
+        feature_cache: dict
+            The global feature dict of tuner
+        """
         pass
 
     def load_basemodel(self, base_model):
+        """Load baes model for transfer learning
+
+        Parameters
+        ----------
+        base_model: CostModel
+                base model
+        """
         raise NotImplementedError()
 
     def clone_new(self):
+        """Clone a new model with the same parameters.
+        This function can only copy hyperparameters of the tuner, not all the trained model
+
+        This is used for derive a base model conveniently
+
+        Returns
+        -------
+        model: CostModel
+            A model with the same hyperparameter (argument)
+        """
         raise NotImplementedError()
 
 
 class ModelOptimizer(object):
+    """Optimizer used to find optimal points of cost model"""
     def __init__(self):
         pass
 
     def find_maximums(self, model, num, exclusive):
+        """Find maximum of a cost model
+
+        Note we use cost model to predict GFLOPS, so we should find the maximum
+
+        Parameters
+        ----------
+        model: CostModel
+            Cost model
+        num: int
+            The number of returned maximum points
+        exclusive: set, optional
+            The excluded set of this optimizer. Return results won't include any
+            elements in this set.
+        """
         raise NotImplementedError()
 
 
@@ -50,11 +125,16 @@ class ModelBasedTuner(Tuner):
     ----------
     task: autotvm.task.Task
         The tuning task
-    plan_size: int
-        Tuner will re-fit model per `batch_size` new measure samples
-    cost_model:
+    cost_model: CostModel
+        The cost model that predicts the speed of a config (IR)
     model_optimizer:
-
+        The optimizer to find local optimum points of cost model in tuning search space
+    plan_size: int
+        Tuner will re-fit model per `plan_size` new measure samples
+    diversity_filter_ratio: int or float, optional
+        If is not None, the tuner will first select
+        top-(plan_size * diversity_filter_ratio) candidates according to the cost model
+        and then pick plan_size of them according to the diversity metric.
     """
 
     def __init__(self, task, cost_model, model_optimizer, plan_size, diversity_filter_ratio=None):
@@ -71,6 +151,10 @@ class ModelBasedTuner(Tuner):
         self.cost_model = cost_model
         self.model_optimizer = model_optimizer
         self.diversity_filter_ratio = diversity_filter_ratio
+
+        if self.diversity_filter_ratio:
+            assert self.diversity_filter_ratio >= 1, "Diversity filter ratio " \
+                                                     "must be larger than one"
 
         # trial plan
         self.trials = []
@@ -128,17 +212,20 @@ class ModelBasedTuner(Tuner):
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) \
                 and self.flops_max > 1e-6:
             self.cost_model.fit(self.xs, self.ys, self.plan_size)
-            maximums = self.model_optimizer.find_maximums(self.cost_model, self.plan_size, self.visited)
-
             if self.diversity_filter_ratio:
-                assert self.diversity_filter_ratio >= 1, "Diversity ratio must be larger than one"
-                scores = self.cost_model.predict(maximums)
-                knobs = [point2knob(x, self.dims) for x in maximums]
+                candidate = self.model_optimizer.find_maximums(
+                    self.cost_model, self.plan_size * self.diversity_filter_ratio, self.visited)
+                scores = self.cost_model.predict(candidate)
+                knobs = [point2knob(x, self.dims) for x in candidate]
                 pick_index = submodular_pick(0 * scores, knobs, self.plan_size, knob_weight=1)
-                maximums = np.array(maximums)[pick_index]
+                maximums = np.array(candidate)[pick_index]
+            else:
+                maximums = self.model_optimizer.find_maximums(
+                    self.cost_model, self.plan_size, self.visited)
 
             self.trials = maximums
             self.trial_pt = 0
+            self.train_ct += 1
 
     def load_history(self, data_set):
         base_model = self.cost_model.clone_new()
@@ -146,11 +233,11 @@ class ModelBasedTuner(Tuner):
 
         if not self.trials:
             # no plan yet, use base model to select initial trials
-            maximums = self.model_optimizer.find_maximums(self.cost_model, self.visited)
+            maximums = self.model_optimizer.find_maximums(base_model, self.visited)
             self.trials = maximums
             self.trial_pt = 0
 
-        self.cost_model.load_basemodel(base_model)
+        self.cost_model.load_basepiodel(base_model)
 
     def has_next(self):
         return len(self.visited) < len(self.space)
@@ -169,3 +256,49 @@ def knob2point(knob, dims):
     for j in range(len(knob)):
         p += knob[j] * int(np.prod(dims[:j]))
     return p
+
+def submodular_pick(scores, knobs, n_pick, knob_weight=1.0):
+    """Run greedy optimization to pick points with regard to both score and diversity.
+    DiversityScore = knob_weight * number of unique knobs in the selected set
+    Obj = sum(scores[i] for i in pick) + DiversityScore
+    Note that this objective function is a monotone submodular function.
+
+    Parameters
+    ----------
+    scores: Array of float
+        score of every points
+    knobs: Array of Array of int
+        feature vector (tunable knobs) of every points
+    n_pick: int
+        number of points to pick
+    knob_weight: float
+        weight of an unique knob feature
+    """
+    n = len(scores)
+    assert n == len(knobs)
+    n_knobs = len(knobs[0])
+
+    knobs_set = [set() for _ in range(n_knobs)]
+
+    ret = []
+    remain = list(range(len(scores)))
+
+    for _ in range(n_pick):
+        max_x = -1
+        max_delta = -1e9
+
+        for x in remain:
+            tmp_delta = scores[x]
+            for i in range(n_knobs):
+                if knobs[x][i] not in knobs_set[i]:
+                    tmp_delta += knob_weight
+
+            if tmp_delta > max_delta:
+                max_delta, max_x = tmp_delta, x
+
+        ret.append(max_x)
+        remain.remove(max_x)
+        for i in range(n_knobs):
+            knobs_set[i].add(knobs[max_x][i])
+
+    return ret
