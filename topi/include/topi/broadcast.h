@@ -257,6 +257,58 @@ TOPI_DEFINE_BCAST_OP(greater, { return (a > b); });
  */
 TOPI_DEFINE_BCAST_OP(less, { return (a < b); });
 
+/*!
+ * \fn equal
+ * \brief Compute (A == B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(equal, { return (a == b); });
+
+/*!
+ * \fn not_equal
+ * \brief Compute (A != B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(not_equal, { return (a != b); });
+
+/*!
+ * \fn greater_equal
+ * \brief Compute (A >= B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(greater_equal, { return (a >= b); });
+
+/*!
+ * \fn less_equal
+ * \brief Compute (A <= B) with auto-broadcasting.
+ *
+ * \param A The first tensor, or Expr
+ * \param B The second tensor, or Expr
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return The result.
+ */
+TOPI_DEFINE_BCAST_OP(less_equal, { return (a <= b); });
+
 }  // namespace topi
 
 #endif  // TOPI_BROADCAST_H_

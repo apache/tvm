@@ -46,6 +46,8 @@ List of operators
    topi.max
    topi.sum
    topi.min
+   topi.argmax
+   topi.argmin
    topi.broadcast_to
    topi.add
    topi.subtract
@@ -57,6 +59,10 @@ List of operators
    topi.power
    topi.greater
    topi.less
+   topi.equal
+   topi.not_equal
+   topi.greater_equal
+   topi.less_equal
    topi.image.resize
 
 
