@@ -61,6 +61,8 @@ List of operators
    topi.less
    topi.equal
    topi.not_equal
+   topi.greater_equal
+   topi.less_equal
    topi.image.resize
 
 

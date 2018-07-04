@@ -79,9 +79,6 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         out_npy = fnumpy(lhs_npy, rhs_npy)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
-        if fnumpy==np.equal:
-            print(out_nd.asnumpy())
-            print(out_npy)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     check_device("opencl")
@@ -149,6 +146,10 @@ def test_cmp():
         return topi.equal(x, y).astype("int8")
     def not_equal(x, y):
         return topi.not_equal(x, y).astype("int8")
+    def greater_equal(x, y):
+        return topi.greater_equal(x, y).astype("int8")
+    def less_equal(x, y):
+        return topi.less_equal(x, y).astype("int8")
     verify_broadcast_binary_ele(
         (1, 2, 2), (2,), greater, np.greater)
     verify_broadcast_binary_ele(
@@ -159,6 +160,12 @@ def test_cmp():
     verify_broadcast_binary_ele(
         (2, 1, 2), (2, 3, 1), not_equal, np.not_equal,
         lhs_min=-2, lhs_max=2, rhs_min=-2, rhs_max=2, dtype='int32')
+    verify_broadcast_binary_ele(
+        (7, 1, 5), (7, 3, 1), greater_equal, np.greater_equal,
+        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
+    verify_broadcast_binary_ele(
+        (7, 1, 5), (7, 3, 1), less_equal, np.less_equal,
+        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
 
 def test_shift():
     # explicit specify the output type
