@@ -371,10 +371,7 @@ def verify_take(src_shape, indices_src, axis=None):
     indices_src = np.array(indices_src, dtype=indices_dtype)
     a = sym.Variable("a")
     indices = sym.Variable("indices")
-    if axis is None:
-        y = sym.take(a, indices)
-    else:
-        y = sym.take(a, indices, axis=axis)
+    y = sym.take(a, indices, axis=axis)
     for target, ctx in ctx_list():
         # set input
         shape_dict = {"a":src_shape, "indices":indices_src.shape}
@@ -386,10 +383,7 @@ def verify_take(src_shape, indices_src, axis=None):
         for i in range(len(src_shape)):
             shape_size = shape_size * src_shape[i]
         a_src = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
-        if axis is None:
-            out_np = np.take(a_src, indices_src)
-        else:
-            out_np = np.take(a_src, indices_src, axis=axis)
+        out_np = np.take(a_src, indices_src, axis=axis)
         m.run(a=a_src, indices=indices_src)
         out = m.get_output(0, tvm.nd.empty(out_np.shape, dtype=src_dtype))
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
