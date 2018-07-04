@@ -1001,6 +1001,126 @@ Examples::
     return Array<Tensor>{ topi::flip(inputs[0], param.axis) };
 });
 
+
+// take
+DMLC_REGISTER_PARAMETER(TakeParam);
+
+inline bool TakeInferShape(const NodeAttrs& attrs,
+                           std::vector<TShape>* in_shape,
+                           std::vector<TShape>* out_shape) {
+  CHECK_EQ(in_shape->size(), 2U);
+  CHECK_EQ(out_shape->size(), 1U);
+  const TShape& dshape = (*in_shape)[0];
+  const TShape& indicesshape = (*in_shape)[1];
+  if (dshape.ndim() == 0) return false;
+  if (indicesshape.ndim() == 0) return false;
+
+  const TakeParam& param = nnvm::get<TakeParam>(attrs.parsed);
+  TShape oshape((!param.axis ? 0: dshape.ndim() - 1) + indicesshape.ndim());
+  if (!param.axis) {
+    for (size_t j = 0; j < indicesshape.ndim(); ++j) {
+      oshape[j] = indicesshape[j];
+    }
+  } else {
+    int axis = param.axis.value();
+    if (axis < 0) {
+      axis += dshape.ndim();
+    }
+    CHECK_LT(axis, dshape.ndim());
+
+    size_t posi = 0;
+    for (size_t i = 0; i < dshape.ndim(); ++i) {
+      if (static_cast<int>(i) == axis) {
+        for (size_t j = 0; j < indicesshape.ndim(); ++j) {
+          oshape[posi++] = indicesshape[j];
+        }
+      } else {
+        oshape[posi++] = dshape[i];
+      }
+    }
+  }
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 0, dshape);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 1, indicesshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return dshape.Size() != 0;
+}
+
+inline bool TakeInferType(const NodeAttrs& attrs,
+                          std::vector<int>* in_attrs,
+                          std::vector<int>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  CHECK_EQ((*in_attrs)[1], kInt32);
+  NNVM_ASSIGN_INPUT_TYPE(attrs, *in_attrs, 0, (*in_attrs)[0]);
+  NNVM_ASSIGN_INPUT_TYPE(attrs, *in_attrs, 1, static_cast<int>(kInt32));
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
+inline bool TakeCorrectLayout(const NodeAttrs& attrs,
+                              std::vector<Layout> *ilayouts,
+                              const std::vector<Layout> *last_ilayouts,
+                              std::vector<Layout> *olayouts) {
+  CHECK_EQ(ilayouts->size(), last_ilayouts->size());
+  CHECK_EQ(olayouts->size(), 1U);
+
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    const Layout& input = last_ilayouts->at(i).defined() ?
+                          last_ilayouts->at(i) : ilayouts->at(i);
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  }
+
+  return true;
+}
+
+NNVM_REGISTER_OP(take)
+.describe(R"code(Take elements from an array along an axis.
+
+When axis is not None, this function does the same thing as 'fancy' indexing
+(indexing arrays using arrays); however, it can be easier to use if you need
+elements along a given axis.
+
+**Note** that when axis is none the flattened input array is used.
+
+Examples::
+
+  a = [[ 1, 2],
+       [ 3, 4]]
+  indices = [3, 0, 2]
+  take(a, indices) = [ 4, 1, 3]
+
+  a = [[ 1., 2.],
+       [ 3., 4.]]
+  indices = [1, 0]
+  take(a, indices, axis=1) = [[ 2., 1.],
+                              [ 4., 3.]]
+
+  )code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Array to be indexed")
+.add_argument("indices", "Tensor", "The indices of the values to extract")
+.add_arguments(TakeParam::__FIELDS__())
+.set_attr_parser(ParamParser<TakeParam>)
+.set_attr<FInferShape>("FInferShape", TakeInferShape)
+.set_attr<FInferType>("FInferType", TakeInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", TakeCorrectLayout)
+.set_num_inputs(2)
+.set_num_outputs(1)
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      const TakeParam& param = nnvm::get<TakeParam>(attrs.parsed);
+      if (!param.axis) {
+        return Array<Tensor>{
+            topi::take(inputs[0], inputs[1]) };
+      } else {
+        return Array<Tensor>{
+            topi::take(inputs[0], inputs[1], param.axis.value()) };
+      }
+  });
+
+
 // SliceLike
 DMLC_REGISTER_PARAMETER(SliceLikeParam);
 

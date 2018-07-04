@@ -365,6 +365,40 @@ def test_strided_slice():
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4])
     verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3])
 
+def verify_take(src_shape, indices_src, axis=None):
+    src_dtype = "float32"
+    indices_dtype = "int32"
+    indices_src = np.array(indices_src, dtype=indices_dtype)
+    a = sym.Variable("a")
+    indices = sym.Variable("indices")
+    y = sym.take(a, indices, axis=axis)
+    for target, ctx in ctx_list():
+        # set input
+        shape_dict = {"a":src_shape, "indices":indices_src.shape}
+        type_dict = {"a":src_dtype, "indices":indices_dtype}
+        graph, lib, _ = nnvm.compiler.build(y, target, shape=shape_dict, dtype=type_dict)
+        m = graph_runtime.create(graph, lib, ctx)
+
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        a_src = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+        out_np = np.take(a_src, indices_src, axis=axis)
+        m.run(a=a_src, indices=indices_src)
+        out = m.get_output(0, tvm.nd.empty(out_np.shape, dtype=src_dtype))
+        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+def test_take():
+    verify_take((4,), [1])
+    verify_take((4,), [[0,1,2,3]])
+    verify_take((3,3,3), [[11,25]])
+    verify_take((4,), [[0,1],[2,3]])
+    verify_take((4,), [1], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 1)
+    verify_take((4,3,5,6), [[2,1,0,0]], -2)
+
+
 def verify_squeeze(dshape, axis):
     x = sym.Variable("x")
     if axis:
@@ -481,6 +515,7 @@ if __name__ == "__main__":
     test_softmax()
     test_squeeze()
     test_pad()
+    test_take()
     test_lrn()
     test_l2_normalize()
     test_strided_slice()
