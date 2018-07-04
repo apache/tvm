@@ -148,7 +148,7 @@ measure_option = autotvm.measure_option(mode='local',
 
 # begin tuning, log records to file `cache.tsv`
 tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(n_trial=2000,
+tuner.tune(n_trial=20,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('cache.tsv')])
 

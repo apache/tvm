@@ -8,8 +8,8 @@ from .tuner import Tuner
 
 class GATuner(Tuner):
     """Tuner with genetic algorithm.
-    This tuner does not have a cost model so it always run measurement on real machines
-    This tuner expands the ConfigEntity as gene
+    This tuner does not have a cost model so it always run measurement on real machines.
+    This tuner expands the :code:`ConfigEntity` as gene.
 
     Parameters
     ----------

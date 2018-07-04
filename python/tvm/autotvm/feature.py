@@ -13,7 +13,7 @@ There are two types of feature
 import struct
 import numpy as np
 
-from ... import schedule, ir_pass, build_module, get_global_func, target as _target
+from tvm import schedule, ir_pass, build_module, get_global_func, target as _target
 
 def ana_lower(sch, args,
               binds=None,
@@ -66,7 +66,16 @@ def ana_lower(sch, args,
     assert simple_mode
     return stmt
 
-_get_itervar_feature = get_global_func("autotvm.feature.GetItervarFeature")
+try:
+    _get_buffer_curve_sample_flatten = get_global_func(
+        "autotvm.feature.GetCurveSampleFeatureFlatten")
+    _get_itervar_feature = get_global_func("autotvm.feature.GetItervarFeature")
+    _get_itervar_feature_flatten = get_global_func("autotvm.feature.GetItervarFeatureFlatten")
+except ValueError as e:
+    def raise_error(*args, **kwargs):  # pylint: disable=unused-argument
+        raise RuntimeError("Cannot load autotvm c++ API")
+    _get_buffer_curve_sample_flatten = _get_itervar_feature = _get_itervar_feature_flatten = \
+        raise_error
 
 def get_itervar_feature(sch, args, take_log=False):
     """get features of iter vars
@@ -115,8 +124,6 @@ def flatten_itervar_feature(fea):
             flatten.append(pair[1:])
     return np.concatenate(flatten)
 
-_get_itervar_feature_flatten = get_global_func("autotvm.feature.GetItervarFeatureFlatten")
-
 def get_itervar_feature_flatten(sch, args, take_log=True):
     """get flatten features of iter vars
     this is equivalent to get_itervar_feature + flatten_itervar_feature, but much faster.
@@ -160,7 +167,7 @@ def get_flatten_name(fea):
     }
 
     if isinstance(fea, str):
-        from ..record import decode
+        from .record import decode
         # flatten line to feature
         line = fea
         inp, _ = decode(line)
@@ -185,9 +192,6 @@ def get_flatten_name(fea):
                 ct += 1
     return names
 
-
-_get_buffer_curve_sample_flatten = get_global_func(
-    "autotvm.feature.GetCurveSampleFeatureFlatten")
 
 def get_buffer_curve_sample_flatten(sch, args, sample_n=30):
     """
