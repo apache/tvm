@@ -108,32 +108,59 @@ def _test_pooling(input_shape, **kwargs):
 
 def test_forward_pooling():
     """ Pooling """
-    for padding in ["SAME", "VALID"]:
-        for pooling_type in ["MAX", "AVG"]:
-            for input_shape in [[2, 9, 10, 2], [2, 10, 9, 2]]:
-                for window_shape in [[1, 1], [2, 1], [2, 3]]:
-                    if padding != "SAME":
-                        #for dilation_rate in [[1, 1], [2, 1], [1, 2], [2, 3]]:
-                        for dilation_rate in [[1, 1]]:
-                            with tf.Graph().as_default():
-                                _test_pooling(
-                                    input_shape=input_shape,
-                                    window_shape=window_shape,
-                                    padding=padding,
-                                    pooling_type=pooling_type,
-                                    dilation_rate=dilation_rate,
-                                    strides=[1, 1])
-                    for strides in [[1, 1], [2, 1], [1, 2], [2, 3]]:
-                        if np.any(np.array(strides) > window_shape):
-                            continue
-                        with tf.Graph().as_default():
-                            _test_pooling(
-                                input_shape=input_shape,
-                                window_shape=window_shape,
-                                padding=padding,
-                                pooling_type=pooling_type,
-                                dilation_rate=[1, 1],
-                                strides=strides)
+
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[1, 1],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[1, 1],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[1, 1],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[1, 1],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[1, 2])
+
 
 #######################################################################
 # Convolution

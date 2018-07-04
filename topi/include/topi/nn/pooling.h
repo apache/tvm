@@ -52,7 +52,7 @@ inline Tensor pool_impl(const Tensor& x,
   CHECK(x->shape.size() >= 2) << "Pooling input must >= 2-D (H, W)";
   CHECK_EQ(kernel_size.size(), 2) << "Pooling kernel_size must have 2 elements";
   CHECK_EQ(stride_size.size(), 2) << "Pooling stride_size must have 2 elements";
-  CHECK((padding_size.size() == 4)) << "Pooling padding_size must have 4 elements";
+  CHECK_EQ(padding_size.size(), 4) << "Pooling padding_size must have 4 elements";
 
   auto kernel_height = kernel_size[0];
   auto kernel_width = kernel_size[1];
