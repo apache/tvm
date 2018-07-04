@@ -26,26 +26,31 @@ def get_rank(values):
     return ranks
 
 
-def sample_ints(n, m):
+def sample_ints(low, high, m):
     """
-    sample m different integer numbers from [0, n)
-    This function works well for n > 2 ^ 32. (But np.random.choice does not work for large n)
+    Sample m different integer numbers from [low, high) without replacement
+    This function is an alternative of np.random.choice when (high - low) > 2 ^ 32, in
+    which case numpy does not work.
 
     Parameters
     ----------
-    n: int
+    low: int
+        low point of sample range
+    high: int
+        high point of sample range
     m: int
+        The number of sampled int
 
     Returns
     -------
-    an array of size m
+    ints: an array of size m
     """
     vis = set()
-    assert m <= n
+    assert m <= high - low
     while len(vis) < m:
-        new = np.random.randint(0, n)
+        new = np.random.randint(low, high)
         while new in vis:
-            new = np.random.randint(0, n)
+            new = np.random.randint(low, high)
         vis.add(new)
 
     return list(vis)
