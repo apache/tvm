@@ -116,13 +116,13 @@ def test_forward_pooling():
                  pooling_type='MAX',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
-
     _test_pooling(input_shape=[2, 9, 10, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='AVG',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
+
     _test_pooling(input_shape=[2, 10, 9, 2],
                  window_shape=[1, 1],
                  padding='SAME',
@@ -135,6 +135,33 @@ def test_forward_pooling():
                  pooling_type='AVG',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
+
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[1, 2])
+
 
 #######################################################################
 # Convolution
@@ -419,12 +446,7 @@ def test_forward_inception_v3():
             top_tvm = np.squeeze(tvm_output).argsort()[-3:][::-1]
             top_tf = np.squeeze(tf_output).argsort()[-3:][::-1]
 
-            # TVM implementation of SAME padding some times make a slight deviation.
-            # Hence check for top predictions.
-            top_tvm = np.sort(top_tvm)
-            top_tf = np.sort(top_tf)
-
-            np.testing.assert_allclose(top_tf, top_tvm)
+            np.testing.assert_allclose(top_tf, top_tvm, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Inception V1

@@ -69,8 +69,8 @@ def pool(data,
     stride : list/tuple of two ints
         Stride size, [stride_height, stride_width]
 
-    padding : list/tuple of two ints
-        Pad size, [pad_height, pad_width]
+    padding : list/tuple of four ints
+        Pad size, [pad_top, pad_left, pad_bottom, pad_right]]
 
     pool_type : str
         Pool type, 'max' or 'avg'
