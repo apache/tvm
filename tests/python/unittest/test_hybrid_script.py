@@ -346,6 +346,7 @@ def test_allocate():
         b = tvm.placeholder((64, 64), dtype='float32', name='b')
         c = tvm.placeholder((64, 64), dtype='float32', name='c')
         module = run_and_check(shared_gemm, [a, b, c], [c], target='cuda')
+        assert "__syncthreads()" in module.imported_modules[0].get_source()
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
