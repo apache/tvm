@@ -146,10 +146,11 @@ def comm_reduce(data, axis=None, keepdims=False, func=tvm.sum, is_idx_reduce=Fal
                           lambda *indices: _choose_idx(temp_idx, temp_val, *indices),
                           name=data.name + "_red")
     else:
-        out = tvm.compute(target_shape, _compute, name=data.name + "_red", tag=tag.COMM_REDUCE)
+        out = tvm.compute(target_shape, _compute, name=data.name + "_red")
     return out
 
 
+@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def sum(data, axis=None, keepdims=False):
     """Sum of array elements over a given axis or a list of axes
 
@@ -175,6 +176,7 @@ def sum(data, axis=None, keepdims=False):
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.sum)
 
 
+@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 
@@ -200,6 +202,7 @@ def max(data, axis=None, keepdims=False):
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=tvm.max)
 
 
+@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def min(data, axis=None, keepdims=False):
     """Minimum of array elements over a given axis or a list of axes
 
@@ -277,29 +280,3 @@ def argmin(data, axis=None, keepdims=False):
     """
     _argmin = tvm.comm_reducer(fcombine=_argmin_comp, fidentity=_argmin_init, name='argmin')
     return comm_reduce(data, axis=axis, keepdims=keepdims, func=_argmin, is_idx_reduce=True)
-
-
-def count_nonzero(data, axis=None, keepdims=False):
-    """Counts the number of non-zero values in the array.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        The input tvm tensor
-
-    axis : None or int or tuple of int, optional
-        Axis or tuple of axes along which to count non-zeros. Default is None, meaning that
-        non-zeros will be counted along a flattened version of the input array.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input array.
-
-    Returns
-    -------
-    ret : tvm.Tensor
-    """
-    nonzeros = tvm.compute(data.shape, lambda *indices: tvm.select(data[indices] == 0, 0, 1),
-                           name="nonzeros", tag=tag.INJECTIVE)
-    return comm_reduce(nonzeros, axis=axis, keepdims=keepdims, func=tvm.sum, is_idx_reduce=False)

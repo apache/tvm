@@ -249,3 +249,41 @@ def less(lhs, rhs):
         Otherwise returns Tensor.
     """
     return _cpp.less(lhs, rhs)
+
+
+def equal(lhs, rhs):
+    """Compute (lhs==rhs) with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The left operand
+    rhs : tvm.Tensor or Expr
+        The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.equal(lhs, rhs)
+
+
+def not_equal(lhs, rhs):
+    """Compute (lhs!=rhs) with auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The left operand
+    rhs : tvm.Tensor or Expr
+        The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.not_equal(lhs, rhs)
