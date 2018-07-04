@@ -45,38 +45,39 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   const auto hidx = layout.indexof('H');
   const auto widx = layout.indexof('W');
 
-  TShape pad = param.padding;
+  dim_t pad_h, pad_w;
   if (param.padding.ndim() == 1) {
-    pad[1] = pad[0];
-    pad[2] = pad[0];
-    pad[3] = pad[0];
+    pad_h = param.padding[0] * 2;
+    pad_w = param.padding[0] * 2;
   } else if (param.padding.ndim() == 2) {
-    pad[0] *= 2;
-    pad[1] *= 2;
+    // (top, left)
+    pad_h = param.padding[0] * 2;
+    pad_w = param.padding[1] * 2;
   } else if (param.padding.ndim() == 4) {
-    pad[0] += pad[2];
-    pad[1] += pad[3];
+    // (top, left, bottom, right)
+    pad_h = param.padding[0] + param.padding[2];
+    pad_w = param.padding[1] + param.padding[3];
   } else {
     return false;
   }
 
   TShape oshape = dshape;
-  CHECK(param.pool_size[0] <= dshape[hidx] + pad[0])
+  CHECK(param.pool_size[0] <= dshape[hidx] + pad_h)
       << "pool size (" << param.pool_size[0] << ") exceeds input (" << dshape[hidx]
-      << " padded to " << (dshape[hidx] + pad[0]) << ")";
-  CHECK(param.pool_size[1] <= dshape[widx] + pad[1])
+      << " padded to " << (dshape[hidx] + pad_h) << ")";
+  CHECK(param.pool_size[1] <= dshape[widx] + pad_w)
       << "pool size (" << param.pool_size[1] << ") exceeds input (" << dshape[widx]
-      << " padded to " << (dshape[widx] + pad[1]) << ")";
+      << " padded to " << (dshape[widx] + pad_w) << ")";
 
   if (!param.ceil_mode) {
-    oshape[hidx] = ((dshape[hidx] + pad[0] - param.pool_size[0]) /
+    oshape[hidx] = ((dshape[hidx] + pad_h - param.pool_size[0]) /
                     param.strides[0]) + 1;
-    oshape[widx] = ((dshape[widx] + pad[1] - param.pool_size[1]) /
+    oshape[widx] = ((dshape[widx] + pad_w - param.pool_size[1]) /
                     param.strides[1]) + 1;
   } else {
-    oshape[hidx] = ((dshape[hidx] + pad[0] - param.pool_size[0] +
+    oshape[hidx] = ((dshape[hidx] + pad_h - param.pool_size[0] +
                     param.strides[0] - 1) / param.strides[0]) + 1;
-    oshape[widx] = ((dshape[3] + pad[1] - param.pool_size[1] +
+    oshape[widx] = ((dshape[3] + pad_w - param.pool_size[1] +
                     param.strides[1] - 1) / param.strides[1]) + 1;
   }
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
@@ -130,7 +131,7 @@ NNVM_REGISTER_OP(max_pool2d)
            where padding will be an expanded array based on number of values passed as::
                one int : all sides same padding used.
                two int : bottom, right use same as top and left.
-               four int: same as passed values.
+               four int: padding width in the order of (top, left, bottom, right).
 
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
@@ -218,7 +219,7 @@ NNVM_REGISTER_OP(avg_pool2d)
            where padding will be an expanded array based on number of values passed as::
                one int : all sides same padding used.
                two int : bottom, right use same as top and left.
-               four int: same as passed values.
+               four int: padding width in the order of (top, left, bottom, right).
 
            When `ceil_mode` is `True`, ceil will be used instead of floor in this
            equation.
