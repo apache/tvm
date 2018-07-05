@@ -122,7 +122,7 @@ def _darknet_avgpooling(inputs, attrs):
 
 def _darknet_batch_norm(inputs, attrs):
     """Process the batchnormalization operation."""
-    op_name, new_attrs = '_darknet_batch_norm', {}
+    op_name, new_attrs = 'darknet_batch_norm', {}
     new_attrs['axis'] = attrs.get('axis', 1)
     new_attrs['epsilon'] = attrs.get('eps', 0.000001)
     new_attrs['center'] = True
