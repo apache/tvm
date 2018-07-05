@@ -1,5 +1,8 @@
 import tvm
 import numpy as np
+import os
+
+os.environ["XCL_EMULATION_MODE"] = "1"
 
 @tvm.register_func
 def tvm_callback_vhls_postproc(code):

@@ -1,60 +1,8 @@
 """Utility for Interacting with SDAccel Tools"""
 import subprocess
 import os
-import re
 from . import util
 from ..api import register_func
-
-
-def _vhls_to_opencl(code):
-    """Convert source code from Vivado HLS to OpenCL."""
-    out = ''
-    for line in code.split('\n'):
-        if re.match(r'#include', line):
-            # OpenCL doesn't support include.
-            continue
-        if re.match(r'#pragma', line):
-            # Remove Vivado HLS specific pragmas.
-            continue
-
-        if re.match(r'extern "C"', line):
-            line = re.sub(r'^extern "C"', "__kernel", line)
-            # Add __global to pointer parameters.
-            line = re.sub(r'(\w+)\s*\*', r"__global \1*", line)
-
-        out += line + '\n'
-
-    return out
-
-
-@register_func("tvm_callback_sdaccel_fake_compile")
-def _fake_compile_vhls(code):
-    """Fake compile Vivado HLS code for SDAccel.
-
-    Compile the Vivado HLS code as an OpenCL code, and generate a program binary
-    with other platforms.  The generated binary can be used for testing instead of xclbin.
-
-    Parameters
-    ----------
-    code : str
-        The Vivado HLS code.
-
-    Return
-    ------
-    binary : bytearray
-        The program binary which can be passed to clCreateProgramWithBinary
-    """
-    try:
-        import pyopencl as cl
-    except ImportError:
-        raise RuntimeError('PyOpenCL is required for testing SDAccel backend.')
-    platforms = [pf for pf in cl.get_platforms() if pf.name != "Xilinx"]
-    if not platforms:
-        raise RuntimeError("No OpenCL platform is available.")
-    ctx = cl.Context(properties=[(cl.context_properties.PLATFORM, platforms[0])])
-    program = cl.Program(ctx, _vhls_to_opencl(code)).build()
-    binary = bytearray(program.binaries[0])
-    return binary
 
 
 @register_func("tvm_callback_sdaccel_compile")
