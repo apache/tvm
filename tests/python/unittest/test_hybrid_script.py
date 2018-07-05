@@ -1,4 +1,4 @@
-import tvm, inspect, sys, traceback, numpy, nose, types
+import tvm, inspect, sys, traceback, numpy, nose
 from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
