@@ -3,7 +3,7 @@ from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
 @nose.tools.nottest
-def run_and_check(func, args, outs, var_dict={}, target='llvm'):
+def run_and_check(func, args, outs, var_dict={}, target='llvm', ref_func=None):
     def tvm_val_2_py_val(val):
         val = tvm.ir_pass.Substitute(val, var_dict)
         val = tvm.ir_pass.Simplify(val)
@@ -30,9 +30,13 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
 
-    func(*emu_args)
+    if callable(func):
+        func(*emu_args)
+        lowerd_func = tvm.lower(func(*args), args)
+    else:
+        ref_func(*emu_args)
+        lowerd_func = tvm.lower(func, args)
 
-    lowerd_func = tvm.lower(func(*args), args)
     module = tvm.build(lowerd_func, target=target)
     assert module
     module(*nd_args)
@@ -40,12 +44,15 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
     for nd, np in to_check:
         numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
+    return module
+
 
 @script
 def outer_product(n, m, a, b, c):
     for i in range(n):
         for j in range(m):
             c[i, j] = a[i] * b[j]
+
 
 #Test global function
 #Test bridge between frontend and backend
@@ -83,11 +90,12 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 99, m: 101})
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
         assert key not in outer_product.__globals__.keys()
+
 
 #Test local function
 #Test allocation of local variable
@@ -227,14 +235,15 @@ def test_bind():
         return
     @script
     def vec_add(a, b, c):
-        for tx in bind('threadIdx.x', 1000):
+        for tx in bind('threadIdx.x', 100):
             c[tx] = b[tx] + c[tx]
 
-    a = tvm.placeholder((1000, ), dtype='float32', name='a')
-    b = tvm.placeholder((1000, ), dtype='float32', name='b')
-    c = tvm.placeholder((1000, ), dtype='float32', name='c')
+    a = tvm.placeholder((100, ), dtype='float32', name='a')
+    b = tvm.placeholder((100, ), dtype='float32', name='b')
+    c = tvm.placeholder((100, ), dtype='float32', name='c')
 
-    run_and_check(vec_add, [a, b, c], [c], target='cuda')
+    module = run_and_check(vec_add, [a, b, c], [c], target='cuda')
+
 
 def test_math_intrin():
     @script
@@ -272,6 +281,7 @@ def test_math_intrin():
     func(tvm_a)
     assert tvm_a.asnumpy()[0] == a[0]
 
+
 def test_non_zero():
     @tvm.hybrid.script
     def blur(a, b):
@@ -302,6 +312,7 @@ def test_non_zero():
 
     run_and_check(triangle, [a, b, c], [c])
 
+
 def test_allocate():
     @tvm.hybrid.script
     def blur2d(a, b):
@@ -315,27 +326,77 @@ def test_allocate():
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
     b = tvm.placeholder((30, 30), 'float32', 'b')
-
     run_and_check(blur2d, [a, b], [b])
 
     if tvm.gpu().exist:
         @tvm.hybrid.script
-        def share_vec_add(a, b, c):
-            shared = allocate((256, ), 'float32', 'shared')
-            for i in bind("threadIdx.x", 256):
-                shared[i] = a[i]
-            local = allocate((256, ), 'float32', 'local')
-            for i in bind("threadIdx.x", 256):
-                local[i] = b[i]
-            for i in bind("threadIdx.x", 256):
-                c[i] = shared[i] + local[i]
+        def shared_gemm(a, b, c):
+            for io in bind('blockIdx.x', 8):
+                for ii in bind('blockIdx.y', 8):
+                    shared_b = allocate((64, 64), 'float32', 'shared')
+                    for k in range(64):
+                        shared_b[io * 8 + ii, k] = b[io * 8 + ii, k]
+                    for jo in bind('threadIdx.y', 8):
+                        for ji in bind('threadIdx.x', 8):
+                            for k in range(64):
+                                c[io*8+ii, jo*8+ji] = c[io*8+ii, jo*8+ji] + a[io*8+ii, k] * shared_b[k, jo*8+ji]
 
-        a = tvm.placeholder((256, ), dtype='float32', name='a')
-        b = tvm.placeholder((256, ), dtype='float32', name='b')
-        c = tvm.placeholder((256, ), dtype='float32', name='c')
-        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
+        a = tvm.placeholder((64, 64), dtype='float32', name='a')
+        b = tvm.placeholder((64, 64), dtype='float32', name='b')
+        c = tvm.placeholder((64, 64), dtype='float32', name='c')
+        module = run_and_check(shared_gemm, [a, b, c], [c], target='cuda')
+        assert "__syncthreads()" in module.imported_modules[0].get_source()
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
+
+
+def test_manipulate():
+    @script
+    def outer_product(a, b, c):
+        for j in range(32):
+            for i in range(32):
+                c[i, j] = a[i] * b[j]
+    a = tvm.placeholder((32, ), dtype='float32', name='a')
+    b = tvm.placeholder((32, ), dtype='float32', name='b')
+    c = tvm.placeholder((32, 32), dtype='float32', name='c')
+    ir = outer_product(a, b, c)
+
+    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type, _reorder, _pragma
+    j, i = _axis(ir)
+    ir, jo, ji = _split(ir, j, 8)
+    ir = _change_loop_type(ir, ji, 2)
+    ir = _reorder(ir, i, jo, ji)
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.extent.value == 32
+    assert ir.loop_var.name == 'i'
+    assert isinstance(ir.body, tvm.stmt.For)
+    assert ir.body.extent.value == 4
+    assert ir.body.loop_var.name == 'j.outer'
+    assert isinstance(ir.body.body, tvm.stmt.For)
+    assert ir.body.body.extent.value == 8
+    assert ir.body.body.loop_var.name == 'j.inner'
+    run_and_check(ir, [a, b, c], [c], ref_func=outer_product)
+    ir = _pragma(ir, i, "something")
+    assert isinstance(ir, tvm.stmt.AttrStmt)
+    assert isinstance(ir.attr_key, str)
+    assert ir.attr_key == "something"
+    if not tvm.gpu(0).exist:
+        print('[Warning] No GPU found! Skip manipuate bind test!')
+        return
+    from tvm.hybrid.manipulate import _bind
+    @script
+    def vec_add(a, b, c):
+        for tx in range(100):
+            c[tx] = b[tx] + c[tx]
+    a = tvm.placeholder((100, ), dtype='float32', name='a')
+    b = tvm.placeholder((100, ), dtype='float32', name='b')
+    c = tvm.placeholder((100, ), dtype='float32', name='c')
+
+    thread_x = tvm.thread_axis('threadIdx.x')
+    ir = vec_add(a, b, c)
+    i = _axis(ir)[0]
+    ir = _bind(ir, i, thread_x)
+    module = run_and_check(ir, [a, b, c], [c], target='cuda', ref_func=vec_add)
 
 
 if __name__ == "__main__":
@@ -348,4 +409,5 @@ if __name__ == "__main__":
     test_math_intrin()
     test_non_zero()
     test_allocate()
+    test_manipulate()
 
