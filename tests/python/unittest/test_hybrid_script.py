@@ -361,7 +361,7 @@ def test_manipulate():
     c = tvm.placeholder((32, 32), dtype='float32', name='c')
     ir = outer_product(a, b, c)
 
-    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type, _reorder
+    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type, _reorder, _pragma
     j, i = _axis(ir)
     ir, jo, ji = _split(ir, j, 8)
     ir = _change_loop_type(ir, ji, 2)
@@ -376,6 +376,10 @@ def test_manipulate():
     assert ir.body.body.extent.value == 8
     assert ir.body.body.loop_var.name == 'j.inner'
     run_and_check(ir, [a, b, c], [c], ref_func=outer_product)
+    ir = _pragma(ir, i, "something")
+    assert isinstance(ir, tvm.stmt.AttrStmt)
+    assert isinstance(ir.attr_key, str)
+    assert ir.attr_key == "something"
     if not tvm.gpu(0).exist:
         print('[Warning] No GPU found! Skip manipuate bind test!')
         return

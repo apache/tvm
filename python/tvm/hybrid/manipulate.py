@@ -107,6 +107,44 @@ def _split(body, var, factor=None, nparts=None):
     return res, loop_vars[0], loop_vars[1]
 
 
+def _pragma(body, var, pragma_type, pragma_value=None):
+    """Annotate the loop level with the given pragma
+
+    Parameters
+    ----------
+    body: HalideIR
+        The HalideIR body to be transformed
+
+    var: IterVar
+        The loop level to be annotated
+
+    pragma_type: str
+        The pragma type
+
+    pragma_value: Expr, optional
+        The value to be passed along with the pragma
+
+    Returns
+    -------
+    res: HalideIR
+        The HalideIR body after transformation
+    """
+    did_transform = [False]
+
+
+    def preorder(op):
+        if isinstance(op, stmt.For) and op.loop_var == var:
+            did_transform[0] = True
+            return make.AttrStmt(op.loop_var, pragma_type, pragma_value, op)
+        return None
+
+
+    res = ir_pass.IRTransform(body, preorder, None, ['For'])
+    if not did_transform[0]:
+        raise ValueError("Corresponding loop level not found!")
+    return res
+
+
 def _change_loop_type(body, var, for_type):
     """Change the given loop type.
 
@@ -115,7 +153,7 @@ def _change_loop_type(body, var, for_type):
     body: HalideIR
         The HalideIR body to be transformed
 
-    var: variable
+    var: IterVar
         The loop level to change the for_type
 
     for_type: int
@@ -153,7 +191,7 @@ def _bind(body, var, thread_axis):
     body: HalideIR
         The HalideIR body to be transformed
 
-    var: variable
+    var: IterVar
         The loop level to change the for_type
 
     thread_axis: thread_axis
@@ -191,7 +229,7 @@ def _reorder(body, *args):
     body: HalideIR
         The HalideIR body to be transformed
 
-    *args: variables
+    *args: IterVar s
         The loop levels to be reordered
 
     Returns
