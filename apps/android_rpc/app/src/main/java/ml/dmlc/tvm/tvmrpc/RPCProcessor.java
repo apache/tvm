@@ -35,10 +35,10 @@ class RPCProcessor extends Thread {
   private int port;
   private String key;
   private boolean running = false;
-  private long start_time;
+  private long startTime;
   private ConnectProxyServerProcessor currProcessor;
   private boolean kill = false;
-  public static int timeout = 30000;
+  public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -55,16 +55,9 @@ class RPCProcessor extends Thread {
         this.rPCProcessor = rPCProcessor;    
     }
 
-  class setTimeCallback implements Runnable { 
-    private RPCProcessor mRPCProcessor;
-
-    public setTimeCallback(RPCProcessor proc) {
-        mRPCProcessor = proc;    
-    }
-
     @Override
     public void run() {
-        mRPCProcessor.setStartTime();
+        rPCProcessor.setStartTime();
     }
   }
 
@@ -86,9 +79,8 @@ class RPCProcessor extends Thread {
             currProcessor = null;
         }
         else {
-            start_time = 0;
+            startTime = 0;
             currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
-            RPCProcessor mRPCProcessor = this; 
             currProcessor.setStartTimeCallback(new setTimeCallback(this));
         }
       }
@@ -97,25 +89,31 @@ class RPCProcessor extends Thread {
     }
   }
 
-  synchronized int timedOut(long cur_time) {
-    if (start_time == 0) {
-        return 0;
+  /**
+   * check if the current RPCProcessor has timed out while in a session
+   */
+  synchronized boolean timedOut(long curTime) {
+    if (startTime == 0) {
+        return false;
     }
-    else if ((cur_time - start_time) > timeout) {
+    else if ((curTime - startTime) > SESSION_TIMEOUT) {
         System.err.println("set kill flag...");
         kill = true;
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
   }
 
+  /**
+   * set the start time of the current RPC session (used in callback)
+   */
   synchronized void setStartTime() {
-    start_time = System.currentTimeMillis();
-    System.err.println("start time set to: " + start_time);
+    startTime = System.currentTimeMillis();
+    System.err.println("start time set to: " + startTime);
   }
 
   synchronized long getStartTime() {
-    return start_time;
+    return startTime;
   }
 
   /**

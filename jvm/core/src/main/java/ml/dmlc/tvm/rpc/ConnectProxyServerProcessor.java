@@ -56,7 +56,6 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
    * @param callback Runnable object.
    */
   public void setStartTimeCallback(Runnable callback) {
-    System.err.println("set callback");
     this.callback = callback;
   }
 

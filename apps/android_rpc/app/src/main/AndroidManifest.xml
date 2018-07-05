@@ -22,9 +22,7 @@
         </activity>
         <service android:name=".RPCService"
                  android:process=":RPCServiceProcess"
-                 android:permission="android.permission.BIND_JOB_SERVICE"/>
+                 android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
-
-    <uses-permission android:name="android.permission.INTERNET" />
 
 </manifest>
