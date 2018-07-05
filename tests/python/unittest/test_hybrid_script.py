@@ -243,8 +243,6 @@ def test_bind():
     c = tvm.placeholder((100, ), dtype='float32', name='c')
 
     module = run_and_check(vec_add, [a, b, c], [c], target='cuda')
-    print(vec_add(a, b, c))
-    print(module.imported_modules[0].get_source())
 
 
 def test_math_intrin():
@@ -378,7 +376,23 @@ def test_manipulate():
     assert ir.body.body.extent.value == 8
     assert ir.body.body.loop_var.name == 'j.inner'
     run_and_check(ir, [a, b, c], [c], ref_func=outer_product)
+    if not tvm.gpu(0).exist:
+        print('[Warning] No GPU found! Skip manipuate bind test!')
+        return
+    from tvm.hybrid.manipulate import _bind
+    @script
+    def vec_add(a, b, c):
+        for tx in range(100):
+            c[tx] = b[tx] + c[tx]
+    a = tvm.placeholder((100, ), dtype='float32', name='a')
+    b = tvm.placeholder((100, ), dtype='float32', name='b')
+    c = tvm.placeholder((100, ), dtype='float32', name='c')
 
+    thread_x = tvm.thread_axis('threadIdx.x')
+    ir = vec_add(a, b, c)
+    i = _axis(ir)[0]
+    ir = _bind(ir, i, thread_x)
+    module = run_and_check(ir, [a, b, c], [c], target='cuda', ref_func=vec_add)
 
 
 if __name__ == "__main__":

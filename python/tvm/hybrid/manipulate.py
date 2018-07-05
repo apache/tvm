@@ -142,6 +142,44 @@ def _change_loop_type(body, var, for_type):
     return res
 
 
+def _bind(body, var, thread_axis):
+    """Bind a thread axis to the given loop level.
+
+    Parameters
+    ----------
+    body: HalideIR
+        The HalideIR body to be transformed
+
+    var: variable
+        The loop level to change the for_type
+
+    thread_axis: thread_axis
+        The thread_axis to be binded
+
+    Returns
+    -------
+    res: HalideIR
+        The HalideIR body after transformation
+    """
+    did_transform = [False]
+
+
+    def preorder(op):
+        if isinstance(op, stmt.For) and op.loop_var == var:
+            did_transform[0] = True
+            # Hack to convert an iter_var to an Expr
+            body = ir_pass.Substitute(op.body, {var: thread_axis + 0})
+            body = make.AttrStmt(thread_axis, 'thread_extent', op.extent, body)
+            return body
+        return None
+
+
+    res = ir_pass.IRTransform(body, preorder, None, ['For'])
+    if not did_transform[0]:
+        raise ValueError("Corresponding loop level not found!")
+    return res
+
+
 def _reorder(body, *args):
     """Reorder the given loop levels.
 
