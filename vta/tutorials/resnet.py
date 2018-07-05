@@ -116,8 +116,8 @@ def generate_graph(graph_fn, params_fn, device="vta"):
     with nnvm.compiler.build_config(opt_level=3):
         if target.device_name != "vta":
             graph, lib, params = nnvm.compiler.build(
-                sym, target_host, shape_dict, dtype_dict,
-                params=params)
+                sym, target, shape_dict, dtype_dict,
+                params=params, target_host=target_host)
         else:
             with vta.build_config():
                 graph, lib, params = nnvm.compiler.build(
