@@ -881,7 +881,7 @@ class ConfigEntity(ConfigSpace):
                 entity = OtherOptionEntity(knob_args)
             else:
                 raise RuntimeError("Invalid config knob type: " + knob_type)
-            entity_map[key] = entity
+            entity_map[str(key)] = entity
 
         return ConfigEntity(index, code_hash, template_key, entity_map, constraints)
 

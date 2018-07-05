@@ -21,7 +21,8 @@ def test_load_dump():
         row = encode(inp, result, protocol=protocol)
         inp_2, result_2 = decode(row, protocol=protocol)
 
-        assert measure_str_key(inp) == measure_str_key(inp_2)
+        assert measure_str_key(inp) == measure_str_key(inp_2), \
+            "%s vs %s" % (measure_str_key(inp), measure_str_key(inp_2))
         assert result.costs == result_2.costs
         assert result.error_no == result_2.error_no
         assert result.timestamp == result_2.timestamp

@@ -21,6 +21,12 @@ from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.1
 
+try:  # convert unicode to str for python2
+    _unicode = unicode
+except NameError:
+    _unicode = ()
+
+
 def measure_str_key(inp, include_config=True):
     """ get unique str key for MeasureInput
 
@@ -107,14 +113,18 @@ def decode(row, protocol='json'):
         tgt, task_name, task_args, task_kwargs, workload, config = row['i']
         tgt = target.create(str(tgt))
 
-        def recursive_tuple(x):
-            """convert all list in x to tuple (hashable)"""
+        def clean_json_to_python(x):
+            """1. convert all list in x to tuple (hashable)
+               2. convert unicode to str for python2
+            """
             if isinstance(x, list):
-                return tuple([recursive_tuple(a) for a in x])
+                return tuple([clean_json_to_python(a) for a in x])
+            if isinstance(x, _unicode):
+                return str(x)
             return x
 
-        tsk = task.Task(task_name, recursive_tuple(task_args))
-        tsk.workload = recursive_tuple(workload)
+        tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))
+        tsk.workload = clean_json_to_python(workload)
         config = ConfigEntity.from_json_dict(config)
         inp = MeasureInput(tgt, tsk, config)
         result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
