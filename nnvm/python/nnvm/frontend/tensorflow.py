@@ -593,11 +593,18 @@ class GraphProto(object):
                         raise NotImplementedError( \
                             "Const {} couldn't be converted to Param.".format(node.name))
 
-                try:
+                attr = self._parse_attr(node.attr)
+                #Variable converted to Const will not have only value attr
+                if 'value' in attr:
+                    tensor_value = attr['value']
                     self._output_shapes[node.name] = \
-                         [tensor_util.TensorShapeProtoToList(shape) \
-                         for shape in self._parse_attr(node.attr)['_output_shapes']]
-                except KeyError:
+                        [tensor_util.TensorShapeProtoToList( \
+                            tensor_value.tensor_shape)]
+                elif '_output_shapes' in attr:
+                    self._output_shapes[node.name] = \
+                        [tensor_util.TensorShapeProtoToList(shape) \
+                        for shape in self._parse_attr(node.attr)['_output_shapes']]
+                else:
                     raise NotImplementedError( \
                         "Please freeze the graph with add_shapes=True")
             else:
