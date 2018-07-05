@@ -142,7 +142,7 @@ print(task.config_space)
 # use local gpu, measure 5 times for every config to reduce variance
 # run 8 parallel threads for compilation
 measure_option = autotvm.measure_option(mode='local',
-                                        number=5,
+                                        number=10,
                                         parallel_num=8,
                                         timeout=20)
 

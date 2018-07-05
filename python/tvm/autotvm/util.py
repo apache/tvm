@@ -95,6 +95,21 @@ def pool_map(func, args, batch_size, verbose=False, pool=None):
         local_pool.close()
     return ret
 
+def get_func_name(func):
+    """Get name of a function
+
+    Parameters
+    ----------
+    func: Function
+        The function
+    Returns
+    -------
+    name: str
+        The name
+    """
+
+    return func.func_name if hasattr(func, 'func_name') else func.__name__
+
 
 def get_const_int(exp):
     """Verifies expr is integer and get the constant value.

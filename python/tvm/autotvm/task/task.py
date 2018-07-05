@@ -1,3 +1,4 @@
+# pylint: disable=unused-variable
 """Definition of task function.
 
 Task can be constructed from tuple of func, args, and kwargs.
@@ -5,13 +6,11 @@ func is a state-less function, or a string that
 registers the standard task.
 """
 
-from functools import wraps
-
 import numpy as np
 
-from ... import tensor, expr, target as _target
+from ... import tensor, expr, _api_internal, container, target as _target
 
-from ..util import get_const_int
+from ..util import get_const_int, get_const_tuple, get_func_name
 from .dispatcher import DispatchContext, ApplyConfig, dispatcher
 from .space import ConfigSpace
 
@@ -119,15 +118,16 @@ def create(func_name, args, target, target_host=None, template_key=None):
         a task object
     """
     if callable(func_name):
+        # register this function if it is not registered before
         func = func_name
-    func_name = func.func_name if hasattr(func, 'func_name') else func.__name__
-    if func_name in TASK_TABLE:
-        assert func == TASK_TABLE[func_name], "Find name conflict in task registration. " \
-                                              "Consider to choose another name for this task"
-    else:
-        register(func_name, func=func)
-    func = TASK_TABLE[func_name]
+        func_name = func.func_name if hasattr(func, 'func_name') else func.__name__
+        if func_name in TASK_TABLE:
+            assert func == TASK_TABLE[func_name], "Find name conflict in task registration. " \
+                                                  "Consider to choose another name for this task"
+        else:
+            register(func_name, func=func)
 
+    func = TASK_TABLE[func_name]
     ret = Task(func_name, args)
 
     if isinstance(target, str):
@@ -143,12 +143,39 @@ def create(func_name, args, target, target_host=None, template_key=None):
             sch, _ = func(*args)
             ret.config_space.code_hash = getattr(sch, 'code_hash', None)
 
-    ret.workload = ctx.last_workload
+    ret.workload = ctx.workload
     ret.flop = ret.config_space.flop or compute_flop(sch)
     ret.target = target
     ret.target_host = target_host
 
     return ret
+
+def args_to_workload(x):
+    """Convert argument list to hashable workload tuple.
+    This function will convert list to tuple, tvm node to python value and
+    flatten tvm.tensor.Tensor to a tuple
+
+    Parameters
+    ----------
+    x: primitive hashable types or tensor.Tensor
+        The original value
+
+    Returns
+    -------
+    ret: hashable
+        The hashable value
+    """
+    if isinstance(x, tensor.Tensor):
+        return get_const_tuple(x.shape) + (x.dtype, )
+    elif isinstance(x, (tuple, list, container.Array)):
+        return tuple([args_to_workload(a) for a in x])
+    elif isinstance(x, (str, int, float, np.int, np.float)):
+        return x
+    elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
+        return x.value
+    else:
+        raise RuntimeError('Do not support type "%s" in argument. Consider to use'
+                           'primitive types only' % type(x))
 
 def template(func):
     """
@@ -201,19 +228,17 @@ def template(func):
     """
     # pylint: disable=unused-variable
 
-    fname = func.func_name if hasattr(func, 'func_name') else func.__name__
+    fname = get_func_name(func)
 
-    @wraps(func)
     @register(fname)
     @dispatcher
     def config_dispatcher(*args, **kwargs):
-        assert not kwargs, "do not support kwargs in simple_template"
-        return (fname, ) + args
+        assert not kwargs, "Do not support kwargs in template function call"
+        return (fname, ) + args_to_workload(args)
 
-    @wraps(func)
     @config_dispatcher.register("")
     def template_call(cfg, *args, **kwargs):
-        assert not kwargs, "do not support kwargs in simple_template"
+        assert not kwargs, "Do not support kwargs in template function call"
         with ApplyConfig(cfg):
             return func(*args, **kwargs)
 
@@ -228,6 +253,132 @@ def get_config():
         The current config
     """
     return DispatchContext.current.query(None, None)
+
+# a table that records all register dispatch for all targets
+_REGISTED_DISPATHCER = {
+}
+
+def register_topi_compute(topi_compute, target_keys, template_keys):
+    """Register a tunable template for a topi compute function
+
+    Parameters
+    ----------
+    topi_compute: callable
+        The overloaded topi compute call
+    target_keys: str or list of str
+        The compilation target
+    template_keys: str or list of str
+        The template key
+
+    Returns
+    -------
+    decorator: callable
+        A decorator
+    """
+    fname = get_func_name(topi_compute)
+
+    def _decorator(func):
+        targets = [target_keys] if isinstance(target_keys, str) else target_keys
+        for target_key in targets:
+            if target_key not in _REGISTED_DISPATHCER:
+                _REGISTED_DISPATHCER[target_key] = {}
+            if topi_compute not in _REGISTED_DISPATHCER:
+                @topi_compute.register(target_key)
+                @dispatcher
+                def config_dispatcher(*args, **kwargs):
+                    """override topi call as a config dispatcher"""
+                    assert not kwargs, "Do not support kwargs in template function call"
+                    return (fname, ) + args_to_workload(args)
+                _REGISTED_DISPATHCER[target_key][topi_compute] = config_dispatcher
+
+            config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_compute]
+
+            @config_dispatcher.register(template_keys)
+            def template_call(cfg, *args, **kwargs):
+                """call the topi func and attach workload to compute node"""
+                assert not kwargs, "Do not support kwargs in template function call"
+                node = func(cfg, *args, **kwargs)
+
+                # attach workload to return op
+                op = node.op
+                attrs = {}
+                for k, v in node.op.attrs.items():
+                    attrs[k] = v
+                attrs['workload'] = (fname, ) + args_to_workload(args)
+                if isinstance(op, tensor.ComputeOp):
+                    op = _api_internal._ComputeOp(
+                        op.name, op.tag, attrs, op.axis, op.body)
+                elif isinstance(op, tensor.ExternOp):
+                    op = _api_internal._ExternOp(
+                        op.name, op.tag, attrs,
+                        op.inputs, op.input_placeholders,
+                        op.output_placeholders, op.body)
+                else:
+                    raise RuntimeError("Unsupported op type: " + type(op))
+
+                if isinstance(node, tensor.Tensor):
+                    return op.output(0)
+                return [op.output(i) for i in range(len(node))]
+
+    return _decorator
+
+def register_topi_schedule(topi_schedule, target_keys, template_keys):
+    """Register a tunable template for a topi schedule function
+
+    Parameters
+    ----------
+    topi_schedule: callable
+        The overloaded topi schedule call
+    target_keys: str or list of str
+        The compilation target
+    template_keys: str or list of str
+        The template key
+
+    Returns
+    -------
+    decorator: callable
+        A decorator
+    """
+    def _decorator(func):
+        targets = [target_keys] if isinstance(target_keys, str) else target_keys
+        for target_key in targets:
+            if target_key not in _REGISTED_DISPATHCER:
+                _REGISTED_DISPATHCER[target_key] = {}
+            if topi_schedule not in _REGISTED_DISPATHCER[target_key]:
+                @topi_schedule.register(target_key)
+                @dispatcher
+                def config_dispatcher(outs):
+                    """override topi call as a workload dispatcher"""
+                    def traverse(tensors):
+                        """traverse all ops to find attached workload"""
+                        for t in tensors:
+                            op = t.op
+                            if 'workload' in op.attrs:
+                                return op.attrs['workload']
+                            wkl = traverse(op.input_tensors)
+                            if wkl:
+                                return wkl
+                        return None
+
+                    outs = [outs] if isinstance(outs, tensor.Tensor) else outs
+                    workload = traverse(outs)
+
+                    if workload is None:
+                        raise RuntimeError("Cannot find workload in attribute of this schedule")
+
+                    return args_to_workload(workload)
+
+                _REGISTED_DISPATHCER[target_key][topi_schedule] = config_dispatcher
+
+            config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_schedule]
+
+            @config_dispatcher.register(template_keys)
+            def template_call(cfg, outs):
+                """call the schedule func"""
+                return func(cfg, outs)
+
+    return _decorator
+
 
 class FlopCalculationError(RuntimeError):
     """Error happens when estimating FLOP for a compute op"""
@@ -288,7 +439,6 @@ def compute_flop(sch):
             return sum([_count_flop(x) for x in exp.args])
         else:
             raise FlopCalculationError("Found unsupported operator in the compute expr")
-
 
     def traverse(ops):
         """accumulate flops"""

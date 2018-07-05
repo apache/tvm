@@ -1,5 +1,5 @@
 # pylint: disable=too-few-public-methods,invalid-name,unused-argument,arguments-differ
-# pylint: disable=pointless-string-statement,consider-using-enumerate
+# pylint: disable=consider-using-enumerate
 """
 Template configuration space.
 
@@ -563,7 +563,6 @@ class ConfigSpace(object):
     def __init__(self):
         # private dict to provide sugar
         self.space_map = OrderedDict()  # name -> space
-        self.other_option_keys = []
         self._collect = True
         self._length = None
         self._entity_map = OrderedDict()
@@ -659,7 +658,6 @@ class ConfigSpace(object):
         candidate: list
             list of candidates
         """
-        self.other_option_keys.append(name)
         return self._add_new_transform(OtherOptionSpace, name, [], None, candidate=candidate)
 
     def add_flop(self, flop):
@@ -728,7 +726,6 @@ class ConfigSpace(object):
             entities[name] = space[t % len(space)]
             t //= len(space)
         ret = ConfigEntity(index, self.code_hash, self.template_key, entities, self._constraints)
-        ret.other_option_keys = self.other_option_keys
         return ret
 
     def __iter__(self):
@@ -818,7 +815,7 @@ class ConfigEntity(ConfigSpace):
         other_option: dict
             other tunable parameters (tunable parameters defined by `cfg.define_knob`)
         """
-        return {x: self[x].val for x in self.other_option_keys}
+        return {x: x.val for x in self._entity_map.values() if isinstance(x, OtherOptionEntity)}
 
     def to_json_dict(self):
         """convert to a json serializable dictionary
@@ -829,7 +826,7 @@ class ConfigEntity(ConfigSpace):
             a json serializable dictionary
         """
         ret = {}
-        ret['i'] = self.index
+        ret['i'] = int(self.index)
         ret['t'] = self.template_key
         ret['c'] = self.code_hash
         entity_map = []

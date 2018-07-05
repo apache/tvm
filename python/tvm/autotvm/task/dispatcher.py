@@ -25,9 +25,6 @@ class DispatchContext(object):
     """
     current = None
 
-    def __init__(self):
-        self.last_workload = None
-
     def query(self, target, workload):
         """
         Query the context to get the specific implementation.
@@ -45,9 +42,6 @@ class DispatchContext(object):
             The specific configuration.
         """
         raise NotImplementedError()
-
-    def set_last_workload(self, workload):
-        self.last_workload = workload
 
     def __enter__(self):
         self._old_ctx = DispatchContext.current
@@ -69,10 +63,11 @@ class ApplyConfig(DispatchContext):
     def __init__(self, config):
         super(ApplyConfig, self).__init__()
         self._config = config
+        self.workload = None
 
     def query(self, target, workload):
         """Override query"""
-        self.set_last_workload(workload)
+        self.workload = workload
         return self._config
 
 

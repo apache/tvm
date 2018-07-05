@@ -200,8 +200,6 @@ class ApplyHistoryBest(DispatchContext):
         self._default = default
 
     def query(self, target, workload):
-        self.set_last_workload(workload)
-
         if target is None:
             raise RuntimeError("Need a target context to find the history best. "
                                "Hint: If your target is llvm, use `with tvm.target.create('llvm'):`"
