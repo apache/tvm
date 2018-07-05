@@ -192,7 +192,7 @@ def _build(funcs, target, target_host):
     tvm_t = tvm.target.create(target)
     if tvm_t.device_name == "vta":
         return tvm.build(funcs, target="ext_dev", target_host=target_host)
-    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vta-cpu":
+    elif tvm_t.device_name == "rasp" or tvm_t.device_name == "vtacpu":
         return tvm.build(funcs, target=target_host)
     return tvm.build(funcs, target=target)
 
