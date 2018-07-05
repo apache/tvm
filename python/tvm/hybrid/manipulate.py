@@ -73,7 +73,7 @@ def _split(body, var, factor=None, nparts=None):
         return nparts, inner
 
 
-    def postorder(op):
+    def preorder(op):
         if isinstance(op, stmt.For) and op.loop_var == var:
             if not isinstance(op.extent, (expr.IntImm, expr.UIntImm)):
                 raise ValueError("The loop extent to be splitted should be a constant!")
@@ -96,7 +96,7 @@ def _split(body, var, factor=None, nparts=None):
     if (factor is None) + (nparts is None) != 1:
         raise ValueError("Between factor and nparts excatly one should be given!")
 
-    res = ir_pass.IRTransform(body, postorder, None, ['For'])
+    res = ir_pass.IRTransform(body, preorder, None, ['For'])
     if not did_transform[0]:
         raise ValueError("Corresponding loop levle not found!")
     return res, loop_vars[0], loop_vars[1]
@@ -126,14 +126,69 @@ def _change_loop_type(body, var, for_type):
     did_transform = [False]
 
 
-    def postorder(op):
+    def preorder(op):
         if isinstance(op, stmt.For) and op.loop_var == var:
             did_transform[0] = True
             return make.For(op.loop_var, op.min, op.extent, for_type, 0, op.body)
         return None
 
 
-    res = ir_pass.IRTransform(body, postorder, None, ['For'])
+    res = ir_pass.IRTransform(body, preorder, None, ['For'])
     if not did_transform[0]:
         raise ValueError("Corresponding loop level not found!")
     return res
+
+def _change_loop_type(body, *args):
+    """Reorder the given loop levels.
+
+    Parameters
+    ----------
+    body: HalideIR
+        The HalideIR body to be transformed
+
+    *args: variables
+        The loop levels to be reordered
+
+    Returns
+    -------
+    res: HalideIR
+        The HalideIR body after transformation
+    """
+    old_order = []
+    loop_stack = []
+    loop_info = {}
+    all_on_one_chain = [False]
+
+
+    def check_preorder(op):
+        if isinstance(op, stmt.For) and op.loop_var in args:
+            loop_info[op.loop_var] = (op.min, op.extent, op.for_type)
+            old_order.append(op.loop_var)
+            loop_stack.append(op.loop_var)
+        return None
+
+
+    def check_postorder(op):
+        if isinstance(op, stmt.For) and op.loop_var in args:
+            if len(args) == len(loop_stack):
+                all_on_one_chain[0] = True
+            loop_stack.pop()
+        return None
+
+
+    ir_pass.IRTransform(body, check_preorder, check_postorder, ['For'])
+
+    if not all_on_one_chain[0]:
+        raise ValueError("All the variables should be on the same chain of the 'for' tree!")
+    reorder_map = {}
+    for old, new in zip(old_order, args):
+        reorder_map[old] = new
+
+
+    def transform_postorder(op):
+        if isinstance(op, stmt.For) and op.loop_var in reorder_map.keys():
+            _new = reorder_map[op.loop_var]
+            _min, _extent, _for_type = loop_info[op.loop_var]
+            return make.For(_new, _min, _extent, _for_type, 0, op.body)
+
+    return ir_pass.IRTransform(body, None, transform_postorder, ['For'])
