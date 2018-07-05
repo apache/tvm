@@ -122,7 +122,7 @@ def _darknet_avgpooling(inputs, attrs):
 
 def _darknet_batch_norm(inputs, attrs):
     """Process the batchnormalization operation."""
-    op_name, new_attrs = 'darknet_batch_norm', {}
+    op_name, new_attrs = 'batch_norm', {}
     new_attrs['axis'] = attrs.get('axis', 1)
     new_attrs['epsilon'] = attrs.get('eps', 0.000001)
     new_attrs['center'] = True
@@ -226,13 +226,16 @@ def _darknet_dense(inputs, attrs):
     """Process the dense operation."""
     op_name, new_attrs = 'dense', {}
     new_attrs['units'] = _darknet_required_attr(attrs, 'num_hidden')
-
+    out_name = {}
     if attrs.get('use_bias', False) is True:
         new_attrs['use_bias'] = True
     if attrs.get('use_flatten', False) is True:
         inputs[0] = _sym.flatten(inputs[0])
     sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
-    out_name = sym.list_output_names()[0].replace('_output', '')
+    out_name[0] = sym.list_output_names()[0].replace('_output', '')
+    if 'use_batchNorm' in attrs:
+        sym, _ = _darknet_batch_norm(*sym, attrs)
+        out_name[1] = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs = {}
         new_attrs['activation'] = attrs['activation']
@@ -430,13 +433,16 @@ def _get_connected_weights(layer, opname, params, dtype):
     weights = _read_memory_buffer((layer.outputs, layer.inputs), layer.weights, dtype)
     biases = _read_memory_buffer((layer.outputs, ), layer.biases, dtype)
 
-    k = _get_tvm_params_name(opname, 'weight')
+    k = _get_tvm_params_name(opname[0], 'weight')
     params[k] = tvm.nd.array(weights)
-    k = _get_tvm_params_name(opname, 'bias')
-    params[k] = tvm.nd.array(biases)
 
     if layer.batch_normalize == 1 and layer.dontloadscales != 1:
-        _get_batchnorm_weights(layer, opname, params, layer.outputs, dtype)
+        _get_batchnorm_weights(layer, opname[1], params, layer.outputs, dtype)
+        k = _get_tvm_params_name(opname[1], 'beta')
+        params[k] = tvm.nd.array(biases)
+    else:
+        k = _get_tvm_params_name(opname[0], 'bias')
+        params[k] = tvm.nd.array(biases)
 
 def _get_batchnorm_weights(layer, opname, params, size, dtype):
     """Parse the weights for batchnorm, which includes, scales, moving mean
