@@ -87,6 +87,8 @@ class RedisDatabase(Database):
     REDIS_TEST = 13        # for unit test
     REDIS_NIGHT_TEMP = 12  # for nightly report (will be flushed after every workload)
 
+    MAGIC_SPLIT = "$"
+
     def __init__(self, db_index=REDIS_PROD):
         import redis
 
@@ -107,7 +109,7 @@ class RedisDatabase(Database):
         current = self.get(measure_str_key(inp))
         if current is not None:
             current = str(current)
-            records = [decode(x) for x in current.split("$")]
+            records = [decode(x) for x in current.split(RedisDatabase.MAGIC_SPLIT)]
             results = [rec[1] for rec in records]
             if get_all:
                 return results
@@ -119,10 +121,12 @@ class RedisDatabase(Database):
     def save(self, inp, res, extend=False):
         current = self.get(measure_str_key(inp))
         if not extend or current is None:
-            self.set(measure_str_key(inp), "$".join([encode(inp, res)]))
+            self.set(measure_str_key(inp),
+                     RedisDatabase.MAGIC_SPLIT.join([encode(inp, res)]))
         else:
-            current = current.split("$")
-            self.set(measure_str_key(inp), "$".join(current + [encode(inp, res)]))
+            current = current.split(RedisDatabase.MAGIC_SPLIT)
+            self.set(measure_str_key(inp),
+                     RedisDatabase.MAGIC_SPLIT.join(current + [encode(inp, res)]))
 
     def filter(self, func):
         """
@@ -147,7 +151,7 @@ class RedisDatabase(Database):
         for key in self.db:
             current = self.get(key)
             try:
-                records = [decode(x) for x in current.spilt("$")]
+                records = [decode(x) for x in current.spilt(RedisDatabase.MAGIC_SPLIT)]
             except TypeError:  # got a badly formatted/old format record
                 continue
 
