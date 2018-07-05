@@ -1,3 +1,5 @@
+"""Infrastructures for manipulating the IR directly."""
+
 import sys
 from .. import ir_pass
 from .. import expr
@@ -33,7 +35,7 @@ def _axis(body):
 
 def _split(body, var, factor=None, nparts=None):
     """Split a loop variable inside the HalideIR body
-    
+
     Parameters
     ----------
     body: HalideIR
@@ -75,6 +77,7 @@ def _split(body, var, factor=None, nparts=None):
         return nparts, inner
 
 
+    #pylint: disable=missing-docstring
     def preorder(op):
         if isinstance(op, stmt.For) and op.loop_var == var:
             if not isinstance(op.extent, (expr.IntImm, expr.UIntImm)):
@@ -232,5 +235,6 @@ def _reorder(body, *args):
             _new = reorder_map[op.loop_var]
             _min, _extent, _for_type = loop_info[_new]
             return make.For(_new, _min, _extent, _for_type, 0, op.body)
+        return None
 
     return ir_pass.IRTransform(body, None, transform_postorder, ['For'])
