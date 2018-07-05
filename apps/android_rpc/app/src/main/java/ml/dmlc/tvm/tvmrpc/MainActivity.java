@@ -25,7 +25,6 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
-import android.os.ResultReceiver;
 
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -55,40 +54,6 @@ public class MainActivity extends AppCompatActivity {
     builder.create().show();
   }
 
-  class PollResultReceiver extends ResultReceiver {
-    private MainActivity activity;
-
-    public PollResultReceiver(Handler handler, MainActivity activity) {
-        super(handler);
-        this.activity = activity;
-    }
-    
-    @Override
-    public void onReceiveResult(int resultCode, Bundle resultData) {
-        if (resultCode != 0) {
-            System.err.println("abort triggered...");
-            System.err.println("creating intent...");
-            Intent intent= new Intent(activity, MainActivity.class);
-            int hotStart = 1;
-            intent.putExtra("hotStart", hotStart);
-            System.err.println("creating watchdog shutdown intent...");
-            Intent watchdogIntent = new Intent(activity, RPCService.class);
-            System.err.println("watchdog shutdown...");
-            activity.stopService(watchdogIntent);
-
-            System.err.println("creating pending intent...");
-            PendingIntent pendingIntent = PendingIntent.getActivity(activity, 0, intent, PendingIntent.FLAG_CANCEL_CURRENT);
-            AlarmManager alarmManager = (AlarmManager) activity.getSystemService(activity.ALARM_SERVICE); 
-            alarmManager.set(AlarmManager.RTC, System.currentTimeMillis() + 200, pendingIntent);
-
-            System.err.println("restarting...");
-            activity.finishAffinity();
-            System.err.println("system exit...");
-            System.exit(0); 
-        }
-    }
-  } 
-
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -112,14 +77,6 @@ public class MainActivity extends AppCompatActivity {
     
     enableInputView(true);
 
-    Intent intent = this.getIntent();
-    // detect if app was just restarted
-    // if so, connect
-    if (intent.getIntExtra("hotStart", 0) == 1) {
-        System.err.println("hot start, trying to reconnect...");
-        switchConnect.setChecked(true);
-    }
-
   }
 
   @Override
@@ -140,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
     final String key = edAppKey.getText().toString();
 
     System.err.println("creating watchdog thread...");
-    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this, new PollResultReceiver(new Handler(), this));
+    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this);
     
     System.err.println("starting watchdog thread...");
     watchdog.start();
@@ -154,8 +111,10 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void disconnect() {
-    watchdog.disconnect();
-    watchdog = null;
+    if (watchdog != null) {
+        watchdog.disconnect();
+        watchdog = null;
+    }
   }
 
   private void enableInputView(boolean enable) {

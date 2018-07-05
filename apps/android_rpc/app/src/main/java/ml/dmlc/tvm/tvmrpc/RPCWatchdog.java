@@ -28,46 +28,40 @@ import android.os.ResultReceiver;
  */
 class RPCWatchdog extends Thread {
   public static final int WATCHDOG_POLL_INTERVAL = 5000;
-  private String m_host;
-  private int m_port;
-  private String m_key;
-  private Context m_context;
-  private ResultReceiver m_receiver;
+  private String host;
+  private int port;
+  private String key;
+  private Context context;
   private boolean done = false;
 
-  public RPCWatchdog(String host, int port, String key, Context context, ResultReceiver receiver) {
+  public RPCWatchdog(String host, int port, String key, Context context) {
     super();
-    m_host = host;
-    m_port = port;
-    m_key = key;
-    m_context = context;
-    m_receiver = receiver;
+    this.host = host;
+    this.port = port;
+    this.key = key;
+    this.context = context;
   }
 
   /**
    * Polling loop to check on RPCService status
    */ 
-
   @Override public void run() {
     try {
         while (true) {
           synchronized (this) {
               if (done) {
                 System.err.println("watchdog done, returning...");
-                Intent intent = new Intent(m_context, RPCService.class);
-                m_context.stopService(intent);
                 return;
               }
               else {
                 System.err.println("polling rpc service...");                                  
                 System.err.println("sending rpc service intent...");
-                Intent intent = new Intent(m_context, RPCService.class);
-                intent.putExtra("host", m_host);
-                intent.putExtra("port", m_port);
-                intent.putExtra("key", m_key);
-                intent.putExtra("receiver", m_receiver); 
+                Intent intent = new Intent(context, RPCService.class);
+                intent.putExtra("host", host);
+                intent.putExtra("port", port);
+                intent.putExtra("key", key);
                 // will implicilty restart the service if it died
-                m_context.startService(intent);
+                context.startService(intent);
               }
           }
           Thread.sleep(WATCHDOG_POLL_INTERVAL);
@@ -84,5 +78,8 @@ class RPCWatchdog extends Thread {
     System.err.println("watchdog disconnect call...");
     System.err.println("stopping rpc service...");
     done = true;
+    Intent intent = new Intent(context, RPCService.class);
+    intent.putExtra("kill", true); 
+    context.startService(intent); 
   }
 }

@@ -10,18 +10,25 @@ public class RPCService extends Service {
     private String host;
     private int port;
     private String key;
-    private int intent_num;
+    private int intentNum;
     private RPCProcessor tvmServerWorker;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         synchronized(this) {
             System.err.println("start command intent");
+            // use an alternate kill to prevent android from recycling the
+            // process
+            if (intent.getBooleanExtra("kill", false)) {
+                System.err.println("rpc service received kill...");
+                System.exit(0);
+            }
+        
             this.host = intent.getStringExtra("host");
             this.port = intent.getIntExtra("port", 9090);
             this.key = intent.getStringExtra("key");
-            ResultReceiver receiver = intent.getParcelableExtra("receiver");
             System.err.println("got the following: " + this.host + ", " + this.port + ", " + this.key);
+            System.err.println("intent num: " + this.intentNum);
 
             if (tvmServerWorker == null) {
                 System.err.println("service created worker...");
@@ -30,10 +37,11 @@ public class RPCService extends Service {
                 tvmServerWorker.start();
                 tvmServerWorker.connect(this.host, this.port, this.key);
             }
-            System.err.println("intent num: " + this.intent_num);
-            this.intent_num++; 
-            Bundle bundle = new Bundle();
-            receiver.send(tvmServerWorker.timedOut(System.currentTimeMillis()), bundle);
+            else if (tvmServerWorker.timedOut(System.currentTimeMillis())) {
+                System.err.println("rpc service timed out, killing self...");
+                System.exit(0);
+            }
+            this.intentNum++; 
         }
         // do not restart unless watchdog/app expliciltly does so
         return START_NOT_STICKY;
