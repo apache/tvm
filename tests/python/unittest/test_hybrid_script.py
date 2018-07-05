@@ -235,14 +235,16 @@ def test_bind():
         return
     @script
     def vec_add(a, b, c):
-        for tx in bind('threadIdx.x', 1000):
+        for tx in bind('threadIdx.x', 100):
             c[tx] = b[tx] + c[tx]
 
-    a = tvm.placeholder((1000, ), dtype='float32', name='a')
-    b = tvm.placeholder((1000, ), dtype='float32', name='b')
-    c = tvm.placeholder((1000, ), dtype='float32', name='c')
+    a = tvm.placeholder((100, ), dtype='float32', name='a')
+    b = tvm.placeholder((100, ), dtype='float32', name='b')
+    c = tvm.placeholder((100, ), dtype='float32', name='c')
 
-    run_and_check(vec_add, [a, b, c], [c], target='cuda')
+    module = run_and_check(vec_add, [a, b, c], [c], target='cuda')
+    print(vec_add(a, b, c))
+    print(module.imported_modules[0].get_source())
 
 
 def test_math_intrin():
@@ -326,7 +328,6 @@ def test_allocate():
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
     b = tvm.placeholder((30, 30), 'float32', 'b')
-
     run_and_check(blur2d, [a, b], [b])
 
     if tvm.gpu().exist:
@@ -351,27 +352,31 @@ def test_allocate():
         print('[Warning] No GPU found! Skip shared mem test!')
 
 
-def test_split():
+def test_manipulate():
     @script
     def outer_product(a, b, c):
-        for i in range(32):
-            for j in range(32):
+        for j in range(32):
+            for i in range(32):
                 c[i, j] = a[i] * b[j]
     a = tvm.placeholder((32, ), dtype='float32', name='a')
     b = tvm.placeholder((32, ), dtype='float32', name='b')
     c = tvm.placeholder((32, 32), dtype='float32', name='c')
     ir = outer_product(a, b, c)
 
-    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type
-    i, j = _axis(ir)
+    from tvm.hybrid.manipulate import _axis, _split, _change_loop_type, _reorder
+    j, i = _axis(ir)
     ir, jo, ji = _split(ir, j, 8)
     ir = _change_loop_type(ir, ji, 2)
+    ir = _reorder(ir, i, jo, ji)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.extent.value == 32
+    assert ir.loop_var.name == 'i'
     assert isinstance(ir.body, tvm.stmt.For)
     assert ir.body.extent.value == 4
+    assert ir.body.loop_var.name == 'j.outer'
     assert isinstance(ir.body.body, tvm.stmt.For)
     assert ir.body.body.extent.value == 8
+    assert ir.body.body.loop_var.name == 'j.inner'
     run_and_check(ir, [a, b, c], [c], ref_func=outer_product)
 
 
@@ -386,5 +391,5 @@ if __name__ == "__main__":
     test_math_intrin()
     test_non_zero()
     test_allocate()
-    test_split()
+    test_manipulate()
 

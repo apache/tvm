@@ -5,6 +5,7 @@ from .. import stmt
 from .. import make
 from .. import api
 
+
 def _axis(body):
     """A HalideIR body is given and return the loop variables in their occurance order.
 
@@ -28,6 +29,7 @@ def _axis(body):
     ir_pass.IRTransform(body, preoprder, lambda op: None, ['For'])
 
     return res
+
 
 def _split(body, var, factor=None, nparts=None):
     """Split a loop variable inside the HalideIR body
@@ -101,6 +103,7 @@ def _split(body, var, factor=None, nparts=None):
         raise ValueError("Corresponding loop levle not found!")
     return res, loop_vars[0], loop_vars[1]
 
+
 def _change_loop_type(body, var, for_type):
     """Change the given loop type.
 
@@ -138,7 +141,8 @@ def _change_loop_type(body, var, for_type):
         raise ValueError("Corresponding loop level not found!")
     return res
 
-def _change_loop_type(body, *args):
+
+def _reorder(body, *args):
     """Reorder the given loop levels.
 
     Parameters
@@ -188,7 +192,7 @@ def _change_loop_type(body, *args):
     def transform_postorder(op):
         if isinstance(op, stmt.For) and op.loop_var in reorder_map.keys():
             _new = reorder_map[op.loop_var]
-            _min, _extent, _for_type = loop_info[op.loop_var]
+            _min, _extent, _for_type = loop_info[_new]
             return make.For(_new, _min, _extent, _for_type, 0, op.body)
 
     return ir_pass.IRTransform(body, None, transform_postorder, ['For'])
