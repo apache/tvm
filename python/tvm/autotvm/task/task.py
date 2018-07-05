@@ -23,7 +23,7 @@ class Task(object):
     ----------
     name: str
         The name of the task.
-    args: list
+    args: Tuple
         Positional argument of func
     """
     def __init__(self, name, args):

@@ -5,7 +5,7 @@ import numpy as np
 
 from .. import record
 
-def log_to_file(file_out):
+def log_to_file(file_out, protocol='json'):
     """Log the tuning records into file.
     The rows of the log are stored in the format of autotvm.record.encode.
 
@@ -13,23 +13,24 @@ def log_to_file(file_out):
     ----------
     file_out : File or str
         The file to log to.
+    protocol: str, optional
+        The log protocol. Can be 'json' or 'pickle'
 
     Returns
     -------
     callback : callable
         Callback function to do the logging.
     """
-    delimiter = "\t"
 
     def _callback(_, inputs, results):
         """Callback implementation"""
         if isinstance(file_out, str):
             with open(file_out, "a") as f:
                 for inp, result in zip(inputs, results):
-                    f.write(record.encode(inp, result, delimiter) + "\n")
+                    f.write(record.encode(inp, result, protocol) + "\n")
         else:
             for inp, result in zip(inputs, results):
-                file_out.write(record.encode(inp, result, delimiter) + "\n")
+                file_out.write(record.encode(inp, result, protocol) + "\n")
     return _callback
 
 

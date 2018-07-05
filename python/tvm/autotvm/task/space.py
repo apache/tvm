@@ -457,18 +457,10 @@ class AnnotateEntity(object):
     Parameters
     ----------
     anns: Array of string
-        annotations for axes
-    max_unroll: int, optional
-        Maximum unroll length. When the config tries to annotate an axis with
-        larger length, an InstantiationError will be recorded
-    vec_size: Array of int, optional
-        All valid vectorization lengths. When the config tries to annotate an axis with
-        invalid length, an InstantiationError will be recorded.
+        The annotations of axes
     """
-    def __init__(self, anns, max_unroll=None, vec_size=None):
+    def __init__(self, anns):
         self.anns = anns
-        self._max_unroll = max_unroll
-        self._vec_size = vec_size
 
     def apply(self, sch, op, axes, axis_lens=None,
               max_unroll=None, vec_size=None, cfg=None, source=None):
@@ -827,6 +819,71 @@ class ConfigEntity(ConfigSpace):
             other tunable parameters (tunable parameters defined by `cfg.define_knob`)
         """
         return {x: self[x].val for x in self.other_option_keys}
+
+    def to_json_dict(self):
+        """convert to a json serializable dictionary
+
+        Return
+        ------
+        json_dict: dict
+            a json serializable dictionary
+        """
+        ret = {}
+        ret['i'] = self.index
+        ret['t'] = self.template_key
+        ret['c'] = self.code_hash
+        entity_map = []
+        for k, v in self._entity_map.items():
+            if isinstance(v, SplitEntity):
+                entity_map.append((k, 'sp', v.size))
+            elif isinstance(v, ReorderEntity):
+                entity_map.append((k, 're', v.perm))
+            elif isinstance(v, AnnotateEntity):
+                entity_map.append((k, 'an', v.anns))
+            elif isinstance(v, OtherOptionEntity):
+                entity_map.append((k, 'ot', v.val))
+            else:
+                raise RuntimeError("Invalid entity instance: " + v)
+        ret['e'] = entity_map
+        return ret
+
+    @staticmethod
+    def from_json_dict(json_dict):
+        """Build a ConfigEntity from json serializable dictionary
+
+        Parameters
+        ----------
+        json_dict: dict
+            Json serializable dictionary. This should be the return value
+            of :any:`to_json_dict`.
+
+        Returns
+        -------
+        config: ConfigEntity
+            The corresponding config object
+
+        """
+        index = json_dict["i"]
+        code_hash = json_dict["c"]
+        template_key = json_dict["t"]
+        constraints = []
+        entity_map = OrderedDict()
+
+        for item in json_dict["e"]:
+            key, knob_type, knob_args = item
+            if knob_type == 'sp':
+                entity = SplitEntity(knob_args)
+            elif knob_type == 're':
+                entity = ReorderEntity(knob_args)
+            elif knob_type == 'an':
+                entity = AnnotateEntity(knob_args)
+            elif knob_type == 'ot':
+                entity = OtherOptionEntity(knob_args)
+            else:
+                raise RuntimeError("Invalid config knob type: " + knob_type)
+            entity_map[key] = entity
+
+        return ConfigEntity(index, code_hash, template_key, entity_map, constraints)
 
     def __repr__(self):
         return "%s,%s,%s,%d" % (str(self._entity_map)[12:-1], self.template_key,

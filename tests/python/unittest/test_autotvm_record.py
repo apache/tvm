@@ -17,13 +17,14 @@ def test_load_dump():
     result = MeasureResult((2.0, 2.23, 0.23, 0.123, 0.234, 0.123), MeasureErrorNo.NO_ERROR,
                            2.3, time.time())
 
-    row = encode(inp, result)
-    inp_2, result_2 = decode(row)
+    for protocol in ['json', 'pickle']:
+        row = encode(inp, result, protocol=protocol)
+        inp_2, result_2 = decode(row, protocol=protocol)
 
-    assert measure_str_key(inp) == measure_str_key(inp_2)
-    assert result.costs == result_2.costs
-    assert result.error_no == result_2.error_no
-    assert result.timestamp == result_2.timestamp
+        assert measure_str_key(inp) == measure_str_key(inp_2)
+        assert result.costs == result_2.costs
+        assert result.error_no == result_2.error_no
+        assert result.timestamp == result_2.timestamp
 
 
 def test_file_io():

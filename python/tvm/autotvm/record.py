@@ -7,6 +7,7 @@ import base64
 import logging
 import multiprocessing
 import pickle
+import json
 import time
 from collections import OrderedDict
 
@@ -15,8 +16,10 @@ import numpy as np
 from .. import target, build, lower
 
 from . import task
-from .task import DispatchContext
+from .task import DispatchContext, ConfigEntity
 from .measure import MeasureInput, MeasureResult
+
+AUTOTVM_LOG_VERSION = 0.1
 
 def measure_str_key(inp, include_config=True):
     """ get unique str key for MeasureInput
@@ -38,7 +41,7 @@ def measure_str_key(inp, include_config=True):
                     str(inp.task.kwargs), config_str])
 
 
-def encode(inp, result, delimiter='\t'):
+def encode(inp, result, protocol='json'):
     """encode (MeasureInput, MeasureResult) pair to a string
 
     Parameters
@@ -46,49 +49,89 @@ def encode(inp, result, delimiter='\t'):
     inp: autotvm.tuner.MeasureInput
     result: autotvm.tuner.MeasureResult
         pair of input/result
-    delimiter: str
-        delimiter character between items in a row
+    protocol: str
+        log protocol, json or pickle
 
     Returns
     -------
     row: str
         a row in the logger file
     """
-    row = (str(inp.target),
-           str(base64.b64encode(pickle.dumps([inp.task.name,
-                                              inp.task.args,
-                                              inp.task.kwargs,
-                                              inp.task.workload])).decode()),
-           str(base64.b64encode(pickle.dumps(inp.config)).decode()),
-           str(base64.b64encode(pickle.dumps(tuple(result))).decode()))
-    return delimiter.join(row)
+
+    if protocol == 'json':
+        json_dict = {
+            "i": (str(inp.target),
+                  inp.task.name, inp.task.args, inp.task.kwargs,
+                  inp.task.workload,
+                  inp.config.to_json_dict()),
+
+            "r": (result.costs if result.error_no == 0 else (1e9,),
+                  result.error_no,
+                  result.all_cost,
+                  result.timestamp),
+
+            "v": AUTOTVM_LOG_VERSION
+        }
+        return json.dumps(json_dict)
+    elif protocol == 'pickle':
+        row = (str(inp.target),
+               str(base64.b64encode(pickle.dumps([inp.task.name,
+                                                  inp.task.args,
+                                                  inp.task.kwargs,
+                                                  inp.task.workload])).decode()),
+               str(base64.b64encode(pickle.dumps(inp.config)).decode()),
+               str(base64.b64encode(pickle.dumps(tuple(result))).decode()))
+        return '\t'.join(row)
+    else:
+        raise RuntimeError("Invalid log protocol: " + protocol)
 
 
-def decode(row, delimiter='\t'):
+def decode(row, protocol='json'):
     """Decode encoded record string to python object
 
     Parameters
     ----------
     row: str
         a row in the logger file
-    delimiter: str
-        delimiter character between items in a row
+    protocol: str
+        log protocol, json or pickle
 
     Returns
     -------
     input: autotvm.tuner.MeasureInput
     result: autotvm.tuner.MeasureResult
     """
-    items = row.split(delimiter)
-    tgt = target.create(items[0])
-    task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
-    config = pickle.loads(base64.b64decode(items[2].encode()))
-    result = pickle.loads(base64.b64decode(items[3].encode()))
+    # pylint: disable=unused-variable
+    if protocol == 'json':
+        row = json.loads(row)
+        tgt, task_name, task_args, task_kwargs, workload, config = row['i']
+        tgt = target.create(tgt)
 
-    result = MeasureResult(*result)
-    tsk = task.Task(task_tuple[0], task_tuple[1])
-    tsk.workload = task_tuple[3]
-    return MeasureInput(tgt, tsk, config), result
+        def recursive_tuple(x):
+            """convert all list in x to tuple (hashable)"""
+            if isinstance(x, list):
+                return tuple([recursive_tuple(a) for a in x])
+            return x
+
+        tsk = task.Task(task_name, recursive_tuple(task_args))
+        tsk.workload = recursive_tuple(workload)
+        config = ConfigEntity.from_json_dict(config)
+        inp = MeasureInput(tgt, tsk, config)
+        result = MeasureResult(*[tuple(x) if isinstance(x, list) else x for x in row["r"]])
+
+        return inp, result
+    elif protocol == 'pickle':
+        items = row.split("\t")
+        tgt = target.create(items[0])
+        task_tuple = pickle.loads(base64.b64decode(items[1].encode()))
+        config = pickle.loads(base64.b64decode(items[2].encode()))
+        result = pickle.loads(base64.b64decode(items[3].encode()))
+
+        tsk = task.Task(task_tuple[0], task_tuple[1])
+        tsk.workload = task_tuple[3]
+        return MeasureInput(tgt, tsk, config), MeasureResult(*result)
+    else:
+        raise RuntimeError("Invalid log protocol: " + protocol)
 
 def load_from_file(filename):
     """Generator: load records from file.

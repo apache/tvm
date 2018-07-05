@@ -160,7 +160,6 @@ class XGBoostCostModel(CostModel):
 
     def fit_log(self, records, plan_size):
         tic = time.time()
-        self._reset_pool()
 
         args = list(records)
         if self.fea_type == 'itervar':
@@ -231,6 +230,7 @@ class XGBoostCostModel(CostModel):
         if need_extract:
             self.feature_extra_ct += len(need_extract)
             if self.feature_extra_ct >= 50000:
+                self.feature_extra_ct = 0
                 self._reset_pool()  # make processing pool clean and consume less memory
 
             feas = self.pool.map(self.feature_extract_func, need_extract)
