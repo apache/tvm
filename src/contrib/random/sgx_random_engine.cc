@@ -59,12 +59,12 @@ class RandomEngine {
   }
 
    /*!
-    * \return a random value sampled from Normal(mean, stddev**2).
+    * \return a random value sampled from Normal(loc, scale**2).
     */
-  inline float GetNormal(float mean, float stddev) {
+  inline float GetNormal(float loc, float scale) {
     float sign = GetUniform(-1, 1);
     float sample = GetStandardNormalOneside();
-    return mean + (sign > 0 ? stddev : -stddev) * sample;
+    return loc + (sign > 0 ? scale : -scale) * sample;
   }
 
    /*!
@@ -90,10 +90,10 @@ class RandomEngine {
   }
 
    /*!
-    * \brief Fills a tensor with values drawn from Normal(mean, stddev)
+    * \brief Fills a tensor with values drawn from Normal(loc, scale)
     */
-  void SampleNormal(DLTensor* data, float mean, float stddev) {
-    CHECK_GT(stddev, 0) << "stddev must be positive";
+  void SampleNormal(DLTensor* data, float loc, float scale) {
+    CHECK_GT(scale, 0) << "scale must be positive";
     CHECK(data->strides == nullptr);
 
     DLDataType dtype = data->dtype;
@@ -105,7 +105,7 @@ class RandomEngine {
     CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     std::generate_n(static_cast<float*>(data->data), size, [&] () {
-      return GetNormal(mean, stddev);
+      return GetNormal(loc, scale);
     });
   }
 

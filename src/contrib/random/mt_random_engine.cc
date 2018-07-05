@@ -78,10 +78,10 @@ class RandomEngine {
   }
 
    /*!
-    * \brief Fills a tensor with values drawn from Normal(mean, stddev**2)
+    * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
     */
-  void SampleNormal(DLTensor* data, float mean, float stddev) {
-    CHECK_GT(stddev, 0) << "standard deviation must be positive";
+  void SampleNormal(DLTensor* data, float loc, float scale) {
+    CHECK_GT(scale, 0) << "standard deviation must be positive";
     CHECK(data->strides == nullptr);
 
     DLDataType dtype = data->dtype;
@@ -93,7 +93,7 @@ class RandomEngine {
     CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
 
     if (data->ctx.device_type == kDLCPU) {
-      std::normal_distribution<float> normal_dist(mean, stddev);
+      std::normal_distribution<float> normal_dist(loc, scale);
       std::generate_n(static_cast<float*>(data->data), size, [&] () {
         return normal_dist(rnd_engine_);
       });

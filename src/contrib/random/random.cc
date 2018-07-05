@@ -101,10 +101,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
 TVM_REGISTER_GLOBAL("tvm.contrib.random.normal")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     RandomThreadLocalEntry *entry = RandomThreadLocalEntry::ThreadLocal();
-    double mean = args[0];
-    double stddev = args[1];
+    double loc = args[0];
+    double scale = args[1];
     DLTensor* out = args[2];
-    entry->random_engine.SampleNormal(out, mean, stddev);
+    entry->random_engine.SampleNormal(out, loc, scale);
   });
 
 
