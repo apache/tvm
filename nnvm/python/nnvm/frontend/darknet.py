@@ -122,7 +122,7 @@ def _darknet_avgpooling(inputs, attrs):
 
 def _darknet_batch_norm(inputs, attrs):
     """Process the batchnormalization operation."""
-    op_name, new_attrs = 'batch_norm', {}
+    op_name, new_attrs = '_darknet_batch_norm', {}
     new_attrs['axis'] = attrs.get('axis', 1)
     new_attrs['epsilon'] = attrs.get('eps', 0.000001)
     new_attrs['center'] = True
@@ -234,7 +234,9 @@ def _darknet_dense(inputs, attrs):
     sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
     out_name[0] = sym.list_output_names()[0].replace('_output', '')
     if 'use_batchNorm' in attrs:
-        sym, _ = _darknet_batch_norm(*sym, attrs)
+        op_name, new_attrs = 'batch_norm', {}
+        new_attrs['epsilon'] = 0.000001
+        sym = _darknet_get_nnvm_op(op_name)(*sym, **new_attrs)
         out_name[1] = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs = {}
