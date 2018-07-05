@@ -105,7 +105,7 @@ def decode(row, protocol='json'):
     if protocol == 'json':
         row = json.loads(row)
         tgt, task_name, task_args, task_kwargs, workload, config = row['i']
-        tgt = target.create(tgt)
+        tgt = target.create(str(tgt))
 
         def recursive_tuple(x):
             """convert all list in x to tuple (hashable)"""

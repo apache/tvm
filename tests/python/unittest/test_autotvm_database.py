@@ -227,8 +227,8 @@ def test_check_hashmismatch():
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     test_save_load()
-    # test_db_filter()
-    # test_db_hash()
-    # test_db_latest_all()
-    # test_db_save_replay()
-    # test_check_hashmismatch()
+    test_db_filter()
+    test_db_hash()
+    test_db_latest_all()
+    test_db_save_replay()
+    test_check_hashmismatch()
