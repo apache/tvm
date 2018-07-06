@@ -38,7 +38,7 @@ def _get_default_schedule(wkl, simd_width):
             reg_n = n
             break
 
-    parallel_chunk = min(multiprocessing.cpu_count()//2, 1)
+    parallel_chunk = max(multiprocessing.cpu_count()//2, 1)
     parallel_axis = wkl.out_filter // oc_bn * out_height
     while parallel_chunk > 1 and parallel_axis % parallel_chunk > 0:
         parallel_chunk -= 1
