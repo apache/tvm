@@ -32,8 +32,6 @@ import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.content.Intent;
-import android.app.PendingIntent;
-import android.app.AlarmManager;
 
 
 public class MainActivity extends AppCompatActivity {
