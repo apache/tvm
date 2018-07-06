@@ -436,14 +436,14 @@ def test_forward_variable():
 #######################################################################
 # LSTM
 # ----
-def test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
+def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     tf.reset_default_graph()
     input_size = num_hidden
     input_data = np.full((batch_size, input_size), 1., dtype=dtype)
     in_state_c = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
     in_state_h = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
 
-    def get_tensorflow_output():
+    def _get_tensorflow_output():
         with tf.Session() as sess:
             with variable_scope.variable_scope(
                 "root", initializer=init_ops.constant_initializer(0.5)):
@@ -466,7 +466,7 @@ def test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
                 ['root/lstm_cell/LSTMBlockCell'])
             return final_graph_def, res
 
-    graph_def, tf_out = get_tensorflow_output()
+    graph_def, tf_out = _get_tensorflow_output()
     tvm_output = run_tvm_graph(graph_def, [input_data, in_state_c, in_state_h],
                                ['root/Placeholder', 'root/lstm_cell/LSTMBlockCell_c',
                                 'root/lstm_cell/LSTMBlockCell_h'],
@@ -484,20 +484,21 @@ def test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
 def test_forward_lstm():
     '''test LSTM block cell'''
-    test_lstm_cell(1, 2, 1, 0.0, 'float32')
+    _test_lstm_cell(1, 2, 1, 0.0, 'float32')
 
 
 #######################################################################
 # StridedSlice
 # ----
-def init_data_array(ip_shape, dtype):
+
+def _init_data_array(ip_shape, dtype):
     shape_size = 1
     for posi in range (len(ip_shape)):
         shape_size = shape_size * ip_shape[posi]
     data_ary = np.arange(shape_size, dtype=dtype).reshape(ip_shape)
     return data_ary
 
-def test_stridedslice(ip_shape, begin, end, stride, dtype,
+def _test_stridedslice(ip_shape, begin, end, stride, dtype,
                              begin_mask=0, end_mask=0, new_axis_mask=0,
                              shrink_axis_mask=0, ellipsis_mask=0):
     tf.reset_default_graph()
@@ -506,7 +507,7 @@ def test_stridedslice(ip_shape, begin, end, stride, dtype,
                          end_mask=end_mask, new_axis_mask=new_axis_mask,
                          shrink_axis_mask=shrink_axis_mask,
                          ellipsis_mask=ellipsis_mask, name="test_strided_slice")
-    input_value = init_data_array(ip_shape, dtype)
+    input_value = _init_data_array(ip_shape, dtype)
 
     with tf.Session() as sess:
         final_graph_def = tf.graph_util.convert_variables_to_constants(
@@ -523,17 +524,17 @@ def test_stridedslice(ip_shape, begin, end, stride, dtype,
 
 def test_forward_stridedslice():
     '''test StridedSlice'''
-    test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32')
-    test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
-    test_stridedslice((3, 4, 3), [1, -3, 0], [2, -2, 3], [1, 1, 1], 'float32')
-    test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32')
-    test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1],
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, -3, 0], [2, -2, 3], [1, 1, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1],
                       'float32', begin_mask=2, end_mask=2)
-    test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
                       'float32', new_axis_mask=2)
-    test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
                       'float32', shrink_axis_mask=2)
-    test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=2)
 
 
 #######################################################################
