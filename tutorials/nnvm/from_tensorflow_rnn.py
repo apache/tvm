@@ -62,7 +62,7 @@ def _build_vocab(filename):
     id_to_word = dict((v, k) for k, v in word_to_id.items())
     return word_to_id, id_to_word
 
-def ptb_raw_data(data_path=None, prefix="ptb"):
+def ptb_raw_data(data_path, prefix="ptb"):
     train_path = os.path.join(data_path, prefix + ".train.txt")
     word_to_id, id_2_word = _build_vocab(train_path)
     return word_to_id, id_2_word
@@ -226,21 +226,17 @@ def pretty_print(items, is_char_model, id2word):
 ###############################################################################
 # Input words
 # ---------------------------------------------
-# The input data provide the context to predict next word
-from sys import version_info
-while True:
-    if version_info[0] < 3:
-        inpt = raw_input("Enter your sample prefix: ")
-        cnt = int(raw_input("Sample size: "))
-    else:
-        #python 3.x
-        inpt = input("Enter your sample prefix: ")
-        cnt = int(input("Sample size: "))
-
+# Create 10 predicted statments of 20 words
+cnt_stm = 0
+#Sample input
+inpt = "we have no useful information on"
+cnt_sample = 20
+while cnt_stm < 10:
+    cnt_stm += 1
     in_state = np.full((num_layers, 2, batch_size, num_hidden), 0, dtype="float32")
     seed_for_sample = inpt.split()
-    print("Seed: %s" % pretty_print([word_to_id[x] for x in seed_for_sample],
-                                    False, id_to_word))
     samples, _ = do_sample(m, [word_to_id[word] for word in seed_for_sample],
-                           in_state, cnt)
-    print("Sample: %s" % pretty_print(samples, False, id_to_word))
+                           in_state, cnt_sample)
+    sample_str = pretty_print(samples, False, id_to_word)
+    inpt = sample_str
+    print("Sample: %s" % sample_str)
