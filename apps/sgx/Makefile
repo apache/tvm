@@ -76,8 +76,12 @@ lib/tvm_t.o: lib/tvm_t.c
 lib/test_addone.so: $(TVM_ROOT)/src/runtime/sgx/trusted/runtime.cc lib/tvm_t.o lib/test_addone_sys.o
 	$(CXX) $^ -o $@ $(pkg_cflags) $(pkg_ldflags) $(enclave_cxxflags) $(enclave_ldflags) -g
 
+# The demo enclave signing key
+lib/enclave.pem:
+	curl -Lso $@ https://gist.githubusercontent.com/nhynes/8a2d80068a92e672f8b0b7d710ceb404/raw/2d5ae5fbe83198ede49465fdc6535065e093543b/tvm_sgx_demo.pem
+
 # The signed enclave
-lib/test_addone.signed.so: lib/test_addone.so enclave_config.xml
+lib/test_addone.signed.so: lib/test_addone.so enclave_config.xml lib/enclave.pem
 	$(sgx_enclave_signer) sign -key lib/enclave.pem -enclave $< -out $@ -config enclave_config.xml
 
 clean:
