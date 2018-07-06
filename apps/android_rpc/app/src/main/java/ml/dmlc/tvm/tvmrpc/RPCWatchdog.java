@@ -17,11 +17,8 @@
 
 package ml.dmlc.tvm.tvmrpc;
 
-import android.app.ActivityManager;
-import android.app.ActivityManager.RunningServiceInfo;
 import android.content.Context;
 import android.content.Intent;
-import android.os.ResultReceiver;
 
 /**
  * Watchdog for RPCService
