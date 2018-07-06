@@ -137,21 +137,12 @@ def _pooling(name):
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
-            if attr['data_format'] == 'NHWC':
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1]),
-                                                (0, 0)))
-            else:
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1])))
-            attr['padding'] = [0, 0]
+            attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+
+        if name == "avg_pool":
+            attr['count_include_pad'] = False
 
         return AttrCvt(
             op_name=_dimension_picker(name),
@@ -513,6 +504,7 @@ _convert_map = {
     'Relu6'                             : _relu6(),
     'DepthwiseConv2dNative'             : _depthwise_conv(),
     'Shape'                             : _shape(),
+    'Sigmoid'                           : AttrCvt('sigmoid'),
 }
 
 
@@ -601,11 +593,18 @@ class GraphProto(object):
                         raise NotImplementedError( \
                             "Const {} couldn't be converted to Param.".format(node.name))
 
-                try:
+                attr = self._parse_attr(node.attr)
+                #Variable converted to Const will not have only value attr
+                if 'value' in attr:
+                    tensor_value = attr['value']
                     self._output_shapes[node.name] = \
-                         [tensor_util.TensorShapeProtoToList(shape) \
-                         for shape in self._parse_attr(node.attr)['_output_shapes']]
-                except KeyError:
+                        [tensor_util.TensorShapeProtoToList( \
+                            tensor_value.tensor_shape)]
+                elif '_output_shapes' in attr:
+                    self._output_shapes[node.name] = \
+                        [tensor_util.TensorShapeProtoToList(shape) \
+                        for shape in self._parse_attr(node.attr)['_output_shapes']]
+                else:
                     raise NotImplementedError( \
                         "Please freeze the graph with add_shapes=True")
             else:

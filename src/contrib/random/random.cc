@@ -87,6 +87,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
     })
   });
 
+
 TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     RandomThreadLocalEntry *entry = RandomThreadLocalEntry::ThreadLocal();
@@ -94,6 +95,16 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
     double high = args[1];
     DLTensor* out = args[2];
     entry->random_engine.SampleUniform(out, low, high);
+  });
+
+
+TVM_REGISTER_GLOBAL("tvm.contrib.random.normal")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    RandomThreadLocalEntry *entry = RandomThreadLocalEntry::ThreadLocal();
+    double loc = args[0];
+    double scale = args[1];
+    DLTensor* out = args[2];
+    entry->random_engine.SampleNormal(out, loc, scale);
   });
 
 

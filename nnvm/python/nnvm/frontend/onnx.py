@@ -446,6 +446,47 @@ class Unsqueeze(OnnxOpConverter):
             inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
+
+class Slice(OnnxOpConverter):
+    """ Operator converter for Slice.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if isinstance(attr['starts'], int):
+            attr['starts'] = (attr['starts'],)
+            attr['ends'] = (attr['ends'],)
+
+        try:
+            # Update the starts and ends according to axes if required.
+            if isinstance(attr['axes'], int):
+                attr['axes'] = (attr['axes'],)
+
+            if (max(attr['axes']) + 1) != len(attr['axes']):
+                new_axes = []
+                new_starts = []
+                new_ends = []
+                pop_index = 0
+                for i in range(max(attr['axes']) + 1):
+                    if i in attr['axes']:
+                        new_axes.append(i)
+                        new_starts.append(attr['starts'][pop_index])
+                        new_ends.append(attr['ends'][pop_index])
+                        pop_index += 1
+                    else:
+                        new_axes.append(i)
+                        new_starts.append(0)
+                        new_ends.append(np.iinfo(np.int32).max)
+                attr['axes'] = new_axes
+                attr['starts'] = new_starts
+                attr['ends'] = new_ends
+        except KeyError:
+            pass
+
+        return AttrCvt(op_name='strided_slice',
+                       transforms={'starts': 'begin',
+                                   'ends': 'end'},
+                       ignores=['axes'])(inputs, attr)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -477,7 +518,7 @@ def _get_convert_map(opset):
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
-        # 'Constant'
+        # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'
@@ -493,8 +534,8 @@ def _get_convert_map(opset):
         'Neg': Renamer('negative'),
         'Abs': Absolute.get_converter(opset),
         'Reciprocal': Reciprocal.get_converter(opset),
-        # 'Floor'
-        # 'Ceil'
+        'Floor': Renamer('floor'),
+        'Ceil': Renamer('ceil'),
         'Sqrt': Renamer('sqrt'),
         'Relu': Renamer('relu'),
         'LeakyRelu': Renamer('leaky_relu'),
@@ -511,7 +552,7 @@ def _get_convert_map(opset):
         # 'Min' : this is the elemwise minimum
         'Sum': Sum.get_converter(opset),
         # 'Mean'
-        # 'Clip'
+        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
         # softmax default axis is different in onnx
         'Softmax': AttrCvt('softmax', {'axis': ('axis', 1)}),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
@@ -519,7 +560,7 @@ def _get_convert_map(opset):
         'Softsign': Softsign.get_converter(opset),
         'SoftPlus': SoftPlus.get_converter(opset),
         'Gemm': Gemm.get_converter(opset),
-        # 'MatMul'  batch stacked dot operation
+        'MatMul': Renamer('matmul'),
 
         # defs/nn
         'AveragePool': AveragePool.get_converter(opset),
@@ -550,7 +591,7 @@ def _get_convert_map(opset):
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
         'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
-        # 'Slice'
+        'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         # 'Gather'
         'Squeeze': Renamer('squeeze'),

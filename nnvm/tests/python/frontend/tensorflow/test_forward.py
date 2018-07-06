@@ -13,6 +13,9 @@ from tensorflow.python.framework import constant_op
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
+from tensorflow.python.ops import math_ops
+from tensorflow.python.ops import variable_scope
+from tensorflow.python.ops import variables
 from tensorflow.core.framework import graph_pb2
 
 import nnvm.testing.tf
@@ -115,13 +118,13 @@ def test_forward_pooling():
                  pooling_type='MAX',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
-
     _test_pooling(input_shape=[2, 9, 10, 2],
                  window_shape=[1, 1],
                  padding='SAME',
                  pooling_type='AVG',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
+
     _test_pooling(input_shape=[2, 10, 9, 2],
                  window_shape=[1, 1],
                  padding='SAME',
@@ -134,6 +137,33 @@ def test_forward_pooling():
                  pooling_type='AVG',
                  dilation_rate=[1, 1],
                  strides=[1, 1])
+
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[1, 1])
+    _test_pooling(input_shape=[2, 9, 10, 2],
+                 window_shape=[2, 1],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='MAX',
+                 dilation_rate=[1, 1],
+                 strides=[2, 1])
+    _test_pooling(input_shape=[2, 10, 9, 2],
+                 window_shape=[2, 3],
+                 padding='SAME',
+                 pooling_type='AVG',
+                 dilation_rate=[1, 1],
+                 strides=[1, 2])
+
 
 #######################################################################
 # Convolution
@@ -330,6 +360,80 @@ def _test_forward_concat_v2():
     _test_concat_v2([t1, t2], 1)
 
 #######################################################################
+# Sigmoid
+# -------
+
+def _test_sigmoid(data):
+    """ One iteration of sigmoid """
+
+    with tf.Graph().as_default():
+        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+
+        # pylint: disable=unused-variable
+        sigmoid_out = math_ops.sigmoid(in_data)
+        # pylint: enable=unused-variable
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                ['Sigmoid'],
+                )
+
+            tf_output = run_tf_graph(sess, data,
+                                     'Const:0', 'Sigmoid:0')
+            tvm_output = run_tvm_graph(graph_def,
+                                       data,
+                                       "Const", tf_output.shape, data.dtype)
+
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+
+            sess.close()
+
+def test_forward_sigmoid():
+    """ Sigmoid """
+
+    _test_sigmoid(np.random.uniform(size=(3, 4, 4, 3)).astype('float32'))
+
+
+#######################################################################
+# Variable
+# --------
+
+def _test_variable(data):
+    tf.reset_default_graph()
+    input_op = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+    input_tensor = array_ops.reshape(input_op, data.shape)
+
+    size = input_tensor.shape.dims[1]
+    with variable_scope.variable_scope("linear", reuse=None):
+        w = variable_scope.get_variable(
+            "w", shape=[size, size], dtype=input_tensor.dtype)
+    # pylint: disable=unused-variable
+    output_op = math_ops.matmul(input_tensor, w)
+    # pylint: enable=unused-variable
+
+    with tf.Session() as sess:
+        sess.run(variables.global_variables_initializer())
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['MatMul'],
+            )
+
+        tf_output = run_tf_graph(sess, data, 'Placeholder:0', 'MatMul:0')
+        tvm_output = run_tvm_graph(final_graph_def, data,
+                                   "Placeholder", tf_output.shape, data.dtype)
+
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_variable():
+    """Variable type op test"""
+    _test_variable(np.random.uniform(size=(32, 100)).astype('float32'))
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -382,12 +486,7 @@ def test_forward_inception_v3():
             top_tvm = np.squeeze(tvm_output).argsort()[-3:][::-1]
             top_tf = np.squeeze(tf_output).argsort()[-3:][::-1]
 
-            # TVM implementation of SAME padding some times make a slight deviation.
-            # Hence check for top predictions.
-            top_tvm = np.sort(top_tvm)
-            top_tf = np.sort(top_tf)
-
-            np.testing.assert_allclose(top_tf, top_tvm)
+            np.testing.assert_allclose(top_tf, top_tvm, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Inception V1
@@ -437,9 +536,11 @@ if __name__ == '__main__':
     test_forward_pooling()
     test_forward_reshape()
     test_forward_squeeze()
+    test_forward_sigmoid()
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()
     test_forward_multi_input()
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()
+    test_forward_variable()
