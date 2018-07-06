@@ -2,6 +2,7 @@
 """Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
+import multiprocessing
 import tvm
 
 from ..util import get_const_tuple
@@ -9,7 +10,8 @@ from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
 
-AVXConvCommonFwd = namedtuple('AVXConvCommonFwd', ['ic_bn', 'oc_bn', 'reg_n', 'unroll_kw'])
+AVXConvCommonFwd = namedtuple('AVXConvCommonFwd',
+                              ['ic_bn', 'oc_bn', 'reg_n', 'unroll_kw', 'parallel_chunk'])
 
 
 def _get_default_schedule(wkl, simd_width):
@@ -36,7 +38,12 @@ def _get_default_schedule(wkl, simd_width):
             reg_n = n
             break
 
-    return AVXConvCommonFwd(ic_bn, oc_bn, reg_n, False)
+    parallel_chunk = min(multiprocessing.cpu_count()//2, 1)
+    parallel_axis = wkl.out_filter // oc_bn * out_height
+    while parallel_chunk > 1 and parallel_axis % parallel_chunk > 0:
+        parallel_chunk -= 1
+
+    return AVXConvCommonFwd(ic_bn, oc_bn, reg_n, False, int(parallel_chunk))
 
 
 def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
@@ -138,7 +145,9 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     _, oc_chunk, oh, ow, oc_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=sch.reg_n)
     s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
-    s[C].fuse(oc_chunk, oh)
+    parallel_axis = s[C].fuse(oc_chunk, oh)
+    if sch.parallel_chunk > 0:
+        parallel_axis, _ = s[C].split(parallel_axis, nparts=sch.parallel_chunk)
     s[C].vectorize(oc_block)
 
     s[CC].compute_at(s[C], ow_chunk)
@@ -154,7 +163,7 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     else:
         s[CC].reorder(oc_chunk, oh, ow_chunk, ic_chunk, kh, kw, ic_block, ow_block, oc_block)
 
-    s[CC].fuse(oc_chunk, oh)
+    # s[CC].fuse(oc_chunk, oh)
     s[CC].vectorize(oc_block)
     s[CC].unroll(ow_block)
 
@@ -166,6 +175,8 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     oc_chunk, oc_block = s[O].split(oc, factor=sch.oc_bn)
     s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
     parallel_axis = s[O].fuse(oc_chunk, oh)
+    if sch.parallel_chunk > 0:
+        parallel_axis, _ = s[O].split(parallel_axis, nparts=sch.parallel_chunk)
     s[C].compute_at(s[O], parallel_axis)
     s[O].vectorize(oc_block)
 
@@ -222,6 +233,8 @@ def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
     ow_chunk, ow_block = s[C].split(ow, factor=sch.reg_n)
     s[C].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
     parallel_axis = s[C].fuse(oc_chunk, oh)
+    if sch.parallel_chunk > 0:
+        parallel_axis, _ = s[C].split(parallel_axis, nparts=sch.parallel_chunk)
     s[C].vectorize(oc_block)
     if C == O:
         s[C].parallel(parallel_axis)
@@ -247,6 +260,8 @@ def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
         ow_chunk, ow_block = s[O].split(ow, factor=sch.reg_n)
         s[O].reorder(oc_chunk, oh, ow_chunk, ow_block, oc_block)
         parallel_axis = s[O].fuse(oc_chunk, oh)
+        if sch.parallel_chunk > 0:
+            parallel_axis, _ = s[O].split(parallel_axis, nparts=sch.parallel_chunk)
         s[C].compute_at(s[O], parallel_axis)
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
