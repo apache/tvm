@@ -3,8 +3,6 @@ package ml.dmlc.tvm.tvmrpc;
 import android.app.Service;
 import android.os.IBinder;
 import android.content.Intent;
-import android.os.ResultReceiver;
-import android.os.Bundle;
 
 public class RPCService extends Service {
     private String host;
