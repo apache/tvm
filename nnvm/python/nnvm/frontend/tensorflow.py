@@ -475,7 +475,7 @@ def _gather():
             op_name="take",
             extras={'axis':axis},
             ignores=['Tindices', 'Tparams', 'validate_indices', \
-                     'axis', 'Taxis', '_class'])(inputs, attr)
+                     'Taxis', '_class'])(inputs, attr)
     return _impl
 
 
