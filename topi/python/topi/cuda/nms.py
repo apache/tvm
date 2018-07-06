@@ -71,7 +71,6 @@ def sort_ir(data, index, output, axis, is_descend):
                 with ib.else_scope():
                     sizes_temp[tid] +=  sizes[tid - (tvm.const(1, "int32") << k)]
                     sizes[tid] = sizes_temp[tid]
-#                sizes[tid] += sizes[tid - (tvm.const(1, "int32") << k)]
 
     with ib.if_scope(tid < axis_mul_before * axis_mul_after):
         i = tid / axis_mul_after
@@ -235,15 +234,7 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     body = ib.get()
     return body
 
-#@sort.register("cuda")
-def sort(data, index, is_descend):
-    oshape = data.shape
-    out = tvm.extern(oshape, [data, index], lambda ins, outs:
-                     OddEvenTransposeSort_ir(ins[0], ins[1], is_descend),
-                     tag="sort_gpu")
-    return out
-
-@nms.register("cuda")
+@nms.register(["cuda", "gpu"])
 def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
     """Non-maximum suppression operator for object detection.
 

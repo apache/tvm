@@ -25,7 +25,6 @@ def _default_schedule(outs):
         if tag.is_broadcast(op.tag):
             if op not in s.outputs:
                 s[op].compute_inline()
-            #TODO: should be injected automatically
             else:
                 x = op.output(0)
                 fused = s[x].fuse(*s[x].op.axis)
@@ -107,6 +106,24 @@ def schedule_multibox_prior(outs):
     -------
     s: Schedule
         The computation schedule for multibox_prior.
+    """
+    return _default_schedule(outs)
+
+@generic.schedule_multibox_transform_loc.register(["cuda", "gpu"])
+def schedule_multibox_transform_loc(outs):
+    """Schedule for multibox_transform_loc
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of
+      multibox_transform_loc in the format
+      of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
     """
     return _default_schedule(outs)
 

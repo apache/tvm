@@ -30,7 +30,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     ratios : tuple of float
         Tuple of ratios for anchor boxes.
 
-    steps : Tuple of int
+    steps : Tuple of float
         Priorbox step across y and x, -1 for auto calculation.
 
     offsets : tuple of int
@@ -92,7 +92,7 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     return body
 
 
-@multibox_prior.register("cuda")
+@multibox_prior.register(["cuda", "gpu"])
 def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
@@ -107,7 +107,7 @@ def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 
     ratios : tuple of float
         Tuple of ratios for anchor boxes.
 
-    steps : Tuple of int
+    steps : Tuple of float
         Priorbox step across y and x, -1 for auto calculation.
 
     offsets : tuple of int
@@ -254,7 +254,8 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
                                                     clip, variances[0], variances[1],
                                                     variances[2], variances[3])
 
-    return ib.get()
+    body = ib.get()
+    return body
 
 
 @multibox_transform_loc.register(["cuda", "gpu"])
