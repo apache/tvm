@@ -19,7 +19,7 @@ def helper(symbol, inputs, dtype,
         input_syms.append(s)
 
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes, dtype=dtype)
         m = graph_runtime.create(graph, lib, ctx)
         m.run(**np_inputs)
         y_np = np_forward(**np_inputs)
@@ -228,6 +228,29 @@ def test_broadcast():
         return da, db
     helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
+    y = sym.broadcast_mod(a, b)
+    helper(y, inputs, 'int32', lambda a, b: a % b)
+
+    y = sym.broadcast_max(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.maximum(a, b))
+
+    y = sym.broadcast_min(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.minimum(a, b))
+
+    y = sym.broadcast_pow(a, b)
+    helper(y, inputs, dtype, lambda a, b: a ** b)
+
+    y = sym.broadcast_left_shift(a, b)
+    helper(y, inputs, 'int32', lambda a, b: a << b)
+
+    y = sym.broadcast_right_shift(a, b)
+    helper(y, inputs, 'int32', lambda a, b: a >> b)
+
+    y = sym.broadcast_greater(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.greater(a, b))
+
+    y = sym.broadcast_less(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.less(a, b))
 
 def test_greater():
     l = sym.Variable("l")

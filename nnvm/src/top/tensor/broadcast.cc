@@ -15,6 +15,7 @@
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/broadcast.h"
+#include "topi/elemwise.h"
 
 namespace nnvm {
 namespace top {
@@ -463,7 +464,14 @@ Example::
    broadcast_greater(x, y) = [[ 0.,  0.,  1.],
                               [ 1.,  1.,  1.]]
 
-)code" NNVM_ADD_FILELINE);
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::greater(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
 
 NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less, less)
 .add_alias("__less_symbol__")
@@ -480,7 +488,13 @@ Example::
    broadcast_less(x, y) = [[ 1.,  0.,  0.],
                            [ 0.,  0.,  0.]]
 
-)code" NNVM_ADD_FILELINE);
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::less(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
 
 }  // namespace top
 }  // namespace nnvm
