@@ -230,6 +230,9 @@ def create_measure_batch(task, options):
     if 'cuda' in task.target.keys and 'rpc_device_key' in kwargs:  # query cuda device info
         add_cuda_device_info(kwargs['rpc_device_key'], kwargs['rpc_tracker_addr'], kwargs)
 
+    if 'opencl' in task.target.keys and 'rpc_device_key' in kwargs:
+        add_cuda_device_info(kwargs['rpc_device_key'], kwargs.get('rpc_tracker_addr'), kwargs)
+
     if check_correctness:
         # use llvm to generate a reference input/output
         # this option works for tuning topi, but might not work for you custom op
@@ -319,3 +322,18 @@ def add_cuda_device_info(device_key, rpc_tracker_addr, kwargs):
     }
 
     kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+
+def add_opencl_device_info(device_key, rpc_tracker_addr, kwargs):
+    """Query opencl device info. This is used to check the validity of a generated code."""
+    from .measure_methods import request_remote
+
+    remote = request_remote(device_key, rpc_tracker_addr)
+    ctx = remote.context('opencl', 0)
+    max_dims = ctx.max_thread_dimensions
+    kwargs['check_gpu'] = {
+        'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
+        'max_threads_per_block': ctx.max_threads_per_block,
+        'max_thread_x': max_dims[0],
+        'max_thread_y': max_dims[1],
+        'max_thread_z': max_dims[2],
+    }
