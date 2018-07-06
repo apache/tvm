@@ -9,13 +9,19 @@ from nnvm.testing.config import ctx_list
 
 
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None, need_input=True, need_head_grads=True):
+           np_forward, np_backward=None,
+           need_input=True, need_head_grads=True, in_range={}):
     ishapes = {}
     input_syms = []
     np_inputs = {}
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
-        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        if name in in_range:
+            np_inputs.update({name: np.random.uniform(size=shape,
+                                                      low=in_range[name][0],
+                                                      high=in_range[name][1]).astype(dtype)})
+        else:
+            np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
@@ -229,7 +235,7 @@ def test_broadcast():
     helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
     y = sym.broadcast_mod(a, b)
-    helper(y, inputs, 'int32', lambda a, b: a % b)
+    helper(y, inputs, 'int32', lambda a, b: np.mod(a, b), in_range={'a': (0.001, 100), 'b': (1, 100)})
 
     y = sym.broadcast_max(a, b)
     helper(y, inputs, dtype, lambda a, b: np.maximum(a, b))
@@ -238,7 +244,7 @@ def test_broadcast():
     helper(y, inputs, dtype, lambda a, b: np.minimum(a, b))
 
     y = sym.broadcast_pow(a, b)
-    helper(y, inputs, dtype, lambda a, b: a ** b)
+    helper(y, inputs, dtype, lambda a, b: np.power(a, b), in_range={'a': (0.001, 100), 'b': (0.001, 2)})
 
     y = sym.broadcast_left_shift(a, b)
     helper(y, inputs, 'int32', lambda a, b: a << b)
