@@ -124,6 +124,36 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
         res_pack.append(MeasureResult(costs, errno, tstamp - tic, tstamp))
     return res_pack
 
+def _build_func(inp, build_option, kwargs):
+    """Build function module. Exception will be raised when error occurs"""
+    with inp.target:
+        s, args = inp.task.instantiate(inp.config)
+        if not inp.config.valid():
+            raise InstantiationError(inp.config.errors)
+        code_hash = getattr(s, 'code_hash', None)
+        if inp.config.code_hash != code_hash:
+            raise HashMismatchError('got {0:s}, expected {1:s}'
+                                    .format(str(inp.config.code_hash), str(code_hash)))
+
+        opts = build_option or {}
+        if "check_gpu" in kwargs:
+            values = kwargs['check_gpu']
+            # Add gpu verify pass to filter out invalid configs in advance.
+            # This can accelerate the tuning process
+            check_keys = ['max_shared_memory_per_block', 'max_threads_per_block',
+                          'max_thread_x', 'max_thread_y', 'max_thread_z']
+            opts["add_lower_pass"] = [
+                (2, gpu_verify_pass(**{key: values[key] for key in check_keys}))]
+
+        if 'cuda_arch' in kwargs:
+            set_cuda_target_arch(kwargs['cuda_arch'])
+
+        with build_config(**opts):
+            func = build(s, args, target_host=inp.task.target_host)
+
+    return func, args
+
+
 def measure_rpc(input_pack,
                 rpc_device_key,
                 number,
@@ -170,30 +200,7 @@ def measure_rpc(input_pack,
     """
     def _fbuild(inp):
         """ Local build function."""
-        with inp.target:
-            s, args = inp.task.instantiate(inp.config)
-            if not inp.config.valid():
-                raise InstantiationError(inp.config.errors)
-            code_hash = getattr(s, 'code_hash', None)
-            if inp.config.code_hash != code_hash:
-                raise HashMismatchError('got {0:s}, expected {1:s}'
-                                        .format(str(inp.config.code_hash), str(code_hash)))
-
-            opts = build_option or {}
-            if "check_gpu" in kwargs:
-                values = kwargs['check_gpu']
-                # Add cuda verify pass to filter out invalid configs in advance.
-                # This can accelerate the tuning process
-                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block',
-                              'max_thread_x', 'max_thread_y', 'max_thread_z']
-                opts["add_lower_pass"] = [
-                    (2, cuda_verify_pass(**{key: values[key] for key in check_keys}))]
-
-            if 'cuda_arch' in kwargs:
-                set_cuda_target_arch(kwargs['cuda_arch'])
-
-            with build_config(**opts):
-                func = build(s, args, target_host=inp.task.target_host)
+        func, args = _build_func(inp, build_option, kwargs)
 
         file_name = "tmp_func_%0x.tar" % getrandbits(64)
         path = tmp_dir.relpath(file_name)
@@ -242,29 +249,7 @@ def measure_local(input_pack,
 
     def _fbuild(inp):
         """ Local build function """
-        with inp.target:
-            s, args = inp.task.instantiate(inp.config)
-            if not inp.config.valid():
-                raise InstantiationError(inp.config.errors)
-            code_hash = getattr(s, 'code_hash', None)
-            if inp.config.code_hash != code_hash:
-                raise HashMismatchError('got {0:s}, expected {1:s}'
-                                        .format(str(inp.config.code_hash), str(code_hash)))
-
-            opts = build_option or {}
-            if "check_gpu" in kwargs:
-                # Add cuda verify pass to filter out invalid configs in advance.
-                # This can accelerate the tuning process
-                check_keys = ['max_shared_memory_per_block', 'max_threads_per_block']
-                opts["add_lower_pass"] = [
-                    (2, cuda_verify_pass(**{key: kwargs[key] for key in check_keys}))]
-
-            if 'cuda_arch' in kwargs:
-                set_cuda_target_arch(kwargs['cuda_arch'])
-
-            with build_config(**opts):
-                func = build(s, args, target_host=inp.task.target_host)
-
+        func, args = _build_func(inp, build_option, kwargs)
         ctx = context(str(inp.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat)
@@ -275,9 +260,9 @@ def measure_local(input_pack,
     return ret
 
 
-def cuda_verify_pass(**kwargs):
-    """Verify the invalidity of a cuda kernel
-    This pass will check shared memory size and number of thread per block.
+def gpu_verify_pass(**kwargs):
+    """Verify the validity of a gpu kernel
+    This pass will check shared memory size and number of threads per block.
     """
     def verify_pass(stmt):
         valid = ir_pass.VerifyGPUCode(stmt, kwargs)

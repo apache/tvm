@@ -114,18 +114,10 @@ class LocalExecutor(executor.Executor):
         Note
         ----------
         By default, the executor will fork a new process for a new job
-        But some runtime does not support fork (e.g. cuda, cudnn).
+        But some runtime does not support fork (e.g. cuda runtime, cudnn).
         In this circumstance, you should set 'fork_new_process' to False in kwargs
         """
         fork_new_process = kwargs.pop('fork_new_process', True)
-
-        # do not fork a new process for cudnn
-        try:
-            # if is cudnn, do not fork
-            if 'cudnn' in args[0][0].config.template_key:
-                fork_new_process = False
-        except Exception:   # pylint: disable=broad-except
-            pass
 
         if not fork_new_process:
             return LocalFutureNoFork(func(*args, **kwargs))

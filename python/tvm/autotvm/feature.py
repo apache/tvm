@@ -22,47 +22,12 @@ def ana_lower(sch, args,
     i.e. Do not eliminate loop with extent of 1, do not vectorize, unroll or inject virtual threads
     """
     binds, _ = build_module.get_binds(args, binds)
-    # cfg = current_build_config()
-    # add_lower_pass = cfg.add_lower_pass if cfg.add_lower_pass else []
-    # lower_phase0 = [x[1] for x in add_lower_pass if x[0] == 0]
-    # lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
-    # lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
-    # lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
-    # normalize schedule first
     sch = sch.normalize()
     # Phase 0
     bounds = schedule.InferBound(sch)
     stmt = schedule.ScheduleOps(sch, bounds, True)
-    # stmt = ir_pass.InjectPrefetch(stmt)
-    # for f in lower_phase0:
-    #     stmt = f(stmt)
-    # Phase 1
     stmt = ir_pass.StorageFlatten(stmt, binds, 64)
     stmt = ir_pass.CanonicalSimplify(stmt)
-    # for f in lower_phase1:
-    #     stmt = f(stmt)
-    # Phase 2
-    # if not simple_mode:
-    #     stmt = ir_pass.LoopPartition(stmt, cfg.partition_const_loop)
-    # stmt = ir_pass.VectorizeLoop(stmt)
-    # stmt = ir_pass.InjectVirtualThread(stmt)
-    # stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
-    # stmt = ir_pass.StorageRewrite(stmt)
-    # stmt = ir_pass.UnrollLoop(
-    #     stmt,
-    #     cfg.auto_unroll_max_step,
-    #     cfg.auto_unroll_max_depth,
-    #     cfg.auto_unroll_max_extent,
-    #     cfg.unroll_explicit)
-    # for f in lower_phase2:
-    #     stmt = f(stmt)
-    # Phase 3
-    # stmt = ir_pass.CanonicalSimplify(stmt)
-    # stmt = ir_pass.LowerStorageAccessInfo(stmt)
-    # stmt = ir_pass.RemoveNoOp(stmt)
-    # stmt = ir_pass.RewriteUnsafeSelect(stmt)
-    # for f in lower_phase3:
-    #     stmt = f(stmt)
     assert simple_mode
     return stmt
 
