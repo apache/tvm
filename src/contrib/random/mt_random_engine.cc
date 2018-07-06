@@ -73,7 +73,32 @@ class RandomEngine {
         return uniform_dist(rnd_engine_);
       });
     } else {
-      LOG(FATAL) << "Do not support random.randint on this device yet";
+      LOG(FATAL) << "Do not support random.uniform on this device yet";
+    }
+  }
+
+   /*!
+    * \brief Fills a tensor with values drawn from Normal(loc, scale**2)
+    */
+  void SampleNormal(DLTensor* data, float loc, float scale) {
+    CHECK_GT(scale, 0) << "standard deviation must be positive";
+    CHECK(data->strides == nullptr);
+
+    DLDataType dtype = data->dtype;
+    int64_t size = 1;
+    for (int i = 0; i < data->ndim; ++i) {
+      size *= data->shape[i];
+    }
+
+    CHECK(dtype.code == kDLFloat && dtype.bits == 32 && dtype.lanes == 1);
+
+    if (data->ctx.device_type == kDLCPU) {
+      std::normal_distribution<float> normal_dist(loc, scale);
+      std::generate_n(static_cast<float*>(data->data), size, [&] () {
+        return normal_dist(rnd_engine_);
+      });
+    } else {
+      LOG(FATAL) << "Do not support random.normal on this device yet";
     }
   }
 
