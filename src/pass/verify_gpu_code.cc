@@ -18,13 +18,13 @@ class GPUCodeVerifier : public IRVisitor {
   bool Verify(tvm::Stmt stmt,
               int64_t max_local_memory_per_block,
               int64_t max_shared_memory_per_block,
-              int64_t max_thread_per_block,
+              int64_t max_threads_per_block,
               int64_t max_thread_x,
               int64_t max_thread_y,
               int64_t max_thread_z) {
     max_local_memory_per_block_ = static_cast<size_t>(max_local_memory_per_block);
     max_shared_memory_per_block_ = static_cast<size_t>(max_shared_memory_per_block);
-    max_thread_per_block_ = static_cast<size_t>(max_thread_per_block);
+    max_threads_per_block_ = static_cast<size_t>(max_threads_per_block);
     max_thread_x_ = static_cast<size_t>(max_thread_x);
     max_thread_y_ = static_cast<size_t>(max_thread_y);
     max_thread_z_ = static_cast<size_t>(max_thread_z);
@@ -52,7 +52,7 @@ class GPUCodeVerifier : public IRVisitor {
 
     if (nest_level_ == 0) {
       // exit a kernel, check the validity
-      valid_ &= thread_per_block_ <= max_thread_per_block_;
+      valid_ &= thread_per_block_ <= max_threads_per_block_;
 
       valid_ &= local_memory_per_block_ <= max_local_memory_per_block_;
       valid_ &= shared_memory_per_block_ <= max_shared_memory_per_block_;
@@ -117,7 +117,7 @@ class GPUCodeVerifier : public IRVisitor {
 
   size_t max_local_memory_per_block_;
   size_t max_shared_memory_per_block_;
-  size_t max_thread_per_block_;
+  size_t max_threads_per_block_;
   size_t max_thread_x_, max_thread_y_, max_thread_z_;
 
   bool valid_{true};
@@ -137,26 +137,34 @@ bool VerifyGPUCode(Stmt stmt,
                    Map<std::string, Expr> constraints) {
   GPUCodeVerifier verifier;
 
-  auto get_int = [&constraints](std::string key, int64_t def) {
-    auto iter = constraints.find(key);
-    if (iter != constraints.end()) {
-      return ((*iter).second).as<IntImm>()->value;
-    } else {
-      return def;
-    }
-  };
+  int64_t max_local_memory_per_block = INT64_MAX;
+  int64_t max_shared_memory_per_block = INT64_MAX;
+  int64_t max_threads_per_block = INT64_MAX;
+  int64_t max_thread_x = INT64_MAX;
+  int64_t max_thread_y = INT64_MAX;
+  int64_t max_thread_z = INT64_MAX;
 
-  int64_t max_local_memory_per_block = get_int("max_local_memory_per_block", INT64_MAX);
-  int64_t max_shared_memory_per_block = get_int("max_shared_memory_per_block", INT64_MAX);
-  int64_t max_thread_per_block = get_int("max_thread_per_block", INT64_MAX);
-  int64_t max_thread_x = get_int("max_thread_x", INT64_MAX);
-  int64_t max_thread_y = get_int("max_thread_y", INT64_MAX);
-  int64_t max_thread_z = get_int("max_thread_z", INT64_MAX);
+  for (auto iter : constraints) {
+    if (iter.first == "max_local_memory_per_block")
+      max_local_memory_per_block = (iter.second).as<IntImm>()->value;
+    else if (iter.first == "max_shared_memory_per_block")
+      max_shared_memory_per_block = (iter.second).as<IntImm>()->value;
+    else if (iter.first == "max_threads_per_block")
+      max_threads_per_block = (iter.second).as<IntImm>()->value;
+    else if (iter.first == "max_thread_x")
+      max_thread_x = (iter.second).as<IntImm>()->value;
+    else if (iter.first == "max_thread_y")
+      max_thread_y = (iter.second).as<IntImm>()->value;
+    else if (iter.first == "max_thread_z")
+      max_thread_z = (iter.second).as<IntImm>()->value;
+    else
+      LOG(FATAL) << "Invalid check item: " << iter.first;
+  }
 
   return verifier.Verify(stmt,
                          max_local_memory_per_block,
                          max_shared_memory_per_block,
-                         max_thread_per_block,
+                         max_threads_per_block,
                          max_thread_x,
                          max_thread_y,
                          max_thread_z);

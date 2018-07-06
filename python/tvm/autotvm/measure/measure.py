@@ -231,7 +231,7 @@ def create_measure_batch(task, options):
         add_cuda_device_info(kwargs['rpc_device_key'], kwargs['rpc_tracker_addr'], kwargs)
 
     if 'opencl' in task.target.keys and 'rpc_device_key' in kwargs:
-        add_cuda_device_info(kwargs['rpc_device_key'], kwargs.get('rpc_tracker_addr'), kwargs)
+        add_opencl_device_info(kwargs['rpc_device_key'], kwargs.get('rpc_tracker_addr'), kwargs)
 
     if check_correctness:
         # use llvm to generate a reference input/output

@@ -267,7 +267,7 @@ def gpu_verify_pass(**kwargs):
     def verify_pass(stmt):
         valid = ir_pass.VerifyGPUCode(stmt, kwargs)
         if not valid:
-            raise InstantiationError("invalid cuda kernel")
+            raise InstantiationError("invalid gpu kernel")
         return stmt
     return verify_pass
 
