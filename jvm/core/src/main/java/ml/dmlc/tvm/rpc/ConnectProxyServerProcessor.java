@@ -88,8 +88,9 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       int keylen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
       String remoteKey = Utils.decodeToStr(Utils.recvAll(in, keylen));
       System.err.println("RPCProxy connected to " + address);
-      if (callback != null)
+      if (callback != null) {
         callback.run();
+      }
       final int sockFd = socketFileDescriptorGetter.get(currSocket);
       if (sockFd != -1) {
         new NativeServerLoop(sockFd).run();
