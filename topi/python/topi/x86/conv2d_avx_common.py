@@ -163,7 +163,6 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     else:
         s[CC].reorder(oc_chunk, oh, ow_chunk, ic_chunk, kh, kw, ic_block, ow_block, oc_block)
 
-    # s[CC].fuse(oc_chunk, oh)
     s[CC].vectorize(oc_block)
     s[CC].unroll(ow_block)
 

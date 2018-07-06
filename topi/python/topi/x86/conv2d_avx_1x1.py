@@ -40,7 +40,7 @@ def _get_default_schedule(wkl, simd_width):
                     parallel_axis = wkl.out_filter // oc_bn * out_height // oh_factor
                     while parallel_chunk > 1 and parallel_axis % parallel_chunk > 0:
                         parallel_chunk -= 1
-                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor, parallel_chunk)
+                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor, int(parallel_chunk))
 
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
 
