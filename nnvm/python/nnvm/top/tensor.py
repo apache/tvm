@@ -200,6 +200,22 @@ reg.register_schedule("broadcast_greater", _fschedule_broadcast)
 reg.register_pattern("broadcast_less", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_less", _fschedule_broadcast)
 
+# broadcast equal
+reg.register_pattern("broadcast_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_equal", _fschedule_broadcast)
+
+# broadcast not_equal
+reg.register_pattern("broadcast_not_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_not_equal", _fschedule_broadcast)
+
+# broadcast greater_equal
+reg.register_pattern("broadcast_greater_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_greater_equal", _fschedule_broadcast)
+
+# broadcast less_equal
+reg.register_pattern("broadcast_less_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_less_equal", _fschedule_broadcast)
+
 # broadcast_to
 reg.register_pattern("broadcast_to", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_to", _fschedule_broadcast)

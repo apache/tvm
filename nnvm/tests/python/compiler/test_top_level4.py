@@ -235,7 +235,9 @@ def test_broadcast():
     helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
     y = sym.broadcast_mod(a, b)
-    helper(y, inputs, 'int32', lambda a, b: np.mod(a, b), in_range={'a': (0.001, 100), 'b': (1, 100)})
+    helper(y, inputs, 'int32',
+           lambda a, b: np.mod(a, b),
+           in_range={'a': (0.001, 100), 'b': (1, 100)})
 
     y = sym.broadcast_max(a, b)
     helper(y, inputs, dtype, lambda a, b: np.maximum(a, b))
@@ -244,7 +246,9 @@ def test_broadcast():
     helper(y, inputs, dtype, lambda a, b: np.minimum(a, b))
 
     y = sym.broadcast_pow(a, b)
-    helper(y, inputs, dtype, lambda a, b: np.power(a, b), in_range={'a': (0.001, 100), 'b': (0.001, 2)})
+    helper(y, inputs, dtype,
+           lambda a, b: np.power(a, b),
+           in_range={'a': (0.001, 100), 'b': (0.001, 2)})
 
     y = sym.broadcast_left_shift(a, b)
     helper(y, inputs, 'int32', lambda a, b: a << b)
@@ -257,6 +261,22 @@ def test_broadcast():
 
     y = sym.broadcast_less(a, b)
     helper(y, inputs, dtype, lambda a, b: np.less(a, b))
+
+    y = sym.broadcast_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.equal(a, b),
+           in_range={'a': (-2, 2), 'b': (-2, 2)})
+
+    y = sym.broadcast_not_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.not_equal(a, b),
+           in_range={'a': (-2, 2), 'b': (-2, 2)})
+
+    y = sym.broadcast_greater_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.greater_equal(a, b),
+           in_range={'a': (-3, 3), 'b': (-3, 3)})
+
+    y = sym.broadcast_less_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.less_equal(a, b),
+           in_range={'a': (-3, 3), 'b': (-3, 3)})
 
 def test_greater():
     l = sym.Variable("l")

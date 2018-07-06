@@ -472,7 +472,6 @@ Example::
     return Array<Tensor>{ topi::cast(topi::greater(inputs[0], inputs[1]), out_info[0]->dtype) };
 }, 11);
 
-
 NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less, less)
 .add_alias("__less_symbol__")
 .describe(R"code(Returns element-wise x < y of the input arrays with broadcasting.
@@ -494,6 +493,104 @@ Example::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     return Array<Tensor>{ topi::cast(topi::less(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_equal, equal)
+.add_alias("__equal_symbol__")
+.describe(R"code(Returns element-wise x == y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 5.]]
+
+   broadcast_equal(x, y) = [[ 0.,  1.,  0.],
+                            [ 0.,  1.,  0.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::equal(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_not_equal, not_equal)
+.add_alias("__not_equal_symbol__")
+.describe(R"code(Returns element-wise x != y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 4.]]
+
+   broadcast_not_equal(x, y) = [[ 1.,  0.,  1.],
+                                [ 0.,  1.,  1.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::not_equal(inputs[0],
+                                                     inputs[1]),
+                                                     out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_greater_equal, greater_equal)
+.add_alias("__greater_equal_symbol__")
+.describe(R"code(Returns element-wise x >= y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 6.]]
+
+   broadcast_greater_equal(x, y) = [[ 0.,  1.,  1.],
+                                    [ 0.,  0.,  1.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::greater_equal(inputs[0],
+                                                         inputs[1]),
+                                                         out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less_equal, less_equal)
+.add_alias("__less_equal_symbol__")
+.describe(R"code(Returns element-wise x <= y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 1.],
+        [ 5.]]
+
+   broadcast_less_equal(x, y) = [[ 1.,  0.,  0.],
+                                 [ 1.,  1.,  0.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::less_equal(inputs[0],
+                                                      inputs[1]),
+                                                      out_info[0]->dtype) };
 }, 11);
 
 }  // namespace top
