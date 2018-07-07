@@ -698,7 +698,7 @@ class ConfigSpace(object):
         """Add a new transform space in template"""
         if self._collect:
             # convert schedule axis to space definition axis
-            axes = [x if isinstance(x, Axis) else self.axis(x) for x in axes]
+            axes = [x if isinstance(x, (VirtualAxis, Axis)) else self.axis(x) for x in axes]
 
             # add subspace (knob)
             space = space_class(axes, policy, **kwargs)
