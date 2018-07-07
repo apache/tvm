@@ -228,8 +228,7 @@ def create_measure_batch(task, options):
         raise RuntimeError("Invalid mode: " + mode)
 
     if 'cuda' in task.target.keys and 'rpc_device_key' in kwargs:  # query cuda device info
-        add_cuda_device_info(kwargs['rpc_device_key'], kwargs['rpc_tracker_addr'], kwargs)
-
+        add_cuda_device_info(kwargs['rpc_device_key'], kwargs.get('rpc_tracker_addr'), kwargs)
     if 'opencl' in task.target.keys and 'rpc_device_key' in kwargs:
         add_opencl_device_info(kwargs['rpc_device_key'], kwargs.get('rpc_tracker_addr'), kwargs)
 
