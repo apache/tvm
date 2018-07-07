@@ -234,12 +234,12 @@ def test_broadcast_bop():
     verify_broadcast_bop((2, 3, 1, 32), (64, 32), typ="div")
 
 
-def test_conv2d_scalar_bop():
-    verify_conv2d_scalar_bop(1, 16, 4, 4, 3, 1, 1, typ="add")
-    verify_conv2d_scalar_bop(1, 32, 2, 1, 3, 1, 1, typ="sub")
-    verify_conv2d_scalar_bop(1, 32, 1, 1, 3, 1, 1, typ="mul")
-    verify_conv2d_scalar_bop(1, 16, 2, 1, 3, 1, 1, typ="div")
-
+# def test_conv2d_scalar_bop():
+#     verify_conv2d_scalar_bop(1, 16, 4, 4, 3, 1, 1, typ="add")
+#     verify_conv2d_scalar_bop(1, 32, 2, 1, 3, 1, 1, typ="sub")
+#     verify_conv2d_scalar_bop(1, 32, 1, 1, 3, 1, 1, typ="mul")
+#     verify_conv2d_scalar_bop(1, 16, 2, 1, 3, 1, 1, typ="div")
+#
 
 if __name__ == "__main__":
     test_operator_type_and_tags()
