@@ -29,7 +29,7 @@ from tvm import autotvm
 # the techniques used in these tutorials. Then we rely on the efficient auto-tuner
 # to search through this space and pick some good configurations.
 # 
-# If you are familier with wring cude schedule, you can find the following 
+# If you are familiar with wring cude schedule, you can find the following
 # template is very general. Actually this template can be easily modified 
 # to tune other operators such as depthwise convolution and gemm.
 # In order to fully understand this template, you should be familiar with
@@ -124,7 +124,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 ######################################################################
 # Step 2:  Search through the space
 # ---------------------------------
-# We pick the last layer on resnet as testcase.
+# We pick the last layer on resnet as test case.
 # Since our space is very large, :code:`XGBoostTuner` is most suitable
 # for our case. Here we only do 20 trials for demonstration.
 # In practice, making 1000 trials usually can find some good kernels

@@ -285,8 +285,8 @@ def create_measure_batch(task, options):
 
         if replay_db is not None:
             if save_to_replay_db:  # save result to database
-                for i in range(len(results)):
-                    replay_db.save(measure_inputs[i], results[i])
+                for measure_input, result in zip(measure_inputs, results):
+                    replay_db.save(measure_input, result)
 
             result_idx = 0
             for i in range(len(partial_results)):

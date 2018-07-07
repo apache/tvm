@@ -166,7 +166,7 @@ class SplitSpace(TransformSpace):
             # copy factors for every level
             self.product = length
             self.num_outputs = num_outputs
-            self.factors = [factors for _ in range(num_outputs-1)]
+            self.factors = [factors] * (num_outputs-1)
             self._generate_space(0, [None] * (num_outputs - 1))
             self.entities = list(filter(fil, self.entities))
             self.num_output = num_outputs
@@ -234,8 +234,8 @@ class SplitEntity(object):
             The transformed axes.
         """
         ret = []
-        for i in range(len(self.size) - 1):
-            ax0, ax1 = sch[op].split(axis, int(np.prod(self.size[i+1:])))
+        for i in range(1, len(self.size)):
+            ax0, ax1 = sch[op].split(axis, int(np.prod(self.size[i:])))
             ret.append(ax0)
             axis = ax1
         return ret + [axis]

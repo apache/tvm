@@ -65,17 +65,15 @@ def filter_inputs(db, measure_inputs, retry=False):
     unsaved: Array of MeasureInput
         a list that only contains unsaved inputs
     """
-    partial_results = [None] * len(measure_inputs)
+    partial_results = list()
     unsaved = list()
-    for i, inp in enumerate(measure_inputs):
-        inp = measure_inputs[i]
+    for inp in measure_inputs:
         res = db.load(inp)
-        skip = (res is not None and
-                (not retry or (retry and res.error_no == 0)))
-        if skip:
-            partial_results[i] = res
-        else:
+        if res is None or (retry and res.error_no != 0):
             unsaved.append(inp)
+            partial_results.append(None)
+        else:
+            partial_results.append(res)
     return partial_results, unsaved
 
 class RedisDatabase(Database):
@@ -113,8 +111,6 @@ class RedisDatabase(Database):
             results = [rec[1] for rec in records]
             if get_all:
                 return results
-            if len(results) < 1:
-                return None
             return max(results, key=lambda result: result.timestamp)
         return current
 
