@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements
 """SSD multibox operators"""
 from __future__ import absolute_import as _abs
 import math
@@ -8,10 +8,10 @@ from tvm import api
 
 import topi
 
-from ..nms import nms
 from topi.vision.ssd import multibox_prior
 from topi.vision.ssd import multibox_detection
 from topi.vision.ssd import multibox_transform_loc
+from ..nms import nms
 
 def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
     """Low level IR routing for multibox_prior operator.
@@ -93,7 +93,8 @@ def multibox_prior_ir(data, out, sizes, ratios, steps, offsets):
 
 
 @multibox_prior.register(["cuda", "gpu"])
-def multibox_prior(data, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
+def multibox_prior_gpu(data, sizes=(1,), ratios=(1,), steps=(-1, -1), \
+                       offsets=(0.5, 0.5), clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
     Parameters
@@ -195,7 +196,8 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
     num_anchors = cls_prob.shape[2]
 
     ib = tvm.ir_builder.create()
-    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, ), name="temp_score", scope="global")
+    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
+                 ), name="temp_score", scope="global")
     score = ib.allocate('float32', (batch_size * num_anchors, ), name="score", scope="local")
     cls_id = ib.allocate('int32', (batch_size * num_anchors, ), name="id", scope="local")
     flag = ib.allocate('int32', (batch_size * num_anchors, ), name="flag", scope="global")
@@ -217,7 +219,8 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
         j = (tid % (num_anchors * num_classes)) / num_anchors
         i = tid % num_anchors
         with ib.if_scope(j > 0):
-            temp_score[n * num_anchors * num_classes + i * (num_classes - 1) + j-1] = p_cls_prob[tid]
+            temp_score[n * num_anchors * num_classes + i * (num_classes - 1) + j-1] = \
+            p_cls_prob[tid]
         p_valid_count[n] = 0
     with ib.if_scope(tid < batch_size * num_anchors):
         n = tid / num_anchors
@@ -243,8 +246,8 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
         n = tid / num_anchors
         i = tid % num_anchors
         with ib.if_scope(cls_id[tid] > 0):
-            with ib.if_scope(i == 0):
-                out_base_id = n * num_anchors * 6
+            with ib.if_scope(tid == 0):
+                out_base_idx = n * num_anchors * 6
             with ib.else_scope():
                 out_base_idx = n * num_anchors * 6 + flag[tid - 1] * 6
             p_out[out_base_idx] = cls_id[tid] - 1.0
@@ -259,8 +262,8 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, valid_count, out, clip, thresho
 
 
 @multibox_transform_loc.register(["cuda", "gpu"])
-def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
-                          variances=(0.1, 0.1, 0.2, 0.2)):
+def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01,
+                               variances=(0.1, 0.1, 0.2, 0.2)):
     """Location transformation for multibox detection
 
     Parameters
@@ -313,8 +316,8 @@ def multibox_transform_loc(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
 
 
 @multibox_detection.register(["cuda", "gpu"])
-def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
-                       force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
+def multibox_detection_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nms_threshold=0.5,
+                           force_suppress=False, variances=(0.1, 0.1, 0.2, 0.2), nms_topk=-1):
     """Convert multibox detection predictions.
 
     Parameters
@@ -352,6 +355,6 @@ def multibox_detection(cls_prob, loc_pred, anchor, clip=True, threshold=0.01, nm
         3-D tensor with shape (batch_size, num_anchors, 6)
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
-                                                   clip, threshold, variances)
+                                       clip, threshold, variances)
     out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
     return out

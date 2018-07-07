@@ -1,28 +1,42 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
 """Non-maximum suppression operator"""
+import math
 import tvm
 
 from tvm import api
 from topi.vision import nms
-import math
-import numpy as np
-from ..nn import tag
+
 
 def sort_ir(data, index, output, axis, is_descend):
-    def swap(a, b):
-        a, b = b, a
-    def OETS(ib, tid, data_new, index_new, is_descend, size):
-        with ib.if_scope(tid < size - 1):
-            with ib.for_range(0, size - 1, name = "level") as level:
-                with ib.if_scope(tid % 2 == (level & 1)):
-                    with ib.if_scope(~((data_new[tid] < data_new[tid + 1]) ^ is_descend)):
-                        swap(data_new[tid], data_new[tid+1])
-                        swap(index_new[tid], index_new[tid+1])
-    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
+    """Low level IR to do sorting on the GPU, same usage as tvm.contrib.sort.argsort on the CPU.
+
+    Parameters
+    ----------
+    data: Buffer
+        2D Buffer of input boxes' score with shape [batch_size, num_anchors].
+
+    index : Buffer
+        Buffer of number of valid number of boxes.
+
+    output : Buffer
+        Output buffer of indicies of sorted tensor.
+
+    axis : int
+        The axis used for sorting.
+
+    is_descend : bool
+        If the sorted data is in descending order.
+
+    Returns
+    -------
+    stmt : Stmt
+        The result IR statement.
+    """
+
+    max_threads = int(
+        tvm.target.current_target(allow_none=False).max_num_threads)
     tx = tvm.thread_axis("threadIdx.x")
-    ty = tvm.thread_axis("threadIdx.y")
     bx = tvm.thread_axis("blockIdx.x")
-    by = tvm.thread_axis("blockIdx.y")
     ib = tvm.ir_builder.create()
     p_data = ib.buffer_ptr(data)
     p_index = ib.buffer_ptr(index)
@@ -44,12 +58,14 @@ def sort_ir(data, index, output, axis, is_descend):
     dshape = 0
     for i in range(0, len(index.shape)):
         dshape += index.shape[i]
-    dshape = tvm.select(dshape > axis_mul_before*axis_mul_after, dshape, axis_mul_before*axis_mul_after)
+    dshape = tvm.select(dshape > axis_mul_before*axis_mul_after, dshape,
+                        axis_mul_before*axis_mul_after)
 
-    sizes_temp = ib.allocate("int32", dshape, name="sizes_temp", scope="global")
+    sizes_temp = ib.allocate(
+        "int32", dshape, name="sizes_temp", scope="global")
     sizes = ib.allocate("int32", dshape, name="sizes", scope="global")
-    temp_index = ib.allocate("int32", dshape, name="temp_index", scope = "local")
-    temp_data = ib.allocate("float32", dshape, name="temp_data", scope = "local")
+    temp_index = ib.allocate("int32", dshape, name="temp_index", scope="local")
+    temp_data = ib.allocate("float32", dshape, name="temp_data", scope="local")
     data_new = ib.allocate("float32", dshape, name="data_new", scope="global")
     index_new = ib.allocate("int32", dshape, name="index_new", scope="global")
     nthread_tx = max_threads
@@ -63,13 +79,16 @@ def sort_ir(data, index, output, axis, is_descend):
         sizes_temp[tid] = p_index[tid]
 
     with ib.if_scope(tid < axis_mul_before * axis_mul_after):
-        with ib.for_range(0, tvm.floor(tvm.sqrt((axis_mul_before * axis_mul_after).astype("float32"))) + 1, name="k") as k:
-            with ib.if_scope(tid- (tvm.const(1, "int32") << k) >= 0):
+        with ib.for_range(0, tvm.floor(tvm.sqrt((axis_mul_before * axis_mul_after) \
+             .astype("float32"))) + 1, name="k") as k:
+            with ib.if_scope(tid - (tvm.const(1, "int32") << k) >= 0):
                 with ib.if_scope(k % 2 == 0):
-                    sizes[tid] +=  sizes_temp[tid - (tvm.const(1, "int32") << k)]
+                    sizes[tid] += sizes_temp[tid - (
+                        tvm.const(1, "int32") << k)]
                     sizes_temp[tid] = sizes[tid]
                 with ib.else_scope():
-                    sizes_temp[tid] +=  sizes[tid - (tvm.const(1, "int32") << k)]
+                    sizes_temp[tid] += sizes[tid - (
+                        tvm.const(1, "int32") << k)]
                     sizes[tid] = sizes_temp[tid]
 
     with ib.if_scope(tid < axis_mul_before * axis_mul_after):
@@ -77,7 +96,7 @@ def sort_ir(data, index, output, axis, is_descend):
         j = tid % axis_mul_after
         current_sort_num = p_index[tid]
         base_idx = i * data.shape[axis] * axis_mul_after + j
-        with ib.for_range(0, current_sort_num, name = "k") as k:
+        with ib.for_range(0, current_sort_num, name="k") as k:
             full_idx = base_idx + k * axis_mul_after
             with ib.if_scope(tid == 0):
                 start = 0
@@ -92,10 +111,11 @@ def sort_ir(data, index, output, axis, is_descend):
         with ib.else_scope():
             start = sizes[tid-1]
         # OddEvenTransposeSort
-        with ib.for_range(0, p_index[tid], name = "k") as k:
-            with ib.for_range(0, p_index[tid] - 1, name = "i") as i:
+        with ib.for_range(0, p_index[tid], name="k") as k:
+            with ib.for_range(0, p_index[tid] - 1, name="i") as i:
                 with ib.if_scope(i % 2 == (k & 1)):
-                    with ib.if_scope(((data_new[i+start] < data_new[i+start+1]) ^ is_descend) == False):
+                    with ib.if_scope(((data_new[i+start] < data_new[i+start+1]) ^
+                                      is_descend) == False):
                         temp_data[tid] = data_new[i+start]
                         data_new[i+start] = data_new[i+start+1]
                         data_new[i+start+1] = temp_data[tid]
@@ -108,12 +128,14 @@ def sort_ir(data, index, output, axis, is_descend):
         j = tid % axis_mul_after
         current_sort_num = p_index[tid]
         base_idx = i * data.shape[axis] * axis_mul_after + j
-        with ib.for_range(0, data.shape[axis], name = "k") as k:
+        with ib.for_range(0, data.shape[axis], name="k") as k:
             with ib.if_scope(tid == 0):
                 start = 0
             with ib.else_scope():
                 start = sizes[tid-1]
-            p_out[base_idx + k * axis_mul_after] = tvm.select(k < current_sort_num, index_new[k+start], k)
+            p_out[base_idx + k * axis_mul_after] = tvm.select(
+                k < current_sort_num,
+                index_new[k+start], k)
     body = ib.get()
     return body
 
@@ -163,7 +185,8 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
             (out_tensor[box_b_idx + 3] - out_tensor[box_b_idx + 1]) - i
         return tvm.select(u <= 0.0, 0.0, i / u)
 
-    max_threads = int(math.sqrt(tvm.target.current_target(allow_none=False).max_num_threads))
+    max_threads = int(math.sqrt(
+        tvm.target.current_target(allow_none=False).max_num_threads))
     tx = tvm.thread_axis("threadIdx.x")
     ty = tvm.thread_axis("threadIdx.y")
     bx = tvm.thread_axis("blockIdx.x")
@@ -186,15 +209,19 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
     i = bx * max_threads + tx
     j = by * max_threads + ty
 
-    nms_threshold_node = tvm.make.node("FloatImm", dtype="float32", value=nms_threshold)
+    nms_threshold_node = tvm.make.node(
+        "FloatImm", dtype="float32", value=nms_threshold)
     nms_topk_node = tvm.make.node("IntImm", dtype="int32", value=nms_topk)
-    force_suppress_node = tvm.make.node("IntImm", dtype="int32", value=1 if force_suppress else 0)
+    force_suppress_node = tvm.make.node(
+        "IntImm", dtype="int32", value=1 if force_suppress else 0)
     with ib.for_range(0, batch_size, for_type="unroll", name="n") as n:
-        with ib.if_scope(tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
-                                 p_valid_count[0] > 0)):
+        with ib.if_scope(
+            tvm.all(nms_threshold_node > 0, nms_threshold_node < 1,
+                    p_valid_count[0] > 0)):
             # Reorder output
-            nkeep = tvm.select(tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
-                               nms_topk, p_valid_count[n])
+            nkeep = tvm.select(
+                tvm.all(nms_topk_node > 0, nms_topk < p_valid_count[n]),
+                nms_topk, p_valid_count[n])
             with ib.if_scope(i < nkeep):
                 with ib.if_scope(j < 6):
                     p_out[(n * num_anchors * 6
@@ -218,10 +245,12 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
                                                      p_out[n * num_anchors * 6 + offset_i] ==
                                                      p_out[n * num_anchors * 6 + offset_j])):
                                 # When force_suppress == True or class_id equals
-                                iou = calculate_overlap(p_out, n * num_anchors * 6 + offset_i + 2,
-                                                        n * num_anchors * 6 + offset_j + 2)
+                                iou = calculate_overlap(
+                                    p_out, n * num_anchors * 6 + offset_i + 2,
+                                    n * num_anchors * 6 + offset_j + 2)
                                 with ib.if_scope(iou >= nms_threshold):
-                                    p_out[n * num_anchors * 6 + offset_j] = -1.0
+                                    p_out[
+                                        n * num_anchors * 6 + offset_j] = -1.0
         with ib.else_scope():
             with ib.if_scope(i < p_valid_count[n]):
                 with ib.if_scope(j < 6):
@@ -230,12 +259,14 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
         # Set invalid entry to be -1
         with ib.if_scope(i < num_anchors - p_valid_count[n]):
             with ib.if_scope(j < 6):
-                p_out[n * num_anchors * 6 + (i + p_valid_count[n]) * 6 + j] = -1.0
+                p_out[n * num_anchors * 6 + (i +
+                                             p_valid_count[n]) * 6 + j] = -1.0
     body = ib.get()
     return body
 
+
 @nms.register(["cuda", "gpu"])
-def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
+def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -269,7 +300,8 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
         # An example to use nms
         dshape = (1, 5, 6)
         data = tvm.placeholder(dshape, name="data")
-        valid_count = tvm.placeholder((dshape[0],), dtype="int32", name="valid_count")
+        valid_count = tvm.placeholder(
+            (dshape[0],), dtype="int32", name="valid_count")
         nms_threshold = 0.7
         force_suppress = True
         nms_topk = -1
@@ -289,10 +321,12 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
     valid_count_dtype = "int32"
     valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
                                       "valid_count_buf", data_alignment=4)
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
+    data_buf = api.decl_buffer(
+        data.shape, data.dtype, "data_buf", data_alignment=8)
     score_axis = 1
     score_shape = (batch_size, num_anchors)
-    score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis], name="score_tensor")
+    score_tensor = tvm.compute(
+        score_shape, lambda i, j: data[i, j, score_axis], name="score_tensor")
     score_tensor_buf = api.decl_buffer(score_tensor.shape, data.dtype,
                                        "score_tensor_buf", data_alignment=8)
     sort_tensor_dtype = "int32"

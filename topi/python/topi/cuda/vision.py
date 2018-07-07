@@ -1,11 +1,10 @@
-# pylint: disable=invalid-name, unused-variable, unused-argument
+# pylint: disable=invalid-name, unused-variable, unused-argument, no-member
 """Schedule for vision operators"""
 from __future__ import absolute_import as _abs
 import tvm
 from .. import generic
 from .. import cpp
 from .. import tag
-import topi
 
 def _default_schedule(outs):
     """Default schedule for gpu."""
