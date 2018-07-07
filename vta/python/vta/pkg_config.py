@@ -41,14 +41,14 @@ class PkgConfig(object):
         # include path
         self.include_path = [
             "-I%s/include" % proj_root,
-            "-I%s/tvm/include" % proj_root,
-            "-I%s/tvm/dlpack/include" % proj_root,
-            "-I%s/tvm/dmlc-core/include" % proj_root
+            "-I%s/vta/include" % proj_root,
+            "-I%s/dlpack/include" % proj_root,
+            "-I%s/dmlc-core/include" % proj_root
         ]
         # List of source files that can be used to build standalone library.
         self.lib_source = []
-        self.lib_source += glob.glob("%s/src/*.cc" % proj_root)
-        self.lib_source += glob.glob("%s/src/%s/*.cc" % (proj_root, cfg["TARGET"]))
+        self.lib_source += glob.glob("%s/vta/src/*.cc" % proj_root)
+        self.lib_source += glob.glob("%s/vta/src/%s/*.cc" % (proj_root, cfg["TARGET"]))
         # macro keys
         self.macro_defs = []
         self.cfg_dict = {}

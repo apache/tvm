@@ -262,5 +262,4 @@ def test_vta_conv2d():
 
 if __name__ == "__main__":
     test_cpu_conv2d()
-    exit(0)
     test_vta_conv2d()

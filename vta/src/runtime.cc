@@ -155,8 +155,8 @@ class UopKernel {
     le.dst_factor = dst_factor;
     le.src_factor = src_factor;
     le.wgt_factor = wgt_factor;
-    assert(seq_.size() == 0);
-    assert(loop_.size() < 2);
+    CHECK_EQ(seq_.size(), 0U);
+    CHECK_LT(loop_.size(), 2U);
     loop_.push_back(le);
     ++loop_ptr_;
   }
@@ -196,13 +196,13 @@ class UopKernel {
     if (mode_ == 0xFFFFFFFF) {
       mode_ = mode;
     } else {
-      assert(mode_ == mode);
+      CHECK(mode_ == mode);
     }
     // Set reset_out field if unset
     if (reset_out_ == 0xFFFFFFFF) {
       reset_out_ = reset_out;
     } else {
-      assert(reset_out_ == reset_out);
+      CHECK(reset_out_ == reset_out);
     }
     // Check kernel op and imm/imm_val in ALU mode
     if (mode == 1) {
@@ -211,9 +211,9 @@ class UopKernel {
         use_imm_ = use_imm;
         imm_val_ = imm_val;
       } else {
-        assert(opcode_ == opcode);
-        assert(use_imm_ == use_imm);
-        assert(imm_val_ == imm_val);
+        CHECK(opcode_ == opcode);
+        CHECK(use_imm_ == use_imm);
+        CHECK(imm_val_ == imm_val);
       }
     }
   }
@@ -244,7 +244,7 @@ class UopKernel {
   void VerifyDep(uint32_t dst_index) {
     size_t step = std::min(static_cast<size_t>(2U), seq_.size());
     for (size_t i = seq_.size() - step; i < seq_.size(); ++i) {
-      assert(seq_[i].dst_idx != dst_index);
+      CHECK(seq_[i].dst_idx != dst_index);
     }
   }
   // The uop buffer
@@ -293,7 +293,7 @@ class BaseQueue {
     elem_bytes_ = elem_bytes;
     dram_buffer_ = static_cast<char*>(VTAMemAlloc(
         max_bytes, coherent || always_cache_));
-    assert(dram_buffer_ != nullptr);
+    CHECK(dram_buffer_ != nullptr);
     dram_phy_addr_ = VTAMemGetPhyAddr(dram_buffer_);
   }
   /*!
@@ -363,9 +363,9 @@ class UopQueue : public BaseQueue {
     size_t num_op = kernel->size();
     if (dram_end_ + num_op > kMaxElems) {
       fautosync();
-      assert(dram_end_ <= kMaxElems);
+      CHECK(dram_end_ <= kMaxElems);
     }
-    assert(num_op <= kMaxNumUop);
+    CHECK(num_op <= kMaxNumUop);
     uint32_t uop_begin = 0;
     if (sram_end_ + num_op > kMaxNumUop) {
       // Need to evict
@@ -390,7 +390,7 @@ class UopQueue : public BaseQueue {
     kernel->sram_begin_ = uop_begin;
     kernel->sram_end_ = sram_end_;
     CHECK(kernel->cached());
-    assert(uop_begin != sram_end_);
+    CHECK(uop_begin != sram_end_);
     cache_.insert(cache_.begin() + cache_ptr_, kernel);
     cache_.erase(cache_.begin() + evict_begin, cache_.begin() + cache_ptr_);
     cache_ptr_ = evict_begin + 1;
@@ -398,7 +398,7 @@ class UopQueue : public BaseQueue {
   // Flush as weight load
   void FlushUopLoad(VTAMemInsn* insn) {
     if (sram_begin_ != sram_end_) {
-      assert((dram_end_ - dram_begin_) == (sram_end_ - sram_begin_));
+      CHECK((dram_end_ - dram_begin_) == (sram_end_ - sram_begin_));
       insn->memory_type = VTA_MEM_ID_UOP;
       insn->sram_base = sram_begin_;
       insn->dram_base = dram_phy_addr_ / kElemBytes + dram_begin_;
@@ -433,12 +433,12 @@ class UopKernelMap {
   UopKernel** Get(void* signature,
                   int nbytes) {
     uint32_t key = 0;
-    assert(nbytes == 0 || nbytes == sizeof(int));
+    CHECK(nbytes == 0 || nbytes == sizeof(int));
     if (nbytes == sizeof(int)) {
       memcpy(&key, signature, sizeof(int));
       key = key + 1;
     }
-    assert(key < 100);
+    CHECK_LT(key, 100);
     if (kmap_.size() <= key) {
       kmap_.resize(key + 1, nullptr);
     }
@@ -490,8 +490,8 @@ class InsnQueue : public BaseQueue {
       pending_pop_next_[to] = 1;
     }
     // Impossible condition
-    assert(from != kLoadStage || to != kStoreStage);
-    assert(to != kLoadStage || to != kComputeStage);
+    CHECK(from != kLoadStage || to != kStoreStage);
+    CHECK(to != kLoadStage || to != kComputeStage);
   }
   // Insert dependency push of load
   void DepPush(int from, int to) {
@@ -636,15 +636,15 @@ class InsnQueue : public BaseQueue {
           // Count status in queues
           if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
             if (c.mem.opcode == VTA_OPCODE_STORE) {
-                assert(c.mem.pop_next_dep == false);
-                assert(c.mem.push_next_dep == false);
+                CHECK(c.mem.pop_next_dep == false);
+                CHECK(c.mem.push_next_dep == false);
                 if (c.mem.pop_prev_dep) g2s_queue--;
                 if (c.mem.push_prev_dep) s2g_queue++;
             } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
                        (c.mem.memory_type == VTA_MEM_ID_INP ||
                         c.mem.memory_type == VTA_MEM_ID_WGT) ) {
-                assert(c.mem.pop_prev_dep == false);
-                assert(c.mem.push_prev_dep == false);
+                CHECK(c.mem.pop_prev_dep == false);
+                CHECK(c.mem.push_prev_dep == false);
                 if (c.mem.pop_next_dep) g2l_queue--;
                 if (c.mem.push_next_dep) l2g_queue++;
             } else {
@@ -742,15 +742,15 @@ class InsnQueue : public BaseQueue {
       // Count status in queues
       if (c.mem.opcode == VTA_OPCODE_LOAD || c.mem.opcode == VTA_OPCODE_STORE) {
         if (c.mem.opcode == VTA_OPCODE_STORE) {
-            assert(c.mem.pop_next_dep == false);
-            assert(c.mem.push_next_dep == false);
+            CHECK(c.mem.pop_next_dep == false);
+            CHECK(c.mem.push_next_dep == false);
             if (c.mem.pop_prev_dep) g2s_queue--;
             if (c.mem.push_prev_dep) s2g_queue++;
         } else if (c.mem.opcode == VTA_OPCODE_LOAD &&
                    (c.mem.memory_type == VTA_MEM_ID_INP ||
                     c.mem.memory_type == VTA_MEM_ID_WGT) ) {
-            assert(c.mem.pop_prev_dep == false);
-            assert(c.mem.push_prev_dep == false);
+            CHECK(c.mem.pop_prev_dep == false);
+            CHECK(c.mem.push_prev_dep == false);
             if (c.mem.pop_next_dep) g2l_queue--;
             if (c.mem.push_next_dep) l2g_queue++;
         } else {
@@ -776,7 +776,7 @@ class InsnQueue : public BaseQueue {
   void CommitPendingPop(int stage) {
     // Handle the LD<->compute queue
     // NOTE: pop executes on target(stage)
-    assert(stage > 0 && stage < 4);
+    CHECK(stage > 0 && stage < 4);
     if (pending_pop_prev_[stage] ||
         pending_pop_next_[stage]) {
       PushNoop(stage, false, false,
@@ -806,7 +806,7 @@ class InsnQueue : public BaseQueue {
   VTAGenericInsn* NextInsn() {
     VTAGenericInsn* insn  = data() + dram_end_;
     ++dram_end_;
-    assert(dram_end_ < kMaxElems);
+    CHECK(dram_end_ < kMaxElems);
     return insn;
   }
   // Create a new instruction for a given stage
@@ -840,10 +840,10 @@ class InsnQueue : public BaseQueue {
     if (insn->opcode == VTA_OPCODE_STORE) {
       // FIXME: Right now memory_type is a 2-bit field which means that
       //        VTA_MEM_ID_OUT will appear as 0. For now we'll refrain from
-      //        checking the memory_type to avoid an assertion error...
+      //        checking the memory_type to avoid an CHECKion error...
       return kStoreStage;
     }
-    assert(false);
+    LOG(FATAL) << "not reached";
     return kNoneStage;
   }
   // Push no-op
@@ -888,7 +888,7 @@ class CommandQueue {
     uop_queue_.InitSpace();
     insn_queue_.InitSpace();
     device_ = VTADeviceAlloc();
-    assert(device_ != nullptr);
+    CHECK(device_ != nullptr);
     printf("Initialize VTACommandHandle...\n");
   }
 
@@ -906,8 +906,7 @@ class CommandQueue {
       case VTA_MEM_ID_OUT: return VTA_INP_ELEM_BYTES;
       default: break;
     }
-    printf("Memory id not recognized: %d\n", memory_id);
-    assert(false);
+    LOG(FATAL) << "Memory id not recognized:" << memory_id;
     return 0;
   }
 
@@ -999,7 +998,7 @@ class CommandQueue {
     // NOTE: FINISH cannot contain pop
     VTAGemInsn* insn = insn_queue_.CreateGemInsn();
     insn->opcode = VTA_OPCODE_FINISH;
-    assert(!insn_queue_.PendingPop());
+    CHECK(!insn_queue_.PendingPop());
     // Check if there are no instruction to execute at all
     if (insn_queue_.count() == 0) return;
     // Synchronization for the queues
@@ -1010,17 +1009,17 @@ class CommandQueue {
       insn_queue_.DumpInsn();
     }
     // Make sure that the last instruction is a finish instruction
-    assert(reinterpret_cast<VTAMemInsn*>(
+    CHECK(reinterpret_cast<VTAMemInsn*>(
         insn_queue_.data())[insn_queue_.count()-1].opcode == VTA_OPCODE_FINISH);
 
     // Make sure that we don't exceed contiguous physical memory limits
-    assert(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
+    CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
     int timeout = VTADeviceRun(
         device_,
         insn_queue_.dram_phy_addr(),
         insn_queue_.count(),
         wait_cycles);
-    assert(timeout == 0);
+    CHECK_EQ(timeout, 0);
     // Reset buffers
     uop_queue_.Reset();
     insn_queue_.Reset();
@@ -1028,7 +1027,7 @@ class CommandQueue {
 
   // Get record kernel
   UopKernel* record_kernel() const {
-    assert(record_kernel_ != nullptr);
+    CHECK(record_kernel_ != nullptr);
     return record_kernel_;
   }
 
@@ -1048,7 +1047,7 @@ class CommandQueue {
     UopKernel** kptr = uptr[0]->Get(signature, nbytes);
     if (kptr[0] == nullptr) {
       record_kernel_ = new UopKernel(static_cast<char*>(signature), nbytes);
-      assert((*finit)(signature) == 0);
+      CHECK_EQ((*finit)(signature), 0);
       kptr[0] = static_cast<UopKernel*>(record_kernel_);
       if (debug_flag_ & VTA_DEBUG_DUMP_UOP) {
         record_kernel_->Dump();
@@ -1070,7 +1069,7 @@ class CommandQueue {
     UopKernel** kptr = uptr[0]->Get(signature, nbytes);
     if (kptr[0] == nullptr) {
       record_kernel_ = new UopKernel(static_cast<char*>(signature), nbytes);
-      assert((*finit)(signature) == 0);
+      CHECK_EQ((*finit)(signature), 0);
       kptr[0] = static_cast<UopKernel*>(record_kernel_);
       if (debug_flag_ & VTA_DEBUG_DUMP_UOP) {
         record_kernel_->Dump();

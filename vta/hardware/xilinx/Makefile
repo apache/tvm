@@ -25,7 +25,7 @@ NO_DSP = false
 NO_ALU = false
 
 # Process VTA JSON config
-VTA_CONFIG = python $(CURDIR)/../../make/vta_config.py
+VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
 CFLAGS := $(shell ${VTA_CONFIG} --cflags)
 VTA_TARGET := $(shell ${VTA_CONFIG} --target)
 

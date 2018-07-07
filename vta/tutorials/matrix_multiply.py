@@ -5,7 +5,7 @@ Simple Matrix Multiply
 ======================
 **Author**: `Thierry Moreau <https://homes.cs.washington.edu/~moreau/>`_
 
-In this tutorial, we will build on top of the :ref:`get-started` tutorial
+In this tutorial, we will build on top of the :ref:`vta-get-started` tutorial
 and introduce additional concepts required to implement matrix multiplication
 on VTA with the TVM workflow.
 """
@@ -22,7 +22,8 @@ import os
 import tvm
 import vta
 import numpy as np
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 from vta.testing import simulator
 
 # Load VTA parameters from the config.json file
@@ -107,7 +108,7 @@ elif env.TARGET == "sim":
 #   Tiling by a (2, 2) tile shape ensures that data within each tile is
 #   contiguous.
 #   The resulting tiled tensor has a shape of (2, 4, 2, 2).
-# 
+#
 #   .. image:: https://raw.githubusercontent.com/uwsaml/web-data/master/vta/tutorial/data_tiling.png
 #        :align: center
 #        :width: 480px
@@ -451,4 +452,3 @@ print("Successful matrix multiply test!")
 # - Compiling the function to the VTA target.
 # - Running the compiled module and verifying it against a numpy implementation.
 #
-

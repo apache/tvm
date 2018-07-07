@@ -8,7 +8,7 @@
 #include <dmlc/thread_local.h>
 #include <vta/runtime.h>
 
-#include "../tvm/src/runtime/workspace_pool.h"
+#include "../../src/runtime/workspace_pool.h"
 
 
 namespace tvm {
