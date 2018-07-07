@@ -11,23 +11,25 @@ import ctypes
 import json
 import tvm
 from tvm._ffi.base import c_str
-from tvm.contrib import rpc, cc
+from tvm import rpc
+from tvm.contrib import cc
 
 from ..environment import get_env
 from ..pkg_config import PkgConfig
+from ..libinfo import find_libvta
 
 
-@tvm.register_func("tvm.contrib.rpc.server.start", override=True)
+@tvm.register_func("tvm.rpc.server.start", override=True)
 def server_start():
     """VTA RPC server extension."""
     # pylint: disable=unused-variable
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../.."))
-    dll_path = os.path.abspath(os.path.join(proj_root, "lib/libvta.so"))
-    cfg_path = os.path.abspath(os.path.join(proj_root, "lib/libvta.so.json"))
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../../../"))
+    dll_path = find_libvta()[0]
+    cfg_path = os.path.abspath(os.path.join(proj_root, "build/vta_config.json"))
     runtime_dll = []
-    _load_module = tvm.get_global_func("tvm.contrib.rpc.server.load_module")
+    _load_module = tvm.get_global_func("tvm.rpc.server.load_module")
 
     def load_vta_dll():
         """Try to load vta dll"""
@@ -36,7 +38,7 @@ def server_start():
         logging.info("Loading VTA library: %s", dll_path)
         return runtime_dll[0]
 
-    @tvm.register_func("tvm.contrib.rpc.server.load_module", override=True)
+    @tvm.register_func("tvm.rpc.server.load_module", override=True)
     def load_module(file_name):
         load_vta_dll()
         return _load_module(file_name)
@@ -48,11 +50,11 @@ def server_start():
 
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
-        path = tvm.get_global_func("tvm.contrib.rpc.server.workpath")(file_name)
+        path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
         load_vta_dll().VTAProgram(c_str(path))
         logging.info("Program FPGA with %s", file_name)
 
-    @tvm.register_func("tvm.contrib.rpc.server.shutdown", override=True)
+    @tvm.register_func("tvm.rpc.server.shutdown", override=True)
     def server_shutdown():
         if runtime_dll:
             runtime_dll[0].VTARuntimeShutdown()

@@ -1,6 +1,6 @@
 import os
 import tvm
-from tvm.contrib import rpc
+from tvm import rpc
 from vta import get_bitstream_path, download_bitstream, program_fpga, reconfig_runtime
 
 host = os.environ.get("VTA_PYNQ_RPC_HOST", "pynq")

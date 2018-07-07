@@ -1,5 +1,5 @@
 """
-.. _mat-mult-opt:
+.. _vta-mat-mult-opt:
 
 Matrix Multiply Blocking
 ========================
@@ -7,7 +7,7 @@ Matrix Multiply Blocking
 
 This tutorial provides an overview on how to use TVM to map matrix
 multiplication efficiently on the VTA design.
-We recommend covering the :ref:`basic-mat-mult` tutorial first.
+We recommend covering the :ref:`vta-basic-mat-mult` tutorial first.
 
 In this tutorial, we will demonstrate TVM schedule optimizations to break large
 neural network operators down onto smaller blocks to achieve computation within
@@ -25,7 +25,8 @@ import os
 import tvm
 import vta
 import numpy as np
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 from vta.testing import simulator
 
 # Load VTA parameters from the config.json file
@@ -183,7 +184,7 @@ print(tvm.lower(s, [data, weight, res], simple_mode=True))
 #      :width: 480px
 #
 # .. note::
-# 
+#
 #   The code after loop splitting and reordering is equivalent to the following
 #   pseudo-code. We ignore the batch axis since we are only performing single-batch
 #   inference in this example:
@@ -359,5 +360,3 @@ print("Successful blocked matrix multiply test!")
 # This allows us to map arbitrarily large computation onto limited
 # hardware accelerator resources.
 #
-
-

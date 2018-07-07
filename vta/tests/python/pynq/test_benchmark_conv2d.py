@@ -5,7 +5,8 @@ import vta
 import numpy as np
 import topi
 from collections import namedtuple
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 import pandas as pd
 
 host = os.environ.get("VTA_PYNQ_RPC_HOST", "pynq")

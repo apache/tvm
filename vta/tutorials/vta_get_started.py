@@ -1,5 +1,5 @@
 """
-.. _get-started:
+.. _vta-get-started:
 
 Get Started with VTA
 ====================
@@ -49,7 +49,8 @@ env = vta.get_env()
 # the board with a VTA bitstream.
 
 # We'll need the TVM RPC module and the VTA simulator module
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 from vta.testing import simulator
 
 # We read the Pynq RPC host IP address and port number from the OS environment
@@ -384,4 +385,3 @@ print("Successful vector add test!")
 # to learn more about the supported operations, schedule primitives
 # and other features supported by TVM to program VTA.
 #
-

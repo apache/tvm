@@ -8,6 +8,7 @@ Get Started
 
    install/index
    tutorials/index
+   vta/index
    deploy/index
    contribute/index
    faq

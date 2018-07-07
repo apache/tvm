@@ -2,7 +2,7 @@
 import tvm
 import numpy as np
 import topi
-from tvm.contrib import rpc, util
+from tvm.contrib import util
 
 import vta
 import vta.testing

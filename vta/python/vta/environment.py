@@ -297,11 +297,12 @@ def _init_env():
     """Iniitalize the default global env"""
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../../"))
     path_list = [
-        os.path.join(curr_path, "config.json"),
-        os.path.join(proj_root, "config.json"),
-        os.path.join(proj_root, "make/config.json")
+        os.path.join(curr_path, "vta_config.json"),
+        os.path.join(proj_root, "build", "vta_config.json"),
+        os.path.join(proj_root, "vta_config.json"),
+        os.path.join(proj_root, "vta/config/vta_config.json")
     ]
     path_list = [p for p in path_list if os.path.exists(p)]
     if not path_list:

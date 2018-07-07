@@ -5,7 +5,7 @@
 
 This tutorial provides an overview on how to use TVM to map a 2D convolution
 workload efficiently on the VTA design.
-We recommend covering the :ref:`mat-mult-opt` tutorial first.
+We recommend covering the :ref:`vta-mat-mult-opt` tutorial first.
 
 2D convolution is dominant in most computer vision deep neural networks.
 In this tutorial, we will demonstrate TVM schedule optimizations to map
@@ -26,7 +26,8 @@ import tvm
 import vta
 import numpy as np
 
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 from vta.testing import simulator
 
 # Load VTA parameters from the config.json file
@@ -423,5 +424,3 @@ print("Successful 2D convolution test!")
 # use of hardware specific optimizations, such as latency hiding with
 # virtual threading.
 #
-
-

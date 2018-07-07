@@ -1,6 +1,5 @@
 Installation
 ============
-
 To install TVM, please read :ref:`install-from-source`.
 If you are interested in deploying to mobile/embedded devices,
 you do not need to install the entire tvm stack on your device,
