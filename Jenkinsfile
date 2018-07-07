@@ -8,7 +8,7 @@ tvm_runtime = "build/libtvm_runtime.so, build/config.cmake"
 tvm_lib = "build/libtvm.so, " + tvm_runtime
 // LLVM upstream lib
 tvm_multilib = "build/libtvm.so, " +
-             "build/libtvm_topi.so, build/libnnvm_compiler.so, " + tvm_runtime
+             "build/libvta.so, build/libtvm_topi.so, build/libnnvm_compiler.so, " + tvm_runtime
 
 // command to start a docker container
 docker_run = 'docker/build.sh'
@@ -134,6 +134,7 @@ stage('Build') {
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ci_cpu ./tests/scripts/task_cpp_unittest.sh"
+          sh "${docker_run} ci_cpu ./tests/scripts/task_python_vta.sh"
         }
       }
     }
@@ -179,6 +180,7 @@ stage('Unit Test') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ci_i386 ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} ci_i386 ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} ci_i386 ./tests/scripts/task_python_vta.sh"
         }
       }
     }

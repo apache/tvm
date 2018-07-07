@@ -29,7 +29,8 @@ import requests
 import time
 
 from nnvm.compiler import graph_attr
-from tvm.contrib import graph_runtime, rpc, util
+from tvm import rpc
+from tvm.contrib import graph_runtime, util
 from tvm.contrib.download import download
 from vta.testing import simulator
 

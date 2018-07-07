@@ -1,5 +1,5 @@
-Python API
-==========
+VTA API
+=======
 
 This document contains the python API to VTA compiler toolchain.
 

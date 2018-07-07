@@ -1,23 +1,16 @@
 """Utilities to start simulator."""
-import os
 import ctypes
 import json
 import tvm
+from ..libinfo import find_libvta
 
 def _load_lib():
     """Load local library, assuming they are simulator."""
-    # pylint: disable=unused-variable
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    dll_path = [
-        os.path.abspath(os.path.join(curr_path, "../../../lib/libvta.so")),
-    ]
-    runtime_dll = []
-    if not all(os.path.exists(f) for f in dll_path):
+    lib_path = find_libvta(optional=True)
+    if not lib_path:
         return []
     try:
-        for fname in dll_path:
-            runtime_dll.append(ctypes.CDLL(fname, ctypes.RTLD_GLOBAL))
-        return runtime_dll
+        return [ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)]
     except OSError:
         return []
 

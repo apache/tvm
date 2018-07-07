@@ -8,6 +8,7 @@ import tvm
 import topi
 
 from nnvm.top import registry as reg, OpPattern
+from nnvm.top import nn as _nn
 from ..environment import get_env
 
 
@@ -238,9 +239,9 @@ def is_packed_layout(layout):
     """Check if layout is packed layout"""
     if layout == "NCHW":
         return False
-    assert "n" in layout
-    assert "c" in layout
-    return True
+    if "n" in layout and "c" in layout:
+        return True
+    return False
 
 @reg.register_alter_op_layout("conv2d", level=15)
 def alter_conv2d_layout(*_):
@@ -255,27 +256,18 @@ def compute_conv2d(attrs, inputs, out):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
-    channels = attrs.get_int("channels")
     layout = attrs["layout"]
     out_dtype = attrs['out_dtype']
     assert dilation == (1, 1), "not support dilate now"
-    assert attrs.get_bool("use_bias") is False
     if is_packed_layout(layout):
         assert groups == 1
         return packed_conv2d(inputs[0], inputs[1],
                              padding, strides, out_dtype=out_dtype)
-    if groups == 1:
-        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding, out_dtype=out_dtype)
-    elif groups == get_const_int(inputs[0].shape[1]) and groups == channels:
-        out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, padding, out_dtype=out_dtype)
-    else:
-        raise ValueError("not support arbitrary group number for now")
-    return out
+    return _nn.compute_conv2d(attrs, inputs, out)
 
 
 @reg.register_schedule("conv2d", level=15)
-def schedule_quantized_conv2d(attrs, outs, target):
+def schedule_conv2d(attrs, outs, target):
     """ 2D convolution schedule.
     """
     layout = attrs["layout"]
@@ -288,8 +280,7 @@ def schedule_quantized_conv2d(attrs, outs, target):
             return tvm.create_schedule([x.op for x in outs])
         else:
             raise RuntimeError("not support target %s" % target)
-    with tvm.target.create(target):
-        return topi.generic.schedule_conv2d_nchw(outs)
+    return _nn.schedule_conv2d(attrs, outs, target)
 
 
 def _get_workload(data, pad_data, kernel, output):

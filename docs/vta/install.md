@@ -1,5 +1,5 @@
-Installation Guides
-===================
+VTA Installation Guide
+======================
 
 We present three installation guides, each extending on the previous one:
 1. VTA simulation-only installation
@@ -8,94 +8,12 @@ We present three installation guides, each extending on the previous one:
 
 ## VTA Simulation-Only Installation
 
-This first guide details the installation of the VTA package to run hardware simulation tests locally on your development machine (in case you don't own the Pynq FPGA development board).
-This guide includes:
-1. Software dependences installation
-2. Simulation library compilation
-3. Python package installation
-4. Test examples to ensure that the VTA package was correctly installed
-
-To get started, clone vta repo from [github](https://github.com/uwsaml/vta). It is important to clone the submodules along with ```--recursive``` option.
-```bash
-git clone --recursive https://github.com/uwsaml/vta
-```
-
-### VTA Dependences
-
-The VTA package depends on several other packages that need to be manually installed beforehand.
-
-We list the dependences below:
-* LLVM 4.0 or newer
-* TVM
-* MxNet (to run the end-to-end examples)
-* Additional python packages
-
-#### LLVM Installation
-
-We provide the set of commands to install LLVM 6.0 (stable branch) on Ubuntu Xenial. Note that the [LLVM installation process](apt.llvm.org) can be adapted to different LLVM branches, and operating systems.
+Please follow the guide on install TVM from source.
+VTA simulator is library is built by default along with TVM.
+You only have to add vta to your python path.
 
 ```bash
-wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-sudo apt-add-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial-6.0 main"
-sudo apt-get update
-apt-get install clang-6.0 lldb-6.0 lld-6.0
-```
-
-To ensure that LLVM 6.0 was properly installed, check that the following command gives the path to your `llvm-config` binary (you may have to append the version number to the executable name):
-
-```bash
-which llvm-config-6.0
-```
-
-#### TVM Installation
-
-TVM is included as a top-level submodule to VTA, and can be found under `<vta root>/tvm`.
-
-Follow the [installation instructions](https://docs.tvm.ai/install/index.html).
-
-In the 'config.mk' file, make sure that:
-* `LLVM_CONFIG` points to the `llvm-config` executable which path was derived in the LLVM installation instructions above (e.g. `LLVM_CONFIG = /usr/bin/llvm-config-6.0`)
-* `USE_RPC` should be set to 1
-
-For the *Python Package Installation*, we recommend updating your `~/.bashrc` file to extend your `PYTHONPATH` with the TVM Python libraries.
-```bash
-export PYTHONPATH=<tvm root>/python:<tvm root>/topi/python:<tvm root>/nnvm/python:${PYTHONPATH}
-```
-
-#### MxNet Installation
-
-Follow the [MxNet Installation Instructions](https://mxnet.incubator.apache.org)
-
-#### Python Dependences
-
-You'll need the following packages to be installed for the example to run properly. You can use `pip` to install those packages:
-* `decorator`
-* `enum34`
-* `Pillow`
-* `wget`
-
-### VTA Shared Library Compilation
-
-Before building the VTA shared library, the VTA configuration can be modified by changing `config.json` file.
-This file provides an architectural specification of the VTA accelerator that can be understood by both the TVM compiler stack and the VTA hardware stack.
-It also specifies the TVM compiler target. When `TARGET` is set to `sim`, it tells the TVM compiler to execute the TVM workloads on the VTA simulator.
-
-To build the simulator library, copy the simulation configuration file `make/sim_sample.json` to the project root.
-Next, you can build the VTA simulation dynamic library with `make`.
-
-```bash
-cd <vta root>
-cp make/sim_sample.json config.json
-make -j4
-```
-
-### VTA Python Package Installation
-
-The Python package can installed by extending your `PYTHONPATH` environment variable to point to the VTA python library path.
-You can run the following line in a terminal, or add it to your `~/.bashrc` file if you plan on using VTA regularly.
-
-```bash
-export PYTHONPATH=<vta root>/python:${PYTHONPATH}
+export PYTHONPATH=/path/to/vta/python:${PYTHONPATH}
 ```
 
 ### Testing your VTA Simulation Setup
@@ -105,22 +23,25 @@ Finally to ensure that you've properly installed the VTA package, we can run sim
 Let's first run the 2D convolution test bench that will only run the ResNet-18 convolution layers.
 
 ```bash
-python tests/python/integration/test_benchmark_topi_conv2d.py
+python vta/tests/python/integration/test_benchmark_topi_conv2d.py
 ```
 
-> Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolution in software.
+> Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolution in software. You can also try out other tutorials.
 
-Next we can also run the ResNet-18 end to end example in the VTA simulator.
-This test will download the following files in your root:
-* `cat.jpg` the test image to classify
-* `synset.txt` the ImageNet categories
-* `quantize_graph.json` the 8-bit ResNet-18 inference NNVM graph
-* `quantize_params.plk` the 8-bit ResNet-18 model parameters
+
+### Advanced Configuration
+
+VTA is a generic configurable hardware. The configuration is specified by a `vta_config.json` under root of the TVM folder.
+This file provides an architectural specification of the VTA accelerator that can be understood by both the TVM compiler stack and the VTA hardware stack.
+It also specifies the TVM compiler target. When `TARGET` is set to `sim`, it tells the TVM compiler to execute the TVM workloads on the VTA simulator.
+You can modify the content to reconfigure VTA to a different mode. To do so,
 
 ```bash
-python examples/resnet18/pynq/imagenet_predict.py
+cd <tvm root>
+cp vta/config/vta_config.json vta_config.json
+edit vta_config.json
+make vta
 ```
-> Note: This will run ResNet inference by offloading the compute-heavy convolution layers to the VTA simulator, and report the top-1 category, and the inference time cost in seconds.
 
 ## VTA Pynq-Based Testing Setup
 
@@ -157,7 +78,7 @@ Because the direct board-to-computer connection prevents the board from directly
 mkdir <mountpoint>
 sshfs xilinx@192.168.2.99:/home/xilinx <mountpoint>
 cd <mountpoint>
-git clone --recursive https://github.com/uwsaml/vta
+git clone --recursive https://github.com/dmlc/tvm
 # When finished, you can leave the moutpoint and unmount the directory
 cd ~
 sudo umount <mountpoint>
@@ -169,20 +90,24 @@ The build process should take roughly 5 minutes.
 ```bash
 ssh xilinx@192.168.2.99
 # Build TVM runtime library (takes 5 mins)
-cd /home/xilinx/vta/tvm
+cd /home/xilinx/tvm/vta
 mkdir build
 cp cmake/config.cmake build/.
+# copy pynq specific configuration
+cp vta/config/pynq_sample.json build/vta_config.json
 cd build
 cmake ..
-make runtime -j2
+make runtime vta -j2
 # Build VTA RPC server (takes 1 min)
-cd /home/xilinx/vta
+cd ..
 sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is 'xilinx'
 ```
 
+Note that one key difference between the simulator build is that we changed the VTA configuration
+to be `vta/config/pynq_sample.json`, which specifies PYNQ as target.
+
 You should see the following being displayed when starting the RPC server. In order to run the next examples, you'll need to leave the RPC server running in an `ssh` session.
 ```
-INFO:root:Load additional library /home/xilinx/vta/lib/libvta.so
 INFO:root:RPCServer: bind to 0.0.0.0:9091
 ```
 
@@ -199,12 +124,12 @@ export VTA_PYNQ_RPC_HOST=192.168.2.99
 export VTA_PYNQ_RPC_PORT=9091
 ```
 
-In addition, you'll need to edit the `config.json` file to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to the `"pynq"` value. Alternatively, you can copy the default `make/config.json` into the VTA root.
+In addition, you'll need to edit the `vta_config.json` file to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to the `"pynq"` value. Alternatively, you can copy the default `make/config.json` into the VTA root.
 > Note: in contrast to our simulation setup, there are no libraries to compile on the host side since the host offloads all of the computation to the Pynq board.
 
 ```bash
-cd <vta root>
-cp make/config.json .
+cd <tvm root>
+cp vta/config/pynq_sample.json .
 ```
 
 This time again, we will run the 2D convolution testbench. But beforehand, we'll need to program the Pynq's own FPGA with a VTA bitstream, and build the VTA runtime on the Pynq via RPC. The following `test_program_rpc.py` script will perform two operations:
@@ -224,13 +149,8 @@ python tests/python/pynq/test_benchmark_conv2d.py
 ```
 
 The performance metrics measured on the Pynq board will be reported for each convolutional layer.
+You can also try out other tutorials.
 
-Finally, we run the ResNet-18 end-to-end example on the Pynq.
-
-```bash
-python examples/resnet18/pynq/imagenet_predict.py
-```
-This will run ResNet inference by offloading the compute-heavy convolution layers to the Pynq's FPGA-based VTA accelerator. The time cost is also measured in seconds here.
 
 ## VTA Hardware Toolchain Installation
 
@@ -296,7 +216,7 @@ export PATH=${XILINX_SDK}/bin:${PATH}
 
 ### Custom VTA Bitstream Compilation
 
-High-level parameters are listed under `<vta root>/make/config.json` and can be customized by the user. For this custom VTA Bitstream Compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
+High-level parameters are listed under `tvm/vta/config/vta_config.json` and can be customized by the user. For this custom VTA Bitstream Compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
 * Set the `HW_FREQ` field to `142`. The Pynq board supports 100, 142, 167 and 200MHz clocks. Note that the higher the frequency, the harder it will be to close timing. Increasing the frequency can lead to timing violation and thus faulty hardware.
 * Set the `HW_CLK_TARGET` to `6`. This parameters refers to the target clock period in ns passed to HLS - a lower clock period leads to more aggressive pipelining to achieve timing closure at higher frequencies. Technically a 142MHz clock would require a 7ns target, but we intentionally lower the clock target to 6ns to more aggressively pipeline our design.
 
@@ -325,20 +245,13 @@ This process is lenghty, and can take around up to an hour to complete depending
 
 Once the compilation completes, the generated bitstream can be found under `<vta root>/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
-### End-to-end ResNet-18 Example with the Custom Bitstream
+### Use the Custom Bitstream
 
-Let's run the ResNet-18 example with our newly generated bitstream.
-
-In `<vta root>/examples/resnet18/pynq/imagenet_predict.py`, change the line:
-```python
-vta.program_fpga(remote, bitstream=None)
-```
-to
+We can change the FPGA bitstream by simply change the bistream path to the configuring API.
 
 ```python
 vta.program_fpga(remote, bitstream="<vta root>/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
 ```
 
 Instead of downloading the bitstream from the bitstream repository, the programmer will instead use the custom bitstream you just generated, which is a VTA design clocked at a higher frequency.
-
 Do you observe a noticable performance increase on the ImageNet inference workload?

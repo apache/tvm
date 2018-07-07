@@ -7,8 +7,8 @@ import argparse
 def get_pkg_config(cfg):
     """Get the pkg config object."""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../"))
-    pkg_config_py = os.path.join(proj_root, "python/vta/pkg_config.py")
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
+    pkg_config_py = os.path.join(proj_root, "vta/python/vta/pkg_config.py")
     libpkg = {"__file__": pkg_config_py}
     exec(compile(open(pkg_config_py, "rb").read(), pkg_config_py, "exec"), libpkg, libpkg)
     PkgConfig = libpkg["PkgConfig"]
@@ -18,14 +18,22 @@ def get_pkg_config(cfg):
 def main():
     """Main funciton"""
     parser = argparse.ArgumentParser()
+    parser.add_argument("--use-cfg", type=str, default="",
+                        help="path to the config json")
     parser.add_argument("--cflags", action="store_true",
                         help="print the cflags")
+    parser.add_argument("--defs", action="store_true",
+                        help="print the macro defs")
+    parser.add_argument("--sources", action="store_true",
+                        help="print the source file paths")
     parser.add_argument("--update", action="store_true",
                         help="Print out the json option.")
     parser.add_argument("--ldflags", action="store_true",
                         help="print the cflags")
     parser.add_argument("--cfg-json", action="store_true",
                         help="print all the config json")
+    parser.add_argument("--save-cfg-json", type=str, default="",
+                        help="save config json to file")
     parser.add_argument("--target", action="store_true",
                         help="print the target")
     parser.add_argument("--cfg-str", action="store_true",
@@ -66,11 +74,14 @@ def main():
 
     curr_path = os.path.dirname(
         os.path.abspath(os.path.expanduser(__file__)))
-    proj_root = os.path.abspath(os.path.join(curr_path, "../"))
+    proj_root = os.path.abspath(os.path.join(curr_path, "../../"))
     path_list = [
-        os.path.join(proj_root, "config.json"),
-        os.path.join(proj_root, "make/config.json")
+        os.path.join(proj_root, "vta_config.json"),
+        os.path.join(proj_root, "build", "vta_config.json"),
+        os.path.join(proj_root, "vta/config/vta_config.json")
     ]
+    if args.use_cfg:
+        path_list = [args.use_cfg]
     ok_path_list = [p for p in path_list if os.path.exists(p)]
     if not ok_path_list:
         raise RuntimeError("Cannot find config in %s" % str(path_list))
@@ -81,6 +92,12 @@ def main():
 
     if args.target:
         print(pkg.target)
+
+    if args.defs:
+        print(" ".join(pkg.macro_defs))
+
+    if args.sources:
+        print(" ".join(pkg.lib_source))
 
     if args.cflags:
         cflags_str = " ".join(pkg.cflags)
@@ -93,6 +110,10 @@ def main():
 
     if args.cfg_json:
         print(pkg.cfg_json)
+
+    if args.save_cfg_json:
+        with open(args.save_cfg_json, "w") as fo:
+            fo.write(pkg.cfg_json)
 
     if args.cfg_str:
         # Needs to match the BITSTREAM string in python/vta/environment.py

@@ -2,7 +2,7 @@
 from __future__ import absolute_import as _abs
 
 import os
-from tvm.contrib import rpc
+from tvm import rpc
 from ..environment import get_env
 from . import simulator
 
