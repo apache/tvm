@@ -538,6 +538,59 @@ def test_forward_stridedslice():
 
 
 #######################################################################
+# Gather
+# ------
+
+def _fill_data_array(ip_shape, ip_value, dtype):
+    fill_ary = np.zeros(ip_shape, dtype=dtype)
+    if isinstance(ip_value, int):
+        fill_ary[0] = ip_value
+    else:
+        shape_size = 1
+        for i in range(len(ip_shape)):
+            shape_size = shape_size * ip_shape[i]
+        fill_ary = fill_ary.flatten()
+        ip_value_flatten = (np.asarray(ip_value)).flatten()
+        for i in range(shape_size):
+            fill_ary[i] = ip_value_flatten[i]
+        fill_ary = fill_ary.reshape(ip_shape)
+    return fill_ary
+
+def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+    tf.reset_default_graph()
+    input_values = []
+    params = tf.placeholder(dtype, ip_shape, name="x")
+    indices = tf.placeholder("int32", indice_shape, name="indices")
+    output= tf.gather(params, indices, axis=axis)
+    input_values.append(_init_data_array(ip_shape, dtype))
+    input_values.append(_fill_data_array(indice_shape, indice_value, "int32"))
+
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['GatherV2'])
+        tf_output = run_tf_graph(sess, input_values, ['x:0', 'indices:0'], 'GatherV2:0')
+        tvm_output = run_tvm_graph(final_graph_def, input_values,
+                                   ['x', 'indices'], tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_gather():
+    '''test gather layer'''
+    _test_gather((4,), (1,), 1, 0, 'int32')
+    _test_gather((4,), (1,), 1, 0, 'float32')
+    _test_gather((1,4), (1,), [0], 0, 'int32')
+    _test_gather((4,), (1,2,2), [[1,0],[0,1]], 0, 'float32')
+    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 0, 'int32')
+    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 1, 'int32')
+    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 0, 'float32')
+    _test_gather((3,3,3), (1,1,2), [[1,0]], 0, 'int32')
+    _test_gather((3,3,3), (1,1,2), [[1,0]], 2, 'int32')
+    _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -706,3 +759,4 @@ if __name__ == '__main__':
     test_forward_resize_bilinear()
     test_forward_lstm()
     test_forward_stridedslice()
+    test_forward_gather()

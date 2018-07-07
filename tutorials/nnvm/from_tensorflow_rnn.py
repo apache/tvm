@@ -21,7 +21,7 @@ sample_data_file = 'simple-examples.tgz'
 sample_url = sample_repo+sample_data_file
 
 ptb_repo = 'https://github.com/joyalbin/dmlc_store/raw/master/trained-models/tf/ptb/pb/'
-ptb_model_file = 'ptb_model_with_shapes.pb'
+ptb_model_file = 'ptb_model_with_lstmblockcell.pb'
 ptb_model_url = ptb_repo+ptb_model_file
 
 
@@ -100,9 +100,9 @@ def get_config():
 # Restore the PTB pre-trained model checkpoints
 import nnvm.testing.tf
 input_binary = True
-ptb_model_file = DATA_DIR+'ptb_model_with_shapes.pb'
+ptb_model_file_path = DATA_DIR+ptb_model_file
 mode = "rb" if input_binary else "r"
-with tf.gfile.FastGFile(ptb_model_file, 'rb') as f:
+with tf.gfile.FastGFile(ptb_model_file_path, 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')

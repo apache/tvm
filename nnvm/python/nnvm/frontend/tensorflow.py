@@ -468,16 +468,19 @@ def _fill():
             ignores=['index_type', 'T'])(new_inputs, attr)
     return _impl
 
-def _gather():
+def _gather_v2():
+    "Tensorflow now support only gatherv2"
     def _impl(inputs, attr, params):
-        axis = int(attr.get('axis', 0))
+        axis = params[inputs.pop(2).list_output_names()[0]].asnumpy()[0]
+        new_input = []
+        new_input.append(inputs.pop(0))
+        new_input.append(inputs.pop(0))
         return AttrCvt(
             op_name="take",
             extras={'axis':axis},
             ignores=['Tindices', 'Tparams', 'validate_indices', \
-                     'Taxis', '_class'])(inputs, attr)
+                     'Taxis', '_class'])(new_input, attr)
     return _impl
-
 
 def _infer_out_shapes(inputs, params):
     """A hack for getting output shape of a node.
@@ -709,7 +712,7 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
-    'Gather'                            : _gather(),
+    'GatherV2'                          : _gather_v2(),
     'StridedSlice'                      : _stridedSlice(),
 }
 
@@ -1078,7 +1081,7 @@ class GraphProto(object):
             self._nodes[name] = _sym.Variable(name=name,
                                               shape=self._params[name].shape)
         else:
-            if key != 'dtype' and key != '_output_shapes':
+            if key != 'dtype' and key != '_output_shapes' and key != '_class':
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 
