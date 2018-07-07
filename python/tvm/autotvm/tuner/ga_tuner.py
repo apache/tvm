@@ -33,7 +33,7 @@ class GATuner(Tuner):
         # space info
         self.space = task.config_space
         self.n_subspace = len(task.config_space.space_map)
-        self.dim_subspaces = [len(x) for x in task.config_space.space_map.values()] + [1]
+        self.dim_subspaces = [len(x) for x in task.config_space.space_map.values()]
 
         self.visited = set([])
 
@@ -120,6 +120,6 @@ class GATuner(Tuner):
 
     def _gene2index(self, gene):
         ind = 0
-        for j in range(self.n_subspace):
-            ind = (ind + gene[j]) * self.dim_subspaces[j+1]
+        for g, d in zip(gene, self.dim_subspaces[1:] + [1]):
+            ind = (ind + g) * d
         return ind
