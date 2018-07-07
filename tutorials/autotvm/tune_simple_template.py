@@ -234,7 +234,7 @@ def matmul(N, L, M, dtype):
 # In this case, for a 512x512 square matrix multiplication, the space size
 # is 10x10=100
 N, L, M = 512, 512, 512
-task = autotvm.create_task(matmul, args=(N, L, M, 'float32'), target='llvm')
+task = autotvm.task.create(matmul, args=(N, L, M, 'float32'), target='llvm')
 print(task.config_space)
 
 ################################################################

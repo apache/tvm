@@ -14,6 +14,10 @@ from ..util import get_const_int, get_const_tuple, get_func_name
 from .dispatcher import DispatchContext, ApplyConfig, dispatcher
 from .space import ConfigSpace
 
+def _raise_error(*args, **kwargs):
+    raise RuntimeError("The function of this task is not found. Possibly the function "
+                       "of this task is registered in another python file "
+                       "which is not imported in this run")
 
 class Task(object):
     """A Tunable Task
@@ -32,7 +36,7 @@ class Task(object):
 
         # init null config space
         self.config_space = None
-        self.func = TASK_TABLE[name]
+        self.func = TASK_TABLE.get(name, _raise_error)
 
         # auxiliary info, available after `init_space` is called
         self.workload = None
