@@ -121,6 +121,8 @@ def decode(row, protocol='json'):
                 return tuple([clean_json_to_python(a) for a in x])
             if isinstance(x, _unicode):
                 return str(x)
+            if isinstance(x, (long, int)):
+                return int(x)
             return x
 
         tsk = task.Task(clean_json_to_python(task_name), clean_json_to_python(task_args))

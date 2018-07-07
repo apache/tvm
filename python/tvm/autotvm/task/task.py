@@ -242,6 +242,7 @@ def template(func):
         with ApplyConfig(cfg):
             return func(*args, **kwargs)
 
+    config_dispatcher.func_name = fname
     return config_dispatcher
 
 def get_config():
