@@ -89,7 +89,7 @@ class GATuner(Tuner):
             scores /= np.max(scores)
             probs = scores / np.sum(scores)
             tmp_genes = []
-            for i in range(self.pop_size):
+            for _ in range(self.pop_size):
                 p1, p2 = np.random.choice(indices, size=2, replace=False, p=probs)
                 p1, p2 = genes[p1], genes[p2]
                 point = np.random.randint(self.n_subspace)
@@ -98,17 +98,17 @@ class GATuner(Tuner):
 
             # mutation
             next_genes = []
-            for i in range(self.pop_size):
+            for tmp_gene in tmp_genes:
                 for j in range(self.n_subspace):
                     if np.random.random() < self.mutation_prob:
-                        tmp_genes[i][j] = np.random.randint(self.dim_subspaces[j])
+                        tmp_gene[j] = np.random.randint(self.dim_subspaces[j])
 
                 if len(self.visited) < len(self.space):
-                    while self._gene2index(tmp_genes[i]) in self.visited:
+                    while self._gene2index(tmp_gene) in self.visited:
                         j = np.random.randint(self.n_subspace)
-                        tmp_genes[i][j] = np.random.randint(self.dim_subspaces[j])
-                    next_genes.append(tmp_genes[i])
-                    self.visited.add(self._gene2index(tmp_genes[i]))
+                        tmp_gene[j] = np.random.randint(self.dim_subspaces[j])
+                    next_genes.append(tmp_gene)
+                    self.visited.add(self._gene2index(tmp_genes))
                 else:
                     break
 

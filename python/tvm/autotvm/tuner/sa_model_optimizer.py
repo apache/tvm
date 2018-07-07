@@ -105,7 +105,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
                 logging.info("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
                              "elapsed: %.2f",
                              k, k_last_modify, heap_items[0][0],
-                             np.max([heap_items[i][0] for i in range(len(heap_items))]), t_str,
+                             np.max([v for v, _ in heap_items]), t_str,
                              time.time() - tic)
 
         heap_items.sort(key=lambda item: -item[0])

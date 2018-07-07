@@ -185,7 +185,7 @@ class SplitSpace(TransformSpace):
         """Generate space by DFS"""
         if now == self.num_outputs - 1:
             if self.product % np.prod(tmp_stack) == 0:
-                first = self.product // int(np.prod(tmp_stack))
+                first = int(self.product // int(np.prod(tmp_stack)))
                 self.entities.append(SplitEntity([first] + tmp_stack[::-1]))
         else:
             for factor in self.factors[now]:
@@ -305,7 +305,7 @@ class ReorderSpace(TransformSpace):
     def _merge_chain(self, chains):
         """generate all combinations of merge some chains"""
         merged = []
-        tmp_pt = [0 for _ in range(len(chains))]
+        tmp_pt = [0] * len(chains)
         tmp_stack = []
 
         size = np.sum([len(x) for x in chains])
@@ -428,7 +428,7 @@ class AnnotateSpace(TransformSpace):
                     raise RuntimeError("Invalid policy: " + policy)
 
             self.num_axis = len(axes)
-            self.anns = [anns for _ in range(self.num_axis)]
+            self.anns = [anns] * self.num_axis
             self._generate_space(0, [""] * self.num_axis)
 
     def _generate_space(self, now, tmp_stack):
@@ -801,7 +801,7 @@ class ConfigEntity(ConfigSpace):
             elif isinstance(v, AnnotateEntity):
                 # one-hot encoding
                 for ann in v.anns:
-                    tmp = [0 for _ in range(len(_ann_to_number))]
+                    tmp = [0] * len(_ann_to_number)
                     tmp[_ann_to_number[ann]] = 1
                     fea.extend(tmp)
             elif isinstance(v, OtherOptionEntity):
