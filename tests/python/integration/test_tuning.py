@@ -10,21 +10,24 @@ from tvm import autotvm
 from tvm.autotvm.tuner import RandomTuner
 
 @autotvm.template
-def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
-    import topi
-
+def conv2d_no_batching(N, H, W, CI, CO, KH, KW):
     """An example template for testing"""
     assert N == 1, "Only consider batch_size = 1 in this template"
 
     data = tvm.placeholder((N, CI, H, W), name='data')
     kernel = tvm.placeholder((CO, CI, KH, KW), name='kernel')
-    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, 'float32')
-    s = tvm.create_schedule([conv.op])
 
-    # inline padding
-    pad_data = s[conv].op.input_tensors[0]
-    s[pad_data].compute_inline()
-    data, raw_data = pad_data, data
+    rc = tvm.reduce_axis((0, CI), name='rc')
+    ry = tvm.reduce_axis((0, KH), name='ry')
+    rx = tvm.reduce_axis((0, KW), name='rx')
+
+    conv = tvm.compute(
+        (N, CO, H - KH + 1, W - KW + 1),
+        lambda nn, ff, yy, xx: tvm.sum(
+            data[nn, rc, yy + ry, xx + rx] * kernel[ff, rc, ry, rx],
+            axis=[rc, ry, rx]), tag="conv2d_nchw")
+
+    s = tvm.create_schedule([conv.op])
 
     output = conv
     OL = s.cache_write(conv, 'local')
@@ -91,12 +94,12 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 
-    return s, [raw_data, kernel, conv]
+    return s, [data, kernel, conv]
 
 def get_sample_task(target=tvm.target.cuda(), target_host=None):
     """return a sample task for testing"""
     task = autotvm.task.create(conv2d_no_batching,
-                               args=(1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)),
+                               args=(1, 7, 7, 512, 512, 3, 3),
                                target=target, target_host=target_host)
     return task, target
 
