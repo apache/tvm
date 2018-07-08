@@ -487,9 +487,13 @@ class IRBuilder {
   /*!
    * \brief Declare a kernel function
    * \param name Name of the entry point.
+   * \param uses_workgroup_id Whether the function will use the workgroup id
+   * \param uses_local_id Whether the function will use the local invocation id
    * \return The created function ID.
    */
-  Value DeclareKernelFunction(const std::string& name, bool uses_workgroup_id = false, bool uses_local_id = false);
+  Value DeclareKernelFunction(const std::string& name,
+                              bool uses_workgroup_id = false,
+                              bool uses_local_id = false);
   /*!
    * \brief Start function scope.
    * \param func function to be started.
