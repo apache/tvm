@@ -400,22 +400,19 @@ void setNthreadsPref(int nthreads) {
     LOG(INFO) << "nthreads: " << ThreadPool::nthreads;
 }
 
-//TVM_REGISTER_GLOBAL("runtime.config_threadpool")
-//.set_body([](TVMArgs args, TVMRetValue* rv) {
-//    LOG(INFO) << "config threadpool";
-//    std::string mode = args[0];
-//    int nthreads = args[1];
-//    if (mode == "big") {
-//        setAffinityPref(false);
-//    } else if (mode == "little") {
-//        setAffinityPref(true);
-//    } else if (mode == "default") {
-//        ThreadPool::affinity_order.clear();
-//    }
-//    LOG(INFO) << "first";
-//    setNthreadsPref(nthreads);
-//    LOG(INFO) << "???";
-//  });
+TVM_REGISTER_GLOBAL("runtime.config_threadpool")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::string mode = args[0];
+    int nthreads = args[1];
+    if (mode == "big") {
+        setAffinityPref(false);
+    } else if (mode == "little") {
+        setAffinityPref(true);
+    } else if (mode == "default") {
+        ThreadPool::affinity_order.clear();
+    }
+    setNthreadsPref(nthreads);
+  });
 
 
 }  // namespace runtime
