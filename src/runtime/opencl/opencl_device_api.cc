@@ -13,19 +13,20 @@ namespace tvm {
 namespace runtime {
 namespace cl {
 
-template <OpenCLPlatform T>
-const std::shared_ptr<OpenCLWorkspace<T>>& OpenCLWorkspace<T>::Global() {
-  static std::shared_ptr<OpenCLWorkspace<T>> inst = std::make_shared<OpenCLWorkspace<T>>();
+OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() {
+  return OpenCLThreadEntry::ThreadLocal();
+}
+
+const std::shared_ptr<OpenCLWorkspace>& OpenCLWorkspace::Global() {
+  static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<OpenCLWorkspace>();
   return inst;
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::SetDevice(TVMContext ctx) {
-  OpenCLThreadEntry<T>::ThreadLocal()->context.device_id = ctx.device_id;
+void OpenCLWorkspace::SetDevice(TVMContext ctx) {
+  GetThreadEntry()->context.device_id = ctx.device_id;
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::GetAttr(
+void OpenCLWorkspace::GetAttr(
     TVMContext ctx, DeviceAttrKind kind, TVMRetValue* rv) {
   this->Init();
   size_t index = static_cast<size_t>(ctx.device_id);
@@ -100,8 +101,7 @@ void OpenCLWorkspace<T>::GetAttr(
   }
 }
 
-template <OpenCLPlatform T>
-void* OpenCLWorkspace<T>::AllocDataSpace(
+void* OpenCLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
@@ -112,22 +112,20 @@ void* OpenCLWorkspace<T>::AllocDataSpace(
   return mptr;
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::FreeDataSpace(TVMContext ctx, void* ptr) {
+void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
   cl_mem mptr = static_cast<cl_mem>(ptr);
   OPENCL_CALL(clReleaseMemObject(mptr));
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::CopyDataFromTo(const void* from,
-                                        size_t from_offset,
-                                        void* to,
-                                        size_t to_offset,
-                                        size_t size,
-                                        TVMContext ctx_from,
-                                        TVMContext ctx_to,
-                                        TVMType type_hint,
-                                        TVMStreamHandle stream) {
+void OpenCLWorkspace::CopyDataFromTo(const void* from,
+                                     size_t from_offset,
+                                     void* to,
+                                     size_t to_offset,
+                                     size_t size,
+                                     TVMContext ctx_from,
+                                     TVMContext ctx_to,
+                                     TVMType type_hint,
+                                     TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
   if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
@@ -157,38 +155,25 @@ void OpenCLWorkspace<T>::CopyDataFromTo(const void* from,
   }
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
+void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
   CHECK(stream == nullptr);
   OPENCL_CALL(clFinish(this->GetQueue(ctx)));
 }
 
-template <OpenCLPlatform T>
-void* OpenCLWorkspace<T>::AllocWorkspace(TVMContext ctx,
-                                         size_t size,
-                                         TVMType type_hint) {
-  return OpenCLThreadEntry<T>::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx,
+                                      size_t size,
+                                      TVMType type_hint) {
+  return GetThreadEntry()->pool.AllocWorkspace(ctx, size);
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::FreeWorkspace(TVMContext ctx, void* data) {
-  OpenCLThreadEntry<T>::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+void OpenCLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
+  GetThreadEntry()->pool.FreeWorkspace(ctx, data);
 }
 
-template <OpenCLPlatform T>
-using OpenCLThreadStore = dmlc::ThreadLocalStore<OpenCLThreadEntry<T>>;
+typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
 
-template <OpenCLPlatform T>
-OpenCLThreadEntry<T>* OpenCLThreadEntry<T>::ThreadLocal() {
-  return OpenCLThreadStore<T>::Get();
-}
-
-template <>
-OpenCLThreadEntry<OpenCLPlatform::kSDAccel>::OpenCLThreadEntry()
-    : pool(static_cast<DLDeviceType>(kDLSDAccel),
-           OpenCLWorkspace<OpenCLPlatform::kSDAccel>::Global()) {
-  context.device_id = 0;
-  context.device_type = static_cast<DLDeviceType>(kDLSDAccel);
+OpenCLThreadEntry* OpenCLThreadEntry::ThreadLocal() {
+  return OpenCLThreadStore::Get();
 }
 
 std::string GetPlatformInfo(
@@ -245,9 +230,8 @@ bool MatchPlatformInfo(
   return param_value.find(value) != std::string::npos;
 }
 
-template <OpenCLPlatform T>
-void OpenCLWorkspace<T>::Init(const std::vector<std::string>& device_types,
-                              const std::string& platform_name) {
+void OpenCLWorkspace::Init(const std::vector<std::string>& device_types,
+                           const std::string& platform_name) {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
@@ -299,30 +283,38 @@ void OpenCLWorkspace<T>::Init(const std::vector<std::string>& device_types,
   }
 }
 
-template <>
-void OpenCLWorkspace<OpenCLPlatform::kGPU>::Init() {
-  Init({"gpu", "cpu"});
+OpenCLThreadEntry* SDAccelWorkspace::GetThreadEntry() {
+  return SDAccelThreadEntry::ThreadLocal();
 }
 
-template <>
-void OpenCLWorkspace<OpenCLPlatform::kSDAccel>::Init() {
-  Init({"accelerator"}, "Xilinx");
+const std::shared_ptr<SDAccelWorkspace>& SDAccelWorkspace::Global() {
+  static std::shared_ptr<SDAccelWorkspace> inst = std::make_shared<SDAccelWorkspace>();
+  return inst;
 }
 
-template <>
-bool OpenCLWorkspace<OpenCLPlatform::kSDAccel>::IsOpenCLDevice(TVMContext ctx) {
+void SDAccelWorkspace::Init() {
+  OpenCLWorkspace::Init({"accelerator"}, "Xilinx");
+}
+
+bool SDAccelWorkspace::IsOpenCLDevice(TVMContext ctx) {
   return ctx.device_type == static_cast<DLDeviceType>(kDLSDAccel);
+}
+
+typedef dmlc::ThreadLocalStore<SDAccelThreadEntry> SDAccelThreadStore;
+
+SDAccelThreadEntry* SDAccelThreadEntry::ThreadLocal() {
+  return SDAccelThreadStore::Get();
 }
 
 TVM_REGISTER_GLOBAL("device_api.opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = OpenCLWorkspace<OpenCLPlatform::kGPU>::Global().get();
+    DeviceAPI* ptr = OpenCLWorkspace::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 
 TVM_REGISTER_GLOBAL("device_api.sdaccel")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    DeviceAPI* ptr = OpenCLWorkspace<OpenCLPlatform::kSDAccel>::Global().get();
+    DeviceAPI* ptr = SDAccelWorkspace::Global().get();
     *rv = static_cast<void*>(ptr);
   });
 

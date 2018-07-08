@@ -8,7 +8,7 @@
 namespace tvm {
 namespace runtime {
 
-Module OpenCLGPUModuleCreate(
+Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,

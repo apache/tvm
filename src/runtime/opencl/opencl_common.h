@@ -97,19 +97,12 @@ inline const char* CLGetErrorString(cl_int error) {
     OPENCL_CHECK_ERROR(e);                                            \
   }
 
-/*!
- * \brief OpenCL platforms.
- */
-enum class OpenCLPlatform {
-  kGPU,
-  kSDAccel,
-};
+class OpenCLThreadEntry;
 
 /*!
  * \brief Process global OpenCL workspace.
  */
-template <OpenCLPlatform T>
-class OpenCLWorkspace final : public DeviceAPI {
+class OpenCLWorkspace : public DeviceAPI {
  public:
   // global platform id
   cl_platform_id platform_id;
@@ -142,9 +135,11 @@ class OpenCLWorkspace final : public DeviceAPI {
   }
   // Initialzie the device.
   void Init(const std::vector<std::string>& device_types, const std::string& platform_name = "");
-  void Init();
+  virtual void Init() {
+    Init({"gpu", "cpu"});
+  }
   // Check whether the context is OpenCL or not.
-  bool IsOpenCLDevice(TVMContext ctx) {
+  virtual bool IsOpenCLDevice(TVMContext ctx) {
     return ctx.device_type == kDLOpenCL;
   }
   // get the queue of the context
@@ -175,13 +170,32 @@ class OpenCLWorkspace final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
+
+  /*!
+   * \brief Get the thread local ThreadEntry
+   */
+  virtual OpenCLThreadEntry* GetThreadEntry();
+
   // get the global workspace
-  static const std::shared_ptr<OpenCLWorkspace<T>>& Global();
+  static const std::shared_ptr<OpenCLWorkspace>& Global();
+};
+
+
+/*!
+ * \brief Process global SDAccel workspace.
+ */
+class SDAccelWorkspace final : public OpenCLWorkspace {
+ public:
+  // override OpenCL device API
+  void Init() final;
+  bool IsOpenCLDevice(TVMContext ctx) final;
+  OpenCLThreadEntry* GetThreadEntry() final;
+  // get the global workspace
+  static const std::shared_ptr<SDAccelWorkspace>& Global();
 };
 
 
 /*! \brief Thread local workspace */
-template <OpenCLPlatform T>
 class OpenCLThreadEntry {
  public:
   // The kernel entry and version.
@@ -198,13 +212,27 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry()
-      : pool(kDLOpenCL, OpenCLWorkspace<T>::Global()) {
+  OpenCLThreadEntry(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
+      : pool(device_type, device) {
     context.device_id = 0;
-    context.device_type = kDLOpenCL;
+    context.device_type = device_type;
   }
+  OpenCLThreadEntry()
+      : OpenCLThreadEntry(kDLOpenCL, OpenCLWorkspace::Global()) {}
+
   // get the global workspace
-  static OpenCLThreadEntry<T>* ThreadLocal();
+  static OpenCLThreadEntry* ThreadLocal();
+};
+
+/*! \brief Thread local workspace for SDAccel*/
+class SDAccelThreadEntry : public OpenCLThreadEntry {
+ public:
+  // constructor
+  SDAccelThreadEntry()
+      : OpenCLThreadEntry(static_cast<DLDeviceType>(kDLSDAccel), SDAccelWorkspace::Global()) {}
+
+  // get the global workspace
+  static SDAccelThreadEntry* ThreadLocal();
 };
 }  // namespace cl
 }  // namespace runtime

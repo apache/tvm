@@ -21,7 +21,7 @@ namespace runtime {
  * \param fmt The format of the data, can be "clbin", "cl"
  * \param fmap The map function information map of each function.
  */
-Module OpenCLGPUModuleCreate(
+Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,

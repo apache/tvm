@@ -17,14 +17,11 @@
 
 namespace tvm {
 namespace runtime {
-using cl::OpenCLPlatform;
-
 // Module to support thread-safe multi-device execution.
 // OpenCL runtime is a bit tricky because clSetKernelArg is not thread-safe
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-template <OpenCLPlatform T>
 class OpenCLModuleNode : public ModuleNode {
  public:
   // Kernel table reference entry.
@@ -55,10 +52,18 @@ class OpenCLModuleNode : public ModuleNode {
     }
   }
 
-  const char* type_key() const final {
+  /*!
+   * \brief Get the global workspace
+   */
+  virtual std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace() {
+    return cl::OpenCLWorkspace::Global();
+  }
+
+  virtual const char* type_key() const {
     return "opencl";
   }
-  cl_program CreateProgram() {
+
+  virtual cl_program CreateProgram() {
     const char* s = data_.c_str();
     size_t len = data_.length();
     cl_int err;
@@ -98,7 +103,7 @@ class OpenCLModuleNode : public ModuleNode {
 
   // Initialize the programs
   void Init() {
-    workspace_ = cl::OpenCLWorkspace<T>::Global();
+    workspace_ = GetGlobalWorkspace();
     workspace_->Init();
     CHECK(workspace_->context != nullptr) << "No OpenCL device";
     program_ = CreateProgram();
@@ -119,8 +124,8 @@ class OpenCLModuleNode : public ModuleNode {
     }
   }
   // install a new kernel to thread local entry
-  cl_kernel InstallKernel(cl::OpenCLWorkspace<T>* w,
-                          cl::OpenCLThreadEntry<T>* t,
+  cl_kernel InstallKernel(cl::OpenCLWorkspace* w,
+                          cl::OpenCLThreadEntry* t,
                           const std::string& func_name,
                           const KTRefEntry& e) {
     std::lock_guard<std::mutex> lock(build_lock_);
@@ -152,12 +157,14 @@ class OpenCLModuleNode : public ModuleNode {
     return kernel;
   }
 
- private:
+ protected:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
-  std::shared_ptr<cl::OpenCLWorkspace<T>> workspace_;
+  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
   // the binary data
   std::string data_;
+
+ private:
   // The format
   std::string fmt_;
   // function information table.
@@ -176,17 +183,16 @@ class OpenCLModuleNode : public ModuleNode {
   std::vector<cl_kernel> kernels_;
 };
 
-template <OpenCLPlatform T>
 class OpenCLWrappedFunc {
  public:
   // initialize the OpenCL function.
-  void Init(OpenCLModuleNode<T>* m,
+  void Init(OpenCLModuleNode* m,
             std::shared_ptr<ModuleNode> sptr,
-            typename OpenCLModuleNode<T>::KTRefEntry entry,
+            OpenCLModuleNode::KTRefEntry entry,
             std::string func_name,
             std::vector<size_t> arg_size,
             const std::vector<std::string>& thread_axis_tags)  {
-    w_ = cl::OpenCLWorkspace<T>::Global().get();
+    w_ = m->GetGlobalWorkspace().get();
     m_ = m;
     sptr_ = sptr;
     entry_ = entry;
@@ -198,7 +204,7 @@ class OpenCLWrappedFunc {
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
                   void** void_args) const {
-    cl::OpenCLThreadEntry<T>* t = cl::OpenCLThreadEntry<T>::ThreadLocal();
+    cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
       t->kernel_table.resize(entry_.kernel_id + 1);
@@ -228,13 +234,13 @@ class OpenCLWrappedFunc {
 
  private:
   // global workspace.
-  cl::OpenCLWorkspace<T>* w_;
+  cl::OpenCLWorkspace* w_;
   // The module
-  OpenCLModuleNode<T>* m_;
+  OpenCLModuleNode* m_;
   // resource handle
   std::shared_ptr<ModuleNode> sptr_;
   // global kernel id in the kernel table.
-  typename OpenCLModuleNode<T>::KTRefEntry entry_;
+  OpenCLModuleNode::KTRefEntry entry_;
   // The name of the function.
   std::string func_name_;
   // convert code for void argument
@@ -243,8 +249,7 @@ class OpenCLWrappedFunc {
   ThreadAxisConfig thread_axis_cfg_;
 };
 
-template <OpenCLPlatform T>
-PackedFunc OpenCLModuleNode<T>::GetFunction(
+PackedFunc OpenCLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   CHECK_EQ(sptr_to_self.get(), this);
@@ -253,7 +258,7 @@ PackedFunc OpenCLModuleNode<T>::GetFunction(
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return PackedFunc();
   const FunctionInfo& info = it->second;
-  OpenCLWrappedFunc<T> f;
+  OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
   for (size_t i = 0; i < info.arg_types.size(); ++i) {
     TVMType t = info.arg_types[i];
@@ -273,13 +278,27 @@ PackedFunc OpenCLModuleNode<T>::GetFunction(
   return PackFuncVoidAddr(f, info.arg_types);
 }
 
-template<>
-const char* OpenCLModuleNode<OpenCLPlatform::kSDAccel>::type_key() const {
+class SDAccelModuleNode : public OpenCLModuleNode {
+ public:
+  explicit SDAccelModuleNode(std::string data,
+                             std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap,
+                             std::string source)
+      : OpenCLModuleNode(data, fmt, fmap, source) {}
+  std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace() final;
+  const char* type_key() const final;
+  cl_program CreateProgram() final;
+};
+
+std::shared_ptr<cl::OpenCLWorkspace> SDAccelModuleNode::GetGlobalWorkspace() {
+  return cl::SDAccelWorkspace::Global();
+}
+
+const char* SDAccelModuleNode::type_key() const {
   return "sdaccel";
 }
 
-template<>
-cl_program OpenCLModuleNode<OpenCLPlatform::kSDAccel>::CreateProgram() {
+cl_program SDAccelModuleNode::CreateProgram() {
   const unsigned char* s = (const unsigned char *)data_.c_str();
   size_t len = data_.length();
   cl_int err;
@@ -291,24 +310,15 @@ cl_program OpenCLModuleNode<OpenCLPlatform::kSDAccel>::CreateProgram() {
   return program;
 }
 
-template <OpenCLPlatform T>
 Module OpenCLModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  std::shared_ptr<OpenCLModuleNode<T>> n =
-      std::make_shared<OpenCLModuleNode<T>>(data, fmt, fmap, source);
+  std::shared_ptr<OpenCLModuleNode> n =
+      std::make_shared<OpenCLModuleNode>(data, fmt, fmap, source);
   n->Init();
   return Module(n);
-}
-
-Module OpenCLGPUModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source) {
-  return OpenCLModuleCreate<OpenCLPlatform::kGPU>(data, fmt, fmap, source);
 }
 
 Module SDAccelModuleCreate(
@@ -316,11 +326,13 @@ Module SDAccelModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
-  return OpenCLModuleCreate<OpenCLPlatform::kSDAccel>(data, fmt, fmap, source);
+  std::shared_ptr<SDAccelModuleNode> n =
+      std::make_shared<SDAccelModuleNode>(data, fmt, fmap, source);
+  n->Init();
+  return Module(n);
 }
 
 // Load module from module.
-template <OpenCLPlatform T>
 Module OpenCLModuleLoadFile(const std::string& file_name,
                             const std::string& format) {
   std::string data;
@@ -329,10 +341,9 @@ Module OpenCLModuleLoadFile(const std::string& file_name,
   std::string meta_file = GetMetaFilePath(file_name);
   LoadBinaryFromFile(file_name, &data);
   LoadMetaDataFromFile(meta_file, &fmap);
-  return OpenCLModuleCreate<T>(data, fmt, fmap, std::string());
+  return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-template <OpenCLPlatform T>
 Module OpenCLModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
   std::string data;
@@ -341,22 +352,39 @@ Module OpenCLModuleLoadBinary(void* strm) {
   stream->Read(&fmt);
   stream->Read(&fmap);
   stream->Read(&data);
-  return OpenCLModuleCreate<T>(data, fmt, fmap, std::string());
+  return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-auto OpenCLGPUModuleLoadFile = OpenCLModuleLoadFile<OpenCLPlatform::kGPU>;
-auto OpenCLGPUModuleLoadBinary = OpenCLModuleLoadBinary<OpenCLPlatform::kGPU>;
-auto SDAccelModuleLoadFile = OpenCLModuleLoadFile<OpenCLPlatform::kSDAccel>;
-auto SDAccelModuleLoadBinary = OpenCLModuleLoadBinary<OpenCLPlatform::kSDAccel>;
+Module SDAccelModuleLoadFile(const std::string& file_name,
+                             const std::string& format) {
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt = GetFileFormat(file_name, format);
+  std::string meta_file = GetMetaFilePath(file_name);
+  LoadBinaryFromFile(file_name, &data);
+  LoadMetaDataFromFile(meta_file, &fmap);
+  return SDAccelModuleCreate(data, fmt, fmap, std::string());
+}
+
+Module SDAccelModuleLoadBinary(void* strm) {
+  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  std::string data;
+  std::unordered_map<std::string, FunctionInfo> fmap;
+  std::string fmt;
+  stream->Read(&fmt);
+  stream->Read(&fmap);
+  stream->Read(&data);
+  return SDAccelModuleCreate(data, fmt, fmap, std::string());
+}
 
 TVM_REGISTER_GLOBAL("module.loadfile_cl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLGPUModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_clbin")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLGPUModuleLoadFile(args[0], args[1]);
+    *rv = OpenCLModuleLoadFile(args[0], args[1]);
   });
 
 TVM_REGISTER_GLOBAL("module.loadfile_xclbin")
@@ -371,7 +399,7 @@ TVM_REGISTER_GLOBAL("module.loadfile_awsxclbin")
 
 TVM_REGISTER_GLOBAL("module.loadbinary_opencl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = OpenCLGPUModuleLoadBinary(args[0]);
+    *rv = OpenCLModuleLoadBinary(args[0]);
   });
 }  // namespace runtime
 }  // namespace tvm
