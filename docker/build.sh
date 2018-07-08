@@ -71,8 +71,8 @@ function upsearch () {
 
 # Set up WORKSPACE and BUILD_TAG. Jenkins will set them for you or we pick
 # reasonable defaults if you run it outside of Jenkins.
-WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../../}"
-BUILD_TAG="${BUILD_TAG:-tvm-ci}"
+WORKSPACE="${WORKSPACE:-${SCRIPT_DIR}/../}"
+BUILD_TAG="${BUILD_TAG:-tvm}"
 
 # Determine the docker image name
 DOCKER_IMG_NAME="${BUILD_TAG}.${CONTAINER_TYPE}"
@@ -122,5 +122,5 @@ ${DOCKER_BINARY} run --rm --pid=host \
     -e "CI_BUILD_GID=$(id -g)" \
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMG_NAME} \
-    bash tests/ci_build/with_the_same_user \
+    bash docker/with_the_same_user \
     ${COMMAND[@]}
