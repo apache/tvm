@@ -19,17 +19,19 @@ class ThreadGroup::Impl {
  public:
   Impl(int num_workers,
        std::function<void(int)> worker_callback,
-       bool exclude_worker0)
+       bool exclude_worker0,
+       std::vector<unsigned int> *affinity_order)
       : num_workers_(num_workers) {
     CHECK_GE(num_workers, 1)
       << "Requested a non-positive number of worker threads.";
+    LOG(INFO) << "num workers: " << num_workers;
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
       if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
-        SetAffinity(exclude_worker0);
+        SetAffinity(exclude_worker0, affinity_order);
       } else {
         LOG(WARNING)
           << "The thread affinity cannot be set when the number of workers"
@@ -44,12 +46,12 @@ class ThreadGroup::Impl {
       if (t.joinable()) t.join();
     }
   }
-
+  
  private:
   // bind worker threads to disjoint cores
   // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
   // the master thread is bound to core 0.
-  void SetAffinity(bool exclude_worker0) {
+  void SetAffinity(bool exclude_worker0, std::vector<unsigned int> *affinity_order) {
 #if defined(__ANDROID__)
 #ifndef CPU_SET
 #define CPU_SETSIZE 1024
@@ -66,7 +68,12 @@ class ThreadGroup::Impl {
 #endif
 #if defined(__linux__) || defined(__ANDROID__)
     for (unsigned i = 0; i < threads_.size(); ++i) {
-      unsigned core_id = i + exclude_worker0;
+      unsigned core_id;
+      if (affinity_order != NULL && affinity_order->size() >= threads_.size()) {
+        core_id = (*affinity_order)[i+exclude_worker0];
+      } else {
+        core_id = i + exclude_worker0;
+      }
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
       CPU_SET(core_id, &cpuset);
@@ -80,7 +87,11 @@ class ThreadGroup::Impl {
     if (exclude_worker0) {  // bind the master thread to core 0
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      CPU_SET(0, &cpuset);
+      if (affinity_order != NULL && affinity_order->size() >= threads_.size()) {
+        CPU_SET((*affinity_order)[0], &cpuset);
+      } else {
+        CPU_SET(0, &cpuset);
+      }
 #if defined(__ANDROID__)
       sched_setaffinity(pthread_self(),
         sizeof(cpu_set_t), &cpuset);
@@ -94,12 +105,14 @@ class ThreadGroup::Impl {
 
   int num_workers_;
   std::vector<std::thread> threads_;
+  std::vector<int> affinity_order_;
 };
 
 ThreadGroup::ThreadGroup(int num_workers,
                          std::function<void(int)> worker_callback,
-                         bool exclude_worker0)
-  : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
+                         bool exclude_worker0,
+                         std::vector<unsigned int> *affinity_order)
+  : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0, affinity_order)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
 

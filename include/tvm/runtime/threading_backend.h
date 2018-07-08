@@ -33,10 +33,13 @@ class ThreadGroup {
     *        If  `true`, worker0 will not be launched in a new thread and
     *        `worker_callback` will only be called for values >= 1. This
     *        allows use of the main thread as a worker.
+    * \param affinity_order If specified, an ordering of CPU ids when setting
+    *        thread affinity.
     */
   ThreadGroup(int num_workers,
               std::function<void(int)> worker_callback,
-              bool exclude_worker0 = false);
+              bool exclude_worker0 = false,
+              std::vector<unsigned int> *affinity_order = NULL);
   ~ThreadGroup();
 
    /*!

@@ -6,6 +6,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/threading_backend.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/packed_func.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
 #include <thread>
@@ -242,6 +244,9 @@ class SpscTaskQueue {
 class ThreadPool {
  public:
   ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
+    if (nthreads != 0) {
+        num_workers_ = nthreads;
+    }
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
@@ -249,7 +254,8 @@ class ThreadPool {
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-          exclude_worker0_ /* include_main_thread */));
+          exclude_worker0_ /* include_main_thread */,
+          &affinity_order));
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -297,6 +303,13 @@ class ThreadPool {
     return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
+  // order of CPU ids (most preferred first)
+  static std::vector<unsigned int> affinity_order;
+  // number of threads for the first preferred CPU type
+  static int preferred_num;
+  // number of threads to use (if zero, use MaxConcurrency)
+  static int nthreads;
+
  private:
   // Internal worker function.
   void RunWorker(int worker_id) {
@@ -324,9 +337,90 @@ class ThreadPool {
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
+std::vector<unsigned int> ThreadPool::affinity_order;
+int ThreadPool::preferred_num = 0;
+int ThreadPool::nthreads = 0;
+
+void setAffinityPref(bool ascending) {
+    unsigned int threads = std::thread::hardware_concurrency();
+    char filepath[128];
+    std::vector<std::pair <unsigned int, long long>> max_freqs;
+    std::vector<unsigned int> sorted_order;
+
+    for (unsigned int i = 0; i < threads; i++) {
+        snprintf(filepath, 128,  "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        FILE *fp = std::fopen(filepath, "r");
+        long long cur_freq = -1;
+        if (fp) {
+                int read = std::fscanf(fp, "%lli", &cur_freq);
+                std::fclose(fp);
+                if (!read)
+                    LOG(WARNING) << "CPU max frequency info empty!";
+                max_freqs.push_back(std::make_pair(i, cur_freq));
+        } else {
+            LOG(WARNING) << "failed to read CPU max frequency!";
+            break;
+        }
+    }
+
+    auto max = [] (std::pair<unsigned int, long long> a, std::pair<unsigned int, long long> b) {
+        return a.second > b.second;
+    };
+    auto min = [] (std::pair<unsigned int, long long> a, std::pair<unsigned int, long long> b) {
+        return a.second < b.second;
+    };
+    if (ascending) {
+        std::sort(max_freqs.begin(), max_freqs.end(), min);
+    } else {
+        std::sort(max_freqs.begin(), max_freqs.end(), max);
+    }
+    auto it = max_freqs.begin();
+    long long preferred_freq = it->second;
+    int preferred_num = 0;
+    for (; it != max_freqs.end(); it++) {
+        sorted_order.push_back(it->first);
+        if (preferred_freq == it->second) {
+            preferred_num++;
+        }
+    }
+
+    ThreadPool::affinity_order = sorted_order;
+    ThreadPool::preferred_num = preferred_num;
+    LOG(INFO) << "preferred_num: " << preferred_num;
+}
+
+void setNthreadsPref(int nthreads) {
+    // use the number of a CPU cores of a preferred type
+    if (nthreads == 0 && ThreadPool::affinity_order.size()) {
+        ThreadPool::nthreads = ThreadPool::preferred_num;
+    // otherwise use the number specified (0 will use MaxConcurrency)
+    } else {
+        ThreadPool::nthreads = nthreads;
+    }
+    LOG(INFO) << "nthreads: " << ThreadPool::nthreads;
+}
+
+//TVM_REGISTER_GLOBAL("runtime.config_threadpool")
+//.set_body([](TVMArgs args, TVMRetValue* rv) {
+//    LOG(INFO) << "config threadpool";
+//    std::string mode = args[0];
+//    int nthreads = args[1];
+//    if (mode == "big") {
+//        setAffinityPref(false);
+//    } else if (mode == "little") {
+//        setAffinityPref(true);
+//    } else if (mode == "default") {
+//        ThreadPool::affinity_order.clear();
+//    }
+//    LOG(INFO) << "first";
+//    setNthreadsPref(nthreads);
+//    LOG(INFO) << "???";
+//  });
+
 
 }  // namespace runtime
 }  // namespace tvm
+
 
 int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
