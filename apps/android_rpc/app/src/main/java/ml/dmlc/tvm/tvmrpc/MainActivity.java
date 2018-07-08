@@ -25,30 +25,18 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
+
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
+import android.content.Intent;
+
 
 public class MainActivity extends AppCompatActivity {
-  static final int MSG_RPC_ERROR = 0;
-  static final String MSG_RPC_ERROR_DATA_KEY = "msg_rpc_error_data_key";
 
-  private RPCProcessor tvmServerWorker;
-  @SuppressLint("HandlerLeak")
-  private final Handler rpcHandler = new Handler() {
-    @Override
-    public void dispatchMessage(Message msg) {
-      Switch switchConnect = findViewById(R.id.switch_connect);
-      if (msg.what == MSG_RPC_ERROR && switchConnect.isChecked()) {
-        // switch off and show alert dialog.
-        switchConnect.setChecked(false);
-        String msgBody = msg.getData().getString(MSG_RPC_ERROR_DATA_KEY);
-        showDialog("Error", msgBody);
-      }
-    }
-  };
+  private RPCWatchdog watchdog;
 
   private void showDialog(String title, String msg) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -71,10 +59,6 @@ public class MainActivity extends AppCompatActivity {
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
 
-    tvmServerWorker = new RPCProcessor(rpcHandler);
-    tvmServerWorker.setDaemon(true);
-    tvmServerWorker.start();
-
     Switch switchConnect = findViewById(R.id.switch_connect);
     switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
       @Override
@@ -88,25 +72,33 @@ public class MainActivity extends AppCompatActivity {
         }
       }
     });
+    
     enableInputView(true);
+
   }
 
   @Override
   protected void onDestroy() {
     super.onDestroy();
-    tvmServerWorker.disconnect();
+    if (watchdog != null) {
+        watchdog.disconnect();
+        watchdog = null;
+    }
   }
 
   private void connectProxy() {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
     final String key = edAppKey.getText().toString();
 
-    tvmServerWorker.connect(proxyHost, proxyPort, key);
+    System.err.println("creating watchdog thread...");
+    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this);
+    
+    System.err.println("starting watchdog thread...");
+    watchdog.start();
 
     SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
     SharedPreferences.Editor editor = pref.edit();
@@ -117,8 +109,10 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void disconnect() {
-    tvmServerWorker.disconnect();
-    System.err.println("Disconnected.");
+    if (watchdog != null) {
+        watchdog.disconnect();
+        watchdog = null;
+    }
   }
 
   private void enableInputView(boolean enable) {

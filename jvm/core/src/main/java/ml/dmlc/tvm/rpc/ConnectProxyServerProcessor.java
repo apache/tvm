@@ -33,6 +33,7 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
   private final SocketFileDescriptorGetter socketFileDescriptorGetter;
 
   private volatile Socket currSocket = new Socket();
+  private Runnable callback;
 
   /**
    * Construct proxy server processor.
@@ -47,6 +48,15 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
     this.port = port;
     this.key = "server:" + key;
     socketFileDescriptorGetter = sockFdGetter;
+  }
+  
+  /** 
+   * Set a callback when a connection is received e.g., to record the time for a
+   * watchdog.
+   * @param callback Runnable object.
+   */
+  public void setStartTimeCallback(Runnable callback) {
+    this.callback = callback;
   }
 
   /**
@@ -78,7 +88,9 @@ public class ConnectProxyServerProcessor implements ServerProcessor {
       int keylen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
       String remoteKey = Utils.decodeToStr(Utils.recvAll(in, keylen));
       System.err.println("RPCProxy connected to " + address);
-
+      if (callback != null) {
+        callback.run();
+      }
       final int sockFd = socketFileDescriptorGetter.get(currSocket);
       if (sockFd != -1) {
         new NativeServerLoop(sockFd).run();
