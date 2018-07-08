@@ -100,7 +100,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('gpu', 'build', '-j2')
+        make('ci_gpu', 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
         sh """
@@ -113,7 +113,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('gpu', 'build2', '-j2')
+        make('ci_gpu', 'build2', '-j2')
       }
     }
   },
@@ -130,7 +130,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('cpu', 'build', '-j2')
+        make('ci_cpu', 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} ci_cpu ./tests/scripts/task_cpp_unittest.sh"
@@ -152,7 +152,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('i386', 'build', '-j2')
+        make('ci_i386', 'build', '-j2')
         pack_lib('i386', tvm_multilib)
       }
     }
