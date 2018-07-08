@@ -8,13 +8,13 @@ registers the standard task.
 
 import numpy as np
 
-from ... import tensor, expr, _api_internal, container, target as _target
+from ... import tensor, expr, container, target as _target
 
 from ..util import get_const_int, get_const_tuple, get_func_name
 from .dispatcher import DispatchContext, ApplyConfig, dispatcher
 from .space import ConfigSpace
 
-def _raise_error(*args, **kwargs):
+def _raise_error(*args, **kwargs):  # pylint: disable=unused-argument
     raise RuntimeError("The function of this task is not found. Possibly the function "
                        "of this task is registered in another python file "
                        "which is not imported in this run")
