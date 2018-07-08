@@ -26,18 +26,6 @@ Module OpenCLModuleCreate(
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source);
-/*!
- * \brief create a opencl module for SDAccel from data.
- *
- * \param data The module data.
- * \param fmt The format of the data, can be "xclbin", "awsxclbin"
- * \param fmap The map function information map of each function.
- */
-Module SDAccelModuleCreate(
-    std::string data,
-    std::string fmt,
-    std::unordered_map<std::string, FunctionInfo> fmap,
-    std::string source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_MODULE_H_

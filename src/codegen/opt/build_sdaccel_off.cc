@@ -8,13 +8,13 @@
 namespace tvm {
 namespace runtime {
 
-Module OpenCLModuleCreate(
+Module SDAccelModuleCreate(
     std::string data,
     std::string fmt,
     std::unordered_map<std::string, FunctionInfo> fmap,
     std::string source) {
   LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
-  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "opencl");
+  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "sdaccel");
 }
 
 }  // namespace runtime

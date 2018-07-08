@@ -6,7 +6,7 @@
 #include <string>
 #include "./codegen_vhls.h"
 #include "./build_common.h"
-#include "../runtime/opencl/opencl_module.h"
+#include "../runtime/opencl/sdaccel/sdaccel_module.h"
 
 namespace tvm {
 namespace codegen {
