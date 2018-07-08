@@ -15,6 +15,8 @@ from .dense import dense_cuda, schedule_dense
 from .pooling import schedule_pool, schedule_global_pool
 from .conv2d_transpose_nchw import schedule_conv2d_transpose_nchw
 from .extern import schedule_extern
-from .vision import schedule_region
-from .vision import schedule_reorg
 from .nn import schedule_lrn, schedule_l2_normalize
+from .vision import *
+from . import ssd
+from .ssd import *
+from .nms import *
