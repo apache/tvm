@@ -222,11 +222,26 @@ Value IRBuilder::GetPushConstant(
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
-Value IRBuilder::DeclareKenrelFunction(const std::string& name) {
+Value IRBuilder::DeclareKernelFunction(const std::string& name,
+                                       bool uses_workgroup_id,
+                                       bool uses_local_id) {
+  if (uses_workgroup_id) {
+    GetWorkgroupID(0); // Ensure workgroup_id_ is valid
+  }
+  if (uses_local_id) {
+    GetLocalID(0); // Ensure local_id_ is valid
+  }
+
   Value val = NewValue(t_void_func_, kFunction);
   ib_.Begin(spv::OpEntryPoint)
-      .AddSeq(spv::ExecutionModelGLCompute, val, name)
-      .Commit(&entry_);
+    .AddSeq(spv::ExecutionModelGLCompute, val, name);
+  if (uses_workgroup_id) {
+    ib_.Add(workgroup_id_);
+  }
+  if (uses_local_id) {
+    ib_.Add(local_id_);
+  }
+  ib_.Commit(&entry_);
   return val;
 }
 

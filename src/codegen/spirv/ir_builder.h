@@ -489,7 +489,7 @@ class IRBuilder {
    * \param name Name of the entry point.
    * \return The created function ID.
    */
-  Value DeclareKenrelFunction(const std::string& name);
+  Value DeclareKernelFunction(const std::string& name, bool uses_workgroup_id = false, bool uses_local_id = false);
   /*!
    * \brief Start function scope.
    * \param func function to be started.

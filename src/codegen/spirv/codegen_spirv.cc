@@ -35,7 +35,7 @@ std::vector<uint32_t> CodeGenSPIRV::BuildFunction(const LoweredFunc& f) {
       pod_args.push_back(arg);
     }
   }
-  spirv::Value func_ptr = builder_->DeclareKenrelFunction(f->name);
+  spirv::Value func_ptr = builder_->DeclareKernelFunction(f->name, true, true);
   builder_->StartFunction(func_ptr);
 
   // All the POD arguments are passed in through PushConstant
