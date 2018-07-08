@@ -779,7 +779,6 @@ class ConfigEntity(ConfigSpace):
         self._collect = False
         self._entity_map = entity_map
         self._space_map = None
-        self.other_option_keys = None
         self._constraints = constraints
         self.code_hash = code_hash
 

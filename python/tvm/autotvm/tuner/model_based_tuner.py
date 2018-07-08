@@ -10,8 +10,49 @@ import numpy as np
 from .tuner import Tuner
 
 
+class FeatureCache(object):
+    """Feature cache manager for cache sharing between different cost models"""
+    def __init__(self):
+        self.feature_cache = {}
+
+    def get(self, key):
+        """ Get feature cache dictionary for a key
+
+        Parameters
+        ----------
+        key: str
+            The key of a feature type
+
+        Returns
+        -------
+        fea_cache: dict
+            cache dictionary
+        """
+        if key not in self.feature_cache:
+            self.feature_cache[key] = {}
+
+        return self.feature_cache[key]
+
+    def size(self, key):
+        return len(self.feature_cache.get(key, tuple()))
+
+    def clear(self, key):
+        """Clear feature cache for a key
+
+        Parameters
+        ----------
+        key: str
+            The key of a feature type
+        """
+        del self.feature_cache[key]
+        self.feature_cache[key] = {}
+        gc.collect()
+
+
 class CostModel(object):
     """Cost model to predict the speed of a config"""
+    feature_cache = FeatureCache()  # single global instance
+
     def __init__(self):
         pass
 
@@ -58,17 +99,6 @@ class CostModel(object):
             The prediction
         """
         raise NotImplementedError()
-
-    def set_feature_cache(self, feature_cache):
-        """Set global shared feature cache. One tuner may have several cost model.
-        Setting global feature cache enables cache sharing between different cost models.
-
-        Parameters
-        ----------
-        feature_cache: FeatureCache
-            The global feature dict of tuner
-        """
-        pass
 
     def load_basemodel(self, base_model):
         """Load baes model for transfer learning
@@ -168,10 +198,6 @@ class ModelBasedTuner(Tuner):
         self.flops_max = 0.0
         self.train_ct = 0
 
-        # feature cache (it can be reused by multiple cost models)
-        self.fea_cache = FeatureCache()
-        self.cost_model.set_feature_cache(self.fea_cache)
-
     def next_batch(self, batch_size):
         ret = []
 
@@ -242,42 +268,6 @@ class ModelBasedTuner(Tuner):
 
     def has_next(self):
         return len(self.visited) < len(self.space)
-
-
-class FeatureCache(object):
-    """Global feature cache manager"""
-    def __init__(self):
-        self.feature_cache = {}
-
-    def get(self, key):
-        """ Get feature cache dictionary for a key
-
-        Parameters
-        ----------
-        key: str
-            The key of a feature type
-
-        Returns
-        -------
-        fea_cache: dict
-            cache dictionary
-        """
-        if key not in self.feature_cache:
-            self.feature_cache[key] = {}
-
-        return self.feature_cache[key]
-
-    def clear(self, key):
-        """Clear feature cache for a key
-
-        Parameters
-        ----------
-        key: str
-            The key of a feature type
-        """
-        del self.feature_cache[key]
-        self.feature_cache[key] = {}
-        gc.collect()
 
 
 def point2knob(p, dims):

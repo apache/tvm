@@ -129,6 +129,7 @@ class XGBoostCostModel(CostModel):
 
     def fit(self, xs, ys, plan_size):
         tic = time.time()
+        self._reset_pool()
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
@@ -156,10 +157,11 @@ class XGBoostCostModel(CostModel):
         logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
                      time.time() - tic, len(xs),
                      len(xs) - np.sum(valid_index),
-                     len(self.shared_feature_cache.get(self.fea_type)))
+                     CostModel.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
+        self._reset_pool()
 
         args = list(records)
         if self.fea_type == 'itervar':
@@ -205,9 +207,6 @@ class XGBoostCostModel(CostModel):
 
         return self.bst.predict(dtest, output_margin=output_margin)
 
-    def set_feature_cache(self, feature_cache):
-        self.shared_feature_cache = feature_cache
-
     def load_basemodel(self, base_model):
         self.base_model = base_model
 
@@ -218,23 +217,15 @@ class XGBoostCostModel(CostModel):
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
         # free feature cache
-        fea_cache = self.shared_feature_cache.get(self.fea_type)
+        if CostModel.feature_cache.size(self.fea_type) >= 10000:
+            CostModel.feature_cache.clear(self.fea_type)
 
-        if len(fea_cache) >= 100000:
-            print("clear cache")
-            input("clear cache")
-            self.shared_feature_cache.clear(self.fea_type)
-            fea_cache = self.shared_feature_cache.get(self.fea_type)
+        fea_cache = CostModel.feature_cache.get(self.fea_type)
 
         indexes = np.array(indexes)
         need_extract = [x for x in indexes if x not in fea_cache]
 
         if need_extract:
-            self.feature_extra_ct += len(need_extract)
-            if self.feature_extra_ct >= 50000:
-                self.feature_extra_ct = 0
-                self._reset_pool()  # make processing pool clean and consume less memory
-
             feas = self.pool.map(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
@@ -255,9 +246,8 @@ def _extract_itervar_feature_index(index):
     with _extract_target:
         sch, args = _extract_task.instantiate(config)
     fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
-    if config.other_option_keys:
-        return np.concatenate((fea, list(config.get_other_option().values())))
-    return np.array(fea)
+    fea = np.concatenate((fea, list(config.get_other_option().values())))
+    return fea
 
 def _extract_itervar_feature_log(arg):
     """extract iteration var feature for log items"""
@@ -266,10 +256,7 @@ def _extract_itervar_feature_log(arg):
     with inp.target:
         sch, args = inp.task.instantiate(config)
     fea = feature.get_itervar_feature_flatten(sch, args, take_log=True)
-    if config.other_option_keys:
-        x = np.concatenate((fea, list(config.get_other_option().values())))
-    else:
-        x = np.array(fea)
+    x = np.concatenate((fea, list(config.get_other_option().values())))
 
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
@@ -302,8 +289,7 @@ def _extract_curve_feature_index(index):
     with _extract_target:
         sch, args = _extract_task.instantiate(config)
     fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
-    if config.other_option_keys:
-        return np.concatenate((fea, list(config.get_other_option().values())))
+    fea = np.concatenate((fea, list(config.get_other_option().values())))
     return np.array(fea)
 
 def _extract_curve_feature_log(arg):
@@ -313,10 +299,7 @@ def _extract_curve_feature_log(arg):
     with inp.target:
         sch, args = inp.task.instantiate(config)
     fea = feature.get_buffer_curve_sample_flatten(sch, args, sample_n=20)
-    if config.other_option_keys:
-        x = np.concatenate((fea, list(config.get_other_option().values())))
-    else:
-        x = np.array(fea)
+    x = np.concatenate((fea, list(config.get_other_option().values())))
 
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
@@ -452,7 +435,6 @@ def xgb_max_curve_score(N):
         return "Smax@%d" % N, curve[N] / np.max(labels)
     return feval
 
-
 def xgb_recalln_curve_score(N):
     """evaluate recall-n curve score for xgb"""
     def feval(preds, labels):
@@ -473,7 +455,6 @@ def xgb_average_recalln_curve_score(N):
         return "a-recall@%d" % N, np.sum(curve[:N]) / N
     return feval
 
-
 def xgb_recallk_curve_score(N, topk):
     """evaluate recall-k curve score for xgb"""
     def feval(preds, labels):
@@ -484,7 +465,6 @@ def xgb_recallk_curve_score(N, topk):
         return "recall@%d" % topk, curve[N]
     return feval
 
-
 def xgb_cover_curve_score(N):
     """evaluate cover curve score for xgb"""
     def feval(preds, labels):
@@ -494,7 +474,6 @@ def xgb_cover_curve_score(N):
         curve = cover_curve(ranks)
         return "cover@%d" % N, curve[N]
     return feval
-
 
 def xgb_null_score(_):
     """empty score function for xgb"""
