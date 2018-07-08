@@ -14,6 +14,9 @@ set_session(tf.Session(config=config))
 
 
 def verify_keras_frontend(keras_model):
+    # Keras frontend currently supports tensorflow backend only.
+    assert(keras.backend.backend() == 'tensorflow')
+
     in_shapes = []
     for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))

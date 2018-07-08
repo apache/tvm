@@ -489,6 +489,8 @@ def from_keras(model):
         raise ImportError('Keras must be installed')
 
     assert isinstance(model, keras.engine.training.Model)
+    if keras.backend.backend() != 'tensorflow':
+        raise ValueError("Keras frontend currently supports tensorflow backend only.")
     if keras.backend.image_data_format() != 'channels_last':
         raise ValueError("Keras frontend currently supports data_format = channels_last only.")
     _check_unsupported_layers(model)
