@@ -386,7 +386,6 @@ void setAffinityPref(bool ascending) {
 
     ThreadPool::affinity_order = sorted_order;
     ThreadPool::preferred_num = preferred_num;
-    LOG(INFO) << "preferred_num: " << preferred_num;
 }
 
 void setNthreadsPref(int nthreads) {
@@ -397,7 +396,6 @@ void setNthreadsPref(int nthreads) {
     } else {
         ThreadPool::nthreads = nthreads;
     }
-    LOG(INFO) << "nthreads: " << ThreadPool::nthreads;
 }
 
 TVM_REGISTER_GLOBAL("runtime.config_threadpool")
