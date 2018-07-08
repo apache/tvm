@@ -344,11 +344,12 @@ int ThreadPool::nthreads = 0;
 void setAffinityPref(bool ascending) {
     unsigned int threads = std::thread::hardware_concurrency();
     char filepath[128];
-    std::vector<std::pair <unsigned int, long long>> max_freqs;
+    std::vector<std::pair <unsigned int, int64_t>> max_freqs;
     std::vector<unsigned int> sorted_order;
 
     for (unsigned int i = 0; i < threads; i++) {
-        snprintf(filepath, sizeof(filepath),  "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        snprintf(filepath, sizeof(filepath),
+                 "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
         FILE *fp = std::fopen(filepath, "r");
         int64_t cur_freq = -1;
         if (fp) {
@@ -363,10 +364,10 @@ void setAffinityPref(bool ascending) {
         }
     }
 
-    auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, long long> b) {
+    auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
         return a.second > b.second;
     };
-    auto min = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, long long> b) {
+    auto min = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
         return a.second < b.second;
     };
     if (ascending) {
@@ -375,7 +376,7 @@ void setAffinityPref(bool ascending) {
         std::sort(max_freqs.begin(), max_freqs.end(), max);
     }
     auto it = max_freqs.begin();
-    long long preferred_freq = it->second;
+    int64_t preferred_freq = it->second;
     int preferred_num = 0;
     for (; it != max_freqs.end(); it++) {
         sorted_order.push_back(it->first);
