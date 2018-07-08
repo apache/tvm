@@ -271,7 +271,7 @@ class ModelBasedTuner(Tuner):
 
 
 def point2knob(p, dims):
-    """convert point form (single integer) to knob form (multi dimension)"""
+    """convert point form (single integer) to knob form (multi-dimensional)"""
     knob = []
     for dim in dims:
         knob.append(p % dim)
@@ -280,10 +280,10 @@ def point2knob(p, dims):
 
 
 def knob2point(knob, dims):
-    """convert knob form (multi dimension) to point form (single integer)"""
+    """convert knob form (multi-dimensional) to point form (single integer)"""
     p = 0
-    for j in range(len(knob)):
-        p += knob[j] * int(np.prod(dims[:j]))
+    for j, k in enumerate(knob):
+        p += int(np.prod(dims[:j])) * k
     return p
 
 

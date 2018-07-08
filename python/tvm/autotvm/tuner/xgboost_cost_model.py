@@ -373,7 +373,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
             eval_res.append([key] + v)
 
         ##### print eval result #####
-        infos = ["XGB Iter: %3d" % i]
+        infos = ["XGB iter: %3d" % i]
         for item in eval_res:
             if 'null' in item[0]:
                 continue

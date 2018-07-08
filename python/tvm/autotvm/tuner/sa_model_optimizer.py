@@ -10,7 +10,7 @@ import time
 import numpy as np
 
 from ..util import sample_ints
-from .model_based_tuner import ModelOptimizer
+from .model_based_tuner import ModelOptimizer, knob2point, point2knob
 
 class SimulatedAnnealingOptimizer(ModelOptimizer):
     """parallel simulated annealing optimization algorithm
@@ -135,11 +135,7 @@ def random_walk(p, dims):
         new neighborhood index
     """
     # transform to knob form
-    knob = []
-    for dim in dims:
-        knob.append(p % dim)
-        p //= dim
-    old = knob
+    old = point2knob(p, dims)
     new = list(old)
 
     # mutate
@@ -149,7 +145,4 @@ def random_walk(p, dims):
         new[from_i] = to_v
 
     # transform to index form
-    p = 0
-    for j in range(len(new)):
-        p += new[j] * int(np.prod(dims[:j]))
-    return p
+    return knob2point(new, dims)

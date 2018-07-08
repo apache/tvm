@@ -5,6 +5,8 @@
 import numpy as np
 
 from .tuner import Tuner
+from .model_based_tuner import knob2point, point2knob
+
 
 class GATuner(Tuner):
     """Tuner with genetic algorithm.
@@ -28,12 +30,12 @@ class GATuner(Tuner):
         self.elite_num = elite_num
         self.mutation_prob = mutation_prob
 
-        assert elite_num <= pop_size, "number of elite must be less than population size"
+        assert elite_num <= pop_size, "The number of elites must be less than population size"
 
         # space info
         self.space = task.config_space
         self.n_subspace = len(task.config_space.space_map)
-        self.dim_subspaces = [len(x) for x in task.config_space.space_map.values()]
+        self.dims = [len(x) for x in self.space.space_map.values()]
 
         self.visited = set([])
 
@@ -45,22 +47,21 @@ class GATuner(Tuner):
         self.trial_pt = 0
 
         # random initialization
+        self.pop_size = min(self.pop_size, len(self.space))
         for _ in range(self.pop_size):
-            tmp_gene = None
-            while (tmp_gene is None or self._gene2index(tmp_gene) in self.visited
-                   and len(self.visited) < len(self.space)):
-                tmp_gene = []
-                for j in range(self.n_subspace):
-                    tmp_gene.append(np.random.randint(self.dim_subspaces[j]))
+            tmp_gene = point2knob(np.random.randint(len(self.space)), self.dims)
+            while knob2point(tmp_gene, self.dims) in self.visited:
+                tmp_gene = point2knob(np.random.randint(len(self.space)), self.dims)
+
             self.genes.append(tmp_gene)
-            self.visited.add(self._gene2index(tmp_gene))
+            self.visited.add(knob2point(tmp_gene, self.dims))
 
     def next_batch(self, batch_size):
         ret = []
         for _ in range(batch_size):
             gene = self.genes[self.trial_pt % self.pop_size]
             self.trial_pt += 1
-            ret.append(self.space.get(self._gene2index(gene)))
+            ret.append(self.space.get(knob2point(gene, self.dims)))
 
         return ret
 
@@ -75,17 +76,16 @@ class GATuner(Tuner):
         if len(self.scores) >= len(self.genes):
             genes = self.genes + self.elites
             scores = np.array(self.scores[:len(self.genes)] + self.elite_scores)
-            assert len(genes) == len(scores), "%d vs %d" % (len(genes), len(scores))
-            indices = np.arange(len(genes))
 
             # reserve elite
             self.elites, self.elite_scores = [], []
-            elites = np.argpartition(scores, -self.elite_num)[-self.elite_num:]
-            for ind in elites:
+            elite_indexes = np.argpartition(scores, -self.elite_num)[-self.elite_num:]
+            for ind in elite_indexes:
                 self.elites.append(genes[ind])
                 self.elite_scores.append(scores[ind])
 
             # cross over
+            indices = np.arange(len(genes))
             scores /= np.max(scores)
             probs = scores / np.sum(scores)
             tmp_genes = []
@@ -101,25 +101,20 @@ class GATuner(Tuner):
             for tmp_gene in tmp_genes:
                 for j in range(self.n_subspace):
                     if np.random.random() < self.mutation_prob:
-                        tmp_gene[j] = np.random.randint(self.dim_subspaces[j])
+                        tmp_gene[j] = np.random.randint(self.dims[j])
 
                 if len(self.visited) < len(self.space):
-                    while self._gene2index(tmp_gene) in self.visited:
+                    while knob2point(tmp_gene, self.dims) in self.visited:
                         j = np.random.randint(self.n_subspace)
-                        tmp_gene[j] = np.random.randint(self.dim_subspaces[j])
+                        tmp_gene[j] = np.random.randint(self.dims[j])
                     next_genes.append(tmp_gene)
-                    self.visited.add(self._gene2index(tmp_genes))
+                    self.visited.add(knob2point(tmp_gene, self.dims))
                 else:
                     break
 
             self.genes = next_genes
             self.trial_pt = 0
+            self.scores = []
 
     def has_next(self):
         return len(self.visited) - (len(self.genes) - self.trial_pt) < len(self.space)
-
-    def _gene2index(self, gene):
-        ind = 0
-        for g, d in zip(gene, self.dim_subspaces[1:] + [1]):
-            ind = (ind + g) * d
-        return ind
