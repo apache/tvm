@@ -348,11 +348,11 @@ void setAffinityPref(bool ascending) {
     std::vector<unsigned int> sorted_order;
 
     for (unsigned int i = 0; i < threads; i++) {
-        snprintf(filepath, 128,  "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
+        snprintf(filepath, sizeof(filepath),  "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
         FILE *fp = std::fopen(filepath, "r");
-        long long cur_freq = -1;
+        int64_t cur_freq = -1;
         if (fp) {
-                int read = std::fscanf(fp, "%lli", &cur_freq);
+                int read = std::fscanf(fp, "%" PRId64, &cur_freq);
                 std::fclose(fp);
                 if (!read)
                     LOG(WARNING) << "CPU max frequency info empty!";
@@ -363,10 +363,10 @@ void setAffinityPref(bool ascending) {
         }
     }
 
-    auto max = [] (std::pair<unsigned int, long long> a, std::pair<unsigned int, long long> b) {
+    auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, long long> b) {
         return a.second > b.second;
     };
-    auto min = [] (std::pair<unsigned int, long long> a, std::pair<unsigned int, long long> b) {
+    auto min = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, long long> b) {
         return a.second < b.second;
     };
     if (ascending) {

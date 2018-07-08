@@ -45,7 +45,7 @@ class ThreadGroup::Impl {
       if (t.joinable()) t.join();
     }
   }
-  
+
  private:
   // bind worker threads to disjoint cores
   // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
