@@ -24,7 +24,6 @@ class ThreadGroup::Impl {
       : num_workers_(num_workers) {
     CHECK_GE(num_workers, 1)
       << "Requested a non-positive number of worker threads.";
-    LOG(INFO) << "num workers: " << num_workers;
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
