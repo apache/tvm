@@ -9,17 +9,23 @@ from nnvm.testing.config import ctx_list
 
 
 def helper(symbol, inputs, dtype,
-           np_forward, np_backward=None, need_input=True, need_head_grads=True):
+           np_forward, np_backward=None,
+           need_input=True, need_head_grads=True, in_range={}):
     ishapes = {}
     input_syms = []
     np_inputs = {}
     for (name, shape, s) in inputs:
         ishapes.update({name: shape})
-        np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
+        if name in in_range:
+            np_inputs.update({name: np.random.uniform(size=shape,
+                                                      low=in_range[name][0],
+                                                      high=in_range[name][1]).astype(dtype)})
+        else:
+            np_inputs.update({name: np.random.uniform(size=shape).astype(dtype)})
         input_syms.append(s)
 
     for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes)
+        graph, lib, _ = nnvm.compiler.build(symbol, target, ishapes, dtype=dtype)
         m = graph_runtime.create(graph, lib, ctx)
         m.run(**np_inputs)
         y_np = np_forward(**np_inputs)
@@ -228,6 +234,49 @@ def test_broadcast():
         return da, db
     helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
+    y = sym.broadcast_mod(a, b)
+    helper(y, inputs, 'int32',
+           lambda a, b: np.mod(a, b),
+           in_range={'a': (0.001, 100), 'b': (1, 100)})
+
+    y = sym.broadcast_max(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.maximum(a, b))
+
+    y = sym.broadcast_min(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.minimum(a, b))
+
+    y = sym.broadcast_pow(a, b)
+    helper(y, inputs, dtype,
+           lambda a, b: np.power(a, b),
+           in_range={'a': (0.001, 100), 'b': (0.001, 2)})
+
+    y = sym.broadcast_left_shift(a, b)
+    helper(y, inputs, 'int32', lambda a, b: a << b)
+
+    y = sym.broadcast_right_shift(a, b)
+    helper(y, inputs, 'int32', lambda a, b: a >> b)
+
+    y = sym.broadcast_greater(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.greater(a, b))
+
+    y = sym.broadcast_less(a, b)
+    helper(y, inputs, dtype, lambda a, b: np.less(a, b))
+
+    y = sym.broadcast_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.equal(a, b),
+           in_range={'a': (-2, 2), 'b': (-2, 2)})
+
+    y = sym.broadcast_not_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.not_equal(a, b),
+           in_range={'a': (-2, 2), 'b': (-2, 2)})
+
+    y = sym.broadcast_greater_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.greater_equal(a, b),
+           in_range={'a': (-3, 3), 'b': (-3, 3)})
+
+    y = sym.broadcast_less_equal(a, b)
+    helper(y, inputs, 'int32', lambda a, b: np.less_equal(a, b),
+           in_range={'a': (-3, 3), 'b': (-3, 3)})
 
 def test_greater():
     l = sym.Variable("l")

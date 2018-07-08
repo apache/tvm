@@ -108,6 +108,50 @@ def test_reshape_like():
 
     np.testing.assert_allclose(ref_shape, tvm_out.shape)
 
+def _test_power_iteration(x_shape, y_shape):
+    if isinstance(y_shape, int):
+        y_shape = [y_shape]
+
+    x = np.random.uniform(size=x_shape).astype(np.float32)
+    y = np.random.uniform(size=y_shape).astype(np.float32)
+
+    np_res = np.power(x, y).astype(np.float32)
+
+    res = helper.make_node("Pow", ['x', 'y'], ['out'])
+
+    graph = helper.make_graph([res],
+                              'power_test',
+                              inputs = [helper.make_tensor_value_info("x", TensorProto.FLOAT, list(x_shape)),
+                                        helper.make_tensor_value_info("y", TensorProto.FLOAT, list(y_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(np_res.shape))])
+
+    model = helper.make_model(graph, producer_name='power_test')
+
+    for target, ctx in ctx_list():
+        new_sym, params = nnvm.frontend.from_onnx(model)
+
+        input_name = model.graph.input[0].name
+        input_name1 = model.graph.input[1].name
+        shape_dict = {input_name: x.shape, input_name1: y.shape}
+        dtype_dict = {input_name: x.dtype, input_name1: y.dtype}
+
+        graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, dtype_dict, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input(input_name, tvm.nd.array(x))
+        m.set_input(input_name1, tvm.nd.array(y))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        tvm_out = m.get_output(0, tvm.nd.empty(np_res.shape, np_res.dtype))
+
+        np.testing.assert_allclose(np_res, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+
+def test_power():
+    _test_power_iteration((1, 3), (1))
+    _test_power_iteration((2, 3), (2, 3))
+    _test_power_iteration((2, 3), (1, 3))
+
 def test_squeeze():
     in_shape = (1, 3, 1, 3, 1, 1)
     out_shape = (3, 3)
@@ -247,6 +291,7 @@ if __name__ == '__main__':
     verify_resnet18()
     test_reshape()
     test_reshape_like()
+    test_power()
     test_squeeze()
     test_unsqueeze()
     test_slice()
