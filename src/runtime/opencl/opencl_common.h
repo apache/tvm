@@ -233,127 +233,29 @@ class OpenCLModuleNode : public ModuleNode {
                             std::string source)
       : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
   // destructor
-  ~OpenCLModuleNode() {
-    {
-      // free the kernel ids in global table.
-      std::lock_guard<std::mutex> lock(workspace_->mu);
-      for (auto& kv : kid_map_) {
-        workspace_->free_kernel_ids.push_back(kv.second.kernel_id);
-      }
-    }
-    // free the kernels
-    for (cl_kernel k : kernels_) {
-      OPENCL_CALL(clReleaseKernel(k));
-    }
-    if (program_) {
-      OPENCL_CALL(clReleaseProgram(program_));
-    }
-  }
+  ~OpenCLModuleNode();
 
   /*!
    * \brief Get the global workspace
    */
-  virtual std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace() {
-    return cl::OpenCLWorkspace::Global();
-  }
+  virtual std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace();
 
-  virtual const char* type_key() const {
-    return "opencl";
-  }
-
-  virtual cl_program CreateProgram() {
-    const char* s = data_.c_str();
-    size_t len = data_.length();
-    cl_int err;
-    cl_program program = clCreateProgramWithSource(workspace_->context, 1, &s, &len, &err);
-    OPENCL_CHECK_ERROR(err);
-    return program;
-  }
+  virtual const char* type_key() const;
 
   PackedFunc GetFunction(
       const std::string& name,
       const std::shared_ptr<ModuleNode>& sptr_to_self) final;
-
   void SaveToFile(const std::string& file_name,
-                  const std::string& format) final {
-    std::string fmt = GetFileFormat(file_name, format);
-    CHECK_EQ(fmt, fmt_)
-        << "Can only save to format=" << fmt_;
-    std::string meta_file = GetMetaFilePath(file_name);
-    SaveMetaDataToFile(meta_file, fmap_);
-    SaveBinaryToFile(file_name, data_);
-  }
-
-  void SaveToBinary(dmlc::Stream* stream) final {
-    stream->Write(fmt_);
-    stream->Write(fmap_);
-    stream->Write(data_);
-  }
-
-  std::string GetSource(const std::string& format) final {
-    if (format == fmt_) return data_;
-    if (fmt_ == "cl") {
-      return data_;
-    } else {
-      return source_;
-    }
-  }
-
+                  const std::string& format) final;
+  void SaveToBinary(dmlc::Stream* stream) final;
+  std::string GetSource(const std::string& format) final;
   // Initialize the programs
-  void Init() {
-    workspace_ = GetGlobalWorkspace();
-    workspace_->Init();
-    CHECK(workspace_->context != nullptr) << "No OpenCL device";
-    program_ = CreateProgram();
-    device_built_flag_.resize(workspace_->devices.size(), false);
-    // initialize the kernel id, need to lock global table.
-    std::lock_guard<std::mutex> lock(workspace_->mu);
-    for (const auto& kv : fmap_) {
-      const std::string& key = kv.first;
-      KTRefEntry e;
-      if (workspace_->free_kernel_ids.size() != 0) {
-        e.kernel_id = workspace_->free_kernel_ids.back();
-        workspace_->free_kernel_ids.pop_back();
-      } else {
-        e.kernel_id = workspace_->num_registered_kernels++;
-      }
-      e.version = workspace_->timestamp++;
-      kid_map_[key] = e;
-    }
-  }
+  void Init();
   // install a new kernel to thread local entry
   cl_kernel InstallKernel(cl::OpenCLWorkspace* w,
                           cl::OpenCLThreadEntry* t,
                           const std::string& func_name,
-                          const KTRefEntry& e) {
-    std::lock_guard<std::mutex> lock(build_lock_);
-    int device_id = t->context.device_id;
-    if (!device_built_flag_[device_id]) {
-      // build program
-      cl_int err;
-      cl_device_id dev = w->devices[device_id];
-      err = clBuildProgram(program_, 1, &dev, nullptr, nullptr, nullptr);
-      if (err != CL_SUCCESS) {
-        size_t len;
-        std::string log;
-        clGetProgramBuildInfo(
-            program_, dev, CL_PROGRAM_BUILD_LOG, 0, nullptr, &len);
-        log.resize(len);
-        clGetProgramBuildInfo(
-            program_, dev, CL_PROGRAM_BUILD_LOG, len, &log[0], nullptr);
-        LOG(FATAL) << "OpenCL build error for device=" << dev << log;
-      }
-      device_built_flag_[device_id] = true;
-    }
-    // build kernel
-    cl_int err;
-    cl_kernel kernel = clCreateKernel(program_, func_name.c_str(), &err);
-    OPENCL_CHECK_ERROR(err);
-    t->kernel_table[e.kernel_id].kernel = kernel;
-    t->kernel_table[e.kernel_id].version = e.version;
-    kernels_.push_back(kernel);
-    return kernel;
-  }
+                          const KTRefEntry& e);
 
  protected:
   // The workspace, need to keep reference to use it in destructor.

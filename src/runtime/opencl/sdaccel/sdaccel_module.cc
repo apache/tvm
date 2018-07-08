@@ -22,7 +22,6 @@ class SDAccelModuleNode : public OpenCLModuleNode {
       : OpenCLModuleNode(data, fmt, fmap, source) {}
   std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace() final;
   const char* type_key() const final;
-  cl_program CreateProgram() final;
 };
 
 std::shared_ptr<cl::OpenCLWorkspace> SDAccelModuleNode::GetGlobalWorkspace() {
@@ -31,18 +30,6 @@ std::shared_ptr<cl::OpenCLWorkspace> SDAccelModuleNode::GetGlobalWorkspace() {
 
 const char* SDAccelModuleNode::type_key() const {
   return "sdaccel";
-}
-
-cl_program SDAccelModuleNode::CreateProgram() {
-  const unsigned char* s = (const unsigned char *)data_.c_str();
-  size_t len = data_.length();
-  cl_int err;
-  cl_program program = clCreateProgramWithBinary(workspace_->context, 1, &(workspace_->devices[0]),
-                                                 &len, &s, NULL, &err);
-  if (err != CL_SUCCESS) {
-    LOG(ERROR) << "OpenCL Error: " << cl::CLGetErrorString(err);
-  }
-  return program;
 }
 
 Module SDAccelModuleCreate(
