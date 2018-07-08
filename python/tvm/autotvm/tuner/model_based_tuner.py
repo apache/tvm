@@ -3,6 +3,7 @@
 This type of tuner will fit a cost model and use some optimization methods to
 find optimums points of cost model in space.
 """
+import gc
 
 import numpy as np
 
@@ -59,12 +60,12 @@ class CostModel(object):
         raise NotImplementedError()
 
     def set_feature_cache(self, feature_cache):
-        """Set feature cache. If a model used cache for feature extraction, it should
-        use global cache from the tuner. This enables cache sharing between different models
+        """Set global shared feature cache. One tuner may have several cost model.
+        Setting global feature cache enables cache sharing between different cost models.
 
         Parameters
         ----------
-        feature_cache: dict
+        feature_cache: FeatureCache
             The global feature dict of tuner
         """
         pass
@@ -168,7 +169,7 @@ class ModelBasedTuner(Tuner):
         self.train_ct = 0
 
         # feature cache (it can be reused by multiple cost models)
-        self.fea_cache = {}
+        self.fea_cache = FeatureCache()
         self.cost_model.set_feature_cache(self.fea_cache)
 
     def next_batch(self, batch_size):
@@ -237,10 +238,47 @@ class ModelBasedTuner(Tuner):
             self.trials = maximums
             self.trial_pt = 0
 
-        self.cost_model.load_basepiodel(base_model)
+        self.cost_model.load_basemodel(base_model)
 
     def has_next(self):
         return len(self.visited) < len(self.space)
+
+
+class FeatureCache(object):
+    """Global feature cache manager"""
+    def __init__(self):
+        self.feature_cache = {}
+
+    def get(self, key):
+        """ Get feature cache dictionary for a key
+
+        Parameters
+        ----------
+        key: str
+            The key of a feature type
+
+        Returns
+        -------
+        fea_cache: dict
+            cache dictionary
+        """
+        if key not in self.feature_cache:
+            self.feature_cache[key] = {}
+
+        return self.feature_cache[key]
+
+    def clear(self, key):
+        """Clear feature cache for a key
+
+        Parameters
+        ----------
+        key: str
+            The key of a feature type
+        """
+        del self.feature_cache[key]
+        self.feature_cache[key] = {}
+        gc.collect()
+
 
 def point2knob(p, dims):
     """convert point form (single integer) to knob form (multi dimension)"""
@@ -250,12 +288,14 @@ def point2knob(p, dims):
         p //= dim
     return knob
 
+
 def knob2point(knob, dims):
     """convert knob form (multi dimension) to point form (single integer)"""
     p = 0
     for j in range(len(knob)):
         p += knob[j] * int(np.prod(dims[:j]))
     return p
+
 
 def submodular_pick(scores, knobs, n_pick, knob_weight=1.0):
     """Run greedy optimization to pick points with regard to both score and diversity.

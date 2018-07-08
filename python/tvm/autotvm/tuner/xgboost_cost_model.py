@@ -1,7 +1,6 @@
 # pylint: disable=invalid-name
 """XGBoost as cost model"""
 
-import gc
 import multiprocessing
 import logging
 import time
@@ -15,7 +14,7 @@ except ImportError:
 from .. import feature
 from ..util import get_rank
 from .metric import max_curve, recall_curve, cover_curve
-from .model_based_tuner import CostModel
+from .model_based_tuner import CostModel, FeatureCache
 
 class XGBoostCostModel(CostModel):
     """XGBoost as cost model
@@ -108,7 +107,7 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type " + feature_type)
 
-        self.fea_cache = None
+        self.shared_feature_cache = FeatureCache()
         self.feature_extra_ct = 0
         self.pool = None
         self.base_model = None
@@ -156,7 +155,8 @@ class XGBoostCostModel(CostModel):
 
         logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
                      time.time() - tic, len(xs),
-                     len(xs) - np.sum(valid_index), len(self.fea_cache))
+                     len(xs) - np.sum(valid_index),
+                     len(self.shared_feature_cache.get(self.fea_type)))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
@@ -206,9 +206,7 @@ class XGBoostCostModel(CostModel):
         return self.bst.predict(dtest, output_margin=output_margin)
 
     def set_feature_cache(self, feature_cache):
-        if self.fea_type not in feature_cache:
-            feature_cache[self.fea_type] = {}
-        self.fea_cache = feature_cache[self.fea_type]
+        self.shared_feature_cache = feature_cache
 
     def load_basemodel(self, base_model):
         self.base_model = base_model
@@ -220,12 +218,16 @@ class XGBoostCostModel(CostModel):
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
         # free feature cache
-        if len(self.fea_cache) >= 100000:
-            self.fea_cache.clear()
-            gc.collect()
+        fea_cache = self.shared_feature_cache.get(self.fea_type)
+
+        if len(fea_cache) >= 100000:
+            print("clear cache")
+            input("clear cache")
+            self.shared_feature_cache.clear(self.fea_type)
+            fea_cache = self.shared_feature_cache.get(self.fea_type)
 
         indexes = np.array(indexes)
-        need_extract = [x for x in indexes if x not in self.fea_cache]
+        need_extract = [x for x in indexes if x not in fea_cache]
 
         if need_extract:
             self.feature_extra_ct += len(need_extract)
@@ -235,11 +237,11 @@ class XGBoostCostModel(CostModel):
 
             feas = self.pool.map(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
-                self.fea_cache[i] = fea
+                fea_cache[i] = fea
 
-        ret = np.empty((len(indexes), self.fea_cache[indexes[0]].shape[-1]), dtype=np.float32)
+        ret = np.empty((len(indexes), fea_cache[indexes[0]].shape[-1]), dtype=np.float32)
         for i, ii in enumerate(indexes):
-            ret[i, :] = self.fea_cache[ii]
+            ret[i, :] = fea_cache[ii]
         return ret
 
 
