@@ -227,13 +227,6 @@ Value IRBuilder::NewFunction() {
 }
 
 void IRBuilder::CommitKernelFunction(const Value& func_id, const std::string& name) {
-  //if (uses_workgroup_id) {
-  //  GetWorkgroupID(0);  // Ensure workgroup_id_ is valid
-  //}
-  //if (uses_local_id) {
-  //  GetLocalID(0);  // Ensure local_id_ is valid
-  //}
-
   ib_.Begin(spv::OpEntryPoint)
     .AddSeq(spv::ExecutionModelGLCompute, func_id, name);
   if (workgroup_id_.id != 0) {
