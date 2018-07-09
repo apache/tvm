@@ -15,7 +15,7 @@
 namespace tvm {
 namespace runtime {
 /*!
- * \brief create a opencl module from data.
+ * \brief create a opencl module for GPU devices from data.
  *
  * \param data The module data.
  * \param fmt The format of the data, can be "clbin", "cl"
