@@ -1,7 +1,7 @@
 # pylint: disable=invalid-name, unused-variable
 """
 YOLO Operator
-====================
+=============
 YOLO operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
