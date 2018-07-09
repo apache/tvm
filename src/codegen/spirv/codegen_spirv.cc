@@ -91,12 +91,16 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
   if (sync == "warp") {
     return value;
   } else if (sync == "shared") {
+    auto type_int = builder_->GetSType(Int(32));
     builder_->MakeInst(
-        spv::OpControlBarrier,
-        spv::ScopeWorkgroup,
-        spv::ScopeWorkgroup,
+      spv::OpControlBarrier,
+      builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
+      builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
+      builder_->IntImm(type_int, static_cast<int64_t>(
         spv::MemorySemanticsSequentiallyConsistentMask |
-        spv::MemorySemanticsWorkgroupMemoryMask);
+        spv::MemorySemanticsWorkgroupMemoryMask
+        ))
+    );
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
