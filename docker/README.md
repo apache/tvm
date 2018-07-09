@@ -24,10 +24,10 @@ The helper bash script can be useful to build demo sessions.
 ## Prebuilt Docker Images
 
 We provide several pre-built images for doing quick exploration with TVM installed.
-For example, you can run the following command to get ```tvmai/demo_cpu``` image.
+For example, you can run the following command to get ```tvmai/demo-cpu``` image.
 
 ```bash
-/path/to/tvm/docker/bash.sh tvmai/demo_cpu
+/path/to/tvm/docker/bash.sh tvmai/demo-cpu
 ```
 
 Then inside the docker container, you can type the following command to start the jupyter notebook

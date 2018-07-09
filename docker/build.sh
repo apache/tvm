@@ -2,7 +2,7 @@
 #
 # Execute command within a docker container
 #
-# Usage: ci_build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
+# Usage: build.sh <CONTAINER_TYPE> [--dockerfile <DOCKERFILE_PATH>] [-it]
 #                    <COMMAND>
 #
 # CONTAINER_TYPE: Type of the docker container used the run the build: e.g.,
