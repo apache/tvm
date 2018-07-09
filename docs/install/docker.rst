@@ -3,7 +3,7 @@
 Docker Images
 =============
 We provide several prebuilt docker images to quickly try out tvm.
-These images are also helpful to do demo/tutorials of TVM.
+These images are also helpful run through TVM demo and tutorials.
 You can get the docker images via the following steps.
 We need `docker <https://docs.docker.com/engine/installation/>`_ and
 `nvidia-docker <https://github.com/NVIDIA/nvidia-docker/>`_ if we want to use cuda.
@@ -15,14 +15,14 @@ First, clone tvm repo to get the auxiliary scripts
     git clone --recursive https://github.com/dmlc/tvm
 
 
-We can then use the following command to launch a `tvmai/demo_cpu` image.
+We can then use the following command to launch a `tvmai/demo-cpu` image.
 
 .. code:: bash
 
     /path/to/tvm/docker/bash.sh tvmai/demo_cpu
 
 .. note::
-    You can find all the prebuilt images in `https://hub.docker.com/r/tvmai/`_
+    You can find all the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_
 
 
 This auxiliary script does the following things:
@@ -41,5 +41,5 @@ Then you can start a jupyter notebook by typing
 
 Docker Source
 -------------
-Check out `https://github.com/dmlc/tvm/tree/master/docker`_ if you are interested in
+Check out `<https://github.com/dmlc/tvm/tree/master/docker>`_ if you are interested in
 building your own docker images.
