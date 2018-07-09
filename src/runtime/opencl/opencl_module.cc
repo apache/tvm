@@ -162,25 +162,6 @@ void OpenCLModuleNode::Init() {
   workspace_ = GetGlobalWorkspace();
   workspace_->Init();
   CHECK(workspace_->context != nullptr) << "No OpenCL device";
-  if (fmt_ == "cl") {
-    const char* s = data_.c_str();
-    size_t len = data_.length();
-    cl_int err;
-    program_ = clCreateProgramWithSource(
-        workspace_->context, 1, &s, &len, &err);
-    OPENCL_CHECK_ERROR(err);
-  } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
-    const unsigned char* s = (const unsigned char *)data_.c_str();
-    size_t len = data_.length();
-    cl_int err;
-    program_ = clCreateProgramWithBinary(
-        workspace_->context, 1, &(workspace_->devices[0]), &len, &s, NULL, &err);
-    if (err != CL_SUCCESS) {
-      LOG(ERROR) << "OpenCL Error: " << cl::CLGetErrorString(err);
-    }
-  } else {
-    LOG(FATAL) << "Unknown OpenCL format " << fmt_;
-  }
   device_built_flag_.resize(workspace_->devices.size(), false);
   // initialize the kernel id, need to lock global table.
   std::lock_guard<std::mutex> lock(workspace_->mu);
@@ -205,6 +186,25 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->context.device_id;
   if (!device_built_flag_[device_id]) {
+    // create program
+    if (fmt_ == "cl") {
+      if (program_ == nullptr) {
+        const char* s = data_.c_str();
+        size_t len = data_.length();
+        cl_int err;
+        program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
+        OPENCL_CHECK_ERROR(err);
+      }
+    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
+      const unsigned char* s = (const unsigned char *)data_.c_str();
+      size_t len = data_.length();
+      cl_int err;
+      cl_device_id dev = w->devices[device_id];
+      program_ = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+      OPENCL_CHECK_ERROR(err);
+    } else {
+      LOG(FATAL) << "Unknown OpenCL format " << fmt_;
+    }
     // build program
     cl_int err;
     cl_device_id dev = w->devices[device_id];
