@@ -326,7 +326,8 @@ if run_deploy_local and opengl_enabled:
 def deploy_rpc():
     """Runs the demo that deploys a model remotely through RPC.
     """
-    from tvm.contrib import rpc, util, emscripten
+    from tvm import rpc
+    from tvm.contrib import util, emscripten
 
     # As usual, load the resnet18 model.
     net, params, data_shape, out_shape = load_mxnet_resnet()

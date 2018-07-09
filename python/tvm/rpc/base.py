@@ -9,8 +9,8 @@ import struct
 import random
 import logging
 
-from ..._ffi.function import _init_api
-from ..._ffi.base import py_str
+from .._ffi.function import _init_api
+from .._ffi.base import py_str
 
 # Magic header for RPC data plane
 RPC_MAGIC = 0xff271
@@ -159,4 +159,4 @@ def connect_with_retry(addr, timeout=60, retry_period=5, silent=False):
 
 
 # Still use tvm.contrib.rpc for the foreign functions
-_init_api("tvm.contrib.rpc", "tvm.contrib.rpc.base")
+_init_api("tvm.contrib.rpc", "tvm.rpc.base")

@@ -2,9 +2,9 @@
 """measure bandwidth and compute peak"""
 
 import logging
-
 import tvm
-from tvm.contrib import rpc, util
+from . import util
+from .. import rpc
 
 def _convert_to_remote(func, remote):
     """ convert module function to remote rpc function"""

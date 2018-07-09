@@ -21,11 +21,11 @@ import subprocess
 import time
 import sys
 
-from ..._ffi.function import register_func
-from ..._ffi.base import py_str
-from ..._ffi.libinfo import find_lib_path
-from ...module import load as _load_module
-from .. import util
+from .._ffi.function import register_func
+from .._ffi.base import py_str
+from .._ffi.libinfo import find_lib_path
+from ..module import load as _load_module
+from ..contrib import util
 from . import base
 from . base import TrackerCode
 

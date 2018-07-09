@@ -11,9 +11,8 @@ To begin with, we import nnvm(for compilation) and TVM(for deployment).
 import tvm
 import nnvm.compiler
 import nnvm.testing
-from tvm.contrib import util, rpc
-from tvm.contrib import graph_runtime as runtime
-
+from tvm import rpc
+from tvm.contrib import util, graph_runtime as runtime
 
 ######################################################################
 # Build TVM Runtime on Device
