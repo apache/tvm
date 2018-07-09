@@ -106,7 +106,8 @@ from __future__ import absolute_import, print_function
 
 import tvm
 import numpy as np
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine

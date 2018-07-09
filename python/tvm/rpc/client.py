@@ -7,11 +7,11 @@ import struct
 import time
 
 from . import base
-from .. import util
-from ..._ffi.base import TVMError
-from ..._ffi import function as function
-from ..._ffi import ndarray as nd
-from ...module import load as _load_module
+from ..contrib import util
+from .._ffi.base import TVMError
+from .._ffi import function as function
+from .._ffi import ndarray as nd
+from ..module import load as _load_module
 
 
 class RPCSession(object):
@@ -82,7 +82,7 @@ class RPCSession(object):
 
         if "upload" not in self._remote_funcs:
             self._remote_funcs["upload"] = self.get_function(
-                "tvm.contrib.rpc.server.upload")
+                "tvm.rpc.server.upload")
         self._remote_funcs["upload"](target, blob)
 
     def download(self, path):
@@ -100,7 +100,7 @@ class RPCSession(object):
         """
         if "download" not in self._remote_funcs:
             self._remote_funcs["download"] = self.get_function(
-                "tvm.contrib.rpc.server.download")
+                "tvm.rpc.server.download")
         return self._remote_funcs["download"](path)
 
     def load_module(self, path):

@@ -882,7 +882,7 @@ var tvm_runtime = tvm_runtime || {};
 
         if (typeof systemFunc.fcreateServer === "undefined") {
           systemFunc.fcreateServer =
-            getGlobalFunc("contrib.rpc._CreateEventDrivenServer");
+            getGlobalFunc("rpc._CreateEventDrivenServer");
         }
         if (systemFunc.fcreateServer == null) {
           throwError("RPCServer is not included in runtime");

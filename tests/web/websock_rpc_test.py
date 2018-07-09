@@ -6,7 +6,8 @@ Connect javascript end to the websocket port and connect to the RPC.
 
 import tvm
 import os
-from tvm.contrib import rpc, util, emscripten
+from tvm import rpc
+from tvm.contrib import util, emscripten
 import numpy as np
 
 proxy_host = "localhost"

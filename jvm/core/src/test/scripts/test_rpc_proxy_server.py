@@ -1,5 +1,5 @@
 import time
-from tvm.contrib.rpc import proxy
+from tvm.rpc import proxy
 
 def start_proxy_server(port, timeout):
     prox = proxy.Proxy("localhost", port=port, port_end=port+1)

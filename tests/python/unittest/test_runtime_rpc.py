@@ -3,7 +3,8 @@ import os
 import logging
 import numpy as np
 import time
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 
 
 def test_bigendian_rpc():

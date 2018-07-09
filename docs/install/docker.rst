@@ -19,10 +19,10 @@ We can then use the following command to launch a `tvmai/demo-cpu` image.
 
 .. code:: bash
 
-    /path/to/tvm/docker/bash.sh tvmai/demo_cpu
+    /path/to/tvm/docker/bash.sh tvmai/demo-cpu
 
-.. note::
-    You can find all the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_
+You can also change `demo-cpu` to `demo-gpu` to get a CUDA enabled image.
+You can find all the prebuilt images in `<https://hub.docker.com/r/tvmai/>`_
 
 
 This auxiliary script does the following things:

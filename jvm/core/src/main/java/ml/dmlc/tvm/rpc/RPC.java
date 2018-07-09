@@ -37,7 +37,7 @@ public class RPC {
   static Function getApi(String name) {
     Function func = apiFuncs.get().get(name);
     if (func == null) {
-      func = Function.getFunction("contrib.rpc." + name);
+      func = Function.getFunction("rpc." + name);
       if (func == null) {
         return null;
       }

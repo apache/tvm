@@ -103,13 +103,13 @@ void LaunchSyncServer() {
       ->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.workpath")
+TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     static RPCEnv env;
     *rv = env.GetPath(args[0]);
   });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.load_module")
+TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string name = args[0];
     std::string fmt = GetFileFormat(name, "");

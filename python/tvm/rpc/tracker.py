@@ -39,7 +39,7 @@ except ImportError as error_msg:
     raise ImportError(
         "RPCTracker module requires tornado package %s" % error_msg)
 
-from ..._ffi.base import py_str
+from .._ffi.base import py_str
 from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
 

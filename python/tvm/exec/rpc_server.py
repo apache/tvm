@@ -6,7 +6,7 @@ import argparse
 import multiprocessing
 import sys
 import logging
-from ..contrib import rpc
+from .. import rpc
 
 def main(args):
     """Main function"""

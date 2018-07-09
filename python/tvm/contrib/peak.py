@@ -2,9 +2,9 @@
 """measure bandwidth and compute peak"""
 
 import logging
-
 import tvm
-from tvm.contrib import rpc, util
+from . import util
+from .. import rpc
 
 def _convert_to_remote(func, remote):
     """ convert module function to remote rpc function"""
@@ -47,7 +47,7 @@ def measure_bandwidth_sum(total_item, item_per_thread, stride,
         host compilation target
     ctx: TVMcontext
         the context of array
-    remote: tvm.contrib.rpc.RPCSession
+    remote: tvm.rpc.RPCSession
         remote rpc session
     n_times: int
         number of runs for taking mean
@@ -107,7 +107,7 @@ def measure_bandwidth_all_types(total_item, item_per_thread, n_times,
         the target and option of the compilation.
     target_host : str or :any:`tvm.target.Target`
         host compilation target
-    remote: tvm.contrib.rpc.RPCSession
+    remote: tvm.rpc.RPCSession
         remote rpc session
     ctx: TVMcontext
         the context of array
@@ -165,7 +165,7 @@ def measure_compute_mad(total_item, item_per_thread, base_type, bits, lanes,
         the target and option of the compilation.
     target_host : str or :any:`tvm.target.Target`
         host compilation target
-    remote: tvm.contrib.rpc.RPCSession
+    remote: tvm.rpc.RPCSession
         if it is not None, use remote rpc session
     ctx: TVMcontext
         the context of array
@@ -250,7 +250,7 @@ def measure_compute_all_types(total_item, item_per_thread, n_times,
         the target and option of the compilation.
     target_host : str or :any:`tvm.target.Target`
         host compilation target
-    remote: tvm.contrib.rpc.RPCSession
+    remote: tvm.rpc.RPCSession
         remote rpc session
     ctx: TVMcontext
         the context of array
