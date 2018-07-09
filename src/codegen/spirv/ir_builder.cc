@@ -226,9 +226,10 @@ Value IRBuilder::NewFunction() {
   return NewValue(t_void_func_, kFunction);
 }
 
-void IRBuilder::CommitKernelFunction(const Value& func_id, const std::string& name) {
+void IRBuilder::CommitKernelFunction(const Value& func, const std::string& name) {
+  CHECK_EQ(func.flag, kFunction);
   ib_.Begin(spv::OpEntryPoint)
-    .AddSeq(spv::ExecutionModelGLCompute, func_id, name);
+    .AddSeq(spv::ExecutionModelGLCompute, func, name);
   if (workgroup_id_.id != 0) {
     ib_.Add(workgroup_id_);
   }
