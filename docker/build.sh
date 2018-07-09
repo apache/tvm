@@ -37,6 +37,11 @@ if [[ "$1" == "-it" ]]; then
     shift 1
 fi
 
+if [[ "$1" == "--net=host" ]]; then
+    CI_DOCKER_EXTRA_PARAMS+=('--net=host')
+    shift 1
+fi
+
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
     echo "Invalid Dockerfile path: \"${DOCKERFILE_PATH}\""
     exit 1

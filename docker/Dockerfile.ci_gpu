@@ -1,3 +1,4 @@
+# CI docker GPU env
 FROM nvidia/cuda:8.0-cudnn7-devel
 
 # Base scripts
