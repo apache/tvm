@@ -12,8 +12,8 @@ from random import getrandbits
 
 import numpy as np
 
-from ...contrib import rpc, ndk, nvcc
-from ... import ir_pass, build, build_config, nd, context, TVMError, register_func
+from ...contrib import ndk, nvcc
+from ... import rpc, ir_pass, build, build_config, nd, context, TVMError, register_func
 
 from ..util import get_const_tuple
 from ..env import AutotvmGlobalScope

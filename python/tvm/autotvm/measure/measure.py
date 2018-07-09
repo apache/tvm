@@ -5,10 +5,10 @@ from collections import namedtuple
 
 import numpy as np
 
-from ...contrib.util import tempdir
-from ...contrib.rpc.tracker import Tracker
-from ...contrib.rpc.server import Server
 from ... import build, nd, target as _target
+from ...contrib.util import tempdir
+from ...rpc.tracker import Tracker
+from ...rpc.server import Server
 
 from ..util import get_const_tuple
 from .local_executor import LocalExecutor

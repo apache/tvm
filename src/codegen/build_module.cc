@@ -195,11 +195,7 @@ Target Target::create(const std::string& target_str) {
     options.push_back(item);
   }
 
-  if (device_name == "rasp") {
-    return target::rasp(options);
-  } else {
-    return CreateTarget(target_name, options);
-  }
+  return CreateTarget(target_name, options);
 }
 
 /*! \brief Entry to hold the Target context stack. */
