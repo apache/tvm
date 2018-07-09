@@ -42,10 +42,12 @@ def timeout_monitor(queue, timeout, func, args, kwargs):
     p.start()
     p.join(timeout=timeout)
 
-    if p.is_alive():
-        kill_child_processes(p.pid)
-        p.terminate()
-        p.join()
+    alive = p.is_alive()
+    kill_child_processes(p.pid)
+    p.terminate()
+    p.join()
+
+    if alive:
         queue.put(executor.TimeoutError())
     else:
         if queue.empty():

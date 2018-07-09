@@ -34,6 +34,17 @@ class FeatureCache(object):
         return self.feature_cache[key]
 
     def size(self, key):
+        """" Get the size of a feature cache dictionary
+
+        Parameters
+        ----------
+        key: str
+            The key of a feature type
+
+        Returns
+        -------
+        n: int
+        """
         return len(self.feature_cache.get(key, tuple()))
 
     def clear(self, key):
@@ -51,8 +62,6 @@ class FeatureCache(object):
 
 class CostModel(object):
     """Cost model to predict the speed of a config"""
-    feature_cache = FeatureCache()  # single global instance
-
     def __init__(self):
         pass
 
@@ -101,7 +110,7 @@ class CostModel(object):
         raise NotImplementedError()
 
     def load_basemodel(self, base_model):
-        """Load baes model for transfer learning
+        """Load base model for transfer learning
 
         Parameters
         ----------
@@ -112,9 +121,9 @@ class CostModel(object):
 
     def clone_new(self):
         """Clone a new model with the same parameters.
-        This function can only copy hyperparameters of the tuner, not all the trained model
+        This function will only copy hyperparameters of the tuner, not all the trained model
 
-        This is used for derive a base model conveniently
+        This is used for deriving a base model conveniently
 
         Returns
         -------
@@ -271,7 +280,7 @@ class ModelBasedTuner(Tuner):
 
 
 def point2knob(p, dims):
-    """convert point form (single integer) to knob form (multi-dimensional)"""
+    """convert point form (single integer) to knob form (vector)"""
     knob = []
     for dim in dims:
         knob.append(p % dim)
@@ -280,7 +289,7 @@ def point2knob(p, dims):
 
 
 def knob2point(knob, dims):
-    """convert knob form (multi-dimensional) to point form (single integer)"""
+    """convert knob form (vector) to point form (single integer)"""
     p = 0
     for j, k in enumerate(knob):
         p += int(np.prod(dims[:j])) * k

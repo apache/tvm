@@ -107,7 +107,7 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type " + feature_type)
 
-        self.shared_feature_cache = FeatureCache()
+        self.feature_cache = FeatureCache()
         self.feature_extra_ct = 0
         self.pool = None
         self.base_model = None
@@ -157,7 +157,7 @@ class XGBoostCostModel(CostModel):
         logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
                      time.time() - tic, len(xs),
                      len(xs) - np.sum(valid_index),
-                     CostModel.feature_cache.size(self.fea_type))
+                     self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
@@ -217,10 +217,10 @@ class XGBoostCostModel(CostModel):
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
         # free feature cache
-        if CostModel.feature_cache.size(self.fea_type) >= 10000:
-            CostModel.feature_cache.clear(self.fea_type)
+        if self.feature_cache.size(self.fea_type) >= 100000:
+            self.feature_cache.clear(self.fea_type)
 
-        fea_cache = CostModel.feature_cache.get(self.fea_type)
+        fea_cache = self.feature_cache.get(self.fea_type)
 
         indexes = np.array(indexes)
         need_extract = [x for x in indexes if x not in fea_cache]

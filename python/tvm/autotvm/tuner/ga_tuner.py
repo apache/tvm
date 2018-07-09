@@ -34,7 +34,6 @@ class GATuner(Tuner):
 
         # space info
         self.space = task.config_space
-        self.n_subspace = len(task.config_space.space_map)
         self.dims = [len(x) for x in self.space.space_map.values()]
 
         self.visited = set([])
@@ -92,20 +91,20 @@ class GATuner(Tuner):
             for _ in range(self.pop_size):
                 p1, p2 = np.random.choice(indices, size=2, replace=False, p=probs)
                 p1, p2 = genes[p1], genes[p2]
-                point = np.random.randint(self.n_subspace)
+                point = np.random.randint(len(self.dims))
                 tmp_gene = p1[:point] + p2[point:]
                 tmp_genes.append(tmp_gene)
 
             # mutation
             next_genes = []
             for tmp_gene in tmp_genes:
-                for j in range(self.n_subspace):
+                for j, dim in enumerate(self.dims):
                     if np.random.random() < self.mutation_prob:
-                        tmp_gene[j] = np.random.randint(self.dims[j])
+                        tmp_gene[j] = np.random.randint(dim)
 
                 if len(self.visited) < len(self.space):
                     while knob2point(tmp_gene, self.dims) in self.visited:
-                        j = np.random.randint(self.n_subspace)
+                        j = np.random.randint(len(self.dims))
                         tmp_gene[j] = np.random.randint(self.dims[j])
                     next_genes.append(tmp_gene)
                     self.visited.add(knob2point(tmp_gene, self.dims))
