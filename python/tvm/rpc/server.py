@@ -36,11 +36,11 @@ def _server_env(load_library, logger):
         logger = logging.getLogger()
 
     # pylint: disable=unused-variable
-    @register_func("tvm.contrib.rpc.server.workpath")
+    @register_func("tvm.rpc.server.workpath")
     def get_workpath(path):
         return temp.relpath(path)
 
-    @register_func("tvm.contrib.rpc.server.load_module", override=True)
+    @register_func("tvm.rpc.server.load_module", override=True)
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)

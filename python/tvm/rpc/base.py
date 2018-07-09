@@ -158,5 +158,5 @@ def connect_with_retry(addr, timeout=60, retry_period=5, silent=False):
             time.sleep(retry_period)
 
 
-# Still use tvm.contrib.rpc for the foreign functions
-_init_api("tvm.contrib.rpc", "tvm.rpc.base")
+# Still use tvm.rpc for the foreign functions
+_init_api("tvm.rpc", "tvm.rpc.base")
