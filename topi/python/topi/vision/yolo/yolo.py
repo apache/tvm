@@ -1,16 +1,16 @@
 # pylint: disable=invalid-name, unused-variable
 """
-REGION Operator
-====================
-Region operator, used in darknet.
+YOLO Operator
+=============
+YOLO operator, used in darknet.
 """
 from __future__ import absolute_import as _abs
 import tvm
 from ... import cpp
 
 @tvm.target.generic_func
-def region(data, num, classes, coords, background, softmax=True):
-    """Region forward operators.
+def yolo(data, num, classes):
+    """YOLO forward operators.
     Parameters
     ----------
     data : tvm.Tensor
@@ -22,18 +22,9 @@ def region(data, num, classes, coords, background, softmax=True):
     classes : int
         Darknet layer parameter classes
 
-    coords : int
-        Darknet layer parameter coords
-
-    background : int
-        Darknet layer parameter background
-
-    softmax : boolean
-        Darknet layer parameter softmax
-
     Returns
     -------
     out : tvm.Tensor
         4-D with shape [batch, c_in, h_in, w_in]
     """
-    return cpp.yolo2.region(data, num, classes, coords, background, softmax)
+    return cpp.yolo.yolo(data, num, classes)

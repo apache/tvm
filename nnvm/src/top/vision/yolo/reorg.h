@@ -2,8 +2,8 @@
  *  Copyright (c) 2018 by Contributors
  * \file reorg.h
  */
-#ifndef NNVM_TOP_VISION_YOLO2_REORG_H_
-#define NNVM_TOP_VISION_YOLO2_REORG_H_
+#ifndef NNVM_TOP_VISION_YOLO_REORG_H_
+#define NNVM_TOP_VISION_YOLO_REORG_H_
 
 #include <string>
 #include <vector>
@@ -107,4 +107,4 @@ struct ReorgParam : public dmlc::Parameter<ReorgParam> {
 };
 }  // namespace top
 }  // namespace nnvm
-#endif  // NNVM_TOP_VISION_YOLO2_REORG_H_
+#endif  // NNVM_TOP_VISION_YOLO_REORG_H_

@@ -276,14 +276,14 @@ def _darknet_route(inputs, attrs):
 
 def _darknet_reorg(inputs, attrs):
     """Process the reorg operation."""
-    op_name, new_attrs = 'yolo2_reorg', {}
+    op_name, new_attrs = 'yolo_reorg', {}
     if 'stride' in attrs:
         new_attrs = {'stride': attrs.get('stride', 1)}
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_region(inputs, attrs):
     """Process the region operation."""
-    op_name, new_attrs = 'yolo2_region', {}
+    op_name, new_attrs = 'yolo_region', {}
     if 'n' in attrs:
         new_attrs['n'] = attrs.get('n', 1)
     if 'classes' in attrs:
