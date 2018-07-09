@@ -1,5 +1,5 @@
 tvm.rpc
----------------
+-------
 .. automodule:: tvm.rpc
 
 .. autofunction:: tvm.rpc.connect
