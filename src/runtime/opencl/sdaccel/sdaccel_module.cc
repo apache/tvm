@@ -20,11 +20,11 @@ class SDAccelModuleNode : public OpenCLModuleNode {
                              std::unordered_map<std::string, FunctionInfo> fmap,
                              std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
-  std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace() final;
+  const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
   const char* type_key() const final;
 };
 
-std::shared_ptr<cl::OpenCLWorkspace> SDAccelModuleNode::GetGlobalWorkspace() {
+const std::shared_ptr<cl::OpenCLWorkspace>& SDAccelModuleNode::GetGlobalWorkspace() {
   return cl::SDAccelWorkspace::Global();
 }
 

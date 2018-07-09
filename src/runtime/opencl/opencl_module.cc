@@ -96,7 +96,7 @@ OpenCLModuleNode::~OpenCLModuleNode() {
   }
 }
 
-std::shared_ptr<cl::OpenCLWorkspace> OpenCLModuleNode::GetGlobalWorkspace() {
+const std::shared_ptr<cl::OpenCLWorkspace>& OpenCLModuleNode::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 

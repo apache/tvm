@@ -238,7 +238,7 @@ class OpenCLModuleNode : public ModuleNode {
   /*!
    * \brief Get the global workspace
    */
-  virtual std::shared_ptr<cl::OpenCLWorkspace> GetGlobalWorkspace();
+  virtual const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace();
 
   virtual const char* type_key() const;
 

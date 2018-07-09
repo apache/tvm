@@ -22,7 +22,7 @@ class SDAccelWorkspace final : public OpenCLWorkspace {
   bool IsOpenCLDevice(TVMContext ctx) final;
   OpenCLThreadEntry* GetThreadEntry() final;
   // get the global workspace
-  static const std::shared_ptr<SDAccelWorkspace>& Global();
+  static const std::shared_ptr<OpenCLWorkspace>& Global();
 };
 
 

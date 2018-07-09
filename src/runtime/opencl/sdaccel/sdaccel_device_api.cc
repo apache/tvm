@@ -17,8 +17,8 @@ OpenCLThreadEntry* SDAccelWorkspace::GetThreadEntry() {
   return SDAccelThreadEntry::ThreadLocal();
 }
 
-const std::shared_ptr<SDAccelWorkspace>& SDAccelWorkspace::Global() {
-  static std::shared_ptr<SDAccelWorkspace> inst = std::make_shared<SDAccelWorkspace>();
+const std::shared_ptr<OpenCLWorkspace>& SDAccelWorkspace::Global() {
+  static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<SDAccelWorkspace>();
   return inst;
 }
 
