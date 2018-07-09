@@ -2,7 +2,8 @@
 import tvm
 import os
 import struct
-from tvm.contrib import util, cc, rpc
+from tvm import rpc
+from tvm.contrib import util, cc
 import numpy as np
 
 def test_llvm_add_pipeline():

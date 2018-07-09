@@ -20,7 +20,7 @@ void Module::Import(Module other) {
   if (!std::strcmp((*this)->type_key(), "rpc")) {
     static const PackedFunc* fimport_ = nullptr;
     if (fimport_ == nullptr) {
-      fimport_ = runtime::Registry::Get("contrib.rpc._ImportRemoteModule");
+      fimport_ = runtime::Registry::Get("rpc._ImportRemoteModule");
       CHECK(fimport_ != nullptr);
     }
     (*fimport_)(*this, other);
