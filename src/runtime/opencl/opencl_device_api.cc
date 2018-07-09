@@ -230,8 +230,7 @@ bool MatchPlatformInfo(
   return param_value.find(value) != std::string::npos;
 }
 
-void OpenCLWorkspace::Init(const std::vector<std::string>& device_types,
-                           const std::string& platform_name) {
+void OpenCLWorkspace::Init(const std::string& device_type, const std::string& platform_name) {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
@@ -248,19 +247,17 @@ void OpenCLWorkspace::Init(const std::vector<std::string>& device_types,
     if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
       continue;
     }
-    for (auto device_type : device_types) {
-      std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
-      if (devices_matched.size() > 0) {
-        this->platform_id = platform_id;
-        this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
-        this->device_type = device_type;
-        this->devices = devices_matched;
-        LOG(INFO) << "Initialize OpenCL platform \'" << this->platform_name << '\'';
-        break;
-      }
-      LOG(INFO) << "\'" << cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME)
-                << "\' platform has no OpenCL device: " << device_type << " mode";
+    std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
+    if (devices_matched.size() > 0) {
+      this->platform_id = platform_id;
+      this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
+      this->device_type = device_type;
+      this->devices = devices_matched;
+      LOG(INFO) << "Initialize OpenCL platform \'" << this->platform_name << '\'';
+      break;
     }
+    LOG(INFO) << "\'" << cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME)
+              << "\' platform has no OpenCL device: " << device_type << " mode";
   }
   if (this->platform_id == nullptr) {
     LOG(WARNING) << "No OpenCL device";
