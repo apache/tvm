@@ -1,6 +1,6 @@
 # Minimum docker image for demo purposes
-# prebuilt-image: tvmai/demo-cpu
-FROM ubuntu:16.04
+# prebuilt-image: tvmai/demo-gpu
+FROM nvidia/cuda:8.0-cudnn7-devel
 
 RUN apt-get update --fix-missing
 
@@ -24,8 +24,11 @@ RUN pip3 install matplotlib Image Pillow jupyter[notebook]
 RUN pip3 install mxnet tensorflow keras
 
 # Build TVM
-COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh
-RUN bash /install/install_tvm_cpu.sh
+COPY install/install_tvm_gpu.sh /install/install_tvm_gpu.sh
+RUN bash /install/install_tvm_gpu.sh
 
 # Environment variables
 ENV PYTHONPATH=/usr/tvm/python:/usr/tvm/topi/python:/usr/tvm/nnvm/python/:/usr/tvm/vta/python:${PYTHONPATH}
+ENV PATH=/usr/local/nvidia/bin:${PATH}
+ENV PATH=/usr/local/cuda/bin:${PATH}
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:/usr/local/nvidia/lib64:${LD_LIBRARY_PATH}
