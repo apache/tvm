@@ -98,9 +98,7 @@ spirv::Value CodeGenSPIRV::CreateStorageSync(const Call* op) {
       builder_->IntImm(type_int, static_cast<int64_t>(spv::ScopeWorkgroup)),
       builder_->IntImm(type_int, static_cast<int64_t>(
         spv::MemorySemanticsSequentiallyConsistentMask |
-        spv::MemorySemanticsWorkgroupMemoryMask
-        ))
-    );
+        spv::MemorySemanticsWorkgroupMemoryMask)));
   } else {
     LOG(FATAL) << "Do not support sync " << sync;
   }
