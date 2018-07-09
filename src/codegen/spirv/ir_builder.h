@@ -485,15 +485,18 @@ class IRBuilder {
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
   /*!
-   * \brief Declare a kernel function
-   * \param name Name of the entry point.
-   * \param uses_workgroup_id Whether the function will use the workgroup id
-   * \param uses_local_id Whether the function will use the local invocation id
+   * \brief Declare a new function
    * \return The created function ID.
    */
-  Value DeclareKernelFunction(const std::string& name,
-                              bool uses_workgroup_id = false,
-                              bool uses_local_id = false);
+  Value NewFunction();
+  /*!
+   * \brief Declare the entry point for a kernel function. This should be
+   * invoked after building the function so the builder is aware of which
+   * variables to declare as part of the function's interface.
+   * \param func_id The id of the previously declared function.
+   * \param name Name of the entry point.
+   */
+  void CommitKernelFunction(const Value& func_id, const std::string& name);
   /*!
    * \brief Start function scope.
    * \param func function to be started.

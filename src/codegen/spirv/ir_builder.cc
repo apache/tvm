@@ -222,27 +222,27 @@ Value IRBuilder::GetPushConstant(
   return this->MakeValue(spv::OpLoad, v_type, ptr);
 }
 
-Value IRBuilder::DeclareKernelFunction(const std::string& name,
-                                       bool uses_workgroup_id,
-                                       bool uses_local_id) {
-  if (uses_workgroup_id) {
-    GetWorkgroupID(0);  // Ensure workgroup_id_ is valid
-  }
-  if (uses_local_id) {
-    GetLocalID(0);  // Ensure local_id_ is valid
-  }
+Value IRBuilder::NewFunction() {
+  return NewValue(t_void_func_, kFunction);
+}
 
-  Value val = NewValue(t_void_func_, kFunction);
+void IRBuilder::CommitKernelFunction(const Value& func_id, const std::string& name) {
+  //if (uses_workgroup_id) {
+  //  GetWorkgroupID(0);  // Ensure workgroup_id_ is valid
+  //}
+  //if (uses_local_id) {
+  //  GetLocalID(0);  // Ensure local_id_ is valid
+  //}
+
   ib_.Begin(spv::OpEntryPoint)
-    .AddSeq(spv::ExecutionModelGLCompute, val, name);
-  if (uses_workgroup_id) {
+    .AddSeq(spv::ExecutionModelGLCompute, func_id, name);
+  if (workgroup_id_.id != 0) {
     ib_.Add(workgroup_id_);
   }
-  if (uses_local_id) {
+  if (local_id_.id != 0) {
     ib_.Add(local_id_);
   }
   ib_.Commit(&entry_);
-  return val;
 }
 
 void IRBuilder::StartFunction(const Value& func) {
