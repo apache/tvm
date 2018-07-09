@@ -64,6 +64,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.ceil")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.trunc")
 .set_body(DispatchExtern<CUDAMath>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fabs")
+.set_body(DispatchExtern<CUDAMath>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.round")
 .set_body(DispatchExtern<CUDAMath>);
 

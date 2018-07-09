@@ -59,6 +59,7 @@ TVM_DECLARE_INTRIN_UNARY(floor);
 TVM_DECLARE_INTRIN_UNARY(ceil);
 TVM_DECLARE_INTRIN_UNARY(round);
 TVM_DECLARE_INTRIN_UNARY(trunc);
+TVM_DECLARE_INTRIN_UNARY(fabs);
 
 /*!
  * \brief Calculate power(x, y)

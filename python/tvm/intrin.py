@@ -285,6 +285,22 @@ def trunc(x):
     return call_pure_intrin(x.dtype, "trunc", x)
 
 
+def absolute(x):
+    """Get absolute value of the input element-wise.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+
+    Returns
+    -------
+    y : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "fabs", x)
+
+
 def round(x):
     """Round elements of the array to the nearest integer.
 

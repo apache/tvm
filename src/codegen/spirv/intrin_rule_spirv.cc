@@ -41,6 +41,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.trunc")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Trunc>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.fabs")
+.set_body(DispatchGLSLPureIntrin<GLSLstd450FAbs>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.vulkan.exp")
 .set_body(DispatchGLSLPureIntrin<GLSLstd450Exp>);
 

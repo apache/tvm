@@ -38,6 +38,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.trunc")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.fabs")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.rocm.exp")
 .set_body(DispatchExternOCML);
 
