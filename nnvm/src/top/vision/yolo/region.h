@@ -2,8 +2,8 @@
  *  Copyright (c) 2018 by Contributors
  * \file region.h
  */
-#ifndef NNVM_TOP_VISION_YOLO2_REGION_H_
-#define NNVM_TOP_VISION_YOLO2_REGION_H_
+#ifndef NNVM_TOP_VISION_YOLO_REGION_H_
+#define NNVM_TOP_VISION_YOLO_REGION_H_
 
 #include <string>
 #include <vector>
@@ -98,4 +98,4 @@ inline bool RegionType(const NodeAttrs &attrs,
 }
 }  // namespace top
 }  // namespace nnvm
-#endif  // NNVM_TOP_VISION_YOLO2_REGION_H_
+#endif  // NNVM_TOP_VISION_YOLO_REGION_H_

@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief Region op constructions
- * \file vision/yolo2/region.h
+ * \file vision/yolo/region.h
  */
-#ifndef TOPI_VISION_YOLO2_REGION_H_
-#define TOPI_VISION_YOLO2_REGION_H_
+#ifndef TOPI_VISION_YOLO_REGION_H_
+#define TOPI_VISION_YOLO_REGION_H_
 
 #include <algorithm>
 #include <string>
@@ -19,7 +19,7 @@
 
 namespace topi {
 namespace vision {
-namespace yolo2 {
+namespace yolo {
 using namespace tvm;
 using namespace nn;
 
@@ -75,7 +75,7 @@ inline Tensor region(const Tensor &data,
   Tensor out = concatenate(split_res, 2);
   return reshape(out, input_shape);
 }
-}  // namespace yolo2
+}  // namespace yolo
 }  // namespace vision
 }  // namespace topi
-#endif  // TOPI_VISION_YOLO2_REGION_H_
+#endif  // TOPI_VISION_YOLO_REGION_H_

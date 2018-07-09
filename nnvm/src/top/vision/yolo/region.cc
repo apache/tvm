@@ -13,7 +13,7 @@
 namespace nnvm {
 namespace top {
 
-NNVM_REGISTER_OP(yolo2_region)
+NNVM_REGISTER_OP(yolo_region)
 .describe(R"code(Region layer
 )code" NNVM_ADD_FILELINE)
 .set_num_inputs(1)
