@@ -169,6 +169,20 @@ def test_forward_dense():
     test_forward(net)
     LIB.free_network(net)
 
+def test_forward_dense_batchnorm():
+    '''test fully connected layer with batchnorm'''
+    net = LIB.make_network(1)
+    layer = LIB.make_connected_layer(1, 12, 2, 1, 1, 0)
+    for i in range(5):
+        layer.rolling_mean[i] = np.random.rand(1)
+        layer.rolling_variance[i] = np.random.rand(1)
+        layer.scales[i] = np.random.rand(1)
+    net.layers[0] = layer
+    net.w = net.h = 2
+    LIB.resize_network(net, 2, 2)
+    test_forward(net)
+    LIB.free_network(net)
+
 def test_forward_maxpooling():
     '''test maxpooling layer'''
     net = LIB.make_network(1)
@@ -264,6 +278,7 @@ if __name__ == '__main__':
     test_forward_batch_norm()
     test_forward_shortcut()
     test_forward_dense()
+    test_forward_dense_batchnorm()
     test_forward_reorg()
     test_forward_region()
     test_forward_elu()
