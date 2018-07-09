@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # This script is a wrapper creating the same user inside container as the one
-# running the ci_build.sh outside the container. It also set the home directory
+# running the docker/build.sh outside the container. It also set the home directory
 # for the user inside container to match the same absolute path as the workspace
 # outside of container.  Do not run this manually. It does not make sense. It is
 # intended to be called by ci_build.sh only.
@@ -30,5 +30,6 @@ HOME=${CI_BUILD_HOME}\
     sudo -u "#${CI_BUILD_UID}" --preserve-env\
     PATH=${PATH}\
     LD_LIBRARY_PATH=${LD_LIBRARY_PATH}\
+    PYTHONPATH=${PYTHONPATH}\
     HOME=${CI_BUILD_HOME}\
     ${COMMAND[@]}

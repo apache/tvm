@@ -1,4 +1,5 @@
 # For lint test
+# CI docker lint env
 FROM ubuntu:16.04
 
 RUN apt-get update && apt-get install -y sudo wget
