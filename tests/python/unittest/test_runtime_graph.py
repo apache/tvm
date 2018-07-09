@@ -1,7 +1,8 @@
 import tvm
 import numpy as np
 import json
-from tvm.contrib import rpc, util, graph_runtime
+from tvm import rpc
+from tvm.contrib import util, graph_runtime
 
 def test_graph_simple():
     n = 4

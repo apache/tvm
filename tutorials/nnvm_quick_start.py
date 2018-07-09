@@ -133,7 +133,7 @@ print(out.asnumpy()[0][0:10])
 # `llvm -target=armv7l-none-linux-gnueabihf -mcpu=cortex-a53 -mattr=+neon`
 # is the recommended compilation configuration, thanks to Ziheng's work.
 
-from tvm.contrib import rpc
+from tvm import rpc
 
 use_rasp = False
 host = 'rasp0'

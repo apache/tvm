@@ -6,7 +6,7 @@ import logging
 import argparse
 import multiprocessing
 import sys
-from ..contrib.rpc.tracker import Tracker
+from ..rpc.tracker import Tracker
 
 
 def main(args):

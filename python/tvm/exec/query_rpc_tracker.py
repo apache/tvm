@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import logging
 import argparse
 import os
-from ..contrib import rpc
+from .. import rpc
 
 def main():
     """Main funciton"""

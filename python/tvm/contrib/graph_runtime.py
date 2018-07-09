@@ -1,7 +1,7 @@
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
-from .rpc import base as rpc_base
+from ..rpc import base as rpc_base
 from .. import ndarray as nd
 
 

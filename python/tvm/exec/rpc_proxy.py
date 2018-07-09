@@ -7,7 +7,7 @@ import argparse
 import multiprocessing
 import sys
 import os
-from ..contrib.rpc.proxy import Proxy
+from ..rpc.proxy import Proxy
 
 
 def find_example_resource():

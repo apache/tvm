@@ -28,7 +28,7 @@ except ImportError as error_msg:
 from . import base
 from .base import TrackerCode
 from .server import _server_env
-from ..._ffi.base import py_str
+from .._ffi.base import py_str
 
 
 class ForwardHandler(object):
