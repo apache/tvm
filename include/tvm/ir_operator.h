@@ -42,11 +42,13 @@ TVM_DLL Expr max(Expr source, Array<IterVar> axis);
  */
 TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 
+
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
     return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureIntrinsic); \
   }                                                                     \
+
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(tanh);
@@ -58,7 +60,14 @@ TVM_DECLARE_INTRIN_UNARY(ceil);
 TVM_DECLARE_INTRIN_UNARY(round);
 TVM_DECLARE_INTRIN_UNARY(trunc);
 
+/*!
+ * \brief Calculate power(x, y)
+ * \param x The left operand.
+ * \param y The right operand.
+ */
 inline Expr pow(Expr x, Expr y) {
+  match_types(x, y);
+  CHECK(x.type().is_float()) << "power only applies to float";
   return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);
 }
 
