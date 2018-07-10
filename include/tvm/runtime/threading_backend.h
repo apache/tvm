@@ -52,7 +52,7 @@ class ThreadGroup {
     * \param it Optional pointer to an affinity order of CPU ids to bind threads
     * to.
     */
-  void SetAffinity(bool exclude_worker0, std::vector<unsigned int> *order = NULL, bool reverse = false);
+  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL, bool reverse = false);
 
  private:
   Impl* impl_;
@@ -77,7 +77,7 @@ int MaxConcurrency();
  *
  * \return the number of workers to use
  */
-unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> &sorted_order);
+unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> *sorted_order);
 
 }  // namespace threading
 }  // namespace runtime

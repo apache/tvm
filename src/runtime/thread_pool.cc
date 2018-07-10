@@ -346,7 +346,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool")
     int mode = args[1];
     int nthreads = args[2];
     std::vector<unsigned int> sorted_order;
-    unsigned int num_workers_used = threading::configThreadGroup(mode, nthreads, sorted_order);
+    unsigned int num_workers_used = threading::configThreadGroup(mode, nthreads, &sorted_order);
     bool reverse = mode == -1;
     if (num_workers_used <= sorted_order.size()) {
       ThreadPool::ThreadLocal()->updateWorkerConfig(num_workers_used, exclude_worker0,

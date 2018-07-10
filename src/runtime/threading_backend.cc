@@ -49,7 +49,8 @@ class ThreadGroup::Impl {
   // bind worker threads to disjoint cores
   // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
   // the master thread is bound to core 0.
-  void SetAffinity(bool exclude_worker0, std::vector<unsigned int> *order = NULL, bool reverse = false) {
+  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL,
+                   bool reverse = false) {
 #if defined(__ANDROID__)
 #ifndef CPU_SET
 #define CPU_SETSIZE 1024
@@ -120,7 +121,7 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
-void ThreadGroup::SetAffinity(bool exclude_worker0, std::vector<unsigned int> *order,
+void ThreadGroup::SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order,
                               bool reverse) {
   impl_->SetAffinity(exclude_worker0, order, reverse);
 }
@@ -147,7 +148,7 @@ int MaxConcurrency() {
 }
 
 
-unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> &sorted_order) {
+unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> *sorted_order) {
   unsigned int threads = std::thread::hardware_concurrency();
   std::vector<std::pair <unsigned int, int64_t>> max_freqs;
   int preferred_num = 0;
@@ -183,7 +184,7 @@ unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int>
       preferred_freq = max_freqs.rend()->second;
     }
     for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
-      sorted_order.push_back(it->first);
+      sorted_order->push_back(it->first);
       if (preferred_freq == it->second) {
         preferred_num++;
       }
