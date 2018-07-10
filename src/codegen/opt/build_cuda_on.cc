@@ -29,8 +29,8 @@ namespace codegen {
   }
 
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
-  const int PARAM_NUM = 2;
-  char *compileParams[PARAM_NUM];
+  char *compileParams[2];
+  int numCompileOptions = 0;
   nvrtcProgram prog;
   cudaDeviceProp deviceProp;
   std::string cc = "30";
@@ -43,8 +43,13 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
                  << "fall back to compute_30.";
   }
 
+  std::string archOption = "-arch=compute_" + cc;
+  compileParams[numCompileOptions] = reinterpret_cast<char *>(malloc(sizeof(char) *
+                                                                     (archOption.length() + 1)));
+  snprintf(compileParams[numCompileOptions], archOption.length() + 1, "%s", archOption.c_str());
+  numCompileOptions++;
+
   if (include_path) {
-    std::string archOption = "-arch=compute_" + cc;
     std::string includeOption = "--include-path=";
     const char* cudaHomePath = std::getenv("CUDA_HOME");
 
@@ -56,17 +61,17 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
           << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
     }
 
-    compileParams[0] = reinterpret_cast<char *>(malloc(sizeof(char) *
+    compileParams[numCompileOptions] = reinterpret_cast<char *>(malloc(sizeof(char) *
                                                        (includeOption.length() + 1)));
-    compileParams[1] = reinterpret_cast<char *>(malloc(sizeof(char) *
-                                                       (archOption.length() + 1)));
-    snprintf(compileParams[0], includeOption.length() + 1, "%s", includeOption.c_str());
-    snprintf(compileParams[1], archOption.length() + 1, "%s", archOption.c_str());
+    snprintf(compileParams[numCompileOptions], includeOption.length() + 1, "%s",
+             includeOption.c_str());
+    numCompileOptions++;
   }
 
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, PARAM_NUM, compileParams);
+  nvrtcResult compile_res = nvrtcCompileProgram(prog, numCompileOptions, compileParams);
+
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
   std::string log; log.resize(log_size);
@@ -81,7 +86,7 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
 
   if (include_path) {
-    for (int i = 0; i < PARAM_NUM; i++) {
+    for (int i = 0; i < numCompileOptions; i++) {
       free(compileParams[i]);
     }
   }
