@@ -483,8 +483,7 @@ def _gather_v2():
     return _impl
 
 def _infer_out_shapes(inputs, params):
-    """A hack for getting output shape of a node.
-    """
+    """A method to get the output shape of an intermediate node in the NNVM graph."""
     g = _graph.create(inputs)
     shape_dict = {k: v.shape for k, v in params.items()}
     _, out_shapes = graph_util.infer_shape(g, **shape_dict)
@@ -506,7 +505,7 @@ def _stridedSlice():
         pop_node = inputs.pop(1)
         params.pop(pop_node.list_output_names()[0])
 
-        inputs_0_shape = _infer_out_shapes(inputs[0], params)
+        inputs_0_shape = attr['_input_shapes'][inputs[0]]
         input_dim = len(inputs_0_shape[0])
         stride_dim = len(stride_input)
         def expand_axis(list_ids, size):
@@ -534,10 +533,8 @@ def _stridedSlice():
         for i in range(stride_dim):
             if ellipsis_seen and ((1 << i) & new_axis_mask_inp) != 0:
                 num_add_axis_after_ellipsis = num_add_axis_after_ellipsis + 1
-
             if ((1 << i) & ellipsis_mask_inp) != 0:
                 ellipsis_seen = True
-
         if not ellipsis_seen:
             ellipsis_mask_inp |= (1 << stride_dim)
             stride_dim = stride_dim + 1
@@ -554,7 +551,6 @@ def _stridedSlice():
                         end[full_index] = inputs_0_shape[0][full_index]
                         stride[full_index] = 1
                         final_shape_gather_indices.append(full_index)
-
                 elif (1 << i) & new_axis_mask_inp:
                     final_shape_gather_indices.append(kNewAxis)
                 else:
@@ -572,7 +568,6 @@ def _stridedSlice():
                             if stride_input[i] < 0 else inputs_0_shape[0][full_index]
                     elif end_input:
                         end[full_index] = end_input[i]
-
                     stride[full_index] = stride_input[i]
 
                     if shrink_axis_mask_inp & (1 << i):
@@ -584,7 +579,6 @@ def _stridedSlice():
                         stride[full_index] = 1
                     else:
                         final_shape_gather_indices.append(full_index)
-
                     full_index = full_index + 1
 
         transform_ellipsis()
@@ -604,24 +598,8 @@ def _stridedSlice():
 def _LSTMBlockCell():
     def _impl(inputs, in_state_c, in_state_h, attr, params):
         """LSTM Block cell.
-
-        ixh = [x, h_prev]
-        [i, ci, f, o] = xh * w + b
-        f = f + forget_bias
-
-        if not use_peephole:
-        wci = wcf = wco = 0
-
-        i = sigmoid(cs_prev * wci + i)
-        f = sigmoid(cs_prev * wcf + f)
-        ci = tanh(ci)
-
-        cs = ci .* i + cs_prev .* f
-        cs = clip(cs, cell_clip)
-
-        o = sigmoid(cs * wco + o)
-        co = tanh(cs)
-        h = co .* o
+        Calculations are described in: https://github.com/tensorflow/tensorflow/blob/
+        r1.8/tensorflow/contrib/rnn/python/ops/lstm_ops.py#L41-L114
 
         Parameters
         ----------
@@ -726,14 +704,9 @@ _convert_map_rnn = {
 class RecurrentNetworks(object):
     """Recurrent network layer handlers.
 
-    Unlike normal operators, recurrent network operators have layer concept.
-    Same operators will be called multiple times (based on number of layers)
-    with previous layer output as input. Some recurrent operations can have
-    multiple inputs (eg: LSTM have input as previous layer output and state inputs).
-
-    To handle the Layer concepts, a wrapper over the operator has to make.
-    This wrapper will identify the proper input for each layer and manage the
-    outputs.
+    Unlike normal operators, stacked rnn have cells and layer concepts.
+    Each Layer represent a cell in RNN stack. Cells in the same RNN stack
+    sequentialy process input data.
 
     Parameters
     ----------

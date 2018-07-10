@@ -10,12 +10,14 @@ import nnvm.compiler
 import tvm
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
+from tensorflow.python.ops import init_ops
 from tensorflow.core.framework import graph_pb2
 
 import nnvm.testing.tf
@@ -55,8 +57,15 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype)
     # execute
     m.run()
     # get outputs
-    tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
-    return tvm_output.asnumpy()
+    if isinstance(output_shape, list) and isinstance(output_dtype, list):
+        tvm_output_list = []
+        for i, s in enumerate(output_shape):
+            tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
+            tvm_output_list.append(tvm_output.asnumpy())
+        return tvm_output_list
+    else:
+        tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
+        return tvm_output.asnumpy()
 
 def run_tf_graph(sess, input_data, input_node, output_node):
     """ Generic function to execute tensorflow """
@@ -741,6 +750,120 @@ def test_forward_mobilenet():
             np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# PTB
+# ---
+def test_forward_ptb():
+    '''test ptb model'''
+    config = nnvm.testing.tf.get_config()
+    num_steps = config.num_steps
+    num_hidden = config.hidden_size
+    num_layers = config.num_layers
+    batch_size = config.batch_size
+    vocab_size = config.vocab_size
+    out_sample_shape = (batch_size, vocab_size)
+    out_state_shape = (num_layers, 2, batch_size, num_hidden)
+    #Sample input
+    inpt = "we have no useful information on"
+    cnt_sample = 20
+
+    def _pretty_print(items, is_char_model, id2word):
+        if not is_char_model:
+            return ' '.join([id2word[x] for x in items])
+        else:
+            return ''.join([id2word[x] for x in items]).replace('_', ' ')
+
+    def _get_tvm_graph_module(graph_def):
+        sym, params = nnvm.frontend.from_tensorflow(graph_def)
+
+        shape_dict = {'Model/Placeholder': (batch_size, num_steps),
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':(num_layers, batch_size, num_hidden),
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':(num_layers, batch_size, num_hidden)}
+        dtype_dict = {'Model/Placeholder': 'int32',
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':'float32',
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
+        target = 'llvm'
+        graph, lib, params = nnvm.compiler.build(sym, target, shape_dict,
+                                                 dtype=dtype_dict, params=params)
+        from tvm.contrib import graph_runtime
+        ctx = tvm.cpu(0)
+        return params, graph_runtime.create(graph, lib, ctx)
+
+    def _do_tvm_sample(model, data, in_states, params, num_samples):
+        """Sampled from the model"""
+        samples = []
+        state = in_states
+        sample = None
+        def _get_sample(data, state):
+            input_data = np.full((batch_size, num_steps), data, dtype="int32")
+            in_state_tup = np.split(state, indices_or_sections=2, axis=1)
+            in_state_c = np.reshape(in_state_tup[0], (num_layers, batch_size, num_hidden))
+            in_state_h = np.reshape(in_state_tup[1], (num_layers, batch_size, num_hidden))
+
+            model.set_input('Model/Placeholder', tvm.nd.array(input_data.astype("int32")))
+            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c',
+                        tvm.nd.array(in_state_c.astype("float32")))
+            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h',
+                        tvm.nd.array(in_state_h.astype("float32")))
+            model.set_input(**params)
+            model.run()
+            tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape,
+                                                      "float32")).asnumpy()
+            state_output = model.get_output(1, tvm.nd.empty(out_state_shape,
+                                                        "float32")).asnumpy()
+            sample = nnvm.testing.tf.pick_from_weight(tvm_output[0])
+            return sample, state_output
+
+        for x in data:
+            sample, state = _get_sample(x, state)
+
+        if sample is not None:
+            samples.append(sample)
+        else:
+            samples.append(0)
+
+        k = 1
+        while k < num_samples:
+            sample, state = _get_sample(samples[-1], state)
+            samples.append(sample)
+            k += 1
+        return samples, state
+
+    with tf.Graph().as_default():
+        word_to_id, id_to_word, graph_def = nnvm.testing.tf.get_workload_ptb()
+        vocab_size = len(word_to_id)
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
+        sess = tf.Session()
+    initializer = tf.random_uniform_initializer(config.init_scale,
+                                                config.init_scale)
+    with tf.variable_scope("Model", reuse=None, initializer=initializer):
+        mtest = nnvm.testing.tf.PTBModel(is_training=False, config=config)
+
+    #TVM graph module creation
+    params, m = _get_tvm_graph_module(graph_def)
+
+
+    # Create 10 predicted statments of 20 words
+    cnt_stm = 0
+    while cnt_stm < 10:
+        cnt_stm += 1
+        in_state = np.full((num_layers, 2, batch_size, num_hidden), 0, dtype="float32")
+        seed_for_sample = inpt.split()
+        tvm_samples, tvm_state = _do_tvm_sample(m, [word_to_id[word] \
+                                                    for word in seed_for_sample],
+                                                in_state, params, cnt_sample)
+        tvm_sample_str = _pretty_print(tvm_samples, False, id_to_word)
+        print("TVM Sample: %s" % tvm_sample_str)
+
+        tf_samples, tf_state = nnvm.testing.tf.do_tf_sample(sess,
+                                [word_to_id[word] for word in seed_for_sample],
+                                in_state, cnt_sample)
+        tf_sample_str = _pretty_print(tf_samples, False, id_to_word)
+        print("TF Sample: %s" % tf_sample_str)
+        inpt = tvm_sample_str
+        np.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -760,3 +883,4 @@ if __name__ == '__main__':
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
+    test_forward_ptb()

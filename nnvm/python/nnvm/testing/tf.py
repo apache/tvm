@@ -6,6 +6,8 @@ Some helper definitions for tensorflow models.
 """
 import re
 import os.path
+import collections
+import numpy as np
 
 # Tensorflow imports
 import tensorflow as tf
@@ -134,3 +136,312 @@ def get_workload(model_path):
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
         return graph_def
+
+def get_workload_inception_v3():
+    """ Import Inception V3 workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    (normalized, graph_def) : Tuple
+        normalized is normalized input for graph testing.
+        graph_def is the tensorflow workload for Inception V3.
+    """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
+    model_path = 'InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb'
+
+    image_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, image_name)
+    from mxnet.gluon.utils import download
+    download(image_url, image_name)
+    normalized = read_normalized_tensor_from_image_file(os.path.join("./", image_name))
+
+    return (normalized, get_workload(model_path))
+
+def get_workload_inception_v1():
+    """ Import Inception V1 workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    (image_data, tvm_data, graph_def) : Tuple
+        image_data is raw encoded image data for TF input.
+        tvm_data is the decoded image data for TVM input.
+        graph_def is the tensorflow workload for Inception V1.
+
+    """
+
+    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+    model_path = 'InceptionV1/classify_image_graph_def-with_shapes.pb'
+    image_name = 'elephant-299.jpg'
+    image_url = os.path.join(repo_base, image_name)
+
+    from mxnet.gluon.utils import download
+    download(image_url, image_name)
+
+    if not tf.gfile.Exists(os.path.join("./", image_name)):
+        tf.logging.fatal('File does not exist %s', image)
+    image_data = tf.gfile.FastGFile(os.path.join("./", image_name), 'rb').read()
+
+    # TVM doesn't handle decode, hence decode it.
+    from PIL import Image
+    tvm_data = Image.open(os.path.join("./", image_name)).resize((299, 299))
+    tvm_data = np.array(tvm_data)
+
+    return (image_data, tvm_data, get_workload(model_path))
+
+def get_workload_mobilenet():
+    """ Import mobilenet workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    return get_workload("MobilenetV1/mobilenet_v1_1.0_224_frozen-with-shapes.pb")
+
+
+#######################################################################
+# PTB LSTMBlockCell Model
+# -----------------------
+
+class PTBModel(object):
+    """The PTB model.
+
+    PRB model used for creating the trained model
+
+    The Source code reference is taken from:
+    https://github.com/deeplearningathome/rnn_text_writer/blob/master/ptb_word_lm.py
+
+    Data used for trained in the model is:
+    http://www.fit.vutbr.cz/~imikolov/rnnlm/simple-examples.tgz
+
+    This PRB model implemented LSTM with LSTMBlockCell
+    """
+    def __init__(self, is_training, config):
+        self.batch_size = batch_size = config.batch_size
+        self.num_steps = num_steps = config.num_steps
+        size = config.hidden_size
+        vocab_size = config.vocab_size
+
+        self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
+        self._targets = tf.placeholder(tf.int32, [batch_size, num_steps])
+
+        # Slightly better results can be obtained with forget gate biases
+        # initialized to 1 but the hyperparameters of the model would need to be
+        # different than reported in the paper.
+        lstm_cell = tf.contrib.rnn.LSTMBlockCell(size, forget_bias=0.0)
+        if is_training and config.keep_prob < 1:
+            lstm_cell = tf.contrib.rnn.DropoutWrapper(lstm_cell,
+                                                      output_keep_prob=config.keep_prob)
+        cell = tf.contrib.rnn.MultiRNNCell([lstm_cell] * config.num_layers,
+                                           state_is_tuple=True)
+
+        self._initial_state = cell.zero_state(batch_size, tf.float32)
+
+        with tf.device("/cpu:0"):
+            embedding = tf.get_variable("embedding",
+                                        [vocab_size, size], dtype=tf.float32)
+            inputs = tf.nn.embedding_lookup(embedding, self._input_data)
+        if is_training and config.keep_prob < 1:
+            inputs = tf.nn.dropout(inputs, config.keep_prob)
+
+        # Simplified version of tensorflow.models.rnn.rnn.py's rnn().
+        # This builds an unrolled LSTM for tutorial purposes only.
+        # In general, use the rnn() or state_saving_rnn() from rnn.py.
+        #
+        # The alternative version of the code below is:
+        #
+        # inputs = [tf.squeeze(input_step, [1])
+        #           for input_step in tf.split(1, num_steps, inputs)]
+        # outputs, state = tf.nn.rnn(cell, inputs, initial_state=self._initial_state)
+        outputs = []
+        state = self._initial_state
+        with tf.variable_scope("RNN"):
+            for time_step in range(num_steps):
+                if time_step > 0:
+                    tf.get_variable_scope().reuse_variables()
+                (cell_output, state) = cell(inputs[:, time_step, :], state)
+                outputs.append(cell_output)
+
+        output = tf.reshape(tf.concat(axis=1, values=outputs), [-1, size])
+        softmax_w = tf.get_variable(
+            "softmax_w", [size, vocab_size], dtype=tf.float32)
+        softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=tf.float32)
+        logits = tf.matmul(output, softmax_w) + softmax_b
+        self.sample = tf.multinomial(logits, 1, seed=1)
+        loss = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
+            [logits],
+            [tf.reshape(self._targets, [-1])],
+            [tf.ones([batch_size * num_steps], dtype=tf.float32)])
+        self._cost = cost = tf.reduce_sum(loss) / batch_size
+        self._final_state = state
+        if not is_training:
+            self._output_probs = tf.nn.softmax(logits)
+            return
+
+        self._lr = tf.Variable(0.0, trainable=False)
+        tvars = tf.trainable_variables()
+        grads, _ = tf.clip_by_global_norm(tf.gradients(cost, tvars),
+                                          config.max_grad_norm)
+        if config.optimizer == 'RMSPropOptimizer':
+            optimizer = tf.train.RMSPropOptimizer(self._lr)
+        elif config.optimizer == 'AdamOptimizer':
+            optimizer = tf.train.AdamOptimizer()
+        elif config.optimizer == 'MomentumOptimizer':
+            optimizer = tf.train.MomentumOptimizer(self._lr,
+                                                   momentum=0.8, use_nesterov=True)
+        else:
+            optimizer = tf.train.GradientDescentOptimizer(self._lr)
+        #optimizer = tf.train.RMSPropOptimizer(self._lr)
+        self._train_op = optimizer.apply_gradients(
+            zip(grads, tvars),
+            global_step=tf.contrib.framework.get_or_create_global_step())
+
+        self._new_lr = tf.placeholder(
+            tf.float32, shape=[], name="new_learning_rate")
+        self._lr_update = tf.assign(self._lr, self._new_lr)
+        self._output_probs = tf.nn.softmax(logits)
+
+class PTBSmallConfig(object):
+    """Small config.
+    This configurations are used when training the model
+    """
+    num_layers = 2
+    num_steps = 1
+    hidden_size = 200
+    batch_size = 1
+    vocab_size = 10000
+    init_scale = 0.1
+
+def get_config():
+    """Configuration used for training the model"""
+    return PTBSmallConfig()
+
+def pick_from_weight(weight, pows=1.0):
+    """Identify token from Softmax output.
+    This token will be mapped to word in the vocabulary.
+    """
+    weight = weight**pows
+    t = np.cumsum(weight)
+    s = np.sum(weight)
+    return int(np.searchsorted(t, 0.5 * s))
+
+def do_tf_sample(session, data, in_states, num_samples):
+    """Sampled from the model"""
+    samples = []
+    sample = None
+    state_input_name = ['Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0',
+                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
+                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
+                        'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0']
+    state = session.run(state_input_name)
+    fetches = [['Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1',
+                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6',
+                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1',
+                'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6'],
+               'Model/Softmax:0']
+
+    def _get_feed_dict(input_name, input_data):
+        """Create feed dict"""
+        feed_dict = {}
+        if isinstance(input_data, list):
+            for i, e in enumerate(input_name):
+                feed_dict[e] = input_data[i]
+        else:
+            feed_dict[input_name] = input_data
+        return feed_dict
+    for x in data:
+        feed_dict = _get_feed_dict(state_input_name, state)
+        feed_dict['Model/Placeholder:0'] = [[x]]
+        state, probs = session.run(fetches, feed_dict)
+        sample = pick_from_weight(probs[0])
+    if sample is not None:
+        samples.append(sample)
+    else:
+        samples.append(0)
+
+    k = 1
+    while k < num_samples:
+        feed_dict = _get_feed_dict(state_input_name, state)
+        feed_dict['Model/Placeholder:0'] = [[samples[-1]]]
+        state, probs = session.run(fetches, feed_dict)
+        sample = pick_from_weight(probs[0])
+        samples.append(sample)
+        k += 1
+    return samples, state
+
+def _create_ptb_vocabulary(data_dir):
+    """Read the PTB sample data input to create vocabulary"""
+    data_path = data_dir+'simple-examples/data/'
+    file_name = 'ptb.train.txt'
+    def _read_words(filename):
+        """Read the data for creating vocabulary"""
+        with tf.gfile.GFile(filename, "r") as f:
+            return f.read().encode("utf-8").decode("utf-8").replace("\n", "<eos>").split()
+
+    def _build_vocab(filename):
+        """Create vocabulary"""
+        data = _read_words(filename)
+        counter = collections.Counter(data)
+        count_pairs = sorted(counter.items(), key=lambda x: (-x[1], x[0]))
+        words, _ = list(zip(*count_pairs))
+        word_to_id = dict(zip(words, range(len(words))))
+        #for python 3.x
+        id_to_word = dict((v, k) for k, v in word_to_id.items())
+        return word_to_id, id_to_word
+
+    def ptb_raw_data(data_path, file_name):
+        """Read the sample data and create vocabulary"""
+        train_path = os.path.join(data_path, file_name)
+        word_to_id, id_2_word = _build_vocab(train_path)
+        return word_to_id, id_2_word
+    return ptb_raw_data(data_path, file_name)
+
+def get_workload_ptb():
+    """ Import mobilenet workload from frozen protobuf
+
+    Parameters
+    ----------
+        Nothing.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for ptb.
+
+    word_to_id : dict
+        English word to integer id mapping
+    id_to_word : dict
+
+        Integer id to English word mapping
+    """
+    sample_repo = 'http://www.fit.vutbr.cz/~imikolov/rnnlm/'
+    sample_data_file = 'simple-examples.tgz'
+    sample_url = sample_repo+sample_data_file
+    ptb_model_file = 'RNN/ptb/ptb_model_with_lstmblockcell.pb'
+
+    import tarfile
+    from tvm.contrib.download import download
+    DATA_DIR = './ptb_data/'
+    if not os.path.exists(DATA_DIR):
+        os.mkdir(DATA_DIR)
+    download(sample_url, DATA_DIR+sample_data_file)
+    t = tarfile.open(DATA_DIR+sample_data_file, 'r')
+    t.extractall(DATA_DIR)
+
+    word_to_id, id_to_word = _create_ptb_vocabulary(DATA_DIR)
+    return word_to_id, id_to_word, get_workload(ptb_model_file)
