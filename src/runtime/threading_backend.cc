@@ -109,21 +109,63 @@ class ThreadGroup::Impl {
 #endif
   }
 
-  void SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count) {
-    sorted_order_ = order;
-    max_count_ = max_count;
-    min_count_ = min_count;
-  }
+  unsigned int ConfigThreadGroup(int mode, int nthreads) {
+    unsigned int threads = std::thread::hardware_concurrency();
+    std::vector<std::pair <unsigned int, int64_t>> max_freqs;
 
-  bool AffinityOrderSet() {
-    return !sorted_order_.empty();
-  }
+    // big or LITTLE
+    if (mode) {
+      if (sorted_order_.empty()) {
+          for (unsigned int i = 0; i < threads; ++i) {
+            std::ostringstream filepath;
+            filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
+            std::ifstream ifs(filepath.str());
+            int64_t cur_freq = -1;
+            if (!ifs.fail()) {
+              ifs >> cur_freq;
+              ifs.close();
+              max_freqs.push_back(std::make_pair(i, cur_freq));
+              if (cur_freq < 0) {
+                LOG(WARNING) << "failed to read CPU max frequency!";
+              }
+            } else {
+              LOG(WARNING) << "failed to read CPU max frequency!";
+              break;
+            }
+          }
+        auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
+          return a.second > b.second;
+        };
 
-  int GetPrefCount(bool reverse) {
-    if (reverse) {
-      return min_count_;
+        std::sort(max_freqs.begin(), max_freqs.end(), max);
+        int64_t max_freq = max_freqs.begin()->second;
+        int64_t min_freq = max_freqs.rbegin()->second;
+        for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
+            sorted_order_.push_back(it->first);
+            if (max_freq == it->second) {
+              max_count_++;
+            }
+            if (min_freq == it->second) {
+              min_count_++;
+            }
+        }
+      }
     }
-    return max_count_;
+
+    unsigned int num_workers_used = 0;
+    if (mode == -1) {
+      num_workers_used = min_count_;
+    } else if (mode == 1) {
+      num_workers_used = max_count_;
+    }
+    // if a specific number was given, use that
+    if (nthreads)
+      num_workers_used = nthreads;
+    // use default
+    if (!num_workers_used)
+      num_workers_used = threading::MaxConcurrency();
+
+    return num_workers_used;
   }
 
  private:
@@ -143,14 +185,8 @@ void ThreadGroup::Join() { impl_->Join(); }
 void ThreadGroup::SetAffinity(bool exclude_worker0, bool reverse) {
   impl_->SetAffinity(exclude_worker0, reverse);
 }
-void ThreadGroup::SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count) {
-  impl_->SetAffinityOrder(order, max_count, min_count);
-}
-bool ThreadGroup::AffinityOrderSet() {
-  return impl_->AffinityOrderSet();
-}
-int ThreadGroup::GetPrefCount(bool reverse) {
-  return impl_->GetPrefCount(reverse);
+unsigned int ThreadGroup::ConfigThreadGroup(int mode, int nthreads) {
+  return impl_->ConfigThreadGroup(mode, nthreads);
 }
 
 void Yield() {
@@ -172,64 +208,6 @@ int MaxConcurrency() {
 #endif
   }
   return std::max(max_concurrency, 1);
-}
-
-unsigned int ConfigThreadGroup(int mode, int nthreads, ThreadGroup *thread_group) {
-  unsigned int threads = std::thread::hardware_concurrency();
-  std::vector<std::pair <unsigned int, int64_t>> max_freqs;
-
-  // big or LITTLE
-  if (mode) {
-    if (!thread_group->AffinityOrderSet()) {
-        std::vector<unsigned int> sorted_order;
-        for (unsigned int i = 0; i < threads; ++i) {
-          std::ostringstream filepath;
-          filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
-          std::ifstream ifs(filepath.str());
-          int64_t cur_freq = -1;
-          if (!ifs.fail()) {
-            ifs >> cur_freq;
-            ifs.close();
-            max_freqs.push_back(std::make_pair(i, cur_freq));
-            if (cur_freq < 0) {
-              LOG(WARNING) << "failed to read CPU max frequency!";
-            }
-          } else {
-            LOG(WARNING) << "failed to read CPU max frequency!";
-            break;
-          }
-        }
-
-      auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
-        return a.second > b.second;
-      };
-      std::sort(max_freqs.begin(), max_freqs.end(), max);
-      int64_t max_freq = max_freqs.begin()->second;
-      int64_t min_freq = max_freqs.rbegin()->second;
-      int max_count = 0;
-      int min_count = 0;
-      for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
-          sorted_order.push_back(it->first);
-          if (max_freq == it->second) {
-            max_count++;
-          }
-          if (min_freq == it->second) {
-            min_count++;
-          }
-      }
-      thread_group->SetAffinityOrder(sorted_order, max_count, min_count);
-    }
-  }
-
-  unsigned int num_workers_used = thread_group->GetPrefCount(mode == -1);
-  // if a specific number was given, use that
-  if (nthreads)
-    num_workers_used = nthreads;
-  // use default
-  if (!num_workers_used)
-    num_workers_used = threading::MaxConcurrency();
-
-  return num_workers_used;
 }
 
 

@@ -301,7 +301,7 @@ class ThreadPool {
   }
 
   void UpdateWorkerConfig(int mode, int nthreads) {
-    unsigned int num_workers_used = threading::ConfigThreadGroup(mode, nthreads, threads_.get());
+    unsigned int num_workers_used = threads_->ConfigThreadGroup(mode, nthreads);
     bool reverse = mode == -1;
     // may use less than the MaxConcurrency number of workers
     num_workers_used_ = num_workers_used;

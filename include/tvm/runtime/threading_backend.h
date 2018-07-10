@@ -55,31 +55,14 @@ class ThreadGroup {
   void SetAffinity(bool exclude_worker0, bool reverse = false);
 
   /*!
-   * \brief Set the affinity order of a ThreadGroup.
+   * \brief configure the CPU id affinity
    *
-   * \param order The affinity order to use.
-   * \param max_count The number of CPUs with the max frequency (big).
-   * \param min_count The number of CPUs with the min frequency (LITTLE).
+   * \param mode The preferred CPU type (0 = default, 1 = big, -1 = little).
+   * \param nthreads The number of threads to use (0 = use all).
+   *
+   * \return The number of workers to use.
    */
-  void SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count);
-
-  /*!
-   * \brief Check whether the affinity order of a ThreadGroup has been
-   * initialized.
-   *
-   * \brief Whether the affinity order has been initialized.
-   *
-   */
-  bool AffinityOrderSet();
-
-  /*!
-   * \brief Get the number of CPU ids of the preferred type
-   *
-   * \param reverse Whether to use the min_count instead.
-   *
-   * \return The count of the specified CPU id type.
-   */
-  int GetPrefCount(bool reverse);
+  unsigned int ConfigThreadGroup(int mode, int nthreads);
 
  private:
   Impl* impl_;
@@ -94,17 +77,6 @@ void Yield();
  * \return the maximum number of effective workers for this system.
  */
 int MaxConcurrency();
-
-/*!
- * \brief configure the CPU id affinity
- *
- * \param mode The preferred CPU type (0 = default, 1 = big, -1 = little).
- * \param nthreads The number of threads to use (0 = use all).
- * \param thread_group Pointer to the ThreadGroup being configured.
- *
- * \return the number of workers to use
- */
-unsigned int ConfigThreadGroup(int mode, int nthreads, ThreadGroup *thread_group);
 
 
 }  // namespace threading
