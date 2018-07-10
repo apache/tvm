@@ -10,6 +10,8 @@ def test_make():
     x = tvm.const(1)
     y = tvm.make.IntImm('int32', 1)
     z = x + y
+    assert isinstance(tvm.max(x, y), tvm.expr.Max)
+    assert isinstance(tvm.min(x, y), tvm.expr.Min)
 
 def test_ir():
     x = tvm.const(1)
@@ -132,6 +134,9 @@ def test_bitwise():
     assert str(x | y) == 'bitwise_or(x, y)'
     assert str(x ^ y) == 'bitwise_xor(x, y)'
     assert str(~x) == 'bitwise_not(x)'
+    assert(tvm.const(1, "int8x2") >> 1).dtype == "int8x2"
+    assert(x >> tvm.const(1, "int32x2")).dtype == "int32x2"
+    assert(tvm.var("z", "int8x2") << tvm.const(1, "int8x2")).dtype == "int8x2"
 
 
 def test_equality():
