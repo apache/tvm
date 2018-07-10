@@ -135,9 +135,9 @@ class NNVM_DLL Node {
    */
   inline bool is_variable() const;
   /*! \return number of outputs from this node */
-  inline uint32_t num_outputs() const;
+  inline size_t num_outputs() const;
   /*! \return number of inputs from this node */
-  inline uint32_t num_inputs() const;
+  inline size_t num_inputs() const;
   /*!
    * \brief create a new empty shared_ptr of Node.
    * \return a created empty node.
@@ -178,7 +178,7 @@ inline bool Node::is_variable() const {
   return this->op() == nullptr;
 }
 
-inline uint32_t Node::num_outputs() const {
+inline size_t Node::num_outputs() const {
   if (is_variable()) return 1;
   if (this->op()->get_num_outputs == nullptr) {
     return this->op()->num_outputs;
@@ -187,7 +187,7 @@ inline uint32_t Node::num_outputs() const {
   }
 }
 
-inline uint32_t Node::num_inputs() const {
+inline size_t Node::num_inputs() const {
   if (is_variable()) return 1;
   if (this->op()->get_num_inputs == nullptr) {
     return this->op()->num_inputs;

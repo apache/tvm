@@ -57,8 +57,8 @@ IndexedGraph::IndexedGraph(const Graph &g) {
 
   DFSVisit(g.outputs, [this, &inputs_rptr, &control_rptr, &subgraphs]
              (const NodePtr& n) {
-      CHECK_LT(nodes_.size(), std::numeric_limits<uint32_t>::max());
-      uint32_t nid = static_cast<uint32_t>(nodes_.size());
+      CHECK_LT(nodes_.size(), std::numeric_limits<size_t>::max());
+      size_t nid = static_cast<size_t>(nodes_.size());
       for (const auto &subgraph : n->attrs.subgraphs)
         subgraphs.push_back(subgraph);
       // nodes_
@@ -106,14 +106,14 @@ IndexedGraph::IndexedGraph(const Graph &g) {
         iptr + inputs_rptr[nid], iptr + inputs_rptr[nid + 1]);
     if (nodes_[nid].source->op() != nullptr &&
         fmutate_inputs.count(nodes_[nid].source->op())) {
-      for (uint32_t i : fmutate_inputs[nodes_[nid].source->op()](nodes_[nid].source->attrs)) {
+      for (size_t i : fmutate_inputs[nodes_[nid].source->op()](nodes_[nid].source->attrs)) {
         mutable_input_nodes_.insert(nodes_[nid].inputs[i].node_id);
       }
     }
   }
-  const uint32_t* cptr = dmlc::BeginPtr(control_deps_);
+  const size_t* cptr = dmlc::BeginPtr(control_deps_);
   for (size_t nid = 0; nid < nodes_.size(); ++nid) {
-    nodes_[nid].control_deps = array_view<uint32_t>(
+    nodes_[nid].control_deps = array_view<size_t>(
         cptr + control_rptr[nid], cptr + control_rptr[nid + 1]);
   }
 }
