@@ -52,7 +52,8 @@ class ThreadGroup {
     * \param it Optional pointer to an affinity order of CPU ids to bind threads
     * to.
     */
-  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL, bool reverse = false);
+  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL,
+                   bool reverse = false);
 
  private:
   Impl* impl_;
