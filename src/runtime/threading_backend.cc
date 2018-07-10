@@ -46,6 +46,67 @@ class ThreadGroup::Impl {
     }
   }
 
+  unsigned int ConfigThreadGroup(int mode, int nthreads, bool exclude_worker0) {
+    unsigned int threads = std::thread::hardware_concurrency();
+    std::vector<std::pair <unsigned int, int64_t>> max_freqs;
+
+    // big or LITTLE
+    if (mode) {
+      if (sorted_order_.empty()) {
+          for (unsigned int i = 0; i < threads; ++i) {
+            std::ostringstream filepath;
+            filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
+            std::ifstream ifs(filepath.str());
+            int64_t cur_freq = -1;
+            if (!ifs.fail()) {
+              ifs >> cur_freq;
+              ifs.close();
+              max_freqs.push_back(std::make_pair(i, cur_freq));
+              if (cur_freq < 0) {
+                LOG(WARNING) << "failed to read CPU max frequency!";
+              }
+            } else {
+              LOG(WARNING) << "failed to read CPU max frequency!";
+              break;
+            }
+          }
+        auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
+          return a.second > b.second;
+        };
+
+        std::sort(max_freqs.begin(), max_freqs.end(), max);
+        int64_t max_freq = max_freqs.begin()->second;
+        int64_t min_freq = max_freqs.rbegin()->second;
+        for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
+            sorted_order_.push_back(it->first);
+            if (max_freq == it->second) {
+              max_count_++;
+            }
+            if (min_freq == it->second) {
+              min_count_++;
+            }
+        }
+      }
+    }
+
+    unsigned int num_workers_used = 0;
+    if (mode == -1) {
+      num_workers_used = min_count_;
+    } else if (mode == 1) {
+      num_workers_used = max_count_;
+    }
+    // if a specific number was given, use that
+    if (nthreads)
+      num_workers_used = nthreads;
+    // use default
+    if (!num_workers_used)
+      num_workers_used = threading::MaxConcurrency();
+
+    SetAffinity(exclude_worker0, mode == -1);
+    return num_workers_used;
+  }
+
+ private:
   // bind worker threads to disjoint cores
   // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
   // the master thread is bound to core 0.
@@ -108,72 +169,12 @@ class ThreadGroup::Impl {
     }
 #endif
   }
-
-  unsigned int ConfigThreadGroup(int mode, int nthreads) {
-    unsigned int threads = std::thread::hardware_concurrency();
-    std::vector<std::pair <unsigned int, int64_t>> max_freqs;
-
-    // big or LITTLE
-    if (mode) {
-      if (sorted_order_.empty()) {
-          for (unsigned int i = 0; i < threads; ++i) {
-            std::ostringstream filepath;
-            filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
-            std::ifstream ifs(filepath.str());
-            int64_t cur_freq = -1;
-            if (!ifs.fail()) {
-              ifs >> cur_freq;
-              ifs.close();
-              max_freqs.push_back(std::make_pair(i, cur_freq));
-              if (cur_freq < 0) {
-                LOG(WARNING) << "failed to read CPU max frequency!";
-              }
-            } else {
-              LOG(WARNING) << "failed to read CPU max frequency!";
-              break;
-            }
-          }
-        auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
-          return a.second > b.second;
-        };
-
-        std::sort(max_freqs.begin(), max_freqs.end(), max);
-        int64_t max_freq = max_freqs.begin()->second;
-        int64_t min_freq = max_freqs.rbegin()->second;
-        for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
-            sorted_order_.push_back(it->first);
-            if (max_freq == it->second) {
-              max_count_++;
-            }
-            if (min_freq == it->second) {
-              min_count_++;
-            }
-        }
-      }
-    }
-
-    unsigned int num_workers_used = 0;
-    if (mode == -1) {
-      num_workers_used = min_count_;
-    } else if (mode == 1) {
-      num_workers_used = max_count_;
-    }
-    // if a specific number was given, use that
-    if (nthreads)
-      num_workers_used = nthreads;
-    // use default
-    if (!num_workers_used)
-      num_workers_used = threading::MaxConcurrency();
-
-    return num_workers_used;
-  }
-
- private:
   int num_workers_;
   std::vector<std::thread> threads_;
   std::vector<unsigned int> sorted_order_;
   int max_count_ = 0;
   int min_count_ = 0;
+
 };
 
 ThreadGroup::ThreadGroup(int num_workers,
@@ -182,11 +183,8 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
-void ThreadGroup::SetAffinity(bool exclude_worker0, bool reverse) {
-  impl_->SetAffinity(exclude_worker0, reverse);
-}
-unsigned int ThreadGroup::ConfigThreadGroup(int mode, int nthreads) {
-  return impl_->ConfigThreadGroup(mode, nthreads);
+unsigned int ThreadGroup::ConfigThreadGroup(int mode, int nthreads, bool exclude_worker0) {
+  return impl_->ConfigThreadGroup(mode, nthreads, exclude_worker0);
 }
 
 void Yield() {

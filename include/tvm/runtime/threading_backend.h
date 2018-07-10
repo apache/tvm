@@ -44,25 +44,19 @@ class ThreadGroup {
     */
   void Join();
 
-   /*!
-    * \brief Set CPU affinity of workers
-    *
-    * \param exclude_worker0 Whether to use the main thread as a worker. (same
-      as constructor)
-    * \param reverse Whether to traverse the affinity ordering in reverse.
-      to.
-    */
-  void SetAffinity(bool exclude_worker0, bool reverse = false);
-
   /*!
    * \brief configure the CPU id affinity
    *
    * \param mode The preferred CPU type (0 = default, 1 = big, -1 = little).
    * \param nthreads The number of threads to use (0 = use all).
+   * \param exclude_worker0 Whether to use the main thread as a worker.
+   *        If  `true`, worker0 will not be launched in a new thread and
+   *        `worker_callback` will only be called for values >= 1. This
+   *        allows use of the main thread as a worker.
    *
    * \return The number of workers to use.
    */
-  unsigned int ConfigThreadGroup(int mode, int nthreads);
+  unsigned int ConfigThreadGroup(int mode, int nthreads, bool exclude_worker0);
 
  private:
   Impl* impl_;

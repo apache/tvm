@@ -301,12 +301,11 @@ class ThreadPool {
   }
 
   void UpdateWorkerConfig(int mode, int nthreads) {
-    unsigned int num_workers_used = threads_->ConfigThreadGroup(mode, nthreads);
-    bool reverse = mode == -1;
+    // this will also reset the affinity of the ThreadGroup
+    unsigned int num_workers_used = threads_->ConfigThreadGroup(mode, nthreads,
+                                                                exclude_worker0_);
     // may use less than the MaxConcurrency number of workers
     num_workers_used_ = num_workers_used;
-    // rebind thread affinity in ThreadGroup (backend)
-    threads_->SetAffinity(exclude_worker0_, reverse);
   }
 
  private:
