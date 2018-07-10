@@ -2,11 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="ml.dmlc.tvm.tvmrpc" >
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme" >
+        android:theme="@style/AppTheme"
+        android:icon="@mipmap/ic_launcher" >
         <activity
             android:name=".MainActivity"
             android:label="@string/app_name"
@@ -17,8 +20,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service android:name=".RPCService"
+                 android:process=":RPCServiceProcess"
+                 android:permission="android.permission.BIND_JOB_SERVICE" />
     </application>
-
-    <uses-permission android:name="android.permission.INTERNET" />
 
 </manifest>

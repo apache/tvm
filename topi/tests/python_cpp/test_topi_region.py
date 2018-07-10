@@ -11,7 +11,7 @@ def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
-    B = topi.cpp.yolo2.region(A, n, classes, coords, background, l_softmax)
+    B = topi.cpp.yolo.region(A, n, classes, coords, background, l_softmax)
 
     a_shape = get_const_tuple(A.shape)
     dtype = A.dtype

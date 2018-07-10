@@ -29,7 +29,8 @@
 
 #include <topi/vision/reorg.h>
 #include <topi/image/resize.h>
-#include <topi/vision/yolo2/region.h>
+#include <topi/vision/yolo/region.h>
+#include <topi/vision/yolo/yolo.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
 #include <topi/generic/injective.h>
@@ -386,9 +387,14 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
   *rv = vision::reorg(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.vision.yolo2.region")
+TVM_REGISTER_GLOBAL("topi.vision.yolo.region")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = vision::yolo2::region(args[0], args[1], args[2], args[3], args[4], args[5]);
+  *rv = vision::yolo::region(args[0], args[1], args[2], args[3], args[4], args[5]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.vision.yolo.yolo")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = vision::yolo::yolo(args[0], args[1], args[2]);
   });
 
 /* Ops from image/resize.h */

@@ -6,7 +6,7 @@
 #include <string>
 #include "./codegen_vhls.h"
 #include "./build_common.h"
-#include "../runtime/opencl/opencl_module.h"
+#include "../runtime/opencl/sdaccel/sdaccel_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -91,7 +91,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
-  return OpenCLModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), code);
+  return SDAccelModuleCreate(xclbin, "xclbin", ExtractFuncInfo(funcs), code);
 }
 
 TVM_REGISTER_API("codegen.build_sdaccel")

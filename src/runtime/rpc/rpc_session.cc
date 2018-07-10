@@ -850,12 +850,12 @@ void RPCSession::Shutdown() {
 
 void RPCSession::ServerLoop() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.start")) {
+  if (const auto* f = Registry::Get("tvm.rpc.server.start")) {
     (*f)();
   }
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, false, nullptr) == RPCCode::kShutdown);
-  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.shutdown")) {
+  if (const auto* f = Registry::Get("tvm.rpc.server.shutdown")) {
     (*f)();
   }
   channel_.reset(nullptr);
@@ -1046,7 +1046,7 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
 void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
   static const PackedFunc* fsys_load_ = nullptr;
   if (fsys_load_ == nullptr) {
-    fsys_load_ = runtime::Registry::Get("tvm.contrib.rpc.server.load_module");
+    fsys_load_ = runtime::Registry::Get("tvm.rpc.server.load_module");
     CHECK(fsys_load_ != nullptr);
   }
   std::string file_name = args[0];

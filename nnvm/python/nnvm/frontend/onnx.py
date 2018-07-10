@@ -544,7 +544,7 @@ def _get_convert_map(opset):
         'Exp': Renamer('exp'),
         'Log': Renamer('log'),
         'Tanh': Renamer('tanh'),
-        # 'Pow'
+        'Pow': Renamer('broadcast_pow'),
         'PRelu': Prelu.get_converter(opset),
         'Sigmoid': Renamer('sigmoid'),
         # 'HardSigmoid'

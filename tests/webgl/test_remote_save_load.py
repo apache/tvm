@@ -14,7 +14,8 @@ $ python tests/webgl/test_remote_save_load.py
 
 import numpy as np
 import tvm
-from tvm.contrib import rpc, util, emscripten
+from tvm import rpc
+from tvm.contrib import util, emscripten
 
 proxy_host = "localhost"
 proxy_port = 9090

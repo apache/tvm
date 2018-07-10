@@ -8,6 +8,8 @@ from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
 def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1):
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+
     in_height = in_width = in_size
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
@@ -59,7 +61,7 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 def test_conv2d_nchw():
-    # ResNet18 worklaods
+    # ResNet18 workloads
     verify_conv2d_nchw(1, 3, 224, 64, 7, 2, 3)
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1)
     verify_conv2d_nchw(1, 64, 56, 64, 1, 1, 0)
@@ -72,6 +74,21 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
     verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
     verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
+    # ResNet 50 workloads
+    verify_conv2d_nchw(1, 64, 56, 256, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 56, 64, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 56, 128, 1, 2, 0)
+    verify_conv2d_nchw(1, 128, 28, 512, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 56, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 28, 128, 1, 1, 0)
+    verify_conv2d_nchw(1, 512, 28, 256, 1, 2, 0)
+    verify_conv2d_nchw(1, 256, 14, 1024, 1, 1, 0)
+    verify_conv2d_nchw(1, 512, 28, 1024, 1, 2, 0)
+    verify_conv2d_nchw(1, 1024, 14, 256, 1, 1, 0)
+    verify_conv2d_nchw(1, 1024, 14, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 7, 2048, 1, 2, 0)
+    verify_conv2d_nchw(1, 1024, 14, 2048, 1, 2, 0)
+    verify_conv2d_nchw(1, 2048, 7, 512, 1, 1, 0)
     # Vgg16 workloads
     verify_conv2d_nchw(1, 128, 122, 128, 3, 1, 1)
     # Super resolution workloads

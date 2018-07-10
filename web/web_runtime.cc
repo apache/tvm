@@ -39,13 +39,13 @@ struct RPCEnv {
   std::string base_;
 };
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.workpath")
+TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     static RPCEnv env;
     *rv = env.GetPath(args[0]);
   });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.load_module")
+TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string file_name = "/rpc/" + args[0].operator std::string();
     *rv = Module::LoadFromFile(file_name, "");

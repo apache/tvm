@@ -90,12 +90,12 @@ void RPCServerLoop(int sockfd) {
       "SockServerLoop", "")->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("contrib.rpc._Connect")
+TVM_REGISTER_GLOBAL("rpc._Connect")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = RPCClientConnect(args[0], args[1], args[2]);
   });
 
-TVM_REGISTER_GLOBAL("contrib.rpc._ServerLoop")
+TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     RPCServerLoop(args[0]);
   });

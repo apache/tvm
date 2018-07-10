@@ -39,6 +39,9 @@ set(USE_CUDA OFF)
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
+# Whether enable SDAccel runtime
+set(USE_SDACCEL OFF)
+
 # Whether enable OpenCL runtime
 set(USE_OPENCL OFF)
 

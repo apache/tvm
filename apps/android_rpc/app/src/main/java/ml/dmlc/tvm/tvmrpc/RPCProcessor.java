@@ -34,10 +34,11 @@ class RPCProcessor extends Thread {
   private String host;
   private int port;
   private String key;
-
   private boolean running = false;
+  private long startTime;
   private ConnectProxyServerProcessor currProcessor;
-  private final Handler uiHandler;
+  private boolean kill = false;
+  public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -46,9 +47,18 @@ class RPCProcessor extends Thread {
           return ParcelFileDescriptor.fromSocket(socket).getFd();
         }
       };
+  // callback to initialize the start time of an rpc session
+  class setTimeCallback implements Runnable { 
+    private RPCProcessor rPCProcessor;
 
-  RPCProcessor(Handler uiHandler) {
-    this.uiHandler = uiHandler;
+    public setTimeCallback(RPCProcessor rPCProcessor) {
+        this.rPCProcessor = rPCProcessor;    
+    }
+
+    @Override
+    public void run() {
+        rPCProcessor.setStartTime();
+    }
   }
 
   @Override public void run() {
@@ -61,21 +71,49 @@ class RPCProcessor extends Thread {
           } catch (InterruptedException e) {
           }
         }
-        currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
+        // if kill, we do nothing and wait for app restart
+        // to prevent race where timedOut was reported but restart has not
+        // happened yet
+        if (kill) {
+            System.err.println("waiting for restart...");
+            currProcessor = null;
+        }
+        else {
+            startTime = 0;
+            currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
+            currProcessor.setStartTimeCallback(new setTimeCallback(this));
+        }
       }
-      try {
-        currProcessor.run();
-      } catch (Throwable e) {
-        disconnect();
-        // turn connect switch off.
-        Message message = new Message();
-        message.what = MainActivity.MSG_RPC_ERROR;
-        Bundle bundle = new Bundle();
-        bundle.putString(MainActivity.MSG_RPC_ERROR_DATA_KEY, e.getMessage());
-        message.setData(bundle);
-        uiHandler.sendMessage(message);
-      }
+        if (currProcessor != null)
+            currProcessor.run();
     }
+  }
+
+  /**
+   * check if the current RPCProcessor has timed out while in a session
+   */
+  synchronized boolean timedOut(long curTime) {
+    if (startTime == 0) {
+        return false;
+    }
+    else if ((curTime - startTime) > SESSION_TIMEOUT) {
+        System.err.println("set kill flag...");
+        kill = true;
+        return true;
+    }
+    return false;
+  }
+
+  /**
+   * set the start time of the current RPC session (used in callback)
+   */
+  synchronized void setStartTime() {
+    startTime = System.currentTimeMillis();
+    System.err.println("start time set to: " + startTime);
+  }
+
+  synchronized long getStartTime() {
+    return startTime;
   }
 
   /**
