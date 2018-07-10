@@ -1,4 +1,6 @@
 """
+.. _tutorial-cross-compilation-and-rpc:
+
 Cross Compilation and RPC
 =========================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_

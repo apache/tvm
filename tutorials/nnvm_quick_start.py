@@ -1,4 +1,6 @@
 """
+.. _tutorial-nnvm-quick-start:
+
 Quick Start Tutorial for Compiling Deep Learning Models
 =======================================================
 **Author**: `Yao Wang <https://github.com/kevinthesun>`_

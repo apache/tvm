@@ -1,4 +1,6 @@
 """
+.. _tutorial-deploy-model-on-rasp:
+
 Deploy the Pretrained Model on Raspberry Pi
 ===========================================
 **Author**: `Ziheng Jiang <https://ziheng.org/>`_
