@@ -228,8 +228,8 @@ def verify_where(condition, x, y):
 
         foo = tvm.build(s, [A, B, C, out_tensor], device, name="where")
         tvm_out = tvm.nd.empty(x.shape, ctx=ctx, dtype=dtype)
-        foo(tvm.nd.array(condition), tvm.nd.array(x),
-            tvm.nd.array(y), tvm_out)
+        foo(tvm.nd.array(condition, ctx), tvm.nd.array(x, ctx),
+            tvm.nd.array(y, ctx), tvm_out)
         np.testing.assert_allclose(tvm_out.asnumpy(), np_out)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
