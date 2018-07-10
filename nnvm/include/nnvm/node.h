@@ -33,7 +33,7 @@ struct NodeEntry {
   /*! \brief the source node of this data */
   NodePtr node;
   /*! \brief index of output from the source. */
-  uint32_t index;
+  size_t index;
   /*!
    * \brief version of input Variable.
    *  This field can only be nonzero when this->node is a Variable node.
