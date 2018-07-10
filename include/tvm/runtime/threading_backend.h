@@ -56,7 +56,7 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  unsigned int ConfigThreadGroup(int mode, int nthreads, bool exclude_worker0);
+  int Config(int mode, int nthreads, bool exclude_worker0);
 
  private:
   Impl* impl_;
