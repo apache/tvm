@@ -134,6 +134,7 @@ def test_bitwise():
     assert str(x | y) == 'bitwise_or(x, y)'
     assert str(x ^ y) == 'bitwise_xor(x, y)'
     assert str(~x) == 'bitwise_not(x)'
+    assert(tvm.const(1, "int8x2") >> 1).dtype == "int8x2"
     assert(x >> tvm.const(1, "int32x2")).dtype == "int32x2"
     assert(tvm.var("z", "int8x2") << tvm.const(1, "int8x2")).dtype == "int8x2"
 

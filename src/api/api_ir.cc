@@ -118,6 +118,19 @@ TVM_REGISTER_API("make.CommReducer")
       *ret = (Func(a, b));                                   \
     })
 
+#define REGISTER_MAKE_BIT_OP(Node, Func)                                \
+  TVM_REGISTER_API("make."#Node)                                        \
+  .set_body([](TVMArgs args,  TVMRetValue *ret) {                       \
+      bool lhs_is_int = args[0].type_code() == kDLInt;                  \
+      bool rhs_is_int = args[1].type_code() == kDLInt;                  \
+      if (lhs_is_int) {                                                 \
+        *ret = (Func(args[0].operator int(), args[1].operator Expr())); \
+      } else if (rhs_is_int) {                                          \
+        *ret = (Func(args[0].operator Expr(), args[1].operator int())); \
+      } else {                                                          \
+        *ret = (Func(args[0].operator Expr(), args[1].operator Expr())); \
+      }                                                                 \
+    })
 
 REGISTER_MAKE5(Reduce);
 REGISTER_MAKE4(AttrStmt);
@@ -141,11 +154,11 @@ REGISTER_MAKE_BINARY_OP(GT, operator>);  // NOLINT(*)
 REGISTER_MAKE_BINARY_OP(GE, operator>=);
 REGISTER_MAKE_BINARY_OP(And, operator&&);
 REGISTER_MAKE_BINARY_OP(Or, operator||);
-REGISTER_MAKE_BINARY_OP(left_shift, operator<<); // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(right_shift, operator>>);
-REGISTER_MAKE_BINARY_OP(bitwise_and, operator&);
-REGISTER_MAKE_BINARY_OP(bitwise_or, operator|);
-REGISTER_MAKE_BINARY_OP(bitwise_xor, operator^);
+REGISTER_MAKE_BIT_OP(bitwise_and, operator&);
+REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
+REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
+REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
+REGISTER_MAKE_BIT_OP(right_shift, operator>>);
 REGISTER_MAKE1(Not);
 REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
