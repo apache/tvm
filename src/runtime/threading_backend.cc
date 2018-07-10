@@ -177,7 +177,6 @@ int MaxConcurrency() {
 unsigned int ConfigThreadGroup(int mode, int nthreads, ThreadGroup *thread_group) {
   unsigned int threads = std::thread::hardware_concurrency();
   std::vector<std::pair <unsigned int, int64_t>> max_freqs;
-  int preferred_num = 0;
 
   // big or LITTLE
   if (mode) {
