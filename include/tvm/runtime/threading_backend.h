@@ -33,19 +33,26 @@ class ThreadGroup {
     *        If  `true`, worker0 will not be launched in a new thread and
     *        `worker_callback` will only be called for values >= 1. This
     *        allows use of the main thread as a worker.
-    * \param affinity_order If specified, an ordering of CPU ids when setting
-    *        thread affinity.
     */
   ThreadGroup(int num_workers,
               std::function<void(int)> worker_callback,
-              bool exclude_worker0 = false,
-              std::vector<unsigned int> *affinity_order = NULL);
+              bool exclude_worker0 = false);
   ~ThreadGroup();
 
    /*!
     * \brief Blocks until all non-main threads in the pool finish.
     */
   void Join();
+
+   /*!
+    * \brief Set CPU affinity of workers
+    *
+    * \param exclude_worker0 Whether to use the main thread as a worker. (same
+    * as constructor)
+    * \param it Optional pointer to an affinity order of CPU ids to bind threads
+    * to.
+    */
+  void SetAffinity(bool exclude_worker0, std::vector<unsigned int> *order = NULL, bool reverse = false);
 
  private:
   Impl* impl_;
@@ -60,6 +67,17 @@ void Yield();
  * \return the maximum number of effective workers for this system.
  */
 int MaxConcurrency();
+
+/*!
+ * \brief configure the CPU id affinity
+ *
+ * \param mode the preferred CPU type (0 = default, 1 = big, -1 = little)
+ * \param nthreads the number of threads to use (0 = use all)
+ * \param sorted_order reference to the CPU id affinity list
+ *
+ * \return the number of workers to use
+ */
+unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> &sorted_order);
 
 }  // namespace threading
 }  // namespace runtime

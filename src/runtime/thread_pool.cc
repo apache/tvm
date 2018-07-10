@@ -5,9 +5,9 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/threading_backend.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
 #include <thread>
@@ -244,9 +244,7 @@ class SpscTaskQueue {
 class ThreadPool {
  public:
   ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
-    if (nthreads != 0) {
-        num_workers_ = nthreads;
-    }
+    num_workers_used_ = num_workers_;
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
@@ -254,8 +252,7 @@ class ThreadPool {
     threads_ = std::unique_ptr<tvm::runtime::threading::ThreadGroup>(
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
-          exclude_worker0_ /* include_main_thread */,
-          &affinity_order));
+          exclude_worker0_ /* include_main_thread */));
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -271,12 +268,12 @@ class ThreadPool {
     CHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
-      num_task = num_workers_;
+      num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      CHECK_LE(num_task, num_workers_)
-          << "Request parallel sync task larger than number of threads available "
-          << " workers=" << num_workers_ << " request=" << num_task;
+      CHECK_LE(num_task, num_workers_used_)
+          << "Request parallel sync task larger than number of threads used "
+          << " workers=" << num_workers_used_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
@@ -303,12 +300,14 @@ class ThreadPool {
     return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
-  // order of CPU ids (most preferred first)
-  static std::vector<unsigned int> affinity_order;
-  // number of threads for the first preferred CPU type
-  static int preferred_num;
-  // number of threads to use (if zero, use MaxConcurrency)
-  static int nthreads;
+  void updateWorkerConfig(int num_workers_used, bool exclude_worker0,
+                          std::vector<unsigned int> *order, bool reverse) {
+    // may use less than the MaxConcurrency number of workers
+    num_workers_used_ = num_workers_used;
+    exclude_worker0_ = exclude_worker0;
+    // rebind thread affinity in ThreadGroup (backend)
+    threads_->SetAffinity(exclude_worker0_, order, reverse);
+  }
 
  private:
   // Internal worker function.
@@ -328,6 +327,8 @@ class ThreadPool {
     }
   }
   int num_workers_;
+  // number of workers used (can be restricted with affinity pref)
+  int num_workers_used_;
   // if excluding worker 0 and using master to run task 0
 #ifndef _LIBCPP_SGX_CONFIG
   bool exclude_worker0_{true};
@@ -337,81 +338,23 @@ class ThreadPool {
   std::vector<std::unique_ptr<SpscTaskQueue> > queues_;
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
-std::vector<unsigned int> ThreadPool::affinity_order;
-int ThreadPool::preferred_num = 0;
-int ThreadPool::nthreads = 0;
-
-void setAffinityPref(bool ascending) {
-    unsigned int threads = std::thread::hardware_concurrency();
-    char filepath[128];
-    std::vector<std::pair <unsigned int, int64_t>> max_freqs;
-    std::vector<unsigned int> sorted_order;
-
-    for (unsigned int i = 0; i < threads; i++) {
-        snprintf(filepath, sizeof(filepath),
-                 "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
-        FILE *fp = std::fopen(filepath, "r");
-        int64_t cur_freq = -1;
-        if (fp) {
-                int read = std::fscanf(fp, "%" PRId64, &cur_freq);
-                std::fclose(fp);
-                if (!read)
-                    LOG(WARNING) << "CPU max frequency info empty!";
-                max_freqs.push_back(std::make_pair(i, cur_freq));
-        } else {
-            LOG(WARNING) << "failed to read CPU max frequency!";
-            break;
-        }
-    }
-
-    auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
-        return a.second > b.second;
-    };
-    auto min = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
-        return a.second < b.second;
-    };
-    if (ascending) {
-        std::sort(max_freqs.begin(), max_freqs.end(), min);
-    } else {
-        std::sort(max_freqs.begin(), max_freqs.end(), max);
-    }
-    auto it = max_freqs.begin();
-    int64_t preferred_freq = it->second;
-    int preferred_num = 0;
-    for (; it != max_freqs.end(); it++) {
-        sorted_order.push_back(it->first);
-        if (preferred_freq == it->second) {
-            preferred_num++;
-        }
-    }
-
-    ThreadPool::affinity_order = sorted_order;
-    ThreadPool::preferred_num = preferred_num;
-}
-
-void setNthreadsPref(int nthreads) {
-    // use the number of a CPU cores of a preferred type
-    if (nthreads == 0 && ThreadPool::affinity_order.size()) {
-        ThreadPool::nthreads = ThreadPool::preferred_num;
-    // otherwise use the number specified (0 will use MaxConcurrency)
-    } else {
-        ThreadPool::nthreads = nthreads;
-    }
-}
 
 TVM_REGISTER_GLOBAL("runtime.config_threadpool")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    std::string mode = args[0];
-    int nthreads = args[1];
-    if (mode == "big") {
-        setAffinityPref(false);
-    } else if (mode == "little") {
-        setAffinityPref(true);
-    } else if (mode == "default") {
-        ThreadPool::affinity_order.clear();
+    int excl = args[0];
+    bool exclude_worker0 = excl == 1;
+    int mode = args[1];
+    int nthreads = args[2];
+    std::vector<unsigned int> sorted_order;
+    unsigned int num_workers_used = threading::configThreadGroup(mode, nthreads, sorted_order);
+    bool reverse = mode == -1;
+    if (num_workers_used <= sorted_order.size()) {
+      ThreadPool::ThreadLocal()->updateWorkerConfig(num_workers_used, exclude_worker0,
+                                                    &sorted_order, reverse);
+    } else {
+      LOG(WARNING) << "num_workers exceeds CPU affinity list size, affinity config failed!";
     }
-    setNthreadsPref(nthreads);
-  });
+});
 
 
 }  // namespace runtime
