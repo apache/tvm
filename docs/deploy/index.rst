@@ -34,8 +34,9 @@ If you want to include additional runtime such as OpenCL,
 you can modify `config.cmake` to enable these options.
 After you get the TVM runtime library, you can link the compiled library
 
-The easiest way to test, tune and benchmark TVM kernels on embedded devices is through TVM's RPC API.
-Here are the links to the tutorials that are related to this topic.
+The easiest and recommended way to test, tune and benchmark TVM kernels on
+embedded devices is through TVM's RPC API.
+Here are the links to the related tutorials.
 
 - :ref:`tutorial-cross-compilation-and-rpc`
 - :ref:`tutorial-deploy-model-on-mali-gpu`
