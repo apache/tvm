@@ -22,8 +22,6 @@ void CodeGenCUDA::Init(bool output_ssa) {
   vid_global_barrier_state_ = GetUniqueName(runtime::symbol::tvm_global_barrier_state);
   vid_global_barrier_expect_ = GetUniqueName("__barrier_expect");
   CHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
-  // for fp16
-  //this->stream << 
 }
 
 void CodeGenCUDA::AddFunction(LoweredFunc f) {
@@ -35,7 +33,7 @@ std::string CodeGenCUDA::Finish() {
   if (enable_fp16_) {
     decl_stream << "#include <cuda_fp16.h>\n";
   }
-  
+
   return CodeGenC::Finish();
 }
 

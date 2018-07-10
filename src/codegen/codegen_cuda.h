@@ -20,7 +20,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
   std::string Finish();
-  
+  bool need_include_path() { return enable_fp16_; }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
   void PrintStorageSync(const Call* op) final;
@@ -39,7 +39,6 @@ class CodeGenCUDA final : public CodeGenC {
   void VisitExpr_(const Broadcast* op, std::ostream& os) final; // NOLINT(*)
   void VisitExpr_(const FloatImm *op, std::ostream& os) final;
   void VisitStmt_(const Evaluate *op) final;
-  bool need_include_path (){ return enable_fp16_; };
 
  private:
   // Whether global barrier is needed.

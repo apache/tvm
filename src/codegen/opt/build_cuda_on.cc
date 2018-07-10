@@ -5,10 +5,10 @@
  *
  * \file build_cuda.cc
  */
+#include <cuda_runtime.h>
 #include <tvm/base.h>
 #include <nvrtc.h>
 #include <cstdlib>
-#include <cuda_runtime.h>
 
 #include "../codegen_cuda.h"
 #include "../build_common.h"
@@ -35,33 +35,35 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   cudaDeviceProp deviceProp;
   std::string cc = "30";
   cudaError_t e = cudaGetDeviceProperties(&deviceProp, 0);
-  
+
   if (e == cudaSuccess) {
     cc = std::to_string(deviceProp.major) + std::to_string(deviceProp.minor);
   } else {
     LOG(WARNING) << "cannot detect compute capability from your device, "
                  << "fall back to compute_30.";
   }
-    
+
   if (include_path) {
-    std::string archOption = "-arch=compute_" + cc;    
-    std::string includePathOption = "--include-path=";
+    std::string archOption = "-arch=compute_" + cc;
+    std::string includeOption = "--include-path=";
     const char* cudaHomePath = std::getenv("CUDA_HOME");
-    
+
     if (cudaHomePath != nullptr) {
-      includePathOption += cudaHomePath;
-      includePathOption += "/include";
+      includeOption += cudaHomePath;
+      includeOption += "/include";
     } else {
       LOG(FATAL)
           << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
     }
 
-    compileParams[0] = (char *) malloc(sizeof(char)* (includePathOption.length() + 1));
-    compileParams[1] = (char *) malloc(sizeof(char)* (archOption.length() + 1));
-    strcpy(compileParams[0], includePathOption.c_str());
-    strcpy(compileParams[1], archOption.c_str());
+    compileParams[0] = reinterpret_cast<char *>(malloc(sizeof(char) *
+                                                       (includeOption.length() + 1)));
+    compileParams[1] = reinterpret_cast<char *>(malloc(sizeof(char) *
+                                                       (archOption.length() + 1)));
+    snprintf(compileParams[0], includeOption.length() + 1, "%s", includeOption.c_str());
+    snprintf(compileParams[1], archOption.length() + 1, "%s", archOption.c_str());
   }
-  
+
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
   nvrtcResult compile_res = nvrtcCompileProgram(prog, PARAM_NUM, compileParams);
@@ -77,13 +79,13 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   ptx.resize(ptx_size);
   NVRTC_CALL(nvrtcGetPTX(prog, &ptx[0]));
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
-  
+
   if (include_path) {
     for (int i = 0; i < PARAM_NUM; i++) {
       free(compileParams[i]);
     }
   }
-  
+
   return ptx;
 }
 
