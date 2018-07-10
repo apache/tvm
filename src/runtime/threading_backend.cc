@@ -55,8 +55,7 @@ class ThreadGroup::Impl {
       if (sorted_order_.empty()) {
         for (unsigned int i = 0; i < threads; ++i) {
           int64_t cur_freq = -1;
-          #if defined(_WIN32)
-          #else
+          #if defined(__linux__) || defined(__ANDROID__)
             std::ostringstream filepath;
             filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
             std::ifstream ifs(filepath.str());
@@ -64,11 +63,13 @@ class ThreadGroup::Impl {
               ifs >> cur_freq;
               ifs.close();
             }
+          #else
           #endif
           max_freqs.push_back(std::make_pair(i, cur_freq));
         }
 
-        auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
+        auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> a,
+                              std::pair<unsigned int, int64_t> b) {
           if (a.second == b.second) {
             return a.first < b.first;
           } else {
@@ -87,7 +88,7 @@ class ThreadGroup::Impl {
             little_count_++;
           }
         }
-        if (big_count_ + little_count_ != (int) sorted_order_.size()) {
+        if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
           LOG(WARNING) << "more than two frequencies detected!";
         }
       }
