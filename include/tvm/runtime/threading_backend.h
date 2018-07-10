@@ -49,13 +49,37 @@ class ThreadGroup {
     *
     * \param exclude_worker0 Whether to use the main thread as a worker. (same
       as constructor)
-    * \param order Optional pointer to an affinity order of CPU ids to bind
-      threads.
     * \param reverse Whether to traverse the affinity ordering in reverse.
       to.
     */
-  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL,
-                   bool reverse = false);
+  void SetAffinity(bool exclude_worker0, bool reverse = false);
+
+  /*!
+   * \brief Set the affinity order of a ThreadGroup.
+   *
+   * \param order The affinity order to use.
+   * \param max_count The number of CPUs with the max frequency (big).
+   * \param min_count The number of CPUs with the min frequency (LITTLE).
+   */
+  void SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count);
+
+  /*!
+   * \brief Check whether the affinity order of a ThreadGroup has been
+   * initialized.
+   *
+   * \brief Whether the affinity order has been initialized.
+   *
+   */
+  bool AffinityOrderSet();
+
+  /*!
+   * \brief Get the number of CPU ids of the preferred type
+   *
+   * \param reverse Whether to use the min_count instead.
+   *
+   * \return The count of the specified CPU id type.
+   */
+  int GetPrefCount(bool reverse);
 
  private:
   Impl* impl_;
@@ -74,13 +98,14 @@ int MaxConcurrency();
 /*!
  * \brief configure the CPU id affinity
  *
- * \param mode the preferred CPU type (0 = default, 1 = big, -1 = little)
- * \param nthreads the number of threads to use (0 = use all)
- * \param sorted_order reference to the CPU id affinity list
+ * \param mode The preferred CPU type (0 = default, 1 = big, -1 = little).
+ * \param nthreads The number of threads to use (0 = use all).
+ * \param thread_group Pointer to the ThreadGroup being configured.
  *
  * \return the number of workers to use
  */
-unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> *sorted_order);
+unsigned int ConfigThreadGroup(int mode, int nthreads, ThreadGroup *thread_group);
+
 
 }  // namespace threading
 }  // namespace runtime

@@ -49,8 +49,7 @@ class ThreadGroup::Impl {
   // bind worker threads to disjoint cores
   // if worker 0 is offloaded to master, i.e. exclude_worker0 is true,
   // the master thread is bound to core 0.
-  void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL,
-                   bool reverse = false) {
+  void SetAffinity(bool exclude_worker0, bool reverse = false) {
 #if defined(__ANDROID__)
 #ifndef CPU_SET
 #define CPU_SETSIZE 1024
@@ -68,11 +67,11 @@ class ThreadGroup::Impl {
 #if defined(__linux__) || defined(__ANDROID__)
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
-      if (order != NULL && order->size() >= threads_.size()) {
+      if (sorted_order_.size() >= threads_.size()) {
         if (reverse) {
-          core_id = (*order)[order->size() - (i + exclude_worker0) - 1];
+          core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
         } else {
-          core_id = (*order)[i + exclude_worker0];
+          core_id = sorted_order_[i + exclude_worker0];
         }
       } else {
         core_id = i + exclude_worker0;
@@ -90,11 +89,11 @@ class ThreadGroup::Impl {
     if (exclude_worker0) {  // bind the master thread to core 0
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      if (order != NULL && order->size() >= threads_.size()) {
+      if (sorted_order_.size() >= threads_.size()) {
         if (reverse) {
-          CPU_SET((*order)[order->size() - 1], &cpuset);
+          CPU_SET(sorted_order_[sorted_order_.size() - 1], &cpuset);
         } else {
-          CPU_SET((*order)[0], &cpuset);
+          CPU_SET(sorted_order_[0], &cpuset);
         }
       } else {
         CPU_SET(0, &cpuset);
@@ -110,9 +109,29 @@ class ThreadGroup::Impl {
 #endif
   }
 
+  void SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count) {
+    sorted_order_ = order;
+    max_count_ = max_count;
+    min_count_ = min_count;
+  }
+
+  bool AffinityOrderSet() {
+    return !sorted_order_.empty();
+  }
+
+  int GetPrefCount(bool reverse) {
+    if (reverse) {
+      return min_count_;
+    }
+    return max_count_;
+  }
+
  private:
   int num_workers_;
   std::vector<std::thread> threads_;
+  std::vector<unsigned int> sorted_order_;
+  int max_count_ = 0;
+  int min_count_ = 0;
 };
 
 ThreadGroup::ThreadGroup(int num_workers,
@@ -121,9 +140,17 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
-void ThreadGroup::SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order,
-                              bool reverse) {
-  impl_->SetAffinity(exclude_worker0, order, reverse);
+void ThreadGroup::SetAffinity(bool exclude_worker0, bool reverse) {
+  impl_->SetAffinity(exclude_worker0, reverse);
+}
+void ThreadGroup::SetAffinityOrder(std::vector<unsigned int> order, int max_count, int min_count) {
+  impl_->SetAffinityOrder(order, max_count, min_count);
+}
+bool ThreadGroup::AffinityOrderSet() {
+  return impl_->AffinityOrderSet();
+}
+int ThreadGroup::GetPrefCount(bool reverse) {
+  return impl_->GetPrefCount(reverse);
 }
 
 void Yield() {
@@ -147,51 +174,55 @@ int MaxConcurrency() {
   return std::max(max_concurrency, 1);
 }
 
-
-unsigned int configThreadGroup(int mode, int nthreads, std::vector<unsigned int> *sorted_order) {
+unsigned int ConfigThreadGroup(int mode, int nthreads, ThreadGroup *thread_group) {
   unsigned int threads = std::thread::hardware_concurrency();
   std::vector<std::pair <unsigned int, int64_t>> max_freqs;
   int preferred_num = 0;
 
   // big or LITTLE
   if (mode) {
-    for (unsigned int i = 0; i < threads; ++i) {
-      std::ostringstream filepath;
-      filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
-      std::ifstream ifs(filepath.str());
-      int64_t cur_freq = -1;
-      if (!ifs.fail()) {
-        ifs >> cur_freq;
-        ifs.close();
-        max_freqs.push_back(std::make_pair(i, cur_freq));
-        if (cur_freq < 0) {
-          LOG(WARNING) << "failed to read CPU max frequency!";
+    if (!thread_group->AffinityOrderSet()) {
+        std::vector<unsigned int> sorted_order;
+        for (unsigned int i = 0; i < threads; ++i) {
+          std::ostringstream filepath;
+          filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
+          std::ifstream ifs(filepath.str());
+          int64_t cur_freq = -1;
+          if (!ifs.fail()) {
+            ifs >> cur_freq;
+            ifs.close();
+            max_freqs.push_back(std::make_pair(i, cur_freq));
+            if (cur_freq < 0) {
+              LOG(WARNING) << "failed to read CPU max frequency!";
+            }
+          } else {
+            LOG(WARNING) << "failed to read CPU max frequency!";
+            break;
+          }
         }
-      } else {
-        LOG(WARNING) << "failed to read CPU max frequency!";
-        break;
-      }
-    }
 
-    auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
-      return a.second > b.second;
-    };
-    std::sort(max_freqs.begin(), max_freqs.end(), max);
-    int64_t preferred_freq;
-    if (mode == 1) {
-      preferred_freq = max_freqs.begin()->second;
-    } else {
-      preferred_freq = max_freqs.rend()->second;
-    }
-    for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
-      sorted_order->push_back(it->first);
-      if (preferred_freq == it->second) {
-        preferred_num++;
+      auto max = [] (std::pair<unsigned int, int64_t> a, std::pair<unsigned int, int64_t> b) {
+        return a.second > b.second;
+      };
+      std::sort(max_freqs.begin(), max_freqs.end(), max);
+      int64_t max_freq = max_freqs.begin()->second;
+      int64_t min_freq = max_freqs.rbegin()->second;
+      int max_count = 0;
+      int min_count = 0;
+      for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
+          sorted_order.push_back(it->first);
+          if (max_freq == it->second) {
+            max_count++;
+          }
+          if (min_freq == it->second) {
+            min_count++;
+          }
       }
+      thread_group->SetAffinityOrder(sorted_order, max_count, min_count);
     }
   }
 
-  unsigned int num_workers_used = preferred_num;
+  unsigned int num_workers_used = thread_group->GetPrefCount(mode == -1);
   // if a specific number was given, use that
   if (nthreads)
     num_workers_used = nthreads;

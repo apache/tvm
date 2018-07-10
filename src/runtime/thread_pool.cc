@@ -300,18 +300,13 @@ class ThreadPool {
     return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
-  void updateWorkerConfig(int mode, int nthreads) {
-    std::vector<unsigned int> sorted_order;
-    unsigned int num_workers_used = threading::configThreadGroup(mode, nthreads, &sorted_order);
+  void UpdateWorkerConfig(int mode, int nthreads) {
+    unsigned int num_workers_used = threading::ConfigThreadGroup(mode, nthreads, threads_.get());
     bool reverse = mode == -1;
     // may use less than the MaxConcurrency number of workers
     num_workers_used_ = num_workers_used;
     // rebind thread affinity in ThreadGroup (backend)
-    if (num_workers_used <= sorted_order.size()) {
-      threads_->SetAffinity(exclude_worker0_, &sorted_order, reverse);
-    } else {
-      LOG(WARNING) << "num_workers exceeds CPU affinity list size, affinity config failed!";
-    }
+    threads_->SetAffinity(exclude_worker0_, reverse);
   }
 
  private:
@@ -348,7 +343,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     int mode = args[0];
     int nthreads = args[1];
-    ThreadPool::ThreadLocal()->updateWorkerConfig(mode, nthreads);
+    ThreadPool::ThreadLocal()->UpdateWorkerConfig(mode, nthreads);
 });
 
 
