@@ -48,9 +48,11 @@ class ThreadGroup {
     * \brief Set CPU affinity of workers
     *
     * \param exclude_worker0 Whether to use the main thread as a worker. (same
-    * as constructor)
-    * \param it Optional pointer to an affinity order of CPU ids to bind threads
-    * to.
+      as constructor)
+    * \param order Optional pointer to an affinity order of CPU ids to bind
+      threads.
+    * \param reverse Whether to traverse the affinity ordering in reverse.
+      to.
     */
   void SetAffinity(bool exclude_worker0, const std::vector<unsigned int> *order = NULL,
                    bool reverse = false);
