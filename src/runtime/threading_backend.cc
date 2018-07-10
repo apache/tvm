@@ -169,12 +169,12 @@ class ThreadGroup::Impl {
     }
 #endif
   }
+
   int num_workers_;
   std::vector<std::thread> threads_;
   std::vector<unsigned int> sorted_order_;
   int max_count_ = 0;
   int min_count_ = 0;
-
 };
 
 ThreadGroup::ThreadGroup(int num_workers,
