@@ -175,7 +175,12 @@ class RPCSession::EventHandler : public dmlc::Stream {
   // send Packed sequence to writer.
   void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int n) {
     this->Write(n);
-    this->WriteArray(type_codes, n);
+    // only handles .
+    for (int i = 0; i < n; ++i) {
+      int tcode = type_codes[i];
+      if (tcode == kNDArrayContainer) tcode = kArrayHandle;
+      this->Write(tcode);
+    }
     // Argument packing.
     for (int i = 0; i < n; ++i) {
       int tcode = type_codes[i];
@@ -207,6 +212,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
           this->Write(handle);
           break;
         }
+        case kNDArrayContainer:
         case kArrayHandle: {
           DLTensor* arr = static_cast<DLTensor*>(value.v_handle);
           TVMContext ctx = StripSessMask(arr->ctx);
