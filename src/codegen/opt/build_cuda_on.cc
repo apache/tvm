@@ -7,6 +7,8 @@
  */
 #include <tvm/base.h>
 #include <nvrtc.h>
+#include <cstdlib>
+#include <cuda_runtime.h>
 
 #include "../codegen_cuda.h"
 #include "../build_common.h"
@@ -26,11 +28,43 @@ namespace codegen {
     }                                                                   \
   }
 
-std::string NVRTCCompile(const std::string& code) {
+std::string NVRTCCompile(const std::string& code, bool include_path = false) {
+  const int PARAM_NUM = 2;
+  char *compileParams[PARAM_NUM];
   nvrtcProgram prog;
+  cudaDeviceProp deviceProp;
+  std::string cc = "30";
+  cudaError_t e = cudaGetDeviceProperties(&deviceProp, 0);
+  
+  if (e == cudaSuccess) {
+    cc = std::to_string(deviceProp.major) + std::to_string(deviceProp.minor);
+  } else {
+    LOG(WARNING) << "cannot detect compute capability from your device, "
+                 << "fall back to compute_30.";
+  }
+    
+  if (include_path) {
+    std::string archOption = "-arch=compute_" + cc;    
+    std::string includePathOption = "--include-path=";
+    const char* cudaHomePath = std::getenv("CUDA_HOME");
+    
+    if (cudaHomePath != nullptr) {
+      includePathOption += cudaHomePath;
+      includePathOption += "/include";
+    } else {
+      LOG(FATAL)
+          << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
+    }
+
+    compileParams[0] = (char *) malloc(sizeof(char)* (includePathOption.length() + 1));
+    compileParams[1] = (char *) malloc(sizeof(char)* (archOption.length() + 1));
+    strcpy(compileParams[0], includePathOption.c_str());
+    strcpy(compileParams[1], archOption.c_str());
+  }
+  
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, 0, nullptr);
+  nvrtcResult compile_res = nvrtcCompileProgram(prog, PARAM_NUM, compileParams);
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
   std::string log; log.resize(log_size);
@@ -43,6 +77,13 @@ std::string NVRTCCompile(const std::string& code) {
   ptx.resize(ptx_size);
   NVRTC_CALL(nvrtcGetPTX(prog, &ptx[0]));
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
+  
+  if (include_path) {
+    for (int i = 0; i < PARAM_NUM; i++) {
+      free(compileParams[i]);
+    }
+  }
+  
   return ptx;
 }
 
@@ -68,7 +109,7 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
     // TODO(tqchen) more reliable checks
     if (ptx[0] != '/') fmt = "cubin";
   } else {
-    ptx = NVRTCCompile(code);
+    ptx = NVRTCCompile(code, cg.need_include_path());
   }
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(funcs), code);
 }
