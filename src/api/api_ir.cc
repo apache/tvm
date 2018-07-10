@@ -111,13 +111,13 @@ TVM_REGISTER_API("make.CommReducer")
       *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
     })                                                                  \
 
-#define REGISTER_MAKE_BINARY_OP(Node)                        \
+#define REGISTER_MAKE_BINARY_OP(Node, Func)                  \
   TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
       Expr a = args[0], b = args[1];                         \
-      match_types(a, b);                                     \
-      *ret = Node::make(a, b);                               \
+      *ret = (Func(a, b));                                   \
     })
+
 
 REGISTER_MAKE5(Reduce);
 REGISTER_MAKE4(AttrStmt);
@@ -126,21 +126,26 @@ REGISTER_MAKE2(IntImm);
 REGISTER_MAKE2(UIntImm);
 REGISTER_MAKE2(FloatImm);
 REGISTER_MAKE1(StringImm);
-REGISTER_MAKE_BINARY_OP(Add);
-REGISTER_MAKE_BINARY_OP(Sub);
-REGISTER_MAKE_BINARY_OP(Mul);
-REGISTER_MAKE_BINARY_OP(Div);
-REGISTER_MAKE_BINARY_OP(Mod);
-REGISTER_MAKE_BINARY_OP(Min);
-REGISTER_MAKE_BINARY_OP(Max);
-REGISTER_MAKE_BINARY_OP(EQ);
-REGISTER_MAKE_BINARY_OP(NE);
-REGISTER_MAKE_BINARY_OP(LT);
-REGISTER_MAKE_BINARY_OP(LE);
-REGISTER_MAKE_BINARY_OP(GT);
-REGISTER_MAKE_BINARY_OP(GE);
-REGISTER_MAKE_BINARY_OP(And);
-REGISTER_MAKE_BINARY_OP(Or);
+REGISTER_MAKE_BINARY_OP(Add, operator+);
+REGISTER_MAKE_BINARY_OP(Sub, operator-);
+REGISTER_MAKE_BINARY_OP(Mul, operator*);
+REGISTER_MAKE_BINARY_OP(Div, operator/);
+REGISTER_MAKE_BINARY_OP(Mod, operator%);
+REGISTER_MAKE_BINARY_OP(Min, min);
+REGISTER_MAKE_BINARY_OP(Max, max);
+REGISTER_MAKE_BINARY_OP(EQ, operator==);
+REGISTER_MAKE_BINARY_OP(NE, operator!=);
+REGISTER_MAKE_BINARY_OP(LT, operator<); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(LE, operator<=); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(GT, operator>);  // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(GE, operator>=);
+REGISTER_MAKE_BINARY_OP(And, operator&&);
+REGISTER_MAKE_BINARY_OP(Or, operator||);
+REGISTER_MAKE_BINARY_OP(left_shift, operator<<); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(right_shift, operator>>);
+REGISTER_MAKE_BINARY_OP(bitwise_and, operator&);
+REGISTER_MAKE_BINARY_OP(bitwise_or, operator|);
+REGISTER_MAKE_BINARY_OP(bitwise_xor, operator^);
 REGISTER_MAKE1(Not);
 REGISTER_MAKE3(Select);
 REGISTER_MAKE3(Ramp);
