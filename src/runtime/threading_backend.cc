@@ -81,7 +81,10 @@ class ThreadGroup::Impl {
 #if defined(__linux__) || defined(__ANDROID__)
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
-      CHECK_EQ(sorted_order_.size(), threads_.size() + exclude_worker0);
+      CHECK_LE(threads_.size() + exclude_worker0, sorted_order_.size());
+      if (sorted_order_.size() != threads_.size()) {
+        LOG(WARNING) << "setting affinity with subset of threads!";
+      }
       if (reverse) {
         core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
       } else {
@@ -158,6 +161,8 @@ class ThreadGroup::Impl {
       }
     }
     if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
+      LOG(WARNING) << big_count_;
+      LOG(INFO) << little_count_;
       LOG(WARNING) << "more than two frequencies detected!";
     }
   }
