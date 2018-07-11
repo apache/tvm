@@ -154,10 +154,7 @@ tuner.tune(n_trial=20,
 
 # get best config from cache file
 dispatch_context = autotvm.apply_history_best("cache.tsv")
-workload = ("conv2d_no_batching", 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1))
-target = tvm.target.cuda()
-
-best_config = dispatch_context.query(target, workload)
+best_config = dispatch_context.query(task.target, task.workload)
 print("\nBest config:")
 print(best_config)
 
