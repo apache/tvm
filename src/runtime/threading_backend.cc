@@ -137,8 +137,8 @@ class ThreadGroup::Impl {
       max_freqs.push_back(std::make_pair(i, cur_freq));
     }
 
-    auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> a,
-                          std::pair<unsigned int, int64_t> b) {
+    auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> &a,
+                          std::pair<unsigned int, int64_t> &b) {
       if (a.second == b.second) {
         return a.first < b.first;
       } else {
