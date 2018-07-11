@@ -87,9 +87,18 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
             msg = str(exc)
             if "Stack trace returned" in msg:
                 msg = msg[:msg.index("Stack trace returned")]
-            res_pack.append(MeasureResult((RuntimeError(msg),),
-                                          MeasureErrorNo.COMPILE_HOST,
-                                          tstamp - tic, tstamp))
+            if "InstantiationError" in msg:
+                try:
+                    msg = msg.split('\n')[-2].split(": ")[1]
+                except Exception:  # pylint: disable=broad-except
+                    pass
+                res_pack.append(MeasureResult((InstantiationError(msg),),
+                                              MeasureErrorNo.INSTANTIATION_ERROR,
+                                              tstamp - tic, tstamp))
+            else:
+                res_pack.append(MeasureResult((RuntimeError(msg),),
+                                              MeasureErrorNo.COMPILE_HOST,
+                                              tstamp - tic, tstamp))
             continue
         except InstantiationError as e:
             tstamp = time.time()
@@ -271,7 +280,7 @@ def gpu_verify_pass(**kwargs):
     def verify_pass(stmt):
         valid = ir_pass.VerifyGPUCode(stmt, kwargs)
         if not valid:
-            raise InstantiationError("invalid gpu kernel")
+            raise InstantiationError("Skipped because of invalid gpu kernel")
         return stmt
     return verify_pass
 

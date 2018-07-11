@@ -1,10 +1,10 @@
 """
-How to get high performance convolution kernel on CUDA GPU by auto-tuning
+How to get high performance convolution kernel on NVIDIA GPU by auto-tuning
 =========================================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
 This is an advanced tutorial for writing high performance tunable template for 
-CUDA GPU. By runing auto-tuner on this template, we can outperform the
+NVIDIA GPU. By running auto-tuner on this template, we can outperform the
 vendor provided library CuDNN in many cases.
 """
 
@@ -21,15 +21,15 @@ from tvm import autotvm
 # ---------------------------------
 # There are plenty of useful schedule primitives in tvm. You can also find 
 # some tutorials that describe them in more details, such as 
-# (1). :doc:``Optimizing Conv2d on CUDA GPU <../optimize/opt_conv_cuda>`
-# (2). `Optimizing DepthwiseConv on CUDA GPU <https://tvm.ai/2017/08/22/Optimize-Deep-Learning-GPU-Operators-with-TVM-A-Depthwise-Convolution-Example.html>`_
+# (1). :doc:``Optimizing Conv2d on NVIDIA GPU <../optimize/opt_conv_cuda>`
+# (2). `Optimizing DepthwiseConv on NVIDIA GPU <https://tvm.ai/2017/08/22/Optimize-Deep-Learning-GPU-Operators-with-TVM-A-Depthwise-Convolution-Example.html>`_
 # 
 # However, their implementations are manually tuned for some special input
 # shapes. In this section, we build a large enough space to cover
 # the techniques used in these tutorials. Then we rely on the efficient auto-tuner
 # to search through this space and pick some good configurations.
 # 
-# If you are familiar with wring cude schedule, you can find the following
+# If you are familiar with writing cuda schedule, you can find the following
 # template is very general. Actually this template can be easily modified 
 # to tune other operators such as depthwise convolution and gemm.
 # In order to fully understand this template, you should be familiar with
