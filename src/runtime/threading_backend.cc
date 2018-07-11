@@ -156,13 +156,11 @@ class ThreadGroup::Impl {
       if (big_freq == it->second) {
         big_count_++;
       }
-      if (little_freq == it->second) {
+      if (big_freq != little_freq && little_freq == it->second) {
         little_count_++;
       }
     }
     if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
-      LOG(WARNING) << big_count_;
-      LOG(INFO) << little_count_;
       LOG(WARNING) << "more than two frequencies detected!";
     }
   }
