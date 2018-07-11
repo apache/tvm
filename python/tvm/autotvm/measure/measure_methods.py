@@ -82,9 +82,12 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
         tic = time.time()
         try:
             time_f, ctx, arg_bufs = fbuild(inp)
-        except TVMError as e:
+        except TVMError as exc:
             tstamp = time.time()
-            res_pack.append(MeasureResult((e,),
+            msg = str(exc)
+            if "Stack trace returned" in msg:
+                msg = msg[:msg.index("Stack trace returned")]
+            res_pack.append(MeasureResult((RuntimeError(msg),),
                                           MeasureErrorNo.COMPILE_HOST,
                                           tstamp - tic, tstamp))
             continue
