@@ -98,7 +98,7 @@ inline uint32_t ColorNodeGroup(
     }
   }
   // assign i for rest of the node
-  for (uint32_t i = 0; i < graph.num_nodes(); ++i) {
+  for (size_t i = 0; i < graph.num_nodes(); ++i) {
     if (color->at(i) == max_ncolor) {
       color->at(i) = cindex;
     }

@@ -38,7 +38,7 @@ inline void UpdateNodeVersion(Node *n) {
     }
   }
   if (fmutate_inputs.count(n->op()) != 0) {
-    for (uint32_t i : fmutate_inputs[n->op()](n->attrs)) {
+    for (size_t i : fmutate_inputs[n->op()](n->attrs)) {
       NodeEntry& e = n->inputs[i];
       CHECK(e.node->is_variable())
           << "Mutation target can only be Variable";
@@ -204,7 +204,7 @@ std::vector<NodePtr> Symbol::ListInputs(ListInputOption option) const {
         if (node->is_variable()) {
           vlist.push_back(node);
         } else if (fmutate_inputs.count(node->op())) {
-          for (uint32_t i : fmutate_inputs[node->op()](node->attrs)){
+          for (size_t i : fmutate_inputs[node->op()](node->attrs)){
             mutable_set.insert(node->inputs[i].node.get());
           }
         }
@@ -272,7 +272,7 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
   // The arguments that contain graphs.
   Node* n = outputs[0].node.get();
   FInputGraph fng = fgraph.get(n->op(), nullptr);
-  std::vector<uint32_t> garg_idx;
+  std::vector<size_t> garg_idx;
   if (fng != nullptr)
     garg_idx = fng(n->attrs);
 
@@ -304,13 +304,13 @@ void Symbol::Compose(const array_view<const Symbol*>& args,
 
   // Atomic functor composition.
   if (IsAtomic(outputs)) {
-    uint32_t n_req = n->num_inputs();
+    size_t n_req = n->num_inputs();
     std::vector<const Symbol *> arg_vec(args.begin(), args.end());
     std::unordered_map<std::string, const Symbol*> kwarg_map(kwargs.begin(), kwargs.end());
     // If one of the input arguments is a graph, we need to remove it from the
     // list.
     if (fng != nullptr) {
-      std::vector<uint32_t> idxes = fng(n->attrs);
+      std::vector<size_t> idxes = fng(n->attrs);
       for (auto idx : idxes) {
         const Symbol *sym;
         if (idx < arg_vec.size()) {
@@ -488,11 +488,11 @@ Symbol Symbol::GetInternals() const {
         VariableParam& param = nnvm::get<VariableParam>(n->attrs.parsed);
         ret.outputs.emplace_back(NodeEntry{node, 0, param.version});
       } else {
-        uint32_t nout = n->num_outputs();
+        size_t nout = n->num_outputs();
         if (fnum_vis_output.count(n->op())) {
           nout = fnum_vis_output[n->op()](n->attrs);
         }
-        for (uint32_t i = 0; i < nout; ++i) {
+        for (size_t i = 0; i < nout; ++i) {
           ret.outputs.emplace_back(NodeEntry{node, i, 0});
         }
       }
@@ -597,11 +597,11 @@ Symbol Symbol::CreateFunctor(const Op* op,
     n->op()->attr_parser(&(n->attrs));
   }
 
-  uint32_t nout = n->num_outputs();
+  size_t nout = n->num_outputs();
   if (fnum_vis_output.count(n->op())) {
     nout = fnum_vis_output[n->op()](n->attrs);
   }
-  for (uint32_t i = 0; i < nout; ++i) {
+  for (size_t i = 0; i < nout; ++i) {
     s.outputs.emplace_back(NodeEntry{n, i, 0});
   }
   return s;
@@ -613,11 +613,11 @@ Symbol Symbol::CreateFunctor(const NodeAttrs& attrs) {
   NodePtr n = Node::Create();
   n->attrs = attrs;
 
-  uint32_t nout = n->num_outputs();
+  size_t nout = n->num_outputs();
   if (fnum_vis_output.count(n->op())) {
     nout = fnum_vis_output[n->op()](n->attrs);
   }
-  for (uint32_t i = 0; i < nout; ++i) {
+  for (size_t i = 0; i < nout; ++i) {
     s.outputs.emplace_back(NodeEntry{n, i, 0});
   }
   return s;

@@ -28,7 +28,7 @@ class GraphAllocator {
   static const StorageID kDynamicStorageID = -3;
 
   // request a free storage
-  StorageID Request(int dev_id, int dtype, TShape shape, uint32_t node_id) {
+  StorageID Request(int dev_id, int dtype, TShape shape, size_t node_id) {
     if (shape.ndim() == 0) return kBadStorageID;
     // search memory block in [size / match_range_, size * match_range_)
     // TODO(tqchen) add size of the dtype, assume 4 bytes for now
@@ -66,7 +66,7 @@ class GraphAllocator {
     return this->Alloc(dev_id, size);
   }
   // release a memory space.
-  void Release(StorageID id, uint32_t node_id) {
+  void Release(StorageID id, size_t node_id) {
     CHECK_NE(id, kBadStorageID);
     if (id == kExternalStorageID || id == kDynamicStorageID) return;
     StorageEntry *e = data_[id].get();
@@ -95,7 +95,7 @@ class GraphAllocator {
     num_match_color_ = num_match_color;
     if (num_match_color_ > 1) {
       std::vector<uint32_t> importance(idx_->num_nodes(), 0);
-      for (uint32_t nid = 0; nid < idx_->num_nodes(); ++nid) {
+      for (size_t nid = 0; nid < idx_->num_nodes(); ++nid) {
         if ((*idx_)[nid].source->is_variable()) continue;
         importance[nid] = 1;
       }
@@ -122,7 +122,7 @@ class GraphAllocator {
     // maximum size of storage requested.
     size_t max_bytes{0};
     // node index that released it last time
-    uint32_t released_by_node{0};
+    size_t released_by_node{0};
   };
   // scale used for rough match
   size_t match_range_;
@@ -144,10 +144,10 @@ class GraphAllocator {
  * Internal method to perform the memory allocation for a graph
  * */
 size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
-                   const std::pair<uint32_t, uint32_t>& node_range,
+                   const std::pair<size_t, size_t>& node_range,
                    StorageVector* storage_ptr,
                    std::vector<int>* storage_inplace_index_ptr,
-                   const std::vector<uint32_t>& entry_ref_count,
+                   const std::vector<size_t>& entry_ref_count,
                    GraphAllocator* allocator) {
   static auto& finplace_option = Op::GetAttr<FInplaceOption>("FInplaceOption");
   static auto& finplace_identity = Op::GetAttr<FInplaceIdentity>("FInplaceIdentity");
@@ -168,7 +168,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
   size_t num_not_allocated = 0;
   std::vector<GraphAllocator::StorageID> storage_ref_count(idx.num_node_entries(), 0);
 
-  for (uint32_t nid = node_range.first; nid < node_range.second; ++nid) {
+  for (size_t nid = node_range.first; nid < node_range.second; ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     // check inplace option
@@ -186,8 +186,8 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       std::vector<bool> taken(inode.inputs.size(), false);
       for (size_t ipair = 0; ipair < inplace_pairs.size(); ++ipair) {
         const auto& kv = inplace_pairs[ipair];
-        uint32_t eid_out = idx.entry_id(nid, kv.second);
-        uint32_t eid_in = idx.entry_id(inode.inputs[kv.first]);
+        size_t eid_out = idx.entry_id(nid, kv.second);
+        size_t eid_in = idx.entry_id(inode.inputs[kv.first]);
         auto sid_out = storage[eid_out];
         auto sid_in = storage[eid_in];
         bool ignore_all_inputs = (fignore_inputs.count(inode.source->op()) != 0 &&
@@ -214,9 +214,9 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
     // normal allocation
     const int dev_id = (device_vec != nullptr) ? device_vec->at(nid) : 0;
     // sort output nodes based on size before allocating output
-    std::multimap<size_t, uint32_t> eids;
-    for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
-      uint32_t eid = idx.entry_id(nid, index);
+    std::multimap<size_t, size_t> eids;
+    for (size_t index = 0; index < inode.source->num_outputs(); ++index) {
+      size_t eid = idx.entry_id(nid, index);
       // only request memory for kBadStorageID
       if (storage[eid] == GraphAllocator::kBadStorageID) {
         auto &eshape = shape_vec[eid];
@@ -226,7 +226,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       }
     }
     for (auto rit = eids.rbegin(); rit != eids.rend(); ++rit) {
-        uint32_t eid = rit->second;
+        size_t eid = rit->second;
         auto sid = allocator->Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
         if (sid >= 0) {
           storage_ref_count[sid] = entry_ref_count[eid];
@@ -234,7 +234,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         storage[eid] = sid;
     }
     // check if certain inputs is ignored.
-    std::vector<uint32_t> ignore_inputs;
+    std::vector<size_t> ignore_inputs;
     if (fignore_inputs.count(inode.source->op()) != 0) {
       ignore_inputs = fignore_inputs[inode.source->op()](inode.source->attrs);
       std::sort(ignore_inputs.begin(), ignore_inputs.end());
@@ -244,7 +244,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
       // ref counter of ignored input is already decreased.
       if (std::binary_search(ignore_inputs.begin(), ignore_inputs.end(), i)) continue;
       const auto& e = inode.inputs[i];
-      uint32_t eid = idx.entry_id(e);
+      size_t eid = idx.entry_id(e);
       auto sid = storage[eid];
       // storage_ref_count == 0 means it is taken by inplace op
       if (sid < 0) continue;
@@ -256,8 +256,8 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
     }
     // check if there are outputs that can be freeded immediately
     // these output are not referenced by any operator.
-    for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
-      uint32_t eid = idx.entry_id(nid, index);
+    for (size_t index = 0; index < inode.source->num_outputs(); ++index) {
+      size_t eid = idx.entry_id(nid, index);
       auto sid = storage[eid];
       if (sid >= 0 && storage_ref_count[sid] == 0) {
         allocator->Release(sid, nid);
@@ -278,18 +278,18 @@ Graph PlanMemory(Graph ret) {
   // setup ref counter
   const IndexedGraph& idx = ret.indexed_graph();
   static auto& fignore_inputs = Op::GetAttr<FIgnoreInputs>("FIgnoreInputs");
-  std::pair<uint32_t, uint32_t> node_range = {0, idx.num_nodes()};
+  std::pair<size_t, size_t> node_range = {0, idx.num_nodes()};
   if (ret.attrs.count("node_range")) {
-    node_range = ret.MoveCopyAttr<std::pair<uint32_t, uint32_t> >("node_range");
+    node_range = ret.MoveCopyAttr<std::pair<size_t, size_t> >("node_range");
   }
   // reference counter of each node
-  std::vector<uint32_t> ref_count;
+  std::vector<size_t> ref_count;
   // step 1: initialize reference count
   if (ret.attrs.count("ref_count") != 0) {
-    ref_count = ret.MoveCopyAttr<std::vector<uint32_t> >("ref_count");
+    ref_count = ret.MoveCopyAttr<std::vector<size_t> >("ref_count");
   } else {
     ref_count.resize(idx.num_node_entries(), 0);
-    for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
+    for (size_t nid = 0; nid < idx.num_nodes(); ++nid) {
       const auto& inode = idx[nid];
       if (inode.source->is_variable()) continue;
       for (const auto& e : inode.inputs) {
@@ -299,7 +299,7 @@ Graph PlanMemory(Graph ret) {
       // revoke the dependency counter.
       if (fignore_inputs.count(inode.source->op()) != 0) {
         auto ignore_inputs = fignore_inputs[inode.source->op()](inode.source->attrs);
-        for (uint32_t i : ignore_inputs) {
+        for (size_t i : ignore_inputs) {
           --ref_count[idx.entry_id(inode.inputs[i])];
         }
       }
