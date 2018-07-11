@@ -7,7 +7,10 @@
 #include <dmlc/logging.h>
 #include <thread>
 #include <algorithm>
+#if defined(__linux__) || defined(__ANDROID__)
 #include <fstream>
+#else
+#endif
 #if defined(__linux__)
 #include <sched.h>
 #endif
@@ -46,7 +49,7 @@ class ThreadGroup::Impl {
     }
   }
 
-  int Config(int mode, int nthreads, bool exclude_worker0) {
+  int Configure(int mode, int nthreads, bool exclude_worker0) {
     unsigned int threads = threading::MaxConcurrency();
     std::vector<std::pair <unsigned int, int64_t> > max_freqs;
 
@@ -54,13 +57,15 @@ class ThreadGroup::Impl {
     if (mode) {
       if (sorted_order_.empty()) {
         for (unsigned int i = 0; i < threads; ++i) {
-          int64_t cur_freq = -1;
+          int64_t cur_freq = 0;
           #if defined(__linux__) || defined(__ANDROID__)
             std::ostringstream filepath;
             filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
             std::ifstream ifs(filepath.str());
             if (!ifs.fail()) {
-              ifs >> cur_freq;
+              if(!(ifs >> cur_freq)) {
+                cur_freq = -1;
+              }
               ifs.close();
             }
           #else
@@ -104,8 +109,9 @@ class ThreadGroup::Impl {
       num_workers_used = threading::MaxConcurrency();
     }
     // if a specific number was given, use that
-    if (nthreads)
+    if (nthreads) {
       num_workers_used = nthreads;
+    }
 
     SetAffinity(exclude_worker0, mode == -1);
     return num_workers_used;
@@ -188,8 +194,8 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
-int ThreadGroup::Config(int mode, int nthreads, bool exclude_worker0) {
-  return impl_->Config(mode, nthreads, exclude_worker0);
+int ThreadGroup::Configure(int mode, int nthreads, bool exclude_worker0) {
+  return impl_->Configure(mode, nthreads, exclude_worker0);
 }
 
 void Yield() {

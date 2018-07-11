@@ -253,7 +253,7 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           exclude_worker0_ /* include_main_thread */));
-    num_workers_used_ = threads_->Config(1, 0, exclude_worker0_);
+    threads_->Configure(1, 0, exclude_worker0_);
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -301,11 +301,11 @@ class ThreadPool {
     return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
-  void UpdateWorkerConfig(int mode, int nthreads) {
+  void UpdateWorkerConfiguration(int mode, int nthreads) {
     // this will also reset the affinity of the ThreadGroup
     // may use less than the MaxConcurrency number of workers
-    num_workers_used_ = threads_->Config(mode, nthreads,
-                                                                exclude_worker0_);
+    num_workers_used_ = threads_->Configure(mode, nthreads,
+                                            exclude_worker0_);
   }
 
  private:
@@ -342,7 +342,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     int mode = args[0];
     int nthreads = args[1];
-    ThreadPool::ThreadLocal()->UpdateWorkerConfig(mode, nthreads);
+    ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
 });
 
 

@@ -47,7 +47,7 @@ class ThreadGroup {
   /*!
    * \brief configure the CPU id affinity
    *
-   * \param mode The preferred CPU type (0 = default, 1 = big, -1 = little).
+   * \param mode The preferred CPU type (1 = big, -1 = little).
    * \param nthreads The number of threads to use (0 = use all).
    * \param exclude_worker0 Whether to use the main thread as a worker.
    *        If  `true`, worker0 will not be launched in a new thread and
@@ -56,7 +56,7 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Config(int mode, int nthreads, bool exclude_worker0);
+  int Configure(int mode, int nthreads, bool exclude_worker0);
 
  private:
   Impl* impl_;
