@@ -255,7 +255,7 @@ class ThreadPool {
           exclude_worker0_ /* include_main_thread */));
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
-      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
+      if (static_cast<size_t>(num_workers_) <= num_workers_used_) {
         num_workers_used_ = threads_->Configure(1, 0, exclude_worker0_);
       } else {
         LOG(WARNING)

@@ -82,9 +82,8 @@ class ThreadGroup::Impl {
     CHECK_LE(threads_.size() + exclude_worker0, sorted_order_.size());
     if (sorted_order_.size() != threads_.size()) {
       LOG(WARNING) << "setting affinity with subset of threads!";
-      LOG(WARNING) << "total threads: " << sorted_order_.size() << ", using: "
-                   << threads_.size() + exclude_worker0;
     }
+
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
       if (reverse) {
