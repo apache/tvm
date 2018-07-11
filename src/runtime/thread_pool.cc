@@ -253,7 +253,16 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           exclude_worker0_ /* include_main_thread */));
-    threads_->Configure(1, 0, exclude_worker0_);
+    const char *val = getenv("TVM_BIND_THREADS");
+    if (val == nullptr || atoi(val) == 1) {
+      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
+        num_workers_used_ = threads_->Configure(1, 0, exclude_worker0_);
+      } else {
+        LOG(WARNING)
+          << "The thread affinity cannot be set when the number of workers"
+          << "is larger than the number of available cores in the system.";
+      }
+    }
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {

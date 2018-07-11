@@ -30,16 +30,7 @@ class ThreadGroup::Impl {
     for (int i = exclude_worker0; i < num_workers_; ++i) {
       threads_.emplace_back([worker_callback, i] { worker_callback(i); });
     }
-    const char *val = getenv("TVM_BIND_THREADS");
-    if (val == nullptr || atoi(val) == 1) {
-      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
-        SetAffinity(exclude_worker0);
-      } else {
-        LOG(WARNING)
-          << "The thread affinity cannot be set when the number of workers"
-          << "is larger than the number of available cores in the system.";
-      }
-    }
+    InitSortedOrder();
   }
   ~Impl() { Join(); }
 
@@ -50,55 +41,6 @@ class ThreadGroup::Impl {
   }
 
   int Configure(int mode, int nthreads, bool exclude_worker0) {
-    unsigned int threads = threading::MaxConcurrency();
-    std::vector<std::pair <unsigned int, int64_t> > max_freqs;
-
-    // big or LITTLE
-    if (mode) {
-      if (sorted_order_.empty()) {
-        for (unsigned int i = 0; i < threads; ++i) {
-          int64_t cur_freq = 0;
-          #if defined(__linux__) || defined(__ANDROID__)
-            std::ostringstream filepath;
-            filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
-            std::ifstream ifs(filepath.str());
-            if (!ifs.fail()) {
-              if (!(ifs >> cur_freq)) {
-                cur_freq = -1;
-              }
-              ifs.close();
-            }
-          #else
-          #endif
-          max_freqs.push_back(std::make_pair(i, cur_freq));
-        }
-
-        auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> a,
-                              std::pair<unsigned int, int64_t> b) {
-          if (a.second == b.second) {
-            return a.first < b.first;
-          } else {
-            return a.second > b.second;
-          }
-        };
-        std::sort(max_freqs.begin(), max_freqs.end(), fcmpbyfreq);
-        int64_t big_freq = max_freqs.begin()->second;
-        int64_t little_freq = max_freqs.rbegin()->second;
-        for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
-          sorted_order_.push_back(it->first);
-          if (big_freq == it->second) {
-            big_count_++;
-          }
-          if (little_freq == it->second) {
-            little_count_++;
-          }
-        }
-        if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
-          LOG(WARNING) << "more than two frequencies detected!";
-        }
-      }
-    }
-
     int num_workers_used = 0;
     if (mode == -1) {
       num_workers_used = little_count_;
@@ -139,14 +81,11 @@ class ThreadGroup::Impl {
 #if defined(__linux__) || defined(__ANDROID__)
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
-      if (sorted_order_.size() >= threads_.size()) {
-        if (reverse) {
-          core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
-        } else {
-          core_id = sorted_order_[i + exclude_worker0];
-        }
+      CHECK_EQ(sorted_order_.size(), threads_.size() + exclude_worker0);
+      if (reverse) {
+        core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
       } else {
-        core_id = i + exclude_worker0;
+        core_id = sorted_order_[i + exclude_worker0];
       }
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
@@ -161,14 +100,10 @@ class ThreadGroup::Impl {
     if (exclude_worker0) {  // bind the master thread to core 0
       cpu_set_t cpuset;
       CPU_ZERO(&cpuset);
-      if (sorted_order_.size() >= threads_.size()) {
-        if (reverse) {
-          CPU_SET(sorted_order_[sorted_order_.size() - 1], &cpuset);
-        } else {
-          CPU_SET(sorted_order_[0], &cpuset);
-        }
+      if (reverse) {
+        CPU_SET(sorted_order_[sorted_order_.size() - 1], &cpuset);
       } else {
-        CPU_SET(0, &cpuset);
+        CPU_SET(sorted_order_[0], &cpuset);
       }
 #if defined(__ANDROID__)
       sched_setaffinity(pthread_self(),
@@ -179,6 +114,52 @@ class ThreadGroup::Impl {
 #endif
     }
 #endif
+  }
+
+  void InitSortedOrder() {
+    unsigned int threads = threading::MaxConcurrency();
+    std::vector<std::pair <unsigned int, int64_t> > max_freqs;
+
+    for (unsigned int i = 0; i < threads; ++i) {
+      int64_t cur_freq = 0;
+      #if defined(__linux__) || defined(__ANDROID__)
+        std::ostringstream filepath;
+        filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
+        std::ifstream ifs(filepath.str());
+        if (!ifs.fail()) {
+          if (!(ifs >> cur_freq)) {
+            cur_freq = -1;
+          }
+          ifs.close();
+        }
+      #else
+      #endif
+      max_freqs.push_back(std::make_pair(i, cur_freq));
+    }
+
+    auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> a,
+                          std::pair<unsigned int, int64_t> b) {
+      if (a.second == b.second) {
+        return a.first < b.first;
+      } else {
+        return a.second > b.second;
+      }
+    };
+    std::sort(max_freqs.begin(), max_freqs.end(), fcmpbyfreq);
+    int64_t big_freq = max_freqs.begin()->second;
+    int64_t little_freq = max_freqs.rbegin()->second;
+    for (auto it = max_freqs.begin(); it != max_freqs.end(); it++) {
+      sorted_order_.push_back(it->first);
+      if (big_freq == it->second) {
+        big_count_++;
+      }
+      if (little_freq == it->second) {
+        little_count_++;
+      }
+    }
+    if (big_count_ + little_count_ != static_cast<int>(sorted_order_.size())) {
+      LOG(WARNING) << "more than two frequencies detected!";
+    }
   }
 
   int num_workers_;
@@ -194,6 +175,7 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
+
 int ThreadGroup::Configure(int mode, int nthreads, bool exclude_worker0) {
   return impl_->Configure(mode, nthreads, exclude_worker0);
 }
