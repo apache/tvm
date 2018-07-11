@@ -64,6 +64,7 @@ def test_single_point_test():
     stmt = tvm.ir_pass.InjectCopyIntrin(stmt, "memcpy", cb)
 
 def assert_expr_equal(a, b):
+    print(a, b)
     assert tvm.ir_pass.Simplify(a - b).value == 0
 
 def test_copy_pad_split():
@@ -87,6 +88,7 @@ def test_copy_pad_split():
     def cb(src, dst, pad_before, pad_after, pad_value):
         assert(dst.elem_offset.value == 0)
         assert_expr_equal(src.elem_offset, tvm.max(xo * 4, 1) - 1)
+
         rpad_before = tvm.max(1 - xo * 4, 0)
         rpad_after = tvm.max(xo * 4 - 7, 0)
         assert_expr_equal(pad_before[0], rpad_before)
