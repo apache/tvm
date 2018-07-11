@@ -594,21 +594,21 @@ inline Tensor where(const Tensor& condition,
   CHECK_EQ(x->shape.size(), y->shape.size())
     << "x and y must have the same shape.Got different number of dimension: "
     << x->shape.size() << " vs " << y->shape.size();
+  CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: "
+                               << x->dtype << " vs " << y->dtype;
   Array<Expr> oshape = x->shape;
   Tensor out;
 
   if (condition->shape.size() != 1) {
     CHECK_EQ(condition->shape.size(), x->shape.size())
-      << "condition and x must have the same shape.Got "
-         "different number of dimension: "
+      << "condition array must be either have the same shape as x or to be a "
+         "1-D array.Got different number of dimension: "
       << condition->shape.size() << " vs " << x->shape.size();
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         return tvm::select(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
-    CHECK_EQ(condition->shape.size(), 1) << "condition array must be either "
-        "have the same shape as x or to be a 1-D array.";
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<Expr> condition_idx{indices[0]};

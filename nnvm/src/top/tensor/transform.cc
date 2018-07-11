@@ -1280,6 +1280,18 @@ is from x’s row if the corresponding element from condition is true, and
 from y’s row if false.
 
 Note that all non-zero values are interpreted as True in condition.
+
+Examples::
+
+  x = [[1, 2], [3, 4]]
+  y = [[5, 6], [7, 8]]
+  cond = [[0, 1], [-1, 0]]
+  where(cond, x, y) = [[5, 2], [3, 8]]
+
+
+  cond = [1, 0]
+  where(cond, x, y) = [[1, 2], [7, 8]]
+
 )code" NNVM_ADD_FILELINE)
 .add_argument("condition", "Tensor", "Condition array")
 .add_argument("x", "Tensor", "First array to be selected")
