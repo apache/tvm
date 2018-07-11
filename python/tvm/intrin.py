@@ -285,7 +285,7 @@ def trunc(x):
     return call_pure_intrin(x.dtype, "trunc", x)
 
 
-def absolute(x):
+def abs(x):
     """Get absolute value of the input element-wise.
 
     Parameters

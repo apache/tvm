@@ -126,7 +126,7 @@ def trunc(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
-def absolute(x):
+def abs(x):
     """Take absolute value of the input of x, element-wise.
 
     Parameters
@@ -139,7 +139,7 @@ def absolute(x):
     y : tvm.Tensor
         The result.
     """
-    return tvm.compute(x.shape, lambda *i: tvm.absolute(x(*i)))
+    return tvm.compute(x.shape, lambda *i: tvm.abs(x(*i)))
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
