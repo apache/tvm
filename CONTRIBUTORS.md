@@ -21,6 +21,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 
 ## Reviewers
 - [Masahiro Masuda](https://github.com/masahi)
+- [Kazutaka Morita](https://github.com/kazum)
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Siva](https://github.com/srkreddy1238)
 - [Alex Weaver](https://github.com/alex-weaver)
