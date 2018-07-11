@@ -21,7 +21,7 @@ inline T get_with_default(const std::unordered_map<Node*, T> &map,
   return def;
 }
 
-inline bool IsMutate(const std::vector<uint32_t>& mutate_inputs, uint32_t i) {
+inline bool IsMutate(const std::vector<size_t>& mutate_inputs, size_t i) {
   return std::binary_search(mutate_inputs.begin(), mutate_inputs.end(), i);
 }
 
@@ -42,7 +42,7 @@ Graph OrderMutation(const Graph& src) {
   std::unordered_map<Node*, NodePtr> old_new;
   auto prepare = [&version_hist, &old_new] (const NodePtr& n) {
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-    std::vector<uint32_t> mutate_inputs;
+    std::vector<size_t> mutate_inputs;
     if (!n->is_variable() && fmutate_inputs.count(n->op())) {
       mutate_inputs = fmutate_inputs[n->op()](n->attrs);
     }
@@ -99,7 +99,7 @@ Graph OrderMutation(const Graph& src) {
     }
     // add control deps
     static auto& fmutate_inputs = Op::GetAttr<FMutateInputs>("FMutateInputs");
-    std::vector<uint32_t> mutate_inputs;
+    std::vector<size_t> mutate_inputs;
     if (fmutate_inputs.count(kv.first->op())) {
       mutate_inputs = fmutate_inputs[kv.first->op()](kv.first->attrs);
     }

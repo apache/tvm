@@ -90,9 +90,9 @@ class IndexedGraph {
   /*! \brief represents a data in the graph */
   struct NodeEntry {
     /*! \brief the source node id in the computation graph */
-    uint32_t node_id;
+    size_t node_id;
     /*! \brief index of output from the source. */
-    uint32_t index;
+    size_t index;
     /*! \brief version of the node */
     uint32_t version;
   };
@@ -103,7 +103,7 @@ class IndexedGraph {
     /*! \brief inputs to the node */
     array_view<NodeEntry> inputs;
     /*! \brief control flow dependencies to the node */
-    array_view<uint32_t> control_deps;
+    array_view<size_t> control_deps;
     /*! \brief weak reference to node */
     std::weak_ptr<nnvm::Node> weak_ref;
   };
@@ -122,7 +122,7 @@ class IndexedGraph {
    * \param index the output index
    * \return the unique index.
    */
-  inline uint32_t entry_id(uint32_t node_id, uint32_t index) const {
+  inline size_t entry_id(size_t node_id, size_t index) const {
     return entry_rptr_[node_id] + index;
   }
   /*!
@@ -131,7 +131,7 @@ class IndexedGraph {
    * \param e The entry to query for index.
    * \return the unique index.
    */
-  inline uint32_t entry_id(const NodeEntry& e) const {
+  inline size_t entry_id(const NodeEntry& e) const {
     return entry_rptr_[e.node_id] + e.index;
   }
   /*!
@@ -140,7 +140,7 @@ class IndexedGraph {
    * \param e The entry to query for index.
    * \return the unique index.
    */
-  inline uint32_t entry_id(const nnvm::NodeEntry& e) const {
+  inline size_t entry_id(const nnvm::NodeEntry& e) const {
     return entry_rptr_[node_id(e.node.get())] + e.index;
   }
   /*!
@@ -148,7 +148,7 @@ class IndexedGraph {
    * \param node The Node to query for index.
    * \return the node index.
    */
-  inline uint32_t node_id(const nnvm::Node* node) const {
+  inline size_t node_id(const nnvm::Node* node) const {
     return node2index_.at(node);
   }
   /*!
@@ -156,7 +156,7 @@ class IndexedGraph {
    * \param node_id The node id
    * \return const reference to the corresponding IndexedGraph::Node
    */
-  inline const Node& operator[](uint32_t node_id) const {
+  inline const Node& operator[](size_t node_id) const {
     return nodes_[node_id];
   }
   /*!
@@ -168,11 +168,11 @@ class IndexedGraph {
     return nodes_[node_id(node)];
   }
   /*! \return list of argument nodes */
-  inline const std::vector<uint32_t>& input_nodes() const {
+  inline const std::vector<size_t>& input_nodes() const {
     return input_nodes_;
   }
   /*! \return list of mutable nodes */
-  inline const std::unordered_set<uint32_t>& mutable_input_nodes() const {
+  inline const std::unordered_set<size_t>& mutable_input_nodes() const {
     return mutable_input_nodes_;
   }
   /*! \return list of output entries */
@@ -198,19 +198,19 @@ class IndexedGraph {
   // Node pointers in CSR structure.
   std::vector<Node> nodes_;
   // Index to all input nodes.
-  std::vector<uint32_t> input_nodes_;
+  std::vector<size_t> input_nodes_;
   // Index to all mutable input nodes.
-  std::unordered_set<uint32_t> mutable_input_nodes_;
+  std::unordered_set<size_t> mutable_input_nodes_;
   // space to store the outputs entries
   std::vector<NodeEntry> outputs_;
   // mapping from node to index.
-  std::unordered_map<const nnvm::Node*, uint32_t> node2index_;
+  std::unordered_map<const nnvm::Node*, size_t> node2index_;
   // CSR pointer of node entries
   std::vector<size_t> entry_rptr_;
   // space to store input entries of each
   std::vector<NodeEntry> input_entries_;
   // control flow dependencies
-  std::vector<uint32_t> control_deps_;
+  std::vector<size_t> control_deps_;
 };
 
 /*!
@@ -259,7 +259,7 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
                        HashFunc hash,
                        InDegree indegree,
                        GetInput getinput) {
-  std::vector<std::pair<GNode, uint32_t> > stack;
+  std::vector<std::pair<GNode, size_t> > stack;
   std::unordered_set<HashType> visited;
   for (auto& head : heads) {
     HashType head_hash = hash(head);
@@ -268,7 +268,7 @@ void PostOrderDFSVisit(const std::vector<GNode>& heads,
       visited.insert(head_hash);
     }
     while (!stack.empty()) {
-      std::pair<GNode, uint32_t>& back = stack.back();
+      std::pair<GNode, size_t>& back = stack.back();
       if (back.second == indegree(back.first)) {
         fvisit(back.first);
         stack.pop_back();
@@ -297,11 +297,11 @@ inline void DFSVisit(const std::vector<NodeEntry>& heads,
       head_nodes,
       [fvisit](GNode n) { fvisit(*n); },  // FVisit
       [](GNode n)->Node* { return n->get(); },  // HashFunc
-      [](GNode n)->uint32_t {  // InDegree
+      [](GNode n)->size_t {  // InDegree
         if (!(*n)) return 0;
         return (*n)->inputs.size() + (*n)->control_deps.size();
       },
-      [](GNode n, uint32_t index)->GNode {  // GetInput
+      [](GNode n, size_t index)->GNode {  // GetInput
         if (index < (*n)->inputs.size()) {
           return &(*n)->inputs.at(index).node;
         } else {

@@ -28,7 +28,7 @@ class OpRegistryEntry;
 using dmlc::ParamFieldInfo;
 
 /*! \brief constant to indicate it take any length of positional inputs */
-static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
+static const size_t kVarg = std::numeric_limits<size_t>::max();
 
 /*!
  * \brief Operator structure.
@@ -100,7 +100,7 @@ class NNVM_DLL Op {
    * the number will be decided by get_num_inputs instead.
    * \sa get_num_inputs
    */
-  uint32_t num_inputs = 1;
+  size_t num_inputs = 1;
   /*!
    * \brief number of outputs of the operator
    *  When get_num_outputs is presented.
@@ -108,7 +108,7 @@ class NNVM_DLL Op {
    *  get_num_outputs function
    * \sa get_num_outputs
    */
-  uint32_t num_outputs = 1;
+  size_t num_outputs = 1;
   /*!
    * \brief support level of the operator,
    *  The lower the more priority it contains.
@@ -120,13 +120,13 @@ class NNVM_DLL Op {
    * \param attrs The attribute of the node
    * \return number of outputs.
    */
-  std::function<uint32_t(const NodeAttrs& attrs)> get_num_outputs = nullptr;
+  std::function<size_t(const NodeAttrs& attrs)> get_num_outputs = nullptr;
   /*!
    * \brief get number of inputs given information about the node.
    * \param attrs The attribute of the node
    * \return number of inputs
    */
-  std::function<uint32_t(const NodeAttrs& attrs)> get_num_inputs = nullptr;
+  std::function<size_t(const NodeAttrs& attrs)> get_num_inputs = nullptr;
   /*!
    * \brief Attribute parser to parse the NodeAttrs information.
    *
@@ -189,7 +189,7 @@ class NNVM_DLL Op {
    * \param n The number of inputs to be set.
    * \return reference to self.
    */
-  inline Op& set_num_inputs(uint32_t n);  // NOLINT(*)
+  inline Op& set_num_inputs(size_t n);  // NOLINT(*)
   /*!
    * \brief Set the support level of op.
    * \param level The support level.
@@ -201,19 +201,19 @@ class NNVM_DLL Op {
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
+  inline Op& set_num_inputs(std::function<size_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the num_outputs
    * \param n The number of outputs to be set.
    * \return reference to self.
    */
-  inline Op& set_num_outputs(uint32_t n);  // NOLINT(*)
+  inline Op& set_num_outputs(size_t n);  // NOLINT(*)
   /*!
    * \brief Set the get_num_outputs function.
    * \param fn The function to be set.
    * \return reference to self.
    */
-  inline Op& set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
+  inline Op& set_num_outputs(std::function<size_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the attr_parser function.
    * \param fn The number of outputs to be set.
@@ -276,7 +276,7 @@ class NNVM_DLL Op {
   friend class dmlc::Registry<Op>;
   // Program internal unique index of operator.
   // Used to help index the program.
-  uint32_t index_{0};
+  size_t index_{0};
   // internal constructor
   Op();
   // get const reference to certain attribute
@@ -487,7 +487,7 @@ inline Op& Op::add_arguments(const std::vector<ParamFieldInfo> &args) {
   return *this;
 }
 
-inline Op& Op::set_num_inputs(uint32_t n) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(size_t n) {  // NOLINT(*)
   this->num_inputs = n;
   return *this;
 }
@@ -497,17 +497,17 @@ inline Op& Op::set_support_level(uint32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline Op& Op::set_num_inputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
+inline Op& Op::set_num_inputs(std::function<size_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_inputs = fn;
   return *this;
 }
 
-inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
+inline Op& Op::set_num_outputs(size_t n) {  // NOLINT(*)
   this->num_outputs = n;
   return *this;
 }
 
-inline Op& Op::set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
+inline Op& Op::set_num_outputs(std::function<size_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_outputs = fn;
   return *this;
 }
@@ -521,14 +521,14 @@ inline Op& Op::set_attr_parser(std::function<void (NodeAttrs* attrs)> fn) {  // 
 template<typename ValueType>
 inline int OpMap<ValueType>::count(const Op* op) const {
   if (op == nullptr) return 0;
-  const uint32_t idx = op->index_;
+  const size_t idx = op->index_;
   return idx < data_.size() ? (data_[idx].second != 0) : 0;
 }
 
 template<typename ValueType>
 inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
   CHECK(op != nullptr);
-  const uint32_t idx = op->index_;
+  const size_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second)
         << "Attribute " << attr_name_
         << " has not been registered for Operator " << op->name;
@@ -538,7 +538,7 @@ inline const ValueType& OpMap<ValueType>::operator[](const Op* op) const {
 template<typename ValueType>
 inline const ValueType& OpMap<ValueType>::get(const Op* op, const ValueType& def_value) const {
   if (op == nullptr) return def_value;
-  const uint32_t idx = op->index_;
+  const size_t idx = op->index_;
   if (idx < data_.size() && data_[idx].second) {
     return data_[idx].first;
   } else {

@@ -39,3 +39,4 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Chris Nuernberger](https://github.com/cnuernber)
 - [Tatsuya Nishiyama](https://github.com/nishi-t)
 - [Kazutaka Morita](https://github.com/kazum)
+- [Lin Yuan](https://github.com/apeforest)

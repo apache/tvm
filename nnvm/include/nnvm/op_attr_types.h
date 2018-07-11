@@ -41,7 +41,7 @@ using FListInputNames = std::function<std::vector<std::string> (const NodeAttrs&
  *  but the additional outputs can be used to pass information from
  *  forward to gradient pass.
  */
-using FNumVisibleOutputs = std::function<uint32_t (const NodeAttrs& attrs)>;
+using FNumVisibleOutputs = std::function<size_t (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Return list of output arguments names of each operator.
@@ -62,7 +62,7 @@ using FListOutputNames = std::function<std::vector<std::string> (const NodeAttrs
  * \note Register under "FMutateInputs", default return false
  * FMutateInputs enables mutation order handling correctly.
  */
-using FMutateInputs = std::function<std::vector<uint32_t> (const NodeAttrs& attrs)>;
+using FMutateInputs = std::function<std::vector<size_t> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Inference function of certain type.
@@ -150,7 +150,7 @@ using FInplaceIdentity = std::function<std::vector<bool> (const NodeAttrs& attrs
  * \note Register under "FIgnoreInputs".
  */
 using FIgnoreInputs = std::function<
-  std::vector<uint32_t> (const NodeAttrs& attrs)>;
+  std::vector<size_t> (const NodeAttrs& attrs)>;
 
 /*!
  * \brief Get the gradient node of the op node
@@ -212,7 +212,7 @@ using FCorrectLayout = std::function<bool(
  *
  * \note Register under "FInputGraph".
  */
-using FInputGraph = std::function<std::vector<uint32_t>(const NodeAttrs& attrs)>;
+using FInputGraph = std::function<std::vector<size_t>(const NodeAttrs& attrs)>;
 
 }  // namespace nnvm
 
