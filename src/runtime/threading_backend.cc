@@ -63,7 +63,7 @@ class ThreadGroup::Impl {
             filepath << "/sys/devices/system/cpu/cpu"  << i << "/cpufreq/cpuinfo_max_freq";
             std::ifstream ifs(filepath.str());
             if (!ifs.fail()) {
-              if(!(ifs >> cur_freq)) {
+              if (!(ifs >> cur_freq)) {
                 cur_freq = -1;
               }
               ifs.close();
