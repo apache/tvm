@@ -30,7 +30,7 @@ This is an experimental operator.
 .set_num_outputs(1)
 .set_attr<FMutateInputs>(
   "FMutateInputs", [](const NodeAttrs& attrs) {
-    return std::vector<uint32_t>{0};
+    return std::vector<size_t>{0};
 })
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,

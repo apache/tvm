@@ -222,7 +222,7 @@ inline bool BatchNormCorrectLayout(const NodeAttrs& attrs,
       data_layout = origin_data_layout;
       NNVM_ASSIGN_LAYOUT(*in_layouts, 0, origin_data_layout);
     } else if (data_layout.indexof('c') >= 0 &&
-               static_cast<uint32_t>(data_layout.indexof('c')) != (data_layout.ndim()-1)) {
+               static_cast<size_t>(data_layout.indexof('c')) != (data_layout.ndim()-1)) {
       CHECK(origin_data_layout.defined())
         << "sub-channel c in data layout " << data_layout
         << " does not at the final dimension";
@@ -322,7 +322,7 @@ axis to be the last item in the input shape.
     return 1;
   })
 .set_attr<FMutateInputs>("FMutateInputs", [](const NodeAttrs& attrs) {
-    return std::vector<uint32_t>{3, 4};
+    return std::vector<size_t>{3, 4};
   })
 .set_support_level(1);
 
@@ -579,7 +579,7 @@ inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
   if (dshape.ndim() == 0) return false;
   CHECK_EQ(param.pad_width.ndim(), dshape.ndim());
   TShape oshape = dshape;
-  for (uint32_t i = 0; i < dshape.ndim(); i++) {
+  for (size_t i = 0; i < dshape.ndim(); i++) {
     CHECK_EQ(param.pad_width[i].ndim(), 2U);
     int pad_before = param.pad_width[i][0];
     int pad_after = param.pad_width[i][1];
