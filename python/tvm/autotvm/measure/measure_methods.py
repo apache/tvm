@@ -115,10 +115,9 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
                         errno = MeasureErrorNo.WRONG_ANSWER
         except TVMError as exc:
             msg = str(exc)
-            if "\n" in msg:
-                costs = (RuntimeError(msg[:msg.index("\n")],))
-            else:
-                costs = (RuntimeError(msg[:msg.index("\\n")]),)
+            if "Stack trace returned" in msg:
+                msg = msg[:msg.index("Stack trace returned")]
+            costs = (RuntimeError(msg),)
             errno = MeasureErrorNo.RUNTIME_DEVICE
         tstamp = time.time()
         res_pack.append(MeasureResult(costs, errno, tstamp - tic, tstamp))
