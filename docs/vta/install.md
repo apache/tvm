@@ -8,9 +8,9 @@ We present three installation guides, each extending on the previous one:
 
 ## VTA Simulation-Only Installation
 
-Please follow the guide on install TVM from source.
-VTA simulator is library is built by default along with TVM.
-You only have to add vta to your python path.
+You need [TVM installed](https://docs.tvm.ai/install/index.html) on your machine.
+VTA simulator is library will be built by default along with TVM.
+All you need to run the simulator is to add the vta library to your python path.
 
 ```bash
 export PYTHONPATH=/path/to/vta/python:${PYTHONPATH}
