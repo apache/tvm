@@ -54,7 +54,7 @@ ThreadGroup::ThreadGroup(int num_workers,
   : impl_(new ThreadGroup::Impl(num_workers, worker_callback, exclude_worker0)) {}
 void ThreadGroup::Join() {}
 int ThreadGroup::Configure(int mode, int nthreads, bool exclude_worker0) {
-  unsigned int max_conc = (unsigned int) MaxConcurrency();
+  int max_conc = MaxConcurrency();
   if (!nthreads || ntheads > MaxConcurrency()) {
     return max_conc;
   }
