@@ -54,8 +54,16 @@ class ThreadGroup::Impl {
     if (nthreads) {
       num_workers_used = nthreads;
     }
-
-    SetAffinity(exclude_worker0, mode == -1);
+    const char *val = getenv("TVM_BIND_THREADS");
+    if (val == nullptr || atoi(val) == 1) {
+      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
+        SetAffinity(exclude_worker0, mode == -1);
+      } else {
+        LOG(WARNING)
+          << "The thread affinity cannot be set when the number of workers"
+          << "is larger than the number of available cores in the system.";
+      }
+    }
     return num_workers_used;
   }
 

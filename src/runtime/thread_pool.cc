@@ -244,7 +244,6 @@ class SpscTaskQueue {
 class ThreadPool {
  public:
   ThreadPool(): num_workers_(tvm::runtime::threading::MaxConcurrency()) {
-    num_workers_used_ = num_workers_;
     for (int i = 0; i < num_workers_; ++i) {
       // The SpscTaskQueue only hosts ONE item at a time
       queues_.emplace_back(std::unique_ptr<SpscTaskQueue>(new SpscTaskQueue()));
@@ -253,16 +252,10 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           exclude_worker0_ /* include_main_thread */));
-    const char *val = getenv("TVM_BIND_THREADS");
-    if (val == nullptr || atoi(val) == 1) {
-      if (static_cast<size_t>(num_workers_) <= num_workers_used_) {
-        num_workers_used_ = threads_->Configure(1, 0, exclude_worker0_);
-      } else {
-        LOG(WARNING)
-          << "The thread affinity cannot be set when the number of workers"
-          << "is larger than the number of available cores in the system.";
-      }
-    }
+    num_workers_used_ = threads_->Configure(1, 0, exclude_worker0_);
+    // if MaxConcurrency restricted the number of workers (e.g., due to
+    // hyperthreading), respect the restriction
+    num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -315,6 +308,9 @@ class ThreadPool {
     // may use less than the MaxConcurrency number of workers
     num_workers_used_ = threads_->Configure(mode, nthreads,
                                             exclude_worker0_);
+    // if MaxConcurrency restricted the number of workers (e.g., due to
+    // hyperthreading), respect the restriction
+    num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
 
  private:
