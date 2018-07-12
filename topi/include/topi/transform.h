@@ -609,6 +609,9 @@ inline Tensor where(const Tensor& condition,
         return tvm::select(condition(indices) != 0, x(indices), y(indices));
       }, name, tag);
   } else {
+    CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
+      << "If condition is 1-D, the first dimension must be the same as x: "
+      << condition->shape[0] << " vs " << x->shape[0];
     out = compute(
       oshape, [&](const Array<Var>& indices) {
         Array<Expr> condition_idx{indices[0]};
