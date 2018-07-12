@@ -61,7 +61,7 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Configure(AffinityMode Mode, int nthreads, bool exclude_worker0);
+  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0);
 
  private:
   Impl* impl_;
