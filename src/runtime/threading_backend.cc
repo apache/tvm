@@ -56,8 +56,9 @@ class ThreadGroup::Impl {
     }
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
-      if (static_cast<size_t>(num_workers_) <= std::thread::hardware_concurrency()) {
-        SetAffinity(exclude_worker0, mode == -1);
+      // Skip if sorted_order.size() is bigger than the number of workers (threads_)
+      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_))) {
+          SetAffinity(exclude_worker0, mode == -1);
       } else {
         LOG(WARNING)
           << "The thread affinity cannot be set when the number of workers"
@@ -87,10 +88,7 @@ class ThreadGroup::Impl {
 #endif
 #endif
 #if defined(__linux__) || defined(__ANDROID__)
-    CHECK_LE(threads_.size() + exclude_worker0, sorted_order_.size());
-    if (sorted_order_.size() != threads_.size()) {
-      LOG(WARNING) << "setting affinity with subset of threads!";
-    }
+    CHECK_GE(sorted_order_.size(), num_workers_);
 
     for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
@@ -149,8 +147,8 @@ class ThreadGroup::Impl {
       max_freqs.push_back(std::make_pair(i, cur_freq));
     }
 
-    auto fcmpbyfreq = [] (std::pair<unsigned int, int64_t> &a,
-                          std::pair<unsigned int, int64_t> &b) {
+    auto fcmpbyfreq = [] (const std::pair<unsigned int, int64_t> &a,
+                          const std::pair<unsigned int, int64_t> &b) {
       if (a.second == b.second) {
         return a.first < b.first;
       } else {
