@@ -8,11 +8,6 @@ include(cmake/util/FindVulkan.cmake)
 include(cmake/util/FindLLVM.cmake)
 include(cmake/util/FindROCM.cmake)
 
-
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
-  include(${CMAKE_CURRENT_SOURCE_DIR}/build/private/local_config.cmake)
-endif()
-
 if(EXISTS ${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
   include(${CMAKE_CURRENT_BINARY_DIR}/config.cmake)
 else()
@@ -40,6 +35,8 @@ tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 
+tvm_option(USE_VTA_CFG "Use a specific json file for VTA runtime" "")
+
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
@@ -52,8 +49,9 @@ tvm_option(USE_NNPACK "Build with nnpack support" OFF)
 tvm_option(USE_RANDOM "Build with random support" OFF)
 
 # include directories
-include_directories(BEFORE "nnvm/include")
 include_directories("include")
+include_directories("nnvm/include")
+include_directories("dmlc-core/include")
 include_directories("HalideIR/src")
 include_directories("dlpack/include")
 include_directories("topi/include")
@@ -149,20 +147,8 @@ if(USE_GRAPH_RUNTIME)
   endif(USE_GRAPH_RUNTIME_DEBUG)
 endif(USE_GRAPH_RUNTIME)
 
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/CMakeLists.txt)
-  include_directories(${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include)
-  if (INSTALL_DEV)
-    install(
-      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/dmlc-core/include/." DESTINATION "include"
-      FILES_MATCHING
-      PATTERN "*.h"
-    )
-  endif()
-elseif(DMLC_CORE_PATH)
-  include_directories(${DMLC_CORE_PATH}/include)
-endif()
-
 # Module rules
+include(cmake/modules/VTA.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/OpenCL.cmake)
 include(cmake/modules/OpenGL.cmake)
@@ -175,7 +161,6 @@ include(cmake/modules/contrib/Random.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 
-# Target rrules
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
 add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
@@ -207,7 +192,6 @@ endif()
 
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
-
 
 # Installation rulse
 install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})

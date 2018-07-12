@@ -46,6 +46,8 @@ help:
 clean:
 	rm -rf $(BUILDDIR)/*
 	rm -rf gen_modules
+	rm -rf tutorials
+	rm -rf vta/tutorials
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html

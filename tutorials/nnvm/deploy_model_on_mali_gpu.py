@@ -1,6 +1,8 @@
 """
+.. _tutorial-deploy-model-on-mali-gpu:
+
 Deploy the Pretrained Model on ARM Mali GPU
-=======================================================
+===========================================
 **Author**: `Lianmin Zheng <https://lmzheng.net/>`_, `Ziheng Jiang <https://ziheng.org/>`_
 
 This is an example of using NNVM to compile a ResNet model and

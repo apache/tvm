@@ -1,7 +1,7 @@
 ROOTDIR = $(CURDIR)
 
 .PHONY: clean all test doc pylint cpplint lint\
-	 cython cython2 cython3 web runtime
+	 cython cython2 cython3 web runtime vta
 
 ifndef DMLC_CORE_PATH
   DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
@@ -20,8 +20,10 @@ all:
 	@mkdir -p build && cd build && cmake .. && $(MAKE)
 
 runtime:
-
 	@mkdir -p build && cd build && cmake .. && $(MAKE) runtime
+
+vta:
+	@mkdir -p build && cd build && cmake .. && $(MAKE) vta
 
 cpptest:
 	@mkdir -p build && cd build && cmake .. && $(MAKE) cpptest
@@ -48,6 +50,7 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 
 # Lint scripts
 cpplint:
+	python3 dmlc-core/scripts/lint.py vta cpp vta/include vta/src
 	python3 dmlc-core/scripts/lint.py topi cpp topi/include;
 	python3 dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
 	python3 dmlc-core/scripts/lint.py tvm cpp include src verilog\
@@ -57,6 +60,7 @@ pylint:
 	python3 -m pylint python/tvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	python3 -m pylint topi/python/topi --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 	python3 -m pylint nnvm/python/nnvm --rcfile=$(ROOTDIR)/tests/lint/pylintrc
+	python3 -m pylint vta/python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:
 	python3 dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src

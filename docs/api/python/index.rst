@@ -21,5 +21,6 @@ Python API
    contrib
    dev
    topi
+   vta/index
    nnvm/index
    hybrid

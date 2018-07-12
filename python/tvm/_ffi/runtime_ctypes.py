@@ -25,6 +25,7 @@ class TypeCode(object):
     FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
+    NDARRAY_CONTAINER = 13
     EXT_BEGIN = 15
 
 class TVMByteArray(ctypes.Structure):
