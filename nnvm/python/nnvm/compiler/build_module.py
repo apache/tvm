@@ -276,7 +276,7 @@ def build(graph, target=None, shape=None, dtype="float32",
 
     # Precompute prune
     if params and cfg.pass_enabled("PrecomputePrune"):
-        graph, params = precompute_prune(graph, params)
+        graph, params = precompute_prune(graph, params, target.target_name)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
     # Operator Fusion and generation
     graph = graph_attr.set_shape_inputs(graph, shape)
@@ -319,7 +319,7 @@ def _remove_noref_params(params, graph):
             if key not in arg_list:
                 params.pop(key)
 
-def _run_graph(graph, params):
+def _run_graph(graph, params, target="llvm"):
     """Helper utility to build and run and get outputs, only use cpu mode.
 
     Parameters
@@ -330,6 +330,9 @@ def _run_graph(graph, params):
     params: dict of str to ndarray
         The parameter dictionary.
 
+    target : str, optional
+        The build target.
+
     Returns
     -------
     out_dict: dict of str to tvm.NDArray
@@ -338,8 +341,7 @@ def _run_graph(graph, params):
     graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
     shape = {k : v.shape for k, v in params.items()}
     dtype = {k : v.dtype for k, v in params.items()}
-    target = "llvm"
-    ctx = tvm.cpu(0)
+    ctx = tvm.context(target, 0)
     _, oshape = graph_util.infer_shape(graph, **shape)
     _, odtype = graph_util.infer_dtype(graph, **dtype)
     graph, libmod, _ = build(graph, target, shape, dtype)
@@ -359,7 +361,7 @@ def _run_graph(graph, params):
     return out_data
 
 
-def precompute_prune(graph, params):
+def precompute_prune(graph, params, target="llvm"):
     """Precompute the part of graph that can be pre-computed.
 
     This will create a new graph that only contains the ops
@@ -374,6 +376,9 @@ def precompute_prune(graph, params):
 
     params : dict of str -> tvm.NDArray
         The parameter dictionary of the graph
+
+    target : str, optional
+        The build target.
 
     Returns
     -------
@@ -393,7 +398,7 @@ def precompute_prune(graph, params):
     if not pre_graph.symbol.list_output_names():
         return graph, params
     with tvm.build_config(auto_unroll_max_step=0):
-        out_arrs = _run_graph(pre_graph, params)
+        out_arrs = _run_graph(pre_graph, params, target)
     return graph, dict(zip(out_names, out_arrs))
 
 
