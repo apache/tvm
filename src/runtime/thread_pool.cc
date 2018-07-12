@@ -5,6 +5,8 @@
  */
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/threading_backend.h>
 #include <dmlc/thread_local.h>
 #include <dmlc/logging.h>
@@ -250,6 +252,10 @@ class ThreadPool {
         new tvm::runtime::threading::ThreadGroup(
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           exclude_worker0_ /* include_main_thread */));
+    num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
+    // if MaxConcurrency restricted the number of workers (e.g., due to
+    // hyperthreading), respect the restriction
+    num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
@@ -265,12 +271,12 @@ class ThreadPool {
     CHECK(!launcher->is_worker)
         << "Cannot launch parallel job inside worker, consider fuse then parallel";
     if (num_task == 0) {
-      num_task = num_workers_;
+      num_task = num_workers_used_;
     }
     if (need_sync != 0) {
-      CHECK_LE(num_task, num_workers_)
-          << "Request parallel sync task larger than number of threads available "
-          << " workers=" << num_workers_ << " request=" << num_task;
+      CHECK_LE(num_task, num_workers_used_)
+          << "Request parallel sync task larger than number of threads used "
+          << " workers=" << num_workers_used_ << " request=" << num_task;
     }
     launcher->Init(flambda, cdata, num_task, need_sync != 0);
     SpscTaskQueue::Task tsk;
@@ -297,6 +303,16 @@ class ThreadPool {
     return dmlc::ThreadLocalStore<ThreadPool>::Get();
   }
 
+  void UpdateWorkerConfiguration(threading::ThreadGroup::AffinityMode mode, int nthreads) {
+    // this will also reset the affinity of the ThreadGroup
+    // may use less than the MaxConcurrency number of workers
+    num_workers_used_ = threads_->Configure(mode, nthreads,
+                                            exclude_worker0_);
+    // if MaxConcurrency restricted the number of workers (e.g., due to
+    // hyperthreading), respect the restriction
+    num_workers_used_ = std::min(num_workers_, num_workers_used_);
+  }
+
  private:
   // Internal worker function.
   void RunWorker(int worker_id) {
@@ -315,6 +331,8 @@ class ThreadPool {
     }
   }
   int num_workers_;
+  // number of workers used (can be restricted with affinity pref)
+  int num_workers_used_;
   // if excluding worker 0 and using master to run task 0
 #ifndef _LIBCPP_SGX_CONFIG
   bool exclude_worker0_{true};
@@ -325,8 +343,19 @@ class ThreadPool {
   std::unique_ptr<tvm::runtime::threading::ThreadGroup> threads_;
 };
 
+TVM_REGISTER_GLOBAL("runtime.config_threadpool")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    threading::ThreadGroup::AffinityMode mode =\
+    static_cast<threading::ThreadGroup::AffinityMode>(\
+    static_cast<int>(args[0]));
+    int nthreads = args[1];
+    ThreadPool::ThreadLocal()->UpdateWorkerConfiguration(mode, nthreads);
+});
+
+
 }  // namespace runtime
 }  // namespace tvm
+
 
 int TVMBackendParallelLaunch(
     FTVMParallelLambda flambda,
