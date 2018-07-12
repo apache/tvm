@@ -90,7 +90,7 @@ The build process should take roughly 5 minutes.
 ```bash
 ssh xilinx@192.168.2.99
 # Build TVM runtime library (takes 5 mins)
-cd /home/xilinx/tvm/vta
+cd /home/xilinx/tvm
 mkdir build
 cp cmake/config.cmake build/.
 # copy pynq specific configuration
