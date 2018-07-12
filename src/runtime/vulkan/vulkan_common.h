@@ -86,9 +86,9 @@ struct VulkanContext {
 /*! \brief The buffer object */
 struct VulkanBuffer {
   /*! \brief underlying buffer */
-  VkBuffer buffer{nullptr};
+  VkBuffer buffer{VK_NULL_HANDLE};
   /*! \brief underlying buffer */
-  VkDeviceMemory memory{nullptr};
+  VkDeviceMemory memory{VK_NULL_HANDLE};
 };
 
 /*! \brief Buffer only used for stagging */
@@ -96,9 +96,9 @@ struct VulkanStagingBuffer {
   /*! \brief the corresponding device */
   VkDevice device{nullptr};
   /*! \brief underlying buffer */
-  VkBuffer buffer{nullptr};
+  VkBuffer buffer{VK_NULL_HANDLE};
   /*! \brief underlying buffer */
-  VkDeviceMemory memory{nullptr};
+  VkDeviceMemory memory{VK_NULL_HANDLE};
   /*! \brief host address */
   void* host_addr{nullptr};
   /*! \brief size of the memory */
@@ -150,18 +150,18 @@ class VulkanWorkspace final : public DeviceAPI {
 /*! \brief Helper command buffer resource */
 struct VulkanCommandBuffer {
   /*! \brief fence to signal the resource is ready to use */
-  VkFence fence{nullptr};
+  VkFence fence{VK_NULL_HANDLE};
   /*! \brief The internal command buffer */
   VkCommandBuffer cmd_buffer{nullptr};
   /*! \brief Descriptor set used to bind arguments */
-  VkDescriptorSet descriptor_set{nullptr};
+  VkDescriptorSet descriptor_set{VK_NULL_HANDLE};
   /*! \brief Internal utilities for write command */
   VkWriteDescriptorSet write_descriptor_set;
 
   VulkanCommandBuffer() {
     write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_descriptor_set.pNext = nullptr;
-    write_descriptor_set.dstSet = nullptr;
+    write_descriptor_set.dstSet = VK_NULL_HANDLE;
     write_descriptor_set.dstBinding = 0;
     write_descriptor_set.dstArrayElement = 0;
     write_descriptor_set.descriptorCount = 1;
@@ -230,9 +230,9 @@ class VulkanCommandPool {
   /*! \brief the corresponding device*/
   VkDevice device_{nullptr};
   /*! \brief internal command buffer pool */
-  VkCommandPool cmd_pool_{nullptr};
+  VkCommandPool cmd_pool_{VK_NULL_HANDLE};
   /*! \brief Descriptor pool */
-  VkDescriptorPool descriptor_pool_{nullptr};
+  VkDescriptorPool descriptor_pool_{VK_NULL_HANDLE};
 };
 
 /*! \brief Thread local workspace */
