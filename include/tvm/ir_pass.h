@@ -488,7 +488,7 @@ bool VerifyMemory(LoweredFunc func, int device_type);
  *
  *        "max_local_memory_per_block": Total amount of local memory per block (in bytes).
  *        "max_shared_memory_per_block": Total amount of shared memory per block (in bytes).
- *        "max_thread_per_block": Maximum number of threads per block.
+ *        "max_threads_per_block": Maximum number of threads per block.
  *        "max_thread_x": Maximum length of threadIdx.x.
  *        "max_thread_y": Maximum length of threadIdx.y.
  *        "max_thread_z": Maximum length of threadIdx.z.

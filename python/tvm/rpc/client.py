@@ -229,8 +229,14 @@ class TrackerSession(object):
         res += "----------------------------\n"
         res += "key\tfree\tpending\n"
         res += "----------------------------\n"
-        for k, v in data["queue_info"].items():
-            res += "%s\t%d\t%g\n" % (k, v["free"], v["pending"])
+        queue_info = data['queue_info']
+        keys = list(queue_info.keys())
+        if keys:
+            keys.sort()
+            max_key_len = max([len(k) for k in keys])
+            for k in keys:
+                res += ("%%-%d" % max_key_len + "s\t%d\t%g\n") % \
+                       (k, queue_info[k]["free"], queue_info[k]["pending"])
         res += "----------------------------\n"
         return res
 
