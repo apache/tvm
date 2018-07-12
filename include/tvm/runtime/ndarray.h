@@ -83,43 +83,42 @@ class NDArray {
   /*! \brief reset the content of NDArray to be nullptr */
   inline void reset();
   /*!
-   * \brief Copy data content from another array.
-   * \param other The source array to be copied from.
-   * \note The copy may happen asynchrously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
-   */
-  inline void copyfrom(DLTensor* other);
-  inline void copyfrom(const NDArray& other);
-  /*!
-   * \brief Copy data content into another array.
-   * \param other The source array to be copied from.
-   * \note The copy may happen asynchrously if it involves a GPU context.
-   *       TVMSynchronize is necessary.
-   */
-  inline void copyto(DLTensor* other);
-  inline void copyto(const NDArray& other);
-  /*!
    * \return the reference counter
    * \note this number is approximate in multi-threaded setting.
    */
   inline int use_count() const;
   /*! \return Pointer to content of DLTensor */
   inline const DLTensor* operator->() const;
-
+  /*!
+   * \brief Copy data content from another array.
+   * \param other The source array to be copied from.
+   * \note The copy may happen asynchrously if it involves a GPU context.
+   *       TVMSynchronize is necessary.
+   */
+  inline void CopyFrom(DLTensor* other);
+  inline void CopyFrom(const NDArray& other);
+  /*!
+   * \brief Copy data content into another array.
+   * \param other The source array to be copied from.
+   * \note The copy may happen asynchrously if it involves a GPU context.
+   *       TVMSynchronize is necessary.
+   */
+  inline void CopyTo(DLTensor* other);
+  inline void CopyTo(const NDArray& other);
   /*!
    * \brief Create a NDArray that shares the data memory with the current one.
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
    * \note The memory size of new array must be smaller than the current one.
    */
-  TVM_DLL NDArray create_view(
+  TVM_DLL NDArray CreateView(
       std::vector<int64_t> shape, DLDataType dtype);
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.
    * \return A DLManagedTensor
    */
-  TVM_DLL DLManagedTensor* to_dlpack() const;
+  TVM_DLL DLManagedTensor* ToDLPack() const;
   /*!
    * \brief Create an empty NDArray.
    * \param shape The shape of the new array.
@@ -127,14 +126,21 @@ class NDArray {
    * \param ctx The context of the Array.
    * \return The created Array
    */
-  TVM_DLL static NDArray empty(std::vector<int64_t> shape,
+  TVM_DLL static NDArray Empty(std::vector<int64_t> shape,
                                DLDataType dtype,
                                DLContext ctx);
   /*!
-   * \brief Create a NDArray backed by dlpack tensor.
+   * \brief Create a NDArray backed by a dlpack tensor.
+   *
+   * This allows us to create a NDArray using the memory
+   * allocated by an external deep learning framework
+   * that is DLPack compatible.
+   *
+   * The memory is retained until the NDArray went out of scope.
+   *
    * \return The created NDArray view.
    */
-  TVM_DLL static NDArray from_dlpack(DLManagedTensor* tensor);
+  TVM_DLL static NDArray FromDLPack(DLManagedTensor* tensor);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
@@ -176,9 +182,20 @@ struct NDArray::Container {
    *  The head ptr of this struct can be viewed as DLTensor*.
    */
   DLTensor dl_tensor;
-  /*! \brief addtional context, reserved for recycling */
+  /*!
+   * \brief addtional context, reserved for recycling
+   * \note We can attach additional content here
+   *  which the current container depend on
+   *  (e.g. reference to original memory when creating views).
+   */
   void* manager_ctx{nullptr};
-  /*! \brief Customized deleter */
+  /*!
+   * \brief Customized deleter
+   *
+   * \note The customized deleter is helpful to enable
+   *  different ways of memory allocator that are not
+   *  currently defined by the system.
+   */
   void (*deleter)(Container* self) = nullptr;
   /*! \brief default constructor */
   Container() {
@@ -213,7 +230,8 @@ struct NDArray::Container {
   std::atomic<int> ref_counter_{0};
 };
 
-// implementations
+// implementations of inline functions
+// the usages of functions are documented in place.
 inline NDArray::NDArray(Container* data)
   : data_(data) {
   data_->IncRef();
@@ -231,23 +249,23 @@ inline void NDArray::reset() {
   }
 }
 
-inline void NDArray::copyfrom(DLTensor* other) {
+inline void NDArray::CopyFrom(DLTensor* other) {
   CHECK(data_ != nullptr);
   CopyFromTo(other, &(data_->dl_tensor));
 }
 
-inline void NDArray::copyfrom(const NDArray& other) {
+inline void NDArray::CopyFrom(const NDArray& other) {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
   CopyFromTo(&(other.data_->dl_tensor), &(data_->dl_tensor));
 }
 
-inline void NDArray::copyto(DLTensor* other) {
+inline void NDArray::CopyTo(DLTensor* other) {
   CHECK(data_ != nullptr);
   CopyFromTo(&(data_->dl_tensor), other);
 }
 
-inline void NDArray::copyto(const NDArray& other) {
+inline void NDArray::CopyTo(const NDArray& other) {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
   CopyFromTo(&(data_->dl_tensor), &(other.data_->dl_tensor));

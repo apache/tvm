@@ -41,7 +41,7 @@ TEST(PackedFunc, Node) {
 TEST(PackedFunc, NDArray) {
   using namespace tvm;
   using namespace tvm::runtime;
-  auto x = NDArray::empty(
+  auto x = NDArray::Empty(
       {}, String2TVMType("float32"),
       TVMContext{kDLCPU, 0});
   reinterpret_cast<float*>(x->data)[0] = 10.0f;

@@ -53,6 +53,10 @@ struct NDArray::Internal {
     delete ptr;
   }
   // Deleter for NDArray converted from DLPack
+  // This is used from data which is passed from external DLPack(DLManagedTensor)
+  // that are not allocated inside of TVM.
+  // This enables us to create NDArray from memory allocated by other
+  // frameworks that are DLPack compatible
   static void DLPackDeleter(NDArray::Container* ptr) {
     DLManagedTensor* tensor = static_cast<DLManagedTensor*>(ptr->manager_ctx);
     if (tensor->deleter != nullptr) {
@@ -60,8 +64,8 @@ struct NDArray::Internal {
     }
     delete ptr;
   }
-  // local create function that
-  // allocates everything except for the space
+  // Local create function which allocates tensor metadata
+  // but does not allocate space for the data.
   static NDArray Create(std::vector<int64_t> shape,
                         DLDataType dtype,
                         DLContext ctx) {
@@ -91,8 +95,8 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::create_view(std::vector<int64_t> shape,
-                             DLDataType dtype) {
+NDArray NDArray::CreateView(std::vector<int64_t> shape,
+                            DLDataType dtype) {
   CHECK(data_ != nullptr);
   CHECK(data_->dl_tensor.strides == nullptr)
       << "Can only create view for compact tensor";
@@ -110,7 +114,7 @@ NDArray NDArray::create_view(std::vector<int64_t> shape,
   return ret;
 }
 
-DLManagedTensor* NDArray::to_dlpack() const {
+DLManagedTensor* NDArray::ToDLPack() const {
   CHECK(data_ != nullptr);
   DLManagedTensor* ret = new DLManagedTensor();
   ret->dl_tensor = data_->dl_tensor;
@@ -120,9 +124,9 @@ DLManagedTensor* NDArray::to_dlpack() const {
   return ret;
 }
 
-NDArray NDArray::empty(std::vector<int64_t> shape,
-                       DLDataType dtype,
-                       DLContext ctx) {
+NDArray NDArray::Empty(std::vector<int64_t> shape,
+                        DLDataType dtype,
+                        DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.data_->dl_tensor);
@@ -133,7 +137,7 @@ NDArray NDArray::empty(std::vector<int64_t> shape,
   return ret;
 }
 
-NDArray NDArray::from_dlpack(DLManagedTensor* tensor) {
+NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   NDArray::Container* data = new NDArray::Container();
   data->deleter = Internal::DLPackDeleter;
   data->manager_ctx = tensor;
@@ -191,7 +195,7 @@ int TVMArrayAlloc(const tvm_index_t* shape,
   ctx.device_type = static_cast<DLDeviceType>(device_type);
   ctx.device_id = device_id;
   *out = NDArray::Internal::MoveAsDLTensor(
-      NDArray::empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
+      NDArray::Empty(std::vector<int64_t>(shape, shape + ndim), dtype, ctx));
   API_END();
 }
 
