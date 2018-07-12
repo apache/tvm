@@ -44,6 +44,11 @@ class ThreadGroup {
     */
   void Join();
 
+  enum AffinityMode : int {
+    kBig = 1,
+    kLittle = -1,
+  };
+
   /*!
    * \brief configure the CPU id affinity
    *
@@ -56,7 +61,7 @@ class ThreadGroup {
    *
    * \return The number of workers to use.
    */
-  int Configure(int mode, int nthreads, bool exclude_worker0);
+  int Configure(AffinityMode Mode, int nthreads, bool exclude_worker0);
 
  private:
   Impl* impl_;

@@ -40,11 +40,11 @@ class ThreadGroup::Impl {
     }
   }
 
-  int Configure(int mode, int nthreads, bool exclude_worker0) {
+  int Configure(AffinityMode mode, int nthreads, bool exclude_worker0) {
     int num_workers_used = 0;
-    if (mode == -1) {
+    if (mode == kLittle) {
       num_workers_used = little_count_;
-    } else if (mode == 1) {
+    } else if (mode == kBig) {
       num_workers_used = big_count_;
     } else {
       // use default
@@ -58,7 +58,7 @@ class ThreadGroup::Impl {
     if (val == nullptr || atoi(val) == 1) {
       // Skip if sorted_order.size() is bigger than the number of workers (threads_)
       if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_))) {
-          SetAffinity(exclude_worker0, mode == -1);
+          SetAffinity(exclude_worker0, mode == kLittle);
       } else {
         LOG(WARNING)
           << "The thread affinity cannot be set when the number of workers"
@@ -142,18 +142,13 @@ class ThreadGroup::Impl {
           }
           ifs.close();
         }
-      #else
       #endif
       max_freqs.push_back(std::make_pair(i, cur_freq));
     }
 
     auto fcmpbyfreq = [] (const std::pair<unsigned int, int64_t> &a,
                           const std::pair<unsigned int, int64_t> &b) {
-      if (a.second == b.second) {
-        return a.first < b.first;
-      } else {
-        return a.second > b.second;
-      }
+        return a.second == b.second ? a.first < b.first : a.second > b.second;
     };
     std::sort(max_freqs.begin(), max_freqs.end(), fcmpbyfreq);
     int64_t big_freq = max_freqs.begin()->second;
@@ -186,7 +181,7 @@ ThreadGroup::ThreadGroup(int num_workers,
 ThreadGroup::~ThreadGroup() { delete impl_; }
 void ThreadGroup::Join() { impl_->Join(); }
 
-int ThreadGroup::Configure(int mode, int nthreads, bool exclude_worker0) {
+int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0) {
   return impl_->Configure(mode, nthreads, exclude_worker0);
 }
 
