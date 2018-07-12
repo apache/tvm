@@ -94,7 +94,8 @@ def _make_tvm_args(args, temp_args):
             type_codes[i] = TypeCode.NULL
         elif isinstance(arg, NDArrayBase):
             values[i].v_handle = ctypes.cast(arg.handle, ctypes.c_void_p)
-            type_codes[i] = TypeCode.ARRAY_HANDLE
+            type_codes[i] = (TypeCode.NDARRAY_CONTAINER
+                             if not arg.is_view else TypeCode.ARRAY_HANDLE)
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
@@ -208,6 +209,7 @@ C_TO_PY_ARG_SWITCH[TypeCode.FUNC_HANDLE] = _wrap_arg_func(
 C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.ARRAY_HANDLE] = lambda x: _make_array(x.v_handle, True)
+C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False)
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None

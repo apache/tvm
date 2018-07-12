@@ -16,6 +16,7 @@
 #include <type_traits>
 #include "./c_runtime_api.h"
 #include "./module.h"
+#include "./ndarray.h"
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -249,10 +250,22 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kHandle);
     return value_.v_handle;
   }
-  operator TVMArray*() const {
-    if (type_code_ == kNull) return nullptr;
-    TVM_CHECK_TYPE_CODE(type_code_, kArrayHandle);
-    return static_cast<TVMArray*>(value_.v_handle);
+  operator DLTensor*() const {
+    if (type_code_ == kArrayHandle ||
+        type_code_ == kNDArrayContainer) {
+      return static_cast<DLTensor*>(value_.v_handle);
+    } else {
+      if (type_code_ == kNull) return nullptr;
+      LOG(FATAL) << "Expected "
+                 << "DLTensor* or NDArray but get "
+                 << TypeCode2Str(type_code_);
+      return nullptr;
+    }
+  }
+  operator NDArray() const {
+    if (type_code_ == kNull) return NDArray();
+    TVM_CHECK_TYPE_CODE(type_code_, kNDArrayContainer);
+    return NDArray(static_cast<NDArray::Container*>(value_.v_handle));
   }
   operator TVMContext() const {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMContext);
@@ -312,8 +325,10 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator int;
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
-  using TVMPODValue_::operator TVMArray*;
+  using TVMPODValue_::operator DLTensor*;
+  using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator TVMContext;
+
   // conversion operator.
   operator std::string() const {
     if (type_code_ == kTVMType) {
@@ -394,8 +409,9 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator int;
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
-  using TVMPODValue_::operator TVMArray*;
+  using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator TVMContext;
+  using TVMPODValue_::operator NDArray;
   // Disable copy and assign from another value, but allow move.
   TVMRetValue(const TVMRetValue& other) {
     this->Assign(other);
@@ -475,6 +491,13 @@ class TVMRetValue : public TVMPODValue_ {
   }
   TVMRetValue& operator=(TVMByteArray value) {
     this->SwitchToClass(kBytes, std::string(value.data, value.size));
+    return *this;
+  }
+  TVMRetValue& operator=(NDArray other) {
+    this->Clear();
+    type_code_ = kNDArrayContainer;
+    value_.v_handle = other.data_;
+    other.data_ = nullptr;
     return *this;
   }
   TVMRetValue& operator=(PackedFunc f) {
@@ -559,6 +582,10 @@ class TVMRetValue : public TVMPODValue_ {
         SwitchToClass<Module>(kModuleHandle, other);
         break;
       }
+      case kNDArrayContainer: {
+        *this = other.operator NDArray();
+        break;
+      }
       case kNodeHandle: {
         SwitchToClass<std::shared_ptr<Node> >(
             kNodeHandle, *other.template ptr<std::shared_ptr<Node> >());
@@ -607,6 +634,10 @@ class TVMRetValue : public TVMPODValue_ {
       case kFuncHandle: delete ptr<PackedFunc>(); break;
       case kModuleHandle: delete ptr<Module>(); break;
       case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
+      case kNDArrayContainer: {
+        static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
+        break;
+      }
     }
     if (type_code_ > kExtBegin) {
 #if TVM_RUNTIME_HEADER_ONLY
@@ -635,6 +666,7 @@ inline const char* TypeCode2Str(int type_code) {
     case kTVMContext: return "TVMContext";
     case kFuncHandle: return "FunctionHandle";
     case kModuleHandle: return "ModuleHandle";
+    case kNDArrayContainer: return "NDArrayContainer";
     default: LOG(FATAL) << "unknown type_code="
                         << static_cast<int>(type_code); return "";
   }
@@ -776,7 +808,7 @@ class TVMArgsSetter {
     values_[i].v_handle = value;
     type_codes_[i] = kHandle;
   }
-  void operator()(size_t i, TVMArray* value) const {
+  void operator()(size_t i, DLTensor* value) const {
     values_[i].v_handle = value;
     type_codes_[i] = kArrayHandle;
   }
@@ -810,6 +842,10 @@ class TVMArgsSetter {
   void operator()(size_t i, const Module& value) const {  // NOLINT(*)
     values_[i].v_handle = const_cast<Module*>(&value);
     type_codes_[i] = kModuleHandle;
+  }
+  void operator()(size_t i, const NDArray& value) const {  // NOLINT(*)
+    values_[i].v_handle = value.data_;
+    type_codes_[i] = kNDArrayContainer;
   }
   void operator()(size_t i, const TVMRetValue& value) const {  // NOLINT(*)
     if (value.type_code() == kStr) {
