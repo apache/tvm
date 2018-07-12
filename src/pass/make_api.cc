@@ -102,6 +102,7 @@ LoweredFunc MakeAPI(Stmt body,
         msg << name << ": Expect arg[" << i << "] to be pointer";
         seq_check.emplace_back(
             AssertStmt::make(tcode == kHandle ||
+                             tcode == kNDArrayContainer ||
                              tcode == kArrayHandle ||
                              tcode == kNull, msg.str(), nop));
       } else if (t.is_int() || t.is_uint()) {
