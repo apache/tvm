@@ -96,6 +96,7 @@ assign_source_group("Include" ${GROUP_INCLUDE})
 file(GLOB COMPILER_SRCS
     src/api/*.cc
     src/arithmetic/*.cc
+    src/autotvm/*.cc
     src/codegen/*.cc
     src/codegen/stack_vm/*.cc
     src/lang/*.cc
