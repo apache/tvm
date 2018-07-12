@@ -2,7 +2,7 @@
 
 export PYTHONPATH=python:topi/python
 
-rm -rf python/tvm/*.pyc python/tvm/*/*.pyc
+rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
 TVM_FFI=ctypes python -m nose -v tests/python/unittest || exit -1
 TVM_FFI=ctypes python3 -m nose -v tests/python/unittest || exit -1

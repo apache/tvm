@@ -14,6 +14,7 @@ Python API
    ndarray
    container
    function
+   autotvm
    graph_runtime
    rpc
    bridge
