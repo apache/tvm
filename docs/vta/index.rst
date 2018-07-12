@@ -9,7 +9,6 @@ This page contains links to all the resources related to VTA:
 
    install
    tutorials/index
-   hardware
 
 
 Features
