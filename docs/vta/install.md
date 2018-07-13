@@ -8,7 +8,7 @@ We present three installation guides, each extending on the previous one:
 
 ## VTA Simulation-Only Installation
 
-You need [TVM installed](https://docs.tvm.ai/install/index.html) on your machine.
+You need [TVM installed](https://docs.tvm.ai/install/index.html) on your machine. For a quick and easy start, use the pre-built Docker image.
 VTA simulator is library will be built by default along with TVM.
 All you need to run the simulator is to add the vta library to your python path.
 
@@ -23,10 +23,12 @@ Finally to ensure that you've properly installed the VTA package, we can run sim
 Let's first run the 2D convolution test bench that will only run the ResNet-18 convolution layers.
 
 ```bash
-python vta/tests/python/integration/test_benchmark_topi_conv2d.py
+python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 ```
 
-> Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolution in software. You can also try out other tutorials.
+> Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolution in software.
+
+You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html) on the VTA simulator.
 
 
 ### Advanced Configuration
@@ -39,7 +41,7 @@ You can modify the content to reconfigure VTA to a different mode. To do so,
 ```bash
 cd <tvm root>
 cp vta/config/vta_config.json vta_config.json
-edit vta_config.json
+# edit vta_config.json
 make vta
 ```
 
@@ -103,9 +105,6 @@ cd ..
 sudo ./apps/pynq_rpc/start_rpc_server.sh # pw is 'xilinx'
 ```
 
-Note that one key difference between the simulator build is that we changed the VTA configuration
-to be `vta/config/pynq_sample.json`, which specifies PYNQ as target.
-
 You should see the following being displayed when starting the RPC server. In order to run the next examples, you'll need to leave the RPC server running in an `ssh` session.
 ```
 INFO:root:RPCServer: bind to 0.0.0.0:9091
@@ -118,48 +117,45 @@ Tips regarding the Pynq RPC Server:
 
 ### Testing your VTA Pynq-based Hardware Setup
 
-Before running the examples you'll need to configure your environment as follows:
+Before running the examples you'll need to configure your host environment as follows:
 ```bash
 export VTA_PYNQ_RPC_HOST=192.168.2.99
 export VTA_PYNQ_RPC_PORT=9091
 ```
 
-In addition, you'll need to edit the `vta_config.json` file to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to the `"pynq"` value. Alternatively, you can copy the default `make/config.json` into the VTA root.
+In addition, you'll need to edit the `vta_config.json` file on the host to indicate that we are targeting the Pynq platform, by setting the `TARGET` field to `"pynq"`.
+Alternatively, you can copy the default `vta/config/pynq_sample.json` into the TVM root as `vta_config.json`.
 > Note: in contrast to our simulation setup, there are no libraries to compile on the host side since the host offloads all of the computation to the Pynq board.
 
 ```bash
 cd <tvm root>
-cp vta/config/pynq_sample.json .
+cp vta/config/pynq_sample.json vta_config.json
 ```
 
 This time again, we will run the 2D convolution testbench. But beforehand, we'll need to program the Pynq's own FPGA with a VTA bitstream, and build the VTA runtime on the Pynq via RPC. The following `test_program_rpc.py` script will perform two operations:
-* FPGA programming, by downloading a pre-compiled bitstream from a [VTA bitstream repository](https://github.com/uwsaml/vta-distro) that matches the default `config.json` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
-* Runtime building on the Pynq, which needs to be run everytime the `config.json` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete.
+* FPGA programming, by downloading a pre-compiled bitstream from a [VTA bitstream repository](https://github.com/uwsaml/vta-distro) that matches the default `vta_config.json` configuration set by the host, and sending it over to the Pynq via RPC to program the Pynq's FPGA.
+* Runtime building on the Pynq, which needs to be run everytime the `vta_config.json` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete.
 
 ```bash
-python tests/python/pynq/test_program_rpc.py
+python <tvm root>/vta/tests/python/pynq/test_program_rpc.py
 ```
 
 > Tip: You can track progress of the FPGA programming and the runtime rebuilding steps by looking at the RPC server's logging messages in your Pynq `ssh` session.
 
-We are now ready to run the 2D convolution testbench for the ResNet-15 workload in hardware.
+We are now ready to run the 2D convolution testbench for the ResNet-18 workload in hardware.
 
 ```bash
-python tests/python/pynq/test_benchmark_conv2d.py
+python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 ```
 
 The performance metrics measured on the Pynq board will be reported for each convolutional layer.
-You can also try out other tutorials.
+
+You can also try out our [VTA programming tutorials](https://docs.tvm.ai/vta/tutorials/index.html).
 
 
 ## VTA Hardware Toolchain Installation
 
 This third and last guide allows users to generate custom VTA bitstreams using free-to-use Xilinx compilation toolchains.
-
-This guide includes:
-1. Xilinx toolchain installation (for Linux)
-2. Custom VTA bitstream compilation
-3. Running the end to end ResNet-18 test with the new bitstream
 
 ### Xilinx Toolchain Installation
 
@@ -216,15 +212,15 @@ export PATH=${XILINX_SDK}/bin:${PATH}
 
 ### Custom VTA Bitstream Compilation
 
-High-level parameters are listed under `tvm/vta/config/vta_config.json` and can be customized by the user. For this custom VTA Bitstream Compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
+High-level parameters are listed under `<tvm root>/vta/config/vta_config.json` and can be customized by the user. For this custom VTA Bitstream Compilation exercise, we'll change the frequency of our design, so it can be clocked a little faster.
 * Set the `HW_FREQ` field to `142`. The Pynq board supports 100, 142, 167 and 200MHz clocks. Note that the higher the frequency, the harder it will be to close timing. Increasing the frequency can lead to timing violation and thus faulty hardware.
 * Set the `HW_CLK_TARGET` to `6`. This parameters refers to the target clock period in ns passed to HLS - a lower clock period leads to more aggressive pipelining to achieve timing closure at higher frequencies. Technically a 142MHz clock would require a 7ns target, but we intentionally lower the clock target to 6ns to more aggressively pipeline our design.
 
-Bitstream generation is driven by a top-level `Makefile` under `<vta root>/hardware/xilinx/`.
+Bitstream generation is driven by a top-level `Makefile` under `<tvm root>/vta/hardware/xilinx/`.
 
 If you just want to simulate the VTA design in software emulation to make sure that it is functional, enter:
 ```bash
-cd <vta root>/hardware/xilinx
+cd <tvm root>/vta/hardware/xilinx
 make ip MODE=sim
 ```
 
@@ -232,8 +228,8 @@ If you just want to generate the HLS-based VTA IP cores without launching the en
 ```bash
 make ip
 ```
-You'll be able to view the HLS synthesis reports under `<vta root>/build/hardware/xilinx/hls/<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
-> Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters specified in the `config.json`. The `<block>` name refers to the specific module in the VTA pipeline.
+You'll be able to view the HLS synthesis reports under `<tvm root>/vta/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
+> Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters specified in the `vta_config.json`. The `<block>` name refers to the specific module in the VTA pipeline.
 
 Finally to run the full hardware compilation and generate the bitstream, run:
 
@@ -243,14 +239,14 @@ make
 
 This process is lenghty, and can take around up to an hour to complete depending on your machine's specs. We recommend setting the `VTA_HW_COMP_THREADS` variable in the Makefile to take full advantage of all the cores on your development machine.
 
-Once the compilation completes, the generated bitstream can be found under `<vta root>/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
+Once the compilation completes, the generated bitstream can be found under `<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit`.
 
 ### Use the Custom Bitstream
 
 We can change the FPGA bitstream by simply change the bistream path to the configuring API.
 
 ```python
-vta.program_fpga(remote, bitstream="<vta root>/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
+vta.program_fpga(remote, bitstream="<tvm root>/vta/build/hardware/xilinx/vivado/<configuration>/export/vta.bit")
 ```
 
 Instead of downloading the bitstream from the bitstream repository, the programmer will instead use the custom bitstream you just generated, which is a VTA design clocked at a higher frequency.
