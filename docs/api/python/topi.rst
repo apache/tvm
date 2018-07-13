@@ -13,6 +13,7 @@ List of operators
    topi.ceil
    topi.trunc
    topi.round
+   topi.abs
    topi.exp
    topi.tanh
    topi.log
@@ -84,6 +85,7 @@ topi
 .. autofunction:: topi.ceil
 .. autofunction:: topi.trunc
 .. autofunction:: topi.round
+.. autofunction:: topi.abs
 .. autofunction:: topi.exp
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log

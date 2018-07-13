@@ -81,6 +81,18 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(round)
       return Array<Tensor>{ topi::round(inputs[0]) };
 });
 
+// abs
+NNVM_REGISTER_ELEMWISE_UNARY_OP(abs)
+.describe(R"code(Take absolute value of elements of the input.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::abs(inputs[0]) };
+});
+
 // sigmoid
 NNVM_REGISTER_ELEMWISE_UNARY_OP(sigmoid)
 .describe(R"code(Computes sigmoid.
