@@ -15,6 +15,7 @@
 #include "../../src/runtime/registry.cc"
 #include "../../src/runtime/file_util.cc"
 #include "../../src/runtime/dso_module.cc"
+#include "../../src/runtime/ndarray.cc"
 // RPC server
 #include "../../src/runtime/rpc/rpc_session.cc"
 #include "../../src/runtime/rpc/rpc_server_env.cc"
