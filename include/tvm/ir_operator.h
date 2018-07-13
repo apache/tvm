@@ -73,6 +73,8 @@ inline Expr pow(Expr x, Expr y) {
 /*!
  * \brief Calculate absolute value of x, elementwise
  * \param x The input data
+ *
+ * \return The aboslute value of input data x
  */
 inline Expr abs(Expr x) {
   if (x.type().is_int()) {

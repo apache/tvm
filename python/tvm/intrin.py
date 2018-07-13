@@ -298,7 +298,7 @@ def abs(x):
     y : Expr
         The result.
     """
-    return call_pure_intrin(x.dtype, "fabs", x)
+    return _make.abs(x)
 
 
 def round(x):

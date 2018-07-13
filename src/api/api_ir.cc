@@ -7,6 +7,7 @@
 #include <tvm/ir.h>
 #include <ir/IROperator.h>
 #include <tvm/api_registry.h>
+#include <tvm/ir_operator.h>
 
 namespace tvm {
 namespace ir {
@@ -14,6 +15,11 @@ namespace ir {
 TVM_REGISTER_API("_Var")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     *ret = Variable::make(args[1], args[0]);
+  });
+
+TVM_REGISTER_API("make.abs")
+.set_body([](TVMArgs args,  TVMRetValue *ret) {
+    *ret = tvm::abs(args[0]);
   });
 
 TVM_REGISTER_API("make._range_by_min_extent")
