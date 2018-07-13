@@ -228,7 +228,7 @@ If you just want to generate the HLS-based VTA IP cores without launching the en
 ```bash
 make ip
 ```
-You'll be able to view the HLS synthesis reports under `<tvm root>/vta/build/hardware/xilinx/hls/<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
+You'll be able to view the HLS synthesis reports under `<tvm root>/vta/build/hardware/xilinx/hls/` `<configuration>/<block>/solution0/syn/report/<block>_csynth.rpt`
 > Note: The `<configuration>` name is a string that summarizes the VTA configuration parameters specified in the `vta_config.json`. The `<block>` name refers to the specific module in the VTA pipeline.
 
 Finally to run the full hardware compilation and generate the bitstream, run:
