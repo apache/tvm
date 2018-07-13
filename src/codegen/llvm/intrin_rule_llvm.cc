@@ -34,6 +34,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.ceil")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.trunc")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::trunc, 1>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.fabs")
+.set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::fabs, 1>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.llvm.round")
 .set_body(DispatchLLVMPureIntrin<::llvm::Intrinsic::round, 1>);
 
