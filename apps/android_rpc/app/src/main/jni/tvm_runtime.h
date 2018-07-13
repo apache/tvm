@@ -23,6 +23,7 @@
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/graph/graph_runtime.cc"
+#include "../src/runtime/ndarray.cc"
 
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
