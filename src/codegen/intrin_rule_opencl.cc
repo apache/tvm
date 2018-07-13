@@ -18,6 +18,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.ceil")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.trunc")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fabs")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.round")
 .set_body(DispatchExtern<Direct>);
 

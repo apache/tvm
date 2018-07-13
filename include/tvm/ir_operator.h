@@ -18,7 +18,6 @@ using HalideIR::likely_if_innermost;
 using HalideIR::cast;
 using HalideIR::min;
 using HalideIR::max;
-using HalideIR::abs;
 using HalideIR::select;
 
 /*!
@@ -69,6 +68,26 @@ inline Expr pow(Expr x, Expr y) {
   match_types(x, y);
   CHECK(x.type().is_float()) << "power only applies to float";
   return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);
+}
+
+/*!
+ * \brief Calculate absolute value of x, elementwise
+ * \param x The input data
+ *
+ * \return The aboslute value of input data x
+ */
+inline Expr abs(Expr x) {
+  if (x.type().is_int()) {
+    return select(x >= make_zero(x.type()), x, -x);
+  } else if (x.type().is_float()) {
+    return ir::Call::make(x.type(), "fabs", {x}, ir::Call::PureIntrinsic);
+  } else if (x.type().is_uint()) {
+    return x;
+  } else {
+    LOG(WARNING) << "Warning: Data type " << x.type()
+      <<" not supported for absolute op. Skipping absolute op...";
+    return x;
+  }
 }
 
 }  // namespace tvm
