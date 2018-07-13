@@ -260,6 +260,9 @@ def _darknet_reshape(inputs, attrs):
 
 def _darknet_softmax_output(inputs, attrs):
     """Process the softmax operation."""
+    temperature = attrs.get('temperature', 1)
+    if temperature != 1:
+        inputs[0] = inputs[0] / float(temperature)
     op_name, new_attrs = 'softmax', {}
     if _darknet_parse_bool_str(attrs, 'multi_output'):
         new_attrs['axis'] = 1
@@ -529,6 +532,8 @@ def _get_darknet_attrs(net, layer_num):
     elif LAYERTYPE.SOFTMAX == layer.type:
         attr.update({'axis' : 1})
         attr.update({'use_flatten' : True})
+        if layer.temperature:
+            attr.update({'temperature' : str(layer.temperature)})
 
     elif LAYERTYPE.SHORTCUT == layer.type:
         add_layer = net.layers[layer.index]
