@@ -80,7 +80,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Expr> codes, funcnames;
+  Array<Array<Expr>> kernel_info;
   for (LoweredFunc f : funcs) {
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
@@ -89,13 +89,12 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
     if (const auto* f = runtime::Registry::Get("tvm_callback_vhls_postproc")) {
       code = (*f)(code).operator std::string();
     }
-    codes.push_back(code);
-    funcnames.push_back(f->name);
+    kernel_info.push_back(Array<Expr>({f->name, code}));
   }
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    xclbin = (*f)(codes, funcnames).operator std::string();
+    xclbin = (*f)(kernel_info).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }

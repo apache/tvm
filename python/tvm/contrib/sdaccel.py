@@ -6,16 +6,14 @@ from ..api import register_func
 
 
 @register_func("tvm_callback_sdaccel_compile")
-def compile_vhls(codes, kernels):
+def compile_vhls(kernel_info):
     """Compile Vivado HLS code for SDAccel.
 
     Parameters
     ----------
-    codes : str
-        Array of the Vivado HLS codes.
-
-    kernels : str
-        Array of the kernels to compile or link.
+    kernel_info : list of (str, str)
+        List of kernel information.  The kernel information is a tuple of
+        function name and source code.
 
     Return
     ------
@@ -36,18 +34,18 @@ def compile_vhls(codes, kernels):
         raise RuntimeError("No Xlinx device specified.")
 
     tmp_xo_files = []
-    for code, kernel in zip(codes, kernels):
+    for funcname, code  in kernel_info:
+        funcname = funcname.value
         code = code.value
-        kernel = kernel.value
 
-        tmp_cpp = tmp_dir.relpath(kernel + ".cpp")
-        tmp_xo = tmp_dir.relpath(kernel + ".xo")
+        tmp_cpp = tmp_dir.relpath(funcname + ".cpp")
+        tmp_xo = tmp_dir.relpath(funcname + ".xo")
 
         with open(tmp_cpp, "wb") as out_file:
             out_file.write(bytes(code))
 
         # build xo
-        args = [xocc, "-c", "-t", target, "--platform", platform, "-o", tmp_xo, "-k", kernel] + \
+        args = [xocc, "-c", "-t", target, "--platform", platform, "-o", tmp_xo, "-k", funcname] + \
                advanced_params + [tmp_cpp]
         returncode = subprocess.call(args)
         if returncode != 0:
