@@ -645,6 +645,36 @@ def test_slice_like():
     axis = (2, 3)
     verify_slice_like(np_data, np_shape_like, axis)
 
+def verify_where(condition, x, y):
+    dtype = "float32"
+    if len(condition.shape) == 1:
+        np_out = np.array([xv if c else yv for (c,xv,yv) in zip(condition,x,y)])
+    else:
+        np_out = np.where(condition, x, y)
+    cond_var = sym.Variable("condition")
+    x_var = sym.Variable("x")
+    y_var = sym.Variable("y")
+    net = sym.where(cond_var, x_var, y_var)
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(net, target, {"condition": condition.shape,
+                                                          "x": x.shape, "y": y.shape})
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input(**{"condition": condition, "x": x, "y": y})
+        m.run()
+        out = m.get_output(0, tvm.nd.empty(x.shape, dtype))
+        np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+
+def test_where():
+    shape = (13, 8, 224, 224, 6)
+    condition = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+    x = np.random.uniform(size=shape).astype("float32")
+    y = np.random.uniform(size=shape).astype("float32")
+    verify_where(condition, x, y)
+    condition = np.random.uniform(low=-1, high=1, size=(shape[0],)).astype("float32")
+    x = np.random.uniform(size=shape).astype("float32")
+    y = np.random.uniform(size=shape).astype("float32")
+    verify_where(condition, x, y)
+
 
 if __name__ == "__main__":
     test_reshape()
@@ -665,4 +695,5 @@ if __name__ == "__main__":
     test_multibox_transform_loc()
     test_nms()
     test_slice_like()
+    test_where()
     print(nnvm.compiler.engine.dump())

@@ -206,6 +206,35 @@ def verify_take(src_shape, indices_src, axis=None):
     for device in ["llvm", "opencl"]:
         check_device(device)
 
+def verify_where(condition, x, y):
+    dtype = "float32"
+    if len(condition.shape) == 1:
+        np_out = np.array([xv if c else yv for (c,xv,yv) in zip(condition,x,y)])
+    else:
+        np_out = np.where(condition, x, y)
+    A = tvm.placeholder(shape=condition.shape, dtype=dtype, name="condition")
+    B = tvm.placeholder(shape=x.shape, dtype=dtype, name="x")
+    C = tvm.placeholder(shape=y.shape, dtype=dtype, name="y")
+    out_tensor = topi.cpp.where(A, B, C)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+
+        foo = tvm.build(s, [A, B, C, out_tensor], device, name="where")
+        tvm_out = tvm.nd.empty(x.shape, ctx=ctx, dtype=dtype)
+        foo(tvm.nd.array(condition, ctx), tvm.nd.array(x, ctx),
+            tvm.nd.array(y, ctx), tvm_out)
+        np.testing.assert_allclose(tvm_out.asnumpy(), np_out)
+
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
+        check_device(device)
+
 def verify_concatenate_split(shapes, axis, indices_or_sections):
     tensor_l_concatenate = []
     for i, shape in enumerate(shapes):
@@ -324,6 +353,18 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
 
+def test_where():
+    shape = (10, 3, 7, 13)
+    condition = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+    x = np.random.uniform(size=shape).astype("float32")
+    y = np.random.uniform(size=shape).astype("float32")
+    verify_where(condition, x, y)
+    condition = np.random.uniform(low=-1, high=1, size=(shape[0],)).astype("float32")
+    x = np.random.uniform(size=shape).astype("float32")
+    y = np.random.uniform(size=shape).astype("float32")
+    verify_where(condition, x, y)
+
+
 def test_regression_1():
     verify_concatenate_split([(2, 3, 4), (2, 2, 4), (2, 5, 4)], 1, [3, 7])
     verify_concatenate_split([(3, 4), (2, 4), (3, 4)], 0, [1, 2, 3, 4])
@@ -340,5 +381,6 @@ if __name__ == "__main__":
     test_squeeze()
     test_split()
     test_take()
+    test_where()
     test_regression_1()
     test_regression_2()

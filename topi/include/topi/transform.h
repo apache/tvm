@@ -575,5 +575,53 @@ inline Tensor take(const Tensor& a,
         }, name, tag);
 }
 
+/*!
+* \brief Return the elements, either from x or y, depending on the condition.
+*
+* \param condition The condition array.
+* \param x First array to be selected.
+* \param y Second array to be selected.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor selected from x or y depending on condition.
+*/
+inline Tensor where(const Tensor& condition,
+                    const Tensor& x,
+                    const Tensor& y,
+                    std::string name = "tensor",
+                    std::string tag = kInjective) {
+  CHECK_EQ(x->shape.size(), y->shape.size())
+    << "x and y must have the same shape.Got different number of dimension: "
+    << x->shape.size() << " vs " << y->shape.size();
+  CHECK_EQ(x->dtype, y->dtype) << "x and y must have the same dtype: "
+                               << x->dtype << " vs " << y->dtype;
+  Array<Expr> oshape = x->shape;
+  Tensor out;
+
+  if (condition->shape.size() != 1) {
+    CHECK_EQ(condition->shape.size(), x->shape.size())
+      << "condition array must be either have the same shape as x or to be a "
+         "1-D array.Got different number of dimension: "
+      << condition->shape.size() << " vs " << x->shape.size();
+    out = compute(
+      oshape, [&](const Array<Var>& indices) {
+        return tvm::select(condition(indices) != 0, x(indices), y(indices));
+      }, name, tag);
+  } else {
+    CHECK_EQ(topi::GetConstInt(condition->shape[0]), topi::GetConstInt(x->shape[0]))
+      << "If condition is 1-D, the first dimension must be the same as x: "
+      << condition->shape[0] << " vs " << x->shape[0];
+    out = compute(
+      oshape, [&](const Array<Var>& indices) {
+        Array<Expr> condition_idx{indices[0]};
+        return tvm::select(condition(condition_idx) != 0,
+                           x(indices), y(indices));
+      }, name, tag);
+  }
+  return out;
+}
+
+
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_
