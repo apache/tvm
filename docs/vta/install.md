@@ -23,7 +23,7 @@ Finally to ensure that you've properly installed the VTA package, we can run sim
 Let's first run the 2D convolution test bench that will only run the ResNet-18 convolution layers.
 
 ```bash
-python vta/tests/python/integration/test_benchmark_topi_conv2d.py
+python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 ```
 
 > Note: You'll notice that for every convolution layer, the throughput gets reported in GOPS. These numbers are actually the computational throughput that the simulator achieves, by evaluating the convolution in software.
@@ -137,7 +137,7 @@ This time again, we will run the 2D convolution testbench. But beforehand, we'll
 * Runtime building on the Pynq, which needs to be run everytime the `vta_config.json` configuration is modified. This ensures that the VTA software runtime that generates the accelerator's executable via just-in-time (JIT) compilation matches the specifications of the VTA design that is programmed on the FPGA. The build process takes about 30 seconds to complete.
 
 ```bash
-python vta/tests/python/pynq/test_program_rpc.py
+python <tvm root>/vta/tests/python/pynq/test_program_rpc.py
 ```
 
 > Tip: You can track progress of the FPGA programming and the runtime rebuilding steps by looking at the RPC server's logging messages in your Pynq `ssh` session.
@@ -145,7 +145,7 @@ python vta/tests/python/pynq/test_program_rpc.py
 We are now ready to run the 2D convolution testbench for the ResNet-18 workload in hardware.
 
 ```bash
-python vta/tests/python/integration/test_benchmark_topi_conv2d.py
+python <tvm root>/vta/tests/python/integration/test_benchmark_topi_conv2d.py
 ```
 
 The performance metrics measured on the Pynq board will be reported for each convolutional layer.
