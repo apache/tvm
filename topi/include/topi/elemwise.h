@@ -35,6 +35,7 @@ TOPI_DECLARE_UNARY_OP(floor);
 TOPI_DECLARE_UNARY_OP(ceil);
 TOPI_DECLARE_UNARY_OP(round);
 TOPI_DECLARE_UNARY_OP(trunc);
+TOPI_DECLARE_UNARY_OP(abs);
 
 /*!
 * \brief Creates an operation that returns identity of a given tensor

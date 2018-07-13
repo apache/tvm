@@ -126,6 +126,23 @@ def trunc(x):
 
 
 @tvm.tag_scope(tag=tag.ELEMWISE)
+def abs(x):
+    """Take absolute value of the input of x, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    return tvm.compute(x.shape, lambda *i: tvm.abs(x(*i)))
+
+
+@tvm.tag_scope(tag=tag.ELEMWISE)
 def round(x):
     """Round elements of x to nearest integer.
 

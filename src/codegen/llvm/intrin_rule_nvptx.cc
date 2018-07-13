@@ -39,6 +39,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.round")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.trunc")
 .set_body(DispatchExternLibDevice);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.fabs")
+.set_body(DispatchExternLibDevice);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.nvptx.exp")
 .set_body(DispatchExternLibDevice);
 

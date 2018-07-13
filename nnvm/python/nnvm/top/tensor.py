@@ -68,6 +68,10 @@ reg.register_schedule("ceil", _fschedule_broadcast)
 reg.register_pattern("round", OpPattern.ELEMWISE)
 reg.register_schedule("round", _fschedule_broadcast)
 
+# abs
+reg.register_pattern("abs", OpPattern.ELEMWISE)
+reg.register_schedule("abs", _fschedule_broadcast)
+
 # trunc
 reg.register_pattern("trunc", OpPattern.ELEMWISE)
 reg.register_schedule("trunc", _fschedule_broadcast)

@@ -79,6 +79,7 @@ This level enables typical convnet models.
    nnvm.symbol.ceil
    nnvm.symbol.round
    nnvm.symbol.trunc
+   nnvm.symbol.abs
    nnvm.symbol.leaky_relu
    nnvm.symbol.__add_scalar__
    nnvm.symbol.__sub_scalar__
@@ -157,6 +158,7 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.ceil
 .. autofunction:: nnvm.symbol.round
 .. autofunction:: nnvm.symbol.trunc
+.. autofunction:: nnvm.symbol.abs
 .. autofunction:: nnvm.symbol.leaky_relu
 .. autofunction:: nnvm.symbol.__add_scalar__
 .. autofunction:: nnvm.symbol.__sub_scalar__

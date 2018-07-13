@@ -18,6 +18,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.ceil")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.trunc")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fabs")
+.set_body(DispatchExtern<Direct>);
+
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.round")
 .set_body(DispatchExtern<Direct>);
 
