@@ -163,7 +163,7 @@ include(cmake/modules/contrib/NNPack.cmake)
 
 add_library(tvm SHARED ${COMPILER_SRCS} ${RUNTIME_SRCS})
 add_library(tvm_topi SHARED ${TOPI_SRCS})
-add_library(tvm_runtime SHARED ${RUNTIME_SRCS})
+add_library(tvm_runtime SHARED ${HALIDEIR_SRCS} ${RUNTIME_SRCS})
 add_library(nnvm_compiler SHARED ${NNVM_COMPILER_SRCS})
 
 target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
