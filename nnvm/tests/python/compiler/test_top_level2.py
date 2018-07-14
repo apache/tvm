@@ -300,11 +300,10 @@ def test_upsampling_bilinear():
 
 def test_resize_bilinear():
     x = sym.Variable("x")
-    scale = 2
-    y = sym.upsampling(x, scale=scale, method="BILINEAR", name="y", layout="NHWC")
+    y = sym.resize(x, size=(60, 60), method="BILINEAR", name="y", layout="NHWC")
     dtype = "float32"
     dshape = (1, 32, 32, 4)
-    oshape = (1, 32*scale, 32*scale, 4)
+    oshape = (1, 60, 60, 4)
     shape_dict = {"x": dshape}
     dtype_dict = {"x": dtype}
     for target, ctx in ctx_list():
@@ -314,7 +313,7 @@ def test_resize_bilinear():
         data = tvm.nd.array(a_np)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        b_np = topi.testing.bilinear_resize_python(a_np, (32*scale, 32*scale), "NHWC")
+        b_np = topi.testing.bilinear_resize_python(a_np, (60, 60), "NHWC")
         np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 if __name__ == "__main__":
