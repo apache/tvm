@@ -80,7 +80,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
   std::string whole_code = cg.Finish();
 
   // Generate source code for compilation.
-  Array<Array<Expr>> kernel_info;
+  Array<Array<Expr> > kernel_info;
   for (LoweredFunc f : funcs) {
     CodeGenVivadoHLS cg;
     cg.Init(output_ssa);
