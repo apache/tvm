@@ -6,6 +6,9 @@
 #include <sys/stat.h>
 #include <fstream>
 
+#define DMLC_LOG_CUSTOMIZE 1
+#define DMLC_LOG_BEFORE_THROW 1
+
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/workspace_pool.cc"
@@ -34,3 +37,10 @@
 #include "../src/runtime/vulkan/vulkan_device_api.cc"
 #include "../src/runtime/vulkan/vulkan_module.cc"
 #endif
+
+
+#include <android/log.h>
+
+void dmlc::CustomLogMessage::Log(const std::string& msg) {
+    __android_log_print(ANDROID_LOG_DEBUG, "TVM_RUNTIME", "%s", msg.c_str());
+}
