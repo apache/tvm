@@ -1,9 +1,11 @@
 """MXNet and NNVM model zoo."""
 from __future__ import absolute_import
-from . import mlp, resnet, vgg, dqn, dcgan
+from . import mlp, resnet, vgg, dqn, dcgan, squeezenet
 import nnvm.testing
 
-__all__ = ['mx_mlp', 'nnvm_mlp', 'mx_resnet', 'nnvm_resnet', 'mx_vgg', 'nnvm_vgg']
+__all__ = ['mx_mlp', 'nnvm_mlp', 'mx_resnet', 'nnvm_resnet', 'mx_vgg', 'nnvm_vgg',
+           'mx_squeezenet_v1_0', 'nnvm_squeezenet_v1_0',
+           'mx_squeezenet_v1_1', 'nnvm_squeezenet_v1_1']
 
 _num_class = 1000
 
@@ -26,6 +28,13 @@ for num_layer in [11, 13, 16, 19]:
     mx_vgg[num_layer] = vgg.get_symbol(_num_class, num_layer)
     nnvm_vgg[num_layer] = nnvm.testing.vgg.get_workload(
         1, _num_class, num_layers=num_layer)[0]
+
+# squeezenet
+mx_squeezenet_v1_0 = squeezenet.get_symbol(version='1.0')
+nnvm_squeezenet_v1_0 = nnvm.testing.squeezenet.get_workload(1)[0]
+
+mx_squeezenet_v1_1 = squeezenet.get_symbol(version='1.0')
+nnvm_squeezenet_v1_1 = nnvm.testing.squeezenet.get_workload(1)[0]
 
 # dqn
 mx_dqn = dqn.get_symbol()
