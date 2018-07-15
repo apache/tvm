@@ -172,7 +172,7 @@ public class RPCSession {
     final String funcName = "upload";
     Function remoteFunc = remoteFuncs.get(funcName);
     if (remoteFunc == null) {
-      remoteFunc = getFunction("tvm.contrib.rpc.server.upload");
+      remoteFunc = getFunction("tvm.rpc.server.upload");
       remoteFuncs.put(funcName, remoteFunc);
     }
     remoteFunc.pushArg(target).pushArg(data).invoke();
@@ -205,7 +205,7 @@ public class RPCSession {
     final String name = "download";
     Function func = remoteFuncs.get(name);
     if (func == null) {
-      func = getFunction("tvm.contrib.rpc.server.download");
+      func = getFunction("tvm.rpc.server.download");
       remoteFuncs.put(name, func);
     }
     return func.pushArg(path).invoke().asBytes();

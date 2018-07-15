@@ -258,10 +258,11 @@ class Reshape(OnnxOpConverter):
     def _impl_v5(cls, inputs, attr, params):
         if inputs[1].list_output_names()[0] in params:
             shape = tuple(params[inputs[1].list_output_names()[0]].asnumpy())
+            out = _sym.reshape(inputs[0], shape=shape)
         else:
-            raise RuntimeError('Shape is not contained in graph initializer.')
-        return _sym.reshape(inputs[0], shape=shape)
+            out = _sym.reshape_like(inputs[0], inputs[1])
 
+        return out
 
 class Scale(OnnxOpConverter):
 
@@ -405,6 +406,87 @@ def _fully_connected(opset):
     return _impl
 
 
+class Shape(OnnxOpConverter):
+    """ Operator converter for Shape.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # Result of this operator is prominently used by reshape operator.
+        # Just pass the input as it is so that reshape_like can be used there.
+        print("Shape: Differently implemented in NNVM as a bypass (dummy operator)")
+        return inputs[0]
+
+class Cast(OnnxOpConverter):
+    """ Operator converter for Cast.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
+
+    @classmethod
+    def _impl_v5(cls, inputs, attr, params):
+        try:
+            from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+            attr['to'] = TENSOR_TYPE_TO_NP_TYPE[attr['to']]
+        except ImportError as e:
+            raise ImportError(
+                "Unable to import onnx.mapping which is required {}".format(e))
+        return AttrCvt(op_name='cast', transforms={'to': 'dtype'})(inputs, attr)
+
+
+class Unsqueeze(OnnxOpConverter):
+    """ Operator converter for Unsqueeze.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        for axes in attr['axes']:
+            inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
+        return inputs[0]
+
+
+class Slice(OnnxOpConverter):
+    """ Operator converter for Slice.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if isinstance(attr['starts'], int):
+            attr['starts'] = (attr['starts'],)
+            attr['ends'] = (attr['ends'],)
+
+        try:
+            # Update the starts and ends according to axes if required.
+            if isinstance(attr['axes'], int):
+                attr['axes'] = (attr['axes'],)
+
+            if (max(attr['axes']) + 1) != len(attr['axes']):
+                new_axes = []
+                new_starts = []
+                new_ends = []
+                pop_index = 0
+                for i in range(max(attr['axes']) + 1):
+                    if i in attr['axes']:
+                        new_axes.append(i)
+                        new_starts.append(attr['starts'][pop_index])
+                        new_ends.append(attr['ends'][pop_index])
+                        pop_index += 1
+                    else:
+                        new_axes.append(i)
+                        new_starts.append(0)
+                        new_ends.append(np.iinfo(np.int32).max)
+                attr['axes'] = new_axes
+                attr['starts'] = new_starts
+                attr['ends'] = new_ends
+        except KeyError:
+            pass
+
+        return AttrCvt(op_name='strided_slice',
+                       transforms={'starts': 'begin',
+                                   'ends': 'end'},
+                       ignores=['axes'])(inputs, attr)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -436,7 +518,7 @@ def _get_convert_map(opset):
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
-        # 'Constant'
+        # 'Constant' # Implemented
         # 'RandomUniform'
         # 'RandomNormal'
         # 'RandomUniformLike'
@@ -452,8 +534,8 @@ def _get_convert_map(opset):
         'Neg': Renamer('negative'),
         'Abs': Absolute.get_converter(opset),
         'Reciprocal': Reciprocal.get_converter(opset),
-        # 'Floor'
-        # 'Ceil'
+        'Floor': Renamer('floor'),
+        'Ceil': Renamer('ceil'),
         'Sqrt': Renamer('sqrt'),
         'Relu': Renamer('relu'),
         'LeakyRelu': Renamer('leaky_relu'),
@@ -462,7 +544,7 @@ def _get_convert_map(opset):
         'Exp': Renamer('exp'),
         'Log': Renamer('log'),
         'Tanh': Renamer('tanh'),
-        # 'Pow'
+        'Pow': Renamer('broadcast_pow'),
         'PRelu': Prelu.get_converter(opset),
         'Sigmoid': Renamer('sigmoid'),
         # 'HardSigmoid'
@@ -470,7 +552,7 @@ def _get_convert_map(opset):
         # 'Min' : this is the elemwise minimum
         'Sum': Sum.get_converter(opset),
         # 'Mean'
-        # 'Clip'
+        'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
         # softmax default axis is different in onnx
         'Softmax': AttrCvt('softmax', {'axis': ('axis', 1)}),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
@@ -478,7 +560,7 @@ def _get_convert_map(opset):
         'Softsign': Softsign.get_converter(opset),
         'SoftPlus': SoftPlus.get_converter(opset),
         'Gemm': Gemm.get_converter(opset),
-        # 'MatMul'  batch stacked dot operation
+        'MatMul': Renamer('matmul'),
 
         # defs/nn
         'AveragePool': AveragePool.get_converter(opset),
@@ -505,15 +587,17 @@ def _get_convert_map(opset):
         # 'ArgMin'
 
         # defs/tensor
-        'Cast': AttrCvt('cast', {'to': 'dtype'}),
+        'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
         'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
-        # 'Slice'
+        'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         # 'Gather'
-        # 'Squeeze'
+        'Squeeze': Renamer('squeeze'),
+        'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
+        'Shape': Shape.get_converter(opset),
     }
 
 
@@ -571,13 +655,20 @@ class GraphProto(object):
             op_name = node.op_type
             attr = self._parse_attr(node.attribute)
             inputs = [self._nodes[self._renames.get(i, i)] for i in node.input]
-            op = self._convert_operator(op_name, inputs, attr, opset)
-            node_output = self._fix_outputs(op_name, node.output)
-            assert len(node_output) == len(op.list_output_names()), (
-                "Number of output mismatch {} vs {} in {}.".format(
-                    len(node_output), len(op.list_output_names()), op_name))
-            for k, i in zip(list(node_output), range(len(node_output))):
-                self._nodes[k] = op[i]
+            if op_name == "Constant":
+                t_proto = self._parse_attr(node.attribute)["value"]
+                self._num_param += 1
+                self._params[node.output[0]] = self._parse_array(t_proto)
+                self._nodes[node.output[0]] = _sym.Variable(name=node.output[0],
+                                                            shape=list(t_proto.dims))
+            else:
+                op = self._convert_operator(op_name, inputs, attr, opset)
+                node_output = self._fix_outputs(op_name, node.output)
+                assert len(node_output) == len(op.list_output_names()), (
+                    "Number of output mismatch {} vs {} in {}.".format(
+                        len(node_output), len(op.list_output_names()), op_name))
+                for k, i in zip(list(node_output), range(len(node_output))):
+                    self._nodes[k] = op[i]
         # now return the outputs
         out = [self._nodes[self._parse_value_proto(i)] for i in graph.output]
         if len(out) > 1:
@@ -615,11 +706,18 @@ class GraphProto(object):
                 if list(getattr(a, f)):
                     assert a.name not in attrs, "Only one type of attr is allowed"
                     attrs[a.name] = tuple(getattr(a, f))
-            for f in ['t', 'g']:
+            for f in ['t']:
+                if a.HasField(f):
+                    attrs[a.name] = getattr(a, f)
+            for f in ['tensors']:
+                if list(getattr(a, f)):
+                    assert a.name not in attrs, "Only one type of attr is allowed"
+                    attrs[a.name] = tuple(getattr(a, f))
+            for f in ['g']:
                 if a.HasField(f):
                     raise NotImplementedError(
                         "Filed {} is not supported in nnvm.".format(f))
-            for f in ['tensors', 'graphs']:
+            for f in ['graphs']:
                 if list(getattr(a, f)):
                     raise NotImplementedError(
                         "Filed {} is not supported in nnvm.".format(f))
@@ -705,6 +803,9 @@ def from_onnx(model):
     """
     g = GraphProto()
     graph = model.graph
-    opset = model.opset_import[0].version if model.opset_import else 1
+    try:
+        opset = model.opset_import[0].version if model.opset_import else 1
+    except AttributeError:
+        opset = 1
     sym, params = g.from_onnx(graph, opset)
     return sym, params

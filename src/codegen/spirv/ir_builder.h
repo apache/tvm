@@ -485,11 +485,18 @@ class IRBuilder {
    */
   Value GetPushConstant(Value ptr_push_const, const SType& v_type, uint32_t index);
   /*!
-   * \brief Declare a kernel function
-   * \param name Name of the entry point.
+   * \brief Declare a new function
    * \return The created function ID.
    */
-  Value DeclareKenrelFunction(const std::string& name);
+  Value NewFunction();
+  /*!
+   * \brief Declare the entry point for a kernel function. This should be
+   * invoked after building the function so the builder is aware of which
+   * variables to declare as part of the function's interface.
+   * \param func The previously declared function.
+   * \param name Name of the entry point.
+   */
+  void CommitKernelFunction(const Value& func, const std::string& name);
   /*!
    * \brief Start function scope.
    * \param func function to be started.

@@ -226,13 +226,18 @@ def _darknet_dense(inputs, attrs):
     """Process the dense operation."""
     op_name, new_attrs = 'dense', {}
     new_attrs['units'] = _darknet_required_attr(attrs, 'num_hidden')
-
+    out_name = {}
     if attrs.get('use_bias', False) is True:
         new_attrs['use_bias'] = True
     if attrs.get('use_flatten', False) is True:
         inputs[0] = _sym.flatten(inputs[0])
     sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
-    out_name = sym.list_output_names()[0].replace('_output', '')
+    out_name[0] = sym.list_output_names()[0].replace('_output', '')
+    if 'use_batchNorm' in attrs:
+        op_name, new_attrs = 'batch_norm', {}
+        new_attrs['epsilon'] = 0.000001
+        sym = _darknet_get_nnvm_op(op_name)(*sym, **new_attrs)
+        out_name[1] = sym.list_output_names()[0].replace('_output', '')
     if 'activation' in attrs:
         new_attrs = {}
         new_attrs['activation'] = attrs['activation']
@@ -255,6 +260,9 @@ def _darknet_reshape(inputs, attrs):
 
 def _darknet_softmax_output(inputs, attrs):
     """Process the softmax operation."""
+    temperature = attrs.get('temperature', 1)
+    if temperature != 1:
+        inputs[0] = inputs[0] / float(temperature)
     op_name, new_attrs = 'softmax', {}
     if _darknet_parse_bool_str(attrs, 'multi_output'):
         new_attrs['axis'] = 1
@@ -271,14 +279,14 @@ def _darknet_route(inputs, attrs):
 
 def _darknet_reorg(inputs, attrs):
     """Process the reorg operation."""
-    op_name, new_attrs = 'yolo2_reorg', {}
+    op_name, new_attrs = 'yolo_reorg', {}
     if 'stride' in attrs:
         new_attrs = {'stride': attrs.get('stride', 1)}
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_region(inputs, attrs):
     """Process the region operation."""
-    op_name, new_attrs = 'yolo2_region', {}
+    op_name, new_attrs = 'yolo_region', {}
     if 'n' in attrs:
         new_attrs['n'] = attrs.get('n', 1)
     if 'classes' in attrs:
@@ -430,13 +438,16 @@ def _get_connected_weights(layer, opname, params, dtype):
     weights = _read_memory_buffer((layer.outputs, layer.inputs), layer.weights, dtype)
     biases = _read_memory_buffer((layer.outputs, ), layer.biases, dtype)
 
-    k = _get_tvm_params_name(opname, 'weight')
+    k = _get_tvm_params_name(opname[0], 'weight')
     params[k] = tvm.nd.array(weights)
-    k = _get_tvm_params_name(opname, 'bias')
-    params[k] = tvm.nd.array(biases)
 
     if layer.batch_normalize == 1 and layer.dontloadscales != 1:
-        _get_batchnorm_weights(layer, opname, params, layer.outputs, dtype)
+        _get_batchnorm_weights(layer, opname[1], params, layer.outputs, dtype)
+        k = _get_tvm_params_name(opname[1], 'beta')
+        params[k] = tvm.nd.array(biases)
+    else:
+        k = _get_tvm_params_name(opname[0], 'bias')
+        params[k] = tvm.nd.array(biases)
 
 def _get_batchnorm_weights(layer, opname, params, size, dtype):
     """Parse the weights for batchnorm, which includes, scales, moving mean
@@ -521,6 +532,8 @@ def _get_darknet_attrs(net, layer_num):
     elif LAYERTYPE.SOFTMAX == layer.type:
         attr.update({'axis' : 1})
         attr.update({'use_flatten' : True})
+        if layer.temperature:
+            attr.update({'temperature' : str(layer.temperature)})
 
     elif LAYERTYPE.SHORTCUT == layer.type:
         add_layer = net.layers[layer.index]

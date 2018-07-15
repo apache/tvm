@@ -345,7 +345,7 @@ NNVM_REGISTER_OP(softmax)
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutCopyToOut<1, 1>)
 .set_support_level(1)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -404,7 +404,7 @@ NNVM_REGISTER_OP(log_softmax)
 .set_num_outputs(1)
 .set_attr<FInferShape>("FInferShape", ElemwiseShape<1, 1>)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseArbitraryLayout<1, 1>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutCopyToOut<1, 1>)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,
@@ -563,7 +563,7 @@ where :math:`*` is an channelwise multiplication for each sample in the
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const PReLUParam& param = nnvm::get<PReLUParam>(attrs.parsed);
-    return Array<Tensor>{ topi::prelu<float>(inputs[0], inputs[1], param.axis)};
+    return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param.axis)};
   })
 .set_support_level(4);
 

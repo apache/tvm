@@ -169,6 +169,20 @@ def test_forward_dense():
     test_forward(net)
     LIB.free_network(net)
 
+def test_forward_dense_batchnorm():
+    '''test fully connected layer with batchnorm'''
+    net = LIB.make_network(1)
+    layer = LIB.make_connected_layer(1, 12, 2, 1, 1, 0)
+    for i in range(5):
+        layer.rolling_mean[i] = np.random.rand(1)
+        layer.rolling_variance[i] = np.random.rand(1)
+        layer.scales[i] = np.random.rand(1)
+    net.layers[0] = layer
+    net.w = net.h = 2
+    LIB.resize_network(net, 2, 2)
+    test_forward(net)
+    LIB.free_network(net)
+
 def test_forward_maxpooling():
     '''test maxpooling layer'''
     net = LIB.make_network(1)
@@ -253,6 +267,28 @@ def test_forward_elu():
     test_forward(net)
     LIB.free_network(net)
 
+def test_forward_softmax():
+    '''test softmax layer'''
+    net = LIB.make_network(1)
+    layer_1 = LIB.make_softmax_layer(1, 75, 1)
+    layer_1.temperature=1
+    net.layers[0] = layer_1
+    net.w = net.h = 5
+    LIB.resize_network(net, net.w, net.h)
+    test_forward(net)
+    LIB.free_network(net)
+
+def test_forward_softmax_temperature():
+    '''test softmax layer'''
+    net = LIB.make_network(1)
+    layer_1 = LIB.make_softmax_layer(1, 75, 1)
+    layer_1.temperature=0.8
+    net.layers[0] = layer_1
+    net.w = net.h = 5
+    LIB.resize_network(net, net.w, net.h)
+    test_forward(net)
+    LIB.free_network(net)
+
 if __name__ == '__main__':
     test_forward_resnet50()
     test_forward_alexnet()
@@ -264,6 +300,9 @@ if __name__ == '__main__':
     test_forward_batch_norm()
     test_forward_shortcut()
     test_forward_dense()
+    test_forward_dense_batchnorm()
+    test_forward_softmax()
+    test_forward_softmax_temperature()
     test_forward_reorg()
     test_forward_region()
     test_forward_elu()

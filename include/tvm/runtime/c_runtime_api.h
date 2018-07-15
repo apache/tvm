@@ -60,6 +60,7 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
+  kDLSDAccel = 6,
   kDLVulkan = 7,
   kOpenGL = 11,
   // Extension DRAM type, used for quickly test extension device
@@ -86,6 +87,7 @@ typedef enum {
   kFuncHandle = 10U,
   kStr = 11U,
   kBytes = 12U,
+  kNDArrayContainer = 13U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
@@ -120,6 +122,9 @@ typedef DLContext TVMContext;
  */
 typedef DLTensor TVMArray;
 
+/*! \brief the array handle */
+typedef TVMArray* TVMArrayHandle;
+
 /*!
  * \brief Union type of values
  *  being passed through API and function calls.
@@ -148,8 +153,6 @@ typedef void* TVMModuleHandle;
 typedef void* TVMFunctionHandle;
 /*! \brief Handle to hold return value. */
 typedef void* TVMRetValueHandle;
-/*! \brief the array handle */
-typedef TVMArray* TVMArrayHandle;
 /*!
  * \brief The stream that is specific to device
  * can be NULL, which indicates the default one.

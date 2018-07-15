@@ -1,6 +1,7 @@
 import numpy as np
 import tvm
-from tvm.contrib import rpc, util, emscripten
+from tvm import rpc
+from tvm.contrib import util, emscripten
 
 def test_local_save_load():
     if not tvm.module.enabled("opengl"):

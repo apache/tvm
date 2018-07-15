@@ -73,7 +73,7 @@ Target CreateTarget(const std::string& target_name,
     } else {
       t->device_type = kDLROCM;
     }
-    t->keys_array.push_back(ir::StringImm::make("rocm"));
+    t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
     if (t->device_name == "intel_graphics") {
@@ -88,6 +88,9 @@ Target CreateTarget(const std::string& target_name,
     t->keys_array.push_back(ir::StringImm::make(target_name));
     t->keys_array.push_back(ir::StringImm::make("gpu"));
     t->max_num_threads = 256;
+  } else if (target_name == "sdaccel") {
+    t->device_type = kDLOpenCL;
+    t->keys_array.push_back(ir::StringImm::make("sdaccel"));
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
     t->keys_array.push_back(ir::StringImm::make("opengl"));
@@ -192,11 +195,7 @@ Target Target::create(const std::string& target_str) {
     options.push_back(item);
   }
 
-  if (device_name == "rasp") {
-    return target::rasp(options);
-  } else {
-    return CreateTarget(target_name, options);
-  }
+  return CreateTarget(target_name, options);
 }
 
 /*! \brief Entry to hold the Target context stack. */

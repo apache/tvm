@@ -1,5 +1,6 @@
 import tvm
-from tvm.contrib import util, rpc, graph_runtime
+from tvm import rpc
+from tvm.contrib import util, graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
 import numpy as np

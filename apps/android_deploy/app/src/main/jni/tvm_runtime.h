@@ -17,6 +17,7 @@
 #include "../src/runtime/dso_module.cc"
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
+#include "../src/runtime/ndarray.cc"
 
 #include "../src/runtime/graph/graph_runtime.cc"
 

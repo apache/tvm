@@ -2,7 +2,6 @@
 """Conv2D schedule on raspberry pi"""
 from __future__ import absolute_import as _abs
 import tvm
-from tvm import target as _target
 from .. import tag
 from ..nn.conv2d import conv2d as _conv2d, _get_schedule
 from ..nn.conv2d import SpatialPack, Im2ColPack
@@ -201,9 +200,7 @@ def _schedule_im2col_conv2d(s, data, data_pad, data_col, data_vec,
     else:
         stride = infer_stride(data_pad, kernel, output)
     wkl = _get_workload(data, kernel, stride, padding, output.dtype)
-
-    with _target.rasp():
-        sch = _get_schedule(wkl)
+    sch = _get_schedule(wkl)
 
     H, W = wkl.height, wkl.width
     CI = wkl.in_filter

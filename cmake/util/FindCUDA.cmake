@@ -28,11 +28,11 @@ macro(find_cuda use_cuda)
     set(CUDA_INCLUDE_DIRS ${CUDA_TOOLKIT_ROOT_DIR}/include)
     set(CUDA_FOUND TRUE)
     if(MSVC)
-      find_library(CUDA_CUDAT_LIBRARY cudart
+      find_library(CUDA_CUDART_LIBRARY cudart
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     else(MSVC)
-      find_library(CUDA_CUDAT_LIBRARY cudart
+      find_library(CUDA_CUDART_LIBRARY cudart
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
         ${CUDA_TOOLKIT_ROOT_DIR}/lib)
     endif(MSVC)

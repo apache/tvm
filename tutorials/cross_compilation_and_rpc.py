@@ -1,4 +1,6 @@
 """
+.. _tutorial-cross-compilation-and-rpc:
+
 Cross Compilation and RPC
 =========================
 **Author**: `Ziheng Jiang <https://github.com/ZihengJiang/>`_
@@ -106,7 +108,8 @@ from __future__ import absolute_import, print_function
 
 import tvm
 import numpy as np
-from tvm.contrib import rpc, util
+from tvm import rpc
+from tvm.contrib import util
 
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine

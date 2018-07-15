@@ -48,6 +48,32 @@ struct SplitParam : public dmlc::Parameter<SplitParam> {
   }
 };
 
+
+struct TakeParam : public dmlc::Parameter<TakeParam> {
+  dmlc::optional<int> axis;
+
+  DMLC_DECLARE_PARAMETER(TakeParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(dmlc::optional<int>())
+        .describe("the axis over which to select values.");
+  }
+};
+
+struct StridedSliceParam : public dmlc::Parameter<StridedSliceParam> {
+  // numpy convention, only support indices, not support list.
+  Tuple<int64_t> begin;
+  Tuple<int64_t> end;
+  Tuple<int64_t> stride;
+
+  DMLC_DECLARE_PARAMETER(StridedSliceParam) {
+    DMLC_DECLARE_FIELD(begin)
+        .describe("Indices for begin of slice");
+    DMLC_DECLARE_FIELD(end)
+        .describe("Indices for end of the slice");
+    DMLC_DECLARE_FIELD(stride).set_default(Tuple<int64_t>())
+        .describe("Stride values of the slice");
+  }
+};
+
 enum TypeFlag {
   kFloat32 = 0,
   kFloat64 = 1,
@@ -256,6 +282,16 @@ struct ClipParam : public dmlc::Parameter<ClipParam> {
       .describe("Minimum value such that value smaller then this will be clipped.");
     DMLC_DECLARE_FIELD(a_max)
       .describe("Maximum value such that value larger then this will be clipped.");
+  }
+};
+
+struct SliceLikeParam : public dmlc::Parameter<SliceLikeParam> {
+  Tuple<int> axis;
+  DMLC_DECLARE_PARAMETER(SliceLikeParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(Tuple<int>())
+      .describe("List of axes on which input data will be sliced according to the "
+                "corresponding size of the second input. By default will slice "
+                "on all axes. Negative axes are supported.");
   }
 };
 

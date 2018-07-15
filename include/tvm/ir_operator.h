@@ -18,7 +18,6 @@ using HalideIR::likely_if_innermost;
 using HalideIR::cast;
 using HalideIR::min;
 using HalideIR::max;
-using HalideIR::abs;
 using HalideIR::select;
 
 /*!
@@ -42,11 +41,13 @@ TVM_DLL Expr max(Expr source, Array<IterVar> axis);
  */
 TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 
+
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
   inline Expr OpName(Expr x) {                                          \
     return ir::Call::make(x.type(), #OpName, {x}, ir::Call::PureIntrinsic); \
   }                                                                     \
+
 
 TVM_DECLARE_INTRIN_UNARY(exp);
 TVM_DECLARE_INTRIN_UNARY(tanh);
@@ -58,8 +59,35 @@ TVM_DECLARE_INTRIN_UNARY(ceil);
 TVM_DECLARE_INTRIN_UNARY(round);
 TVM_DECLARE_INTRIN_UNARY(trunc);
 
+/*!
+ * \brief Calculate power(x, y)
+ * \param x The left operand.
+ * \param y The right operand.
+ */
 inline Expr pow(Expr x, Expr y) {
+  match_types(x, y);
+  CHECK(x.type().is_float()) << "power only applies to float";
   return ir::Call::make(x.type(), "pow", { x, y }, ir::Call::PureIntrinsic);
+}
+
+/*!
+ * \brief Calculate absolute value of x, elementwise
+ * \param x The input data
+ *
+ * \return The aboslute value of input data x
+ */
+inline Expr abs(Expr x) {
+  if (x.type().is_int()) {
+    return select(x >= make_zero(x.type()), x, -x);
+  } else if (x.type().is_float()) {
+    return ir::Call::make(x.type(), "fabs", {x}, ir::Call::PureIntrinsic);
+  } else if (x.type().is_uint()) {
+    return x;
+  } else {
+    LOG(WARNING) << "Warning: Data type " << x.type()
+      <<" not supported for absolute op. Skipping absolute op...";
+    return x;
+  }
 }
 
 }  // namespace tvm

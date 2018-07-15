@@ -30,7 +30,7 @@ def verify_lrn(shape, size, axis, bias, alpha, beta):
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
 def test_lrn():

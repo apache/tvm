@@ -9,7 +9,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     iw = ih
     kw = kh
     sw = sh
-    ph, pw = padding
+    pt, pl, pb, pr = padding
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
                      pool_type=pool_type, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
@@ -19,16 +19,15 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
     bshape = get_const_tuple(B.shape)
     ashape = get_const_tuple(A.shape)
     if ceil_mode:
-        assert bshape[2] == int(math.ceil(float(ashape[2] - kh + ph * 2) / sh) + 1)
-        assert bshape[3] == int(math.ceil(float(ashape[3] - kw + pw * 2) / sw) + 1)
+        assert bshape[2] == int(math.ceil(float(ashape[2] - kh + pt + pb) / sh) + 1)
+        assert bshape[3] == int(math.ceil(float(ashape[3] - kw + pl + pr) / sw) + 1)
     else:
-        assert bshape[2] == int(math.floor(float(ashape[2] - kh + ph * 2) / sh) + 1)
-        assert bshape[3] == int(math.floor(float(ashape[3] - kw + pw * 2) / sw) + 1)
-
+        assert bshape[2] == int(math.floor(float(ashape[2] - kh + pt + pb) / sh) + 1)
+        assert bshape[3] == int(math.floor(float(ashape[3] - kw + pl + pr) / sw) + 1)
 
     a_np = np.random.uniform(low=0.001, size=(n, ic, ih, iw)).astype(dtype)
-    pad_np = np.zeros(shape=(n, ic, ih+2*ph, iw+2*pw)).astype(dtype)
-    no_zero = (range(n), range(ic), (range(ph, ih+ph)), (range(pw, iw+pw)))
+    pad_np = np.zeros(shape=(n, ic, ih+pt+pb, iw+pl+pr)).astype(dtype)
+    no_zero = (range(n), range(ic), (range(pt, ih+pt)), (range(pl, iw+pl)))
     pad_np[np.ix_(*no_zero)] = a_np
     _, oc, oh, ow = get_const_tuple(B.shape)
     b_np = np.zeros(shape=(n, oc, oh, ow)).astype(dtype)
@@ -63,19 +62,23 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
 def test_pool():
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'avg', False, True)
-    verify_pool(1, 256, 31, 3, 3, [1, 2], 'avg', False, True)
-    verify_pool(1, 256, 32, 2, 2, [1, 2], 'avg', False, False)
-    verify_pool(1, 256, 31, 4, 4, [3, 3], 'avg', False, False)
-    verify_pool(1, 256, 31, 4, 4, [0, 0], 'avg', False, False)
-    verify_pool(1, 256, 32, 2, 2, [0, 0], 'max', False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', False)
-    verify_pool(1, 256, 31, 3, 3, [2, 1], 'max', True)
+    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], 'avg', False, True)
+    verify_pool(1, 256, 31, 3, 3, [1, 2, 1, 2], 'avg', False, True)
+    verify_pool(1, 256, 32, 2, 2, [1, 2, 1, 2], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [3, 3, 3, 3], 'avg', False, False)
+    verify_pool(1, 256, 31, 4, 4, [0, 0, 0, 0], 'avg', False, False)
+    verify_pool(1, 256, 32, 2, 2, [0, 0, 0, 0], 'max', False)
+    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], 'max', False)
+    verify_pool(1, 256, 31, 3, 3, [2, 1, 2, 1], 'max', True)
 
+    verify_pool(1, 256, 31, 3, 3, [2, 1, 0, 3], 'avg', False, True)
+    verify_pool(1, 256, 32, 2, 2, [0, 3, 2, 1], 'avg', False, False)
+    verify_pool(1, 256, 31, 3, 3, [1, 0, 3, 2], 'max', False)
+    verify_pool(1, 256, 31, 3, 3, [3, 2, 1, 0], 'max', True)
 
 
 def verify_global_pool(n, c, h, w, pool_type):
@@ -104,7 +107,7 @@ def verify_global_pool(n, c, h, w, pool_type):
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
 def test_global_pool():

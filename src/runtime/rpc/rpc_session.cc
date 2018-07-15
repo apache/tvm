@@ -175,7 +175,12 @@ class RPCSession::EventHandler : public dmlc::Stream {
   // send Packed sequence to writer.
   void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int n) {
     this->Write(n);
-    this->WriteArray(type_codes, n);
+    // only handles .
+    for (int i = 0; i < n; ++i) {
+      int tcode = type_codes[i];
+      if (tcode == kNDArrayContainer) tcode = kArrayHandle;
+      this->Write(tcode);
+    }
     // Argument packing.
     for (int i = 0; i < n; ++i) {
       int tcode = type_codes[i];
@@ -207,6 +212,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
           this->Write(handle);
           break;
         }
+        case kNDArrayContainer:
         case kArrayHandle: {
           DLTensor* arr = static_cast<DLTensor*>(value.v_handle);
           TVMContext ctx = StripSessMask(arr->ctx);
@@ -850,12 +856,12 @@ void RPCSession::Shutdown() {
 
 void RPCSession::ServerLoop() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.start")) {
+  if (const auto* f = Registry::Get("tvm.rpc.server.start")) {
     (*f)();
   }
   TVMRetValue rv;
   CHECK(HandleUntilReturnEvent(&rv, false, nullptr) == RPCCode::kShutdown);
-  if (const auto* f = Registry::Get("tvm.contrib.rpc.server.shutdown")) {
+  if (const auto* f = Registry::Get("tvm.rpc.server.shutdown")) {
     (*f)();
   }
   channel_.reset(nullptr);
@@ -1046,7 +1052,7 @@ void RPCCopyAmongRemote(TVMArgs args, TVMRetValue *rv) {
 void RPCModuleLoad(TVMArgs args, TVMRetValue *rv) {
   static const PackedFunc* fsys_load_ = nullptr;
   if (fsys_load_ == nullptr) {
-    fsys_load_ = runtime::Registry::Get("tvm.contrib.rpc.server.load_module");
+    fsys_load_ = runtime::Registry::Get("tvm.rpc.server.load_module");
     CHECK(fsys_load_ != nullptr);
   }
   std::string file_name = args[0];

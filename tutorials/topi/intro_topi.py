@@ -65,7 +65,7 @@ d = a * b  # same as topi.broadcast_mul
 # we can schedule the following series of operations ending with :code:`topi.sum` using only
 # :code:`topi.generic.schedule_reduce`
 #
-e = topi.elemwise_sum([c, d], num_args=2)
+e = topi.elemwise_sum([c, d])
 f = e / 2.0
 g = topi.sum(f)
 with tvm.target.cuda():
@@ -107,7 +107,7 @@ with tvm.target.create("cuda"):
 #
 data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
-conv = topi.nn.conv2d(data, kernel, stride=1, padding=2)
+conv = topi.nn.conv2d(data, kernel, strides=1, padding=2)
 out = topi.nn.relu(conv)
 with tvm.target.create("cuda"):
     sconv = topi.generic.nn.schedule_conv2d_nchw(out)

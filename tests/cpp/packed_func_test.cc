@@ -38,6 +38,31 @@ TEST(PackedFunc, Node) {
   CHECK(t.same_as(x));
 }
 
+TEST(PackedFunc, NDArray) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  auto x = NDArray::Empty(
+      {}, String2TVMType("float32"),
+      TVMContext{kDLCPU, 0});
+  reinterpret_cast<float*>(x->data)[0] = 10.0f;
+  CHECK(x.use_count() == 1);
+
+  PackedFunc forward([&](TVMArgs args, TVMRetValue* rv) {
+      *rv = args[0];
+    });
+
+  NDArray ret = PackedFunc([&](TVMArgs args, TVMRetValue* rv) {
+      NDArray y = args[0];
+      DLTensor* ptr = args[0];
+      CHECK(ptr == x.operator->());
+      CHECK(x.same_as(y));
+      CHECK(x.use_count() == 2);
+      *rv = forward(y);
+    })(x);
+  CHECK(ret.use_count() == 2);
+  CHECK(ret.same_as(x));
+}
+
 TEST(PackedFunc, str) {
   using namespace tvm;
   using namespace tvm::runtime;

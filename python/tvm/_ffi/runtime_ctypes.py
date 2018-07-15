@@ -25,6 +25,7 @@ class TypeCode(object):
     FUNC_HANDLE = 10
     STR = 11
     BYTES = 12
+    NDARRAY_CONTAINER = 13
     EXT_BEGIN = 15
 
 class TVMByteArray(ctypes.Structure):
@@ -95,6 +96,7 @@ class TVMContext(ctypes.Structure):
         1 : 'cpu',
         2 : 'gpu',
         4 : 'opencl',
+        6 : 'sdaccel',
         7 : 'vulkan',
         8 : 'metal',
         9 : 'vpi',
@@ -111,6 +113,7 @@ class TVMContext(ctypes.Structure):
         'nvptx': 2,
         'cl': 4,
         'opencl': 4,
+        'sdaccel': 6,
         'vulkan': 7,
         'metal': 8,
         'vpi': 9,

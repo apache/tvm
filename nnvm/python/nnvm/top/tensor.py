@@ -53,11 +53,6 @@ reg.register_pattern("copy", OpPattern.ELEMWISE)
 reg.register_schedule("copy", _fschedule_broadcast)
 
 # cast
-@reg.register_compute("cast")
-def compute_cast(attrs, inputs, _):
-    """Compute definition of cast"""
-    dtype = attrs.get_string("dtype")
-    return topi.cast(inputs[0], dtype)
 reg.register_pattern("cast", OpPattern.ELEMWISE)
 reg.register_schedule("cast", _fschedule_broadcast)
 
@@ -72,6 +67,10 @@ reg.register_schedule("ceil", _fschedule_broadcast)
 # round
 reg.register_pattern("round", OpPattern.ELEMWISE)
 reg.register_schedule("round", _fschedule_broadcast)
+
+# abs
+reg.register_pattern("abs", OpPattern.ELEMWISE)
+reg.register_schedule("abs", _fschedule_broadcast)
 
 # trunc
 reg.register_pattern("trunc", OpPattern.ELEMWISE)
@@ -173,6 +172,54 @@ reg.register_schedule("broadcast_mul", _fschedule_broadcast)
 reg.register_pattern("broadcast_div", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_div", _fschedule_broadcast)
 
+# broadcast mod
+reg.register_pattern("broadcast_mod", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_mod", _fschedule_broadcast)
+
+# broadcast max
+reg.register_pattern("broadcast_max", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_max", _fschedule_broadcast)
+
+# broadcast min
+reg.register_pattern("broadcast_min", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_min", _fschedule_broadcast)
+
+# broadcast pow
+reg.register_pattern("broadcast_pow", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_pow", _fschedule_broadcast)
+
+# broadcast left_shift
+reg.register_pattern("broadcast_left_shift", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_left_shift", _fschedule_broadcast)
+
+# broadcast right_shift
+reg.register_pattern("broadcast_right_shift", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_right_shift", _fschedule_broadcast)
+
+# broadcast greater
+reg.register_pattern("broadcast_greater", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_greater", _fschedule_broadcast)
+
+# broadcast less
+reg.register_pattern("broadcast_less", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_less", _fschedule_broadcast)
+
+# broadcast equal
+reg.register_pattern("broadcast_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_equal", _fschedule_broadcast)
+
+# broadcast not_equal
+reg.register_pattern("broadcast_not_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_not_equal", _fschedule_broadcast)
+
+# broadcast greater_equal
+reg.register_pattern("broadcast_greater_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_greater_equal", _fschedule_broadcast)
+
+# broadcast less_equal
+reg.register_pattern("broadcast_less_equal", OpPattern.BROADCAST)
+reg.register_schedule("broadcast_less_equal", _fschedule_broadcast)
+
 # broadcast_to
 reg.register_pattern("broadcast_to", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_to", _fschedule_broadcast)
@@ -182,85 +229,38 @@ reg.register_pattern("clip", OpPattern.ELEMWISE)
 reg.register_schedule("clip", _fschedule_elemwise)
 
 # elemwise sum
-@reg.register_compute("elemwise_sum")
-def compute_elemwise_sum(attrs, inputs, _):
-    """Compute definition of elemwise sum"""
-    num_args = attrs.get_int("num_args")
-    assert num_args == len(inputs), "Number of tensors does not match num_args."
-    return topi.tensor.elemwise_sum(inputs, num_args)
 reg.register_pattern("elemwise_sum", OpPattern.ELEMWISE)
 reg.register_schedule("elemwise_sum", _fschedule_elemwise)
 
 # full
-@reg.register_compute("full")
-def compute_full(attrs, inputs, _):
-    """Compute definition of full"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    fill_value = attrs.get_float("fill_value")
-    return topi.tensor.full(shape, dtype, fill_value)
 reg.register_pattern("full", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("full", _fschedule_elemwise)
 
 # full_like
-@reg.register_compute("full_like")
-def compute_full_like(attrs, inputs, _):
-    """Compute definition of full_like"""
-    fill_value = attrs.get_float("fill_value")
-    return topi.tensor.full_like(inputs[0], fill_value)
 reg.register_pattern("full_like", OpPattern.ELEMWISE)
 reg.register_schedule("full_like", _fschedule_elemwise)
 
 # zeros
-@reg.register_compute("zeros")
-def compute_zeros(attrs, inputs, _):
-    """Compute definition of zeros"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    return topi.tensor.full(shape, dtype, 0)
 reg.register_pattern("zeros", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("zeros", _fschedule_elemwise)
 
 # zeros_like
-@reg.register_compute("zeros_like")
-def compute_zeros_like(_, inputs, out_info):
-    """Compute definition of zeros_like"""
-    return topi.tensor.full_like(inputs[0], 0)
 reg.register_pattern("zeros_like", OpPattern.ELEMWISE)
 reg.register_schedule("zeros_like", _fschedule_elemwise)
 
 # ones
-@reg.register_compute("ones")
-def compute_ones(attrs, inputs, _):
-    """Compute definition of ones"""
-    shape = attrs.get_int_tuple("shape")
-    dtype = attrs.get_string("dtype")
-    #tvm.tensor.Tensor()
-    return topi.tensor.full(shape, dtype, 1)
 reg.register_pattern("ones", OpPattern.OUT_ELEMWISE_FUSABLE)
 reg.register_schedule("ones", _fschedule_elemwise)
 
 # ones_like
-@reg.register_compute("ones_like")
-def compute_ones_like(_, inputs, out_info):
-    """Compute definition of ones_like"""
-    return topi.tensor.full_like(inputs[0], 1)
 reg.register_pattern("ones_like", OpPattern.ELEMWISE)
 reg.register_schedule("ones_like", _fschedule_elemwise)
 
 # greater
-@reg.register_compute("greater")
-def compute_greater(_, inputs, out_info):
-    """Compute definition of greater"""
-    return topi.greater(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("greater", OpPattern.ELEMWISE)
 reg.register_schedule("greater", _fschedule_elemwise)
 
 # less
-@reg.register_compute("less")
-def compute_less(_, inputs, out_info):
-    """Compute definition of less"""
-    return topi.less(inputs[0], inputs[1]).astype('float32')
 reg.register_pattern("less", OpPattern.ELEMWISE)
 reg.register_schedule("less", _fschedule_elemwise)
 

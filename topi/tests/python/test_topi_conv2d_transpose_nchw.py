@@ -51,7 +51,7 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
             np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
+    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)
 
 

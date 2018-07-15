@@ -11,6 +11,7 @@
 #include <nnvm/tuple.h>
 #include <nnvm/layout.h>
 #include <string>
+#include "./tensor.h"
 
 namespace nnvm {
 namespace top {
@@ -122,6 +123,7 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   std::string layout;
   std::string kernel_layout;
   std::string out_layout;
+  int out_dtype;
   bool use_bias;
 
   DMLC_DECLARE_PARAMETER(Conv2DParam) {
@@ -156,6 +158,11 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
       .describe("Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                 "dimensions respectively.");
+    DMLC_DECLARE_DTYPE_FIELD(out_dtype)
+      .add_enum("same", -1)
+      .set_default(-1)
+      .describe("Output data type, set to explicit type under mixed precision setting");
+
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
@@ -232,7 +239,10 @@ struct MaxPool2DParam : public dmlc::Parameter<MaxPool2DParam> {
       .describe("Specifies the strides of the convolution.");
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
@@ -259,7 +269,10 @@ struct AvgPool2DParam : public dmlc::Parameter<AvgPool2DParam> {
       .describe("Specifies the strides of the convolution.");
     DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
       .describe("If padding is non-zero, then the input is implicitly zero-padded"
-                "on both sides for padding number of points");
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
     DMLC_DECLARE_FIELD(layout).set_default("NCHW")
       .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
                 "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"

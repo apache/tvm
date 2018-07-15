@@ -28,6 +28,10 @@ def test_trunc():
 def test_round():
     check_map(sym.round, np.round)
 
+def test_abs():
+    check_map(sym.abs, np.abs)
+    check_map(sym.abs, np.abs, dtype = "int32")
+    check_map(sym.abs, np.abs, dtype = "int8")
 
 def test_shift():
     n = 3
@@ -40,4 +44,5 @@ if __name__ == "__main__":
     test_floor()
     test_ceil()
     test_round()
+    test_abs()
     test_trunc()

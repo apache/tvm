@@ -2,7 +2,8 @@ import os
 import numpy as np
 import nnvm.compiler
 import tvm
-from tvm.contrib import rpc, util, graph_runtime
+from tvm import rpc
+from tvm.contrib import util, graph_runtime
 
 
 def test_save_load():

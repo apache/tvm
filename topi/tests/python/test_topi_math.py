@@ -39,13 +39,14 @@ def test_ewise():
             foo(a, b)
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
-        for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'llvm']:
+        for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'llvm', 'nvptx']:
             check_device(device)
 
 
     test_apply(topi.floor, "floor", np.floor, -100, 100)
     test_apply(topi.ceil, "ceil", np.ceil, -100, 100)
     test_apply(topi.trunc, "trunc", np.trunc, -100, 100)
+    test_apply(topi.abs, "fabs", np.abs, -100, 100)
     test_apply(topi.round, "round", np.round, -100, 100)
     test_apply(topi.exp, "exp", np.exp, -1, 1)
     test_apply(topi.tanh, "tanh", np.tanh, -10, 10)

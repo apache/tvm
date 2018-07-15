@@ -35,6 +35,11 @@ class AttrCvt(object):
         self._ignores.append('use_cudnn_on_gpu')
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
+        # Retain the names
+        try:
+            attrs['name'] = attrs['_node_name']
+        except KeyError:
+            pass
         return AttrConvert(self._op_name, self._transforms, self._excludes,
                            self._disables, self._ignores, self._extras,
                            self._custom_check)(inputs, attrs, *args)
@@ -132,21 +137,12 @@ def _pooling(name):
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
-            if attr['data_format'] == 'NHWC':
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1]),
-                                                (0, 0)))
-            else:
-                inputs[0] = _sym.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1])))
-            attr['padding'] = [0, 0]
+            attr['padding'] = [pad_v[0], pad_h[0], pad_v[1], pad_h[1]]
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
+
+        if name == "avg_pool":
+            attr['count_include_pad'] = False
 
         return AttrCvt(
             op_name=_dimension_picker(name),
@@ -405,13 +401,19 @@ def _concat():
 
 def _reshape():
     def _impl(inputs, attr, params):
-        pop_node = inputs.pop(1)
-        shape_arg = params[pop_node.list_output_names()[0]]
-        params.pop(pop_node.list_output_names()[0])
-        return AttrCvt(
-            op_name="reshape",
-            extras={'shape':tuple(shape_arg.asnumpy())},
-            ignores=['Tshape'])(inputs, attr)
+        try:
+            pop_node = inputs[1]
+            shape_arg = params.pop(pop_node.list_output_names()[0])
+            inputs.pop(1)
+
+            return AttrCvt(
+                op_name="reshape",
+                extras={'shape':tuple(shape_arg.asnumpy())},
+                ignores=['Tshape'])(inputs, attr)
+        except KeyError:
+            return AttrCvt(
+                op_name="reshape_like",
+                ignores=['Tshape'])(inputs, attr)
     return _impl
 
 def _bias_add():
@@ -425,6 +427,18 @@ def _squeeze():
             op_name="squeeze",
             transforms={'squeeze_dims':'axis'},
             ignores=['T'])(inputs, attr)
+    return _impl
+
+def _fused_batch_norm():
+    def _impl(inputs, attr, params):
+        # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
+        # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
+        return AttrCvt(
+            op_name='batch_norm',
+            transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
+            extras={'axis': 3}, # Fix axis
+            ignores=['data_format'],
+            disables=['momentum'])(inputs, attr)
     return _impl
 
 def _batch_norm():
@@ -445,19 +459,14 @@ def _batch_norm():
 
 def _relu6():
     def _impl(inputs, attr, params):
-        return _sym.clip(inputs[0], a_min=0, a_max=6)
+        return _sym.clip(inputs[0], a_min=0, a_max=6, name=attr['_node_name'])
     return _impl
 
 def _shape():
     def _impl(inputs, attr, params):
-        input_shapes = attr['_input_shapes'][inputs[0]]
-
-        # Fix the -1 dimensions to 1
-        input_shapes[0] = [1 if x == -1 else x for x in input_shapes[0]]
-        params[attr['_node_name']] = tvm.nd.array(input_shapes[0])
-
-        return _sym.Variable(name=attr['_node_name'],
-                             shape=params[attr['_node_name']].shape)
+        # Result of this operator is prominently used by reshape operator.
+        # Just pass the input as it is so that reshape_like can be used there.
+        return inputs[0]
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -491,10 +500,11 @@ _convert_map = {
     'Add'                               : _elemwise('add'),
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
-    'FusedBatchNorm'                    : _batch_norm(),
+    'FusedBatchNorm'                    : _fused_batch_norm(),
     'Relu6'                             : _relu6(),
     'DepthwiseConv2dNative'             : _depthwise_conv(),
     'Shape'                             : _shape(),
+    'Sigmoid'                           : AttrCvt('sigmoid'),
 }
 
 
@@ -583,11 +593,18 @@ class GraphProto(object):
                         raise NotImplementedError( \
                             "Const {} couldn't be converted to Param.".format(node.name))
 
-                try:
+                attr = self._parse_attr(node.attr)
+                #Variable converted to Const will not have only value attr
+                if 'value' in attr:
+                    tensor_value = attr['value']
                     self._output_shapes[node.name] = \
-                         [tensor_util.TensorShapeProtoToList(shape) \
-                         for shape in self._parse_attr(node.attr)['_output_shapes']]
-                except KeyError:
+                        [tensor_util.TensorShapeProtoToList( \
+                            tensor_value.tensor_shape)]
+                elif '_output_shapes' in attr:
+                    self._output_shapes[node.name] = \
+                        [tensor_util.TensorShapeProtoToList(shape) \
+                        for shape in self._parse_attr(node.attr)['_output_shapes']]
+                else:
                     raise NotImplementedError( \
                         "Please freeze the graph with add_shapes=True")
             else:

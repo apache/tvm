@@ -20,23 +20,27 @@ def verify_clip(N, a_min, a_max, dtype):
     a_np, b_np = get_ref_data()
 
     def check_device(device):
-        if not tvm.module.enabled(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
-        ctx = tvm.cpu(0) if device == "llvm" else tvm.gpu(0)
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(B)
+
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device, name="clip")
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'opencl']:
         check_device(device)
 
 def test_clip():
-    verify_clip(1024, -127, 127, 'int8')
-    verify_clip(1024, -127, 127, 'int16')
     verify_clip(1024, -127, 127, 'float32')
+    verify_clip(1024, -127, 127, 'int16')
+    verify_clip(1024, -127, 127, 'int8')
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file rpc_server_env
+ * \file rpc_server_env.cc
  * \brief Server environment of the RPC.
  */
 #include <tvm/runtime/registry.h>
@@ -11,19 +11,19 @@ namespace runtime {
 
 std::string RPCGetPath(const std::string& name) {
   static const PackedFunc* f =
-      runtime::Registry::Get("tvm.contrib.rpc.server.workpath");
-  CHECK(f != nullptr) << "require tvm.contrib.rpc.server.workpath";
+      runtime::Registry::Get("tvm.rpc.server.workpath");
+  CHECK(f != nullptr) << "require tvm.rpc.server.workpath";
   return (*f)(name);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.upload").
+TVM_REGISTER_GLOBAL("tvm.rpc.server.upload").
 set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string file_name = RPCGetPath(args[0]);
     std::string data = args[1];
     SaveBinaryToFile(file_name, data);
   });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rpc.server.download")
+TVM_REGISTER_GLOBAL("tvm.rpc.server.download")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     std::string file_name = RPCGetPath(args[0]);
     std::string data;

@@ -30,6 +30,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("nvptx")
 
 
 def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
@@ -85,6 +86,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
     check_device("cuda")
     check_device("metal")
     check_device("rocm")
+    check_device("nvptx")
 
 def test_broadcast_to():
     verify_broadcast_to_ele((1,), (10,), topi.broadcast_to)
@@ -140,10 +142,30 @@ def test_cmp():
         return topi.greater(x, y).astype("int8")
     def less(x, y):
         return topi.less(x, y).astype("int8")
+    def equal(x, y):
+        return topi.equal(x, y).astype("int8")
+    def not_equal(x, y):
+        return topi.not_equal(x, y).astype("int8")
+    def greater_equal(x, y):
+        return topi.greater_equal(x, y).astype("int8")
+    def less_equal(x, y):
+        return topi.less_equal(x, y).astype("int8")
     verify_broadcast_binary_ele(
         (1, 2, 2), (2,), greater, np.greater)
     verify_broadcast_binary_ele(
         (2, 1, 2), (2, 3, 1), less, np.less)
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 3, 1), equal, np.equal,
+        lhs_min=-2, lhs_max=2, rhs_min=-2, rhs_max=2, dtype='int32')
+    verify_broadcast_binary_ele(
+        (2, 1, 2), (2, 3, 1), not_equal, np.not_equal,
+        lhs_min=-2, lhs_max=2, rhs_min=-2, rhs_max=2, dtype='int32')
+    verify_broadcast_binary_ele(
+        (7, 1, 5), (7, 3, 1), greater_equal, np.greater_equal,
+        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
+    verify_broadcast_binary_ele(
+        (7, 1, 5), (7, 3, 1), less_equal, np.less_equal,
+        lhs_min=-3, lhs_max=3, rhs_min=-3, rhs_max=3, dtype='int32')
 
 def test_shift():
     # explicit specify the output type

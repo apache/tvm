@@ -21,6 +21,10 @@
 #include <string>
 #include <vector>
 #include "../workspace_pool.h"
+#include "../pack_args.h"
+#include "../thread_storage_scope.h"
+#include "../meta_data.h"
+#include "../file_util.h"
 
 namespace tvm {
 namespace runtime {
@@ -97,17 +101,23 @@ inline const char* CLGetErrorString(cl_int error) {
     OPENCL_CHECK_ERROR(e);                                            \
   }
 
+class OpenCLThreadEntry;
+
 /*!
  * \brief Process global OpenCL workspace.
  */
-class OpenCLWorkspace final : public DeviceAPI {
+class OpenCLWorkspace : public DeviceAPI {
  public:
   // global platform id
   cl_platform_id platform_id;
+  // global platform name
+  std::string platform_name;
   // global context of this process
   cl_context context{nullptr};
   // whether the workspace it initialized.
   bool initialized_{false};
+  // the device type
+  std::string device_type;
   // the devices
   std::vector<cl_device_id> devices;
   // the queues
@@ -128,10 +138,17 @@ class OpenCLWorkspace final : public DeviceAPI {
     }
   }
   // Initialzie the device.
-  void Init();
+  void Init(const std::string& device_type, const std::string& platform_name = "");
+  virtual void Init() {
+    Init("gpu");
+  }
+  // Check whether the context is OpenCL or not.
+  virtual bool IsOpenCLDevice(TVMContext ctx) {
+    return ctx.device_type == kDLOpenCL;
+  }
   // get the queue of the context
   cl_command_queue GetQueue(TVMContext ctx) {
-    CHECK_EQ(ctx.device_type, kDLOpenCL);
+    CHECK(IsOpenCLDevice(ctx));
     this->Init();
     CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
         << "Invalid OpenCL device_id=" << ctx.device_id;
@@ -157,6 +174,12 @@ class OpenCLWorkspace final : public DeviceAPI {
   void StreamSync(TVMContext ctx, TVMStreamHandle stream) final;
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final;
   void FreeWorkspace(TVMContext ctx, void* data) final;
+
+  /*!
+   * \brief Get the thread local ThreadEntry
+   */
+  virtual OpenCLThreadEntry* GetThreadEntry();
+
   // get the global workspace
   static const std::shared_ptr<OpenCLWorkspace>& Global();
 };
@@ -179,15 +202,87 @@ class OpenCLThreadEntry {
   /*! \brief workspace pool */
   WorkspacePool pool;
   // constructor
-  OpenCLThreadEntry()
-      : pool(kDLOpenCL, OpenCLWorkspace::Global()) {
+  OpenCLThreadEntry(DLDeviceType device_type, std::shared_ptr<DeviceAPI> device)
+      : pool(device_type, device) {
     context.device_id = 0;
-    context.device_type = kDLOpenCL;
+    context.device_type = device_type;
   }
+  OpenCLThreadEntry()
+      : OpenCLThreadEntry(kDLOpenCL, OpenCLWorkspace::Global()) {}
+
   // get the global workspace
   static OpenCLThreadEntry* ThreadLocal();
 };
 }  // namespace cl
+
+// Module to support thread-safe multi-device execution.
+// OpenCL runtime is a bit tricky because clSetKernelArg is not thread-safe
+// To make the call thread-safe, we create a thread-local kernel table
+// and lazily install new kernels into the kernel table when the kernel is called.
+// The kernels are recycled when the module get destructed.
+class OpenCLModuleNode : public ModuleNode {
+ public:
+  // Kernel table reference entry.
+  struct KTRefEntry {
+    size_t kernel_id;
+    size_t version;
+  };
+  explicit OpenCLModuleNode(std::string data,
+                            std::string fmt,
+                            std::unordered_map<std::string, FunctionInfo> fmap,
+                            std::string source)
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+  // destructor
+  ~OpenCLModuleNode();
+
+  /*!
+   * \brief Get the global workspace
+   */
+  virtual const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace();
+
+  virtual const char* type_key() const;
+
+  PackedFunc GetFunction(
+      const std::string& name,
+      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
+  void SaveToFile(const std::string& file_name,
+                  const std::string& format) final;
+  void SaveToBinary(dmlc::Stream* stream) final;
+  std::string GetSource(const std::string& format) final;
+  // Initialize the programs
+  void Init();
+  // install a new kernel to thread local entry
+  cl_kernel InstallKernel(cl::OpenCLWorkspace* w,
+                          cl::OpenCLThreadEntry* t,
+                          const std::string& func_name,
+                          const KTRefEntry& e);
+
+ protected:
+  // The workspace, need to keep reference to use it in destructor.
+  // In case of static destruction order problem.
+  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
+  // the binary data
+  std::string data_;
+
+ private:
+  // The format
+  std::string fmt_;
+  // function information table.
+  std::unordered_map<std::string, FunctionInfo> fmap_;
+  // Module local mutex
+  std::mutex build_lock_;
+  // The OpenCL source.
+  std::string source_;
+  // the binary data
+  cl_program program_{nullptr};
+  // build info
+  std::vector<bool> device_built_flag_;
+  // kernel id cache
+  std::unordered_map<std::string, KTRefEntry> kid_map_;
+  // kernels build so far.
+  std::vector<cl_kernel> kernels_;
+};
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_

@@ -14,11 +14,13 @@ Python API
    ndarray
    container
    function
+   autotvm
    graph_runtime
    rpc
    bridge
    contrib
    dev
    topi
+   vta/index
    nnvm/index
    hybrid

@@ -28,7 +28,7 @@ macro(find_vulkan use_vulkan)
 
    if(__vulkan_sdk)
      set(Vulkan_INCLUDE_DIRS ${__vulkan_sdk}/include)
-     find_library(Vulkan_LIBRARY vulkan ${__vulkan_sdk}/lib)
+     find_library(Vulkan_LIBRARY NAMES vulkan vulkan-1 PATHS ${__vulkan_sdk}/lib)
      if(Vulkan_LIBRARY)
        set(Vulkan_FOUND TRUE)
      endif()

@@ -13,6 +13,7 @@ List of operators
    topi.ceil
    topi.trunc
    topi.round
+   topi.abs
    topi.exp
    topi.tanh
    topi.log
@@ -46,6 +47,8 @@ List of operators
    topi.max
    topi.sum
    topi.min
+   topi.argmax
+   topi.argmin
    topi.broadcast_to
    topi.add
    topi.subtract
@@ -57,6 +60,10 @@ List of operators
    topi.power
    topi.greater
    topi.less
+   topi.equal
+   topi.not_equal
+   topi.greater_equal
+   topi.less_equal
    topi.image.resize
 
 
@@ -78,6 +85,7 @@ topi
 .. autofunction:: topi.ceil
 .. autofunction:: topi.trunc
 .. autofunction:: topi.round
+.. autofunction:: topi.abs
 .. autofunction:: topi.exp
 .. autofunction:: topi.tanh
 .. autofunction:: topi.log

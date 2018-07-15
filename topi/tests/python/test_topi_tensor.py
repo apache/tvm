@@ -11,7 +11,7 @@ def verify_elemwise_sum(num_args, dtype):
     for i in range(num_args):
         tvm_placeholders.append(
             tvm.placeholder(shape, name="data"+str(i), dtype=dtype))
-    esum = topi.elemwise_sum(tvm_placeholders, num_args=num_args)
+    esum = topi.elemwise_sum(tvm_placeholders)
     s = tvm.create_schedule([esum.op])
 
     @memoize("topi.tests.test_topi_elemwise_sum")

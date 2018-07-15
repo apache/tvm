@@ -1,6 +1,8 @@
 """
+.. _tutorial-deploy-model-on-mali-gpu:
+
 Deploy the Pretrained Model on ARM Mali GPU
-=======================================================
+===========================================
 **Author**: `Lianmin Zheng <https://lmzheng.net/>`_, `Ziheng Jiang <https://ziheng.org/>`_
 
 This is an example of using NNVM to compile a ResNet model and
@@ -15,9 +17,8 @@ To begin with, we import nnvm (for compilation) and TVM (for deployment).
 import tvm
 import nnvm.compiler
 import nnvm.testing
-from tvm.contrib import util, rpc
-from tvm.contrib import graph_runtime as runtime
-
+from tvm import rpc
+from tvm.contrib import util, graph_runtime as runtime
 
 ######################################################################
 # Build TVM Runtime on Device

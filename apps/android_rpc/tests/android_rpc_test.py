@@ -6,7 +6,8 @@ And configure the proxy host field as commented.
 
 import tvm
 import os
-from tvm.contrib import rpc, util, ndk
+from tvm import rpc
+from tvm.contrib import util, ndk
 import numpy as np
 
 # Set to be address of tvm proxy.

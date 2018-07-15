@@ -84,7 +84,8 @@ cdef inline int make_arg(object arg,
         tcode[0] = kNodeHandle
     elif isinstance(arg, NDArrayBase):
         value[0].v_handle = (<NDArrayBase>arg).chandle
-        tcode[0] = kArrayHandle
+        tcode[0] = (kNDArrayContainer if
+                    not (<NDArrayBase>arg).c_is_view else kArrayHandle)
     elif isinstance(arg, _TVM_COMPATS):
         ptr = arg._tvm_handle
         value[0].v_handle = (<void*>ptr)
@@ -173,6 +174,8 @@ cdef inline object make_ret(TVMValue value, int tcode):
         return value.v_int64
     elif tcode == kFloat:
         return value.v_float64
+    elif tcode == kNDArrayContainer:
+        return c_make_array(value.v_handle, False)
     elif tcode == kStr:
         return py_str(value.v_str)
     elif tcode == kBytes:

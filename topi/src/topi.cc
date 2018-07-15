@@ -29,7 +29,8 @@
 
 #include <topi/vision/reorg.h>
 #include <topi/image/resize.h>
-#include <topi/vision/yolo2/region.h>
+#include <topi/vision/yolo/region.h>
+#include <topi/vision/yolo/yolo.h>
 #include <topi/generic/default.h>
 #include <topi/generic/extern.h>
 #include <topi/generic/injective.h>
@@ -116,6 +117,10 @@ TOPI_REGISTER_BCAST_OP("topi.left_shift", topi::left_shift);
 TOPI_REGISTER_BCAST_OP("topi.right_shift", topi::right_shift);
 TOPI_REGISTER_BCAST_OP("topi.greater", topi::greater);
 TOPI_REGISTER_BCAST_OP("topi.less", topi::less);
+TOPI_REGISTER_BCAST_OP("topi.equal", topi::equal);
+TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
+TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
+TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
 /* Ops from elemwise.h */
 TVM_REGISTER_GLOBAL("topi.exp")
@@ -163,6 +168,21 @@ TVM_REGISTER_GLOBAL("topi.cast")
   *rv = cast(args[0], args[1]);
   });
 
+TVM_REGISTER_GLOBAL("topi.elemwise_sum")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = elemwise_sum(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.full")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = full(args[0], args[1], args[2]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.full_like")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = full_like(args[0], args[1]);
+  });
+
 /* Ops from nn.h */
 TVM_REGISTER_GLOBAL("topi.nn.relu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -176,7 +196,7 @@ TVM_REGISTER_GLOBAL("topi.nn.leaky_relu")
 
 TVM_REGISTER_GLOBAL("topi.nn.prelu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = prelu<float>(args[0], args[1]);
+  *rv = prelu(args[0], args[1], args[2]);
   });
 
 TVM_REGISTER_GLOBAL("topi.nn.pad")
@@ -259,6 +279,11 @@ TVM_REGISTER_GLOBAL("topi.take")
     *rv = take(args[0], args[1], axis);
   }
   });
+
+TVM_REGISTER_GLOBAL("topi.where")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = where(args[0], args[1], args[2]);
+});
 
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
@@ -367,9 +392,14 @@ TVM_REGISTER_GLOBAL("topi.vision.reorg")
   *rv = vision::reorg(args[0], args[1]);
   });
 
-TVM_REGISTER_GLOBAL("topi.vision.yolo2.region")
+TVM_REGISTER_GLOBAL("topi.vision.yolo.region")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
-  *rv = vision::yolo2::region(args[0], args[1], args[2], args[3], args[4], args[5]);
+  *rv = vision::yolo::region(args[0], args[1], args[2], args[3], args[4], args[5]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.vision.yolo.yolo")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = vision::yolo::yolo(args[0], args[1], args[2]);
   });
 
 /* Ops from image/resize.h */

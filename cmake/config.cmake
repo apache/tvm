@@ -39,6 +39,9 @@ set(USE_CUDA OFF)
 # - /path/to/rocm: use specific path to rocm
 set(USE_ROCM OFF)
 
+# Whether enable SDAccel runtime
+set(USE_SDACCEL OFF)
+
 # Whether enable OpenCL runtime
 set(USE_OPENCL OFF)
 
@@ -77,8 +80,13 @@ set(USE_LLVM OFF)
 #---------------------------------------------
 # Contrib libraries
 #---------------------------------------------
-# Whether use BLAS, choices: openblas, atlas, blas, apple
+# Whether use BLAS, choices: openblas, mkl, atlas, apple
 set(USE_BLAS none)
+
+# /path/to/mkl: mkl root path when use mkl blas library
+# set(USE_MKL_PATH /opt/intel/mkl) for UNIX
+# set(USE_MKL_PATH ../IntelSWTools/compilers_and_libraries_2018/windows/mkl) for WIN32
+set(USE_MKL_PATH none)
 
 # Whether use contrib.random in runtime
 set(USE_RANDOM OFF)

@@ -1,22 +1,22 @@
-tvm.contrib.rpc
----------------
-.. automodule:: tvm.contrib.rpc
+tvm.rpc
+-------
+.. automodule:: tvm.rpc
 
-.. autofunction:: tvm.contrib.rpc.connect
-.. autofunction:: tvm.contrib.rpc.connect_tracker
+.. autofunction:: tvm.rpc.connect
+.. autofunction:: tvm.rpc.connect_tracker
 
-.. autoclass:: tvm.contrib.rpc.TrackerSession
+.. autoclass:: tvm.rpc.TrackerSession
     :members:
     :inherited-members:
 
-.. autoclass:: tvm.contrib.rpc.RPCSession
+.. autoclass:: tvm.rpc.RPCSession
     :members:
     :inherited-members:
 
-.. autoclass:: tvm.contrib.rpc.LocalSession
+.. autoclass:: tvm.rpc.LocalSession
     :members:
     :inherited-members:
 
-.. autoclass:: tvm.contrib.rpc.Server
+.. autoclass:: tvm.rpc.Server
     :members:
     :inherited-members:

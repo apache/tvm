@@ -4,14 +4,15 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
-#include <tvm/container.h>
-#include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
 #include "./opencl_common.h"
 
 namespace tvm {
 namespace runtime {
 namespace cl {
+
+OpenCLThreadEntry* OpenCLWorkspace::GetThreadEntry() {
+  return OpenCLThreadEntry::ThreadLocal();
+}
 
 const std::shared_ptr<OpenCLWorkspace>& OpenCLWorkspace::Global() {
   static std::shared_ptr<OpenCLWorkspace> inst = std::make_shared<OpenCLWorkspace>();
@@ -19,7 +20,7 @@ const std::shared_ptr<OpenCLWorkspace>& OpenCLWorkspace::Global() {
 }
 
 void OpenCLWorkspace::SetDevice(TVMContext ctx) {
-  OpenCLThreadEntry::ThreadLocal()->context.device_id = ctx.device_id;
+  GetThreadEntry()->context.device_id = ctx.device_id;
 }
 
 void OpenCLWorkspace::GetAttr(
@@ -124,13 +125,13 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      TVMStreamHandle stream) {
   this->Init();
   CHECK(stream == nullptr);
-  if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLOpenCL) {
+  if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueCopyBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
         static_cast<cl_mem>(to),
         from_offset, to_offset, size, 0, nullptr, nullptr));
-  } else if (ctx_from.device_type == kDLOpenCL && ctx_to.device_type == kDLCPU) {
+  } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
     OPENCL_CALL(clEnqueueReadBuffer(
         this->GetQueue(ctx_from),
         static_cast<cl_mem>((void*)from),  // NOLINT(*)
@@ -138,7 +139,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
         static_cast<char*>(to) + to_offset,
         0, nullptr, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
-  } else if (ctx_from.device_type == kDLCPU && ctx_to.device_type == kDLOpenCL) {
+  } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueWriteBuffer(
         this->GetQueue(ctx_to),
         static_cast<cl_mem>(to),
@@ -159,11 +160,11 @@ void OpenCLWorkspace::StreamSync(TVMContext ctx, TVMStreamHandle stream) {
 void* OpenCLWorkspace::AllocWorkspace(TVMContext ctx,
                                       size_t size,
                                       TVMType type_hint) {
-  return OpenCLThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
+  return GetThreadEntry()->pool.AllocWorkspace(ctx, size);
 }
 
 void OpenCLWorkspace::FreeWorkspace(TVMContext ctx, void* data) {
-  OpenCLThreadEntry::ThreadLocal()->pool.FreeWorkspace(ctx, data);
+  GetThreadEntry()->pool.FreeWorkspace(ctx, data);
 }
 
 typedef dmlc::ThreadLocalStore<OpenCLThreadEntry> OpenCLThreadStore;
@@ -226,36 +227,39 @@ bool MatchPlatformInfo(
   return param_value.find(value) != std::string::npos;
 }
 
-void OpenCLWorkspace::Init() {
+void OpenCLWorkspace::Init(const std::string& device_type, const std::string& platform_name) {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
   initialized_ = true;
   if (context != nullptr) return;
   // matched platforms
-  std::vector<cl_platform_id> platform_matched = cl::GetPlatformIDs();
-  if (platform_matched.size() == 0) {
+  std::vector<cl_platform_id> platform_ids = cl::GetPlatformIDs();
+  if (platform_ids.size() == 0) {
     LOG(WARNING) << "No OpenCL platform matched given existing options ...";
     return;
   }
-  if (platform_matched.size() > 1) {
-    LOG(WARNING) << "Multiple OpenCL platforms matched, use the first one ... ";
-  }
-  this->platform_id = platform_matched[0];
-  LOG(INFO) << "Initialize OpenCL platform \'"
-            << cl::GetPlatformInfo(this->platform_id, CL_PLATFORM_NAME) << '\'';
-  std::vector<cl_device_id> devices_matched =
-      cl::GetDeviceIDs(this->platform_id, "gpu");
-  if (devices_matched.size() == 0) {
-    LOG(WARNING) << "No OpenCL device any device matched given the options: gpu mode";
-    LOG(WARNING) << "Now try OpenCL cpu mode";
-    devices_matched = cl::GetDeviceIDs(this->platform_id, "cpu");
-    if (devices_matched.size() == 0) {
-      LOG(WARNING) << "No OpenCL device any device matched given the options: cpu mode";
-      return;
+  this->platform_id = nullptr;
+  for (auto platform_id : platform_ids) {
+    if (!MatchPlatformInfo(platform_id, CL_PLATFORM_NAME, platform_name)) {
+      continue;
     }
+    std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
+    if (devices_matched.size() > 0) {
+      this->platform_id = platform_id;
+      this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
+      this->device_type = device_type;
+      this->devices = devices_matched;
+      LOG(INFO) << "Initialize OpenCL platform \'" << this->platform_name << '\'';
+      break;
+    }
+    LOG(INFO) << "\'" << cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME)
+              << "\' platform has no OpenCL device: " << device_type << " mode";
   }
-  this->devices = devices_matched;
+  if (this->platform_id == nullptr) {
+    LOG(WARNING) << "No OpenCL device";
+    return;
+  }
   cl_int err_code;
   this->context = clCreateContext(
       nullptr, this->devices.size(), &(this->devices[0]),
@@ -271,11 +275,6 @@ void OpenCLWorkspace::Init() {
               << ")=\'" << cl::GetDeviceInfo(did, CL_DEVICE_NAME)
               << "\' cl_device_id=" << did;
   }
-}
-
-bool InitOpenCL(TVMArgs args, TVMRetValue* rv) {
-  cl::OpenCLWorkspace::Global()->Init();
-  return true;
 }
 
 TVM_REGISTER_GLOBAL("device_api.opencl")

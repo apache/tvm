@@ -14,7 +14,6 @@ def test_nms():
     nms_threshold = 0.7
     force_suppress = True
     nms_topk = 2
-    out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
@@ -31,6 +30,10 @@ def test_nms():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            if device == 'llvm':
+                out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+            else:
+                out = topi.cuda.nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
             s = topi.generic.schedule_nms(out)
 
         tvm_data = tvm.nd.array(np_data, ctx)
@@ -40,13 +43,12 @@ def test_nms():
         f(tvm_data, tvm_valid_count, tvm_out)
         np.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'opencl']:
         check_device(device)
 
 
 def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offsets=(0.5, 0.5), clip=False):
     data = tvm.placeholder(dshape, name="data")
-    out = ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
 
     dtype = data.dtype
     input_data = np.random.uniform(size=dshape).astype(dtype)
@@ -88,15 +90,19 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            if device == 'llvm':
+                out = ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
+            else:
+                out = topi.cuda.ssd.multibox_prior(data, sizes, ratios, steps, offsets, clip)
             s = topi.generic.schedule_multibox_prior(out)
 
         tvm_input_data = tvm.nd.array(input_data, ctx)
         tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), ctx)
         f = tvm.build(s, [data, out], device)
         f(tvm_input_data, tvm_out)
-        np.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-4)
+        np.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'opencl']:
         check_device(device)
 
 
@@ -113,7 +119,6 @@ def test_multibox_detection():
     cls_prob = tvm.placeholder((batch_size, num_anchors, num_classes), name="cls_prob")
     loc_preds = tvm.placeholder((batch_size, num_anchors * 4), name="loc_preds")
     anchors = tvm.placeholder((1, num_anchors, 4), name="anchors")
-    out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
 
     # Manually create test case
     np_cls_prob = np.array([[[0.2, 0.5, 0.3], [0.25, 0.3, 0.45], [0.7, 0.1, 0.2]]])
@@ -131,6 +136,10 @@ def test_multibox_detection():
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            if device == 'llvm':
+                out = ssd.multibox_detection(cls_prob, loc_preds, anchors)
+            else:
+                out = topi.cuda.ssd.multibox_detection(cls_prob, loc_preds, anchors)
             s = topi.generic.schedule_multibox_detection(out)
 
         tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
@@ -141,7 +150,7 @@ def test_multibox_detection():
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
         np.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
-    for device in ['llvm']:
+    for device in ['llvm', 'opencl']:
         check_device(device)
 
 

@@ -15,6 +15,7 @@
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/broadcast.h"
+#include "topi/elemwise.h"
 
 namespace nnvm {
 namespace top {
@@ -238,7 +239,15 @@ Example::
    broadcast_add(x, y) = [[ 1.,  1.,  1.],
                           [ 2.,  2.,  2.]]
 
-)code" NNVM_ADD_FILELINE);
+)code" NNVM_ADD_FILELINE)
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds) {
+    return std::vector<NodeEntry>{
+      MakeNode("collapse_sum", n->attrs.name + "_dlhs", { ograds[0], n->inputs[0] }),
+      MakeNode("collapse_sum", n->attrs.name + "_drhs", { ograds[0], n->inputs[1] })
+    };
+});
 
 
 NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_sub, subtract)
@@ -256,7 +265,18 @@ Example::
    broadcast_sub(x, y) = [[ 1.,  1.,  1.],
                           [ 0.,  0.,  0.]]
 
-)code" NNVM_ADD_FILELINE);
+)code" NNVM_ADD_FILELINE)
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds) {
+    return std::vector<NodeEntry>{
+      MakeNode("collapse_sum", n->attrs.name + "_dlhs", { ograds[0], n->inputs[0] }),
+      MakeNode("collapse_sum", n->attrs.name + "_drhs", {
+          MakeNode("negative", n->attrs.name + "_drhs_neg", {ograds[0]}),
+          n->inputs[1]
+        })
+    };
+});
 
 
 NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_mul, multiply)
@@ -273,7 +293,22 @@ Example::
 
    broadcast_mul(x, y) = [[ 0.,  0.,  0.],
                           [ 1.,  1.,  1.]]
-)code" NNVM_ADD_FILELINE);
+)code" NNVM_ADD_FILELINE)
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds) {
+    NodeEntry dlhs = MakeNode("collapse_sum", n->attrs.name + "_dlhs_sum", {
+        MakeNode("broadcast_mul", n->attrs.name + "_dlhs_mul",
+                 { n->inputs[1], ograds[0] }),
+        n->inputs[0]
+      });
+    NodeEntry drhs = MakeNode("collapse_sum", n->attrs.name + "_drhs_sum", {
+        MakeNode("broadcast_mul", n->attrs.name + "_drhs_mul",
+                 { n->inputs[0], ograds[0] }),
+        n->inputs[1]
+      });
+    return std::vector<NodeEntry>{ dlhs, drhs };
+});
 
 
 NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_div, divide)
@@ -291,7 +326,272 @@ Example::
    broadcast_div(x, y) = [[ 3.,  3.,  3.],
                           [ 2.,  2.,  2.]]
 
+)code" NNVM_ADD_FILELINE)
+.set_attr<FGradient>(
+  "FGradient", [](const NodePtr& n,
+                  const std::vector<NodeEntry>& ograds) {
+    NodeEntry dlhs = MakeNode("collapse_sum", n->attrs.name + "_dlhs_sum", {
+        MakeNode("broadcast_div", n->attrs.name + "_dlhs_div",
+                 { ograds[0], n->inputs[1] }),
+        n->inputs[0]
+      });
+    NodeEntry dy = MakeNode("broadcast_div", n->attrs.name + "_drhs_div", {
+        NodeEntry{n, 0, 0},
+        MakeNode("__mul_scalar__", n->attrs.name + "_rhs_by_two",
+                 {n->inputs[1]}, {{"scalar", "2"}})
+      });
+    NodeEntry drhs = MakeNode("collapse_sum", n->attrs.name + "_drhs_sum", {
+        MakeNode("broadcast_mul", n->attrs.name + "_drhs_mul", { dy, ograds[0] }),
+        n->inputs[1]
+      });
+    return std::vector<NodeEntry>{ dlhs, drhs };
+});
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_mod, mod)
+.add_alias("__mod_symbol__")
+.describe(R"code(Returns element-wise mod of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_mod(x, y) = [[ 1.,  0.,  1.],
+                          [ 1.,  2.,  0.]]
+
 )code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_max, maximum)
+.add_alias("__max_symbol__")
+.describe(R"code(Returns element-wise max of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_max(x, y) = [[ 2.,  2.,  3.],
+                          [ 4.,  5.,  6.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_min, minimum)
+.add_alias("__min_symbol__")
+.describe(R"code(Returns element-wise minimum of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_min(x, y) = [[ 1.,  2.,  2.],
+                          [ 3.,  3.,  3.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_pow, power)
+.add_alias("__pow_symbol__")
+.describe(R"code(Returns element-wise x^y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 1.],
+        [ 2.]]
+
+   broadcast_pow(x, y) = [[ 1.,   2.,   3. ],
+                          [ 16.,  25.,  36.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_left_shift, left_shift)
+.add_alias("__left_shift_symbol__")
+.describe(R"code(Returns element-wise x << y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 1.]]
+
+   broadcast_left_shift(x, y) = [[ 4.,  8.,  12.],
+                                 [ 8.,  10., 12.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_right_shift, right_shift)
+.add_alias("__right_shift_symbol__")
+.describe(R"code(Returns element-wise x >> y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 4.,  8.,  12.],
+        [ 8.,  10., 12.]]
+
+   y = [[ 2.],
+        [ 1.]]
+
+   broadcast_right_shift(x, y) = [[ 1.,  2.,  3.],
+                                  [ 4.,  5.,  6.]]
+
+)code" NNVM_ADD_FILELINE);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_greater, greater)
+.add_alias("__greater_symbol__")
+.describe(R"code(Returns element-wise x > y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_greater(x, y) = [[ 0.,  0.,  1.],
+                              [ 1.,  1.,  1.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::greater(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less, less)
+.add_alias("__less_symbol__")
+.describe(R"code(Returns element-wise x < y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 3.]]
+
+   broadcast_less(x, y) = [[ 1.,  0.,  0.],
+                           [ 0.,  0.,  0.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::less(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_equal, equal)
+.add_alias("__equal_symbol__")
+.describe(R"code(Returns element-wise x == y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 5.]]
+
+   broadcast_equal(x, y) = [[ 0.,  1.,  0.],
+                            [ 0.,  1.,  0.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::equal(inputs[0], inputs[1]), out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_not_equal, not_equal)
+.add_alias("__not_equal_symbol__")
+.describe(R"code(Returns element-wise x != y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 4.]]
+
+   broadcast_not_equal(x, y) = [[ 1.,  0.,  1.],
+                                [ 0.,  1.,  1.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::not_equal(inputs[0],
+                                                     inputs[1]),
+                                                     out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_greater_equal, greater_equal)
+.add_alias("__greater_equal_symbol__")
+.describe(R"code(Returns element-wise x >= y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 2.],
+        [ 6.]]
+
+   broadcast_greater_equal(x, y) = [[ 0.,  1.,  1.],
+                                    [ 0.,  0.,  1.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::greater_equal(inputs[0],
+                                                         inputs[1]),
+                                                         out_info[0]->dtype) };
+}, 11);
+
+NNVM_REGISTER_BINARY_BROADCAST_OP(broadcast_less_equal, less_equal)
+.add_alias("__less_equal_symbol__")
+.describe(R"code(Returns element-wise x <= y of the input arrays with broadcasting.
+
+Example::
+
+   x = [[ 1.,  2.,  3.],
+        [ 4.,  5.,  6.]]
+
+   y = [[ 1.],
+        [ 5.]]
+
+   broadcast_less_equal(x, y) = [[ 1.,  0.,  0.],
+                                 [ 1.,  1.,  0.]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    return Array<Tensor>{ topi::cast(topi::less_equal(inputs[0],
+                                                      inputs[1]),
+                                                      out_info[0]->dtype) };
+}, 11);
 
 }  // namespace top
 }  // namespace nnvm

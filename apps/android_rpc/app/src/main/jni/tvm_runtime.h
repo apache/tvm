@@ -23,8 +23,14 @@
 #include "../src/runtime/thread_pool.cc"
 #include "../src/runtime/threading_backend.cc"
 #include "../src/runtime/graph/graph_runtime.cc"
+#include "../src/runtime/ndarray.cc"
 
 #ifdef TVM_OPENCL_RUNTIME
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"
+#endif
+
+#ifdef TVM_VULKAN_RUNTIME
+#include "../src/runtime/vulkan/vulkan_device_api.cc"
+#include "../src/runtime/vulkan/vulkan_module.cc"
 #endif

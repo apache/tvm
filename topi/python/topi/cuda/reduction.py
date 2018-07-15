@@ -4,6 +4,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from .. import tag
 from .. import generic
+from .injective import _schedule_injective
 
 def _schedule_reduce(op, sch, is_idx_reduce=False):
     if is_idx_reduce:
@@ -11,7 +12,9 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
     else:
         data_in = op.input_tensors[0]
         data_out = op.output(0)
-    assert len(sch[data_out].op.reduce_axis) > 0, "reduce_axis must be bigger than zero!"
+
+    if not sch[data_out].op.reduce_axis:
+        return _schedule_injective(op, sch)
 
     if len(sch[data_out].op.axis) > 0:
         all_reduce = False

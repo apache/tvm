@@ -165,7 +165,7 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
     }
   });
 
-TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")
+TVM_REGISTER_GLOBAL("rpc._LoadRemoteModule")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     std::string tkey = m->type_key();
@@ -177,7 +177,7 @@ TVM_REGISTER_GLOBAL("contrib.rpc._LoadRemoteModule")
     *rv = Module(n);
   });
 
-TVM_REGISTER_GLOBAL("contrib.rpc._ImportRemoteModule")
+TVM_REGISTER_GLOBAL("rpc._ImportRemoteModule")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module parent = args[0];
     Module child = args[1];
@@ -192,7 +192,7 @@ TVM_REGISTER_GLOBAL("contrib.rpc._ImportRemoteModule")
                              cmod->module_handle());
   });
 
-TVM_REGISTER_GLOBAL("contrib.rpc._ModuleHandle")
+TVM_REGISTER_GLOBAL("rpc._ModuleHandle")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     std::string tkey = m->type_key();
@@ -200,7 +200,7 @@ TVM_REGISTER_GLOBAL("contrib.rpc._ModuleHandle")
     *rv = static_cast<RPCModuleNode*>(m.operator->())->module_handle();
   });
 
-TVM_REGISTER_GLOBAL("contrib.rpc._SessTableIndex")
+TVM_REGISTER_GLOBAL("rpc._SessTableIndex")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     Module m = args[0];
     std::string tkey = m->type_key();

@@ -3,7 +3,7 @@ import logging
 import numpy as np
 import time
 import multiprocessing
-from tvm.contrib import rpc
+from tvm import rpc
 
 def rpc_proxy_check():
     """This is a simple test function for RPC Proxy
@@ -17,7 +17,7 @@ def rpc_proxy_check():
     """
 
     try:
-        from tvm.contrib.rpc import proxy
+        from tvm.rpc import proxy
         web_port = 8888
         prox = proxy.Proxy("localhost", web_port=web_port)
         def check():

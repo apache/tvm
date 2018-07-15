@@ -31,14 +31,14 @@ def test_shared_memory():
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=4 * M - 1,
-                                max_thread_per_block=M))]}):
+                                max_threads_per_block=M))]}):
             tvm.build(s, [A, B], target)
         assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=4 * M,
-                                max_thread_per_block=M))]}):
+                                max_threads_per_block=M))]}):
             tvm.build(s, [A, B], target)
         assert valid[0]
 
@@ -66,14 +66,14 @@ def test_local_memory():
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_local_memory_per_block=4 * M - 1,
-                                max_thread_per_block=1))]}):
+                                max_threads_per_block=1))]}):
             tvm.build(s, [A, B], target)
         assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_local_memory_per_block=4 * M,
-                                max_thread_per_block=1))]}):
+                                max_threads_per_block=1))]}):
             tvm.build(s, [A, B], target)
         assert valid[0]
 
@@ -101,21 +101,21 @@ def test_num_thread():
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N - 1))]}):
+                                max_threads_per_block=N - 1))]}):
             tvm.build(s, [A, B], target)
         assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N))]}):
+                                max_threads_per_block=N))]}):
             tvm.build(s, [A, B], target)
         assert valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N,
+                                max_threads_per_block=N,
                                 max_thread_y=M-1))]}):
             tvm.build(s, [A, B], target)
         assert not valid[0]
@@ -123,7 +123,7 @@ def test_num_thread():
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N,
+                                max_threads_per_block=N,
                                 max_thread_y=M))]}):
             tvm.build(s, [A, B], target)
         assert valid[0]
@@ -151,14 +151,14 @@ def test_multiple_kernels():
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N - 1))]}):
+                                max_threads_per_block=N - 1))]}):
             tvm.build(s, [A, C], target)
         assert not valid[0]
 
         with tvm.build_config(**{"add_lower_pass": [
             (2, get_verify_pass(valid,
                                 max_shared_memory_per_block=0,
-                                max_thread_per_block=N))]}):
+                                max_threads_per_block=N))]}):
             tvm.build(s, [A, C], target)
         assert valid[0]
 
