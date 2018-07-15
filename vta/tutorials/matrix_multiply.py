@@ -26,7 +26,7 @@ from tvm import rpc
 from tvm.contrib import util
 from vta.testing import simulator
 
-# Load VTA parameters from the config.json file
+# Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
 
 # We read the Pynq RPC host IP address and port number from the OS environment
@@ -34,7 +34,7 @@ host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
 port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
-# to match the VTA configuration specified by the config.json file.
+# to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
 
     # Make sure that TVM was compiled with RPC=1
@@ -95,7 +95,7 @@ elif env.TARGET == "sim":
 #        :width: 480px
 #
 #   The dimensions of that matrix-matrix multiplication are specified in
-#   the :code:`config.json` configuration file.
+#   the :code:`vta_config.json` configuration file.
 #   The activation matrix has a :code:`(BATCH, BLOCK_IN)` shape
 #   and the transposed weight matrix has a :code:`(BLOCK_OUT, BLOCK_IN)` shape,
 #   thus inferring that the resulting output matrix has a
@@ -131,7 +131,7 @@ elif env.TARGET == "sim":
 #   dimension of VTA's tensor core, but also to match the specific data types
 #   expected by VTA.
 #   VTA for now only supports fixed point data types, which integer width is
-#   specified in the :code:`config.json` file by :code:`INP_WIDTH` and
+#   specified in the :code:`vta_config.json` file by :code:`INP_WIDTH` and
 #   :code:`WGT_WIDTH` for the activations and weights data types respectively.
 #   In addition, the accumulator data type integer width is specified by
 #   :code:`ACC_WIDTH`.
@@ -284,7 +284,7 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 #      that stores input matrices of shape :code:`(env.BATCH, env.BLOCK_IN)`
 #      of type :code:`env.inp_dtype`. The input buffer contains
 #      `2 ^ LOG_INP_BUFF_SIZE` matrix elements (as specified in the
-#      :code:`config.json` file).
+#      :code:`vta_config.json` file).
 #    - :code:`env.wgt_scope`: Weight buffer, which is a read-only SRAM buffer
 #      that stores weight matrices of shape :code:`(env.BLOCK_OUT, env.BLOCK_IN)`
 #      of type :code:`env.wgt_dtype`. The weight buffer contains
