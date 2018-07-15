@@ -42,5 +42,5 @@
 #include <android/log.h>
 
 void dmlc::CustomLogMessage::Log(const std::string& msg) {
-  __android_log_print(ANDROID_LOG_DEBUG, "TVM_RUNTIME", "%s", msg.c_str());
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", msg.c_str());
 }
