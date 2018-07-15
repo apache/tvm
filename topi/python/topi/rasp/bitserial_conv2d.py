@@ -190,7 +190,7 @@ def _intrin_popcount(m, k_i, w_b, x_b):
                             cnts2[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
                                                             args_1, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.call_pure_intrin('uint8x16', 'vectorcombine', cnts2[0], cnts2[1])
-                        shifted_cnts = cnts << (bw+bx)
+                        shifted_cnts = cnts << tvm.const(bw+bx, dtype)
                         out = tvm.call_pure_intrin('uint16x8', 'llvm_intrin', vpadalu_id,
                                                    args_2, zz.vload(0, 'uint16x8'), shifted_cnts)
                     else: # ki == 8
@@ -204,7 +204,7 @@ def _intrin_popcount(m, k_i, w_b, x_b):
                             cnts2[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
                                                             args_1, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.call_pure_intrin('uint8x16', 'vectorcombine', cnts2[0], cnts2[1])
-                        shifted_cnts = cnts << (bw+bx)
+                        shifted_cnts = cnts << tvm.const(bw+bx, dtype)
                         out = tvm.call_pure_intrin('uint16x8', 'llvm_intrin', vpadalu_id,
                                                    args_2, zz.vload(0, 'uint16x8'), shifted_cnts)
                     irb.emit(zz.vstore(0, out))

@@ -185,11 +185,11 @@ def spatial_pack_nchw(data, kernel, stride, padding, in_bits, weight_bits,
         b1b2 = (b1+b2).astype(out_dtype)
         if dorefa:
             return tvm.sum((tvm.popcount(
-                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                kernel_vec[co, ci, dh, dw, b2, vc])  -
+                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype) &
+                kernel_vec[co, ci, dh, dw, b2, vc].astype(out_dtype))  -
                             tvm.popcount(
-                                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1] &
-                                ~kernel_vec[co, ci, dh, dw, b2, vc])).astype(out_dtype) << b1b2,
+                                data_vec[n, h, w, ci, vh*HSTR+dh, vw*WSTR+dw, b1].astype(out_dtype)
+                                & ~kernel_vec[co, ci, dh, dw, b2, vc]).astype(out_dtype)) << b1b2,
                            axis=[ci, dh, dw, b1, b2])
 
         return tvm.sum((tvm.popcount(
@@ -256,10 +256,10 @@ def spatial_pack_nhwc(data, kernel, stride, padding, in_bits, weight_bits,
         b1b2 = (b1+b2).astype(out_dtype)
         if dorefa:
             return tvm.sum(
-                (tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                              kernel_vec[co, dh, dw, ci, vc, b2]) -
-                 tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1] &
-                              ~kernel_vec[co, dh, dw, ci, vc, b2])).astype(out_dtype) << b1b2,
+                (tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1].astype(out_dtype) &
+                              kernel_vec[co, dh, dw, ci, vc, b2].astype(out_dtype)) -
+                 tvm.popcount(data_vec[n, h, w, vh*HSTR+dh, vw*WSTR+dw, ci, b1].astype(out_dtype) &
+                              ~kernel_vec[co, dh, dw, ci, vc, b2]).astype(out_dtype)) << b1b2,
                 axis=[dh, dw, ci, b1, b2])
 
         return tvm.sum(tvm.popcount(
