@@ -4,8 +4,7 @@ from . import mlp, resnet, vgg, dqn, dcgan, squeezenet
 import nnvm.testing
 
 __all__ = ['mx_mlp', 'nnvm_mlp', 'mx_resnet', 'nnvm_resnet', 'mx_vgg', 'nnvm_vgg',
-           'mx_squeezenet_v1_0', 'nnvm_squeezenet_v1_0',
-           'mx_squeezenet_v1_1', 'nnvm_squeezenet_v1_1']
+           'mx_squeezenet', 'nnvm_squeezenet']
 
 _num_class = 1000
 
