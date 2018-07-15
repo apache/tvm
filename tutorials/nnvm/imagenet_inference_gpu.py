@@ -20,7 +20,7 @@ import nnvm.testing
 # To get the maximum performance, we need to enable nvcc's compiler hook.
 # This usually gives better performance than nvrtc mode.
 
-@tvm.register_func
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code):
     ptx = nvcc.compile_cuda(code, target="ptx")
     return ptx
