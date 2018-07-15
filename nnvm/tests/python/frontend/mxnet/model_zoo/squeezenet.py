@@ -41,7 +41,7 @@ def get_symbol(num_classes=1000, version='1.0', **kwargs):
                                        "1.0 or 1.1 expected".format(version=version))
     net = mx.sym.Variable("data")
     if version == '1.0':
-        net = mx.sym.Convolution(net, num_filter=96, kernel=(7, 7), stride=(2, 2))
+        net = mx.sym.Convolution(net, num_filter=96, kernel=(7, 7), stride=(2, 2), pad=(3, 3))
         net = mx.sym.Activation(net, act_type='relu')
         net = mx.sym.Pooling(data=net, kernel=(3, 3), pool_type='max', stride=(2, 2))
         net = _make_fire(net, 16, 64, 64)
@@ -55,7 +55,7 @@ def get_symbol(num_classes=1000, version='1.0', **kwargs):
         net = mx.sym.Pooling(data=net, kernel=(3, 3), pool_type='max', stride=(2, 2))
         net = _make_fire(net, 64, 256, 256)
     else:
-        net = mx.sym.Convolution(net, num_filter=64, kernel=(3, 3), stride=(2, 2))
+        net = mx.sym.Convolution(net, num_filter=64, kernel=(3, 3), stride=(2, 2), pad=(1, 1))
         net = mx.sym.Activation(net, act_type='relu')
         net = mx.sym.Pooling(data=net, kernel=(3, 3), pool_type='max', stride=(2, 2))
         net = _make_fire(net, 16, 64, 64)

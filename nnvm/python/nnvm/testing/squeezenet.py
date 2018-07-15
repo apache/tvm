@@ -62,7 +62,7 @@ def get_symbol(num_classes, version, **kwargs):
                                        "1.0 or 1.1 expected".format(version=version))
     net = sym.Variable("data")
     if version == '1.0':
-        net = sym.conv2d(net, channels=96, kernel_size=(7, 7), strides=(2, 2))
+        net = sym.conv2d(net, channels=96, kernel_size=(7, 7), strides=(2, 2), padding=(3, 3))
         net = sym.relu(net)
         net = sym.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
         net = _make_fire(net, 16, 64, 64)
@@ -76,7 +76,7 @@ def get_symbol(num_classes, version, **kwargs):
         net = sym.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
         net = _make_fire(net, 64, 256, 256)
     else:
-        net = sym.conv2d(net, channels=64, kernel_size=(3, 3), strides=(2, 2))
+        net = sym.conv2d(net, channels=64, kernel_size=(3, 3), strides=(2, 2), padding=(1, 1))
         net = sym.relu(net)
         net = sym.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
         net = _make_fire(net, 16, 64, 64)
