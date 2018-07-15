@@ -21,7 +21,7 @@ from tvm import autotvm
 # ---------------------------------
 # There are plenty of useful schedule primitives in tvm. You can also find 
 # some tutorials that describe them in more details, such as 
-# (1). :doc:``Optimizing Conv2d on NVIDIA GPU <../optimize/opt_conv_cuda>`
+# (1). :ref:`opt-conv-gpu`
 # (2). `Optimizing DepthwiseConv on NVIDIA GPU <https://tvm.ai/2017/08/22/Optimize-Deep-Learning-GPU-Operators-with-TVM-A-Depthwise-Convolution-Example.html>`_
 # 
 # However, their implementations are manually tuned for some special input

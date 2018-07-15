@@ -1,4 +1,7 @@
-"""How to optimize convolution on GPU
+"""
+.. _opt-conv-gpu:
+
+How to optimize convolution on GPU
 ==================================
 **Author**: `Haichen Shen <https://homes.cs.washington.edu/~haichen/>`_
 
