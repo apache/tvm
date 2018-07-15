@@ -30,7 +30,7 @@ from tvm import rpc
 from tvm.contrib import util
 from vta.testing import simulator
 
-# Load VTA parameters from the config.json file
+# Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
 
 # We read the Pynq RPC host IP address and port number from the OS environment
@@ -38,7 +38,7 @@ host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
 port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
-# to match the VTA configuration specified by the config.json file.
+# to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
 
     # Make sure that TVM was compiled with RPC=1
