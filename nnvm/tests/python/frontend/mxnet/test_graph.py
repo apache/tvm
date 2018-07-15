@@ -33,15 +33,11 @@ def test_resnet():
         compare_graph(from_mx_sym, nnvm_sym)
 
 def test_squeezenet():
-    mx_sym = model_zoo.mx_squeezenet_v1_0()
-    from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
-    nnvm_sym = model_zoo.nnvm_squeezenet_v1_0
-    compare_graph(from_mx_sym, nnvm_sym)
-
-    mx_sym = model_zoo.mx_squeezenet_v1_1()
-    from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
-    nnvm_sym = model_zoo.nnvm_squeezenet_v1_1
-    compare_graph(from_mx_sym, nnvm_sym)
+    for version in ['1.0', '1.1']:
+        mx_sym = model_zoo.mx_squeezenet[version]
+        from_mx_sym, _ = nnvm.frontend.from_mxnet(mx_sym)
+        nnvm_sym = model_zoo.nnvm_squeezenet[version]
+        compare_graph(from_mx_sym, nnvm_sym)
 
 def test_dqn():
     mx_sym = model_zoo.mx_dqn

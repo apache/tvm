@@ -16,7 +16,7 @@
 # under the License.
 
 # coding: utf-8
-# pylint: disable=disable=unused-argument
+# pylint: disable=unused-argument
 
 """
 Symbol of SqueezeNet
@@ -76,7 +76,7 @@ def get_symbol(num_classes, version, **kwargs):
         net = sym.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
         net = _make_fire(net, 64, 256, 256)
     else:
-        net = sym.conv2d(net, channels=64, kernel_size=(3, 3), strides=2)
+        net = sym.conv2d(net, channels=64, kernel_size=(3, 3), strides=(2, 2))
         net = sym.relu(net)
         net = sym.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
         net = _make_fire(net, 16, 64, 64)
