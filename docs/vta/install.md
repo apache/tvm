@@ -201,10 +201,10 @@ At this point you've launched the Vivado 2017.1 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2017.1 environmentexport XILINX_VIVADO=/home/moreau/Xilinx/SDx/2017.1/Vivado
-export XILINX_VIVADO=/home/moreau/Xilinx/SDx/2017.1/Vivado
-export XILINX_HLS=/home/moreau/Xilinx/SDx/2017.1/Vivado_HLS
-export XILINX_SDK=/home/moreau/Xilinx/SDx/2017.1/SDK
+# Xilinx Vivado 2017.1 environmentexport XILINX_VIVADO=${HOME}/Xilinx/SDx/2017.1/Vivado
+export XILINX_VIVADO=${HOME}/Xilinx/SDx/2017.1/Vivado
+export XILINX_HLS=${HOME}/Xilinx/SDx/2017.1/Vivado_HLS
+export XILINX_SDK=${HOME}/Xilinx/SDx/2017.1/SDK
 export PATH=${XILINX_VIVADO}/bin:${PATH}
 export PATH=${XILINX_HLS}/bin:${PATH}
 export PATH=${XILINX_SDK}/bin:${PATH}
