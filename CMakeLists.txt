@@ -35,8 +35,6 @@ tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 
-tvm_option(USE_VTA_CFG "Use a specific json file for VTA runtime" "")
-
 # Contrib library options
 tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_MKL_PATH "MKL root path when use MKL blas" none)
