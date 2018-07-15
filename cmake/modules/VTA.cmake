@@ -1,5 +1,5 @@
 # CMake Build rules for VTA
-find_program(PYTHON python)
+find_program(PYTHON NAMES python python3 python3.6)
 
 if(MSVC)
   message(STATUS "VTA build is skipped in Windows..")
