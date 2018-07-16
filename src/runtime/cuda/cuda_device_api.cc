@@ -8,9 +8,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
-#include <tvm/container.h>
-#include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
 #include "./cuda_common.h"
 
 namespace tvm {
