@@ -30,6 +30,7 @@ public class TVMContext {
     MASK2STR.put(1, "cpu");
     MASK2STR.put(2, "gpu");
     MASK2STR.put(4, "opencl");
+    MASK2STR.put(7, "vulkan");
     MASK2STR.put(8, "metal");
     MASK2STR.put(9, "vpi");
 
@@ -38,6 +39,7 @@ public class TVMContext {
     STR2MASK.put("cuda", 2);
     STR2MASK.put("cl", 4);
     STR2MASK.put("opencl", 4);
+    STR2MASK.put("vulkan", 7);
     STR2MASK.put("metal", 8);
     STR2MASK.put("vpi", 9);
   }
@@ -79,6 +81,19 @@ public class TVMContext {
 
   public static TVMContext opencl() {
     return opencl(0);
+  }
+
+  /**
+   * Construct a Vulkan device.
+   * @param devId The device id
+   * @return The created context
+   */
+  public static TVMContext vulkan(int devId) {
+    return new TVMContext(7, devId);
+  }
+
+  public static TVMContext vulkan() {
+    return vulkan(0);
   }
 
   /**

@@ -18,12 +18,14 @@
 package ml.dmlc.tvm.android.demo;
 
 import android.Manifest;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.res.AssetManager;
 import android.app.AlertDialog;
 import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -39,6 +41,9 @@ import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
+import android.view.SubMenu;
 import android.view.View;
 import android.widget.ImageView;
 import android.widget.TextView;
@@ -47,8 +52,8 @@ import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Vector;
@@ -57,34 +62,46 @@ import ml.dmlc.tvm.Function;
 import ml.dmlc.tvm.Module;
 import ml.dmlc.tvm.NDArray;
 import ml.dmlc.tvm.TVMContext;
-import ml.dmlc.tvm.TVMValue;
 import ml.dmlc.tvm.TVMType;
+import ml.dmlc.tvm.TVMValue;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = MainActivity.class.getSimpleName();
 
-    private static final int PERMISSIONS_REQUEST    = 100;
-    private static final int PICTURE_FROM_GALLERY   = 101;
-    private static final int PICTURE_FROM_CAMERA    = 102;
-    private static final int IMAGE_PREVIEW_WIDTH    = 960;
-    private static final int IMAGE_PREVIEW_HEIGHT   = 720;
+    private static final int PERMISSIONS_REQUEST        = 100;
+    private static final int PICTURE_FROM_GALLERY       = 101;
+    private static final int PICTURE_FROM_CAMERA        = 102;
+    private static final int IMAGE_PREVIEW_WIDTH        = 960;
+    private static final int IMAGE_PREVIEW_HEIGHT       = 720;
 
     // TVM constants
-    private static final int OUTPUT_INDEX           = 0;
-    private static final int IMG_CHANNEL            = 3;
-    private static final String INPUT_NAME          = "data";
+    private static final int OUTPUT_INDEX               = 0;
+    private static final int IMG_CHANNEL                = 3;
+    private static final String INPUT_NAME              = "data";
 
     // Configuration values for extraction model. Note that the graph, lib and params is not
     // included with TVM and must be manually placed in the assets/ directory by the user.
     // Graphs and models downloaded from https://github.com/pjreddie/darknet/blob/ may be
     // converted e.g. via  define_and_compile_model.py.
-    private static final boolean EXE_GPU            = false;
-    private static final int MODEL_INPUT_SIZE       = 224;
-    private static final String MODEL_CL_LIB_FILE   = "file:///android_asset/deploy_lib_opencl.so";
-    private static final String MODEL_CPU_LIB_FILE  = "file:///android_asset/deploy_lib_cpu.so";
-    private static final String MODEL_GRAPH_FILE    = "file:///android_asset/deploy_graph.json";
-    private static final String MODEL_PARAM_FILE    = "file:///android_asset/deploy_param.params";
-    private static final String MODEL_LABEL_FILE    = "file:///android_asset/imagenet.shortnames.list";
+    private static final int MODEL_INPUT_SIZE           = 224;
+    private static final String MODEL_CPU_LIB_FILE      = "file:///android_asset/deploy_lib_cpu.so";
+    private static final String MODEL_CL_LIB_FILE       = "file:///android_asset/deploy_lib_opencl.so";
+    private static final String MODEL_VULKAN_LIB_FILE   = "file:///android_asset/deploy_lib_vulkan.so";
+    private static final String MODEL_CPU_GRAPH_FILE    = "file:///android_asset/deploy_graph_cpu.json";
+    private static final String MODEL_CL_GRAPH_FILE     = "file:///android_asset/deploy_graph_opencl.json";
+    private static final String MODEL_VULKAN_GRAPH_FILE = "file:///android_asset/deploy_graph_vulkan.json";
+    private static final String MODEL_PARAM_FILE        = "file:///android_asset/deploy_param.params";
+    private static final String MODEL_LABEL_FILE        = "file:///android_asset/imagenet.shortnames.list";
+
+    // Flavor configuration
+    private static final int FLAVOR_GROUP               = 201;
+    private static final int MENU_ID_CPU_FLAVOR         = 101;
+    private static final int MENU_ID_CL_FLAVOR          = 102;
+    private static final int MENU_ID_VULKAN_FLAVOR      = 103;
+    private static final String PREF_RUN_FLAVOR_KEY     = "pref_run_flavor_key";
+    private static final String FLAVOR_PREFERENCE_NAME  = "flavor_preference";
+    //default cpu flavor version select
+    private int mRunFlavor = MENU_ID_CPU_FLAVOR;
 
     private Uri mCameraImageUri;
     private ImageView mImageView;
@@ -109,6 +126,10 @@ public class MainActivity extends AppCompatActivity {
                 showPictureDialog();
             }
         });
+
+        SharedPreferences pref = getApplicationContext()
+                .getSharedPreferences(FLAVOR_PREFERENCE_NAME, Context.MODE_PRIVATE);
+        mRunFlavor = pref.getInt(PREF_RUN_FLAVOR_KEY, MENU_ID_CPU_FLAVOR);
 
         if (hasPermission()) {
             // instantiate tvm runtime and setup environment on background after application begin
@@ -142,7 +163,9 @@ public class MainActivity extends AppCompatActivity {
 
             // load json graph
             String modelGraph = null;
-            String graphFilename = MODEL_GRAPH_FILE.split("file:///android_asset/")[1];
+            String graphFilename = (mRunFlavor == MENU_ID_CL_FLAVOR ? MODEL_CL_GRAPH_FILE :
+                    (mRunFlavor == MENU_ID_VULKAN_FLAVOR ? MODEL_VULKAN_GRAPH_FILE : MODEL_CPU_GRAPH_FILE))
+                    .split("file:///android_asset/")[1];
             Log.i(TAG, "Reading json graph from: " + graphFilename);
             try {
                 modelGraph = new String(getBytesFromFile(assetManager, graphFilename));
@@ -153,8 +176,9 @@ public class MainActivity extends AppCompatActivity {
 
             // upload tvm compiled function on application cache folder
             String libCacheFilePath = null;
-            String libFilename = EXE_GPU ? MODEL_CL_LIB_FILE.split("file:///android_asset/")[1] :
-                    MODEL_CPU_LIB_FILE.split("file:///android_asset/")[1];
+            String libFilename = (mRunFlavor == MENU_ID_CL_FLAVOR ? MODEL_CL_LIB_FILE :
+                    (mRunFlavor == MENU_ID_VULKAN_FLAVOR ? MODEL_VULKAN_LIB_FILE : MODEL_CPU_LIB_FILE))
+                    .split("file:///android_asset/")[1];
             Log.i(TAG, "Uploading compiled function to cache folder");
             try {
                 libCacheFilePath = getTempLibFilePath(libFilename);
@@ -178,7 +202,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
             // create java tvm context
-            TVMContext tvmCtx = EXE_GPU ? TVMContext.opencl() : TVMContext.cpu();
+            TVMContext tvmCtx = (mRunFlavor == MENU_ID_CL_FLAVOR ? TVMContext.opencl() :
+                    (mRunFlavor == MENU_ID_VULKAN_FLAVOR ? TVMContext.vulkan() : TVMContext.cpu()));
 
             // tvm module for compiled functions
             Module modelLib = Module.load(libCacheFilePath);
@@ -629,5 +654,45 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return matrix;
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        SubMenu flavorMenu = menu.addSubMenu(R.string.menu_flavor_title);
+        flavorMenu.add(FLAVOR_GROUP, MENU_ID_CPU_FLAVOR, Menu.NONE, R.string.cpu_flavor_version)
+                .setCheckable(true).setChecked(mRunFlavor == MENU_ID_CPU_FLAVOR);
+        flavorMenu.add(FLAVOR_GROUP, MENU_ID_CL_FLAVOR, Menu.NONE, R.string.opencl_flavor_version)
+                .setCheckable(true).setChecked(mRunFlavor == MENU_ID_CL_FLAVOR);
+        flavorMenu.add(FLAVOR_GROUP, MENU_ID_VULKAN_FLAVOR, Menu.NONE, R.string.vulkan_flavor_version)
+                .setCheckable(true).setChecked(mRunFlavor == MENU_ID_VULKAN_FLAVOR);
+        flavorMenu.setGroupCheckable(FLAVOR_GROUP, true, true);
+        return super.onCreateOptionsMenu(menu);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (!item.isChecked()) {
+            item.setChecked(!item.isChecked());
+            SharedPreferences pref = getApplicationContext()
+                    .getSharedPreferences(FLAVOR_PREFERENCE_NAME, Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = pref.edit();
+            switch (item.getItemId()) {
+                case MENU_ID_CPU_FLAVOR:
+                    mRunFlavor = MENU_ID_CPU_FLAVOR;
+                    editor.putInt(PREF_RUN_FLAVOR_KEY, MENU_ID_CPU_FLAVOR);
+                    break;
+                case MENU_ID_CL_FLAVOR:
+                    mRunFlavor = MENU_ID_CL_FLAVOR;
+                    editor.putInt(PREF_RUN_FLAVOR_KEY, MENU_ID_CL_FLAVOR);
+                    break;
+                case MENU_ID_VULKAN_FLAVOR:
+                    mRunFlavor = MENU_ID_VULKAN_FLAVOR;
+                    editor.putInt(PREF_RUN_FLAVOR_KEY, MENU_ID_VULKAN_FLAVOR);
+                    break;
+            }
+            editor.commit();
+            new LoadModleAsyncTask().execute();
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
