@@ -23,7 +23,7 @@ const std::shared_ptr<OpenCLWorkspace>& SDAccelWorkspace::Global() {
 }
 
 void SDAccelWorkspace::Init() {
-  OpenCLWorkspace::Init("accelerator", "Xilinx");
+  OpenCLWorkspace::Init("sdaccel", "accelerator", "Xilinx");
 }
 
 bool SDAccelWorkspace::IsOpenCLDevice(TVMContext ctx) {

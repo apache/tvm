@@ -100,10 +100,6 @@ const std::shared_ptr<cl::OpenCLWorkspace>& OpenCLModuleNode::GetGlobalWorkspace
   return cl::OpenCLWorkspace::Global();
 }
 
-const char* OpenCLModuleNode::type_key() const {
-  return "opencl";
-}
-
 PackedFunc OpenCLModuleNode::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {

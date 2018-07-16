@@ -21,15 +21,10 @@ class SDAccelModuleNode : public OpenCLModuleNode {
                              std::string source)
       : OpenCLModuleNode(data, fmt, fmap, source) {}
   const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace() final;
-  const char* type_key() const final;
 };
 
 const std::shared_ptr<cl::OpenCLWorkspace>& SDAccelModuleNode::GetGlobalWorkspace() {
   return cl::SDAccelWorkspace::Global();
-}
-
-const char* SDAccelModuleNode::type_key() const {
-  return "sdaccel";
 }
 
 Module SDAccelModuleCreate(
