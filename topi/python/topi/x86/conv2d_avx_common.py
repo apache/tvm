@@ -108,7 +108,7 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     sch = _get_schedule(wkl)
 
     HPAD, WPAD = wkl.hpad, wkl.wpad
-    DOPAD = (HPAD != 0 and WPAD != 0)
+    DOPAD = (HPAD != 0 or WPAD != 0)
 
     A, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
