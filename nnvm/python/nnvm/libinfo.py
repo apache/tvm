@@ -28,7 +28,6 @@ def find_lib_path():
     else:
         lib_name = "nnvm_compiler" if sys.platform.startswith('win32') else "libnnvm_compiler"
 
-    source_dir = os.path.join(base_path, '..', '..', '..')
     api_path = os.path.join(base_path, '..', '..', 'lib')
     cmake_build_path_win = os.path.join(base_path, '..', '..', '..', 'build', 'Release')
     cmake_build_path = os.path.join(base_path, '..', '..', '..', 'build')
@@ -47,7 +46,8 @@ def find_lib_path():
         vs_configuration = 'Release'
         if platform.architecture()[0] == '64bit':
             dll_path.append(os.path.join(base_path, '..', '..', '..', 'build', vs_configuration))
-            dll_path.append(os.path.join(base_path, '..', '..', '..', 'windows', 'x64', vs_configuration))
+            dll_path.append(os.path.join(base_path, '..', '..', '..', 'windows', 'x64',
+                                         vs_configuration))
         else:
             dll_path.append(os.path.join(base_path, '..', '..', '..', 'build', vs_configuration))
             dll_path.append(os.path.join(base_path, '..', '..', '..', 'windows', vs_configuration))
