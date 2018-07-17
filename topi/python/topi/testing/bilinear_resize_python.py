@@ -15,11 +15,11 @@ def bilinear_resize_python(image, out_size, layout, align_corners=False):
         scaled_image = np.ones((batch, channel, new_h, new_w))
 
     if align_corners:
-        height_scale = (h-1) / (out_size[0]-1)
-        width_scale = (w-1) / (out_size[1]-1)
+        height_scale = np.float32(h-1) / np.float32(out_size[0]-1)
+        width_scale = np.float32(w-1) / np.float32(out_size[1]-1)
     else:
-        height_scale = h / out_size[0]
-        width_scale = w / out_size[1]
+        height_scale = np.float32(h) / np.float32(out_size[0])
+        width_scale = np.float32(w) / np.float32(out_size[1])
 
     for b in range(batch):
         for i in range(channel):
