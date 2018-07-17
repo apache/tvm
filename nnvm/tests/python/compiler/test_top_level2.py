@@ -10,6 +10,20 @@ from nnvm.testing.config import ctx_list
 
 
 def test_conv2d():
+    def run_test_conv2d(sym, dtype, dshape, kshape, oshape, shape_dict, padding):
+        for target, ctx in ctx_list():
+            graph, lib, _ = nnvm.compiler.build(sym, target, shape_dict)
+            m = graph_runtime.create(graph, lib, ctx)
+            data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+            kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+            bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
+            m.run(x=data, y_weight=kernel, y_bias=bias)
+            out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+            c_np = topi.testing.conv2d_nchw_python(
+                data.asnumpy(), kernel.asnumpy(), 1, padding)
+            c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
+            np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+
     x = sym.Variable("x")
     y = sym.conv2d(x, channels=10, kernel_size=(3,3),
                    name="y", padding=(1,1))
@@ -18,18 +32,17 @@ def test_conv2d():
     kshape = (10, 3, 3, 3)
     oshape = (1, 10, 18, 18)
     shape_dict = {"x": dshape}
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
-        m = graph_runtime.create(graph, lib, ctx)
-        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
-        kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
-        bias = tvm.nd.array(np.random.uniform(size=kshape[0]).astype(dtype))
-        m.run(x=data, y_weight=kernel, y_bias=bias)
-        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        c_np = topi.testing.conv2d_nchw_python(
-            data.asnumpy(), kernel.asnumpy(), 1, 1)
-        c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+    run_test_conv2d(y, dtype, dshape, kshape, oshape, shape_dict, (1,1))
+
+    x = sym.Variable("x")
+    y = sym.conv2d(x, channels=10, kernel_size=(1,3),
+                   name="y", padding=(0,1))
+    dtype = "float32"
+    dshape = (1, 3, 224, 224)
+    kshape = (10, 3, 1, 3)
+    oshape = (1, 10, 224, 224)
+    shape_dict = {"x": dshape}
+    run_test_conv2d(y, dtype, dshape, kshape, oshape, shape_dict, (0,1))
 
 
 def test_mixed_precision():
