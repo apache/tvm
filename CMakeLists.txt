@@ -171,10 +171,11 @@ target_include_directories(
   tvm
   PUBLIC "HalideIR/src")
 target_include_directories(
-  nnvm_compiler
-  PUBLIC "nnvm/include")
-target_include_directories(
   tvm_topi
+  PUBLIC "topi/include")
+target_include_directories(
+  nnvm_compiler
+  PUBLIC "nnvm/include"
   PUBLIC "topi/include")
 
 # Tests
