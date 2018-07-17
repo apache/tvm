@@ -14,21 +14,24 @@ build:
 requirements:
   build:
     - {{ compiler('cxx') }}
-    - tvm-libs =={{ version }}
   host:
-    - python >=3
+    - python {{ python }}
     - cython
     - numpy
     - setuptools
-    - nose
     - decorator
+    - tvm-libs =={{ version }}
   run:
     - tvm =={{ version }}
     - topi =={{ version }}
     - tvm-libs =={{ version }}
-    - python >=3
-    - numpy
+    - python
+    - {{ pin_compatible('numpy') }}
     - decorator
+
+test:
+  imports:
+    - nnvm
 
 about:
   home: https://github.com/dmlc/nnvm
