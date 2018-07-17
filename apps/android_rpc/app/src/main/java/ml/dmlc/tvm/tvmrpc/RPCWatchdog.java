@@ -17,26 +17,27 @@
 
 package ml.dmlc.tvm.tvmrpc;
 
+import java.util.List;
 import android.content.Context;
 import android.content.Intent;
+import android.app.ActivityManager;
+//import android.app.Activity;
 
 /**
  * Watchdog for RPCService
  */
 class RPCWatchdog extends Thread {
   public static final int WATCHDOG_POLL_INTERVAL = 5000;
-  private String host;
-  private int port;
-  private String key;
-  private Context context;
-  private boolean done = false;
+  //private String host;
+  //private int port;
+  //private String key;
+  //private boolean done = false;
+  private RPCProcessor tvmServerWorker;
+  //private Context context;
 
-  public RPCWatchdog(String host, int port, String key, Context context) {
+  public RPCWatchdog(RPCProcessor tvmServerWorker) {
     super();
-    this.host = host;
-    this.port = port;
-    this.key = key;
-    this.context = context;
+    this.tvmServerWorker = tvmServerWorker;
   }
 
   /**
@@ -45,38 +46,15 @@ class RPCWatchdog extends Thread {
   @Override public void run() {
     try {
         while (true) {
-          synchronized (this) {
-              if (done) {
-                System.err.println("watchdog done, returning...");
-                return;
-              }
-              else {
-                System.err.println("polling rpc service...");                                  
-                System.err.println("sending rpc service intent...");
-                Intent intent = new Intent(context, RPCService.class);
-                intent.putExtra("host", host);
-                intent.putExtra("port", port);
-                intent.putExtra("key", key);
-                // will implicilty restart the service if it died
-                context.startService(intent);
-              }
+          if (tvmServerWorker.timedOut(System.currentTimeMillis())) {
+            System.err.println("rpc processor timed out, killing self...");  Thread.sleep(WATCHDOG_POLL_INTERVAL);
+            System.exit(0);
+          } else {
+            System.err.println("rpc processor ok...");
           }
           Thread.sleep(WATCHDOG_POLL_INTERVAL);
         }
     } catch (InterruptedException e) {
     }
-  }
-
-  /**
-   * Disconnect from the proxy server.
-   */
-  synchronized void disconnect() {
-    // kill service
-    System.err.println("watchdog disconnect call...");
-    System.err.println("stopping rpc service...");
-    done = true;
-    Intent intent = new Intent(context, RPCService.class);
-    intent.putExtra("kill", true); 
-    context.startService(intent); 
   }
 }

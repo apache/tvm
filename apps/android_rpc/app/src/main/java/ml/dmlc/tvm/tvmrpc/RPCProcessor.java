@@ -37,7 +37,7 @@ class RPCProcessor extends Thread {
   private boolean running = false;
   private long startTime;
   private ConnectProxyServerProcessor currProcessor;
-  private boolean kill = false;
+  private boolean kill;
   public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter

@@ -1,0 +1,14 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:tools="http://schemas.android.com/tools"
+              xmlns:app="http://schemas.android.com/apk/res-auto"
+              android:orientation="vertical"
+              android:layout_width="fill_parent"
+              android:layout_height="wrap_content"
+              app:layout_behavior="@string/appbar_scrolling_view_behavior"
+              tools:showIn="@layout/activity_rpc">
+        <Button
+            android:id="@+id/button_stop_rpc"
+            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:text="@string/stop_rpc" />
+</LinearLayout>
