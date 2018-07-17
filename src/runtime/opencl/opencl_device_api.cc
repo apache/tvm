@@ -227,7 +227,8 @@ bool MatchPlatformInfo(
   return param_value.find(value) != std::string::npos;
 }
 
-void OpenCLWorkspace::Init(const std::string& device_type, const std::string& platform_name) {
+void OpenCLWorkspace::Init(const std::string& type_key, const std::string& device_type,
+                           const std::string& platform_name) {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
@@ -246,6 +247,7 @@ void OpenCLWorkspace::Init(const std::string& device_type, const std::string& pl
     }
     std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
     if (devices_matched.size() > 0) {
+      this->type_key = type_key;
       this->platform_id = platform_id;
       this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
       this->device_type = device_type;
@@ -271,7 +273,7 @@ void OpenCLWorkspace::Init(const std::string& device_type, const std::string& pl
     this->queues.push_back(
         clCreateCommandQueue(this->context, did, 0, &err_code));
     OPENCL_CHECK_ERROR(err_code);
-    LOG(INFO) << "opencl(" << i
+    LOG(INFO) << type_key << "(" << i
               << ")=\'" << cl::GetDeviceInfo(did, CL_DEVICE_NAME)
               << "\' cl_device_id=" << did;
   }
