@@ -11,7 +11,7 @@ tvm_multilib = "build/libtvm.so, " +
              "build/libvta.so, build/libtvm_topi.so, build/libnnvm_compiler.so, " + tvm_runtime
 
 // command to start a docker container
-docker_run = 'docker/build.sh'
+docker_run = 'docker/bash.sh'
 // timeout in minutes
 max_time = 60
 
@@ -39,7 +39,7 @@ stage("Sanity Check") {
     node('linux') {
       ws('workspace/tvm/sanity') {
         init_git()
-        sh "${docker_run} ci_lint  ./tests/scripts/task_lint.sh"
+        sh "${docker_run} tvmai/ci-lint  ./tests/scripts/task_lint.sh"
       }
     }
   }
@@ -100,7 +100,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('ci_gpu', 'build', '-j2')
+        make('tvmai/ci-gpu', 'build', '-j2')
         pack_lib('gpu', tvm_multilib)
         // compiler test
         sh """
@@ -113,7 +113,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER clang-6.0\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('ci_gpu', 'build2', '-j2')
+        make('tvmai/ci-gpu', 'build2', '-j2')
       }
     }
   },
@@ -130,11 +130,11 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('ci_cpu', 'build', '-j2')
+        make('tvmai/ci-cpu', 'build', '-j2')
         pack_lib('cpu', tvm_lib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_cpu ./tests/scripts/task_cpp_unittest.sh"
-          sh "${docker_run} ci_cpu ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_cpp_unittest.sh"
+          sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_python_vta.sh"
         }
       }
     }
@@ -153,7 +153,7 @@ stage('Build') {
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
-        make('ci_i386', 'build', '-j2')
+        make('tvmai/ci-i386', 'build', '-j2')
         pack_lib('i386', tvm_multilib)
       }
     }
@@ -167,7 +167,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_gpu ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_unittest.sh"
         }
       }
     }
@@ -178,9 +178,9 @@ stage('Unit Test') {
         init_git()
         unpack_lib('i386', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_i386 ./tests/scripts/task_python_unittest.sh"
-          sh "${docker_run} ci_i386 ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ci_i386 ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} tvmai/ci-i386 ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} tvmai/ci-i386 ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} tvmai/ci-i386 ./tests/scripts/task_python_vta.sh"
         }
       }
     }
@@ -191,7 +191,7 @@ stage('Unit Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_gpu ./tests/scripts/task_java_unittest.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_java_unittest.sh"
         }
       }
     }
@@ -205,10 +205,10 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_gpu ./tests/scripts/task_python_integration.sh"
-          sh "${docker_run} ci_gpu ./tests/scripts/task_python_topi.sh"
-          sh "${docker_run} ci_gpu ./tests/scripts/task_cpp_topi.sh"
-          sh "${docker_run} ci_gpu ./tests/scripts/task_python_nnvm.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_integration.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_topi.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_cpp_topi.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_nnvm.sh"
         }
       }
     }
@@ -219,7 +219,7 @@ stage('Integration Test') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} ci_gpu ./tests/scripts/task_python_docs.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_docs.sh"
         }
         pack_lib('mydocs', 'docs.tgz')
       }
