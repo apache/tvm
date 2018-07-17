@@ -1,0 +1,25 @@
+{% set version = "0.4.dev" %}
+
+package:
+  name: tvm-libs
+  version: {{ version }}
+
+source:
+  path: ../..
+
+build:
+  number: 0
+
+requirements:
+  host:
+    # The OS X build will require some manual setup or it will break
+    # See https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html#macos-sdk
+    - {{ compiler('cxx') }}
+  build:
+    - llvmdev ==6.0.0
+    - cmake
+
+about:
+  home: https://github.com/dmlc/tvm
+  license: Apache2
+  summary: a low level domain specific language for compiling tensor computation pipelines
