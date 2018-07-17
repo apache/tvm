@@ -108,6 +108,8 @@ class OpenCLThreadEntry;
  */
 class OpenCLWorkspace : public DeviceAPI {
  public:
+  // type key
+  std::string type_key;
   // global platform id
   cl_platform_id platform_id;
   // global platform name
@@ -138,9 +140,10 @@ class OpenCLWorkspace : public DeviceAPI {
     }
   }
   // Initialzie the device.
-  void Init(const std::string& device_type, const std::string& platform_name = "");
+  void Init(const std::string& type_key, const std::string& device_type,
+            const std::string& platform_name = "");
   virtual void Init() {
-    Init("gpu");
+    Init("opencl", "gpu");
   }
   // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(TVMContext ctx) {
@@ -240,7 +243,7 @@ class OpenCLModuleNode : public ModuleNode {
    */
   virtual const std::shared_ptr<cl::OpenCLWorkspace>& GetGlobalWorkspace();
 
-  virtual const char* type_key() const;
+  const char* type_key() const final { return workspace_->type_key.c_str(); }
 
   PackedFunc GetFunction(
       const std::string& name,
