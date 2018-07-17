@@ -37,7 +37,7 @@ class RPCProcessor extends Thread {
   private boolean running = false;
   private long startTime;
   private ConnectProxyServerProcessor currProcessor;
-  private boolean kill;
+  private boolean kill = false;
   public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter
@@ -87,33 +87,6 @@ class RPCProcessor extends Thread {
         if (currProcessor != null)
             currProcessor.run();
     }
-  }
-
-  /**
-   * check if the current RPCProcessor has timed out while in a session
-   */
-  synchronized boolean timedOut(long curTime) {
-    if (startTime == 0) {
-        return false;
-    }
-    else if ((curTime - startTime) > SESSION_TIMEOUT) {
-        System.err.println("set kill flag...");
-        kill = true;
-        return true;
-    }
-    return false;
-  }
-
-  /**
-   * set the start time of the current RPC session (used in callback)
-   */
-  synchronized void setStartTime() {
-    startTime = System.currentTimeMillis();
-    System.err.println("start time set to: " + startTime);
-  }
-
-  synchronized long getStartTime() {
-    return startTime;
   }
 
   /**
