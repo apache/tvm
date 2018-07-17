@@ -48,11 +48,8 @@ tvm_option(USE_RANDOM "Build with random support" OFF)
 
 # include directories
 include_directories("include")
-include_directories("nnvm/include")
-include_directories("dmlc-core/include")
-include_directories("HalideIR/src")
 include_directories("dlpack/include")
-include_directories("topi/include")
+include_directories("dmlc-core/include")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -168,6 +165,17 @@ target_link_libraries(tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_topi tvm ${TVM_LINKER_LIBS} ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(nnvm_compiler tvm)
+
+# Related headers
+target_include_directories(
+  tvm
+  PUBLIC "HalideIR/src")
+target_include_directories(
+  nnvm_compiler
+  PUBLIC "nnvm/include")
+target_include_directories(
+  tvm_topi
+  PUBLIC "topi/include")
 
 # Tests
 set(TEST_EXECS "")
