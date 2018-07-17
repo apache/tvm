@@ -1,4 +1,4 @@
-{% set version = "0.1.dev" %}
+{% set version = "0.4.dev" %}
 
 package:
   name: tvm
@@ -8,24 +8,27 @@ source:
   path: ../..
 
 build:
-  number: 1
-  skip: True  # [win]
-  script_env:
-    - CONDA_CUDA_HOME
+  number: 0
 
 requirements:
   build:
-    - llvmdev ==4.0.0
-    - cmake
-    - python >=3
+    - {{ compiler('cxx') }}
+  host:
+    - python {{ python }}
+    - cython
     - numpy
     - setuptools
-    - nose
     - decorator
+    - tvm-libs =={{ version }}
   run:
-    - python >=3
-    - numpy
+    - python
+    - {{ pin_compatible('numpy') }}
     - decorator
+    - tvm-libs =={{ version }}
+
+test:
+  imports:
+    - tvm
 
 about:
   home: https://github.com/dmlc/tvm
