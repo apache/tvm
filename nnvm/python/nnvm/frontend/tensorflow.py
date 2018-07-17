@@ -491,109 +491,118 @@ def _infer_out_shapes(inputs, params):
 
 def _stridedSlice():
     def _impl(inputs, attr, params):
-        begin_input = [params[inputs[1].list_output_names()[0]].asnumpy()[i] \
-            for i in range(params[inputs[1].list_output_names()[0]].asnumpy().size)]
-        end_input = [params[inputs[2].list_output_names()[0]].asnumpy()[i] \
-            for i in range(params[inputs[2].list_output_names()[0]].asnumpy().size)]
-        stride_input = [params[inputs[3].list_output_names()[0]].asnumpy()[i] \
-            for i in range(params[inputs[3].list_output_names()[0]].asnumpy().size)]
+        """Strided Slice.
+        Description:
+        https://www.tensorflow.org/api_docs/python/tf/strided_slice
 
-        pop_node = inputs.pop(1)
-        params.pop(pop_node.list_output_names()[0])
-        pop_node = inputs.pop(1)
-        params.pop(pop_node.list_output_names()[0])
-        pop_node = inputs.pop(1)
-        params.pop(pop_node.list_output_names()[0])
+        Parameters
+        ----------
+        inputs : nnvm.Symbol
+            Input data
+        attrs : dict
+            Dict of operator attributes
+        params : dict
+            List of pretrained weights and bias
 
-        inputs_0_shape = attr['_input_shapes'][inputs[0]]
-        input_dim = len(inputs_0_shape[0])
-        stride_dim = len(stride_input)
-        def expand_axis(list_ids, size):
-            for _ in range(len(list_ids), size):
-                list_ids.append(0)
+        Returns
+        -------
+        sym : nnvm.Symbol
+            Converted nnvm Symbol
+        """
+        begin_input = params.pop(inputs[1].list_output_names()[0]).asnumpy().tolist()
+        end_input = params.pop(inputs[2].list_output_names()[0]).asnumpy().tolist()
+        stride_input = params.pop(inputs[3].list_output_names()[0]).asnumpy().tolist()
+        begin_mask = int(attr.get('begin_mask', 0))
+        end_mask = int(attr.get('end_mask', 0))
+        ellipsis_mask = int(attr.get('ellipsis_mask', 0))
+        new_axis_mask = int(attr.get('new_axis_mask', 0))
+        shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
 
-        begin = []
-        expand_axis(begin, input_dim)
-        end = []
-        expand_axis(end, input_dim)
-        stride = []
-        expand_axis(stride, input_dim)
-        ellipsis_mask_inp = int(attr.get('ellipsis_mask', 0))
-        shrink_axis_mask_inp = int(attr.get('shrink_axis_mask', 0))
-        end_mask_inp = int(attr.get('end_mask', 0))
-        begin_mask_inp = int(attr.get('begin_mask', 0))
-        new_axis_mask_inp = int(attr.get('new_axis_mask', 0))
-
+        #Constant values used forming output shape.
         kShrinkAxis = -1
         kNewAxis = -2
+        out_shape_indices = []
+        def _transform_mask(ellipsis_mask):
+            """Handle mask inputs to create new begin, end, stride and output shape"""
+            data_shape = attr['_input_shapes'][inputs[0]]
+            data_dim = len(data_shape[0])
+            stride_dim = len(stride_input)
+            begin = [0] * data_dim
+            end = [0] * data_dim
+            stride = [0] * data_dim
 
-        ellipsis_seen = False
-        num_add_axis_after_ellipsis = 0
-        final_shape_gather_indices = []
-        for i in range(stride_dim):
-            if ellipsis_seen and ((1 << i) & new_axis_mask_inp) != 0:
-                num_add_axis_after_ellipsis = num_add_axis_after_ellipsis + 1
-            if ((1 << i) & ellipsis_mask_inp) != 0:
-                ellipsis_seen = True
-        if not ellipsis_seen:
-            ellipsis_mask_inp |= (1 << stride_dim)
-            stride_dim = stride_dim + 1
+            #Identify all new axis to be set after ellipsis_mask is seen.
+            ellipsis_seen = False
+            new_axes_after_ellipsis = 0
+            for i in range(stride_dim):
+                mask = 1 << i
+                if ellipsis_seen and (mask & new_axis_mask) != 0:
+                    new_axes_after_ellipsis += 1
+                if (mask & ellipsis_mask) != 0:
+                    if ellipsis_seen:
+                        raise ValueError("Error: Multiple ellipses in slice spec not allowed")
+                    ellipsis_seen = True
+            if not ellipsis_seen:
+                ellipsis_mask |= (1 << stride_dim)
+                stride_dim = stride_dim + 1
 
-        def transform_ellipsis():
-            "handle mask inputs"
             full_index = 0
             for i in range(stride_dim):
-                if (1 << i) & ellipsis_mask_inp:
-                    next_index = min(input_dim - (stride_dim - i) + \
-                                     1 + num_add_axis_after_ellipsis, input_dim)
-                    for full_index in range(full_index, next_index):
-                        begin[full_index] = 0
-                        end[full_index] = inputs_0_shape[0][full_index]
-                        stride[full_index] = 1
-                        final_shape_gather_indices.append(full_index)
-                elif (1 << i) & new_axis_mask_inp:
-                    final_shape_gather_indices.append(kNewAxis)
+                mask = 1 << i
+                if mask & ellipsis_mask:
+                    next_index = min(data_dim - (stride_dim - i) + \
+                                     1 + new_axes_after_ellipsis, data_dim)
+                    for index in range(full_index, next_index):
+                        begin[index] = 0
+                        end[index] = data_shape[0][index]
+                        stride[index] = 1
+                        out_shape_indices.append(index)
+                elif mask & new_axis_mask:
+                    out_shape_indices.append(kNewAxis)
                 else:
                     if full_index == len(begin):
-                        return
+                        break
 
-                    if begin_mask_inp & (1 << i):
-                        begin[full_index] = inputs_0_shape[0][full_index] \
+                    if begin_mask & mask:
+                        begin[full_index] = data_shape[0][full_index] \
                             if stride_input[i] < 0 else 0
                     elif begin_input:
                         begin[full_index] = begin_input[i]
 
-                    if end_mask_inp & (1 << i):
+                    if end_mask & mask:
                         end[full_index] = 0 \
-                            if stride_input[i] < 0 else inputs_0_shape[0][full_index]
+                            if stride_input[i] < 0 else data_shape[0][full_index]
                     elif end_input:
                         end[full_index] = end_input[i]
                     stride[full_index] = stride_input[i]
 
-                    if shrink_axis_mask_inp & (1 << i):
-                        final_shape_gather_indices.append(kShrinkAxis)
+                    if shrink_axis_mask & mask:
+                        out_shape_indices.append(kShrinkAxis)
                         begin[full_index] = \
-                            inputs_0_shape[0][full_index] + begin[full_index] \
+                            data_shape[0][full_index] + begin[full_index] \
                                 if begin[full_index] < 0 else begin[full_index]
                         end[full_index] = begin[full_index] + 1
                         stride[full_index] = 1
                     else:
-                        final_shape_gather_indices.append(full_index)
+                        out_shape_indices.append(full_index)
                     full_index = full_index + 1
+            return begin, end, stride
 
-        transform_ellipsis()
-        out = _sym.strided_slice(inputs[0], begin=begin, end=end, stride=stride)
-        out_0_shape = _infer_out_shapes(out, params)
+        if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
+            begin_input, end_input, stride_input = _transform_mask(ellipsis_mask)
+        out = _sym.strided_slice(inputs[0], begin=begin_input,
+                                 end=end_input, stride=stride_input)
+
+        out_shape = _infer_out_shapes(out, params)
         final_shape = []
-        for index in final_shape_gather_indices:
+        for index in out_shape_indices:
             if index >= 0:
-                final_shape.append(out_0_shape[0][index])
+                final_shape.append(out_shape[0][index])
             elif index == kNewAxis:
                 final_shape.append(1)
-        outshape = tuple(final_shape)
-        return _sym.reshape(out, shape=outshape)
+        #'final_shape' will be empty in case only kShrinkAxis is set
+        return _sym.reshape(out, shape=tuple(final_shape)) if final_shape else out
     return _impl
-
 
 def _LSTMBlockCell():
     def _impl(inputs, in_state_c, in_state_h, attr, params):
@@ -612,7 +621,7 @@ def _LSTMBlockCell():
         attrs : dict
             Dict of operator attributes
         params : dict
-            List of  pretrained weights and bias
+            List of pretrained weights and bias
 
         Returns
         -------
@@ -700,13 +709,11 @@ _convert_map_rnn = {
     'LSTMBlockCell'                     : _LSTMBlockCell(),
 }
 
-
 class RecurrentNetworks(object):
     """Recurrent network layer handlers.
 
-    Unlike normal operators, stacked rnn have cells and layer concepts.
-    Each Layer represent a cell in RNN stack. Cells in the same RNN stack
-    sequentialy process input data.
+    Handle Layer operations.
+    ToDo: Operators like RNN/GRU layer concepts also can be handled here
 
     Parameters
     ----------
@@ -745,8 +752,7 @@ class RecurrentNetworks(object):
             Operator name, eg:LSTMBlockCell
 
         layer_name : str list
-            Layer name is used for creating the state
-            input placeholder.
+            Layer name is used for creating the state input placeholder.
 
         inputs : nnvm.Symbol
             Input data
@@ -755,7 +761,7 @@ class RecurrentNetworks(object):
             Dict of operator attributes
 
         params : dict
-            List of  pretrained weights and bias
+            List of pretrained weights and bias
 
         num_layers : int
             Total number of LSTM layer presented in the graph
@@ -815,7 +821,6 @@ class RecurrentNetworks(object):
                                                                attr, params)
                 return output, out_state, in_state_c, in_state_h
 
-
             sym, cur_out_state, in_state_c, in_state_h = \
                     _LSTMBlockCellWrapper(inputs, attrs, params,
                                           num_layers, self._cur_lstm_layer)
@@ -846,7 +851,7 @@ class RecurrentNetworks(object):
             Dict of operator attributes
 
         params : dict
-            List of  pretrained weights and bias
+            List of pretrained weights and bias
 
         Returns
         -------
@@ -879,7 +884,6 @@ class RecurrentNetworks(object):
         sym = self._recurrent_ops_layer_map[op_name](op_name, layer_name, inputs, attrs,
                                                      params, num_layers)
         return sym
-
 
 class GraphProto(object):
     """ A helper class for handling nnvm graph copying from Tensorflow GraphDef.
@@ -1124,7 +1128,7 @@ class GraphProto(object):
         attrs : dict
             Dict of operator attributes
         params : dict
-            List of  pretrained weights and bias
+            List of pretrained weights and bias
         graph : Tensorflow graph object
             Graph is to find the number of upcoming same operator to
             calculate the number of layers.

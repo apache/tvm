@@ -110,7 +110,6 @@ def _test_pooling(input_shape, **kwargs):
                 sess.graph.as_graph_def(add_shapes=True),
                 [out_node],
                 )
-
             tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
             tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
                                        "Const", tf_output.shape, 'float32')
@@ -498,36 +497,28 @@ def test_forward_lstm():
 
 #######################################################################
 # StridedSlice
-# ----
-
-def _init_data_array(ip_shape, dtype):
-    shape_size = 1
-    for posi in range (len(ip_shape)):
-        shape_size = shape_size * ip_shape[posi]
-    data_ary = np.arange(shape_size, dtype=dtype).reshape(ip_shape)
-    return data_ary
+# ------------
 
 def _test_stridedslice(ip_shape, begin, end, stride, dtype,
                              begin_mask=0, end_mask=0, new_axis_mask=0,
                              shrink_axis_mask=0, ellipsis_mask=0):
     tf.reset_default_graph()
-    x = tf.placeholder(dtype, ip_shape)
-    y = tf.strided_slice(x, begin, end, stride, begin_mask=begin_mask,
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
                          end_mask=end_mask, new_axis_mask=new_axis_mask,
                          shrink_axis_mask=shrink_axis_mask,
-                         ellipsis_mask=ellipsis_mask, name="test_strided_slice")
-    input_value = _init_data_array(ip_shape, dtype)
+                         ellipsis_mask=ellipsis_mask, name="strided_slice")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
 
     with tf.Session() as sess:
         final_graph_def = tf.graph_util.convert_variables_to_constants(
             sess,
             sess.graph.as_graph_def(add_shapes=True),
-            ['test_strided_slice'])
-
-        tf_output = run_tf_graph(sess, input_value,
-                                 'Placeholder:0', 'test_strided_slice:0')
-        tvm_output = run_tvm_graph(final_graph_def, input_value,
-                                   "Placeholder", tf_output.shape, input_value.dtype)
+            ['strided_slice'])
+        tf_output = run_tf_graph(sess, np_data,
+                                 'in_data:0', 'strided_slice:0')
+        tvm_output = run_tvm_graph(final_graph_def, np_data,
+                                   "in_data", tf_output.shape, np_data.dtype)
         np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
         sess.close()
 
@@ -543,45 +534,45 @@ def test_forward_stridedslice():
                       'float32', new_axis_mask=2)
     _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
                       'float32', shrink_axis_mask=2)
+    _test_stridedslice((3,), [1], [4], [2], 'float32', shrink_axis_mask=1)
     _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=2)
-
+    _test_stridedslice((1, 2, 3, 4), [1], [3], [1], 'float32', begin_mask=1)
+    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
+                       'float32', shrink_axis_mask=1)
+    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
+                       'float32', shrink_axis_mask=2)
+    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
+                       'float32', shrink_axis_mask=3)
 
 #######################################################################
 # Gather
 # ------
 
-def _fill_data_array(ip_shape, ip_value, dtype):
-    fill_ary = np.zeros(ip_shape, dtype=dtype)
-    if isinstance(ip_value, int):
-        fill_ary[0] = ip_value
-    else:
-        shape_size = 1
-        for i in range(len(ip_shape)):
-            shape_size = shape_size * ip_shape[i]
-        fill_ary = fill_ary.flatten()
-        ip_value_flatten = (np.asarray(ip_value)).flatten()
-        for i in range(shape_size):
-            fill_ary[i] = ip_value_flatten[i]
-        fill_ary = fill_ary.reshape(ip_shape)
-    return fill_ary
-
 def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
     tf.reset_default_graph()
-    input_values = []
-    params = tf.placeholder(dtype, ip_shape, name="x")
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     indices = tf.placeholder("int32", indice_shape, name="indices")
-    output= tf.gather(params, indices, axis=axis)
-    input_values.append(_init_data_array(ip_shape, dtype))
-    input_values.append(_fill_data_array(indice_shape, indice_value, "int32"))
+    tf.gather(in_data, indices, axis=axis)
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    def _fill_indices(indice_value):
+        indices = np.array(ip_shape, dtype=dtype)
+        if isinstance(indice_value, int):
+            indices = np.array([indice_value], dtype='int32')
+        else:
+            indices = np.asarray(indice_value, dtype='int32')
+        return indices
+    np_indices = _fill_indices(indice_value)
 
     with tf.Session() as sess:
         final_graph_def = tf.graph_util.convert_variables_to_constants(
             sess,
             sess.graph.as_graph_def(add_shapes=True),
             ['GatherV2'])
-        tf_output = run_tf_graph(sess, input_values, ['x:0', 'indices:0'], 'GatherV2:0')
-        tvm_output = run_tvm_graph(final_graph_def, input_values,
-                                   ['x', 'indices'], tf_output.shape, dtype)
+        tf_output = run_tf_graph(sess, [np_data, np_indices], ['in_data:0',
+                                 'indices:0'], 'GatherV2:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data, np_indices],
+                                   ['in_data', 'indices'], tf_output.shape, dtype)
         np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
         sess.close()
 
@@ -590,12 +581,12 @@ def test_forward_gather():
     _test_gather((4,), (1,), 1, 0, 'int32')
     _test_gather((4,), (1,), 1, 0, 'float32')
     _test_gather((1,4), (1,), [0], 0, 'int32')
-    _test_gather((4,), (1,2,2), [[1,0],[0,1]], 0, 'float32')
-    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 0, 'int32')
-    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 1, 'int32')
-    _test_gather((2,2), (1,2,2), [[1,0],[0,1]], 0, 'float32')
-    _test_gather((3,3,3), (1,1,2), [[1,0]], 0, 'int32')
-    _test_gather((3,3,3), (1,1,2), [[1,0]], 2, 'int32')
+    _test_gather((4,), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 1, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
     _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
 
 
@@ -752,6 +743,7 @@ def test_forward_mobilenet():
 #######################################################################
 # PTB
 # ---
+dir(tf.contrib)
 def test_forward_ptb():
     '''test ptb model'''
     config = nnvm.testing.tf.get_config()
@@ -834,14 +826,9 @@ def test_forward_ptb():
         # Call the utility to import the graph definition into default graph.
         graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
         sess = tf.Session()
-    initializer = tf.random_uniform_initializer(config.init_scale,
-                                                config.init_scale)
-    with tf.variable_scope("Model", reuse=None, initializer=initializer):
-        mtest = nnvm.testing.tf.PTBModel(is_training=False, config=config)
 
     #TVM graph module creation
     params, m = _get_tvm_graph_module(graph_def)
-
 
     # Create 10 predicted statments of 20 words
     cnt_stm = 0
