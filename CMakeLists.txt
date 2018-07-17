@@ -169,7 +169,8 @@ target_link_libraries(nnvm_compiler tvm)
 # Related headers
 target_include_directories(
   tvm
-  PUBLIC "HalideIR/src")
+  PUBLIC "HalideIR/src"
+  PUBLIC "topi/include")
 target_include_directories(
   tvm_topi
   PUBLIC "topi/include")
