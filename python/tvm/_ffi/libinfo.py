@@ -40,11 +40,11 @@ def find_lib_path(name=None, search_path=None, optional=False):
         dll_path.extend([p.strip() for p in os.environ['DYLD_LIBRARY_PATH'].split(":")])
 
     # Pip lib directory
-    dll_path.append(os.path.join(ffi_dir, "../"))
+    dll_path.append(os.path.join(ffi_dir, ".."))
     # Default cmake build directory
     dll_path.append(os.path.join(source_dir, "build"))
     dll_path.append(os.path.join(source_dir, "build", "Release"))
-    # Default mkae build directory
+    # Default make build directory
     dll_path.append(os.path.join(source_dir, "lib"))
 
     dll_path.append(install_lib_dir)
