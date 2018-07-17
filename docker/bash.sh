@@ -3,6 +3,10 @@
 # Start a bash, mount /workspace to be current directory.
 #
 # Usage: docker/bash.sh <CONTAINER_NAME>
+#     Starts an interactive session
+#
+# Usage2: docker/bash.sh <CONTAINER_NAME> [COMMAND]
+#     Execute command in the docker image, non-interactive
 #
 if [ "$#" -lt 1 ]; then
     echo "Usage: docker/bash.sh <CONTAINER_NAME> [COMMAND]"
@@ -13,7 +17,7 @@ DOCKER_IMAGE_NAME=("$1")
 
 if [ "$#" -eq 1 ]; then
     COMMAND="bash"
-    CI_DOCKER_EXTRA_PARAMS=("--net=host")
+    CI_DOCKER_EXTRA_PARAMS=("-it --net=host")
 else
     shift 1
     COMMAND=("$@")
@@ -40,7 +44,7 @@ echo "Running '${COMMAND[@]}' inside ${DOCKER_IMAGE_NAME}..."
 # and share the PID namespace (--pid=host) so the process inside does not have
 # pid 1 and SIGKILL is propagated to the process inside (jenkins can kill it).
 echo ${DOCKER_BINARY}
-${DOCKER_BINARY} run --rm -it --pid=host\
+${DOCKER_BINARY} run --rm --pid=host\
     -v ${WORKSPACE}:/workspace \
     -v ${SCRIPT_DIR}:/docker \
     -w /workspace \
