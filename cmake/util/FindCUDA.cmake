@@ -29,8 +29,8 @@ macro(find_cuda use_cuda)
     set(CUDA_FOUND TRUE)
     if(MSVC)
       find_library(CUDA_CUDART_LIBRARY cudart
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
     else(MSVC)
       find_library(CUDA_CUDART_LIBRARY cudart
         ${CUDA_TOOLKIT_ROOT_DIR}/lib64
@@ -41,18 +41,18 @@ macro(find_cuda use_cuda)
   # additional libraries
   if(CUDA_FOUND)
     if(MSVC)
-      find_library(CUDA_NVRTC_LIBRARY cuda
+      find_library(CUDA_CUDA_LIBRARY cuda
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
       find_library(CUDA_NVRTC_LIBRARY nvrtc
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
       find_library(CUDA_CUDNN_LIBRARY cudnn
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
       find_library(CUDA_CUBLAS_LIBRARY cublas
         ${CUDA_TOOLKIT_ROOT_DIR}/lib/x64
-        ${CUDA_TOOLKIT_ROOT_DIR}/lib/win32)
+        ${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32)
     else(MSVC)
       find_library(_CUDA_CUDA_LIBRARY cuda
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
