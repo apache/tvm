@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm.contrib.cuda import have_fp16
+from tvm.contrib.nvcc import have_fp16
 
 def test_cuda_vectorize_add():
     num_thread = 8

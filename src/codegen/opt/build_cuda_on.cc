@@ -15,6 +15,12 @@
 #include "../../runtime/cuda/cuda_common.h"
 #include "../../runtime/cuda/cuda_module.h"
 
+#ifdef _WIN32
+#define PATH_DELIMITER "\\"
+#else
+#define PATH_DELIMITER "/"
+#endif
+
 namespace tvm {
 namespace codegen {
 
@@ -30,7 +36,7 @@ namespace codegen {
 
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   char *compileParams[2];
-  int numCompileOptions = 0;
+  int num_options = 0;
   nvrtcProgram prog;
   cudaDeviceProp deviceProp;
   std::string cc = "30";
@@ -44,10 +50,10 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   }
 
   std::string archOption = "-arch=compute_" + cc;
-  compileParams[numCompileOptions] = reinterpret_cast<char *>(malloc(sizeof(char) *
+  compileParams[num_options] = reinterpret_cast<char *>(malloc(sizeof(char) *
                                                                      (archOption.length() + 1)));
-  snprintf(compileParams[numCompileOptions], archOption.length() + 1, "%s", archOption.c_str());
-  numCompileOptions++;
+  snprintf(compileParams[num_options], archOption.length() + 1, "%s", archOption.c_str());
+  num_options++;
 
   if (include_path) {
     std::string includeOption = "--include-path=";
@@ -55,22 +61,23 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
 
     if (cudaHomePath != nullptr) {
       includeOption += cudaHomePath;
-      includeOption += "/include";
+      includeOption += PATH_DELIMITER;
+      includeOption += "include";
     } else {
       LOG(FATAL)
           << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
     }
 
-    compileParams[numCompileOptions] = reinterpret_cast<char *>(malloc(sizeof(char) *
+    compileParams[num_options] = reinterpret_cast<char *>(malloc(sizeof(char) *
                                                        (includeOption.length() + 1)));
-    snprintf(compileParams[numCompileOptions], includeOption.length() + 1, "%s",
+    snprintf(compileParams[num_options], includeOption.length() + 1, "%s",
              includeOption.c_str());
-    numCompileOptions++;
+    num_options++;
   }
 
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, numCompileOptions, compileParams);
+  nvrtcResult compile_res = nvrtcCompileProgram(prog, num_options, compileParams);
 
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
@@ -86,7 +93,7 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
 
   if (include_path) {
-    for (int i = 0; i < numCompileOptions; i++) {
+    for (int i = 0; i < num_options; i++) {
       free(compileParams[i]);
     }
   }
