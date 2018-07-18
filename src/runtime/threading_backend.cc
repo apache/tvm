@@ -96,7 +96,7 @@ class ThreadGroup::Impl {
 #if defined(__linux__) || defined(__ANDROID__)
     CHECK_GE(sorted_order_.size(), num_workers_);
 
-    for (int i = 0; i < num_workers_; ++i) {
+    for (unsigned i = 0; i < threads_.size(); ++i) {
       unsigned core_id;
       if (reverse) {
         core_id = sorted_order_[sorted_order_.size() - (i + exclude_worker0) - 1];
