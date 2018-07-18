@@ -35,24 +35,22 @@ namespace codegen {
   }
 
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
-  char *compileParams[2];
+  std::vector<std::string> compile_params;
+  std::vector<const char*> param_cstrings;
   int num_options = 0;
   nvrtcProgram prog;
-  cudaDeviceProp deviceProp;
+  cudaDeviceProp device_prop;
   std::string cc = "30";
-  cudaError_t e = cudaGetDeviceProperties(&deviceProp, 0);
+  cudaError_t e = cudaGetDeviceProperties(&device_prop, 0);
 
   if (e == cudaSuccess) {
-    cc = std::to_string(deviceProp.major) + std::to_string(deviceProp.minor);
+    cc = std::to_string(device_prop.major) + std::to_string(device_prop.minor);
   } else {
     LOG(WARNING) << "cannot detect compute capability from your device, "
                  << "fall back to compute_30.";
   }
 
-  std::string archOption = "-arch=compute_" + cc;
-  compileParams[num_options] = reinterpret_cast<char *>(malloc(sizeof(char) *
-                                                                     (archOption.length() + 1)));
-  snprintf(compileParams[num_options], archOption.length() + 1, "%s", archOption.c_str());
+  compile_params[num_options] = "-arch=compute_" + cc;
   num_options++;
 
   if (include_path) {
@@ -68,16 +66,15 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
           << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
     }
 
-    compileParams[num_options] = reinterpret_cast<char *>(malloc(sizeof(char) *
-                                                       (includeOption.length() + 1)));
-    snprintf(compileParams[num_options], includeOption.length() + 1, "%s",
-             includeOption.c_str());
+    compile_params[num_options] = includeOption;
     num_options++;
   }
 
+  for (const auto& string : compile_params)
+      param_cstrings.push_back(&string.front());
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, num_options, compileParams);
+  nvrtcResult compile_res = nvrtcCompileProgram(prog, num_options, param_cstrings.data());
 
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
@@ -91,12 +88,6 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   ptx.resize(ptx_size);
   NVRTC_CALL(nvrtcGetPTX(prog, &ptx[0]));
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
-
-  if (include_path) {
-    for (int i = 0; i < num_options; i++) {
-      free(compileParams[i]);
-    }
-  }
 
   return ptx;
 }
