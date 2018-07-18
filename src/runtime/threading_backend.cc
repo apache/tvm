@@ -127,7 +127,7 @@ class ThreadGroup::Impl {
   }
 
   void InitSortedOrder() {
-    unsigned int threads = std::thread::hardware_concurrency();
+    unsigned int threads = threading::MaxConcurrency();
     std::vector<std::pair <unsigned int, int64_t> > max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {
