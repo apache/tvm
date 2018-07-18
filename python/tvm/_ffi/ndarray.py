@@ -134,6 +134,32 @@ class NDArrayBase(_NDArrayBase):
         """context of this array"""
         return self.ctx
 
+    def __hash__(self):
+        return ctypes.cast(self.handle, ctypes.c_void_p).value
+
+    def __eq__(self, other):
+        return self.same_as(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def same_as(self, other):
+        """Check object identity equality
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare to
+
+        Returns
+        -------
+        same : bool
+            Whether other is same as self.
+        """
+        if not isinstance(other, NDArrayBase):
+            return False
+        return self.__hash__() == other.__hash__()
+
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
         if (not isinstance(in_slice, slice) or
