@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals, too-many-branches
 """Convolution in python"""
 import numpy as np
 import scipy.signal
@@ -18,8 +18,8 @@ def conv2d_nchw_python(a_np, w_np, stride, padding):
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
 
-    padding : int or str
-        Padding size, or ['VALID', 'SAME']
+    padding : int or str or a list/tuple of two ints
+        Padding size, or ['VALID', 'SAME'], or [pad_height, pad_width]
 
     Returns
     -------
@@ -34,12 +34,11 @@ def conv2d_nchw_python(a_np, w_np, stride, padding):
         stride_h, stride_w = stride
     if isinstance(padding, int):
         pad_h = pad_w = padding * 2
-    elif padding == 'VALID':
-        pad_h = 0
-        pad_w = 0
-    else: # 'SAME'
-        pad_h = kernel_h - 1
-        pad_w = kernel_w - 1
+    elif isinstance(padding, (list, tuple)):
+        pad_h, pad_w = padding[0] * 2, padding[1] * 2
+    else:
+        pad_h = 0 if padding == 'VALID' else kernel_h - 1
+        pad_w = 0 if padding == 'VALID' else kernel_w - 1
     pad_top = int(np.ceil(float(pad_h) / 2))
     pad_bottom = pad_h - pad_top
     pad_left = int(np.ceil(float(pad_w) / 2))
@@ -53,9 +52,14 @@ def conv2d_nchw_python(a_np, w_np, stride, padding):
     for n in range(batch):
         for f in range(out_channel):
             for c in range(in_channel):
-                if pad_h > 0:
+                if pad_h > 0 or pad_w > 0:
                     apad = np.zeros((in_height + pad_h, in_width + pad_w))
-                    apad[pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
+                    if pad_h == 0:
+                        apad[:, pad_left:-pad_right] = a_np[n, c]
+                    elif pad_w == 0:
+                        apad[pad_top:-pad_bottom, :] = a_np[n, c]
+                    else:
+                        apad[pad_top:-pad_bottom, pad_left:-pad_right] = a_np[n, c]
                 else:
                     apad = a_np[n, c]
                 out = scipy.signal.convolve2d(
