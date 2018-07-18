@@ -39,7 +39,10 @@ import android.app.NotificationManager;
 
 
 public class MainActivity extends AppCompatActivity {
-  private int num;
+  private boolean skipRelaunch = true;
+  // wait time before automatic restart of RPC Activity
+  public static final int HANDLER_RESTART_DELAY = 5000;
+
  
   private void showDialog(String title, String msg) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -60,7 +63,7 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-    Switch inputSwitch =  findViewById(R.id.switch_connect);
+    Switch inputSwitch =  findViewById(R.id.switch_persistent);
     
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
@@ -85,10 +88,10 @@ public class MainActivity extends AppCompatActivity {
 
   private void setupRelaunch() {
     final Context context = this;
-    final Switch switchConnect = findViewById(R.id.switch_connect);
+    final Switch switchPersistent = findViewById(R.id.switch_persistent);
     final Runnable rPCStarter = new Runnable() {
         public void run() {
-            if (switchConnect.isChecked()) {
+            if (switchPersistent.isChecked()) {
               System.err.println("relaunching RPC activity in 5s...");
               Intent intent = ((MainActivity) context).updateRPCPrefs(); 
               startActivity(intent);
@@ -96,9 +99,8 @@ public class MainActivity extends AppCompatActivity {
         }
     };
     Handler handler = new Handler();
-    handler.postDelayed(rPCStarter, 5000);
+    handler.postDelayed(rPCStarter, HANDLER_RESTART_DELAY);
   }
-
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -108,8 +110,8 @@ public class MainActivity extends AppCompatActivity {
     setSupportActionBar(toolbar);
     final Context context = this;
     
-    Switch switchConnect = findViewById(R.id.switch_connect);
-    switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+    Switch switchPersistent = findViewById(R.id.switch_persistent);
+    switchPersistent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
       @Override
       public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
         if (isChecked) {
@@ -130,23 +132,21 @@ public class MainActivity extends AppCompatActivity {
         }
     });
 
-    System.err.println("MainActivity onCreate...");
-    System.err.println("num: " + num);
-    num++;
-
     enableInputView(true);
-    //setupRelaunch();
   }
 
   @Override
   protected void onResume() {
     System.err.println("MainActivity onResume...");
-    System.err.println("num: " + num);
-    num++;
-
-    enableInputView(true);
-    setupRelaunch();
-
+    System.err.println("skipRelaunch: " + skipRelaunch);
+    // if this is the first time onResume is called, do nothing, otherwise we
+    // may double launch
+    if (!skipRelaunch) {
+        enableInputView(true);
+        setupRelaunch();
+    } else {
+        skipRelaunch = false;
+    }
     super.onResume();
   }
 
@@ -163,7 +163,7 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
-    Switch input_switch = findViewById(R.id.switch_connect);
+    Switch input_switch = findViewById(R.id.switch_persistent);
     edProxyAddress.setEnabled(enable);
     edProxyPort.setEnabled(enable);
     edAppKey.setEnabled(enable);

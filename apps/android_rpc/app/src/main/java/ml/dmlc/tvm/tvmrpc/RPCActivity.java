@@ -35,10 +35,14 @@ public class RPCActivity extends AppCompatActivity {
     Button stopRPC = findViewById(R.id.button_stop_rpc);
     stopRPC.setOnClickListener(new View.OnClickListener() {
         public void onClick(View v) {
+            System.err.println(tvmServerWorker == null);
             if (tvmServerWorker != null) {
+                // currently will raise a socket closed exception
                 tvmServerWorker.disconnect();
             } 
             finish();
+            // prevent Android from recycling the process
+            System.exit(0);
         }
     });
 

@@ -47,7 +47,10 @@ class RPCWatchdog extends Thread {
     try {
         while (true) {
           if (tvmServerWorker.timedOut(System.currentTimeMillis())) {
-            System.err.println("rpc processor timed out, killing self...");  Thread.sleep(WATCHDOG_POLL_INTERVAL);
+            System.err.println("rpc processor timed out, killing self (and process)...");  Thread.sleep(WATCHDOG_POLL_INTERVAL);
+            System.err.println("terminating (cleanup)...");
+            tvmServerWorker.disconnect();
+            System.err.println("exiting...");
             System.exit(0);
           } else {
             System.err.println("rpc processor ok...");
