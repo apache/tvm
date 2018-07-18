@@ -541,14 +541,20 @@ def test_forward_inception_v1():
 
         # Build an image from random data.
         from PIL import Image
+        from tvm.contrib import util
+
         img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
         img = Image.frombuffer('RGB', (600, 600), img_array.tostring(), 'raw', 'RGB', 0, 1)
-        img.save('tf_test.jpg');
+        temp = util.tempdir()
+        img_path = temp.relpath("tf-test.jpg")
+        img.save(img_path);
 
         import os.path
-        if not tf.gfile.Exists(os.path.join('./tf_test.jpg')):
+        if not tf.gfile.Exists(os.path.join(img_path)):
             tf.logging.fatal('File does not exist %s', image)
-        data = tf.gfile.FastGFile(os.path.join("./tf_test.jpg"), 'rb').read()
+        data = tf.gfile.FastGFile(os.path.join(img_path), 'rb').read()
+
+        temp.remove()
 
         # Extract tensorflow decoded image frame for tvm input
         with tf.Session() as sess:
