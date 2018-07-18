@@ -57,7 +57,7 @@ class ThreadGroup::Impl {
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
       // Skip if sorted_order.size() is bigger than the number of workers (threads_)
-      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_))) {
+      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_used))) {
           SetAffinity(exclude_worker0, mode == kLittle);
       } else {
         LOG(WARNING)
@@ -127,7 +127,7 @@ class ThreadGroup::Impl {
   }
 
   void InitSortedOrder() {
-    unsigned int threads = std::thread::hardware_concurrency();
+    unsigned int threads = threading::MaxConcurrency();
     std::vector<std::pair <unsigned int, int64_t> > max_freqs;
 
     for (unsigned int i = 0; i < threads; ++i) {
