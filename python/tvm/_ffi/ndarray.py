@@ -144,7 +144,18 @@ class NDArrayBase(_NDArrayBase):
         return not self.__eq__(other)
 
     def same_as(self, other):
-        """check object identity equality"""
+        """Check object identity equality
+
+        Parameters
+        ----------
+        other : object
+            The other object to compare to
+
+        Returns
+        -------
+        same : bool
+            Whether other is same as self.
+        """
         if not isinstance(other, NDArrayBase):
             return False
         return self.__hash__() == other.__hash__()

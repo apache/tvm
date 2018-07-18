@@ -104,8 +104,14 @@ class NDArray {
    * \note The copy may happen asynchrously if it involves a GPU context.
    *       TVMSynchronize is necessary.
    */
-  inline void CopyTo(DLTensor* other);
-  inline void CopyTo(const NDArray& other);
+  inline void CopyTo(DLTensor* other) const;
+  inline void CopyTo(const NDArray& other) const;
+  /*!
+   * \brief Copy the data to another context.
+   * \param ctx The target context.
+   * \return The array under another context.
+   */
+  inline NDArray CopyTo(const DLContext& ctx) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -279,15 +285,24 @@ inline void NDArray::CopyFrom(const NDArray& other) {
   CopyFromTo(&(other.data_->dl_tensor), &(data_->dl_tensor));
 }
 
-inline void NDArray::CopyTo(DLTensor* other) {
+inline void NDArray::CopyTo(DLTensor* other) const {
   CHECK(data_ != nullptr);
   CopyFromTo(&(data_->dl_tensor), other);
 }
 
-inline void NDArray::CopyTo(const NDArray& other) {
+inline void NDArray::CopyTo(const NDArray& other) const {
   CHECK(data_ != nullptr);
   CHECK(other.data_ != nullptr);
   CopyFromTo(&(data_->dl_tensor), &(other.data_->dl_tensor));
+}
+
+inline NDArray NDArray::CopyTo(const DLContext& ctx) const {
+  CHECK(data_ != nullptr);
+  const DLTensor* dptr = operator->();
+  NDArray ret = Empty(std::vector<int64_t>(dptr->shape, dptr->shape + dptr->ndim),
+                      dptr->dtype, ctx);
+  this->CopyTo(ret);
+  return ret;
 }
 
 inline int NDArray::use_count() const {
@@ -307,8 +322,15 @@ inline bool SaveDLTensor(dmlc::Stream* strm,
   uint64_t header = kTVMNDArrayMagic, reserved = 0;
   strm->Write(header);
   strm->Write(reserved);
-  // always save data as CPU context
-  // so that when loading, it will be loaded as CPU ctx.
+  // Always save data as CPU context
+  //
+  // Parameters that get serialized should be in CPU by default.
+  // So even the array's context is GPU, it will be stored as CPU array.
+  // This is used to prevent case when another user loads the parameters
+  // back on machine that do not have GPU or related context.
+  //
+  // We can always do array.CopyTo(target_ctx) to get a corresponding
+  // array in the target context.
   DLContext cpu_ctx;
   cpu_ctx.device_type = kDLCPU;
   cpu_ctx.device_id = 0;
