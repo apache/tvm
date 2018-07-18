@@ -54,10 +54,16 @@ class ThreadGroup::Impl {
     if (nthreads) {
       num_workers_used = nthreads;
     }
+    // if MaxConcurrency restricted the number of workers (e.g., due to
+    // hyperthreading), respect the restriction. On CPUs with N logical cores
+    // and N/2 physical cores this will set affinity to the first N/2 logical
+    // ones.
+    num_workers_used = std::min(num_workers_, num_workers_used);
+
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
-      // Skip if sorted_order.size() is bigger than the number of workers (threads_)
-      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_))) {
+      // Do not set affinity if there are more workers than found cores
+      if (sorted_order_.size() >= static_cast<unsigned int>(num_workers_)) {
           SetAffinity(exclude_worker0, mode == kLittle);
       } else {
         LOG(WARNING)
