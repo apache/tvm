@@ -141,6 +141,14 @@ def test_forward_expand_dims():
     mx_sym = mx.sym.expand_dims(data, axis=1)
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 1, 3, 4))
 
+def test_forward_pooling():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='avg')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
+
+    mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='max')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -154,3 +162,4 @@ if __name__ == '__main__':
     test_forward_split()
     test_forward_split_squeeze()
     test_forward_expand_dims()
+    test_forward_pooling()

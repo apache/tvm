@@ -58,7 +58,7 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     out_width = (in_width + 2 * WPAD - kernel_width) // WSTR + 1
 
     # pack data
-    DOPAD = (HPAD != 0 and WPAD != 0)
+    DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
         data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
@@ -108,7 +108,7 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     sch = _get_schedule(wkl)
 
     HPAD, WPAD = wkl.hpad, wkl.wpad
-    DOPAD = (HPAD != 0 and WPAD != 0)
+    DOPAD = (HPAD != 0 or WPAD != 0)
 
     A, W = data, kernel_vec
     A0, A1 = data_pad, data_vec
@@ -181,7 +181,7 @@ def _declaration_conv_NCHWc(wkl, sch, data, kernel):
     out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
 
     # pack data
-    DOPAD = (HPAD != 0 and WPAD != 0)
+    DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
         data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
     else:
