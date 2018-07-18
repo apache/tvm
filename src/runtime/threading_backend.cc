@@ -57,7 +57,7 @@ class ThreadGroup::Impl {
     const char *val = getenv("TVM_BIND_THREADS");
     if (val == nullptr || atoi(val) == 1) {
       // Skip if sorted_order.size() is bigger than the number of workers (threads_)
-      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_used))) {
+      if (!(sorted_order_.size() > static_cast<unsigned int>(num_workers_))) {
           SetAffinity(exclude_worker0, mode == kLittle);
       } else {
         LOG(WARNING)
