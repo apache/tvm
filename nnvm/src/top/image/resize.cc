@@ -40,13 +40,9 @@ inline bool ResizeInferShape(const nnvm::NodeAttrs& attrs,
   dshape = ConvertLayout(dshape, param.layout, kNCHW);
 
   TShape oshape = dshape;
-  if (param.layout == "NCHW") {
-    oshape[2] = param.size[0];
-    oshape[3] = param.size[1];
-  } else {
-    oshape[1] = param.size[0];
-    oshape[2] = param.size[1];
-  }
+  oshape[2] = param.size[0];
+  oshape[3] = param.size[1];
+
   oshape = ConvertLayout(oshape, kNCHW, param.layout);
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
 

@@ -153,7 +153,7 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
   Expr y_ratio;
   Expr x_ratio;
 
-  if (align_corners) {
+  if (!align_corners) {
     y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
     x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
@@ -170,21 +170,31 @@ inline Tensor resize_bilinear_nhwc(const Tensor& input,
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(y_ratio * indices[1]));
-    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(x_ratio * indices[2]));
+    auto in_y = indices[1] * y_ratio;
+    auto yf = tvm::floor(in_y);
+    auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
 
-    auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
-    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
+    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+    auto y1 = tvm::select((yc > other_y), other_y, yc);
+    auto y_lerp  = in_y - yf;
 
-    auto h = (y_ratio * indices[1]) - y0;
-    auto w = (x_ratio * indices[2]) - x0;;
+    auto in_x = indices[2] * x_ratio;
+    auto xf = tvm::floor(in_x);
+    auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+
+    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+    auto x1 = tvm::select((xc > other_x), other_x, xc);
+    auto x_lerp  = in_x - xf;
 
     auto A = input(indices[0], y0, x0, indices[3]);
     auto B = input(indices[0], y0, x1, indices[3]);
     auto C = input(indices[0], y1, x0, indices[3]);
     auto D = input(indices[0], y1, x1, indices[3]);
 
-    return  (A*(cone-w)*(cone-h) + B*(w)*(cone-h) + C*(h)*(cone-w) + D*w*h);
+    auto top = A + (B - A) * x_lerp;
+    auto bottom = C + (D - C) * x_lerp;
+
+    return  (top + (bottom - top) * y_lerp);
     }, name, tag);
 }
 
@@ -220,7 +230,7 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
   Expr y_ratio;
   Expr x_ratio;
 
-  if (align_corners) {
+  if (!align_corners) {
     y_ratio = make_const(Float(32), (static_cast<float>(*in_height) /
                                      static_cast<float>(*out_height)));
     x_ratio = make_const(Float(32), (static_cast<float>(*in_width) /
@@ -237,21 +247,31 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
 
   return compute(
     out_shape, [&](const Array<Var>& indices) {
-    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(y_ratio * indices[2]));
-    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(x_ratio * indices[3]));
+    auto in_y = indices[2] * y_ratio;
+    auto yf = tvm::floor(in_y);
+    auto yc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_y));
 
-    auto y1 = tvm::select(((y0 + cone) > other_y), other_y, (y0 + cone));
-    auto x1 = tvm::select(((x0 + cone) > other_x), other_x, (x0 + cone));
+    auto y0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_y));
+    auto y1 = tvm::select((yc > other_y), other_y, yc);
+    auto y_lerp  = in_y - yf;
 
-    auto h = (y_ratio * indices[2]) - y0;
-    auto w = (x_ratio * indices[3]) - x0;;
+    auto in_x = indices[3] * x_ratio;
+    auto xf = tvm::floor(in_x);
+    auto xc = HalideIR::Internal::Cast::make(Int(32), tvm::ceil(in_x));
+
+    auto x0 = HalideIR::Internal::Cast::make(Int(32), tvm::floor(in_x));
+    auto x1 = tvm::select((xc > other_x), other_x, xc);
+    auto x_lerp  = in_x - xf;
 
     auto A = input(indices[0], indices[1], y0, x0);
     auto B = input(indices[0], indices[1], y0, x1);
     auto C = input(indices[0], indices[1], y1, x0);
     auto D = input(indices[0], indices[1], y1, x1);
 
-    return  ((A*(cone-w)*(cone-h)) + (B*(w)*(cone-h)) + (C*(h)*(cone-w)) + (D*w*h));
+    auto top = A + (B - A) * x_lerp;
+    auto bottom = C + (D - C) * x_lerp;
+
+    return  (top + (bottom - top) * y_lerp);
     }, name, tag);
 }
 

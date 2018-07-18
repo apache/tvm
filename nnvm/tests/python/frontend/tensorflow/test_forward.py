@@ -470,23 +470,64 @@ def test_forward_multi_input():
             sess.close()
 
 #######################################################################
+# Resize Bilinear
+# ---------------
+
+def _test_resize_bilinear(in_shape, to_shape, align_corners):
+    """ One iteration of resize bilinear """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    shape_data = np.array(to_shape).astype('int32')
+
+    with tf.Graph().as_default():
+        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        shape_data = constant_op.constant(shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
+
+        # pylint: disable=unused-variable
+        resize_out = tf.image.resize_bilinear(in_data, shape_data, align_corners=align_corners)
+        # pylint: enable=unused-variable
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                ['ResizeBilinear'],
+                )
+
+            tf_output = run_tf_graph(sess, data,
+                    'Const:0', 'ResizeBilinear:0')
+
+            tvm_output = run_tvm_graph(graph_def,
+                                       data,
+                                       "Const", tf_output.shape, data.dtype)
+
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
+
+            sess.close()
+
+def test_forward_resize_bilinear():
+    """ Resize Bilinear """
+
+    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
+    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
+
+
+#######################################################################
 # Inception V3
 # ------------
 def test_forward_inception_v3():
     '''test inception V3 model'''
     with tf.Graph().as_default():
-        (data, graph_def) = nnvm.testing.tf.get_workload_inception_v3()
+        graph_def = nnvm.testing.tf.get_workload('InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb')
         # Call the utility to import the graph definition into default graph.
         graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
-        tvm_output = run_tvm_graph(graph_def, data, 'input', (1, 1001), 'float32')
+        data = np.random.uniform(size=(1, 299, 299, 3)).astype('float32')
+
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', 'InceptionV3/Predictions/Reshape_1:0')
-
-            top_tvm = np.squeeze(tvm_output).argsort()[-3:][::-1]
-            top_tf = np.squeeze(tf_output).argsort()[-3:][::-1]
-
-            np.testing.assert_allclose(top_tf, top_tvm, rtol=1e-5, atol=1e-5)
+            tvm_output = run_tvm_graph(graph_def, data, 'input', tf_output.shape, 'float32')
+            np.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Inception V1
@@ -494,16 +535,35 @@ def test_forward_inception_v3():
 def test_forward_inception_v1():
     '''test inception V1 model'''
     with tf.Graph().as_default():
-        (data, tvm_data, graph_def) = nnvm.testing.tf.get_workload_inception_v1()
+        graph_def = nnvm.testing.tf.get_workload("InceptionV1/classify_image_graph_def-with_shapes.pb")
         # Call the utility to import the graph definition into default graph.
         graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
-        tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents', (1, 1008), 'float32')
+        # Build an image from random data.
+        from PIL import Image
+        from tvm.contrib import util
+
+        img_array = np.random.uniform(size=(1, 600, 600, 3)).astype("uint8")
+        img = Image.frombuffer('RGB', (600, 600), img_array.tostring(), 'raw', 'RGB', 0, 1)
+        temp = util.tempdir()
+        img_path = temp.relpath("tf-test.jpg")
+        img.save(img_path);
+
+        import os.path
+        if not tf.gfile.Exists(os.path.join(img_path)):
+            tf.logging.fatal('File does not exist %s', image)
+        data = tf.gfile.FastGFile(os.path.join(img_path), 'rb').read()
+
+        temp.remove()
+
+        # Extract tensorflow decoded image frame for tvm input
+        with tf.Session() as sess:
+            tvm_data = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'DecodeJpeg:0')
 
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'softmax:0')
-
-        np.testing.assert_allclose(tf_output, tvm_output, rtol=2e-2, atol=2e-2)
+            tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents', tf_output.shape, 'float32')
+            np.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Mobilenet
@@ -511,7 +571,7 @@ def test_forward_inception_v1():
 def test_forward_mobilenet():
     '''test mobilenet model'''
     with tf.Graph().as_default():
-        graph_def = nnvm.testing.tf.get_workload_mobilenet()
+        graph_def = nnvm.testing.tf.get_workload("MobilenetV1/mobilenet_v1_1.0_224_frozen-with-shapes.pb")
         # Call the utility to import the graph definition into default graph.
         graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
@@ -520,12 +580,7 @@ def test_forward_mobilenet():
 
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
-
-            out_shape = tf_output.shape
-            tvm_output = run_tvm_graph(graph_def, data, 'input', out_shape, 'float32')
-            top_tvm = np.squeeze(tvm_output).argsort()[-10:][::-1]
-            top_tf = np.squeeze(tf_output).argsort()[-10:][::-1]
-
+            tvm_output = run_tvm_graph(graph_def, data, 'input', tf_output.shape, 'float32')
             np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
@@ -544,3 +599,4 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_variable()
+    test_forward_resize_bilinear()
