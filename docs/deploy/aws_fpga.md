@@ -116,7 +116,6 @@ export XCL_TARGET=hw
 
 python build.py
 ```
-The result shows CL_INVALID_PROGRAM error.  It is because AWS SDAccel expects awsxclbin binary, but we pass xclbin instead of it.  We don't load FPGA image here, so simply ignore the error for now.
 
 - Create AWS FPGA image and upload it to AWS S3.
 ```
