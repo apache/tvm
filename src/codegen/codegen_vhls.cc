@@ -2,6 +2,7 @@
  *  Copyright (c) 2018 by Contributors
  * \file codegen_vhls.cc
  */
+#include <tvm/build_module.h>
 #include <vector>
 #include <string>
 #include "./codegen_vhls.h"
@@ -67,7 +68,7 @@ void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
 }
 
 
-runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
+runtime::Module BuildSDAccel(Array<LoweredFunc> funcs, std::string target_str) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenVivadoHLS cg;
@@ -94,7 +95,8 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
 
   std::string xclbin;
   if (const auto* f = Registry::Get("tvm_callback_sdaccel_compile")) {
-    xclbin = (*f)(kernel_info).operator std::string();
+    Target target = Target::create(target_str);
+    xclbin = (*f)(kernel_info, target->device_name).operator std::string();
   } else {
     LOG(FATAL) << "Cannot compile Vivado HLS code.";
   }
@@ -103,7 +105,7 @@ runtime::Module BuildSDAccel(Array<LoweredFunc> funcs) {
 
 TVM_REGISTER_API("codegen.build_sdaccel")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildSDAccel(args[0]);
+    *rv = BuildSDAccel(args[0], args[1]);
   });
 
 }  // namespace codegen

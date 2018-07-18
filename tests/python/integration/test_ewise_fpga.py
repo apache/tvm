@@ -40,6 +40,8 @@ def test_exp():
             b.asnumpy(), np.exp(a.asnumpy()), rtol=1e-5)
 
     check_device("sdaccel")
+    if "AWS_PLATFORM" in os.environ:
+        check_device("sdaccel -device=" + os.environ.get("AWS_PLATFORM"))
 
 
 def test_multi_kernel():

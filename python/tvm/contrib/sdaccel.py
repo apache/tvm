@@ -6,7 +6,7 @@ from ..api import register_func
 
 
 @register_func("tvm_callback_sdaccel_compile")
-def compile_vhls(kernel_info):
+def compile_vhls(kernel_info, device_name):
     """Compile Vivado HLS code for SDAccel.
 
     Parameters
@@ -14,6 +14,9 @@ def compile_vhls(kernel_info):
     kernel_info : list of (str, str)
         List of kernel information.  The kernel information is a tuple of
         function name and source code.
+
+    device_name : str
+        The name of the target device
 
     Return
     ------
@@ -28,7 +31,9 @@ def compile_vhls(kernel_info):
                             "sw_emu" if os.environ.get("XCL_EMULATION_MODE") else "hw")
     advanced_params = ["--xp", "param:compiler.preserveHlsOutput=1",
                        "--xp", "param:compiler.generateExtraRunData=true"]
-    platform = os.environ.get("XCL_PLATFORM", os.environ.get("AWS_PLATFORM"))
+    platform = device_name
+    if not platform:
+        platform = os.environ.get("XCL_PLATFORM", os.environ.get("AWS_PLATFORM"))
 
     if platform is None:
         raise RuntimeError("No Xlinx device specified.")
