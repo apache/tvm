@@ -5,6 +5,7 @@
  *
  * \file build_cuda.cc
  */
+#include <sys/stat.h>
 #include <cuda_runtime.h>
 #include <tvm/base.h>
 #include <nvrtc.h>
@@ -15,11 +16,6 @@
 #include "../../runtime/cuda/cuda_common.h"
 #include "../../runtime/cuda/cuda_module.h"
 
-#ifdef _WIN32
-#define PATH_DELIMITER "\\"
-#else
-#define PATH_DELIMITER "/"
-#endif
 
 namespace tvm {
 namespace codegen {
@@ -33,6 +29,31 @@ namespace codegen {
           << nvrtcGetErrorString(result);                               \
     }                                                                   \
   }
+
+
+std::string find_cuda_include_path() {
+#ifdef _WIN32
+  const std::string delimiter = "\\";
+#else
+  const std::string delimiter = "/";
+#endif
+  std::string cuda_include_path;
+  const char* cuda_path_env = std::getenv("CUDA_PATH");
+  struct stat st;
+  if (cuda_path_env != nullptr) {
+    cuda_include_path += cuda_path_env;
+    cuda_include_path += delimiter + "include";
+    return cuda_include_path;
+  }
+
+  cuda_include_path = "/usr/local/cuda/include";
+  if (stat(cuda_include_path.c_str(), &st) == 0) {
+    return cuda_include_path;
+  }
+  LOG(FATAL) << "Cannot find cuda include path.";
+  return cuda_include_path;
+}
+
 
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   std::vector<std::string> compile_params;
@@ -54,27 +75,19 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   num_options++;
 
   if (include_path) {
-    std::string include_option = "--include-path=";
-    const char* cudaHomePath = std::getenv("CUDA_HOME");
-
-    if (cudaHomePath != nullptr) {
-      include_option += cudaHomePath;
-      include_option += PATH_DELIMITER;
-      include_option += "include";
-    } else {
-      LOG(FATAL)
-          << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
-    }
+    std::string include_option = "--include-path=" + find_cuda_include_path();
 
     compile_params.push_back(include_option);
     num_options++;
   }
 
-  for (const auto& string : compile_params)
+  for (const auto& string : compile_params) {
       param_cstrings.push_back(string.c_str());
+  }
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, num_options, param_cstrings.data());
+  nvrtcResult compile_res =
+      nvrtcCompileProgram(prog, param_cstrings.size(), param_cstrings.data());
 
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
