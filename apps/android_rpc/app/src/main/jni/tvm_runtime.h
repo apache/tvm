@@ -6,6 +6,18 @@
 #include <sys/stat.h>
 #include <fstream>
 
+/* Enable custom logging - this will cause TVM to pass every log message
+ * through CustomLogMessage instead of LogMessage. By enabling this, we must
+ * implement dmlc::CustomLogMessage::Log. We use this to pass TVM log
+ * messages to Android logcat.
+ */
+#define DMLC_LOG_CUSTOMIZE 1
+
+/* Ensure that fatal errors are passed to the logger before throwing
+ * in LogMessageFatal
+ */
+#define DMLC_LOG_BEFORE_THROW 1
+
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/workspace_pool.cc"
@@ -34,3 +46,12 @@
 #include "../src/runtime/vulkan/vulkan_device_api.cc"
 #include "../src/runtime/vulkan/vulkan_module.cc"
 #endif
+
+
+#include <android/log.h>
+
+void dmlc::CustomLogMessage::Log(const std::string& msg) {
+  // This is called for every message logged by TVM.
+  // We pass the message to logcat.
+  __android_log_write(ANDROID_LOG_DEBUG, "TVM_RUNTIME", msg.c_str());
+}
