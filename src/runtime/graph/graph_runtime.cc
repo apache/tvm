@@ -4,7 +4,7 @@
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/runtime/serializer.h>
+#include <tvm/runtime/ndarray.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
 #include <numeric>
@@ -399,52 +399,9 @@ class GraphRuntime : public ModuleNode {
 
 void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
   // always use strm->Read to maintain endianness conversion
-  uint64_t header, reserved;
-  CHECK(strm->Read(&header))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&reserved))
-      << "Invalid DLTensor file format";
-  CHECK(header == kTVMNDArrayMagic)
-      << "Invalid DLTensor file format";
-
-  DLTensor tensor;
-  CHECK(strm->Read(&(tensor.ctx)))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&(tensor.ndim)))
-      << "Invalid DLTensor file format";
-  CHECK(strm->Read(&(tensor.dtype)))
-      << "Invalid DLTensor file format";
-  std::vector<int64_t> shape(tensor.ndim);
-  if (tensor.ndim != 0) {
-    CHECK(strm->ReadArray(&shape[0], tensor.ndim))
-        << "Invalid DLTensor file format";
-  }
-  CHECK_EQ(tensor.ndim, dst->ndim) << "param dimension mismatch";
-  CHECK(tensor.dtype.bits == dst->dtype.bits &&
-        tensor.dtype.code == dst->dtype.code &&
-        tensor.dtype.lanes == dst->dtype.lanes) << "param type mismatch";
-  for (int i = 0; i < tensor.ndim; ++i) {
-    CHECK_EQ(shape[i], dst->shape[i]) << "param shape mismatch";
-  }
-  size_t bits = dst->dtype.bits * dst->dtype.lanes;
-  size_t elem_bytes = (bits + 7) / 8;
-  size_t num_elems = 1;
-  for (int i = 0; i < dst->ndim; ++i) {
-    num_elems *= dst->shape[i];
-  }
-  uint64_t data_byte_size;
-  CHECK(strm->Read(&data_byte_size))
-      << "Invalid DLTensor file format";
-  CHECK_EQ(data_byte_size, elem_bytes * num_elems)
-      << "Invalid DLTensor file format";
-  std::vector<uint8_t> bytes(data_byte_size + 1);
-  CHECK(strm->Read(&bytes[0], data_byte_size))
-      << "Invalid DLTensor file format";
-  // explicitly swap endian when necessary.
-  if (!DMLC_IO_NO_ENDIAN_SWAP) {
-    dmlc::ByteSwap(&bytes[0], elem_bytes, num_elems);
-  }
-  TVM_CCALL(TVMArrayCopyFromBytes(dst, &bytes[0], data_byte_size));
+  NDArray temp;
+  temp.Load(strm);
+  temp.CopyTo(dst);
 }
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {

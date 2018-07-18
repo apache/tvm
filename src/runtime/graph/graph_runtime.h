@@ -13,8 +13,6 @@
 namespace tvm {
 namespace runtime {
 
-/*! \brief Magic number for NDArray file */
-constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
 /*! \brief Magic number for NDArray list file  */
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
