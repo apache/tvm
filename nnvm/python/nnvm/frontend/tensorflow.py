@@ -332,26 +332,14 @@ def _expand_dims():
 
 def _resize_bilinear():
     def _impl(inputs, attr, params):
-        # Change this when we have corresponding resize bilinear operation.
-        print("ResizeBilinear:Only NN (nearest neighbor) supported in symetric mode of dimensions")
-        print("Change this when we have corresponding resize bilinear operation")
-
-        # NHWC
-        input_shape = attr['_input_shapes'][inputs[0]][0]
-        in_hw = (input_shape[1], input_shape[2])
-        out_hw = params[inputs[1].list_output_names()[0]]
+        attr['size'] = attr['_output_shapes'][0][1:3]
         inputs.pop(1)
+        # NHWC
         attr['layout'] = 'NHWC'
 
-        if in_hw[0] < 0 or in_hw[1] < 0:
-            scale = 1
-        else:
-            # Considering height alone for scale
-            scale = out_hw[0] / in_hw[0]
-
-        return AttrCvt(op_name="upsampling",
-                       ignores=['Tdim', 'align_corners'],
-                       extras={'scale': scale})(inputs, attr)
+        return AttrCvt(op_name="resize",
+                       ignores=['Tdim'],
+                       extras={'method': "BILINEAR"})(inputs, attr)
     return _impl
 
 def _check_numerics():
