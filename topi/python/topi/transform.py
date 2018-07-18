@@ -65,6 +65,9 @@ def expand_like(a, shape_like, axis):
     """
     odim = len(axis) + len(a.shape)
     if odim != len(shape_like.shape):
+        if len(a.shape) == 1 and len(axis) == len(shape_like.shape):
+            # A special case: `a` is a scalar represented as a 1-dim tensor
+            return tvm.compute(shape_like.shape, lambda *idxs: a(0))
         raise ValueError("shape inconsistent when expand_like ({}, {}, {})".format(
             len(axis), len(a.shape), len(shape_like.shape)))
 
