@@ -253,9 +253,6 @@ class ThreadPool {
           num_workers_, [this](int worker_id) { this->RunWorker(worker_id); },
           exclude_worker0_ /* include_main_thread */));
     num_workers_used_ = threads_->Configure(threading::ThreadGroup::kBig, 0, exclude_worker0_);
-    // if MaxConcurrency restricted the number of workers (e.g., due to
-    // hyperthreading), respect the restriction
-    num_workers_used_ = std::min(num_workers_, num_workers_used_);
   }
   ~ThreadPool() {
     for (std::unique_ptr<SpscTaskQueue>& q : queues_) {
