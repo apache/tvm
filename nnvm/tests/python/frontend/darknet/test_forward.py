@@ -7,17 +7,19 @@ by the script.
 """
 import os
 import requests
+import sys
+import urllib
 import numpy as np
+import tvm
+from tvm.contrib import graph_runtime
 from nnvm import frontend
 from nnvm.testing.darknet import __darknetffi__
 import nnvm.compiler
-import tvm
-import sys
-import urllib
 if sys.version_info >= (3,):
     import urllib.request as urllib2
 else:
     import urllib2
+
 
 def _download(url, path, overwrite=False, sizecompare=False):
     ''' Download from internet'''
@@ -55,13 +57,8 @@ def _get_tvm_output(net, data):
 
     target = 'llvm'
     shape_dict = {'data': data.shape}
-    #with nnvm.compiler.build_config(opt_level=2):
     graph, library, params = nnvm.compiler.build(sym, target, shape_dict, dtype, params=params)
-    ######################################################################
     # Execute on TVM
-    # ---------------
-    # The process is no different from other examples.
-    from tvm.contrib import graph_runtime
     ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, library, ctx)
     # set inputs

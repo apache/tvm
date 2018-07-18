@@ -25,34 +25,23 @@ import time
 import urllib
 import requests
 import numpy as np
+import urllib.request as urllib2
 import tvm
 from tvm.contrib import graph_runtime
-#from tvm.contrib.debugger import debug_runtime as graph_runtime
 from nnvm.testing.darknet import __darknetffi__
 import nnvm
 import nnvm.frontend.darknet
 
-if sys.version_info >= (3,):
-    import urllib.request as urllib2
-else:
-    import urllib2
-
-######################################################################
-# Prepare cfg and weights file
-# Pretrained model available
-# --------------------------------------------------------------------
-# Download cfg and weights file first time.
-MODEL_NAME = 'rnn'
-
+MODEL_NAME = 'rnn' #Model name
 seed = 'Thus' #Seed value
 num = 1000 #Number of characters to predict
 
+# Download cfg and weights file if first time.
 CFG_NAME = MODEL_NAME + '.cfg'
 WEIGHTS_NAME = MODEL_NAME + '.weights'
-CFG_URL = 'https://github.com/siju-samuel/darknet/blob/master/cfg/' + \
-            CFG_NAME + '?raw=true'
-WEIGHTS_URL = 'https://github.com/siju-samuel/darknet/blob/master/weights/' + \
-            WEIGHTS_NAME + '?raw=true'
+REPO_URL = 'https://github.com/dmlc/web-data/blob/master/darknet/'
+CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
+WEIGHTS_URL = REPO_URL + 'weights/' + WEIGHTS_NAME + '?raw=true'
 
 def _dl_progress(count, block_size, total_size):
     """Show the download progress."""
@@ -95,13 +84,9 @@ def _download(url, path, overwrite=False, sizecompare=False):
 _download(CFG_URL, CFG_NAME)
 _download(WEIGHTS_URL, WEIGHTS_NAME)
 
-######################################################################
 # Download and Load darknet library
-# ---------------------------------
-
 DARKNET_LIB = 'libdarknet.so'
-DARKNET_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' + \
-                        DARKNET_LIB + '?raw=true'
+DARKNET_URL = REPO_URL + 'lib/' + DARKNET_LIB + '?raw=true'
 _download(DARKNET_URL, DARKNET_LIB)
 DARKNET_LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
 cfg = "./" + str(CFG_NAME)
@@ -112,11 +97,7 @@ batch_size = 1
 print("Converting darknet rnn model to nnvm symbols...")
 sym, params = nnvm.frontend.darknet.from_darknet(net, dtype)
 
-######################################################################
 # Compile the model on NNVM
-# --------------------------------------------------------------------
-# compile the model
-
 data = np.empty([1, net.inputs], dtype)#net.inputs
 
 target = 'llvm'
@@ -129,9 +110,7 @@ dtype_dict = {'data': data.dtype}
 with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, dtype_dict, params)
 
-#####################################################################
 # Save the json
-# --------------------------------------------------------------------
 def _save_lib():
     '''Save the graph, params and .so to the current directory'''
     print("Saving the compiled output...")
@@ -144,19 +123,17 @@ def _save_lib():
         fo.write(nnvm.compiler.save_param_dict(params))
 #_save_lib()
 
-######################################################################
 # Execute on TVM
-# --------------------------------------------------------------------
-# The process is no different from other examples.
-
 ctx = tvm.cpu(0)
 
+# Create graph runtime
 m = graph_runtime.create(graph, lib, ctx)
 m.set_input(**params)
 
 print("RNN generaring text...")
 
 def _proc_rnn_output(out_data):
+    '''Generate the characters from the output array'''
     sum_array = 0
     n = out_data.size
     r = random.uniform(0, 1)
@@ -173,6 +150,7 @@ def _proc_rnn_output(out_data):
     return n-1
 
 def _init_state_memory(rnn_cells_count, dtype):
+    '''Initialize memory for states'''
     states = {}
     state_shape = (1024,)
     for i in range(rnn_cells_count):
@@ -181,10 +159,12 @@ def _init_state_memory(rnn_cells_count, dtype):
     return states
 
 def _set_state_input(runtime, states):
+    '''Set the state inputs'''
     for state in states:
         runtime.set_input(state, states[state])
 
 def _get_state_output(runtime, states):
+    '''Get the state outputs and save'''
     i = 1
     for state in states:
         data = states[state]
