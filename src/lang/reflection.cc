@@ -7,8 +7,11 @@
 #include <tvm/expr.h>
 #include <tvm/container.h>
 #include <tvm/packed_func_ext.h>
+#include <tvm/runtime/ndarray.h>
 #include <dmlc/json.h>
+#include <dmlc/memory_io.h>
 #include <string>
+#include "../common/base64.h"
 
 namespace dmlc {
 DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
@@ -22,6 +25,7 @@ inline std::string Type2String(const Type& t) {
   os << t;
   return os.str();
 }
+
 
 inline Type String2Type(std::string s) {
   std::istringstream is(s);
@@ -52,6 +56,8 @@ class NodeIndexer : public AttrVisitor {
  public:
   std::unordered_map<Node*, size_t> node_index{{nullptr, 0}};
   std::vector<Node*> node_list{nullptr};
+  std::unordered_map<DLTensor*, size_t> tensor_index;
+  std::vector<DLTensor*> tensor_list;
 
   void Visit(const char* key, double* value) final {}
   void Visit(const char* key, int64_t* value) final {}
@@ -64,7 +70,13 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, NodeRef* value) final {
     MakeIndex(value->node_.get());
   }
-
+  void Visit(const char* key, runtime::NDArray* value) final {
+    DLTensor* ptr = const_cast<DLTensor*>((*value).operator->());
+    if (tensor_index.count(ptr)) return;
+    CHECK_EQ(tensor_index.size(), tensor_list.size());
+    tensor_index[ptr] = tensor_list.size();
+    tensor_list.push_back(ptr);
+  }
   // make index of all the children of node
   void MakeIndex(Node* node) {
     if (node == nullptr) return;
@@ -140,6 +152,7 @@ struct JSONNode {
 class JSONAttrGetter : public AttrVisitor {
  public:
   const std::unordered_map<Node*, size_t>* node_index_;
+  const std::unordered_map<DLTensor*, size_t>* tensor_index_;
   JSONNode* node_;
 
   void Visit(const char* key, double* value) final {
@@ -169,6 +182,10 @@ class JSONAttrGetter : public AttrVisitor {
   void Visit(const char* key, NodeRef* value) final {
     node_->attrs[key] = std::to_string(
         node_index_->at(value->node_.get()));
+  }
+  void Visit(const char* key, runtime::NDArray* value) final {
+    node_->attrs[key] = std::to_string(
+        tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
   }
   // Get the node
   void Get(Node* node) {
@@ -209,6 +226,7 @@ class JSONAttrGetter : public AttrVisitor {
 class JSONAttrSetter : public AttrVisitor {
  public:
   const std::vector<std::shared_ptr<Node> >* node_list_;
+  const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* node_;
 
   std::string GetValue(const char* key) const {
@@ -254,10 +272,16 @@ class JSONAttrSetter : public AttrVisitor {
   void Visit(const char* key, NodeRef* value) final {
     size_t index;
     ParseValue(key, &index);
+    CHECK_LE(index, node_list_->size());
     value->node_ = node_list_->at(index);
   }
-
-  // Get the node
+  void Visit(const char* key, runtime::NDArray* value) final {
+    size_t index;
+    ParseValue(key, &index);
+    CHECK_LE(index, tensor_list_->size());
+    *value = tensor_list_->at(index);
+  }
+  // set node to be current JSONNode
   void Set(Node* node) {
     if (node == nullptr) return;
     if (node->is_type<ArrayNode>()) {
@@ -292,6 +316,8 @@ struct JSONGraph {
   size_t root;
   // the nodes of the graph
   std::vector<JSONNode> nodes;
+  // base64 b64ndarrays of arrays
+  std::vector<std::string> b64ndarrays;
   // global attributes
   AttrMap attrs;
 
@@ -299,6 +325,7 @@ struct JSONGraph {
     writer->BeginObject();
     writer->WriteObjectKeyValue("root", root);
     writer->WriteObjectKeyValue("nodes", nodes);
+    writer->WriteObjectKeyValue("b64ndarrays", b64ndarrays);
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
     }
@@ -310,6 +337,7 @@ struct JSONGraph {
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareField("root", &root);
     helper.DeclareField("nodes", &nodes);
+    helper.DeclareOptionalField("b64ndarrays", &b64ndarrays);
     helper.DeclareOptionalField("attrs", &attrs);
     helper.ReadAllFields(reader);
   }
@@ -320,6 +348,7 @@ struct JSONGraph {
     indexer.MakeIndex(root.node_.get());
     JSONAttrGetter getter;
     getter.node_index_ = &indexer.node_index;
+    getter.tensor_index_ = &indexer.tensor_index;
     for (Node* n : indexer.node_list) {
       JSONNode jnode;
       getter.node_ = &jnode;
@@ -328,6 +357,15 @@ struct JSONGraph {
     }
     g.attrs["tvm_version"] = TVM_VERSION;
     g.root = indexer.node_index.at(root.node_.get());
+    // serialize tensor
+    for (DLTensor* tensor : indexer.tensor_list) {
+      std::string blob;
+      dmlc::MemoryStringStream mstrm(&blob);
+      common::Base64OutStream b64strm(&mstrm);
+      runtime::SaveDLTensor(&b64strm, tensor);
+      b64strm.Finish();
+      g.b64ndarrays.emplace_back(std::move(blob));
+    }
     return g;
   }
 };
@@ -347,6 +385,16 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
   // load in json graph.
   jgraph.Load(&reader);
   std::vector<std::shared_ptr<Node> > nodes;
+  std::vector<runtime::NDArray> tensors;
+  // load in tensors
+  for (const std::string& blob : jgraph.b64ndarrays) {
+    dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
+    common::Base64InStream b64strm(&mstrm);
+    b64strm.InitPosition();
+    runtime::NDArray temp;
+    CHECK(temp.Load(&b64strm));
+    tensors.emplace_back(temp);
+  }
   // node 0 is always null
   nodes.reserve(jgraph.nodes.size());
   for (const JSONNode& jnode : jgraph.nodes) {
@@ -362,6 +410,7 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
   CHECK_EQ(nodes.size(), jgraph.nodes.size());
   JSONAttrSetter setter;
   setter.node_list_ = &nodes;
+  setter.tensor_list_ = &tensors;
 
   for (size_t i = 0; i < nodes.size(); ++i) {
     setter.node_ = &jgraph.nodes[i];
@@ -401,6 +450,9 @@ class NodeAttrSetter : public AttrVisitor {
   }
   void Visit(const char* key, NodeRef* value) final {
     *value = GetAttr(key).operator NodeRef();
+  }
+  void Visit(const char* key, runtime::NDArray* value) final {
+    *value = GetAttr(key).operator runtime::NDArray();
   }
 
  private:

@@ -2,6 +2,9 @@ import os
 import numpy as np
 import nnvm.compiler
 import tvm
+import json
+import base64
+from tvm._ffi.base import py_str
 from tvm import rpc
 from tvm.contrib import util, graph_runtime
 
@@ -18,6 +21,22 @@ def test_save_load():
     assert len(param2) == 2
     np.testing.assert_equal(param2["x"].asnumpy(), x)
     np.testing.assert_equal(param2["y"].asnumpy(), y)
+
+
+def test_ndarray_reflection():
+    x = np.random.uniform(size=(10, 2)).astype("float32")
+    xx = tvm.nd.array(x)
+    xnode = tvm.make.node("NDArrayWrapper", name="xx", array=xx)
+    xnode2 = tvm.make.node("NDArrayWrapper", name="x2", array=xx)
+    assert xnode.array.same_as(xx)
+    json_str = tvm.save_json([xnode, xnode2])
+    json_dict = json.loads(json_str)
+    b64_str = json_dict["b64ndarrays"][0]
+    decoded = py_str(base64.b64encode(base64.b64decode(b64_str)))
+    assert b64_str == decoded
+    xlist = tvm.load_json(json_str)
+    np.testing.assert_equal(xlist[0].array.asnumpy(), xx.asnumpy())
+    assert xlist[1].array == xlist[0].array
 
 
 def test_bigendian_rpc_param():
@@ -60,5 +79,6 @@ def test_bigendian_rpc_param():
 
 
 if __name__ == "__main__":
+    test_ndarray_reflection()
     test_save_load()
     test_bigendian_rpc_param()

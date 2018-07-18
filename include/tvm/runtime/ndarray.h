@@ -10,6 +10,7 @@
 #include <vector>
 #include <utility>
 #include "./c_runtime_api.h"
+#include "./serializer.h"
 
 namespace tvm {
 namespace runtime {
@@ -106,6 +107,17 @@ class NDArray {
   inline void CopyTo(DLTensor* other);
   inline void CopyTo(const NDArray& other);
   /*!
+   * \brief Load NDArray from stream
+   * \param stream The input data stream
+   * \return Whether load is successful
+   */
+  inline bool Load(dmlc::Stream* stream);
+  /*!
+   * \brief Save NDArray to stream
+   * \param stream The output data stream
+   */
+  inline void Save(dmlc::Stream* stream) const;
+  /*!
    * \brief Create a NDArray that shares the data memory with the current one.
    * \param shape The shape of the new array.
    * \param dtype The data type of the new array.
@@ -160,6 +172,13 @@ class NDArray {
   friend class TVMRetValue;
   friend class TVMArgsSetter;
 };
+
+/*!
+ * \brief Save a DLTensor to stream
+ * \param strm The outpu stream
+ * \param tensor The tensor to be saved.
+ */
+inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
 
 /*!
  * \brief Reference counted Container object used to back NDArray.
@@ -280,7 +299,99 @@ inline const DLTensor* NDArray::operator->() const {
   return &(data_->dl_tensor);
 }
 
+/*! \brief Magic number for NDArray file */
+constexpr uint64_t kTVMNDArrayMagic = 0xDD5E40F096B4A13F;
+
+inline bool SaveDLTensor(dmlc::Stream* strm,
+                         DLTensor* tensor) {
+  uint64_t header = kTVMNDArrayMagic, reserved = 0;
+  strm->Write(header);
+  strm->Write(reserved);
+  // always save data as CPU context
+  // so that when loading, it will be loaded as CPU ctx.
+  DLContext cpu_ctx;
+  cpu_ctx.device_type = kDLCPU;
+  cpu_ctx.device_id = 0;
+  strm->Write(cpu_ctx);
+  strm->Write(tensor->ndim);
+  strm->Write(tensor->dtype);
+  int ndim = tensor->ndim;
+  strm->WriteArray(tensor->shape, ndim);
+  int type_bytes = tensor->dtype.bits / 8;
+  int64_t num_elems = 1;
+  for (int i = 0; i < ndim; ++i) {
+    num_elems *= tensor->shape[i];
+  }
+  int64_t data_byte_size = type_bytes * num_elems;
+  strm->Write(data_byte_size);
+
+  if (DMLC_IO_NO_ENDIAN_SWAP &&
+      tensor->ctx.device_type == kDLCPU &&
+      tensor->strides == nullptr &&
+      tensor->byte_offset == 0) {
+    // quick path
+    strm->Write(tensor->data, data_byte_size);
+  } else {
+    std::vector<uint8_t> bytes(data_byte_size);
+    CHECK_EQ(TVMArrayCopyToBytes(
+        tensor, dmlc::BeginPtr(bytes), data_byte_size), 0)
+        << TVMGetLastError();
+    if (!DMLC_IO_NO_ENDIAN_SWAP) {
+      dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
+    }
+    strm->Write(dmlc::BeginPtr(bytes), data_byte_size);
+  }
+  return true;
+}
+
+inline void NDArray::Save(dmlc::Stream* strm) const {
+  SaveDLTensor(strm, const_cast<DLTensor*>(operator->()));
+}
+
+inline bool NDArray::Load(dmlc::Stream* strm) {
+  uint64_t header, reserved;
+  CHECK(strm->Read(&header))
+      << "Invalid DLTensor file format";
+  CHECK(strm->Read(&reserved))
+      << "Invalid DLTensor file format";
+  CHECK(header == kTVMNDArrayMagic)
+      << "Invalid DLTensor file format";
+  DLContext ctx;
+  int ndim;
+  DLDataType dtype;
+  CHECK(strm->Read(&ctx))
+      << "Invalid DLTensor file format";
+  CHECK(strm->Read(&ndim))
+      << "Invalid DLTensor file format";
+  CHECK(strm->Read(&dtype))
+      << "Invalid DLTensor file format";
+  CHECK_EQ(ctx.device_type, kDLCPU)
+      << "Invalid DLTensor context: can only save as CPU tensor";
+  std::vector<int64_t> shape(ndim);
+  if (ndim != 0) {
+    CHECK(strm->ReadArray(&shape[0], ndim))
+        << "Invalid DLTensor file format";
+  }
+  NDArray ret = NDArray::Empty(shape, dtype, ctx);
+  int64_t num_elems = 1;
+  int elem_bytes = (ret->dtype.bits + 7) / 8;
+  for (int i = 0; i < ret->ndim; ++i) {
+    num_elems *= ret->shape[i];
+  }
+  int64_t data_byte_size;
+  CHECK(strm->Read(&data_byte_size))
+      << "Invalid DLTensor file format";
+  CHECK(data_byte_size == num_elems * elem_bytes)
+      << "Invalid DLTensor file format";
+  CHECK(strm->Read(ret->data, data_byte_size))
+      << "Invalid DLTensor file format";
+  if (!DMLC_IO_NO_ENDIAN_SWAP) {
+    dmlc::ByteSwap(ret->data, elem_bytes, num_elems);
+  }
+  *this = ret;
+  return true;
+}
+
 }  // namespace runtime
 }  // namespace tvm
-
 #endif  // TVM_RUNTIME_NDARRAY_H_
