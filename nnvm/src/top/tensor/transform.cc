@@ -251,7 +251,8 @@ will return a new array with shape ``(2,1,1,1,1,1,3,4)``.
 
 NNVM_REGISTER_OP(expand_like)
   .describe(R"code(Expand an input array with the shape of second array.
-This operation can always be composed of unsqueezing and expanding dims.
+This operation can be thought of as a composition of expand_dims and broadcast_to.
+If the dimensions are already expanded then it just broadcasts.
 Examples::
   input = [ 12.  19.  27.]
   input.shape = (3,)
@@ -282,11 +283,23 @@ Examples::
     std::ostringstream axis;
     axis << param.axis;
 
-    return std::vector<NodeEntry>{
-      MakeNode("sum", n->attrs.name + "_grad",
+    if (param.axis.ndim() == 0 && !param.exclude) {
+      // Special case needed because sum interprets axis=[] differently
+      return std::vector<NodeEntry>{
+        ograds[0],
+        MakeNode("zeros_like", n->attrs.name + "_zero_grad", {n->inputs[1]})
+      };
+    }
+
+    auto sum_node =
+      MakeNode("sum", n->attrs.name + "_sum_grad",
                {ograds[0]},
                {{"axis", axis.str()},
-                {"exclude", std::to_string(param.exclude)}}),
+                {"exclude", std::to_string(param.exclude)}});
+
+    return std::vector<NodeEntry>{
+      MakeNode("reshape_like", n->attrs.name + "_grad",
+               {sum_node, n->inputs[0]}),
       MakeNode("zeros_like", n->attrs.name + "_zero_grad", {n->inputs[1]})
     };
   })
