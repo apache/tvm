@@ -36,7 +36,7 @@ namespace codegen {
 
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   std::vector<std::string> compile_params;
-  std::vector<const char*> param_cstrings;
+  std::vector<const char*> param_cstrings{};
   int num_options = 0;
   nvrtcProgram prog;
   cudaDeviceProp device_prop;
@@ -50,28 +50,28 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
                  << "fall back to compute_30.";
   }
 
-  compile_params[num_options] = "-arch=compute_" + cc;
+  compile_params.push_back("-arch=compute_" + cc);
   num_options++;
 
   if (include_path) {
-    std::string includeOption = "--include-path=";
+    std::string include_option = "--include-path=";
     const char* cudaHomePath = std::getenv("CUDA_HOME");
 
     if (cudaHomePath != nullptr) {
-      includeOption += cudaHomePath;
-      includeOption += PATH_DELIMITER;
-      includeOption += "include";
+      include_option += cudaHomePath;
+      include_option += PATH_DELIMITER;
+      include_option += "include";
     } else {
       LOG(FATAL)
           << "NvrtcError: Set the environment variables CUDA_HOME to the location of cuda";
     }
 
-    compile_params[num_options] = includeOption;
+    compile_params.push_back(include_option);
     num_options++;
   }
 
   for (const auto& string : compile_params)
-      param_cstrings.push_back(&string.front());
+      param_cstrings.push_back(string.c_str());
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
   nvrtcResult compile_res = nvrtcCompileProgram(prog, num_options, param_cstrings.data());

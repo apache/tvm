@@ -185,7 +185,7 @@ def parse_compute_version(compute_version):
         minor version number
     """
     split_ver = compute_version.split('.')
-    if len(split_cc) == 2 and split_ver[0].isdigit and split_ver[1].isdigit:
+    if len(split_ver) == 2 and split_ver[0].isdigit and split_ver[1].isdigit:
         major = int(split_ver[0])
         minor = int(split_ver[1])
         return major, minor
