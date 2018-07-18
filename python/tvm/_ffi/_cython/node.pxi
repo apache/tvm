@@ -23,6 +23,8 @@ cdef inline object make_ret_node(void* chandle):
             obj = cls(None)
         else:
             obj = NodeBase(None)
+    else:
+        obj = NodeBase(None)
     (<NodeBase>obj).chandle = chandle
     return obj
 
