@@ -55,9 +55,9 @@ class ThreadGroup::Impl {
       num_workers_used = nthreads;
     }
     // if MaxConcurrency restricted the number of workers (e.g., due to
-    // hyperthreading), respect the restriction. On CPUs with N
-    // logical cores and N/2 physical cores this will set affinity to the first
-    // N/2 logical cores.
+    // hyperthreading), respect the restriction. On CPUs with N logical cores
+    // and N/2 physical cores this will set affinity to the first N/2 logical
+    // ones.
     num_workers_used = std::min(num_workers_, num_workers_used);
 
     const char *val = getenv("TVM_BIND_THREADS");
