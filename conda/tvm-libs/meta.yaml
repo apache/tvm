@@ -11,13 +11,14 @@ build:
   number: 0
 
 requirements:
-  host:
+  build:
     # The OS X build will require some manual setup or it will break
     # See https://conda.io/docs/user-guide/tasks/build-packages/compiler-tools.html#macos-sdk
     - {{ compiler('cxx') }}
-  build:
-    - llvmdev ==6.0.0
     - cmake
+  host:
+    - llvmdev ==6.0.0
+    - zlib  # [linux]
 
 about:
   home: https://github.com/dmlc/tvm
