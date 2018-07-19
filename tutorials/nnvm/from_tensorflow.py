@@ -1,17 +1,20 @@
 """
 Compile Tensorflow Models
 =========================
-This article is an introductory tutorial to deploy tensorflow models with NNVM.
+This article is an introductory tutorial to deploy tensorflow models with TVM.
 
-For us to begin with, tensorflow module is required to be installed.
+For us to begin with, tensorflow python module is required to be installed.
 
-A quick solution is to install tensorlfow from
+A quick solution is to install tensorflow from
 
-https://www.tensorflow.org/install/install_sources
+https://www.tensorflow.org/install
 """
 
+# tvm and nnvm
 import nnvm
 import tvm
+
+# os and numpy
 import numpy as np
 import os.path
 
@@ -21,23 +24,39 @@ from tensorflow.core.framework import graph_pb2
 from tensorflow.python.framework import dtypes
 from tensorflow.python.framework import tensor_util
 
+# Tensorflow utility functions
 import nnvm.testing.tf
 
+# Base location for model related files.
 repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
+
+# Test image
 img_name = 'elephant-299.jpg'
 image_url = os.path.join(repo_base, img_name)
+
+# InceptionV1 model protobuf
+# .. note::
+#
+#   protobuf should be exported with :any:`add_shapes=True` option.
+#   Could use https://github.com/dmlc/web-data/tree/master/tensorflow/scripts/tf-to-nnvm.py
+#   to add shapes for existing models.
+#
 model_name = 'classify_image_graph_def-with_shapes.pb'
 model_url = os.path.join(repo_base, model_name)
+
+# Image label map
 map_proto = 'imagenet_2012_challenge_label_map_proto.pbtxt'
 map_proto_url = os.path.join(repo_base, map_proto)
+
+# Human readable text for labels
 lable_map = 'imagenet_synset_to_human_label_map.txt'
 lable_map_url = os.path.join(repo_base, lable_map)
 
 
 ######################################################################
-# Download processed tensorflow model
-# -----------------------------------
-# In this section, we download a pretrained Tensorflow model and classify an image.
+# Download required files
+# -----------------------
+# Download files listed above.
 from mxnet.gluon.utils import download
 
 download(image_url, img_name)
@@ -47,11 +66,11 @@ download(lable_map_url, lable_map)
 
 
 ######################################################################
-# Creates graph from saved graph_def.pb.
-# --------------------------------------
+# Import model
+# ------------
+# Creates tensorflow graph definition from protobuf file.
 
-with tf.gfile.FastGFile(os.path.join(
-        "./", model_name), 'rb') as f:
+with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
@@ -62,22 +81,39 @@ with tf.gfile.FastGFile(os.path.join(
 ######################################################################
 # Decode image
 # ------------
+# .. note::
+#
+#   tensorflow frontend import doesn't support preprocessing ops like JpegDecode
+#   JpegDecode is bypassed (just return source node).
+#   Hence we supply decoded frame to TVM instead.
+#
+
 from PIL import Image
 image = Image.open(img_name).resize((299, 299))
 
-def transform_image(image):
-    image = np.array(image)
-    return image
-
-x = transform_image(image)
+x = np.array(image)
 
 ######################################################################
 # Import the graph to NNVM
 # ------------------------
+# Import tensorflow graph definition to nnvm.
+#
+# Results:
+#   sym: nnvm graph for given tensorflow protobuf.
+#   params: params converted from tensorflow params (tensor protobuf).
 sym, params = nnvm.frontend.from_tensorflow(graph_def)
 
+print ("Tensorflow protobuf imported as nnvm graph")
 ######################################################################
-# Now compile the graph through NNVM
+# NNVM Compilation
+# ----------------
+# Compile the graph to llvm target with given input specification.
+#
+# Results:
+#   graph: Final graph after compilation.
+#   params: final params after compilation.
+#   lib: target library which can be deployed on target with tvm runtime.
+
 import nnvm.compiler
 target = 'llvm'
 shape_dict = {'DecodeJpeg/contents': x.shape}
@@ -87,7 +123,8 @@ graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, dtype=dtype_di
 ######################################################################
 # Execute the portable graph on TVM
 # ---------------------------------
-# Now, we would like to reproduce the same forward computation using TVM.
+# Now we can try deploying the NNVM compiled model on cpu target.
+
 from tvm.contrib import graph_runtime
 ctx = tvm.cpu(0)
 dtype = 'uint8'
@@ -100,10 +137,10 @@ m.run()
 # get outputs
 tvm_output = m.get_output(0, tvm.nd.empty(((1, 1008)), 'float32'))
 
-
 ######################################################################
-# Process the output to human readable
-# ------------------------------------
+# Process the output
+# ------------------
+# Process the model output to human readable text for InceptionV1.
 predictions = tvm_output.asnumpy()
 predictions = np.squeeze(predictions)
 
@@ -111,6 +148,7 @@ predictions = np.squeeze(predictions)
 node_lookup = nnvm.testing.tf.NodeLookup(label_lookup_path=os.path.join("./", map_proto),
                                          uid_lookup_path=os.path.join("./", lable_map))
 
+# Print top 5 predictions from TVM output.
 top_k = predictions.argsort()[-5:][::-1]
 for node_id in top_k:
     human_string = node_lookup.id_to_string(node_id)
@@ -118,8 +156,9 @@ for node_id in top_k:
     print('%s (score = %.5f)' % (human_string, score))
 
 ######################################################################
-# Run the same graph with tensorflow and dump output.
-# ---------------------------------------------------
+# Inference on tensorflow
+# -----------------------
+# Run the corresponding model on tensorflow
 
 def create_graph():
     """Creates a graph from saved GraphDef file and returns a saver."""
@@ -161,6 +200,7 @@ def run_inference_on_image(image):
         node_lookup = nnvm.testing.tf.NodeLookup(label_lookup_path=os.path.join("./", map_proto),
                                                  uid_lookup_path=os.path.join("./", lable_map))
 
+        # Print top 5 predictions from tensorflow.
         top_k = predictions.argsort()[-5:][::-1]
         print ("===== TENSORFLOW RESULTS =======")
         for node_id in top_k:
