@@ -620,7 +620,7 @@ class GraphProto(object):
                     attr['_input_shapes'] = input_shapes
                 except KeyError:
                     # TODO: Need to find clean way to handle '^CheckNumerics'
-                    print("Some Exception while inputs list:", node.input, " ignoring...")
+                    pass
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 
