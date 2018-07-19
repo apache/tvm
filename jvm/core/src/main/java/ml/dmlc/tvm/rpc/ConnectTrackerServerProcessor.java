@@ -122,7 +122,6 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
         }
         break;
         } catch (SocketTimeoutException e) {
-          e.printStackTrace();
           System.err.println("no incoming connections, refreshing...");
           // need to reregister, if the tracker died we should see a socked closed exception
           if (!checkMatchKey(trackerSocket)) {
