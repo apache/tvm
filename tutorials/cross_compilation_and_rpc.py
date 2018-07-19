@@ -92,8 +92,8 @@ for example.
 #
 #     python -m tvm.exec.rpc_server --host 0.0.0.0 --port=9090
 #
-# After executing command above, if you see these lines below, it's
-# successful to start RPC server on your device.
+# After executing the command above, if you see these lines below, it means
+# the RPC server started successfully on your device.
 #
 #    .. code-block:: bash
 #
@@ -215,7 +215,7 @@ np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
 ######################################################################
 # When you want to evaluate the performance of the kernel on the remote
-# device, it is important to avoid overhead of remote function call.
+# device, it is important to avoid overhead of remote function calls.
 # :code:`time_evaluator` will returns a remote function that runs the
 # function over number times, measures the cost per run on the remote
 # device and returns the measured cost.
