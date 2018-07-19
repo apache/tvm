@@ -6,20 +6,14 @@ And configure the proxy host field as commented.
 
 import tvm
 import os
-from tvm.contrib import util, ndk
 from tvm import rpc
+from tvm.contrib import util, ndk
 import numpy as np
 
 # Set to be address of tvm proxy.
-#proxy_host = os.environ["TVM_ANDROID_RPC_PROXY_HOST"]
-#proxy_host = '10.77.1.24'
-#proxy_port = 9091
-tracker_host = 'fleet'
-tracker_port = 6666
-#key = "android"
-key = 'mate10pro'
-key = 'matz'
-#key = 'p20x'
+proxy_host = os.environ["TVM_ANDROID_RPC_PROXY_HOST"]
+proxy_port = 9090
+key = "android"
 
 # Change target configuration.
 # Run `adb shell cat /proc/cpuinfo` to find the arch.
@@ -39,7 +33,7 @@ def test_rpc_module():
     # Build the dynamic lib.
     # If we don't want to do metal and only use cpu, just set target to be target
     f = tvm.build(s, [A, B], "opencl", target_host=target, name="myadd")
-    path_dso1 = temp.relpath("dev_lib2.so")
+    path_dso1 = temp.relpath("dev_lib.so")
     f.export_library(path_dso1, ndk.create_shared)
 
     s = tvm.create_schedule(B.op)
@@ -52,11 +46,19 @@ def test_rpc_module():
     f.export_library(path_dso2, ndk.create_shared)
 
     # connect to the proxy
-    #remote = rpc.connect(proxy_host, proxy_port, key=key)
-    tracker = rpc.connect_tracker(tracker_host, tracker_port)
-    remote = tracker.request(key, priority=0,
-                             session_timeout=60)
-    #remote = rpc.connect('10.77.1.215', 5001)
+    remote = rpc.connect(proxy_host, proxy_port, key=key)
+
+    print('Run GPU test ...')
+    ctx = remote.cl(0)
+    remote.upload(path_dso1)
+    f1 = remote.load_module("dev_lib.so")
+    a_np = np.random.uniform(size=1024).astype(A.dtype)
+    a = tvm.nd.array(a_np, ctx)
+    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+    time_f = f1.time_evaluator(f1.entry_name, ctx, number=10)
+    cost = time_f(a, b).mean
+    print('%g secs/op' % cost)
+    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
     print('Run CPU test ...')
     ctx = remote.cpu(0)
@@ -66,20 +68,6 @@ def test_rpc_module():
     a = tvm.nd.array(a_np, ctx)
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
     time_f = f2.time_evaluator(f2.entry_name, ctx, number=10)
-    print("got time evaluator...")
-    cost = time_f(a, b).mean
-    print('%g secs/op' % cost)
-    np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-
-
-    print('Run GPU test ...')
-    ctx = remote.cl(0)
-    remote.upload(path_dso1)
-    f1 = remote.load_module("dev_lib2.so")
-    a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, ctx)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
-    time_f = f1.time_evaluator(f1.entry_name, ctx, number=10)
     cost = time_f(a, b).mean
     print('%g secs/op' % cost)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
