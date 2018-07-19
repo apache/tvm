@@ -117,8 +117,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
             Utils.closeQuietly(socket);
             continue;
           }
-          int keyLen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
-          recvKey = Utils.decodeToStr(Utils.recvAll(in, keyLen));
+          recvKey = Utils.recvString(in);
           System.err.println("matchKey:" + matchKey);
           System.err.println("key: " + recvKey);
           // incorrect key
@@ -133,7 +132,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
         } catch (SocketTimeoutException e) {
           System.err.println("no incoming connections, refreshing...");
           // need to reregister, if the tracker died we should see a socked closed exception
-          if (!checkMatchKey()) {
+          if (!needRefreshKey()) {
             System.err.println("reregistering...");
             register();
           }
@@ -152,8 +151,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       else {
         out.write(Utils.toBytes(RPC.RPC_MAGIC));
         // send server key to the client
-        out.write(Utils.toBytes(recvKey.length()));
-        out.write(Utils.toBytes(recvKey));
+        Utils.sendString(out, recvKey);
       }
 
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
@@ -179,7 +177,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     }
   }
 
-  private Socket connectToTracker() throws IOException{
+  private Socket connectToTracker() throws IOException {
     trackerSocket = new Socket();
     SocketAddress address = new InetSocketAddress(trackerHost, trackerPort);
     trackerSocket.connect(address, TRACKER_TIMEOUT);
@@ -193,29 +191,32 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     return trackerSocket;
   }
 
+  /*
+   * Register the RPC Server with the RPC Tracker.
+   */
   private void register() throws IOException {
     InputStream trackerIn = trackerSocket.getInputStream();
     OutputStream trackerOut = trackerSocket.getOutputStream();
+    // send a JSON with PUT, device key, RPC server port, and the randomly
+    // generated key
     String putJSON = generatePut(RPC.TrackerCode.PUT, key, serverPort, matchKey);
-    trackerOut.write(Utils.toBytes(putJSON.length()));
-    trackerOut.write(Utils.toBytes(putJSON));
-    int recvLen = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
-    int recvCode = Integer.parseInt(Utils.decodeToStr(Utils.recvAll(trackerIn, recvLen)));
+    Utils.sendString(trackerOut, putJSON);
+    int recvCode = Integer.parseInt(Utils.recvString(trackerIn));
     if (recvCode != RPC.TrackerCode.SUCCESS) {
       throw new SocketException("failed to register with tracker (not SUCCESS)");
     }
     System.err.println("registered with tracker...");
   }
 
-  // if we find the matchKey, we do not need to refresh
-  private boolean checkMatchKey() throws IOException {
+  /*
+   * Check if the RPC Tracker has our key.
+   */
+  private boolean needRefreshKey() throws IOException {
     InputStream trackerIn = trackerSocket.getInputStream();
     OutputStream trackerOut = trackerSocket.getOutputStream();
     String getJSON = generateGetPendingMatchKeys(RPC.TrackerCode.GET_PENDING_MATCHKEYS);
-    trackerOut.write(Utils.toBytes(getJSON.length()));
-    trackerOut.write(Utils.toBytes(getJSON));
-    int recvLen = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
-    String recvJSON = Utils.decodeToStr(Utils.recvAll(trackerIn, recvLen));
+    Utils.sendString(trackerOut, getJSON);
+    String recvJSON = Utils.recvString(trackerIn);
     System.err.println("pending matchkeys: " + recvJSON);
     // fairly expensive string operation...
     if (recvJSON.indexOf(matchKey) != -1 ) {
