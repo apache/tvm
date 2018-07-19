@@ -12,12 +12,12 @@
 #  ./build.sh
 #
 #-------------------------------------------------------------------------------
-APP_ABI = arm64-v8a
+APP_ABI = all
 
-APP_PLATFORM = android-17
+APP_PLATFORM = android-24
 
 # whether enable OpenCL during compile
-USE_OPENCL = 1
+USE_OPENCL = 0
 
 # whether to enable Vulkan during compile
 USE_VULKAN = 0
@@ -28,7 +28,7 @@ ifeq ($(USE_VULKAN), 1)
 endif
 
 # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
-ADD_C_INCLUDES = /opt/rocm/opencl/include
+ADD_C_INCLUDES =
 
 # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
-ADD_LDLIBS = ~/build/sdk/platform-tools/mate10pro/libOpenCL.so
+ADD_LDLIBS =
