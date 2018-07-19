@@ -28,7 +28,7 @@ from tvm import autotvm
 # tunable schedule template. You can regard the process of search space definition
 # as the parametrization of our exiting schedule code.
 #
-# To begin with, here is how we implement a blocked matrix multiplication in tvm
+# To begin with, here is how we implement a blocked matrix multiplication in tvm.
 
 # Matmul V0: Constant tiling factor
 def matmul_v0(N, L, M, dtype):
