@@ -182,7 +182,6 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     if (trackerMagic != RPC.RPC_TRACKER_MAGIC) {
       throw new SocketException("failed to connect to tracker (WRONG MAGIC)");
     }
-
     return trackerSocket;
   }
 
