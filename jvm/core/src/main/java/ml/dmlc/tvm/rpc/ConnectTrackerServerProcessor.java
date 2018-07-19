@@ -25,7 +25,9 @@ import java.net.Socket;
 import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.Random;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.List;
 
 
 /**
@@ -38,21 +40,27 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   private final int trackerPort;
   private final String key;
   private final String matchKey;
-  Runnable callback;
   private int serverPort = 5001;
   public static final int MAX_SERVER_PORT = 5555;
+  // time to wait before aborting tracker connection (ms)
   public static final int TRACKER_TIMEOUT = 6000;
+  // time to wait for a connection before refreshing tracker connection (ms)
+  public static final int STALE_TRACKER_TIMEOUT = 300000;
+  // time to wait if no timeout value is specified
+  public static final int HARD_TIMEOUT_DEFAULT = 300000;
+  private RPCWatchdog watchdog;
 
   public ConnectTrackerServerProcessor(String trackerHost, int trackerPort, String key,
-      SocketFileDescriptorGetter sockFdGetter) throws IOException {
-    while (true) { 
+      SocketFileDescriptorGetter sockFdGetter, RPCWatchdog watchdog) throws IOException {
+    while (true) {
         try {
             this.server = new ServerSocket(serverPort);
+            server.setSoTimeout(STALE_TRACKER_TIMEOUT);
             break;
         } catch (BindException e) {
             System.err.println(serverPort);
             System.err.println(e);
-            serverPort++; 
+            serverPort++;
             if (serverPort > MAX_SERVER_PORT) {
                 throw e;
             }
@@ -62,21 +70,13 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     this.socketFileDescriptorGetter = sockFdGetter;
     this.trackerHost = trackerHost;
     this.trackerPort = trackerPort;
-    this.key = key; 
+    this.key = key;
     this.matchKey = key + ":" + Math.random();
+    this.watchdog = watchdog;
   }
 
   public String getMatchKey() {
     return matchKey;
-  }
-
-  /** 
-   * Set a callback when a connection is received e.g., to record the time for a
-   * watchdog.
-   * @param callback Runnable object.
-   */
-  public void setStartTimeCallback(Runnable callback) {
-    this.callback = callback;
   }
 
   @Override public void terminate() {
@@ -88,54 +88,60 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   }
 
   @Override public void run() {
+    System.err.println("processor thread start...");
+    Socket trackerSocket = null;
+    String recvKey;
     try {
-      Socket trackerSocket = new Socket();
-      SocketAddress address = new InetSocketAddress(trackerHost, trackerPort);
-      trackerSocket.connect(address, 6000);
-      InputStream trackerIn = trackerSocket.getInputStream();
-      OutputStream trackerOut = trackerSocket.getOutputStream();
-      String putJSON = generatePut(RPC.TrackerCode.PUT, "servertest1337", serverPort, matchKey);
-      System.err.println(putJSON);
-      trackerOut.write(Utils.toBytes(RPC.RPC_TRACKER_MAGIC));
-      trackerOut.write(Utils.toBytes(putJSON.length())); 
-      trackerOut.write(Utils.toBytes(putJSON));
-      int trackerMagic = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
-      if (trackerMagic != RPC.RPC_TRACKER_MAGIC) {
-        Utils.closeQuietly(trackerSocket);
-        return;
+      trackerSocket = connectToTracker();
+      register(trackerSocket);
+      Socket socket = null;
+      InputStream in = null;
+      OutputStream out = null;
+      while (true) {
+        try {
+          System.err.println("waiting for requests...");
+          socket = server.accept();
+        in = socket.getInputStream();
+        out = socket.getOutputStream();
+        int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
+        if (magic != RPC.RPC_MAGIC) {
+          out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
+          System.err.println("incorrect RPC magic");
+          Utils.closeQuietly(socket);
+          continue;
+        }
+        int keyLen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
+        recvKey = Utils.decodeToStr(Utils.recvAll(in, keyLen));
+        System.err.println("matchKey:" + matchKey);
+        System.err.println("key: " + recvKey);
+        // incorrect key
+        if (recvKey.indexOf(matchKey) == -1) {
+          out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
+          System.err.println("key mismatch, expected: " + matchKey + " got: " +  recvKey);
+          Utils.closeQuietly(socket);
+          continue;
+        }
+        break;
+        } catch (SocketTimeoutException e) {
+          e.printStackTrace();
+          System.err.println("no incoming connections, refreshing...");
+          // need to reregister, if the tracker died we should see a socked closed exception
+          if (!checkMatchKey(trackerSocket)) {
+            System.err.println("reregistering...");
+            register(trackerSocket);
+          }
+        }
       }
-
-      int recvLen = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
-      int recvCode = Integer.parseInt(Utils.decodeToStr(Utils.recvAll(trackerIn, recvLen)));
-      if (recvCode != RPC.TrackerCode.SUCCESS) {
-        Utils.closeQuietly(trackerSocket);
-        return;
-      }
-      trackerSocket.close();   
-      System.err.println("registered with tracker...");
-
-      Socket socket = server.accept();
-      InputStream in = socket.getInputStream();
-      OutputStream out = socket.getOutputStream();
-      int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
-      if (magic != RPC.RPC_MAGIC) {
-        Utils.closeQuietly(socket);
-        return;
-      }
-      int keyLen = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
-      String key = Utils.decodeToStr(Utils.recvAll(in, keyLen));
-      System.err.println("matchKey:" + matchKey);
-      System.err.println("key: " + key);
-        
-      int timeout = 0;
-      int timeoutArgIndex = key.indexOf(RPC.TIMEOUT_ARG);
+      int timeout = HARD_TIMEOUT_DEFAULT;
+      int timeoutArgIndex = recvKey.indexOf(RPC.TIMEOUT_ARG);
       if (timeoutArgIndex != -1) {
-        timeout = Integer.parseInt(key.substring(timeoutArgIndex + RPC.TIMEOUT_ARG.length()));
+        timeout = Integer.parseInt(recvKey.substring(timeoutArgIndex + RPC.TIMEOUT_ARG.length()));
       }
       System.err.println("alloted timeout: " + timeout);
       if (!key.startsWith("client:")) {
-        out.write(Utils.toBytes(RPC.RPC_MAGIC + 2));
-      } else {
+        out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
+      }
+      else {
         out.write(Utils.toBytes(RPC.RPC_MAGIC));
         // send server key to the client
         String serverKey = "server:java";
@@ -144,30 +150,87 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       }
 
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-      if (callback != null) {
-        callback.run();
-      }
-
+      watchdog.setTimeout(timeout*1000);
+      watchdog.start();
+      System.err.println("..........");
       final int sockFd = socketFileDescriptorGetter.get(socket);
       if (sockFd != -1) {
         new NativeServerLoop(sockFd).run();
         System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       }
+      System.err.println("got");
       Utils.closeQuietly(socket);
+    } catch (SocketTimeoutException e) {
+      System.err.println("TODO HANDLE TIMEOUT");
     } catch (Throwable e) {
       e.printStackTrace();
     } finally {
         try {
+            if (trackerSocket != null) {
+                trackerSocket.close();
+            }
             server.close();
         } catch (Throwable e) {
             e.printStackTrace();
         }
     }
+    System.err.println("exit");
+  }
+
+  private Socket connectToTracker() throws IOException{
+    Socket trackerSocket = new Socket();
+    SocketAddress address = new InetSocketAddress(trackerHost, trackerPort);
+    trackerSocket.connect(address, TRACKER_TIMEOUT);
+    InputStream trackerIn = trackerSocket.getInputStream();
+    OutputStream trackerOut = trackerSocket.getOutputStream();
+    trackerOut.write(Utils.toBytes(RPC.RPC_TRACKER_MAGIC));
+    int trackerMagic = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
+    if (trackerMagic != RPC.RPC_TRACKER_MAGIC) {
+      throw new SocketException("failed to connect to tracker (WRONG MAGIC)");
+    }
+
+    return trackerSocket;
+  }
+
+  private void register(Socket trackerSocket) throws IOException {
+     InputStream trackerIn = trackerSocket.getInputStream();
+     OutputStream trackerOut = trackerSocket.getOutputStream();
+     String putJSON = generatePut(RPC.TrackerCode.PUT, key, serverPort, matchKey);
+     trackerOut.write(Utils.toBytes(putJSON.length()));
+     trackerOut.write(Utils.toBytes(putJSON));
+     int recvLen = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
+     int recvCode = Integer.parseInt(Utils.decodeToStr(Utils.recvAll(trackerIn, recvLen)));
+     if (recvCode != RPC.TrackerCode.SUCCESS) {
+       throw new SocketException("failed to register with tracker (not SUCCESS)");
+     }
+     System.err.println("registered with tracker...");
+  }
+
+  // if we find the matchKey, we do not need to refresh
+  private boolean checkMatchKey(Socket trackerSocket) throws IOException {
+    InputStream trackerIn = trackerSocket.getInputStream();
+    OutputStream trackerOut = trackerSocket.getOutputStream();
+    String getJSON = generateGetPendingMatchKeys(RPC.TrackerCode.GET_PENDING_MATCHKEYS);
+    trackerOut.write(Utils.toBytes(getJSON.length()));
+    trackerOut.write(Utils.toBytes(getJSON));
+    int recvLen = Utils.wrapBytes(Utils.recvAll(trackerIn, 4)).getInt();
+    String recvJSON = Utils.decodeToStr(Utils.recvAll(trackerIn, recvLen));
+    System.err.println("pending matchkeys: " + recvJSON);
+    // fairly expensive string operation...
+    if (recvJSON.indexOf(matchKey) != -1 ) {
+      return true;
+    }
+    return false;
   }
 
   // handcrafted JSON
   private String generatePut(int code, String key, int port, String matchKey) {
     return "[" + code + ", " + "\"" + key + "\"" + ", " + "[" + port + ", " +
                       "\"" + matchKey +  "\"" + "]" + ", " + "null" + "]";
+  }
+
+  // handcrafted JSON
+  private String generateGetPendingMatchKeys(int code) {
+    return "[" + code  + "]";
   }
 }

@@ -24,7 +24,6 @@ import android.widget.Button;
 import android.view.View;
 
 public class RPCActivity extends AppCompatActivity {
-  private RPCWatchdog watchdog;
   private RPCProcessor tvmServerWorker;
 
   @Override
@@ -57,11 +56,6 @@ public class RPCActivity extends AppCompatActivity {
     tvmServerWorker.setDaemon(true);
     tvmServerWorker.start();
     tvmServerWorker.connect(host, port, key);
-
-    System.err.println("creating timeout watchdog...");
-    watchdog = new RPCWatchdog(tvmServerWorker);
-    System.err.println("starting timeout watchdog...");
-    watchdog.start();
   }
 
   @Override
