@@ -37,7 +37,9 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   private final SocketFileDescriptorGetter socketFileDescriptorGetter;
   private final String trackerHost;
   private final int trackerPort;
+  // device key
   private final String key;
+  // device key plus randomly generated key (per-session)
   private final String matchKey;
   private int serverPort = 5001;
   public static final int MAX_SERVER_PORT = 5555;
