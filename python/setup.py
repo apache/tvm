@@ -104,10 +104,11 @@ setup_kwargs = {}
 
 # For bdist_wheel only
 if wheel_include_libs:
-    for path in LIB_LIST:
-        shutil.copy(path, os.path.join(CURRENT_DIR, 'tvm'))
-        _, libname = os.path.split(path)
-        fo.write("include tvm/%s\n" % libname)
+    with open("MANIFEST.in", "w") as fo:
+        for path in LIB_LIST:
+            shutil.copy(path, os.path.join(CURRENT_DIR, 'tvm'))
+            _, libname = os.path.split(path)
+            fo.write("include tvm/%s\n" % libname)
     setup_kwargs = {
         "include_package_data": True
     }
@@ -118,7 +119,7 @@ if include_libs:
         LIB_LIST[i] = os.path.relpath(path, curr_path)
     setup_kwargs = {
         "include_package_data": True,
-        "package_data": {'tvm': LIB_LIST}
+        "data_files": [('tvm', LIB_LIST)]
     }
 
 setup(name='tvm',
