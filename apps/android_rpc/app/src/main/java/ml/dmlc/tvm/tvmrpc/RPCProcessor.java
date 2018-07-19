@@ -44,7 +44,7 @@ class RPCProcessor extends Thread {
       };
 
   @Override public void run() {
-    RPCWatchdog watchdog = new RPCWatchdog(this);
+    RPCWatchdog watchdog = new RPCWatchdog();
     watchdog.start();
     while (true) {
       synchronized (this) {

@@ -49,6 +49,13 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   public static final int HARD_TIMEOUT_DEFAULT = 300;
   private RPCWatchdog watchdog;
 
+  /**
+   * Construct tracker server processor.
+   * @param host Tracker host.
+   * @param port Tracker port.
+   * @param key Device key.
+   * @param sockFdGetter Method to get file descriptor from Java socket.
+   */
   public ConnectTrackerServerProcessor(String trackerHost, int trackerPort, String key,
       SocketFileDescriptorGetter sockFdGetter, RPCWatchdog watchdog) throws IOException {
     while (true) {
@@ -90,6 +97,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     Socket trackerSocket = null;
     String recvKey = null;
     try {
+      // open a socket and handshake with tracker
       trackerSocket = connectToTracker();
       register(trackerSocket);
       Socket socket = null;
@@ -98,6 +106,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       while (true) {
         try {
           System.err.println("waiting for requests...");
+          // wait for client request
           socket = server.accept();
         in = socket.getInputStream();
         out = socket.getOutputStream();
@@ -119,6 +128,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
           Utils.closeQuietly(socket);
           continue;
         }
+        // successfully got client request and completed handshake with client
         break;
         } catch (SocketTimeoutException e) {
           System.err.println("no incoming connections, refreshing...");
@@ -158,14 +168,14 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     } catch (Throwable e) {
       e.printStackTrace();
     } finally {
-        try {
-            if (trackerSocket != null) {
-                trackerSocket.close();
-            }
-            server.close();
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+      try {
+          if (trackerSocket != null) {
+              trackerSocket.close();
+          }
+          server.close();
+      } catch (Throwable e) {
+          e.printStackTrace();
+      }
     }
   }
 

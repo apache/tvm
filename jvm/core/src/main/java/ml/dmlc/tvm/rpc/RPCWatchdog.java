@@ -23,11 +23,9 @@ package ml.dmlc.tvm.rpc;
 public class RPCWatchdog extends Thread {
   private int timeout = 0;
   private boolean started = false;
-  private Thread tvmServerWorker;
 
-  public RPCWatchdog(Thread tvmServerWorker) {
+  public RPCWatchdog() {
     super();
-    this.tvmServerWorker = tvmServerWorker;
   }
 
   /**
@@ -50,7 +48,7 @@ public class RPCWatchdog extends Thread {
 
   /**
    * Wait and kill RPC if timeout is exceeded
-   */ 
+   */
   @Override public void run() {
     while (true) {
       // timeout not started
@@ -66,7 +64,7 @@ public class RPCWatchdog extends Thread {
           try {
             System.err.println("waiting for timeout: " + timeout);
             this.wait(timeout);
-            if (!started) { 
+            if (!started) {
               System.err.println("watchdog woken up, ok...");
             } else {
               System.err.println("watchdog woke up!");
