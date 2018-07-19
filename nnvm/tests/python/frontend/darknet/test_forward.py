@@ -7,17 +7,19 @@ by the script.
 """
 import os
 import requests
+import sys
+import urllib
 import numpy as np
+import tvm
+from tvm.contrib import graph_runtime
 from nnvm import frontend
 from nnvm.testing.darknet import __darknetffi__
 import nnvm.compiler
-import tvm
-import sys
-import urllib
 if sys.version_info >= (3,):
     import urllib.request as urllib2
 else:
     import urllib2
+
 
 def _download(url, path, overwrite=False, sizecompare=False):
     ''' Download from internet'''
@@ -48,43 +50,31 @@ DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
 _download(DARKNETLIB_URL, DARKNET_LIB)
 LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
 
+def _get_tvm_output(net, data):
+    '''Compute TVM output'''
+    dtype = 'float32'
+    sym, params = frontend.darknet.from_darknet(net, dtype)
+
+    target = 'llvm'
+    shape_dict = {'data': data.shape}
+    graph, library, params = nnvm.compiler.build(sym, target, shape_dict, dtype, params=params)
+    # Execute on TVM
+    ctx = tvm.cpu(0)
+    m = graph_runtime.create(graph, library, ctx)
+    # set inputs
+    m.set_input('data', tvm.nd.array(data.astype(dtype)))
+    m.set_input(**params)
+    m.run()
+    # get outputs
+    out_shape = (net.outputs,)
+    tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+    return tvm_out
+
 def test_forward(net):
     '''Test network with given input image on both darknet and tvm'''
     def get_darknet_output(net, img):
         return LIB.network_predict_image(net, img)
-
-    def get_tvm_output(net, img):
-        '''Compute TVM output'''
-        dtype = 'float32'
-        batch_size = 1
-        sym, params = frontend.darknet.from_darknet(net, dtype)
-        data = np.empty([batch_size, img.c, img.h, img.w], dtype)
-        i = 0
-        for c in range(img.c):
-            for h in range(img.h):
-                for k in range(img.w):
-                    data[0][c][h][k] = img.data[i]
-                    i = i + 1
-
-        target = 'llvm'
-        shape_dict = {'data': data.shape}
-        #with nnvm.compiler.build_config(opt_level=2):
-        graph, library, params = nnvm.compiler.build(sym, target, shape_dict, dtype, params=params)
-        ######################################################################
-        # Execute on TVM
-        # ---------------
-        # The process is no different from other examples.
-        from tvm.contrib import graph_runtime
-        ctx = tvm.cpu(0)
-        m = graph_runtime.create(graph, library, ctx)
-        # set inputs
-        m.set_input('data', tvm.nd.array(data.astype(dtype)))
-        m.set_input(**params)
-        m.run()
-        # get outputs
-        out_shape = (net.outputs,)
-        tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
-        return tvm_out
+    dtype = 'float32'
 
     test_image = 'dog.jpg'
     img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + test_image   +'?raw=true'
@@ -94,8 +84,34 @@ def test_forward(net):
     darknet_out = np.zeros(net.outputs, dtype='float32')
     for i in range(net.outputs):
         darknet_out[i] = darknet_output[i]
-    tvm_out = get_tvm_output(net, img)
+    batch_size = 1
+
+    data = np.empty([batch_size, img.c, img.h, img.w], dtype)
+    i = 0
+    for c in range(img.c):
+        for h in range(img.h):
+            for k in range(img.w):
+                data[0][c][h][k] = img.data[i]
+                i = i + 1
+
+    tvm_out = _get_tvm_output(net, data)
     np.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-3, atol=1e-3)
+
+def test_rnn_forward(net):
+    '''Test network with given input data on both darknet and tvm'''
+    def get_darknet_network_predict(net, data):
+        return LIB.network_predict(net, data)
+    from cffi import FFI
+    ffi = FFI()
+    np_arr = np.zeros([1, net.inputs], dtype='float32')
+    np_arr[0, 84] = 1
+    cffi_arr = ffi.cast('float*', np_arr.ctypes.data)
+    tvm_out = _get_tvm_output(net, np_arr)
+    darknet_output = get_darknet_network_predict(net, cffi_arr)
+    darknet_out = np.zeros(net.outputs, dtype='float32')
+    for i in range(net.outputs):
+        darknet_out[i] = darknet_output[i]
+    np.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
 
 def test_forward_extraction():
     '''test extraction model'''
@@ -289,6 +305,25 @@ def test_forward_softmax_temperature():
     test_forward(net)
     LIB.free_network(net)
 
+def test_forward_rnn():
+    '''test softmax layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    inputs = 256
+    outputs = 256
+    steps = 1
+    activation = 1
+    batch_normalize = 0
+    adam = 0
+    layer_1 = LIB.make_rnn_layer(batch, inputs, outputs, steps, activation, batch_normalize, adam)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = outputs
+    net.w = net.h = 0
+    LIB.resize_network(net, net.w, net.h)
+    test_rnn_forward(net)
+    LIB.free_network(net)
+
 if __name__ == '__main__':
     test_forward_resnet50()
     test_forward_alexnet()
@@ -303,6 +338,7 @@ if __name__ == '__main__':
     test_forward_dense_batchnorm()
     test_forward_softmax()
     test_forward_softmax_temperature()
+    test_forward_rnn()
     test_forward_reorg()
     test_forward_region()
     test_forward_elu()
