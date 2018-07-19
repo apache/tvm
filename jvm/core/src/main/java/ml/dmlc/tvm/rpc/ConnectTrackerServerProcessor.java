@@ -31,6 +31,8 @@ import java.net.SocketTimeoutException;
 
 /**
  * Server processor with tracker connection (based on standalone).
+ * This RPC Server registers itself with an RPC Tracker for a specific queue
+ * (using its device key) and listens for incoming requests.
  */
 public class ConnectTrackerServerProcessor implements ServerProcessor {
   private ServerSocket server;
