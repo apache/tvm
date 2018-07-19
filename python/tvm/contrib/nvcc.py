@@ -185,12 +185,12 @@ def parse_compute_version(compute_version):
         minor version number
     """
     split_ver = compute_version.split('.')
-    if len(split_ver) == 2 and split_ver[0].isdigit and split_ver[1].isdigit:
+    try:
         major = int(split_ver[0])
         minor = int(split_ver[1])
         return major, minor
-
-    raise RuntimeError("the compute capability string is unsupported format: " + cc)
+    except (IndexError, ValueError) as err:
+        raise RuntimeError("Compute version parsing error: " + str(err))
 
 
 def have_fp16(compute_version):

@@ -31,7 +31,7 @@ namespace codegen {
   }
 
 
-std::string find_cuda_include_path() {
+std::string FindCUDAIncludePath() {
 #ifdef _WIN32
   const std::string delimiter = "\\";
 #else
@@ -75,7 +75,7 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   num_options++;
 
   if (include_path) {
-    std::string include_option = "--include-path=" + find_cuda_include_path();
+    std::string include_option = "--include-path=" + FindCUDAIncludePath();
 
     compile_params.push_back(include_option);
     num_options++;
