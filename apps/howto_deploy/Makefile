@@ -8,7 +8,7 @@ PKG_CFLAGS = -std=c++11 -O2 -fPIC\
 	-I${DMLC_CORE}/include\
 	-I${TVM_ROOT}/dlpack/include\
 
-PKG_LDFLAGS = -L${TVM_ROOT}/lib -ldl -lpthread
+PKG_LDFLAGS = -L${TVM_ROOT}/build -ldl -lpthread
 
 .PHONY: clean all
 

@@ -37,11 +37,18 @@ libinfo_py = os.path.join(CURRENT_DIR, './nnvm/libinfo.py')
 libinfo = {'__file__': libinfo_py}
 exec(compile(open(libinfo_py, "rb").read(), libinfo_py, 'exec'), libinfo, libinfo)
 
-LIB_PATH = libinfo['find_lib_path']()
-_, LIB_NAME = os.path.split(LIB_PATH[0])
 __version__ = libinfo['__version__']
-curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
-rpath = os.path.relpath(LIB_PATH[0], curr_path)
+if not os.getenv('CONDA_BUILD'):
+    LIB_PATH = libinfo['find_lib_path']()
+    _, LIB_NAME = os.path.split(LIB_PATH[0])
+    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    rpath = os.path.relpath(LIB_PATH[0], curr_path)
+    setup_kwargs = dict(
+        include_package_data=True,
+        data_files=[('nnvm', [rpath])]
+    )
+else:
+    setup_kwargs = {}
 
 setup(name='nnvm',
       version=__version__,      
@@ -52,6 +59,4 @@ setup(name='nnvm',
       ],
       packages=find_packages(),
       url='https://github.com/dmlc/nnvm',
-      include_package_data=True,
-      data_files=[('nnvm', [rpath])])
-
+      **setup_kwargs)

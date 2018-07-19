@@ -1,28 +1,32 @@
-{% set version = "0.1.dev" %}
+{% set version = "0.4.dev" %}
 
 package:
   name: topi
   version: {{ version }}
 
 source:
-  path: ..
+  path: ../..
 
 build:
   number: 0
-  script: $PYTHON setup.py install
 
 requirements:
-  build:
-    - cmake
-    - python >=3
+  host:
+    - python {{ python }}
     - numpy
     - setuptools
-    - nose
     - decorator
+    - tvm-libs =={{ version }}
   run:
-    - python >=3
-    - numpy
+    - python
+    - {{ pin_compatible('numpy') }}
     - decorator
+    - tvm-libs =={{ version }}
+    - tvm =={{ version }}
+
+test:
+  imports:
+    - topi
 
 about:
   home: https://github.com/dmlc/tvm

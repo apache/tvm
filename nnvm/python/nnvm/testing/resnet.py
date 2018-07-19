@@ -199,7 +199,7 @@ def get_workload(batch_size=1, num_classes=1000, num_layers=18,
         The batch size used in the model
 
     num_classes : int, optional
-        Number of claseses
+        Number of classes
 
     num_layers : int, optional
         Number of layers

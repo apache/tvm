@@ -6,7 +6,6 @@ Some helper definitions for tensorflow models.
 """
 import re
 import os.path
-import numpy as np
 
 # Tensorflow imports
 import tensorflow as tf
@@ -107,52 +106,6 @@ class NodeLookup(object):
             return ''
         return self.node_lookup[node_id]
 
-def read_normalized_tensor_from_image_file(file_name,
-                                           input_height=299,
-                                           input_width=299,
-                                           input_mean=0,
-                                           input_std=255):
-    """ Preprocessing of image
-    Parameters
-    ----------
-
-    file_name: String
-        Image filename.
-
-    input_height: int
-        model input height.
-
-    input_width: int
-        model input width
-
-    input_mean: int
-        Mean to be substracted in normalization.
-
-    input_std: int
-        Standard deviation used in normalization.
-
-    Returns
-    -------
-
-    np_array: Numpy array
-        Normalized image data as a numpy array.
-
-    """
-
-    input_name = "file_reader"
-    output_name = "normalized"
-    file_reader = tf.read_file(file_name, input_name)
-
-    image_reader = tf.image.decode_jpeg(file_reader, channels=3,
-                                        name='jpeg_reader')
-    float_caster = tf.cast(image_reader, tf.float32)
-    dims_expander = tf.expand_dims(float_caster, 0)
-    resized = tf.image.resize_bilinear(dims_expander, [input_height, input_width])
-    normalized = tf.divide(tf.subtract(resized, [input_mean]), [input_std])
-    tf.InteractiveSession()
-    np_array = normalized.eval()
-    return np_array
-
 def get_workload(model_path):
     """ Import workload from frozen protobuf
 
@@ -181,79 +134,3 @@ def get_workload(model_path):
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
         return graph_def
-
-def get_workload_inception_v3():
-    """ Import Inception V3 workload from frozen protobuf
-
-    Parameters
-    ----------
-        Nothing.
-
-    Returns
-    -------
-    (normalized, graph_def) : Tuple
-        normalized is normalized input for graph testing.
-        graph_def is the tensorflow workload for Inception V3.
-    """
-
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV3/'
-    model_path = 'InceptionV3/inception_v3_2016_08_28_frozen-with_shapes.pb'
-
-    image_name = 'elephant-299.jpg'
-    image_url = os.path.join(repo_base, image_name)
-    from mxnet.gluon.utils import download
-    download(image_url, image_name)
-    normalized = read_normalized_tensor_from_image_file(os.path.join("./", image_name))
-
-    return (normalized, get_workload(model_path))
-
-def get_workload_inception_v1():
-    """ Import Inception V1 workload from frozen protobuf
-
-    Parameters
-    ----------
-        Nothing.
-
-    Returns
-    -------
-    (image_data, tvm_data, graph_def) : Tuple
-        image_data is raw encoded image data for TF input.
-        tvm_data is the decoded image data for TVM input.
-        graph_def is the tensorflow workload for Inception V1.
-
-    """
-
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/InceptionV1/'
-    model_path = 'InceptionV1/classify_image_graph_def-with_shapes.pb'
-    image_name = 'elephant-299.jpg'
-    image_url = os.path.join(repo_base, image_name)
-
-    from mxnet.gluon.utils import download
-    download(image_url, image_name)
-
-    if not tf.gfile.Exists(os.path.join("./", image_name)):
-        tf.logging.fatal('File does not exist %s', image)
-    image_data = tf.gfile.FastGFile(os.path.join("./", image_name), 'rb').read()
-
-    # TVM doesn't handle decode, hence decode it.
-    from PIL import Image
-    tvm_data = Image.open(os.path.join("./", image_name)).resize((299, 299))
-    tvm_data = np.array(tvm_data)
-
-    return (image_data, tvm_data, get_workload(model_path))
-
-def get_workload_mobilenet():
-    """ Import mobilenet workload from frozen protobuf
-
-    Parameters
-    ----------
-        Nothing.
-
-    Returns
-    -------
-    graph_def: graphdef
-        graph_def is the tensorflow workload for mobilenet.
-
-    """
-
-    return get_workload("MobilenetV1/mobilenet_v1_1.0_224_frozen-with-shapes.pb")

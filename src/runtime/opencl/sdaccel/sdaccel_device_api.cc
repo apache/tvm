@@ -4,9 +4,6 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
-#include <tvm/container.h>
-#include <tvm/ir.h>
-#include <tvm/packed_func_ext.h>
 #include "./sdaccel_common.h"
 
 namespace tvm {
@@ -23,7 +20,7 @@ const std::shared_ptr<OpenCLWorkspace>& SDAccelWorkspace::Global() {
 }
 
 void SDAccelWorkspace::Init() {
-  OpenCLWorkspace::Init("accelerator", "Xilinx");
+  OpenCLWorkspace::Init("sdaccel", "accelerator", "Xilinx");
 }
 
 bool SDAccelWorkspace::IsOpenCLDevice(TVMContext ctx) {

@@ -56,6 +56,8 @@ def _pooling(inputs, attrs):
         new_attrs['strides'] = attrs.get('stride', (1, 1))
         new_attrs['padding'] = attrs.get('pad', (0, 0))
         new_attrs['ceil_mode'] = (attrs.get('pooling_convention', 'valid') == 'full')
+        if pool_type == 'avg':
+            new_attrs['count_include_pad'] = attrs.get('count_include_pad', True)
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _batch_norm(inputs, attrs):
