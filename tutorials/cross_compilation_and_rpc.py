@@ -60,7 +60,7 @@ for example.
 #
 #     make runtime
 #
-# After success of buildind runtime, we need set environment varibles
+# After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file of yourself account or :code:`/etc/profile`
 # of system enviroment variables. Assuming your TVM directory is in
 # :code:`~/tvm` and set environment variables below your account.
