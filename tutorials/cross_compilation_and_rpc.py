@@ -69,7 +69,7 @@ for example.
 #
 #    vi ~/.bashrc
 #
-# We need edit :code:`~/.bashrc` using :code:`vi ~/.bashrc` and add
+# We need to edit :code:`~/.bashrc` using :code:`vi ~/.bashrc` and add
 # lines below (Assuming your TVM directory is in :code:`~/tvm`):
 #
 #   .. code-block:: bash
