@@ -21,6 +21,7 @@ requirements:
     # conda OS X compiler
     - {{ compiler('cxx') }}  # [osx]
     - cmake
+    - llvmdev ==6.0.0  # [linux]
     - zlib  # [linux]
 
 about:
