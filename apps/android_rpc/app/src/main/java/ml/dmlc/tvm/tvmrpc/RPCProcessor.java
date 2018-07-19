@@ -46,6 +46,7 @@ class RPCProcessor extends Thread {
 
   @Override public void run() {
     RPCWatchdog watchdog = new RPCWatchdog(this);
+    watchdog.start();
     while (true) {
       synchronized (this) {
         currProcessor = null;
@@ -66,16 +67,7 @@ class RPCProcessor extends Thread {
       if (currProcessor != null)
         currProcessor.run();
       System.err.println("waking up watchdog...");
-      // either watchdog notifies (it is safe to proceed) or watchdog will
-      // terminate the process
-      synchronized (this) {
-          watchdog.notify();
-          try {
-            System.err.println("waiting...");
-            this.wait();
-          } catch (InterruptedException e) {
-          }
-      }
+      watchdog.finishTimeout();
     }
   }
 
@@ -103,6 +95,5 @@ class RPCProcessor extends Thread {
     this.key = key;
     running = true;
     this.notify();
-    System.err.println("notified...");
   }
 }

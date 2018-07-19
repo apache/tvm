@@ -43,7 +43,7 @@ public class MainActivity extends AppCompatActivity {
   // wait time before automatic restart of RPC Activity
   public static final int HANDLER_RESTART_DELAY = 5000;
 
- 
+
   private void showDialog(String title, String msg) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
     builder.setTitle(title);
@@ -64,7 +64,7 @@ public class MainActivity extends AppCompatActivity {
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
     Switch inputSwitch =  findViewById(R.id.switch_persistent);
-    
+
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
     final String key = edAppKey.getText().toString();
@@ -93,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
         public void run() {
             if (switchPersistent.isChecked()) {
               System.err.println("relaunching RPC activity in 5s...");
-              Intent intent = ((MainActivity) context).updateRPCPrefs(); 
+              Intent intent = ((MainActivity) context).updateRPCPrefs();
               startActivity(intent);
             }
         }
@@ -109,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
     Toolbar toolbar = findViewById(R.id.toolbar);
     setSupportActionBar(toolbar);
     final Context context = this;
-    
+
     Switch switchPersistent = findViewById(R.id.switch_persistent);
     switchPersistent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
       @Override
@@ -122,12 +122,12 @@ public class MainActivity extends AppCompatActivity {
           updateRPCPrefs();
         }
       }
-    }); 
+    });
 
     Button startRPC = findViewById(R.id.button_start_rpc);
     startRPC.setOnClickListener(new View.OnClickListener() {
         public void onClick(View v) {
-            Intent intent = ((MainActivity) context).updateRPCPrefs(); 
+            Intent intent = ((MainActivity) context).updateRPCPrefs();
             startActivity(intent);
         }
     });
@@ -153,10 +153,6 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onDestroy() {
     super.onDestroy();
-  }
-
-  private void disconnect() {
-    // TODO disconnect standalone
   }
 
   private void enableInputView(boolean enable) {
