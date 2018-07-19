@@ -18,7 +18,7 @@ import numpy as np
 # Describe Batchwise Computation
 # ------------------------------
 # For operators which have the same shape, we can put them together as
-# the inputs of :any:`tvm.compute`, if we wish they can be scheduled
+# the inputs of :any:`tvm.compute`, if we want them to be scheduled
 # together in the next schedule procedure.
 #
 n = tvm.var("n")
