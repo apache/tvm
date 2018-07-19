@@ -159,6 +159,9 @@ if(USE_GRAPH_RUNTIME)
   list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_SRCS})
 
   if(USE_GRAPH_RUNTIME_DEBUG)
+    message(STATUS "Build with Graph runtime debug support...")
+    file(GLOB RUNTIME_GRAPH_DEBUG_SRCS src/runtime/graph/debug/*.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_DEBUG_SRCS})
     set_source_files_properties(${RUNTIME_GRAPH_SRCS}
       PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_DEBUG")
   endif(USE_GRAPH_RUNTIME_DEBUG)
