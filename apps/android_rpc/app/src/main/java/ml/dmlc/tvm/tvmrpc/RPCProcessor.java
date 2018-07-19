@@ -34,7 +34,6 @@ class RPCProcessor extends Thread {
   private long startTime;
   private ConnectTrackerServerProcessor currProcessor;
   private boolean first = true;
-  public static final int SESSION_TIMEOUT = 30000;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -66,7 +65,6 @@ class RPCProcessor extends Thread {
       }
       if (currProcessor != null)
         currProcessor.run();
-      System.err.println("waking up watchdog...");
       watchdog.finishTimeout();
     }
   }

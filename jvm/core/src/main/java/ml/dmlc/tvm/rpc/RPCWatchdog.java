@@ -21,7 +21,8 @@ package ml.dmlc.tvm.rpc;
  * Watchdog for RPC
  */
 public class RPCWatchdog extends Thread {
-  int timeout = 0;
+  private int timeout = 0;
+  private boolean started = false;
   private Thread tvmServerWorker;
 
   public RPCWatchdog(Thread tvmServerWorker) {
@@ -29,26 +30,52 @@ public class RPCWatchdog extends Thread {
     this.tvmServerWorker = tvmServerWorker;
   }
 
-  synchronized public void setTimeout(int timeout) {
+  /**
+   * start a timeout with watchdog (must be called before finishTimeout)
+   * @param timeout watchdog timeout in ms.
+   */
+  synchronized public void startTimeout(int timeout) {
     this.timeout = timeout;
+    started = true;
+    this.notify();
+  }
+
+  /**
+   * finish a timeout with watchdog (must be called after startTimeout)
+   */
+  synchronized public void finishTimeout() {
+    started = false;
+    this.notify();
   }
 
   /**
    * Wait and kill RPC if timeout is exceeded
    */ 
   @Override public void run() {
-    try {
-      System.err.println("starting watchdog...");
+    while (true) {
+      // timeout not started
       synchronized(this) {
-        this.wait(timeout);
+        while (!started) {
+          try {
+            this.wait();
+          } catch (InterruptedException e) {}
+        }
       }
-      System.err.println("watchdog woke up!");
-      System.err.println("watchdog killing process...");
-      // Prevent recycling of current process
-      System.exit(0);
-    } catch (InterruptedException e) {
-      System.err.println("watchdog woken up, ok...");
-      tvmServerWorker.notify();
+      synchronized(this) {
+        while (started) {
+          try {
+            System.err.println("waiting for timeout: " + timeout);
+            this.wait(timeout);
+            if (!started) { 
+              System.err.println("watchdog woken up, ok...");
+            } else {
+              System.err.println("watchdog woke up!");
+              System.err.println("terminating...");
+              System.exit(0);
+            }
+          } catch (InterruptedException e) {}
+        }
+      }
     }
   }
 }

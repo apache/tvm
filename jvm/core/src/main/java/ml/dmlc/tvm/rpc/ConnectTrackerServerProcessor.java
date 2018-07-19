@@ -46,8 +46,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   public static final int TRACKER_TIMEOUT = 6000;
   // time to wait for a connection before refreshing tracker connection (ms)
   public static final int STALE_TRACKER_TIMEOUT = 300000;
-  // time to wait if no timeout value is specified
-  public static final int HARD_TIMEOUT_DEFAULT = 300000;
+  // time to wait if no timeout value is specified (seconds)
+  public static final int HARD_TIMEOUT_DEFAULT = 300;
   private RPCWatchdog watchdog;
 
   public ConnectTrackerServerProcessor(String trackerHost, int trackerPort, String key,
@@ -88,9 +88,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   }
 
   @Override public void run() {
-    System.err.println("processor thread start...");
     Socket trackerSocket = null;
-    String recvKey;
+    String recvKey = null;
     try {
       trackerSocket = connectToTracker();
       register(trackerSocket);
@@ -138,30 +137,26 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
         timeout = Integer.parseInt(recvKey.substring(timeoutArgIndex + RPC.TIMEOUT_ARG.length()));
       }
       System.err.println("alloted timeout: " + timeout);
-      if (!key.startsWith("client:")) {
+      if (!recvKey.startsWith("client:")) {
+        System.err.println("recv key mismatch...");
         out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
       }
       else {
         out.write(Utils.toBytes(RPC.RPC_MAGIC));
         // send server key to the client
-        String serverKey = "server:java";
-        out.write(Utils.toBytes(serverKey.length()));
-        out.write(Utils.toBytes(serverKey));
+        out.write(Utils.toBytes(recvKey.length()));
+        out.write(Utils.toBytes(recvKey));
       }
 
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
-      watchdog.setTimeout(timeout*1000);
-      watchdog.start();
-      System.err.println("..........");
+      // received timeout in seconds
+      watchdog.startTimeout(timeout*1000);
       final int sockFd = socketFileDescriptorGetter.get(socket);
       if (sockFd != -1) {
         new NativeServerLoop(sockFd).run();
         System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       }
-      System.err.println("got");
       Utils.closeQuietly(socket);
-    } catch (SocketTimeoutException e) {
-      System.err.println("TODO HANDLE TIMEOUT");
     } catch (Throwable e) {
       e.printStackTrace();
     } finally {
@@ -174,7 +169,6 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
             e.printStackTrace();
         }
     }
-    System.err.println("exit");
   }
 
   private Socket connectToTracker() throws IOException{

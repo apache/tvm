@@ -38,18 +38,17 @@ public class RPCActivity extends AppCompatActivity {
             if (tvmServerWorker != null) {
                 // currently will raise a socket closed exception
                 tvmServerWorker.disconnect();
-            } 
+            }
             finish();
             // prevent Android from recycling the process
             System.exit(0);
         }
     });
 
-    
     System.err.println("rpc activity onCreate...");
     Intent intent = getIntent();
     String host = intent.getStringExtra("host");
-    int port = intent.getIntExtra("port", 9090);    
+    int port = intent.getIntExtra("port", 9090);
     String key = intent.getStringExtra("key");
 
     tvmServerWorker = new RPCProcessor();
@@ -60,6 +59,7 @@ public class RPCActivity extends AppCompatActivity {
 
   @Override
   protected void onDestroy() {
+    System.err.println("rpc activity onDestroy");
     tvmServerWorker.disconnect();
     super.onDestroy();
   }
