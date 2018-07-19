@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
   }
 
   public Intent updateRPCPrefs() {
-    System.err.println("running update...");
+    System.err.println("updating preferences...");
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
@@ -82,7 +82,6 @@ public class MainActivity extends AppCompatActivity {
     intent.putExtra("host", proxyHost);
     intent.putExtra("port", proxyPort);
     intent.putExtra("key", key);
-    System.err.println("done update...");
     return intent;
   }
 
