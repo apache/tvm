@@ -5,7 +5,7 @@ This article is an introductory tutorial to deploy tensorflow models with TVM.
 
 For us to begin with, tensorflow python module is required to be installed.
 
-A quick solution is to install tensorlfow from
+A quick solution is to install tensorflow from
 
 https://www.tensorflow.org/install
 """
@@ -70,8 +70,7 @@ download(lable_map_url, lable_map)
 # ------------
 # Creates tensorflow graph definition from protobuf file.
 
-with tf.gfile.FastGFile(os.path.join(
-        "./", model_name), 'rb') as f:
+with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
     graph_def = tf.GraphDef()
     graph_def.ParseFromString(f.read())
     graph = tf.import_graph_def(graph_def, name='')
@@ -85,18 +84,14 @@ with tf.gfile.FastGFile(os.path.join(
 # .. note::
 #
 #   tensorflow frontend import doesn't support preprocessing ops like JpegDecode
-#   JpegDecode is a bypass (copy source) here.
+#   JpegDecode is bypassed (just return source node).
 #   Hence we supply decoded frame to TVM instead.
 #
 
 from PIL import Image
 image = Image.open(img_name).resize((299, 299))
 
-def transform_image(image):
-    image = np.array(image)
-    return image
-
-x = transform_image(image)
+x = np.array(image)
 
 ######################################################################
 # Import the graph to NNVM
@@ -163,7 +158,7 @@ for node_id in top_k:
 ######################################################################
 # Inference on tensorflow
 # -----------------------
-# Now lets run the same on tensorflow
+# Run the corresponding model on tensorflow
 
 def create_graph():
     """Creates a graph from saved GraphDef file and returns a saver."""
