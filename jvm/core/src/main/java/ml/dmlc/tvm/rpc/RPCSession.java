@@ -144,6 +144,24 @@ public class RPCSession {
   }
 
   /**
+   * Construct remote OpenCL device.
+   * @param devId device id.
+   * @return Remote OpenCL context.
+   */
+  public TVMContext vulkan(int devId) {
+    return context(7, devId);
+  }
+
+  /**
+   * Construct remote OpenCL device.
+   * @return Remote OpenCL context.
+   */
+  public TVMContext vulkan() {
+    return vulkan(0);
+  }
+
+
+  /**
    * Construct remote Metal device.
    * @param devId device id.
    * @return Remote metal context.
