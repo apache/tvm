@@ -5,13 +5,19 @@
  *
  * \file build_cuda.cc
  */
+#if defined(__linux__)
+#include <sys/stat.h>
+#endif
+#include <cuda_runtime.h>
 #include <tvm/base.h>
 #include <nvrtc.h>
+#include <cstdlib>
 
 #include "../codegen_cuda.h"
 #include "../build_common.h"
 #include "../../runtime/cuda/cuda_common.h"
 #include "../../runtime/cuda/cuda_module.h"
+
 
 namespace tvm {
 namespace codegen {
@@ -26,11 +32,69 @@ namespace codegen {
     }                                                                   \
   }
 
-std::string NVRTCCompile(const std::string& code) {
+
+std::string FindCUDAIncludePath() {
+#if defined(_WIN32)
+  const std::string delimiter = "\\";
+#else
+  const std::string delimiter = "/";
+#endif
+  std::string cuda_include_path;
+  const char* cuda_path_env = std::getenv("CUDA_PATH");
+  if (cuda_path_env != nullptr) {
+    cuda_include_path += cuda_path_env;
+    cuda_include_path += delimiter + "include";
+    return cuda_include_path;
+  }
+
+#if defined(__linux__)
+  struct stat st;
+  cuda_include_path = "/usr/local/cuda/include";
+  if (stat(cuda_include_path.c_str(), &st) == 0) {
+    return cuda_include_path;
+  }
+#endif
+  LOG(FATAL) << "Cannot find cuda include path."
+             << "CUDA_PATH is not set or CUDA is not installed in the default installation path."
+             << "In other than linux, it is necessary to set CUDA_PATH.";
+  return cuda_include_path;
+}
+
+
+std::string NVRTCCompile(const std::string& code, bool include_path = false) {
+  std::vector<std::string> compile_params;
+  std::vector<const char*> param_cstrings{};
+  int num_options = 0;
   nvrtcProgram prog;
+  cudaDeviceProp device_prop;
+  std::string cc = "30";
+  cudaError_t e = cudaGetDeviceProperties(&device_prop, 0);
+
+  if (e == cudaSuccess) {
+    cc = std::to_string(device_prop.major) + std::to_string(device_prop.minor);
+  } else {
+    LOG(WARNING) << "cannot detect compute capability from your device, "
+                 << "fall back to compute_30.";
+  }
+
+  compile_params.push_back("-arch=compute_" + cc);
+  num_options++;
+
+  if (include_path) {
+    std::string include_option = "--include-path=" + FindCUDAIncludePath();
+
+    compile_params.push_back(include_option);
+    num_options++;
+  }
+
+  for (const auto& string : compile_params) {
+      param_cstrings.push_back(string.c_str());
+  }
   NVRTC_CALL(nvrtcCreateProgram(
       &prog, code.c_str(), nullptr, 0, nullptr, nullptr));
-  nvrtcResult compile_res = nvrtcCompileProgram(prog, 0, nullptr);
+  nvrtcResult compile_res =
+      nvrtcCompileProgram(prog, param_cstrings.size(), param_cstrings.data());
+
   size_t log_size;
   NVRTC_CALL(nvrtcGetProgramLogSize(prog, &log_size));
   std::string log; log.resize(log_size);
@@ -43,6 +107,7 @@ std::string NVRTCCompile(const std::string& code) {
   ptx.resize(ptx_size);
   NVRTC_CALL(nvrtcGetPTX(prog, &ptx[0]));
   NVRTC_CALL(nvrtcDestroyProgram(&prog));
+
   return ptx;
 }
 
@@ -68,7 +133,7 @@ runtime::Module BuildCUDA(Array<LoweredFunc> funcs) {
     // TODO(tqchen) more reliable checks
     if (ptx[0] != '/') fmt = "cubin";
   } else {
-    ptx = NVRTCCompile(code);
+    ptx = NVRTCCompile(code, cg.need_include_path());
   }
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(funcs), code);
 }

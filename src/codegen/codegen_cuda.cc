@@ -29,6 +29,14 @@ void CodeGenCUDA::AddFunction(LoweredFunc f) {
   CodeGenC::AddFunction(f);
 }
 
+std::string CodeGenCUDA::Finish() {
+  if (enable_fp16_) {
+    decl_stream << "#include <cuda_fp16.h>\n";
+  }
+
+  return CodeGenC::Finish();
+}
+
 void CodeGenCUDA::VisitStmt_(const ir::For* op) {
   CHECK(is_zero(op->min));
   if (op->for_type == ir::ForType::Unrolled) {
@@ -54,7 +62,9 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
-      case 16: os << "half"; break;
+      case 16: os << "half";
+        enable_fp16_ = true;
+        break;
       case 32: os << "float"; break;
       case 64: os << "double"; break;
       default: fail = true; break;
@@ -256,6 +266,31 @@ void CodeGenCUDA::VisitExpr_(const Broadcast* op, std::ostream& os) {   // NOLIN
     os << v;
   }
   os << ')';
+}
+
+
+inline void PrintConst(const FloatImm* op, std::ostream& os, CodeGenCUDA* p) { // NOLINT(*)
+  switch (op->type.bits()) {
+    case 64: case 32: {
+      std::ostringstream temp;
+      temp << std::scientific << op->value;
+      if (op->type.bits() == 32) temp << 'f';
+      p->MarkConst(temp.str());
+      os << temp.str();
+      break;
+    }
+    case 16: {
+      os << "__float2half_rn";
+      os << '(' << std::scientific << op->value << 'f' << ')';
+      break;
+    }
+    default: LOG(FATAL) << "Bad bit-width for float: " << op->type << "\n";
+  }
+}
+
+
+void CodeGenCUDA::VisitExpr_(const FloatImm *op, std::ostream& os) { // NOLINT(*)
+  PrintConst(op, os, this);
 }
 
 }  // namespace codegen
