@@ -324,25 +324,26 @@ def test_allocate():
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
     b = tvm.placeholder((30, 30), 'float32', 'b')
-
     run_and_check(blur2d, [a, b], [b])
 
     if tvm.gpu().exist:
         @tvm.hybrid.script
-        def share_vec_add(a, b, c):
-            shared = allocate((256, ), 'float32', 'shared')
-            for i in bind("threadIdx.x", 256):
-                shared[i] = a[i]
-            local = allocate((256, ), 'float32', 'local')
-            for i in bind("threadIdx.x", 256):
-                local[i] = b[i]
-            for i in bind("threadIdx.x", 256):
-                c[i] = shared[i] + local[i]
+        def shared_gemm(a, b, c):
+            for io in bind('blockIdx.x', 8):
+                for ii in bind('blockIdx.y', 8):
+                    shared_b = allocate((64, 64), 'float32', 'shared')
+                    for k in range(64):
+                        shared_b[io * 8 + ii, k] = b[io * 8 + ii, k]
+                    for jo in bind('threadIdx.y', 8):
+                        for ji in bind('threadIdx.x', 8):
+                            for k in range(64):
+                                c[io*8+ii, jo*8+ji] = c[io*8+ii, jo*8+ji] + a[io*8+ii, k] * shared_b[k, jo*8+ji]
 
-        a = tvm.placeholder((256, ), dtype='float32', name='a')
-        b = tvm.placeholder((256, ), dtype='float32', name='b')
-        c = tvm.placeholder((256, ), dtype='float32', name='c')
-        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
+        a = tvm.placeholder((64, 64), dtype='float32', name='a')
+        b = tvm.placeholder((64, 64), dtype='float32', name='b')
+        c = tvm.placeholder((64, 64), dtype='float32', name='c')
+        module = run_and_check(shared_gemm, [a, b, c], [c], target='cuda')
+        assert "__syncthreads()" in module.imported_modules[0].get_source()
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
