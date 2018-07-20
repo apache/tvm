@@ -259,12 +259,13 @@ def conv2d_56_64_128(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
 
 def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
     """Schedule conv2d for specific feature_in_out_filter pattern"""
+    max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     if util.get_const_int(Filter.shape[0]) + util.get_const_int(Filter.shape[1]) <= 768:
         # scheduler params
         vthread_x = util.get_const_int(Out.shape[3])
         num_thread_x = 64
         ofactor = 8
-        if util.get_const_int(Filter.shape[3]) == 1:
+        if util.get_const_int(Filter.shape[3]) == 1 and vthread_x * 4 <= max_threads:
             ofactor = 64
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
@@ -303,9 +304,8 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
         s[Filter_S].storage_align(s[Filter_S].op.axis[0], 2, 1)
 
     else:
-        max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
         # scheduler params
-        vthread_x = util.get_const_int(Out.shape[2])
+        vthread_x = min(16, util.get_const_int(Out.shape[2]))
         num_thread_x = 16
         num_thread_y = min(max_threads // num_thread_x, util.get_const_int(Out.shape[3]))
         ofactor = 8
@@ -316,11 +316,12 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
 
         i, oc, h, w = s[Out].op.axis
         ow, iw = s[Out].split(w, factor=num_thread_y)
+        oh, ih = s[Out].split(h, factor=vthread_x)
         ooc, ioc = s[Out].split(oc, factor=num_thread_x)
-        s[Out].reorder(i, ooc, h, ow, iw, ioc)
+        s[Out].reorder(i, ooc, oh, ih, ow, iw, ioc)
         s[Out].bind(ioc, thread_x)
         s[Out].bind(iw, thread_y)
-        s[Out].bind(h, thread_xz)
+        s[Out].bind(ih, thread_xz)
         s[Out].bind(ooc, block_x)
 
         s[Out_L].compute_at(s[Out], ioc)
@@ -334,7 +335,7 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
         s[temp_S].compute_at(s[Out_L], oic)
         s[Filter_S].compute_at(s[Out_L], oic)
 
-        num_thread = tvm.target.current_target(allow_none=False).max_num_threads
+        num_thread = max_threads
         thread_xx = tvm.thread_axis((0, num_thread), "threadIdx.x")
         block_xx = tvm.thread_axis("blockIdx.x")
 
