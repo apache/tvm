@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.BindException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -47,6 +48,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
   public static final int MAX_SERVER_PORT = 5555;
   // time to wait before aborting tracker connection (ms)
   public static final int TRACKER_TIMEOUT = 6000;
+  // time to wait before retrying tracker connection (ms)
+  public static final int RETRY_PERIOD = TRACKER_TIMEOUT;
   // time to wait for a connection before refreshing tracker connection (ms)
   public static final int STALE_TRACKER_TIMEOUT = 300000;
   // time to wait if no timeout value is specified (seconds)
@@ -167,6 +170,11 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
         System.err.println("Finish serving " + socket.getRemoteSocketAddress().toString());
       }
       Utils.closeQuietly(socket);
+    } catch (ConnectException e) {
+      // if the tracker connection failed, wait a bit before retrying
+      try {
+        Thread.sleep(RETRY_PERIOD);
+      } catch (InterruptedException e_) {}
     } catch (Throwable e) {
       e.printStackTrace();
     } finally {
