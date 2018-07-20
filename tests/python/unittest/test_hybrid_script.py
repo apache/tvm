@@ -291,7 +291,7 @@ def test_non_zero():
                 s = 0.0
                 for di in range(3):
                     for dj in range(3):
-                        s = s + a[i-di, j-dj]
+                        s += a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
     try:
         a = tvm.placeholder((32, 32), 'float32', 'a')
