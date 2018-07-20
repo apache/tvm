@@ -165,19 +165,28 @@ def test_fanout():
     run_and_check(fanout, [n, a, b], [b], {n: 10})
 
 
-@script
-def failure():
-    for i in range(1, 100):
-        i = 0
-
 def test_failure():
     try:
+        @script
+        def failure():
+            for i in range(1, 100):
+                i = 0
         tvm.hybrid.parse(failure, [])
     except IOError as err:
         assert sys.version_info[0] == 2
         print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
-    except Exception as err:
+    except ValueError as err:
         assert str(err) == 'You CAN NEVER overwrite a loop variable!'
+
+    try:
+        @tvm.hybrid.script
+        def augdefine():
+            for i in range(10):
+                s += 0
+        tvm.hybrid.parse(augdefine, [])
+    except ValueError as err:
+        assert str(err) == '"First store" cannot be an AugAssign'
+
 
 
 def test_looptype():
@@ -336,6 +345,15 @@ def test_allocate():
         run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
+
+
+def test_augassign():
+    @tvm.hybrid.script
+    def augassign(a):
+        for i in range(a.shape[0]):
+            a[i] += 1.0
+    a = tvm.placeholder((16, ), dtype='float32', name='a')
+    run_and_check(augassign, [a], [a])
 
 
 if __name__ == "__main__":

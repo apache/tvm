@@ -162,6 +162,14 @@ class HybridParser(ast.NodeVisitor):
     def visit_Num(self, node):
         return _api.const(node.n)
 
+    def visit_AugAssign(self, node):
+        lhs = node.target
+        rhs = self.visit(node.value)
+        rhs = HybridParser._binop_maker[type(node.op)](lhs, rhs)
+        if not isinstance(lhs, _expr.Call):
+            raise ValueError("The LHS of an AugAssign is supposed to be a call!")
+        buf = self._get_buffer_from_id(lhs.name)
+        return _make.Provide(buf.op, 0, rhs, lhs.args)
 
     def visit_Assign(self, node):
         if len(node.targets) != 1:
