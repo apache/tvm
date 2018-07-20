@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches
 """conv2d schedule on Intel Graphics"""
 
 from __future__ import absolute_import as _abs
@@ -57,7 +57,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register(["intel_graphics"])
-def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, layout, out_layout, out_dtype='float32'):
+def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, layout,\
+                 out_layout, out_dtype='float32'):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
