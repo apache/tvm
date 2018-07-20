@@ -53,7 +53,7 @@ class PyVariableUsage(ast.NodeVisitor):
         self.aug_assign_ = True
         self.generic_visit(node)
         self.aug_assign_ = False
-        
+
 
     def visit_Name(self, node):
         # If it is from the argument list or loop variable, we do not worry about it!
