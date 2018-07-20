@@ -302,7 +302,6 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
         s[Filter_S].storage_align(s[Filter_S].op.axis[0], 2, 1)
 
     else:
-        max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
         # scheduler params
         vthread_x = min(8, util.get_const_int(Out.shape[2]))
         num_thread_x = 16
