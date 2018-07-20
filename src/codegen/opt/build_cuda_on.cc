@@ -48,7 +48,7 @@ std::string FindCUDAIncludePath() {
   }
 
 #if defined(__linux__)
-  struct stat st;  
+  struct stat st;
   cuda_include_path = "/usr/local/cuda/include";
   if (stat(cuda_include_path.c_str(), &st) == 0) {
     return cuda_include_path;
