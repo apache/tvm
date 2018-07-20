@@ -276,7 +276,7 @@ def schedule_conv2d(attrs, outs, target):
         target = tvm.target.create(target)
         if target.device_name == "vta":
             return schedule_packed_conv2d(outs)
-        elif target.startswith("llvm"):
+        elif str(target).startswith("llvm"):
             return tvm.create_schedule([x.op for x in outs])
         else:
             raise RuntimeError("not support target %s" % target)
@@ -353,8 +353,11 @@ def schedule_packed_conv2d(outs):
     else:
         pad_data = None
     wrkld = _get_workload(data, pad_data, kernel, output)
-
-    plan = _WL2PLAN[wrkld]
+    if wrkld in _WL2PLAN:
+        plan = _WL2PLAN[wrkld]
+    else:
+        plan = find_schedules(wrkld, vt_only=True, best_only=True)[0]
+        logging.info("Trying to find plan for %s", wrkld)
     env = get_env()
 
     load_inp = load_wgt = load_out = store_out = env.dma_copy
