@@ -5,7 +5,9 @@
  *
  * \file build_cuda.cc
  */
+#if defined(__linux__)
 #include <sys/stat.h>
+#endif
 #include <cuda_runtime.h>
 #include <tvm/base.h>
 #include <nvrtc.h>
@@ -32,25 +34,29 @@ namespace codegen {
 
 
 std::string FindCUDAIncludePath() {
-#ifdef _WIN32
+#if defined(_WIN32)
   const std::string delimiter = "\\";
 #else
   const std::string delimiter = "/";
 #endif
   std::string cuda_include_path;
   const char* cuda_path_env = std::getenv("CUDA_PATH");
-  struct stat st;
   if (cuda_path_env != nullptr) {
     cuda_include_path += cuda_path_env;
     cuda_include_path += delimiter + "include";
     return cuda_include_path;
   }
 
+#if defined(__linux__)
+  struct stat st;  
   cuda_include_path = "/usr/local/cuda/include";
   if (stat(cuda_include_path.c_str(), &st) == 0) {
     return cuda_include_path;
   }
-  LOG(FATAL) << "Cannot find cuda include path.";
+#endif
+  LOG(FATAL) << "Cannot find cuda include path."
+             << "CUDA_PATH is not set or CUDA is not installed in the default installation path."
+             << "In other than linux, it is necessary to set CUDA_PATH.";
   return cuda_include_path;
 }
 
