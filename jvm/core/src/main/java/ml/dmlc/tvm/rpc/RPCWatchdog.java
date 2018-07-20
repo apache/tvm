@@ -18,7 +18,7 @@
 package ml.dmlc.tvm.rpc;
 
 /**
- * Watchdog for RPC
+ * Watchdog for RPC.
  */
 public class RPCWatchdog extends Thread {
   private int timeout = 0;
@@ -29,37 +29,39 @@ public class RPCWatchdog extends Thread {
   }
 
   /**
-   * start a timeout with watchdog (must be called before finishTimeout)
+   * Start a timeout with watchdog (must be called before finishTimeout).
    * @param timeout watchdog timeout in ms.
    */
-  synchronized public void startTimeout(int timeout) {
+  public synchronized void startTimeout(int timeout) {
     this.timeout = timeout;
     started = true;
     this.notify();
   }
 
   /**
-   * finish a timeout with watchdog (must be called after startTimeout)
+   * Finish a timeout with watchdog (must be called after startTimeout).
    */
-  synchronized public void finishTimeout() {
+  public synchronized void finishTimeout() {
     started = false;
     this.notify();
   }
 
   /**
-   * Wait and kill RPC if timeout is exceeded
+   * Wait and kill RPC if timeout is exceeded.
    */
   @Override public void run() {
     while (true) {
       // timeout not started
-      synchronized(this) {
+      synchronized (this) {
         while (!started) {
           try {
             this.wait();
-          } catch (InterruptedException e) {}
+          } catch (InterruptedException e) {
+              System.err.println("watchdog interrupted...");
+          }
         }
       }
-      synchronized(this) {
+      synchronized (this) {
         while (started) {
           try {
             System.err.println("waiting for timeout: " + timeout);
@@ -71,7 +73,9 @@ public class RPCWatchdog extends Thread {
               System.err.println("terminating...");
               System.exit(0);
             }
-          } catch (InterruptedException e) {}
+          } catch (InterruptedException e) {
+             System.err.println("watchdog interrupted...");
+          }
         }
       }
     }

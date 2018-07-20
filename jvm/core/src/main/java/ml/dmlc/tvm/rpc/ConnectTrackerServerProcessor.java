@@ -20,10 +20,10 @@ package ml.dmlc.tvm.rpc;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.ServerSocket;
 import java.net.BindException;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketException;
@@ -59,8 +59,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
 
   /**
    * Construct tracker server processor.
-   * @param host Tracker host.
-   * @param port Tracker port.
+   * @param trackerHost Tracker host.
+   * @param trackerPort Tracker port.
    * @param key Device key.
    * @param sockFdGetter Method to get file descriptor from Java socket.
    */
@@ -116,7 +116,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
           // wait for client request
           socket = server.accept();
           in = socket.getInputStream();
-            out = socket.getOutputStream();
+          out = socket.getOutputStream();
           int magic = Utils.wrapBytes(Utils.recvAll(in, 4)).getInt();
           if (magic != RPC.RPC_MAGIC) {
             out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
@@ -154,8 +154,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       if (!recvKey.startsWith("client:")) {
         System.err.println("recv key mismatch...");
         out.write(Utils.toBytes(RPC.RPC_CODE_MISMATCH));
-      }
-      else {
+      } else {
         out.write(Utils.toBytes(RPC.RPC_MAGIC));
         // send server key to the client
         Utils.sendString(out, recvKey);
@@ -163,7 +162,7 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
 
       System.err.println("Connection from " + socket.getRemoteSocketAddress().toString());
       // received timeout in seconds
-      watchdog.startTimeout(timeout*1000);
+      watchdog.startTimeout(timeout * 1000);
       final int sockFd = socketFileDescriptorGetter.get(socket);
       if (sockFd != -1) {
         new NativeServerLoop(sockFd).run();
@@ -174,7 +173,9 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       // if the tracker connection failed, wait a bit before retrying
       try {
         Thread.sleep(RETRY_PERIOD);
-      } catch (InterruptedException e_) {}
+      } catch (InterruptedException e_) {
+        System.err.println("interrupted before retrying to connect to tracker...");
+      }
     } catch (Throwable e) {
       e.printStackTrace();
     } finally {
@@ -239,8 +240,8 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
 
   // handcrafted JSON
   private String generatePut(int code, String key, int port, String matchKey) {
-    return "[" + code + ", " + "\"" + key + "\"" + ", " + "[" + port + ", " +
-                      "\"" + matchKey +  "\"" + "]" + ", " + "null" + "]";
+    return "[" + code + ", " + "\"" + key + "\"" + ", " + "[" + port + ", "
+            + "\"" + matchKey +  "\"" + "]" + ", " + "null" + "]";
   }
 
   // handcrafted JSON
