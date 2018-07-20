@@ -167,3 +167,78 @@ def callback_libdevice_path(arch):
     except RuntimeError:
         warnings.warn("Cannot find libdevice path")
         return ""
+
+
+def parse_compute_version(compute_version):
+    """Parse compute capability string to divide major and minor version
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "6.0")
+
+    Returns
+    -------
+    major : int
+        major version number
+    minor : int
+        minor version number
+    """
+    split_ver = compute_version.split('.')
+    try:
+        major = int(split_ver[0])
+        minor = int(split_ver[1])
+        return major, minor
+    except (IndexError, ValueError) as err:
+        raise RuntimeError("Compute version parsing error: " + str(err))
+
+
+def have_fp16(compute_version):
+    """Either fp16 support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version: str
+        compute capability of a GPU (e.g. "6.0")
+    """
+    major, minor = parse_compute_version(compute_version)
+    # fp 16 support in reference to:
+    # https://docs.nvidia.com/cuda/cuda-c-programming-guide/#arithmetic-instructions
+    if major == 5 and minor == 3:
+        return True
+    # NOTE: exclude compute capability 6.1 devices although it is actually available
+    #       to compute fp16, because these devices only have low-rate fp16 performance.
+    if major == 6 and minor != 1:
+        return True
+    if major == 7:
+        return True
+
+    return False
+
+def have_int8(compute_version):
+    """Either int8 support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "6.1")
+    """
+    major, minor = parse_compute_version(compute_version)
+    if major == 6 and minor == 1:
+        return True
+
+    return False
+
+def have_tensorcore(compute_version):
+    """Either TensorCore support is provided in the compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        compute capability of a GPU (e.g. "7.0")
+    """
+    major, _ = parse_compute_version(compute_version)
+    if major == 7:
+        return True
+
+    return False
