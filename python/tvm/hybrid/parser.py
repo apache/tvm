@@ -15,7 +15,7 @@ from .. import ir_pass as _ir_pass
 
 def list_to_block(visit, lst):
     """Convert a list of Python IR nodes to HalideIR Block"""
-    lst = list(map(visit, lst))
+    lst = [visit(i) for i in lst]
     lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, make_nop())]
     if not lst:
         return make_nop()
@@ -163,7 +163,7 @@ class HybridParser(ast.NodeVisitor):
         return _api.const(node.n)
 
     def visit_AugAssign(self, node):
-        lhs = node.target
+        lhs = self.visit(node.target)
         rhs = self.visit(node.value)
         rhs = HybridParser._binop_maker[type(node.op)](lhs, rhs)
         if not isinstance(lhs, _expr.Call):

@@ -289,7 +289,7 @@ def test_non_zero():
                 s = 0.0
                 for di in range(3):
                     for dj in range(3):
-                        s = s + a[i-di, j-dj]
+                        s += a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
     try:
         a = tvm.placeholder((32, 32), 'float32', 'a')
@@ -337,7 +337,7 @@ def test_allocate():
                     for jo in bind('threadIdx.y', 8):
                         for ji in bind('threadIdx.x', 8):
                             for k in range(64):
-                                c[io*8+ii, jo*8+ji] = c[io*8+ii, jo*8+ji] + a[io*8+ii, k] * shared_b[k, jo*8+ji]
+                                c[io*8+ii, jo*8+ji] += a[io*8+ii, k] * shared_b[k, jo*8+ji]
 
         a = tvm.placeholder((64, 64), dtype='float32', name='a')
         b = tvm.placeholder((64, 64), dtype='float32', name='b')
@@ -367,4 +367,5 @@ if __name__ == "__main__":
     test_math_intrin()
     test_non_zero()
     test_allocate()
+    test_augassign()
 
