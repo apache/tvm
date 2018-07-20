@@ -85,7 +85,7 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 99, m: 101})
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
@@ -176,7 +176,7 @@ def test_failure():
         tvm.hybrid.parse(failure, [])
     except IOError as err:
         assert sys.version_info[0] == 2
-        print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
+        print('[Warning] Case test_failure.0 is skipped by Python2 because "%s"' % str(err))
     except ValueError as err:
         assert str(err) == 'You CAN NEVER overwrite a loop variable!'
 
@@ -186,6 +186,9 @@ def test_failure():
             for i in range(10):
                 es += 0
         tvm.hybrid.parse(augdefine, [])
+    except IOError as err:
+        assert sys.version_info[0] == 2
+        print('[Warning] Case test_failure.1 is skipped by Python2 because "%s"' % str(err))
     except ValueError as err:
         assert str(err) == '"First store" cannot be an AugAssign'
 
