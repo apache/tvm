@@ -5,7 +5,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="ml.dmlc.tvm.tvmrpc.MainActivity">
+    tools:context="ml.dmlc.tvm.tvmrpc.RPCActivity">
 
     <android.support.design.widget.AppBarLayout
         android:layout_height="wrap_content"
@@ -21,6 +21,6 @@
 
     </android.support.design.widget.AppBarLayout>
 
-    <include layout="@layout/content_main"/>
+    <include layout="@layout/content_rpc"/>
 
 </android.support.design.widget.CoordinatorLayout>

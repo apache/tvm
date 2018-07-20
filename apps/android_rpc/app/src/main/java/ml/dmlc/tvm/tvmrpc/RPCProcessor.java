@@ -17,15 +17,11 @@
 
 package ml.dmlc.tvm.tvmrpc;
 
-import android.os.Bundle;
-import android.os.Handler;
-import android.os.Message;
 import android.os.ParcelFileDescriptor;
-
 import java.net.Socket;
-
-import ml.dmlc.tvm.rpc.ConnectProxyServerProcessor;
+import ml.dmlc.tvm.rpc.ConnectTrackerServerProcessor;
 import ml.dmlc.tvm.rpc.SocketFileDescriptorGetter;
+import ml.dmlc.tvm.rpc.RPCWatchdog;
 
 /**
  * Connect to RPC proxy and deal with requests.
@@ -36,9 +32,8 @@ class RPCProcessor extends Thread {
   private String key;
   private boolean running = false;
   private long startTime;
-  private ConnectProxyServerProcessor currProcessor;
-  private boolean kill = false;
-  public static final int SESSION_TIMEOUT = 30000;
+  private ConnectTrackerServerProcessor currProcessor;
+  private boolean first = true;
 
   static final SocketFileDescriptorGetter socketFdGetter
       = new SocketFileDescriptorGetter() {
@@ -47,21 +42,10 @@ class RPCProcessor extends Thread {
           return ParcelFileDescriptor.fromSocket(socket).getFd();
         }
       };
-  // callback to initialize the start time of an rpc session
-  class setTimeCallback implements Runnable { 
-    private RPCProcessor rPCProcessor;
-
-    public setTimeCallback(RPCProcessor rPCProcessor) {
-        this.rPCProcessor = rPCProcessor;    
-    }
-
-    @Override
-    public void run() {
-        rPCProcessor.setStartTime();
-    }
-  }
 
   @Override public void run() {
+    RPCWatchdog watchdog = new RPCWatchdog();
+    watchdog.start();
     while (true) {
       synchronized (this) {
         currProcessor = null;
@@ -71,49 +55,18 @@ class RPCProcessor extends Thread {
           } catch (InterruptedException e) {
           }
         }
-        // if kill, we do nothing and wait for app restart
-        // to prevent race where timedOut was reported but restart has not
-        // happened yet
-        if (kill) {
-            System.err.println("waiting for restart...");
-            currProcessor = null;
-        }
-        else {
-            startTime = 0;
-            currProcessor = new ConnectProxyServerProcessor(host, port, key, socketFdGetter);
-            currProcessor.setStartTimeCallback(new setTimeCallback(this));
+        try {
+          currProcessor = new ConnectTrackerServerProcessor(host, port, key, socketFdGetter, watchdog);
+        } catch (Throwable e) {
+          e.printStackTrace();
+          // kill if creating a new processor failed
+          System.exit(0);
         }
       }
-        if (currProcessor != null)
-            currProcessor.run();
+      if (currProcessor != null)
+        currProcessor.run();
+      watchdog.finishTimeout();
     }
-  }
-
-  /**
-   * check if the current RPCProcessor has timed out while in a session
-   */
-  synchronized boolean timedOut(long curTime) {
-    if (startTime == 0) {
-        return false;
-    }
-    else if ((curTime - startTime) > SESSION_TIMEOUT) {
-        System.err.println("set kill flag...");
-        kill = true;
-        return true;
-    }
-    return false;
-  }
-
-  /**
-   * set the start time of the current RPC session (used in callback)
-   */
-  synchronized void setStartTime() {
-    startTime = System.currentTimeMillis();
-    System.err.println("start time set to: " + startTime);
-  }
-
-  synchronized long getStartTime() {
-    return startTime;
   }
 
   /**
@@ -139,6 +92,6 @@ class RPCProcessor extends Thread {
     this.port = port;
     this.key = key;
     running = true;
-    notify();
+    this.notify();
   }
 }

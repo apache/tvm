@@ -64,9 +64,9 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/label_connect"/>
+            android:text="@string/label_persistent"/>
         <Switch
-            android:id="@+id/switch_connect"
+            android:id="@+id/switch_persistent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:switchMinWidth="55dp"
@@ -74,6 +74,17 @@
             android:checked="false"
             android:textOff="@string/switch_off"
             android:textOn="@string/switch_on" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content">
+        <Button
+            android:id="@+id/button_start_rpc"
+            android:layout_height="wrap_content"
+            android:layout_width="wrap_content"
+            android:text="@string/start_rpc" />
     </LinearLayout>
 
 </LinearLayout>

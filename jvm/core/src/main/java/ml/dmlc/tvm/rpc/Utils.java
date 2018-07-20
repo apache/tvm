@@ -19,6 +19,7 @@ package ml.dmlc.tvm.rpc;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -75,5 +76,17 @@ class Utils {
       builder.append((char) bt);
     }
     return builder.toString();
+  }
+
+  public static String recvString(InputStream in) throws IOException {
+    String recvString = null;
+    int len = wrapBytes(Utils.recvAll(in, 4)).getInt();
+    recvString = decodeToStr(Utils.recvAll(in, len));
+    return recvString;
+  }
+
+  public static void sendString(OutputStream out, String string) throws IOException {
+    out.write(toBytes(string.length()));
+    out.write(toBytes(string));
   }
 }

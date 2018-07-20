@@ -51,15 +51,15 @@ Here's a piece of example for `config.mk`.
 
 ```makefile
 APP_ABI = arm64-v8a
- 
+
 APP_PLATFORM = android-17
- 
+
 # whether enable OpenCL during compile
 USE_OPENCL = 1
- 
+
 # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
- 
+
 # the additional link libs you want to add, e.g., ANDROID_LIB_PATH/libOpenCL.so
 ADD_LDLIBS = libOpenCL.so
 ```
@@ -85,13 +85,14 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Cross Compile and Upload to the Android Device
 
-First start a proxy server using `python -m tvm.exec.rpc_proxy` and make your Android device connect to this proxy server via TVM RPC application.
+First start an RPC tracker using `python -m tvm.exec.rpc_tracker --port [PORT]` and make your Android device connect to this RPC tracker via TVM RPC application.
 
 Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py) and run,
 
 ```bash
-# Specify the proxy host
-export TVM_ANDROID_RPC_PROXY_HOST=0.0.0.0
+# Specify the RPC tracker
+export TVM_TRACKER_HOST=0.0.0.0
+export TVM_TRACKER_PORT=[PORT]
 # Specify the standalone Android C++ compiler
 export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++
 python android_rpc_test.py

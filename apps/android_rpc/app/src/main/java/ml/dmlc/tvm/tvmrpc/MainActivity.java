@@ -31,12 +31,18 @@ import android.support.v7.widget.Toolbar;
 import android.widget.CompoundButton;
 import android.widget.EditText;
 import android.widget.Switch;
+import android.widget.Button;
+import android.view.View;
 import android.content.Intent;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 
 
 public class MainActivity extends AppCompatActivity {
+  private boolean skipRelaunch = true;
+  // wait time before automatic restart of RPC Activity
+  public static final int HANDLER_RESTART_DELAY = 5000;
 
-  private RPCWatchdog watchdog;
 
   private void showDialog(String title, String msg) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -52,73 +58,107 @@ public class MainActivity extends AppCompatActivity {
     builder.create().show();
   }
 
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_main);
-    Toolbar toolbar = findViewById(R.id.toolbar);
-    setSupportActionBar(toolbar);
-
-    Switch switchConnect = findViewById(R.id.switch_connect);
-    switchConnect.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-      @Override
-      public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-        if (isChecked) {
-          enableInputView(false);
-          connectProxy();
-        } else {
-          disconnect();
-          enableInputView(true);
-        }
-      }
-    });
-    
-    enableInputView(true);
-
-  }
-
-  @Override
-  protected void onDestroy() {
-    super.onDestroy();
-    if (watchdog != null) {
-        watchdog.disconnect();
-        watchdog = null;
-    }
-  }
-
-  private void connectProxy() {
+  public Intent updateRPCPrefs() {
+    System.err.println("updating preferences...");
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
+    Switch inputSwitch =  findViewById(R.id.switch_persistent);
+
     final String proxyHost = edProxyAddress.getText().toString();
     final int proxyPort = Integer.parseInt(edProxyPort.getText().toString());
     final String key = edAppKey.getText().toString();
-
-    System.err.println("creating watchdog thread...");
-    watchdog = new RPCWatchdog(proxyHost, proxyPort, key, this);
-    
-    System.err.println("starting watchdog thread...");
-    watchdog.start();
+    final boolean isChecked = inputSwitch.isChecked();
 
     SharedPreferences pref = getApplicationContext().getSharedPreferences("RPCProxyPreference", Context.MODE_PRIVATE);
     SharedPreferences.Editor editor = pref.edit();
     editor.putString("input_address", proxyHost);
     editor.putString("input_port", edProxyPort.getText().toString());
     editor.putString("input_key", key);
+    editor.putBoolean("input_switch", isChecked);
     editor.commit();
+
+    Intent intent = new Intent(this, RPCActivity.class);
+    intent.putExtra("host", proxyHost);
+    intent.putExtra("port", proxyPort);
+    intent.putExtra("key", key);
+    return intent;
   }
 
-  private void disconnect() {
-    if (watchdog != null) {
-        watchdog.disconnect();
-        watchdog = null;
+  private void setupRelaunch() {
+    final Context context = this;
+    final Switch switchPersistent = findViewById(R.id.switch_persistent);
+    final Runnable rPCStarter = new Runnable() {
+        public void run() {
+            if (switchPersistent.isChecked()) {
+              System.err.println("relaunching RPC activity in 5s...");
+              Intent intent = ((MainActivity) context).updateRPCPrefs();
+              startActivity(intent);
+            }
+        }
+    };
+    Handler handler = new Handler();
+    handler.postDelayed(rPCStarter, HANDLER_RESTART_DELAY);
+  }
+
+  @Override
+  protected void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    setContentView(R.layout.activity_main);
+    Toolbar toolbar = findViewById(R.id.toolbar);
+    setSupportActionBar(toolbar);
+    final Context context = this;
+
+    Switch switchPersistent = findViewById(R.id.switch_persistent);
+    switchPersistent.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+      @Override
+      public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+        if (isChecked) {
+          System.err.println("automatic RPC restart enabled...");
+          updateRPCPrefs();
+        } else {
+          System.err.println("automatic RPC restart disabled...");
+          updateRPCPrefs();
+        }
+      }
+    });
+
+    Button startRPC = findViewById(R.id.button_start_rpc);
+    startRPC.setOnClickListener(new View.OnClickListener() {
+        public void onClick(View v) {
+            Intent intent = ((MainActivity) context).updateRPCPrefs();
+            startActivity(intent);
+        }
+    });
+
+    enableInputView(true);
+  }
+
+  @Override
+  protected void onResume() {
+    System.err.println("MainActivity onResume...");
+    System.err.println("skipRelaunch: " + skipRelaunch);
+    // if this is the first time onResume is called, do nothing, otherwise we
+    // may double launch
+    if (!skipRelaunch) {
+        enableInputView(true);
+        setupRelaunch();
+    } else {
+        skipRelaunch = false;
     }
+    super.onResume();
+  }
+
+  @Override
+  protected void onDestroy() {
+    super.onDestroy();
   }
 
   private void enableInputView(boolean enable) {
     EditText edProxyAddress = findViewById(R.id.input_address);
     EditText edProxyPort = findViewById(R.id.input_port);
     EditText edAppKey = findViewById(R.id.input_key);
+    Switch input_switch = findViewById(R.id.switch_persistent);
     edProxyAddress.setEnabled(enable);
     edProxyPort.setEnabled(enable);
     edAppKey.setEnabled(enable);
@@ -134,6 +174,8 @@ public class MainActivity extends AppCompatActivity {
     String inputKey = pref.getString("input_key", null);
     if (null != inputKey)
         edAppKey.setText(inputKey);
+    boolean isChecked = pref.getBoolean("input_switch", false);
+    input_switch.setChecked(isChecked);
     }
   }
 }

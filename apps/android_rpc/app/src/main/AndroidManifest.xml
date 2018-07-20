@@ -20,9 +20,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <service android:name=".RPCService"
-                 android:process=":RPCServiceProcess"
-                 android:permission="android.permission.BIND_JOB_SERVICE" />
+        <service android:name=".RPCWatchdogService"
+         android:process=":RPCWatchdogServiceProcess"
+         android:permission="android.permission.BIND_JOB_SERVICE" />
+        <activity
+            android:name=".RPCActivity"
+            android:process=":RPCProcess"
+            android:label="@string/rpc_name"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:screenOrientation="portrait">
+        </activity>
     </application>
 
 </manifest>
