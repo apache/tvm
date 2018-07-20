@@ -6,9 +6,14 @@
 #include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
+#include <iostream>
+#include <fstream>
 #include <unordered_map>
 #include "./opencl_common.h"
 #include "./opencl_module.h"
+
+#define STRINGIFY(s) #s
+#define TOSTRING(id) STRINGIFY(id)
 
 namespace tvm {
 namespace runtime {
@@ -185,11 +190,15 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
     // create program
     if (fmt_ == "cl") {
       if (program_ == nullptr) {
+#ifndef AOCL_BOARD_NAME
         const char* s = data_.c_str();
         size_t len = data_.length();
         cl_int err;
         program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
         OPENCL_CHECK_ERROR(err);
+#else
+	OfflineCompile(w, t);
+#endif
       }
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
       const unsigned char* s = (const unsigned char *)data_.c_str();
@@ -225,6 +234,52 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
   t->kernel_table[e.kernel_id].version = e.version;
   kernels_.push_back(kernel);
   return kernel;
+}
+
+void OpenCLModuleNode::OfflineCompile(cl::OpenCLWorkspace* w,
+				      cl::OpenCLThreadEntry* t) {
+    // Write a .cl file.
+    std::ofstream ofs("aocltmp.cl");
+    if (!ofs) {
+      LOG(FATAL) << "Can't create OpenCL temporary file.";
+    }
+    ofs << data_.c_str();
+    if (!ofs) {
+      LOG(FATAL) << "Can't write to OpenCL temporary file.";
+    }
+    ofs.close();
+
+    // Compile the .cl file.
+    std::string cmd = "aoc aocltmp.cl -march=emulator -board=";
+    cmd += TOSTRING(AOCL_BOARD_NAME_STR);
+    if (system(cmd.c_str()) != 0) {
+      LOG(FATAL) << "OpenCL offline compilation error.";
+    }
+
+    // Read .aocx file
+    std::ifstream ifs("aocltmp.aocx", std::ios::in | std::ios::binary);
+    if (!ifs) {
+      LOG(FATAL) << "Can't open aocltmp.aocx file.";
+    }
+    ifs.seekg(0, std::fstream::end);
+    const size_t len = ifs.tellg();
+    char *buf = new char[len];
+    ifs.clear();
+    ifs.seekg(0, std::fstream::beg);
+    ifs.read(buf, len);
+    if (!ifs) {
+      LOG(FATAL) << "Can't read aocltmp.aocx file.";
+    }
+
+    // Create program from aocx.
+    cl_int err;
+    int device_id = t->context.device_id;
+    cl_device_id dev = w->devices[device_id];
+    const unsigned char* s = (const unsigned char *)buf;
+    program_ = clCreateProgramWithBinary(w->context, 1, &dev, &len, &s, NULL, &err);
+    OPENCL_CHECK_ERROR(err);
+
+    delete[] buf;
 }
 
 Module OpenCLModuleCreate(
