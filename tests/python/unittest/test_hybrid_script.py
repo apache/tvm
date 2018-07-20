@@ -40,6 +40,8 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
     for nd, np in to_check:
         numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
+    return module
+
 
 @script
 def outer_product(n, m, a, b, c):
@@ -182,7 +184,7 @@ def test_failure():
         @tvm.hybrid.script
         def augdefine():
             for i in range(10):
-                s += 0
+                es += 0
         tvm.hybrid.parse(augdefine, [])
     except ValueError as err:
         assert str(err) == '"First store" cannot be an AugAssign'
@@ -289,7 +291,7 @@ def test_non_zero():
                 s = 0.0
                 for di in range(3):
                     for dj in range(3):
-                        s += a[i-di, j-dj]
+                        s = s + a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
     try:
         a = tvm.placeholder((32, 32), 'float32', 'a')
