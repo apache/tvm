@@ -34,6 +34,10 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "#include <cuda_fp16.h>\n";
   }
 
+  if (enable_int8_) {
+    decl_stream << "#include <sm_61_intrinsics.h>\n";
+  }
+
   return CodeGenC::Finish();
 }
 
@@ -83,7 +87,8 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
     }
     if (t.bits() == 8 && t.lanes() == 4) {
       // directly 4 8 bit int in integer.
-      os << "int"; return;
+      enable_int8_ = true;
+      os << "char4"; return;
     }
     switch (t.bits()) {
       case 8: {
