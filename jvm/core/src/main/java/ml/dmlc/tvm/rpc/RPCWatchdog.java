@@ -57,7 +57,7 @@ public class RPCWatchdog extends Thread {
           try {
             this.wait();
           } catch (InterruptedException e) {
-              System.err.println("watchdog interrupted...");
+            System.err.println("watchdog interrupted...");
           }
         }
       }
@@ -74,7 +74,7 @@ public class RPCWatchdog extends Thread {
               System.exit(0);
             }
           } catch (InterruptedException e) {
-             System.err.println("watchdog interrupted...");
+            System.err.println("watchdog interrupted...");
           }
         }
       }
