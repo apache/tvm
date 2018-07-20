@@ -1,15 +1,19 @@
 <resources>
     <string name="app_name">TVM RPC</string>
+    <string name="rpc_name">RPC</string>
 
-    <string name="input_address">Enter the proxy server address</string>
-    <string name="input_port">Enter the proxy server port</string>
+    <string name="input_address">Enter the tracker server address</string>
+    <string name="input_port">Enter the tracker server port</string>
     <string name="input_key">Enter the app connection key</string>
 
     <string name="label_address">Address</string>
     <string name="label_port">Port</string>
     <string name="label_key">Key</string>
-    <string name="label_connect">Connect to Proxy</string>
+    <string name="label_persistent">Keep RPC Alive</string>
 
-    <string name="switch_on">Connected</string>
-    <string name="switch_off">Disconnected</string>
+    <string name="switch_on">Enabled</string>
+    <string name="switch_off">Disabled</string>
+
+    <string name="start_rpc">Start RPC</string>
+    <string name="stop_rpc">Stop RPC</string>
 </resources>

@@ -23,8 +23,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RPC {
+  public static final int RPC_TRACKER_MAGIC = 0x2f271;
   public static final int RPC_MAGIC = 0xff271;
+  public static final int RPC_CODE_MISMATCH = RPC_MAGIC + 2;
   public static final int RPC_SESS_MASK = 128;
+
+  public static final String TIMEOUT_ARG = "-timeout=";
+
+  public class TrackerCode {
+    public static final int PUT = 3;
+    public static final int GET_PENDING_MATCHKEYS = 7;
+    public static final int SUCCESS = 0;
+  }
 
   private static ThreadLocal<Map<String, Function>> apiFuncs
       = new ThreadLocal<Map<String, Function>>() {
