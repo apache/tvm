@@ -48,7 +48,7 @@ inline TShape GetReduceAxes(const uint32_t indim,
   if (!exclude) return in_axis;
   TShape r_axis(indim - in_axis.ndim());
   for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
-    if (i == in_axis[j]) {
+    if (j < in_axis.ndim() && i == in_axis[j]) {
         ++j;
         continue;
     }
