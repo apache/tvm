@@ -262,5 +262,62 @@ NNVM_REGISTER_BASE_REDUCE_OP(collapse_sum)
     return Array<Tensor>{ topi::collapse_sum(inputs[0], inputs[1]->shape) };
 });
 
+template<int Type>
+inline bool InferFixedType(const NodeAttrs& attrs,
+                          std::vector<int>* in_attrs,
+                          std::vector<int>* out_attrs) {
+  // Static type inference for argmax operation. Argmax return indices which
+  // should have Int32 type as shapes do.
+  CHECK_EQ(in_attrs->size(), 1U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, static_cast<int>(Type));
+  return true;
+}
+
+NNVM_REGISTER_BASE_REDUCE_OP(argmax)
+.describe(R"code(Creates an operation that finds the indices of the maximum
+values over a given axis.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "The input")
+.set_attr<FInferShape>("FInferShape", ReduceShape)
+.set_attr<FInferType>("FInferType", InferFixedType<kInt32>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_num_inputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    auto axis = ShapeToArray(r_axes);
+    return Array<Tensor>{
+      topi::argmax(inputs[0], axis, param.keepdims) };
+});
+
+NNVM_REGISTER_BASE_REDUCE_OP(argmin)
+.describe(R"code(Creates an operation that finds the indices of the minimum
+values over a given axis.
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "The input")
+.set_attr<FInferShape>("FInferShape", ReduceShape)
+.set_attr<FInferType>("FInferType", InferFixedType<kInt32>)
+.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
+.set_num_inputs(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    auto axis = ShapeToArray(r_axes);
+    return Array<Tensor>{
+      topi::argmin(inputs[0], axis, param.keepdims) };
+});
+
+
 }  // namespace top
 }  // namespace nnvm
