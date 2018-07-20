@@ -38,7 +38,7 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
     module(*nd_args)
 
     for nd, np in to_check:
-        numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+        numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-3, atol=1e-3)
 
     return module
 
