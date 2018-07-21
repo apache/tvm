@@ -8,6 +8,7 @@ remote devices, recording the running time costs and checking the correctness of
 import logging
 import os
 import time
+from random import getrandbits
 
 import numpy as np
 
@@ -210,11 +211,11 @@ def measure_rpc(input_pack,
 
         tmp_dir = util.tempdir()
         if not kwargs.get('use_ndk', False):
-            file_name = "tmp_func.tar"
+            file_name = "tmp_func_%0x.tar" % getrandbits(64)
             path = tmp_dir.relpath(file_name)
             func.export_library(path)
         else:
-            file_name = "tmp_func.so"
+            file_name = "tmp_func_%0x.so" % getrandbits(64)
             path = tmp_dir.relpath(file_name)
             func.export_library(path, ndk.create_shared)
         remote = request_remote(rpc_device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)

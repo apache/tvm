@@ -250,7 +250,7 @@ class ApplyHistoryBest(DispatchContext):
         # first try matching by model
         for opt in target.options:
             if opt.startswith("-model"):
-                model = opt[:7]
+                model = opt[7:]
                 key = (model, workload)
                 if key in self.best_by_model:
                     return self.best_by_model[key][0].config
@@ -346,9 +346,9 @@ def pick_best(in_file, out_file):
             fout.write(encode(inp, res) + "\n")
 
 
-def load_op_param(rootpath=os.path.join(os.path.expanduser('~'), ".tvm", "op_param")):
+def load_op_param(rootpath=os.path.join(os.path.expanduser('~'), ".tvm", "op_params")):
     """Load pre-tuned parameters of operators.
-    This function will load all "*.tsv" file under root path and select best configs.
+    This function will load all "*.log" file under root path and select best configs.
 
     Parameters
     ----------
@@ -358,7 +358,7 @@ def load_op_param(rootpath=os.path.join(os.path.expanduser('~'), ".tvm", "op_par
     best_context = ApplyHistoryBest([])
     for dirpath, _, filenames in os.walk(rootpath):
         for filename in filenames:
-            if os.path.splitext(filename)[1] == '.tsv':
+            if os.path.splitext(filename)[1] == '.log':
                 best_context.load(os.path.join(dirpath, filename))
 
     assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
@@ -369,13 +369,13 @@ Usage:
 This record executable module has three modes.
 
 * Print log file in readable format
-e.g. python -m autotvm.record --mode read --i collect_conv.tsv --begin 0 --end 5 --ir --code
+e.g. python -m autotvm.record --mode read --i collect_conv.log --begin 0 --end 5 --ir --code
 
 * Extract history best from a large log file
-e.g. python -m autotvm.record --mode pick --i collect.tsv
+e.g. python -m autotvm.record --mode pick --i collect.log
 
 * Split a log file into separate files, each of which contains only a single wkl
-e.g. python -m autotvm.record --mode split --i collect.tsv
+e.g. python -m autotvm.record --mode split --i collect.log
 """
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -391,7 +391,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     if args.mode == 'pick':
-        args.o = args.o or args.i + ".best.tsv"
+        args.o = args.o or args.i + ".best.log"
         pick_best(args.i, args.o)
     elif args.mode == 'read':
         for i, (inp, result) in enumerate(load_from_file(args.i)):
