@@ -346,6 +346,7 @@ def generic_func(fdefault):
         return func(*args, **kwargs)
     fdecorate = decorate(fdefault, dispatch_func)
     fdecorate.register = register
+    fdecorate.fdefault = fdefault
     return fdecorate
 
 

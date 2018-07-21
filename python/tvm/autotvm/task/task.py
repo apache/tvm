@@ -68,6 +68,33 @@ class Task(object):
             self.flop = config.flop
         return sch, arg_bufs
 
+    def __getstate__(self):
+        # custom pickle implementation is required for
+        # some unpickable local task functions.
+        # So we only pickle the name of the function
+        # and restore the function by name when unpickling it.
+        return {
+            "name": self.name,
+            "args": self.args,
+            "kwargs": self.kwargs,
+            "config_space": self.config_space,
+            "workload": self.workload,
+            "flop": self.flop,
+            "target": self.target,
+            "target_host": self.target_host
+        }
+
+    def __setstate__(self, state):
+        self.name = state["name"]
+        self.args = state["args"]
+        self.kwargs = state["kwargs"]
+        self.config_space = state["config_space"]
+        self.func = TASK_TABLE.get(state["name"], _raise_error)
+        self.workload = state["workload"]
+        self.flop = state["flop"]
+        self.target = state["target"]
+        self.target_host = state["target_host"]
+
     def __repr__(self):
         return "Task(func_name=%s, args=%s, kwargs=%s, workload=%s)" % (
             self.name, self.args, self.kwargs, self.workload

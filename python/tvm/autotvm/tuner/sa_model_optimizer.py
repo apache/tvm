@@ -30,7 +30,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         Print log every `verbose` iterations
     """
     def __init__(self, task, n_iter=500, temp=(1, 0), persistent=True, parallel_size=128,
-                 early_stop=30, verbose=50):
+                 early_stop=50, verbose=50):
         super(SimulatedAnnealingOptimizer, self).__init__()
 
         self.task = task
@@ -39,8 +39,8 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         self.n_iter = n_iter
         self.temp = temp
         self.persistent = persistent
-        self.parallel_size = parallel_size
-        self.early_stop = early_stop
+        self.parallel_size = min(parallel_size, len(self.task.config_space))
+        self.early_stop = early_stop or 1e9
         self.verbose = verbose
         self.points = None
 

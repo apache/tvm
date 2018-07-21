@@ -264,12 +264,23 @@ class ModelBasedTuner(Tuner):
             self.train_ct += 1
 
     def load_history(self, data_set):
-        base_model = self.cost_model.clone_new()
-        base_model.fit_log(data_set, self.plan_size)
+        # filter data, only pick the data with a same task
+        data = []
+        for inp, res in data_set:
+            if inp.task.name == self.task.name and \
+                            inp.config.template_key == self.task.config_space.template_key:
+                data.append((inp, res))
+        if not data:
+            return
 
+        # fit base model
+        base_model = self.cost_model.clone_new()
+        base_model.fit_log(data, self.plan_size)
+
+        # use base model to select initial points
         if not self.trials:
             # no plan yet, use base model to select initial trials
-            maximums = self.model_optimizer.find_maximums(base_model, self.visited)
+            maximums = self.model_optimizer.find_maximums(base_model, self.plan_size, self.visited)
             self.trials = maximums
             self.trial_pt = 0
 
