@@ -139,7 +139,7 @@ class XGBoostCostModel(CostModel):
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
-        y_train /= np.max(y_train)
+        y_train = y_train / np.max(y_train)
 
         valid_index = y_train > 1e-6
         index = np.random.permutation(len(x_train))
