@@ -19,12 +19,16 @@ package ml.dmlc.tvm;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.junit.Assert.*;
 
 import java.io.File;
 import java.util.Random;
 
 public class ModuleTest {
+  private final Logger logger = LoggerFactory.getLogger(ModuleTest.class);
   private static String loadingDir;
 
   @BeforeClass
@@ -60,11 +64,15 @@ public class ModuleTest {
   public void test_load_add_func_gpu() {
     final Random RND = new Random(0);
 
+    TVMContext ctx = new TVMContext("gpu", 0);
+    if (!ctx.exist()) {
+      logger.warn("GPU does not exist. Skip the test.");
+      return;
+    }
+
     Module fadd = Module.load(loadingDir + File.separator + "add_gpu.so");
     Module faddDev = Module.load(loadingDir + File.separator + "add_gpu.ptx");
     fadd.importModule(faddDev);
-
-    TVMContext ctx = new TVMContext("gpu", 0);
 
     final int dim = 100;
     long[] shape = new long[]{dim};
