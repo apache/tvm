@@ -1,5 +1,5 @@
 """
-How to get high performance convolution kernel on NVIDIA GPU by auto-tuning
+Tuning High Performance Convolution on NVIDIA GPUs
 =========================================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
@@ -10,9 +10,11 @@ vendor provided library CuDNN in many cases.
 
 import logging
 import sys
+import numpy as np
 
 import tvm
 import topi
+from topi.testing import conv2d_nchw_python
 
 from tvm import autotvm
 
@@ -133,9 +135,10 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 # logging config (for printing tuning log to screen)
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 
-# the last layer in resnet 
+# the last layer in resnet
+N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
 task = autotvm.task.create(conv2d_no_batching,
-                           args=(1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)),
+                           args=(N, H, W, CO, CI, KH, KW, strides, padding),
                            target='cuda')
 print(task.config_space)
 
@@ -146,15 +149,43 @@ measure_option = autotvm.measure_option(mode='local',
                                         parallel_num=8,
                                         timeout=20)
 
-# begin tuning, log records to file `cache.tsv`
+# begin tuning, log records to file `conv2d.tsv`
 tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(n_trial=20,
            measure_option=measure_option,
-           callbacks=[autotvm.callback.log_to_file('cache.tsv')])
+           callbacks=[autotvm.callback.log_to_file('conv2d.log')])
 
-# get best config from cache file
-dispatch_context = autotvm.apply_history_best("cache.tsv")
+#########################################################################
+# Finally we can inspect the best config from log file, check correctness,
+# and measure running time.
+
+# inspect the best config
+dispatch_context = autotvm.apply_history_best("conv2d.log")
 best_config = dispatch_context.query(task.target, task.workload)
 print("\nBest config:")
 print(best_config)
 
+# apply history best from log file
+with autotvm.apply_history_best('conv2d.log'):
+    with tvm.target.create("cuda"):
+        s, arg_bufs = conv2d_no_batching(N, H, W, CO, CI, KH, KW, strides, padding)
+        func = tvm.build(s, arg_bufs)
+
+# check correctness
+a_np = np.random.uniform(size=(N, CI, H, W)).astype(np.float32)
+w_np = np.random.uniform(size=(CO, CI, KH, KW)).astype(np.float32)
+c_np = conv2d_nchw_python(a_np, w_np, strides, padding)
+
+ctx = tvm.gpu()
+a_tvm = tvm.nd.array(a_np, ctx=ctx)
+w_tvm = tvm.nd.array(w_np, ctx=ctx)
+c_tvm = tvm.nd.empty(c_np.shape, ctx=ctx)
+func(a_tvm, w_tvm, c_tvm)
+
+np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
+
+# Evaluate running time. Here we choose a large repeat number (200) to reduce the noise
+# and the overhead of kernel launch. You can also use nvprof to validate the result.
+
+evaluator = func.time_evaluator(func.entry_name, ctx, number=200)
+print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)

@@ -243,7 +243,7 @@ print(task.config_space)
 # 
 # We only make 10 trials in this tutorial for demonstration. In practice,
 # you can do more trials according to your time budget.
-# We will log the tuning results into a cache file. This file can be 
+# We will log the tuning results into a log file. This file can be
 # used to get the best config later.
 
 # logging config (for printing tuning log to screen)
@@ -253,11 +253,11 @@ logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 measure_option = autotvm.measure_option(mode='local',
                                         number=5)
 
-# begin tuning, log records to file `cache.tsv`
+# begin tuning, log records to file `matmul.log`
 tuner = autotvm.tuner.RandomTuner(task)
 tuner.tune(n_trial=10,
            measure_option=measure_option,
-           callbacks=[autotvm.callback.log_to_file('cache.tsv')])
+           callbacks=[autotvm.callback.log_to_file('matmul.log')])
 
 #########################################################################
 # Finally we apply history best from the cache file and check its correctness.
@@ -267,7 +267,7 @@ tuner.tune(n_trial=10,
 # with the same argument.
 
 # apply history best from log file
-with autotvm.apply_history_best('cache.tsv'):
+with autotvm.apply_history_best('matmul.log'):
     with tvm.target.create("llvm"):
         s, arg_bufs = matmul(N, L, M, 'float32')
         func = tvm.build(s, arg_bufs)
@@ -281,4 +281,3 @@ c_tvm = tvm.nd.empty(c_np.shape)
 func(tvm.nd.array(a_np), tvm.nd.array(b_np), c_tvm)
 
 np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
-

@@ -27,6 +27,7 @@ class Tuner(object):
         self.best_config = None
         self.best_flops = 0
         self.best_measure_pair = None
+        self.best_iter = 0
 
     def has_next(self):
         """Whether has next untried config in the space
@@ -63,7 +64,7 @@ class Tuner(object):
         """
         pass
 
-    def tune(self, n_trial, measure_option, verbose=1, callbacks=()):
+    def tune(self, n_trial, measure_option, early_stop=None, verbose=1, callbacks=()):
         """Begin tuning
 
         Parameters
@@ -73,6 +74,8 @@ class Tuner(object):
         measure_option: dict
             The options for how to measure generated code.
             You should use the return value ot autotvm.measure_option for this argument.
+        early_stop: int
+            Early stop the tuning when not finding better configs in this number of trials
         verbose: int
             0: silent mode, no output
             1: print every measurement result
@@ -84,6 +87,7 @@ class Tuner(object):
         """
         measure_batch = create_measure_batch(self.task, measure_option)
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
+        early_stop = early_stop or 1e9
 
         i = 0
         while i < n_trial:
@@ -107,6 +111,7 @@ class Tuner(object):
                         self.best_flops = flops
                         self.best_config = config
                         self.best_measure_pair = (inp, res)
+                        self.best_iter = i + k
 
                     logging.info("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
                                  i + k + 1, flops / 1e9, self.best_flops / 1e9,
@@ -118,6 +123,10 @@ class Tuner(object):
 
             for callback in callbacks:
                 callback(self, inputs, results)
+
+            if i > self.best_iter + early_stop:
+                logging.info("Early stopped. Best iter: %d.", self.best_iter)
+                break
 
         del measure_batch
 

@@ -111,6 +111,9 @@ class XGBoostCostModel(CostModel):
         self.feature_extra_ct = 0
         self.pool = None
         self.base_model = None
+        self.upper_model = None
+
+        self._sample_size = 0
 
         self._reset_pool()
 
@@ -127,20 +130,25 @@ class XGBoostCostModel(CostModel):
         _extract_task = self.task
         self.pool = multiprocessing.Pool(self.num_threads)
 
+    def _base_model_discount(self):
+        return 1.0 / (2 ** (self._sample_size / 50.0))
+
     def fit(self, xs, ys, plan_size):
         tic = time.time()
         self._reset_pool()
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
-        y_train /= np.max(y_train)
+        y_train = y_train / np.max(y_train)
 
         valid_index = y_train > 1e-6
         index = np.random.permutation(len(x_train))
         dtrain = xgb.DMatrix(x_train[index], y_train[index])
+        self._sample_size = len(x_train)
 
         if self.base_model:
-            dtrain.set_base_margin(self.base_model.predict(xs, output_margin=True))
+            dtrain.set_base_margin(self._base_model_discount() *
+                                   self.base_model.predict(xs, output_margin=True))
 
         self.bst = xgb.train(self.xgb_params, dtrain,
                              num_boost_round=8000,
@@ -164,6 +172,7 @@ class XGBoostCostModel(CostModel):
         self._reset_pool()
 
         args = list(records)
+        logging.info("Load %d entries from history log file", len(args))
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
         elif self.fea_type == 'knob':
@@ -185,7 +194,7 @@ class XGBoostCostModel(CostModel):
 
         plan_size *= 2
         self.bst = xgb.train(self.xgb_params, dtrain,
-                             num_boost_round=200,
+                             num_boost_round=400,
                              callbacks=[custom_callback(
                                  stopping_rounds=100,
                                  metric='tr-a-recall@%d' % plan_size,
@@ -203,12 +212,23 @@ class XGBoostCostModel(CostModel):
         dtest = xgb.DMatrix(feas)
 
         if self.base_model:
-            dtest.set_base_margin(self.base_model.predict(xs, output_margin=True))
+            dtest.set_base_margin(self._base_model_discount() *
+                                  self.base_model.predict(xs, output_margin=True))
 
         return self.bst.predict(dtest, output_margin=output_margin)
 
     def load_basemodel(self, base_model):
         self.base_model = base_model
+        if isinstance(base_model, XGBoostCostModel):
+            # share feature cache
+            base_model.feature_cache = self.feature_cache
+
+            # close thread pool
+            if base_model.pool:
+                base_model.pool.terminate()
+                base_model.pool.join()
+                del base_model.pool
+            self.base_model.upper_model = self
 
     def clone_new(self):
         return XGBoostCostModel(self.task, self.fea_type, self.loss_type,
@@ -226,7 +246,8 @@ class XGBoostCostModel(CostModel):
         need_extract = [x for x in indexes if x not in fea_cache]
 
         if need_extract:
-            feas = self.pool.map(self.feature_extract_func, need_extract)
+            pool = self.pool if self.upper_model is None else self.upper_model.pool
+            feas = pool.map(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
 
