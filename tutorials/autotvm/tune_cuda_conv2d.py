@@ -1,5 +1,5 @@
 """
-How to get high performance convolution kernel on NVIDIA GPU by auto-tuning
+Tuning high performance convolution kernel on NVIDIA GPU
 =========================================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 

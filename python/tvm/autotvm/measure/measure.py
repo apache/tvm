@@ -6,7 +6,6 @@ from collections import namedtuple
 import numpy as np
 
 from ... import build, nd, target as _target
-from ...contrib.util import tempdir
 from ...rpc.tracker import Tracker
 from ...rpc.server import Server
 
@@ -209,14 +208,12 @@ def create_measure_batch(task, options):
         kwargs['rpc_device_key'] = rpc_device_key
         kwargs['rpc_tracker_addr'] = (tracker.host, tracker.port)
         kwargs['rpc_timeout'] = timeout
-        kwargs['tmp_dir'] = tempdir()
     elif mode == 'rpc':
         fmeasure = measure_methods.measure_rpc
         kwargs['rpc_device_key'] = rpc_device_key
         kwargs['rpc_priority'] = rpc_priority
         kwargs['rpc_timeout'] = rpc_timeout
         kwargs['use_ndk'] = use_ndk
-        kwargs['tmp_dir'] = tempdir()
         assert rpc_device_key, "In rpc mode, a rpc_device_key must be provided"
     elif mode == "custom":
         assert callable(custom_measure_batch), "In custom mode, custom_measure_func " \
@@ -243,7 +240,7 @@ def create_measure_batch(task, options):
         tvm_buf = [nd.array(x) for x in ref_input]
         func(*tvm_buf)
         ref_output = [x.asnumpy() for x in tvm_buf]
-        kwargs['ref_input'], kwargs['ref_outpu'] = ref_input, ref_output
+        kwargs['ref_input'], kwargs['ref_output'] = ref_input, ref_output
 
     def measure_batch(measure_inputs):
         """measure the time cost for a batch of configs in real machines"""

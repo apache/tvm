@@ -8,11 +8,10 @@ remote devices, recording the running time costs and checking the correctness of
 import logging
 import os
 import time
-from random import getrandbits
 
 import numpy as np
 
-from ...contrib import ndk, nvcc
+from ...contrib import ndk, nvcc, util
 from ... import rpc, ir_pass, build, build_config, nd, context, TVMError, register_func
 
 from ..util import get_const_tuple
@@ -113,8 +112,8 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
             if ref_input:
                 args = [nd.array(x, ctx) for x in ref_input]
             else:
-                args = [nd.array(np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype),
-                                 ctx) for x in arg_bufs]
+                args = [nd.empty(get_const_tuple(x.shape), dtype=x.dtype,
+                                 ctx=ctx) for x in arg_bufs]
             costs = time_f(*args).results
             if len(costs) > 2:  # remove largest and smallest value to reduce variance
                 costs = list(costs)
@@ -173,7 +172,6 @@ def measure_rpc(input_pack,
                 rpc_tracker_addr=None,
                 rpc_priority=1,
                 rpc_timeout=60,
-                tmp_dir=None,
                 **kwargs):
     """Measure the time cost on a device by rpc
 
@@ -198,9 +196,6 @@ def measure_rpc(input_pack,
     rpc_timeout: int, optional
         timeout of the rpc session
 
-    tmp_dir: tvm.contrib.util.TempDirectory, optional
-        directory to store temp file
-
     kwargs: dict, optional
         Additional key word arguments
 
@@ -213,12 +208,13 @@ def measure_rpc(input_pack,
         """ Local build function."""
         func, args = _build_func(inp, build_option, kwargs)
 
+        tmp_dir = util.tempdir()
         if not kwargs.get('use_ndk', False):
-            file_name = "tmp_func_%0x.tar" % getrandbits(64)
+            file_name = "tmp_func.tar"
             path = tmp_dir.relpath(file_name)
             func.export_library(path)
         else:
-            file_name = "tmp_func_%0x.so" % getrandbits(64)
+            file_name = "tmp_func.so"
             path = tmp_dir.relpath(file_name)
             func.export_library(path, ndk.create_shared)
         remote = request_remote(rpc_device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)
