@@ -85,21 +85,20 @@ cyclean:
 
 # JVM build rules
 ifeq ($(OS),Windows_NT)
-	JVM_PKG_PROFILE := windows
-	SHARED_LIBRARY_SUFFIX := dll
+  JVM_PKG_PROFILE := windows
+  SHARED_LIBRARY_SUFFIX := dll
 else
-	UNAME_S := $(shell uname -s)
-	ifeq ($(UNAME_S), Darwin)
-		JVM_PKG_PROFILE := osx-x86_64
-		SHARED_LIBRARY_SUFFIX := dylib
-	else
-		JVM_PKG_PROFILE := linux-x86_64
-		SHARED_LIBRARY_SUFFIX := so
-	endif
+  UNAME_S := $(shell uname -s)
+  ifeq ($(UNAME_S), Darwin)
+    JVM_PKG_PROFILE := osx-x86_64
+    SHARED_LIBRARY_SUFFIX := dylib
+  else
+    JVM_PKG_PROFILE := linux-x86_64
+    SHARED_LIBRARY_SUFFIX := so
+  endif
 endif
 
 JVM_TEST_ARGS := $(if $(JVM_TEST_ARGS),$(JVM_TEST_ARGS),-DskipTests -Dcheckstyle.skip=true)
-JVM_PKG_PROFILE := $(JVM_PKG_PROFILE)-gpu
 
 jvmpkg:
 	(cd $(ROOTDIR)/jvm; \

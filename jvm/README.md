@@ -38,7 +38,7 @@ make jvmpkg
 (Optional) run unit test by
 
 ```bash
-make jvmpkg JVM_TEST_ARGS="-DskipTests=false"
+sh tests/scripts/task_java_unittest.sh
 ```
 
 After it is compiled and packaged, you can install tvm4j in your local maven repository,

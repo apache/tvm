@@ -28,7 +28,7 @@
       <useProjectArtifact>false</useProjectArtifact>
       <useStrictFiltering>false</useStrictFiltering>
       <includes>
-        <include>ml.dmlc.tvm:libtvm4j-linux-x86_64-cpu:so</include>
+        <include>ml.dmlc.tvm:libtvm4j-linux-x86_64:so</include>
       </includes>
     </dependencySet>
   </dependencySets>

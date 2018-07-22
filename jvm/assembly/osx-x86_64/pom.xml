@@ -11,9 +11,9 @@
   </parent>
 
   <groupId>ml.dmlc.tvm</groupId>
-  <artifactId>tvm4j-full-linux-x86_64-cpu</artifactId>
+  <artifactId>tvm4j-full-osx-x86_64</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name>TVM4J Package - Full Linux-x86_64 CPU-only</name>
+  <name>TVM4J Package - Full OSX-x86_64</name>
   <packaging>jar</packaging>
 
   <dependencies>
@@ -24,9 +24,9 @@
     </dependency>
     <dependency>
       <groupId>ml.dmlc.tvm</groupId>
-      <artifactId>libtvm4j-linux-x86_64-cpu</artifactId>
+      <artifactId>libtvm4j-osx-x86_64</artifactId>
       <version>${project.version}</version>
-      <type>so</type>
+      <type>jnilib</type>
     </dependency>
   </dependencies>
 
