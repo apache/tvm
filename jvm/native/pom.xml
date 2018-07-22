@@ -17,21 +17,15 @@
 
   <profiles>
     <profile>
-      <id>osx-x86_64-cpu</id>
+      <id>osx-x86_64</id>
       <modules>
-        <module>osx-x86_64-cpu</module>
+        <module>osx-x86_64</module>
       </modules>
     </profile>
     <profile>
-      <id>linux-x86_64-cpu</id>
+      <id>linux-x86_64</id>
       <modules>
-        <module>linux-x86_64-cpu</module>
-      </modules>
-    </profile>
-    <profile>
-      <id>linux-x86_64-gpu</id>
-      <modules>
-        <module>linux-x86_64-gpu</module>
+        <module>linux-x86_64</module>
       </modules>
     </profile>
   </profiles>

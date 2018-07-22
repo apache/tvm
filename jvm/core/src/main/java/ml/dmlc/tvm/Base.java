@@ -155,14 +155,8 @@ final class Base {
    * @throws UnsatisfiedLinkError if loading fails
    */
   private static void tryLoadLibraryXPU(String libname, String arch) throws UnsatisfiedLinkError {
-    try {
-      // try gpu first
-      System.err.println(String.format("Try loading %s-%s-gpu from native path.", libname, arch));
-      System.loadLibrary(String.format("%s-%s-gpu", libname, arch));
-    } catch (UnsatisfiedLinkError e) {
-      System.err.println(String.format("Try loading %s-%s-cpu from native path.", libname, arch));
-      System.loadLibrary(String.format("%s-%s-cpu", libname, arch));
-    }
+    System.err.println(String.format("Try loading %s-%s from native path.", libname, arch));
+    System.loadLibrary(String.format("%s-%s", libname, arch));
   }
 
   // helper function definitions

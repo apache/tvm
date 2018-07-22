@@ -17,23 +17,16 @@
 
   <profiles>
     <profile>
-      <id>osx-x86_64-cpu</id>
+      <id>osx-x86_64</id>
       <properties>
-        <platform>osx-x86_64-cpu</platform>
+        <platform>osx-x86_64</platform>
         <libtvm.so.filename>libtvm_runtime.dylib</libtvm.so.filename>
       </properties>
     </profile>
     <profile>
-      <id>linux-x86_64-cpu</id>
+      <id>linux-x86_64</id>
       <properties>
-        <platform>linux-x86_64-cpu</platform>
-        <libtvm.so.filename>libtvm_runtime.so</libtvm.so.filename>
-      </properties>
-    </profile>
-    <profile>
-      <id>linux-x86_64-gpu</id>
-      <properties>
-        <platform>linux-x86_64-gpu</platform>
+        <platform>linux-x86_64</platform>
         <libtvm.so.filename>libtvm_runtime.so</libtvm.so.filename>
       </properties>
     </profile>
@@ -92,6 +85,7 @@
           <argLine>
             -Djava.library.path=${project.parent.basedir}/native/${platform}/target
             -Dlibtvm.so.path=${project.parent.basedir}/../build/${libtvm.so.filename}
+            -Dlog4j.configuration=file://${project.parent.basedir}/conf/log4j.properties
           </argLine>
         </configuration>
         <executions>
@@ -117,6 +111,18 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.11</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.25</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>1.7.25</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

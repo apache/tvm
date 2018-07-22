@@ -28,7 +28,7 @@
       <useProjectArtifact>false</useProjectArtifact>
       <useStrictFiltering>false</useStrictFiltering>
       <includes>
-        <include>ml.dmlc.tvm:libtvm4j-osx-x86_64-cpu:jnilib</include>
+        <include>ml.dmlc.tvm:libtvm4j-osx-x86_64:jnilib</include>
       </includes>
     </dependencySet>
   </dependencySets>
