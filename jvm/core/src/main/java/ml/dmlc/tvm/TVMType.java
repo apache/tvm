@@ -37,16 +37,16 @@ public class TVMType {
     this.lanes = lanes;
     int bitsTemp = 0;
     if (typeStr.startsWith("int")) {
-      typeCode = 0;
+      typeCode = INT;
       bitsTemp = Integer.parseInt(typeStr.substring(3));
     } else if (typeStr.startsWith("uint")) {
-      typeCode = 1;
+      typeCode = UINT;
       bitsTemp = Integer.parseInt(typeStr.substring(4));
     } else if (typeStr.startsWith("float")) {
-      typeCode = 2;
+      typeCode = FLOAT;
       bitsTemp = Integer.parseInt(typeStr.substring(5));
     } else if (typeStr.startsWith("handle")) {
-      typeCode = 4;
+      typeCode = HANDLE;
       bitsTemp = 64;
     } else {
       throw new IllegalArgumentException("Do not know how to handle type " + typeStr);
@@ -78,16 +78,16 @@ public class TVMType {
   @Override public String toString() {
     String typeCodeStr;
     switch (typeCode) {
-      case 0:
+      case INT:
         typeCodeStr = "int";
         break;
-      case 1:
+      case UINT:
         typeCodeStr = "uint";
         break;
-      case 2:
+      case FLOAT:
         typeCodeStr = "float";
         break;
-      case 4:
+      case HANDLE:
         typeCodeStr = "handle";
         break;
       default:

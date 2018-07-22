@@ -72,8 +72,7 @@ public class Module extends TVMValue {
   /**
    * Release the Module.
    * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy
-   * and `finalize()` is not guaranteed to be called when GC happens.
+   * We highly recommend you to do this manually since the GC strategy is lazy.
    * </p>
    */
   @Override public void release() {
@@ -120,6 +119,13 @@ public class Module extends TVMValue {
    */
   public void importModule(Module module) {
     Base.checkCall(Base._LIB.tvmModImport(handle, module.handle));
+  }
+
+  /**
+   * @return type key of the module.
+   */
+  public String typeKey() {
+    return getApi("_GetTypeKey").pushArg(this).invoke().asString();
   }
 
   /**
