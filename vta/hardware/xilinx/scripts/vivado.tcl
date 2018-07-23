@@ -6,7 +6,7 @@
 #
 
 # Check if script is running in correct Vivado version.
-set scripts_vivado_version 2017.1
+set scripts_vivado_version 2018.2
 set current_vivado_version [version -short]
 
 if { [string first $scripts_vivado_version $current_vivado_version] == -1 } {
@@ -53,7 +53,8 @@ if { [llength $argv] eq 12 } {
   }
 } else {
   puts "Arg list incomplete: <path to ip dir> <num threads> <clock freq> \
-    <inp width> <wgt_width> <out_width> <batch> <in_block / 1024> <out_block>"
+    <inp width> <wgt_width> <out_width> <batch> <batch> <out_block> <in_block
+    <inp_mem_size> <wgt_mem_size> <out_mem_size>"
   return 1
 }
 
@@ -66,6 +67,7 @@ if {[expr $inp_part == 0]} {
   set inp_bus_width $inp_mem_width
 }
 set inp_mem_depth [expr $inp_mem_size * 8 / ($inp_mem_width * $inp_part)]
+
 # Derive weight mem parameters
 set wgt_mem_width [expr $wgt_width * $out_block * $in_block]
 set wgt_bus_width 1024
@@ -75,6 +77,7 @@ if {[expr $wgt_part == 0]} {
   set wgt_bus_width $wgt_mem_width
 }
 set wgt_mem_depth [expr $wgt_mem_size * 8 / ($wgt_mem_width * $wgt_part)]
+
 # Derive output mem parameters
 set out_mem_width [expr $out_width * $batch * $out_block]
 set out_bus_width 1024
@@ -252,7 +255,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $fetch_0
 
   # Create instance: g2l_queue, and set properties
-  set g2l_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 g2l_queue ]
+  set g2l_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 g2l_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {1022} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -273,7 +276,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $g2l_queue
 
   # Create instance: g2s_queue, and set properties
-  set g2s_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 g2s_queue ]
+  set g2s_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 g2s_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {1022} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -294,7 +297,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $g2s_queue
 
   # Create instance: gemm_queue, and set properties
-  set gemm_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 gemm_queue ]
+  set gemm_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 gemm_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {510} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -318,7 +321,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $gemm_queue
 
   # Create instance: l2g_queue, and set properties
-  set l2g_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 l2g_queue ]
+  set l2g_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 l2g_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {1022} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -345,7 +348,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $load_0
 
   # Create instance: load_queue, and set properties
-  set load_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 load_queue ]
+  set load_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 load_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {510} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -406,7 +409,7 @@ proc create_root_design { parentCell clk inp_part wgt_part out_part inp_bus_widt
   ] $processing_system7_1
 
   # Create instance: s2g_queue, and set properties
-  set s2g_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 s2g_queue ]
+  set s2g_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 s2g_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {1022} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -433,7 +436,7 @@ CONFIG.C_M_AXI_DATA_PORT_CACHE_VALUE {"1111"} \
   ] $store_0
 
   # Create instance: store_queue, and set properties
-  set store_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.1 store_queue ]
+  set store_queue [ create_bd_cell -type ip -vlnv xilinx.com:ip:fifo_generator:13.2 store_queue ]
   set_property -dict [ list \
     CONFIG.Empty_Threshold_Assert_Value_axis {510} \
     CONFIG.Empty_Threshold_Assert_Value_rach {14} \
@@ -466,7 +469,7 @@ CONFIG.NUM_PORTS {5} \
   if {${inp_part} > 1} {
     for {set i 0} {$i < ${inp_part}} {incr i} {
       # Create instance: inp_mem, and set properties
-      set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 inp_mem_${i} ]
+      set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem_${i} ]
       set_property -dict [ list \
         CONFIG.Byte_Size {8} \
         CONFIG.Enable_32bit_Address {true} \
@@ -494,7 +497,7 @@ CONFIG.NUM_PORTS {5} \
     }
   } else {
       # Create instance: inp_mem, and set properties
-      set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 inp_mem ]
+      set inp_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 inp_mem ]
       set_property -dict [ list \
         CONFIG.Byte_Size {8} \
         CONFIG.Enable_32bit_Address {true} \
@@ -525,7 +528,7 @@ CONFIG.NUM_PORTS {5} \
   if {${wgt_part} > 1} {
     for {set i 0} {$i < ${wgt_part}} {incr i} {
       # Create instance: wgt_mem, and set properties
-      set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 wgt_mem_${i} ]
+      set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem_${i} ]
       set_property -dict [ list \
         CONFIG.Assume_Synchronous_Clk {true} \
         CONFIG.Byte_Size {8} \
@@ -553,7 +556,7 @@ CONFIG.NUM_PORTS {5} \
     }
   } else {
       # Create instance: wgt_mem, and set properties
-      set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 wgt_mem ]
+      set wgt_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 wgt_mem ]
       set_property -dict [ list \
         CONFIG.Assume_Synchronous_Clk {true} \
         CONFIG.Byte_Size {8} \
@@ -584,7 +587,7 @@ CONFIG.NUM_PORTS {5} \
   if {${out_part} > 1} {
     for {set i 0} {$i < ${out_part}} {incr i} {
       # Create instance: out_mem, and set properties
-      set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 out_mem_${i} ]
+      set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem_${i} ]
       set_property -dict [ list \
         CONFIG.Byte_Size {8} \
         CONFIG.Enable_32bit_Address {true} \
@@ -612,7 +615,7 @@ CONFIG.NUM_PORTS {5} \
     }
   } else {
       # Create instance: out_mem, and set properties
-      set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.3 out_mem ]
+      set out_mem [ create_bd_cell -type ip -vlnv xilinx.com:ip:blk_mem_gen:8.4 out_mem ]
       set_property -dict [ list \
         CONFIG.Byte_Size {8} \
         CONFIG.Enable_32bit_Address {true} \
