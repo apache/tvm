@@ -289,7 +289,9 @@ class OpenCLModuleNode : public ModuleNode {
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
 
+#ifdef AOCL_BOARD_NAME
   void OfflineCompile(cl::OpenCLWorkspace* w,  cl::OpenCLThreadEntry* t);
+#endif
 };
 
 }  // namespace runtime

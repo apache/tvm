@@ -233,6 +233,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
   return kernel;
 }
 
+#ifdef AOCL_BOARD_NAME
 void OpenCLModuleNode::OfflineCompile(cl::OpenCLWorkspace* w,
                                       cl::OpenCLThreadEntry* t) {
     // Write a .cl file.
@@ -278,6 +279,7 @@ void OpenCLModuleNode::OfflineCompile(cl::OpenCLWorkspace* w,
 
     delete[] buf;
 }
+#endif
 
 Module OpenCLModuleCreate(
     std::string data,
