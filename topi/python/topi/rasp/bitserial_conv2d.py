@@ -160,8 +160,8 @@ def _intrin_popcount(m, k_i, w_b, x_b):
     def _intrin_func(ins, outs):
         ww, xx = ins
         zz = outs[0]
-        vpadd_id = tvm.const(647, 'uint32')
-        vpadalu_id = tvm.const(646, 'uint32')
+        vpadd = "llvm.arm.neon.vpadd.v8u8"
+        vpadalu = "llvm.arm.neon.vpadalu.v16u8.v8u16"
         args_1 = tvm.const(1, 'uint32')
         args_2 = tvm.const(2, 'uint32')
 
@@ -184,28 +184,28 @@ def _intrin_popcount(m, k_i, w_b, x_b):
                             lower_half = tvm.call_pure_intrin('uint8x8', 'vectorlow', cnts)
                             cnts8[i] = upper_half + lower_half
                         for i in range(m//2):
-                            cnts4[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
+                            cnts4[i] = tvm.call_llvm_intrin('uint8x8', vpadd,
                                                             args_1, cnts8[i*2], cnts8[i*2+1])
                         for i in range(m//4):
-                            cnts2[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
+                            cnts2[i] = tvm.call_llvm_intrin('uint8x8', vpadd,
                                                             args_1, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.call_pure_intrin('uint8x16', 'vectorcombine', cnts2[0], cnts2[1])
                         shifted_cnts = cnts << tvm.const(bw+bx, dtype)
-                        out = tvm.call_pure_intrin('uint16x8', 'llvm_intrin', vpadalu_id,
+                        out = tvm.call_llvm_intrin('uint16x8', vpadalu,
                                                    args_2, zz.vload(0, 'uint16x8'), shifted_cnts)
                     else: # ki == 8
                         for i in range(m):
                             ands = ww.vload([bw, i, 0], 'uint8x8') & xx.vload([bx, 0], 'uint8x8')
                             cnts8[i] = tvm.popcount(ands)
                         for i in range(m//2):
-                            cnts4[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
+                            cnts4[i] = tvm.call_llvm_intrin('uint8x8', vpadd,
                                                             args_1, cnts8[i*2], cnts8[i*2+1])
                         for i in range(m//4):
-                            cnts2[i] = tvm.call_pure_intrin('uint8x8', 'llvm_intrin', vpadd_id,
+                            cnts2[i] = tvm.call_llvm_intrin('uint8x8', vpadd,
                                                             args_1, cnts4[i*2], cnts4[i*2+1])
                         cnts = tvm.call_pure_intrin('uint8x16', 'vectorcombine', cnts2[0], cnts2[1])
                         shifted_cnts = cnts << tvm.const(bw+bx, dtype)
-                        out = tvm.call_pure_intrin('uint16x8', 'llvm_intrin', vpadalu_id,
+                        out = tvm.call_llvm_intrin('uint16x8', vpadalu,
                                                    args_2, zz.vload(0, 'uint16x8'), shifted_cnts)
                     irb.emit(zz.vstore(0, out))
             return irb.get()

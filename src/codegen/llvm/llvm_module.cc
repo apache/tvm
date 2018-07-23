@@ -282,6 +282,15 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   std::shared_ptr<llvm::LLVMContext> ctx_;
 };
 
+unsigned LookupLLVMIntrinsic(const std::string& name) {
+  return llvm::Function::lookupIntrinsicID(name);
+}
+
+TVM_REGISTER_API("codegen.llvm_lookup_intrinsic_id")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = static_cast<int64_t>(LookupLLVMIntrinsic(args[0]));
+  });
+
 TVM_REGISTER_API("codegen.build_llvm")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
