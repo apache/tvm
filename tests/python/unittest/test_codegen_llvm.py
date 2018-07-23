@@ -17,6 +17,16 @@ def test_llvm_intrin():
     func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
 
+def test_llvm_lookup_intrin():
+    ib = tvm.ir_builder.create()
+    m = tvm.var("m")
+    A = ib.pointer("uint8x8", name="A")
+    x = tvm.call_llvm_intrin("uint8x8", "llvm.ctpop.i8", tvm.const(1, 'uint32'), A)
+    ib.emit(x)
+    body = ib.get()
+    func = tvm.ir_pass.MakeAPI(body, "ctpop", [A], 1, True)
+    fcode = tvm.build(func, None, "llvm")
+
 def test_llvm_add_pipeline():
     nn = 1024
     n = tvm.convert(nn)
@@ -324,3 +334,4 @@ if __name__ == "__main__":
     test_llvm_flip_pipeline()
     test_llvm_madd_pipeline()
     test_llvm_temp_space()
+    test_llvm_lookup_intrin()
