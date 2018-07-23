@@ -74,7 +74,20 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
     verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
     verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
-    # ResNet 50 workloads
+    # ResNet18 special workloads
+    verify_conv2d_nchw(1, 3, 1000, 64, 7, 2, 3)
+    verify_conv2d_nchw(1, 64, 500, 64, 3, 1, 1)
+    verify_conv2d_nchw(1, 64, 500, 64, 1, 1, 0)
+    verify_conv2d_nchw(1, 64, 500, 128, 3, 2, 1)
+    verify_conv2d_nchw(1, 64, 500, 128, 1, 2, 0)
+    verify_conv2d_nchw(1, 128, 250, 128, 3, 1, 1)
+    verify_conv2d_nchw(1, 128, 250, 256, 3, 2, 1)
+    verify_conv2d_nchw(1, 128, 250, 256, 1, 2, 0)
+    verify_conv2d_nchw(1, 256, 125, 256, 3, 1, 1)
+    verify_conv2d_nchw(1, 256, 125, 512, 3, 2, 1)
+    verify_conv2d_nchw(1, 256, 125, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 65, 512, 3, 1, 1)
+    # ResNet50 workloads
     verify_conv2d_nchw(1, 64, 56, 256, 1, 1, 0)
     verify_conv2d_nchw(1, 256, 56, 64, 1, 1, 0)
     verify_conv2d_nchw(1, 256, 56, 128, 1, 2, 0)
@@ -89,6 +102,21 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 512, 7, 2048, 1, 2, 0)
     verify_conv2d_nchw(1, 1024, 14, 2048, 1, 2, 0)
     verify_conv2d_nchw(1, 2048, 7, 512, 1, 1, 0)
+    # ResNet50 special workloads
+    verify_conv2d_nchw(1, 64, 500, 256, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 500, 64, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 500, 128, 1, 2, 0)
+    verify_conv2d_nchw(1, 128, 250, 512, 1, 1, 0)
+    verify_conv2d_nchw(1, 256, 500, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 250, 128, 1, 1, 0)
+    verify_conv2d_nchw(1, 512, 250, 256, 1, 2, 0)
+    verify_conv2d_nchw(1, 256, 125, 1024, 1, 1, 0)
+    verify_conv2d_nchw(1, 512, 250, 1024, 1, 2, 0)
+    verify_conv2d_nchw(1, 1024, 125, 256, 1, 1, 0)
+    verify_conv2d_nchw(1, 1024, 125, 512, 1, 2, 0)
+    verify_conv2d_nchw(1, 512, 65, 2048, 1, 2, 0)
+    verify_conv2d_nchw(1, 1024, 125, 2048, 1, 2, 0)
+    verify_conv2d_nchw(1, 2048, 65, 512, 1, 1, 0)
     # Vgg16 workloads
     verify_conv2d_nchw(1, 128, 122, 128, 3, 1, 1)
     # Super resolution workloads
