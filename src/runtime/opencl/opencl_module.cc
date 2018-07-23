@@ -194,7 +194,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
         program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
         OPENCL_CHECK_ERROR(err);
 #else
-	OfflineCompile(w, t);
+        OfflineCompile(w, t);
 #endif
       }
     } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
@@ -234,7 +234,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
 }
 
 void OpenCLModuleNode::OfflineCompile(cl::OpenCLWorkspace* w,
-				      cl::OpenCLThreadEntry* t) {
+                                      cl::OpenCLThreadEntry* t) {
     // Write a .cl file.
     std::ofstream ofs("aocltmp.cl");
     if (!ofs) {
