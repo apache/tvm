@@ -5,10 +5,10 @@ import json
 from tvm.contrib import graph_runtime
 
 def dump_graph_lib(target_dir):
-    n = 4
-    A = tvm.placeholder((n,), name='A')
+    dim = 4
+    A = tvm.placeholder((dim,), name='A')
     B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
-    s = tvm.create_schedule(B.op)
+    sched = tvm.create_schedule(B.op)
 
     node0 = {"op": "null", "name": "x", "inputs": []}
     node1 = {"op": "tvm_op", "name": "add",
@@ -34,7 +34,7 @@ def dump_graph_lib(target_dir):
              "attrs": attrs}
 
     graph = json.dumps(graph)
-    mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+    mlib = tvm.build(sched, [A, B], "llvm", name="myadd")
 
     mlib.export_library(os.path.join(target_dir, "graph_addone_lib.so"))
     with open(os.path.join(target_dir, "graph_addone.json"), "w") as fo:

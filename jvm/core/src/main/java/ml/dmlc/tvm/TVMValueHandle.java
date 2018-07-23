@@ -17,6 +17,9 @@
 
 package ml.dmlc.tvm;
 
+/**
+ * Java class related to TVM handles (TypeCode.HANDLE)
+ */
 public class TVMValueHandle extends TVMValue {
   public final long value;
 

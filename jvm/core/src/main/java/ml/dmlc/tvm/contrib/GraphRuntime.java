@@ -51,7 +51,7 @@ public class GraphRuntime {
         throw new IllegalArgumentException("libmod.typeKey != rpc");
       }
       final int sessIndex = (int) ((Function) reflectionStaticCall(
-          RPC.class, "getApi","_SessTableIndex"))
+          RPC.class, "getApi", "_SessTableIndex"))
           .pushArg(libmod).invoke().asLong();
       if (sessIndex != (Integer) reflectionGetField(rpcSession, "tblIndex")) {
         throw new IllegalArgumentException(String.format(
