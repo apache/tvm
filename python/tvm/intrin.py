@@ -154,6 +154,31 @@ def call_extern(dtype, func_name, *args):
         dtype, func_name, convert(args), _Call.Extern, None, 0)
 
 
+def call_llvm_intrin(dtype, name, *args):
+    """Build expression by calling an llvm intrinsic function
+
+    Parameters
+    ----------
+    dtype : str
+       The data type of the result.
+
+    name : str
+       The name of the llvm intrinsic function.
+
+    args : list
+       Poistional arguments.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+    """
+    import tvm
+    llvm_id = tvm.codegen.llvm_lookup_intrinsic_id(name)
+    assert llvm_id != 0, "%s is not an LLVM intrinsic" % name
+    return call_pure_intrin(dtype, 'llvm_intrin', tvm.const(llvm_id, 'uint32'), *args)
+
+
 def exp(x):
     """Take exponetial of input x.
 
