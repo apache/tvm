@@ -38,7 +38,7 @@ from io import BytesIO
 from matplotlib import pyplot as plt
 from PIL import Image
 
-# Load VTA parameters from the config.json file
+# Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
 
 # Helper to crop an image to a square (224, 224)
@@ -180,7 +180,7 @@ host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
 port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
-# to match the VTA configuration specified by the config.json file.
+# to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
 
     # Make sure that TVM was compiled with RPC=1

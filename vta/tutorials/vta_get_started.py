@@ -29,12 +29,12 @@ import numpy as np
 # VTA is a modular and customizable design. Consequently, the user
 # is free to modify high-level hardware parameters that affect
 # the hardware design layout.
-# These parameters are specified in the :code:`config.json` file by their
+# These parameters are specified in the :code:`vta_config.json` file by their
 # :code:`log2` values.
 # These VTA parameters can be loaded with the :code:`vta.get_env`
 # function.
 #
-# Finally, the TVM target is specified in the :code:`config.json` file.
+# Finally, the TVM target is also specified in the :code:`vta_config.json` file.
 # When set to *sim*, execution will take place inside of a behavioral
 # VTA simulator.
 # If you want to run this tutorial on the Pynq FPGA development platform,
@@ -58,7 +58,7 @@ host = os.environ.get("VTA_PYNQ_RPC_HOST", "192.168.2.99")
 port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 
 # We configure both the bitstream and the runtime system on the Pynq
-# to match the VTA configuration specified by the config.json file.
+# to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
 
     # Make sure that TVM was compiled with RPC=1
@@ -110,11 +110,11 @@ elif env.TARGET == "sim":
 # For VTA's general purpose operations such as vector adds, the tile size is
 # :code:`(env.BATCH, env.BLOCK_OUT)`.
 # The dimensions are specified in
-# the :code:`config.json` configuration file and are set by default to
+# the :code:`vta_config.json` configuration file and are set by default to
 # a (1, 16) vector.
 #
 # In addition, A and B's data types also needs to match the :code:`env.acc_dtype`
-# which is set by the :code:`config.json` file to be a 32-bit integer.
+# which is set by the :code:`vta_config.json` file to be a 32-bit integer.
 
 # Output channel factor m - total 64 x 16 = 1024 output channels
 m = 64
