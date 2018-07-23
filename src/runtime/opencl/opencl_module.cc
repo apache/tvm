@@ -12,9 +12,6 @@
 #include "./opencl_common.h"
 #include "./opencl_module.h"
 
-#define STRINGIFY(s) #s
-#define TOSTRING(id) STRINGIFY(id)
-
 namespace tvm {
 namespace runtime {
 
@@ -251,7 +248,7 @@ void OpenCLModuleNode::OfflineCompile(cl::OpenCLWorkspace* w,
 
     // Compile the .cl file.
     std::string cmd = "aoc aocltmp.cl -march=emulator -board=";
-    cmd += TOSTRING(AOCL_BOARD_NAME_STR);
+    cmd += AOCL_BOARD_NAME;
     if (system(cmd.c_str()) != 0) {
       LOG(FATAL) << "OpenCL offline compilation error.";
     }

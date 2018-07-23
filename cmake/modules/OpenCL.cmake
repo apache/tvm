@@ -21,7 +21,7 @@ endif(USE_SDACCEL)
 
 if(USE_AOCL)
   message(STATUS "Build with Intel FPGA SDK for OpenCL support")
-  add_definitions(-DAOCL_BOARD_NAME=${USE_AOCL})
+  add_definitions(-DAOCL_BOARD_NAME="${USE_AOCL}")
   if(NOT USE_OPENCL)
     message(STATUS "Enable OpenCL support required for Intel FPGA SDK for OpenCL")
     set(USE_OPENCL ON)
