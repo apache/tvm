@@ -2,9 +2,9 @@ VTA Installation Guide
 ======================
 
 We present three installation guides, each extending on the previous one:
-1. Simulator installation
-2. Hardware test setup with the [Pynq](http://www.pynq.io/) FPGA development board
-3. FPGA toolchain installation
+1. [Simulator installation](#vta-simulator-installation)
+2. [Hardware test setup](#vta-pynq-based-test-setup)
+3. [FPGA toolchain installation](#vta-fpga-toolchain-installation)
 
 ## VTA Simulator Installation
 
@@ -49,7 +49,7 @@ cp vta/config/vta_config.json vta_config.json
 make vta
 ```
 
-## VTA Pynq-Based Test VTA Setup
+## VTA Pynq-Based Test Setup
 
 This second guide extends the *VTA Simulator Installation* guide above to run FPGA hardware tests of the complete TVM and VTA software-hardware stack.
 In terms of hardware components you'll need:
@@ -213,13 +213,9 @@ At this point you've launched the Vivado 2017.1 Installer GUI program.
 
 The last step is to update your `~/.bashrc` with the following lines. This will include all of the Xilinx binary paths so you can launch compilation scripts from the command line.
 ```bash
-# Xilinx Vivado 2017.1 environment
-export XILINX_VIVADO=${XILINX_PATH}/SDx/2017.1/Vivado
-export XILINX_HLS=${XILINX_PATH}/SDx/2017.1/Vivado_HLS
-export XILINX_SDK=${XILINX_PATH}/SDx/2017.1/SDK
+# Xilinx Vivado 2018.2 environment
+export XILINX_VIVADO=${XILINX_PATH}/Vivado/2018.2
 export PATH=${XILINX_VIVADO}/bin:${PATH}
-export PATH=${XILINX_HLS}/bin:${PATH}
-export PATH=${XILINX_SDK}/bin:${PATH}
 ```
 
 ### Custom VTA Bitstream Compilation
