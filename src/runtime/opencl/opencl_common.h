@@ -143,7 +143,11 @@ class OpenCLWorkspace : public DeviceAPI {
   void Init(const std::string& type_key, const std::string& device_type,
             const std::string& platform_name = "");
   virtual void Init() {
+#ifndef AOCL_BOARD_NAME
     Init("opencl", "gpu");
+#else
+    Init("opencl", "accelerator");
+#endif
   }
   // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(TVMContext ctx) {
