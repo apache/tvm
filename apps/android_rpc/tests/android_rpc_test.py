@@ -1,7 +1,8 @@
 """Testcode for Android RPC.
 
-To use it, start a rpc proxy with "python -m tvm.exec.rpc_proxy".
-And configure the proxy host field as commented.
+To use it, start an RPC tracker with "python -m tvm.exec.rpc_tracker".
+Use the tracker's address and port when configuring the RPC app.
+Use "android" as the key if you wish to avoid modifying this script.
 """
 
 import tvm
