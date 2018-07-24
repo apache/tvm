@@ -18,8 +18,11 @@
 #include <memory>
 #include <atomic>
 
-
 namespace vta {
+
+// Avoid bad configurations.
+static_assert(VTA_UOP_WIDTH == sizeof(VTAUop) * 8,
+              "VTA_UOP_WIDTH do not match VTAUop size");
 
 /*! \brief Enable coherent access between VTA and CPU. */
 static const bool kBufferCoherent = true;
