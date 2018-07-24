@@ -524,25 +524,29 @@ def _test_stridedslice(ip_shape, begin, end, stride, dtype,
 
 def test_forward_stridedslice():
     '''test StridedSlice'''
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32')
     _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
-    _test_stridedslice((3, 4, 3), [1, -3, 0], [2, -2, 3], [1, 1, 1], 'float32')
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32')
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1],
-                      'float32', begin_mask=2, end_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
-                      'float32', new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1],
-                      'float32', shrink_axis_mask=2)
-    _test_stridedslice((3,), [1], [4], [2], 'float32', shrink_axis_mask=1)
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=2)
-    _test_stridedslice((1, 2, 3, 4), [1], [3], [1], 'float32', begin_mask=1)
-    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
-                       'float32', shrink_axis_mask=1)
-    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
-                       'float32', shrink_axis_mask=2)
-    _test_stridedslice((1, 2, 3, 4, 5, 6), [0, 0], [2, 3], [1, 1],
-                       'float32', shrink_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], 'float32', new_axis_mask=5)
+    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=4)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3,4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2, begin_mask=8, end_mask=8)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
+                       end_mask=8)
+
 
 #######################################################################
 # Gather
@@ -840,15 +844,13 @@ def test_forward_ptb():
                                                     for word in seed_for_sample],
                                                 in_state, params, cnt_sample)
         tvm_sample_str = _pretty_print(tvm_samples, False, id_to_word)
-        print("TVM Sample: %s" % tvm_sample_str)
-
         tf_samples, tf_state = nnvm.testing.tf.do_tf_sample(sess,
                                 [word_to_id[word] for word in seed_for_sample],
                                 in_state, cnt_sample)
         tf_sample_str = _pretty_print(tf_samples, False, id_to_word)
-        print("TF Sample: %s" % tf_sample_str)
         inpt = tvm_sample_str
         np.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
+        assert(tvm_sample_str == tf_sample_str)
 
 #######################################################################
 # Main

@@ -492,46 +492,28 @@ def _infer_out_shapes(inputs, params):
 def _stridedSlice():
     def _impl(inputs, attr, params):
         """Strided Slice.
-        Description:
-        https://www.tensorflow.org/api_docs/python/tf/strided_slice
-
-        Parameters
-        ----------
-        inputs : nnvm.Symbol
-            Input data
-        attrs : dict
-            Dict of operator attributes
-        params : dict
-            List of pretrained weights and bias
-
-        Returns
-        -------
-        sym : nnvm.Symbol
-            Converted nnvm Symbol
+        Operator description: https://www.tensorflow.org/api_docs/python/tf/strided_slice
+        Tensorflow mask validation: https://github.com/tensorflow/tensorflow/blob/master/
+        tensorflow/core/util/strided_slice_op.cc#L147-L368
         """
-        begin_input = params.pop(inputs[1].list_output_names()[0]).asnumpy().tolist()
-        end_input = params.pop(inputs[2].list_output_names()[0]).asnumpy().tolist()
-        stride_input = params.pop(inputs[3].list_output_names()[0]).asnumpy().tolist()
+        begin = params.pop(inputs[1].list_output_names()[0]).asnumpy().tolist()
+        end = params.pop(inputs[2].list_output_names()[0]).asnumpy().tolist()
+        stride = params.pop(inputs[3].list_output_names()[0]).asnumpy().tolist()
         begin_mask = int(attr.get('begin_mask', 0))
         end_mask = int(attr.get('end_mask', 0))
         ellipsis_mask = int(attr.get('ellipsis_mask', 0))
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
+        data_shape = attr['_input_shapes'][inputs[0]]
+        data_dim = len(data_shape[0])
+        stride_dim = len(stride)
 
-        #Constant values used forming output shape.
-        kShrinkAxis = -1
-        kNewAxis = -2
-        out_shape_indices = []
-        def _transform_mask(ellipsis_mask):
+        def _transform_mask(stride_dim, ellipsis_mask):
             """Handle mask inputs to create new begin, end, stride and output shape"""
-            data_shape = attr['_input_shapes'][inputs[0]]
-            data_dim = len(data_shape[0])
-            stride_dim = len(stride_input)
-            begin = [0] * data_dim
-            end = [0] * data_dim
-            stride = [0] * data_dim
-
-            #Identify all new axis to be set after ellipsis_mask is seen.
+            m_begin = [0] * data_dim
+            m_end = [0] * data_dim
+            m_stride = [0] * data_dim
+            #Count new axis after ellipsis_mask, consider while applying ellipsis_mask.
             ellipsis_seen = False
             new_axes_after_ellipsis = 0
             for i in range(stride_dim):
@@ -539,69 +521,66 @@ def _stridedSlice():
                 if ellipsis_seen and (mask & new_axis_mask) != 0:
                     new_axes_after_ellipsis += 1
                 if (mask & ellipsis_mask) != 0:
-                    if ellipsis_seen:
-                        raise ValueError("Error: Multiple ellipses in slice spec not allowed")
                     ellipsis_seen = True
             if not ellipsis_seen:
+                #Used later for extending the stride attributes in the below loop.
                 ellipsis_mask |= (1 << stride_dim)
-                stride_dim = stride_dim + 1
-
-            full_index = 0
-            for i in range(stride_dim):
-                mask = 1 << i
+                stride_dim += 1
+            final_index = 0
+            for index in range(stride_dim):
+                mask = 1 << index
                 if mask & ellipsis_mask:
-                    next_index = min(data_dim - (stride_dim - i) + \
-                                     1 + new_axes_after_ellipsis, data_dim)
-                    for index in range(full_index, next_index):
-                        begin[index] = 0
-                        end[index] = data_shape[0][index]
-                        stride[index] = 1
-                        out_shape_indices.append(index)
-                elif mask & new_axis_mask:
-                    out_shape_indices.append(kNewAxis)
-                else:
-                    if full_index == len(begin):
+                    #Identify the end index for applying ellipsis_mask
+                    to_index = min(((data_dim - (stride_dim-index)) + 1 \
+                                     + new_axes_after_ellipsis), data_dim)
+                    for i in range(final_index, to_index):
+                        m_begin[final_index] = 0
+                        m_end[final_index] = data_shape[0][final_index]
+                        m_stride[final_index] = 1
+                        final_index += 1
+                elif not mask & new_axis_mask:
+                    if final_index == len(m_begin):
                         break
-
-                    if begin_mask & mask:
-                        begin[full_index] = data_shape[0][full_index] \
-                            if stride_input[i] < 0 else 0
-                    elif begin_input:
-                        begin[full_index] = begin_input[i]
-
-                    if end_mask & mask:
-                        end[full_index] = 0 \
-                            if stride_input[i] < 0 else data_shape[0][full_index]
-                    elif end_input:
-                        end[full_index] = end_input[i]
-                    stride[full_index] = stride_input[i]
-
-                    if shrink_axis_mask & mask:
-                        out_shape_indices.append(kShrinkAxis)
-                        begin[full_index] = \
-                            data_shape[0][full_index] + begin[full_index] \
-                                if begin[full_index] < 0 else begin[full_index]
-                        end[full_index] = begin[full_index] + 1
-                        stride[full_index] = 1
-                    else:
-                        out_shape_indices.append(full_index)
-                    full_index = full_index + 1
-            return begin, end, stride
+                    if mask & begin_mask:
+                        m_begin[final_index] = data_shape[0][final_index] \
+                                                     if stride[index] < 0 else 0
+                    elif begin[index]:
+                        m_begin[final_index] = begin[index]
+                    if mask & end_mask:
+                        m_end[final_index] = 0 if stride[index] < 0 \
+                                                 else data_shape[0][final_index]
+                    elif end[index]:
+                        m_end[final_index] = end[index]
+                    m_stride[final_index] = stride[index]
+                    if mask & shrink_axis_mask:
+                        #Tensorflow make axis with shrink_axis_mask as dimension 1
+                        m_begin[final_index] = data_shape[0][final_index] + begin[index] \
+                                                 if begin[index] < 0 else begin[index]
+                        m_end[final_index] = begin[index] + 1
+                        m_stride[final_index] = 1
+                    final_index += 1
+            return m_begin, m_end, m_stride
 
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
-            begin_input, end_input, stride_input = _transform_mask(ellipsis_mask)
-        out = _sym.strided_slice(inputs[0], begin=begin_input,
-                                 end=end_input, stride=stride_input)
+            begin, end, stride = _transform_mask(stride_dim, ellipsis_mask)
+        out = _sym.strided_slice(inputs[0], begin=begin, end=end, stride=stride)
+        out_shape = _infer_out_shapes(out, params)[0]
 
-        out_shape = _infer_out_shapes(out, params)
-        final_shape = []
-        for index in out_shape_indices:
-            if index >= 0:
-                final_shape.append(out_shape[0][index])
-            elif index == kNewAxis:
-                final_shape.append(1)
-        #'final_shape' will be empty in case only kShrinkAxis is set
-        return _sym.reshape(out, shape=tuple(final_shape)) if final_shape else out
+        #Create final output shape.
+        final_output = []
+        out_index = 0
+        index = 0
+        while out_index != len(out_shape):
+            #axis with shrink_axis_mask dimension=1 and it is ignored.
+            mask = 1 << index
+            if (new_axis_mask & mask) and not ellipsis_mask & mask:
+                final_output.append(1)
+            elif (not mask & shrink_axis_mask) or index >= stride_dim:
+                #Shrink is considered till stride_dim
+                final_output.append(out_shape[out_index])
+                out_index += 1
+            index += 1
+        return _sym.reshape(out, shape=tuple(final_output))
     return _impl
 
 def _LSTMBlockCell():
