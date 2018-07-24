@@ -514,6 +514,16 @@ using HalideIR::Internal::Shuffle;
 // ir functions
 using HalideIR::Internal::is_const_power_of_two_integer;
 
+/*!
+ * \brief Create a type annotation expression
+ * \param dtype The data type
+ * \return Expr a expression with dtype.
+ */
+inline Expr TypeAnnotation(Type dtype) {
+  return ir::Call::make(dtype,
+                        "type_annotation", {},
+                        ir::Call::PureIntrinsic);
+}
 }  // namespace ir
 }  // namespace tvm
 
