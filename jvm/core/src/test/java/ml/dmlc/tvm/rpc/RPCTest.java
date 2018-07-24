@@ -20,36 +20,21 @@ package ml.dmlc.tvm.rpc;
 import ml.dmlc.tvm.Function;
 import ml.dmlc.tvm.Module;
 import ml.dmlc.tvm.TVMValue;
+import ml.dmlc.tvm.TestUtils;
 import org.junit.Ignore;
 import org.junit.Test;
-
-import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.junit.Assert.assertEquals;
 
 public class RPCTest {
-  static class RefInt {
-    public int value;
-  }
-
-  private static Server startServer(RefInt portRef) {
-    Server server = null;
-    int port = 9981;
-    for (int i = 0; i < 10; ++i) {
-      try {
-        server = new Server(port + i);
-        server.start();
-        portRef.value = port + i;
-        return server;
-      } catch (IOException e) {
-      }
-    }
-    throw new RuntimeException("Cannot find an available port.");
-  }
+  private final Logger logger = LoggerFactory.getLogger(RPCTest.class);
 
   @Test
   public void test_addone() {
     if (!Module.enabled("rpc")) {
+      logger.warn("RPC is not enabled. Skip.");
       return;
     }
     Function.register("test.rpc.addone", new Function.Callback() {
@@ -58,10 +43,10 @@ public class RPCTest {
         }
       });
 
-    RefInt port = new RefInt();
+    TestUtils.RefInt port = new TestUtils.RefInt();
     Server server = null;
     try {
-      server = startServer(port);
+      server = TestUtils.startServer(port);
       RPCSession client = Client.connect("localhost", port.value);
       Function func = client.getFunction("test.rpc.addone");
       assertEquals(11L, func.call(10).asLong());
@@ -75,6 +60,7 @@ public class RPCTest {
   @Test
   public void test_strcat() {
     if (!Module.enabled("rpc")) {
+      logger.warn("RPC is not enabled. Skip.");
       return;
     }
     Function.register("test.rpc.strcat", new Function.Callback() {
@@ -83,10 +69,10 @@ public class RPCTest {
       }
     });
 
-    RefInt port = new RefInt();
+    TestUtils.RefInt port = new TestUtils.RefInt();
     Server server = null;
     try {
-      server = startServer(port);
+      server = TestUtils.startServer(port);
       RPCSession client = Client.connect("localhost", port.value);
       Function func = client.getFunction("test.rpc.strcat");
       assertEquals("abc:11", func.call("abc", 11L).asString());

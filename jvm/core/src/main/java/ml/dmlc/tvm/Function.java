@@ -109,8 +109,7 @@ public class Function extends TVMValue {
   /**
    * Release the Function.
    * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy
-   * and `finalize()` is not guaranteed to be called when GC happens.
+   * We highly recommend you to do this manually since the GC strategy is lazy.
    * </p>
    */
   @Override public void release() {
@@ -269,6 +268,7 @@ public class Function extends TVMValue {
         case BYTES:
           Base._LIB.tvmFuncPushArgBytes(tvmArg.asBytes());
           break;
+        case HANDLE:
         case ARRAY_HANDLE:
         case MODULE_HANDLE:
         case FUNC_HANDLE:

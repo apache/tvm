@@ -57,8 +57,7 @@ public class NDArrayBase extends TVMValue {
   /**
    * Release the NDArray memory.
    * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy
-   * and `finalize()` is not guaranteed to be called when GC happens.
+   * We highly recommend you to do this manually since the GC strategy is lazy.
    * </p>
    */
   public void release() {

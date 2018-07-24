@@ -60,7 +60,7 @@ public class RPCSession {
   public TVMContext context(String devType, int devId) {
     TVMContext ctx = new TVMContext(devType, devId);
     int encode = (tblIndex + 1) * RPC.RPC_SESS_MASK;
-    return new TVMContext(ctx.deviceType + encode, devId);
+    return new TVMRemoteContext(ctx.deviceType + encode, devId, this);
   }
 
   /**
@@ -80,7 +80,7 @@ public class RPCSession {
    */
   public TVMContext context(int devType, int devId) {
     int encode = (tblIndex + 1) * RPC.RPC_SESS_MASK;
-    return new TVMContext(devType + encode, devId);
+    return new TVMRemoteContext(devType + encode, devId, this);
   }
 
   /**
