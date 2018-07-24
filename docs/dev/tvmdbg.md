@@ -1,15 +1,56 @@
 **TVMDBG**
 
-TVM Debugger (TVMDBG) is a UI based specialized debugger for TVM's computation graphs. It provides access to internal graph structures and tensor values at TVM runtime.
+TVM Debugger (TVMDBG) is an interface for debugging TVM's computation graph execution. It helps to provide access to graph structures and tensor values at the TVM runtime.
 
-**Why**  **TVMDBG**
-In TVM's current computation-graph framework, almost all actual computation after graph construction happens in a single Python function. Basic Python debugging tools such as pdb cannot be used to debug tvm.run, due to the fact that TVM's graph execution happens in the underlying C++ layer. C++ debugging tools such as gdb are not ideal either, because of their inability to recognize and organize the stack frames and variables in a way relevant to TVM's operations, tensors and other graph constructs.
+**Debug Exchange Format**
+1. Graph information
+     The optimized graph build by nnvm in json format is dumped as it is. This contains the whole information about the graph.
+The UX can either use this graph directly or transform this graph to the format UX can understand.
 
-TVMDBG addresses these limitations. Among the features provided by TVMDBG, the following ones are designed to facilitate runtime debugging of TVM:
-- Inspection of runtime ops output values and node connections
-- Time consumed by each fused operation
+Example of dumped graph:
+```
+{
+  "nodes": [                                    # List of nodes
+    {
+      "op": "null",                             # operation type = null, this is a placeholder/variable/input node
+      "name": "x",                              # Name of the argument node
+      "inputs": []                              # inputs for this node, its none since this is an argument node
+    },
+    {
+      "op": "tvm_op",                           # operation type = tvm_op, this node can be executed
+      "name": "relu0",                          # Name of the node
+      "attrs": {                                # Attributes of the node
+        "flatten_data": "0",                    # Whether this data need to be flattened
+        "func_name": "fuse_l2_normalize_relu",  # Fused function name, this function is there in the lib
+        "num_inputs": "1",                      # Number of inputs for this node
+        "num_outputs": "1"                      # Number of outputs this node produces
+      },
+      "inputs": [[0, 0, 0]]                     # Position of the inputs for this operation
+    }
+  ],
+  "arg_nodes": [0],                             # Which all nodes in this are argument nodes
+  "node_row_ptr": [0, 1, 2],                    # Row indices for faster depth first search
+  "heads": [[1, 0, 0]],                         # Position of the output nodes for this operation
+  "attrs": {                                    # Attributes for the graph
+    "storage_id": ["list_int", [1, 0]],         # memory slot id for each node in the storage layout
+    "dtype": ["list_int", [0, 0]],              # Datatype of each node (enum value)
+    "dltype": ["list_str", [                    # Datatype of each node in order
+        "float32",
+        "float32"]],
+    "shape": ["list_shape", [                   # Shape of each node k order
+        [1, 3, 20, 20],
+        [1, 3, 20, 20]]]
+  }
+}
 
-**Note:** The TVM debugger uses a curses-based text user interface.
+```
+
+2. Tensor dumping
+     The tensor received after execution is in `tvm.ndarray` type. But the UX cannot read this format. So it can be transformed to numpy format using `asnumpy()`.
+More about numpy format can be read in the below link.
+[numpy-format](https://docs.scipy.org/doc/numpy/neps/npy-format.html)
+Each node in the graph will be dumped to individual files, in the dump folder. These files will be created after execution of each node.
+
 
 **How to use TVMDBG?**
 1. In `config.cmake` set the `USE_GRAPH_RUNTIME_DEBUG` flag to `ON`
@@ -17,48 +58,20 @@ TVMDBG addresses these limitations. Among the features provided by TVMDBG, the f
 # Whether enable additional graph debug functions
 set(USE_GRAPH_RUNTIME_DEBUG ON)
 ```
-2. Make tvm so that it will make the `libtvm_runtime.so`
+2. Do 'make' tvm, so that it will make the `libtvm_runtime.so`
 
-3. In the graph build file instead of `from tvm.contrib import graph_runtime` import the `debug_runtime` `from tvm.contrib.debugging import debug_runtime as graph_runtime`
+3. In frontend script file instead of `from tvm.contrib import graph_runtime` import the `debug_runtime` `from tvm.contrib.debugging import debug_runtime as graph_runtime`
+
 ```
 #from tvm.contrib import graph_runtime
 from tvm.contrib.debugging import debug_runtime as graph_runtime
+m = graph_runtime.create(graph, lib, ctx, dump_root="/tmp/tvmdbg")
+# set inputs
+m.set_input('data', tvm.nd.array(data.astype(dtype)))
+m.set_input(**params)
+# execute
+m.run()
+tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
 ```
 
-**Output dumping**
-The outputs are dumped to a temporary folder in `/tmp/tvmdbg` folder
-1. Graph dumping
-     The optimized graph build by nnvm in json format is dumped as it is.
-2. Tensor dumping
-     The output tensors for each node in the graph is saved in numpy format.
-
-The above two modifications will bring up the debug UI during run.
-
-The HOME page of tvmdbg looks like below.
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg1.png)
-
-Here user will get the option to run with or without debugging.
-Once user perfoms the run, it will take you for listing the nodes in graph.
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg2.png)
-
-By clicking at the **Node name** user can see the node details, like its
-1. Node information and its attributes
-2. Node inputs
-3. Node outputs
-4. Its computations output values
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg3.png)
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg4.png)
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg5.png)
- ![](https://raw.githubusercontent.com/dmlc/web-data/master/tvm/docs/dev/tvmdbg_images/tvm_dbg6.png)
-
-
-**Limitations:**
-1. Can dump only fused graph, if need to see each and every operation seperately, disable the nnvm optimizations
-2. Layer information may be dispersed into multiple operators.
-
-**References**
-
-1. https://github.com/tensorflow/tensorflow
-2. https://github.com/tensorflow/tensorboard
-3. https://github.com/awslabs/mxboard
-
+The outputs are dumped to a temporary folder in `/tmp` folder or the folder specified while creating the runtime.

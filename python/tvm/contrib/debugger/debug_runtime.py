@@ -12,7 +12,7 @@ from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
 
-def create(graph_json_str, libmod, ctx, dbg_ux=None):
+def create(graph_json_str, libmod, ctx, dbg_ux=None, dump_root=None):
     """Create a runtime executor module given a graph and module.
 
     Parameters
@@ -32,6 +32,9 @@ def create(graph_json_str, libmod, ctx, dbg_ux=None):
         To select which ux user needs, Exampel, curses/tensorboard/None.
         None will just do the dumping
 
+    dump_root : str
+        To select which folder the outputs should be kept.
+        None will make a temp folder in /tmp and does the dumping
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -50,7 +53,7 @@ def create(graph_json_str, libmod, ctx, dbg_ux=None):
         raise ValueError("Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in " \
                          "config.cmake and rebuild TVM to enable debug mode")
     func_obj = fcreate(graph_json_str, libmod, device_type, device_id)
-    return GraphModuleDebug(func_obj, ctx, graph_json_str, dbg_ux)
+    return GraphModuleDebug(func_obj, ctx, graph_json_str, dbg_ux, dump_root)
 
 
 class GraphModuleDebug(graph_runtime.GraphModule):
@@ -76,11 +79,15 @@ class GraphModuleDebug(graph_runtime.GraphModule):
 
     dbg_ux : str
         To select which ui user needs, curses, tensorboard, etc
+
+    dump_root : str
+        To select which folder the outputs should be kept.
+        None will make a temp folder in /tmp and does the dumping
     """
-    def __init__(self, module, ctx, graph_json_str, dbg_ux):
+    def __init__(self, module, ctx, graph_json_str, dbg_ux, dump_root):
         self.ui_obj = None
-        self._dump_root = ""
-        self._dump_path = ""
+        self._dump_root = dump_root
+        self._dump_path = None
         self._debug_buffer = module["set_debug_buffer"]
         self._debug_run = module["debug_run"]
         graph_runtime.GraphModule.__init__(self, module, ctx)
@@ -195,15 +202,15 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         -------
         None
         """
-        #make the dump folder
-        dump_root = tempfile.mktemp(prefix=_DUMP_ROOT_PREFIX)
+        #make the dump folder if not given
+        if not self._dump_root:
+            self._dump_root = tempfile.mktemp(prefix=_DUMP_ROOT_PREFIX)
 
         #format the context
         ctx = self._format_context(ctx)
 
-        self.ui_obj = DebugGraphUXWrapper(dump_root, graph_json, ctx, dbg_ux)
+        self.ui_obj = DebugGraphUXWrapper(self._dump_root, graph_json, ctx, dbg_ux)
         #updates the dumping directories
-        self._dump_root = dump_root
         self._dump_path = self._get_dump_path(ctx)
 
     def _make_debug_buffer_list(self):
@@ -281,6 +288,8 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             elif action == common.UxAction.NON_DEBUG_RUN:
                 retvals = super(GraphModuleDebug, self).run()
                 action = self.ui_obj.run_end(action, retvals)
+            else:
+                break
             #If ux exits
             if action == common.UxAction.EXIT:
                 break
