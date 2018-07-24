@@ -245,12 +245,12 @@ class SRAM {
     CHECK_LE(sram_end, kMaxNumElem);
     memset(sram_ptr, 0, kElemBytes * xtotal * op->y_pad_0);
     sram_ptr += xtotal * op->y_pad_0;
+
     for (uint32_t y = 0; y < op->y_size; ++y) {
       memset(sram_ptr, 0, kElemBytes * op->x_pad_0);
       sram_ptr += op->x_pad_0;
       memcpy(sram_ptr, dram_ptr, kElemBytes * op->x_size);
       sram_ptr += op->x_size;
-      BitPacker<kBits> src(sram_ptr);
       memset(sram_ptr, 0, kElemBytes * op->x_pad_1);
       sram_ptr += op->x_pad_1;
       dram_ptr += kElemBytes * op->x_stride;
@@ -415,12 +415,14 @@ class Device {
             uint32_t acc_idx = uop_ptr->dst_idx;
             uint32_t inp_idx = uop_ptr->src_idx;
             uint32_t wgt_idx = uop_ptr->wgt_idx;
+
             acc_idx += y * op->dst_factor_out + x * op->dst_factor_in;
             inp_idx += y * op->src_factor_out + x * op->src_factor_in;
             wgt_idx += y * op->wgt_factor_out + x * op->wgt_factor_in;
             BitPacker<VTA_ACC_WIDTH> acc(acc_.BeginPtr(acc_idx));
             BitPacker<VTA_INP_WIDTH> inp(inp_.BeginPtr(inp_idx));
             BitPacker<VTA_WGT_WIDTH> wgt(wgt_.BeginPtr(wgt_idx));
+
             // gemm loop
             for (uint32_t i = 0; i < VTA_BATCH; ++i) {
               for (uint32_t j = 0; j < VTA_BLOCK_OUT; ++j) {
