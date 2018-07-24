@@ -27,10 +27,12 @@ import java.util.List;
  */
 public class NDArray extends NDArrayBase {
   private final TVMType dtype;
+  private final TVMContext context;
 
-  NDArray(long handle, boolean isView, TVMType dtype) {
+  NDArray(long handle, boolean isView, TVMType dtype, TVMContext ctx) {
     super(handle, isView);
     this.dtype = dtype;
+    this.context = ctx;
   }
 
   @Override protected void finalize() throws Throwable {
@@ -362,6 +364,14 @@ public class NDArray extends NDArrayBase {
   }
 
   /**
+   * Get the context of current array.
+   * @return the context.
+   */
+  public TVMContext ctx() {
+    return context;
+  }
+
+  /**
    * Create an empty array given shape, type and device.
    * @param shape The shape of the array.
    * @param dtype The data type of the array.
@@ -373,7 +383,7 @@ public class NDArray extends NDArrayBase {
     Base.checkCall(Base._LIB.tvmArrayAlloc(
         shape, dtype.typeCode, dtype.bits, dtype.lanes,
         ctx.deviceType, ctx.deviceId, refHandle));
-    return new NDArray(refHandle.value, false, dtype);
+    return new NDArray(refHandle.value, false, dtype, ctx);
   }
 
   /**
