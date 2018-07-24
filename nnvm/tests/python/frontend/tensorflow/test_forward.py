@@ -110,6 +110,7 @@ def _test_pooling(input_shape, **kwargs):
                 sess.graph.as_graph_def(add_shapes=True),
                 [out_node],
                 )
+
             tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
             tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
                                        "Const", tf_output.shape, 'float32')
