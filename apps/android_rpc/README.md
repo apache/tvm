@@ -1,6 +1,6 @@
 # Android TVM RPC
 
-This folder contains Android RPC app that allows us to launch an rpc server on a Android device and connect to it through python script and do testing on the python side as normal TVM RPC.
+This folder contains Android RPC app that allows us to launch an RPC server on a Android device and connect to it through python script and do testing on the python side as normal TVM RPC.
 
 You will need JDK, [Android NDK](https://developer.android.com/ndk) and an Android device to use this.
 
@@ -85,7 +85,9 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Cross Compile and Upload to the Android Device
 
-First start an RPC tracker using `python -m tvm.exec.rpc_tracker --port [PORT]` and make your Android device connect to this RPC tracker via TVM RPC application.
+First start an RPC tracker using `python -m tvm.exec.rpc_tracker --port [PORT]` and connect your Android device to this RPC tracker via the TVM RPC application.
+Set the `Address` and `Port` fields to the address and port of the RPC tracker respectively.
+The key should be set to "android" if you wish to avoid modifying the default test script.
 
 Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py) and run,
 
@@ -98,7 +100,7 @@ export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++
 python android_rpc_test.py
 ```
 
-This will compile TVM IR to shared libraries (CPU and OpenCL) and run vector additon on your Android device. On my test device, it gives following results.
+This will compile TVM IR to shared libraries (CPU and OpenCL) and run vector addition on your Android device. On my test device, it gives following results.
 
 ```bash
 TVM: Initializing cython mode...
