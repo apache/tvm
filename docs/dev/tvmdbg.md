@@ -1,11 +1,39 @@
-**TVMDBG**
+### TVMDBG
 
 TVM Debugger (TVMDBG) is an interface for debugging TVM's computation graph execution. It helps to provide access to graph structures and tensor values at the TVM runtime.
 
-**Debug Exchange Format**
-1. Graph information
-     The optimized graph build by nnvm in json format is dumped as it is. This contains the whole information about the graph.
+### Debug Exchange Format
+**1. Graph information**
+     The optimized graph build by nnvm in json serialized format is dumped as it is. This contains the whole information about the graph.
 The UX can either use this graph directly or transform this graph to the format UX can understand.
+
+The Graph JSON format is explained below 
+1. nodes
+  Nodes are either placeholders or computational nodes in NNVM graph. The nodes are stored as a list. A node contains the below information
+   `op` - operation type, `null` means its a placeholder/variable/input node and `tvm_op` means this node can be executed
+   `name` - Name of the node
+   `inputs` - Position of the inputs for this operation (Optional)
+   `attrs` - Attributes of the node
+        1. `flatten_data` - Whether this data need to be flattened before execution
+        2. `func_name` - Fused function name, this function is there in the lib
+        3. `num_inputs` - Number of inputs for this node
+        4. `num_outputs` - Number of outputs this node produces
+
+2. arg_nodes
+  arg_nodes is a list of indices of nodes which is placeholder/variable/input to the graph.
+
+3. heads
+  heads is a list of entries as the output of the graph.
+
+4. node_row_ptr
+  node_row_ptr stores the history of forward path, so you can skip constructing the entire graph in inference tasks.
+ 
+5. attrs
+  attrs can contain version numbers or similar helpful informations.
+    `storage_id` - memory slot id for each node in the storage layout
+    `dtype` - Datatype of each node (enum value)
+    `dltype` - Datatype of each node in order
+    `shape` - Shape of each node k order
 
 Example of dumped graph:
 ```
@@ -45,14 +73,14 @@ Example of dumped graph:
 
 ```
 
-2. Tensor dumping
+**2. Tensor dumping**
      The tensor received after execution is in `tvm.ndarray` type. But the UX cannot read this format. So it can be transformed to numpy format using `asnumpy()`.
 More about numpy format can be read in the below link.
 [numpy-format](https://docs.scipy.org/doc/numpy/neps/npy-format.html)
 Each node in the graph will be dumped to individual files, in the dump folder. These files will be created after execution of each node.
 
 
-**How to use TVMDBG?**
+### How to use TVMDBG?
 1. In `config.cmake` set the `USE_GRAPH_RUNTIME_DEBUG` flag to `ON`
 ```
 # Whether enable additional graph debug functions
