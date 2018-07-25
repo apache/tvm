@@ -325,7 +325,7 @@ def test_forward_rnn():
     LIB.free_network(net)
 
 def test_forward_activation_logistic():
-    '''test elu activation layer'''
+    '''test logistic activation layer'''
     net = LIB.make_network(1)
     batch = 1
     h = 224
