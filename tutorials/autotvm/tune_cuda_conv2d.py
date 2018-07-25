@@ -189,3 +189,4 @@ np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=200)
 print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)
+
