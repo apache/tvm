@@ -1,4 +1,5 @@
 import tvm
+from tvm.contrib import util, clang
 import numpy as np
 import ctypes
 
@@ -16,6 +17,47 @@ def test_llvm_intrin():
     body = ib.get()
     func = tvm.ir_pass.MakeAPI(body, "prefetch", [A], 0, True)
     fcode = tvm.build(func, None, "llvm")
+
+
+def test_llvm_import():
+    # extern "C" is necessary to get the correct signature
+    cc_code = """
+    extern "C" float my_add(float x, float y) {
+      return x + y;
+    }
+    """
+    n = 10
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute((n,), lambda *i:
+                    tvm.call_pure_extern("float32", "my_add", A(*i), 1.0),
+                    name='B')
+    def check_llvm(use_file):
+        if not tvm.module.enabled("llvm"):
+            return
+        if not clang.find_clang(required=False):
+            print("skip because clang is not available")
+            return
+        temp = util.tempdir()
+        ll_path = temp.relpath("temp.ll")
+        ll_code = clang.create_llvm(cc_code, output=ll_path)
+        s = tvm.create_schedule(B.op)
+        if use_file:
+            s[B].pragma(s[B].op.axis[0], "import_llvm", ll_path)
+        else:
+            s[B].pragma(s[B].op.axis[0], "import_llvm", ll_code)
+        # BUILD and invoke the kernel.
+        f = tvm.build(s, [A, B], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
+        f(a, b)
+        np.testing.assert_allclose(
+            b.asnumpy(), a.asnumpy() + 1.0)
+    check_llvm(use_file=True)
+    check_llvm(use_file=False)
+
+
 
 def test_llvm_lookup_intrin():
     ib = tvm.ir_builder.create()
@@ -322,6 +364,7 @@ def test_alignment():
 
 
 if __name__ == "__main__":
+    test_llvm_import()
     test_alignment()
     test_rank_zero()
     test_llvm_bool()

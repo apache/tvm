@@ -86,6 +86,7 @@ class FileLock(object):
             self.lock_file.close()
             self.lock_file = None
 
+
 def filelock(path):
     """Create a file lock which locks on path
 
@@ -99,3 +100,45 @@ def filelock(path):
     lock : File lock object
     """
     return FileLock(path)
+
+
+def is_source_path(path):
+    """Check if path is source code path.
+
+    Parameters
+    ----------
+    path : str
+        A possible path
+
+    Returns
+    -------
+    valid : bool
+        Whether path is a possible source path
+    """
+    if os.path.exists(path):
+        return True
+    if path.find("\n") != -1:
+        return False
+    spath = path.rsplit(".", 1)
+    return len(spath) == 2 and spath[1].strip() == spath[1]
+
+
+def which(exec_name):
+    """Try to find full path of exec_name
+
+    Parameters
+    ----------
+    exec_name : str
+        The executable name
+
+    Returns
+    -------
+    path : str
+        The full path of executable if found, otherwise returns None
+    """
+    base_list = ["", "/bin"] + os.environ.get("PATH", "").split(os.pathsep)
+    for path in base_list:
+        full_path = os.path.join(path, exec_name)
+        if os.path.isfile(full_path) and os.access(full_path, os.X_OK):
+            return full_path
+    return None
