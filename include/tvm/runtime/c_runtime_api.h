@@ -60,6 +60,7 @@ typedef int64_t tvm_index_t;
 
 /*! \brief Extension device types in TVM */
 typedef enum {
+  kDLAOCL = 5,
   kDLSDAccel = 6,
   kDLVulkan = 7,
   kOpenGL = 11,

@@ -42,11 +42,7 @@ set(USE_ROCM OFF)
 # Whether enable SDAccel runtime
 set(USE_SDACCEL OFF)
 
-# Whether enable Intel FPGA SDK for OpenCL (AOCL) during compile,
-#
-# Possible values:
-# - OFF: disbale AOCL
-# - board_name: use specific board name for offline compilation
+# Whether enable Intel FPGA SDK for OpenCL (AOCL) runtime
 set(USE_AOCL OFF)
 
 # Whether enable OpenCL runtime

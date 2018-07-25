@@ -208,11 +208,7 @@ std::vector<cl_device_id> GetDeviceIDs(
   cl_device_type dtype = CL_DEVICE_TYPE_ALL;
   if (device_type == "cpu") dtype = CL_DEVICE_TYPE_CPU;
   if (device_type == "gpu") dtype = CL_DEVICE_TYPE_GPU;
-#ifndef AOCL_BOARD_NAME
   if (device_type == "accelerator") dtype = CL_DEVICE_TYPE_ACCELERATOR;
-#else
-  if (device_type == "accelerator") dtype = CL_DEVICE_TYPE_DEFAULT;
-#endif
   cl_uint ret_size;
   cl_int code = clGetDeviceIDs(pid, dtype, 0, nullptr, &ret_size);
   std::vector<cl_device_id> ret;

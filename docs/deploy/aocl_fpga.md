@@ -5,52 +5,70 @@ TVM supports Intel FPGA SDK for OpenCL also known as AOCL.  Here is a tutorial f
 
 ***Note***: This feature is still experimental.  We cannot use AOCL to deploy an end to end neural networks for now.  In addition, we can only use AOCL's emulation mode for now.
 
-We use a python scripts for this tutorial.
+We use two python scripts for this tutorial.
 
-- emu-aocl-fpga.py
-```# -*- coding: utf-8 -*-
+- build.py - a script to synthesize FPGA bitstream.
+```import tvm
+
+tgt_host="llvm"
+tgt="aocl -device=de5net_a7"
+
+n = tvm.var("n")
+A = tvm.placeholder((n,), name='A')
+B = tvm.placeholder((n,), name='B')
+C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
+
+s = tvm.create_schedule(C.op)
+px, x = s[C].split(C.op.axis[0], nparts=1)
+
+s[C].bind(px, tvm.thread_axis("pipeline"))
+
+fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
+
+fadd.save("myadd.o")
+
+tvm.contrib.cc.create_shared("myadd.so", ["myadd.o"])
+)```
+
+- run.py - a script to use FPGA as an accelerator.
+```python
 import tvm
 import numpy as np
+import os
 
-tgt_host = 'llvm'
-tgt = 'opencl'
+tgt="aocl -device=de5net_a7"
 
-# Define a computation.
-n = tvm.var('n')
-a = tvm.placeholder((n,), name='a')
-b = tvm.placeholder((n,), name='b')
-c = tvm.compute(a.shape, lambda i: a[i] + b[i], name='c')
+fadd = tvm.module.load("myadd.so")
+fadd_dev = tvm.module.load("myadd.aocx")
+fadd.import_module(fadd_dev)
 
-# Make a schedule.
-s = tvm.create_schedule(c.op)
-px, x = s[c].split(c.op.axis[0], nparts=1)
-s[c].bind(px, tvm.thread_axis("pipeline"))
-
-# Make a executable code.
-fadd = tvm.build(s, [a, b, c], tgt, target_host=tgt_host, name='myadd')
-
-# Run.
 ctx = tvm.context(tgt, 0)
+
 n = 1024
-a = tvm.nd.array(np.random.uniform(size=n).astype(a.dtype), ctx)
-b = tvm.nd.array(np.random.uniform(size=n).astype(b.dtype), ctx)
-c = tvm.nd.array(np.zeros(n, dtype=c.dtype), ctx)
-fadd(a, b, c)```
+a = tvm.nd.array(np.random.uniform(size=n).astype("float32"), ctx)
+b = tvm.nd.array(np.random.uniform(size=n).astype("float32"), ctx)
+c = tvm.nd.array(np.zeros(n, dtype="float32"), ctx)
+
+fadd(a, b, c)
+np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+```
 
 Setup
 -----
 
 - Install AOCL 17.1 on Ubuntu 16.04.4 LTS.
 - Install FPGA device driver.
-- Make ICD file.
-- Make FCD file.
+- Make ICD file. (/etc/OpenCL/vendors/Altera.icd)
+- Make FCD file. (/opt/Intel/OpenCL/Boards/de5net.fcd)
 - Setup TVM with AOCL and OpenCL enabled.
 
 Emulation
 ---------
 
-- Set environment variable.
-```export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1```
-
 - Run software emulation
-```python emu-aocl-fpga.py```
+```bash
+export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
+
+python build.py
+python run.py
+```
