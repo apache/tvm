@@ -772,6 +772,7 @@ def test_forward_ptb():
     def _get_tvm_graph_module(graph_def):
         sym, params = nnvm.frontend.from_tensorflow(graph_def)
 
+        #Cell inputs 'c and 'h' consist of all layers values
         shape_dict = {'Model/Placeholder': (batch_size, num_steps),
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':(num_layers, batch_size, num_hidden),
                       'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':(num_layers, batch_size, num_hidden)}

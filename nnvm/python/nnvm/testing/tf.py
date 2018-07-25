@@ -169,11 +169,16 @@ def do_tf_sample(session, data, in_states, num_samples):
     """Sampled from the model"""
     samples = []
     sample = None
+    #Cell inputs c and h should be passed for each layer explicitly.
     state_input_name = ['Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros:0',
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState/zeros_1:0',
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros:0',
                         'Model/MultiRNNCellZeroState/LSTMBlockCellZeroState_1/zeros_1:0']
     state = session.run(state_input_name)
+
+    #Graph nodes to be fetched as run output. Tensorflow LSTMBlockCell create internal
+    #nodes for intermediate operations (gates) in the cell during run.
+    #Cell state (c) is ':1'and cell output (h) is ':6' for each layer.
     fetches = [['Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:1',
                 'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell:6',
                 'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:1',
@@ -189,6 +194,7 @@ def do_tf_sample(session, data, in_states, num_samples):
         else:
             feed_dict[input_name] = input_data
         return feed_dict
+
     for x in data:
         feed_dict = _get_feed_dict(state_input_name, state)
         feed_dict['Model/Placeholder:0'] = [[x]]
@@ -237,7 +243,7 @@ def _create_ptb_vocabulary(data_dir):
     return ptb_raw_data(data_path, file_name)
 
 def get_workload_ptb():
-    """ Import mobilenet workload from frozen protobuf
+    """ Import ptb workload from frozen protobuf
 
     Parameters
     ----------
