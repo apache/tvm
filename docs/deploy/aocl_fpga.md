@@ -58,9 +58,12 @@ Setup
 -----
 
 - Install AOCL 17.1 on Ubuntu 16.04.4 LTS.
+- Install BSP for your FPGA device.
 - Install FPGA device driver.
-- Make ICD file. (/etc/OpenCL/vendors/Altera.icd)
-- Make FCD file. (/opt/Intel/OpenCL/Boards/de5net.fcd)
+- Create an ICD file at /etc/OpenCL/vendors/Altera.icd so that the OpenCL platform can be found.
+```/opt/intelFPGA/17.1/hld/linux64/lib/libalteracl.so```
+- Create an FCD file for example at /opt/Intel/OpenCL/Boards/de5net.fcd so that your FPGA device can be found.
+```/opt/intelFPGA/17.1/hld/board/terasic/linux64/lib/libterasic_apb_16_0_mmd.so```
 - Setup TVM with AOCL and OpenCL enabled.
 
 Emulation
