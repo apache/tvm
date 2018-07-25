@@ -179,6 +179,8 @@ constexpr const char* loop_scope = "loop_scope";
 constexpr const char* reduce_scope = "reduce_scope";
 /*! \brief Mark region is guarded by the pragma extension */
 constexpr const char* pragma_scope_prefix = "pragma_";
+/*! \brief Import llvm source or file into the final code gen module */
+constexpr const char* pragma_import_llvm = "pragma_import_llvm";
 /*!
  * \brief Mark of prefetch scope, value=offset,
  *  run prefetch of Tensor on the current loop scope

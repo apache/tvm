@@ -298,6 +298,13 @@ TVM_REGISTER_API("codegen.build_llvm")
     *rv = runtime::Module(n);
   });
 
+TVM_REGISTER_API("codegen.llvm_version_major")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::ostringstream os;
+    int major = TVM_LLVM_VERSION / 10;
+    *rv = major;
+  });
+
 TVM_REGISTER_API("module.loadfile_ll")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     std::shared_ptr<LLVMModuleNode> n = std::make_shared<LLVMModuleNode>();
