@@ -15,7 +15,8 @@ the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://404.html>`_ to see the results.
+`ARM CPU Benchmark <https://github.com/merrymercy/tvm/blob/arm_cpu/apps/benchmark/README.md#arm-cpu>`_
+to see the results.
 """
 
 ######################################################################
