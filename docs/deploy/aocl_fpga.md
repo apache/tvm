@@ -67,8 +67,7 @@ Emulation
 ---------
 
 - Run software emulation
-```bash
-export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
+```export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
 
 python build.py
 python run.py
