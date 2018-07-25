@@ -107,6 +107,7 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
     C = tvm.placeholder((out_dim,), dtype=dtype, name='C')
     D = topi.sparse.dense(A, B, C if use_bias else None)
     s = tvm.create_schedule(D.op)
+    print(tvm.lower(s, [A.data, A.indices, A.indptr, B, C], simple_mode=True))
 
     # get the test data
     def get_ref_data():

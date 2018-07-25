@@ -14,52 +14,43 @@ csr = "csr"
 @register_node
 class CSRNDArray(object):
     """Sparse tensor object in CSR format."""
-    def __init__(self, source_array=None,
-                 data=None, indices=None, indptr=None, ctx=None):
+    def __init__(self, arg1, ctx=None, shape=None):
         """Construct a sparse matrix in CSR format.
 
         Parameters
         ----------
-        source_array : numpy.ndarray
-            The corresponding numpy array.
-
-        data : tvm.ndarray (optional)
-            The data array for constructing sparse matrix
-
-        indices : tvm.ndarray (optional)
-            The indices array for constructing sparse matrix
-
-        indptr : tvm.ndarray (optional)
-            The indptr array for constructing sparse matrix
+        arg1 : numpy.ndarray or a tuple with (data, indices, indptr)
+            The corresponding a dense numpy array,
+            or a tuple for constructing a sparse matrix directly.
 
         ctx: tvm.TVMContext
             The corresponding context.
         """
-        self.stype = 'csr'
-        self.shape = source_array.shape
-        self.dtype = source_array.dtype
-        if data is None:
+        if isinstance(arg1, tuple):
+            self.data, self.indices, self.indptr = arg1[0], arg1[1], arg1[2]
+            self.shape = shape
+        elif isinstance(arg1, _np.ndarray):
+            source_array = arg1
             ridx, cidx = _np.nonzero(source_array)
             data = source_array[ridx, cidx]
             self.data = _nd.array(data, ctx)
-        else:
-            self.data = data
-        if indices is None:
             indices = _np.nonzero(source_array)[1].astype('int32')
             self.indices = _nd.array(indices, ctx)
-        else:
-            self.indices = indices
-        if indptr is None:
             indptr = [0]+_np.apply_along_axis(_np.count_nonzero, axis=1, arr=source_array).tolist()
             indptr = _np.cumsum(_np.array(indptr, 'int32')).astype('int32')
             self.indptr = _nd.array(indptr, ctx)
+            self.shape = source_array.shape
         else:
-            self.indptr = indptr
+            raise RuntimeError("Construct CSRNDArray with either a tuple (data, indices, indptr) "
+                               "or a numpy.array, can't handle type %s." % (type(arg1),))
+        self.stype = 'csr'
+        self.dtype = self.data.dtype
+        assert self.shape is not None
         assert isinstance(self.data, _nd.NDArray)
         assert isinstance(self.indices, _nd.NDArray)
-        assert str(self.indices.dtype) == 'int32', str(self.indices.dtype)
+        assert str(self.indices.dtype) == 'int32' or str(self.indices.dtype) == 'int64', str(self.indices.dtype)
         assert isinstance(self.indptr, _nd.NDArray)
-        assert str(self.indptr.dtype) == 'int32', str(self.indptr.dtype)
+        assert str(self.indptr.dtype) == 'int32' or str(self.indptr.dtype) == 'int64', str(self.indptr.dtype)
 
     def asnumpy(self):
         """Construct a full matrix and convert it to numpy array."""
@@ -69,12 +60,9 @@ class CSRNDArray(object):
         full[ridx, self.indices.asnumpy().astype('int32')] = self.data.asnumpy()
         return full
 
-def array(source_array, ctx=None):
+def array(source_array, ctx=None, shape=None):
     """Construct a CSRNDArray from numpy.ndarray"""
-    ret = None
-    if isinstance(source_array, _np.ndarray):
-        return CSRNDArray(source_array=source_array, ctx=ctx)
-    return ret
+    return CSRNDArray(source_array, shape=shape, ctx=ctx)
 
 @register_node
 class CSRPlaceholderOp(object):
