@@ -301,7 +301,9 @@ def _darknet_region(inputs, attrs):
 def _darknet_activations(inputs, attrs):
     """Process the activation function."""
     act = _darknet_required_attr(attrs, 'activation')
-    if ACTIVATION.RELU == act:
+    if ACTIVATION.LOGISTIC == act:
+        act_type = 'sigmoid'
+    elif ACTIVATION.RELU == act:
         act_type = 'relu'
     elif ACTIVATION.TANH == act:
         act_type = 'tanh'
@@ -323,6 +325,9 @@ def _darknet_activations(inputs, attrs):
         sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
     elif act_type in ['elu']:
         sym = -1 * _sym.relu(1 - _sym.exp(*inputs)) + _sym.relu(*inputs)
+    elif act_type in ['sigmoid']:
+        op_name, new_attrs = act_type, {}
+        sym = _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs)
     else:
         _darknet_raise_not_supported('act_type: ' + act_type)
     return sym, None
