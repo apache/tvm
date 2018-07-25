@@ -11,7 +11,7 @@ We use two python scripts for this tutorial.
 ```import tvm
 
 tgt_host="llvm"
-tgt="aocl -device=de5net_a7"
+tgt="aocl -device=de5net_a7 -mattr=emulator"
 
 n = tvm.var("n")
 A = tvm.placeholder((n,), name='A')
