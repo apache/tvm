@@ -10,7 +10,7 @@ from .. import autotvm
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--i", type=str, help="The input file")
+    parser.add_argument("--i", type=str, help="The input file or directory")
     parser.add_argument("--o", type=str, help="The output file")
 
     args = parser.parse_args()
@@ -33,5 +33,6 @@ if __name__ == '__main__':
         logging.info("Run final filter...")
         autotvm.record.pick_best(tmp_filename, args.o)
         os.remove(tmp_filename)
+        logging.info("Output to %s ...", args.o)
     else:
         raise ValueError("Invalid input file: " + args.i)

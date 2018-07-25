@@ -210,11 +210,13 @@ def measure_rpc(input_pack,
         func, args = _build_func(inp, build_option, kwargs)
 
         tmp_dir = util.tempdir()
-        file_name = "tmp_func_%0x.so" % getrandbits(64)
-        path = tmp_dir.relpath(file_name)
         if kwargs.get('use_ndk', False):  # for Android NDK
+            file_name = "tmp_func_%0x.so" % getrandbits(64)
+            path = tmp_dir.relpath(file_name)
             func.export_library(path, ndk.create_shared)
         else:
+            file_name = "tmp_func_%0x.tar" % getrandbits(64)
+            path = tmp_dir.relpath(file_name)
             func.export_library(path)
         remote = request_remote(rpc_device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)
         remote.upload(path)

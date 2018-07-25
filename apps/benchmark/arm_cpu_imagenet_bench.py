@@ -3,6 +3,7 @@ see README.md for the usage and results of this script.
 """
 
 import argparse
+import time
 
 import numpy as np
 
@@ -53,20 +54,24 @@ if __name__ == "__main__":
     parser.add_argument("--network", type=str, choices=['resnet-18', 'mobilenet', 'squeezenet v1.1', 'vgg-16'])
     parser.add_argument("--device", type=str, required=True, choices=['rk3399', 'mate10', 'mate10pro', 'p20', 'p20pro', 
                                                                       'pixel2', 'rasp3b', 'pynq'])
-    parser.add_argument("--host", type=str, required=True)
-    parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--host", type=str, default='localhost')
+    parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
-    parser.add_argument("--number", type=int, default=5)
+    parser.add_argument("--number", type=int, default=6)
     args = parser.parse_args()
 
     dtype = 'float32'
 
     if args.network is None:
-        networks = ['mobilenet', 'squeezenet v1.1', 'resnet-18', 'vgg-16']
+        networks = ['squeezenet v1.1', 'mobilenet', 'resnet-18', 'vgg-16']
     else:
         networks = [args.network]
 
     target = tvm.target.arm_cpu(model=args.device)
+
+    # get remote device session
+    tracker = tvm.rpc.connect_tracker(args.host, args.port)
+    remote = tracker.request(args.rpc_key)
 
     print("--------------------------------------------------")
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))
@@ -81,17 +86,13 @@ if __name__ == "__main__":
         tmp = tempdir()
         if 'android' in str(target):
             from tvm.contrib import ndk
-            filename = "net.so"
+            filename = "%s.so" % network
             path_name = tmp.relpath(filename)
             lib.export_library(path_name, ndk.create_shared)
         else:
-            filename = "net.tar"
+            filename = "%s.tar" % network
             path_name = tmp.relpath(filename)
             lib.export_library(path_name)
-
-        # get remote device session
-        tracker = tvm.rpc.connect_tracker(args.host, args.port)
-        remote = tracker.request(args.rpc_key)
 
         # upload library and params
         ctx = remote.context(str(target), 0)
