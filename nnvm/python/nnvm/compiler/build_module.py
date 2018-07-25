@@ -6,6 +6,7 @@ import logging
 import tvm
 
 from tvm.contrib import graph_runtime
+from tvm import autotvm
 from . import graph_attr, graph_util
 from .. import graph as _graph
 from .. import symbol as sym
@@ -237,6 +238,10 @@ def build(graph, target=None, shape=None, dtype="float32",
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
     target = tvm.target.create(target)
+
+    if autotvm.task.DispatchContext.current is None:
+        # load pre-tuned parameters from default directory
+        autotvm.load_op_param()
 
     shape = shape if shape else {}
     if not isinstance(shape, dict):
