@@ -14,16 +14,16 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
     if flag >= 96:
         hfactor = 4
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
-    ow_size = min(max_threads // hfactor, util.get_const_int(Out.shape[3]))
-    num_thread = ow_size * hfactor
+    ow_size = util.get_const_int(Out.shape[3])
+    num_thread = min(max_threads, ow_size * hfactor)
     vthread = ofactor
     block_x = tvm.thread_axis("blockIdx.x")
     thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
     thread_xz = tvm.thread_axis((0, vthread), "vthread", name="vx")
 
     i, oc, h, w = s[Out].op.axis
-    ooc, ioc = s[Out].split(oc, factor=vthread)
-    if ow_size == util.get_const_int(Out.shape[3]):
+    if ow_size * hfactor == num_thread:
+        ooc, ioc = s[Out].split(oc, factor=vthread)
         oh, ih = s[Out].split(h, factor=hfactor)
         s[Out].reorder(ooc, oh, ioc, ih, w)
         oc = s[Out].fuse(ooc, oh)
@@ -33,11 +33,8 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
         s[Out].bind(ioc, thread_xz)
         s[Out].bind(oc, block_x)
     else:
-        s[Out].reorder(ooc, h, ioc, w)
-        ow, iw = s[Out].split(w, factor=ow_size * hfactor * hfactor)
-        vw, w = s[Out].split(iw, nparts=hfactor)
+        ow, w = s[Out].split(w, factor=num_thread)
         s[Out].bind(w, thread_x)
-        s[Out].bind(vw, thread_xz)
         s[Out].bind(ow, block_x)
 
     s[Out_L].compute_at(s[Out], w)
@@ -68,7 +65,8 @@ def conv2d_224_3_64(s, temp, temp_R, temp_S, Filter_S, Out, Out_L, flag):
     h = s[temp_S].fuse(h, ow)
     _, tx = s[temp_S].split(h, factor=num_thread)
     s[temp_S].bind(tx, thread_x)
-    s[temp_S].vectorize(iw)
+    if num_thread < max_threads:
+        s[temp_S].vectorize(iw)
 
     #schedule Filter_S shared mem load
     i, oc, h, w = s[Filter_S].op.axis
@@ -265,7 +263,7 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
         vthread_x = util.get_const_int(Out.shape[3])
         num_thread_x = 64
         ofactor = 8
-        if util.get_const_int(Filter.shape[3]) == 1 and vthread_x * 4 <= max_threads:
+        if util.get_const_int(Filter.shape[3]) == 1 and vthread_x * 5 <= max_threads:
             ofactor = 64
         block_x = tvm.thread_axis("blockIdx.x")
         thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
@@ -305,7 +303,7 @@ def conv2d_14_256_256(s, temp, temp_R, temp_S, Filter, Filter_S, Out, Out_L):
 
     else:
         # scheduler params
-        vthread_x = min(16, util.get_const_int(Out.shape[2]))
+        vthread_x = min(8, util.get_const_int(Out.shape[2]))
         num_thread_x = 16
         num_thread_y = min(max_threads // num_thread_x, util.get_const_int(Out.shape[3]))
         ofactor = 8
