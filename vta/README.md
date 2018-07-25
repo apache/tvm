@@ -1,18 +1,16 @@
 VTA: Open, Modular, Deep Learning Accelerator Stack
 ===================================================
-VTA(versatile tensor accelerator) is an open-source deep learning accelerator stack.
-It is not just an open-source hardware, but is an end to end solution that includes
-the entire software stack on top of VTA open-source hardware.
+VTA (versatile tensor accelerator) is an open-source deep learning accelerator complemented with an end-to-end TVM-based compiler stack.
 
-The key features include:
+The key features of VTA include:
 
-- Generic, modular open-source hardware
+- Generic, modular, open-source hardware
   - Streamlined workflow to deploy to FPGAs.
-  - Simulator support to protoype compilation passes on regular workstations.
-- Driver and JIT runtime for both simulated and FPGA hardware backend.
-- End to end TVM stack integration
-  - Direct optimization and deploy models from deep learning frameworks via TVM stack.
-  - Customized and extendible TVM compiler backend.
-  - Flexible RPC support to ease the deployment, and program FPGAs with Python
+  - Simulator support to prototype compilation passes on regular workstations.
+- Driver and JIT runtime for both simulator and FPGA hardware back-end.
+- End-to-end TVM stack integration
+  - Direct optimization and deployment of models from deep learning frameworks via TVM.
+  - Customized and extensible TVM compiler back-end.
+  - Flexible RPC support to ease deployment, and program FPGAs with the convenience of Python.
 
-VTA is part of our effort on TVM Stack.
+Learn more about VTA [here](https://docs.tvm.ai/vta/index.html).
