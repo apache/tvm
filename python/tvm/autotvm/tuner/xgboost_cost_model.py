@@ -139,6 +139,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
+        if np.max(y_train) < 1e-6:
+            return
         y_train = y_train / np.max(y_train)
 
         valid_index = y_train > 1e-6
@@ -162,17 +164,19 @@ class XGBoostCostModel(CostModel):
                                  ],
                                  verbose_eval=self.verbose)])
 
-        logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                     time.time() - tic, len(xs),
-                     len(xs) - np.sum(valid_index),
-                     self.feature_cache.size(self.fea_type))
+        if self.verbose:
+            logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+                         time.time() - tic, len(xs),
+                         len(xs) - np.sum(valid_index),
+                         self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
         self._reset_pool()
 
         args = list(records)
-        logging.info("Load %d entries from history log file", len(args))
+        if self.verbose:
+            logging.info("Load %d entries from history log file", len(args))
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
         elif self.fea_type == 'knob':
@@ -187,6 +191,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = xs
         y_train = ys
+        if np.max(y_train) < 1e-6:
+            return
         y_train /= np.max(y_train)
 
         index = np.random.permutation(len(x_train))
@@ -205,7 +211,8 @@ class XGBoostCostModel(CostModel):
                                  ],
                                  verbose_eval=self.verbose)])
 
-        logging.info("train: %.2f\tobs: %d", time.time() - tic, len(xs))
+        if self.verbose:
+            logging.info("train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
     def predict(self, xs, output_margin=False):
         feas = self._get_feature(xs)
@@ -282,7 +289,7 @@ def _extract_itervar_feature_log(arg):
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 def _extract_knob_feature_index(index):
@@ -301,7 +308,7 @@ def _extract_knob_feature_log(arg):
             inp.task.instantiate(config)
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 def _extract_curve_feature_index(index):
@@ -325,12 +332,11 @@ def _extract_curve_feature_log(arg):
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
-                    save_file="xgb_checkpoint", save_every=None,
                     maximize=False, verbose_eval=True):
     """callback function for xgboost to support multiple custom evaluation functions"""
     from xgboost.core import EarlyStopException
@@ -400,17 +406,11 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                 continue
             infos.append("%s: %.6f" % (item[0], item[1]))
 
-        if not isinstance(verbose_eval, bool) and i % verbose_eval == 0:
+        if not isinstance(verbose_eval, bool) and verbose_eval and i % verbose_eval == 0:
             logging.info("\t".join(infos))
         if log_file:
             with open(log_file, "a") as fout:
                 fout.write("\t".join(infos) + '\n')
-
-        ##### save model #####
-        if save_every and i % save_every == 0:
-            filename = save_file + ".%05d.bst" % i
-            logging.info("save model to %s ...", filename)
-            bst.save_model(filename)
 
         ##### choose score and do early stopping #####
         score = None

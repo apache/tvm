@@ -242,7 +242,7 @@ class ModelBasedTuner(Tuner):
                 self.ys.append(flops)
             else:
                 self.xs.append(index)
-                self.ys.append(0)
+                self.ys.append(0.0)
 
         # if we have enough new training samples
         if len(self.xs) >= self.plan_size * (self.train_ct + 1) \

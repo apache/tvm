@@ -20,6 +20,9 @@ from . import task
 from .task import DispatchContext, ConfigEntity
 from .measure import MeasureInput, MeasureResult
 
+from ..contrib.util import tempdir
+from ..contrib.download import download
+
 AUTOTVM_LOG_VERSION = 0.1
 
 try:  # convert unicode to str for python2
@@ -191,7 +194,7 @@ class ApplyHistoryBest(DispatchContext):
 
         self.load(records)
 
-    def load(self, records):
+    def load(self, records, verbose=0):
         """Load records to this dispatch context
 
         Parameters
@@ -201,6 +204,9 @@ class ApplyHistoryBest(DispatchContext):
             If is str, then it should be the filename of a records log file.
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
+        verbose: int, optional
+            If is 0, output nothing
+            If is 1, output some debug information
         """
         if isinstance(records, str):
             records = load_from_file(records)
@@ -239,7 +245,8 @@ class ApplyHistoryBest(DispatchContext):
                             best_by_model[key] = (inp, res)
                     break
 
-        logging.info("Finish loading %d records", counter)
+        if verbose:
+            logging.info("Finish loading %d records", counter)
 
     def query(self, target, workload):
         if target is None:
@@ -326,7 +333,7 @@ def pick_best(in_file, out_file):
     ----------
     in_file: str
         The filename of input
-    out_file:
+    out_file: str or file
         The filename of output
     """
     best_context = ApplyHistoryBest(load_from_file(in_file))
@@ -338,31 +345,80 @@ def pick_best(in_file, out_file):
     for v in best_context.best_by_targetkey.values():
         best_set.add(measure_str_key(v[0]))
 
-    logging.info("Extract %d best records from the log file", len(best_set))
+    logging.info("Extract %d best records from the %s", len(best_set), in_file)
+    fout = open(out_file, 'w') if isinstance(out_file, str) else out_file
 
-    fout = open(out_file, 'w')
     for inp, res in load_from_file(in_file):
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
+            best_set.remove(measure_str_key(inp))
 
 
-def load_op_param(rootpath=os.path.join(os.path.expanduser('~'), ".tvm", "op_params")):
+def load_op_param(rootpath=_target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH, verbose=0):
     """Load pre-tuned parameters of operators.
     This function will load all "*.log" file under root path and select best configs.
 
     Parameters
     ----------
-    rootpath: str
+    rootpath: str, optional
         The root path of stored parameters
+    verbose: int, optional
+        If is 0, output nothing
+        If is 1, output some debug information
     """
     best_context = ApplyHistoryBest([])
     for dirpath, _, filenames in os.walk(rootpath):
         for filename in filenames:
-            if os.path.splitext(filename)[1] == '.log':
-                best_context.load(os.path.join(dirpath, filename))
+            if filename.endswith('.log'):
+                best_context.load(os.path.join(dirpath, filename), verbose)
 
     assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
     DispatchContext.current = best_context
+
+
+def download_pretuned_op_param(backend):
+    """Download pre-tuned parameters of operators for a backend
+
+    Parameters
+    ----------
+    backend: str
+        The compilation target
+    """
+    root_path = _target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH
+    if not os.path.isdir(root_path):
+        # make directory
+        splits = os.path.split(root_path)
+        for j in range(1, len(splits)+1):
+            path = os.path.join(*splits[:j])
+            if not os.path.isdir(path):
+                os.mkdir(path)
+
+    print("Download pre-tuned parameters for %s" % backend)
+    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/op_param/%s.log" % backend,
+             os.path.join(root_path, backend + ".log"), True, verbose=0)
+
+def list_pretuned_op_param():
+    """List all available pre-tuned op parameters for targets
+
+    Returns
+    -------
+    ret: List
+        All available packets
+    """
+    path = tempdir()
+    filename = path.relpath("info.json")
+    print("Download meta info for pre-tuned parameters")
+    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/op_param/info.json",
+             filename, True, verbose=0)
+    print("")
+
+    with open(filename, "r") as fin:
+        text = "".join(fin.readlines())
+    info = json.loads(text)
+    keys = list(info.keys())
+    keys.sort()
+
+    return [(k, info[k]) for k in keys]
 
 """
 Usage:

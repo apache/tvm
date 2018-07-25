@@ -127,7 +127,7 @@ def measure_option(mode,
         If is not set, will use environment variable "TVM_TRACKER_HOST" and "TVM_TRACKER_PORT"
 
     use_ndk: bool, option
-        Whether export requires ndk
+        Whether use Android NDK. Set this to true for Android target.
     custom_measure_batch: callable, optional
         custom measure function
 

@@ -1,5 +1,7 @@
 # pylint: disable=consider-using-enumerate,invalid-name
 """Namespace of callback utilities of AutoTVM"""
+import sys
+import time
 
 import numpy as np
 
@@ -83,6 +85,7 @@ def log_to_redis(host="localhost", port=6379, dbn=11):
             red.set(inp, result)
     return _callback
 
+
 class Monitor(object):
     """A monitor to collect statistic during tuning"""
     def __init__(self):
@@ -110,3 +113,48 @@ class Monitor(object):
     def trial_timestamps(self):
         """get wall clock time stamp of all trials"""
         return np.array(self.timestamps)
+
+
+def progress_bar(total, prefix=''):
+    """Display progress bar for tuning
+
+    Parameters
+    ----------
+    total: int
+        The total number of trials
+    prefix: str
+        The prefix of output message
+    """
+
+    class Context:
+        """Context to store local variables"""
+        def __init__(self):
+            self.best_flops = 0
+            self.cur_flops = 0
+            self.ct = 0
+            self.total = total
+
+        def __del__(self):
+            sys.stdout.write(' Done.\n')
+
+    ctx = Context()
+    tic = time.time()
+
+    def _callback(tuner, inputs, results):
+        ctx.ct += len(inputs)
+
+        flops = 0
+        for inp, res in zip(inputs, results):
+            if res.error_no == 0:
+                flops = inp.task.flop / np.mean(res.costs)
+
+        ctx.cur_flops = flops
+        ctx.best_flops = tuner.best_flops
+
+        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+                         '| %.2f s' %
+                         (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
+                          time.time() - tic))
+        sys.stdout.flush()  # As suggested by Rom Ruben
+
+    return _callback

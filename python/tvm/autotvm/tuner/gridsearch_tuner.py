@@ -25,6 +25,9 @@ class GridSearchTuner(Tuner):
     def has_next(self):
         return self.counter < len(self.task.config_space)
 
+    def load_history(self, data_set):
+        pass
+
     def __getstate__(self):
         return {"counter": self.counter}
 
@@ -55,6 +58,9 @@ class RandomTuner(Tuner):
 
     def has_next(self):
         return len(self.visited) < len(self.task.config_space)
+
+    def load_history(self, data_set):
+        pass
 
     def __getstate__(self):
         return {"visited": self.counter}

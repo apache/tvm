@@ -6,7 +6,7 @@ import os
 import sys
 import time
 
-def download(url, path, overwrite=False, size_compare=False):
+def download(url, path, overwrite=False, size_compare=False, verbose=1):
     """Downloads the file from the internet.
     Set the input options correctly to overwrite or do the size comparison
 
@@ -23,6 +23,9 @@ def download(url, path, overwrite=False, size_compare=False):
 
     size_compare : bool, optional
         Whether to do size compare to check downloaded file.
+
+    verbose: int, optional
+        Verbose level
     """
 
     import requests
@@ -45,7 +48,9 @@ def download(url, path, overwrite=False, size_compare=False):
                 return
         print('File {} exists, skip.'.format(path))
         return
-    print('Downloading from url {} to {}'.format(url, path))
+
+    if verbose >= 1:
+        print('Downloading from url {} to {}'.format(url, path))
 
     # Stateful start time
     start_time = time.time()

@@ -40,6 +40,8 @@ We can also use other specific function in this module to create specific target
 """
 from __future__ import absolute_import
 
+import os
+
 from ._ffi.base import _LIB_NAME
 from ._ffi.node import NodeBase, register_node
 from . import _api_internal
@@ -51,6 +53,7 @@ except ImportError as err_msg:
     if _LIB_NAME != "libtvm_runtime.so":
         raise err_msg
 
+AUTOTVM_PRETUNED_PARAM_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "op_param")
 
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
@@ -72,7 +75,7 @@ class Target(NodeBase):
     Do not use class constructor, you can create target using the following functions
 
     - :any:`tvm.target.create` create target from string
-    - :any:`tvm.target.rasp` create raspberry pi target
+    - :any:`tvm.target.arm_cpu` create arm_cpu target
     - :any:`tvm.target.cuda` create CUDA target
     - :any:`tvm.target.rocm` create ROCM target
     - :any:`tvm.target.mali` create Mali target
@@ -374,22 +377,6 @@ def rocm(options=None):
     return _api_internal._TargetCreate("rocm", *options)
 
 
-def rasp(options=None):
-    """Returns a rasp target.
-
-    Parameters
-    ----------
-    options : str or list of str
-        Additional options
-    """
-    opts = ["-device=rasp",
-            "-mtriple=armv7l-none-linux-gnueabihf",
-            "-mcpu=cortex-a53",
-            "-mattr=+neon"]
-    opts = _merge_opts(opts, options)
-    return _api_internal._TargetCreate("llvm", *opts)
-
-
 def mali(options=None):
     """Returns a ARM Mali GPU target.
 
@@ -426,6 +413,38 @@ def opengl(options=None):
     """
     options = _merge_opts([], options)
     return _api_internal._TargetCreate("opengl", *options)
+
+
+def arm_cpu(model='unknown', options=None):
+    """Returns a ARM CPU target.
+    This function will also donwload pre-tuned op parameters
+
+    Parameters
+    ----------
+    model: str
+        SoC name or phone name of the arm board.
+    options : str or list of str
+        Additional options
+    """
+    opt_table = {
+        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android"],
+        "mate10":    ["-model=kirin970", "-target=arm64-linux-android"],
+        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android"],
+        "p20":       ["-model=kirin970", "-target=arm64-linux-android"],
+        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android"],
+        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf"],
+        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu"],
+        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi"],
+    }
+    pre_defined_opt = opt_table.get(model, [])
+
+    if not os.path.isfile(os.path.join(AUTOTVM_PRETUNED_PARAM_ROOT_PATH, "arm_cpu.log")):
+        from .autotvm.record import download_pretuned_op_param
+        download_pretuned_op_param("arm_cpu")
+
+    opts = ["-device=arm_cpu"] + pre_defined_opt
+    opts = _merge_opts(opts, options)
+    return _api_internal._TargetCreate("llvm", *opts)
 
 
 def create(target_str):
