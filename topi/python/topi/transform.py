@@ -74,9 +74,6 @@ def expand_like(a, shape_like, axis):
     real_axis = topi.reduction._get_real_axis(len(shape_like.shape), axis)
     real_axis = sorted(real_axis)
 
-    if not real_axis:
-        return a
-
     def _compute(*idxs):
         indices = []
         axis_index = 0
