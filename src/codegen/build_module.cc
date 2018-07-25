@@ -258,15 +258,6 @@ Target metal(const std::vector<std::string>& options) {
   return CreateTarget("metal", options);
 }
 
-Target rasp(const std::vector<std::string>& options) {
-  return CreateTarget("llvm", MergeOptions(options, {
-    "-device=rasp",
-    "-mtriple=armv7l-none-linux-gnueabihf",
-    "-mcpu=cortex-a53",
-    "-mattr=+neon"
-  }));
-}
-
 Target mali(const std::vector<std::string>& options) {
   return CreateTarget("opencl", MergeOptions(options, {
     "-device=mali"
@@ -728,11 +719,6 @@ TVM_REGISTER_API("_GetCurrentTarget")
 TVM_REGISTER_API("_EnterTargetScope")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
   Target target = args[0];
-  auto current = Target::current_target();
-  if (current.defined() && target->str() != current->str()) {
-    LOG(WARNING) << "Overriding target " << current->str()
-      << " with new target scope " << target->str();
-  }
   Target::EnterTargetScope(target);
   });
 
