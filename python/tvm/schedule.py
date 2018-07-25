@@ -603,6 +603,8 @@ class Stage(NodeBase):
           :code:`for (int i = task_id; i < end; i += num_task)`
 
         """
+        if isinstance(pragma_value, string_types):
+            pragma_value = convert(pragma_value)
         _api_internal._StagePragma(self, var, pragma_type, pragma_value)
 
     def prefetch(self, tensor, var, offset):
