@@ -32,8 +32,14 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
 
   // Compile the .cl file.
   Target target = Target::create(target_str);
-  std::string cmd = "aoc aocl.cl -march=emulator -board=";
-  cmd += target->device_name;
+  if (target->device_name == "") {
+    LOG(FATAL) << "AOCL device name not specified in build target.";
+  }
+  std::string cmd = "aoc aocl.cl";
+  if (target_str.find("-mattr=emulator") != std::string::npos) {
+    cmd += " -march=emulator";
+  }
+  cmd += " -board=" + target->device_name;
   if (system(cmd.c_str()) != 0) {
     LOG(FATAL) << "OpenCL offline compilation error.";
   }
