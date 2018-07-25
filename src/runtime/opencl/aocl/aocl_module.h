@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file sdaccel_module.h
- * \brief Execution handling of OPENCL kernels for SDAccel FPGAs
+ * \file aocl_module.h
+ * \brief Execution handling of OpenCL kernels for AOCL
  */
 #ifndef TVM_RUNTIME_OPENCL_AOCL_AOCL_MODULE_H_
 #define TVM_RUNTIME_OPENCL_AOCL_AOCL_MODULE_H_
