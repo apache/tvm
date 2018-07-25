@@ -71,20 +71,24 @@ from tvm.contrib import util, graph_runtime as runtime
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
 # In our webpage building server (the machine that built this tutorial webpage),
-# we do not have access to Raspberry Pi.
-# So we simply start a "fake" RPC server on the same machine for demonstration.
-# If you have set up the remote environment, please change the three lines below:
-# change the :code:`local_demo` to False, also change the :code:`host` and :code:`port`
-# with your device's host address and port number.
+# we do not have access to RK3399 board.
+#
+# So for local demonstration, we simply start a "fake" RPC server on the same machine.
+#
+# .. note::
+#
+#  If you have real remote device, you should change :code:`local_demo` to False, and 
+#  set the host and port correctly.
 
-local_demo = False
+local_demo = True
 
 if local_demo:
-    # run server locally
+    # start a "fake" RPC server locally
     host = 'localhost'
     port = 9091
     server = rpc.Server(host=host, port=port, use_popen=True)
 else:
+    # The following is my environment, change this to your target device IP
     host = '10.77.1.145'
     port = 9090
 
@@ -174,10 +178,11 @@ else:
     # If you don't use rk3399, you can query your target triple by 
     # execute `gcc -v` on your board.
     target_host = "llvm -target=aarch64-linux-gnu"
+
+    # set target as  `tvm.target.mali` instead of 'opencl' to enable
+    # optimization for mali
     target = tvm.target.mali()
 
-# set target as  `tvm.target.mali` instead of 'opencl' to enable
-# target-specified optimization
 with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(net, target=target,
             shape={"data": data_shape}, params=params, target_host=target_host)

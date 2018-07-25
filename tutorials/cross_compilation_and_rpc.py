@@ -70,19 +70,24 @@ and Firefly-RK3399 for opencl example.
 #
 # In our webpage building server (the machine that built this tutorial webpage),
 # we do not have access to Raspberry Pi.
-# So we simply start a "fake" RPC server on the same machine for demonstration.
-
-# These two lines can be omitted if you started an RPC erver on your device.
+# So for local demonstration, we simply start a "fake" RPC server on the same machine.
+#
+# .. note::
+#
+#  If you have real remote device, you should change :code:`local_demo` to False, and 
+#  set the host and port correctly.
 
 local_demo = True
 
 if local_demo:
+    # start a "fake" RPC server
     from tvm import rpc
     server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
     host = '0.0.0.0'
     port = 9090
 else:
-    host = '10.77.1.162'  # Change this to your target device IP
+    # The following is my environment, change this to your target device IP
+    host = '10.77.1.162'  
     port = 9090
 
 ######################################################################
@@ -94,7 +99,7 @@ else:
 #   Now we back to the local machine, which has a full TVM installed
 #   (with LLVM).
 #
-# Here we will declare a simple kernel with TVM on the local machine:
+# Here we will declare a simple kernel on the local machine:
 import tvm
 import numpy as np
 from tvm.contrib import util
@@ -107,8 +112,8 @@ s = tvm.create_schedule(B.op)
 ######################################################################
 # Then we cross compile the kernel:
 # The target should be 'llvm -target=armv7l-linux-gnueabihf' for
-# Raspberry Pi 3B, but we use 'llvm' here to make example runable on
-# our webpage building server. See the detailed note in the following block.
+# Raspberry Pi 3B, but we use 'llvm' for local demo.
+# See the detailed note in the following block.
 
 if local_demo:
     target = 'llvm'
@@ -159,15 +164,16 @@ func.export_library(path)
 ######################################################################
 # Run CPU Kernel Remotely by RPC
 # ------------------------------
-# We show how to run the cpu kernel on the remote device:
+# We show how to run the generated cpu kernel on the remote device
+
 from tvm import rpc
 
 # connect the remote device
 remote = rpc.connect(host, port)
 
 ######################################################################
-# We upload the lib to the remote device, then invoke a device local
-# compiler to relink them. now `func` is a remote module object.
+# Upload the lib to the remote device, then invoke a device local
+# compiler to relink them. Now `func` is a remote module object.
 
 remote.upload(path)
 func = remote.load_module('lib.tar')
@@ -201,19 +207,16 @@ print('%g secs/op' % cost)
 #
 #    Raspberry Pi does not support OpenCL, the following code is tested on
 #    Firefly-RK3399. You may follow this `tutorial <https://gist.github.com/mli/585aed2cec0b5178b1a510f9f236afa2>`_
-#    to setup the RK3399 OS and OpenCL driver.
-#
-#    The target_host should be 'llvm -target=aarch64-linux-gnu'.
-#    But here we set 'llvm' to make this tutorial runable on our x86 server.
+#    to setup the OS and OpenCL driver for RK3399.
 #
 #    Also we need to build the runtime with OpenCL enabled in rk3399 board.
-#    You need to modify `set(USE_OPENCL OFF)` to `set(USE_OPENCL_ON)` in `config.cmake`,
-#    and execute :code:`make runtime -j4`
+#    You need to modify :code:`set(USE_OPENCL OFF)` to :code:`set(USE_OPENCL_ON)` in
+#    :code:`tvm/config.cmake`, and execute :code:`make runtime -j4`.
 #
 # The following function shows how we run OpenCL kernel remotely
 
 def run_opencl():
-    # This is the setting for my rk3399 board. You need to modify
+    # NOTE: This is the setting for my rk3399 board. You need to modify
     # them according to your environment.
     target_host = "llvm -target=aarch64-linux-gnu"
     opencl_device_host = '10.77.1.145'

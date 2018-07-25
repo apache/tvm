@@ -68,20 +68,26 @@ from tvm.contrib import util, graph_runtime as runtime
 #
 # In our webpage building server (the machine that built this tutorial webpage),
 # we do not have access to Raspberry Pi.
-# So we simply start a "fake" RPC server on the same machine for demonstration.
-# If you have set up the remote environment, please change the three lines below:
-# change the :code:`local_demo` to True, also change the :code:`host` and :code:`port`
-# with your device's host address and port number.
+# So for local demonstration, we simply start a "fake" RPC server on the same machine.
+#
+# .. note::
+#
+#  If you have real remote device, you should change :code:`local_demo` to False, and 
+#  set the host and port correctly.
 
-local_demo = False
-host = '10.77.1.162'
-port = 9090
+local_demo = True
 
 if local_demo:
-    # run server locally
-    host = 'localhost'
-    port = 9091
-    server = rpc.Server(host=host, port=port, use_popen=True)
+    # start a "fake" RPC server locally
+    from tvm import rpc
+    server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
+    host = '0.0.0.0'
+    port = 9090
+else:
+    # The following is my environment, change this to your target device IP
+    host = '10.77.1.162'  
+    port = 9090
+
 
 ######################################################################
 # Prepare the Pretrained Model
