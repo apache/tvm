@@ -16,7 +16,7 @@ Network Name         Mean Inference Time (std dev)
 squeezenet v1.1      44.15 ms            (0.64 ms)
 mobilenet            82.23 ms            (0.67 ms)
 resnet-18            168.71 ms           (0.05 ms)
-vgg-16               969.63 ms           (0.75 ms)  
+vgg-16               972.03 ms           (1.75 ms)  
 ```
 
 - **Raspberry Pi 3B : 4 x Cortex A53 1.2Ghz**
@@ -26,8 +26,8 @@ $ python3 arm_cpu_imagenet_bench.py --device rasp3b --rpc-key rasp3b
 --------------------------------------------------
 Network Name         Mean Inference Time (std dev)
 --------------------------------------------------
-squeezenet v1.1      93.59 ms            (0.04 ms)
-mobilenet            147.82 ms           (0.18 ms)
+squeezenet v1.1      94.59 ms            (0.04 ms)
+mobilenet            148.82 ms           (0.18 ms)
 resnet-18            347.30 ms           (0.25 ms)
 vgg-16               crashed due to out of memeory
 ```
@@ -101,9 +101,12 @@ python3 -m tvm.exec.rpc_tracker
   rk3399         2       0
   rasp3b         8       0
   ```
- 4. Run benchmark
-  We did auto-tuning for the above devices, and release pre-tuned parameters in [this repo](https://github.com/uwsaml/tvm-distro)
-  So we can only run benchmark for the above devices. (TVM will download the operator parameters automatically.)
+ 4. Run benchmark  
+  We did auto-tuning for the above devices, and release pre-tuned
+  parameters in [this repo](https://github.com/uwsaml/tvm-distro).
+  During compilation, TVM will download these operator parameters automatically.
+
+  But we don't tune for other devices, so you can only run benchmark for these devices.
   ```bash
   python3 arm_cpu_imagenet_bench.py --device rasp3b --rpc-key rasp3b
   python3 arm_cpu_imagenet_bench.py --device rk3399 --rpc-key rk3399
@@ -112,5 +115,9 @@ python3 -m tvm.exec.rpc_tracker
   python3 arm_cpu_imagenet_bench.py --device mate10pro --rpc-key mate10pro  
   ```
   
-  If you do not do tuning and run the benchmark for other devices, the performance is not gauranteed.
-  In order to get the best performance, you need to tune for you own device, please follow [tutorial](404.html).
+  If you do not do tuning and run the benchmark for other devices directly,
+  the performance is not gauranteed (This is still doable, you can pick a most
+  similar device and reuse its parameter).
+  In order to get the best performance, you need to tune for you own device,
+  please follow [tutorial](404.html).
+
