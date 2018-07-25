@@ -1,7 +1,7 @@
 {
   "TARGET" : "sim",
   "HW_FREQ" : 100,
-  "HW_CLK_TARGET" : 8,
+  "HW_CLK_TARGET" : 7,
   "HW_VER" : "0.0.0",
   "LOG_INP_WIDTH" : 3,
   "LOG_WGT_WIDTH" : 3,
