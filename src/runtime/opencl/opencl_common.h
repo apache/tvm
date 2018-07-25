@@ -284,10 +284,6 @@ class OpenCLModuleNode : public ModuleNode {
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
-
-#ifdef AOCL_BOARD_NAME
-  void OfflineCompile(cl::OpenCLWorkspace* w,  cl::OpenCLThreadEntry* t);
-#endif
 };
 
 }  // namespace runtime
