@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">TVM Android Demo</string>
+    <string name="menu_flavor_title">Flavor Setting</string>
+    <string name="cpu_flavor_version">CPU</string>
+    <string name="opencl_flavor_version">GPU(OpenCL)</string>
+    <string name="vulkan_flavor_version">GPU(Vulkan)</string>
 </resources>

@@ -82,6 +82,19 @@ public class TVMContext {
   }
 
   /**
+   * Construct a Vulkan device.
+   * @param devId The device id
+   * @return The created context
+   */
+  public static TVMContext vulkan(int devId) {
+    return new TVMContext(7, devId);
+  }
+
+  public static TVMContext vulkan() {
+    return vulkan(0);
+  }
+
+  /**
    * Construct a metal device.
    * @param devId The device id
    * @return The created context
