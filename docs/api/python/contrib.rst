@@ -8,6 +8,12 @@ tvm.contrib.cblas
     :members:
 
 
+tvm.contrib.clang
+~~~~~~~~~~~~~~~~~
+.. automodule:: tvm.contrib.clang
+    :members:
+
+
 tvm.contrib.cc
 ~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.cc

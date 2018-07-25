@@ -178,6 +178,8 @@ class CodeGenLLVM :
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(
       const Call* op, llvm::Function* f, const std::vector<llvm::Value*>& args);
+  // handle module import
+  void HandleImport(const std::string& code);
   // cast operatpr
   llvm::Value* CreateCast(Type from, Type to, llvm::Value* value);
   // comparison op
