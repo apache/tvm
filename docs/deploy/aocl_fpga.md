@@ -26,6 +26,7 @@ s[C].bind(px, tvm.thread_axis("pipeline"))
 fadd = tvm.build(s, [A, B, C], tgt, target_host=tgt_host, name="myadd")
 
 fadd.save("myadd.o")
+fadd.imported_modules[0].save("myadd.aocx")
 
 tvm.contrib.cc.create_shared("myadd.so", ["myadd.o"])
 )```
