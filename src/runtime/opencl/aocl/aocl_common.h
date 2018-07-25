@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file sdaccel_common.h
- * \brief SDAccel common header
+ * \file aocl_common.h
+ * \brief AOCL common header
  */
 #ifndef TVM_RUNTIME_OPENCL_AOCL_AOCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_AOCL_AOCL_COMMON_H_
