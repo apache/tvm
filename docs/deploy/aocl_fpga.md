@@ -8,7 +8,8 @@ TVM supports Intel FPGA SDK for OpenCL also known as AOCL.  Here is a tutorial f
 We use two python scripts for this tutorial.
 
 - build.py - a script to synthesize FPGA bitstream.
-```import tvm
+```
+import tvm
 
 tgt_host="llvm"
 tgt="aocl -device=de5net_a7 -mattr=emulator"
@@ -29,10 +30,10 @@ fadd.save("myadd.o")
 fadd.imported_modules[0].save("myadd.aocx")
 
 tvm.contrib.cc.create_shared("myadd.so", ["myadd.o"])
-)```
+```
 
 - run.py - a script to use FPGA as an accelerator.
-```python
+```
 import tvm
 import numpy as np
 import os
@@ -61,9 +62,13 @@ Setup
 - Install BSP for your FPGA device.
 - Install FPGA device driver.
 - Create an ICD file at /etc/OpenCL/vendors/Altera.icd so that the OpenCL platform can be found.
-```/opt/intelFPGA/17.1/hld/linux64/lib/libalteracl.so```
+```
+/opt/intelFPGA/17.1/hld/linux64/lib/libalteracl.so
+```
 - Create an FCD file for example at /opt/Intel/OpenCL/Boards/de5net.fcd so that your FPGA device can be found.
-```/opt/intelFPGA/17.1/hld/board/terasic/linux64/lib/libterasic_apb_16_0_mmd.so```
+```
+/opt/intelFPGA/17.1/hld/board/terasic/linux64/lib/libterasic_apb_16_0_mmd.so
+```
 - Setup TVM with AOCL and OpenCL enabled.
 
 Emulation
@@ -71,6 +76,15 @@ Emulation
 
 - Run software emulation
 ```export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
+
+python build.py
+python run.py
+```
+
+- Run on FPGA devices (not tested)
+    - Change tgt value to "aocl -device=de5net_a7" on build.py and run.py
+```
+unset CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA
 
 python build.py
 python run.py
