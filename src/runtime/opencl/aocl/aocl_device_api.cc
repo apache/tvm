@@ -20,7 +20,7 @@ const std::shared_ptr<OpenCLWorkspace>& AOCLWorkspace::Global() {
 }
 
 void AOCLWorkspace::Init() {
-  OpenCLWorkspace::Init("aocl", "accelerator", "Intel");
+  OpenCLWorkspace::Init("aocl", "accelerator", "Intel(R) FPGA SDK for OpenCL(TM)");
 }
 
 bool AOCLWorkspace::IsOpenCLDevice(TVMContext ctx) {
