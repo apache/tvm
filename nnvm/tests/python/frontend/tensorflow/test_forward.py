@@ -10,12 +10,14 @@ import nnvm.compiler
 import tvm
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
+from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
 from tensorflow.python.ops import variable_scope
 from tensorflow.python.ops import variables
+from tensorflow.python.ops import init_ops
 from tensorflow.core.framework import graph_pb2
 
 import nnvm.testing.tf
@@ -55,8 +57,15 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype)
     # execute
     m.run()
     # get outputs
-    tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
-    return tvm_output.asnumpy()
+    if isinstance(output_shape, list) and isinstance(output_dtype, list):
+        tvm_output_list = []
+        for i, s in enumerate(output_shape):
+            tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
+            tvm_output_list.append(tvm_output.asnumpy())
+        return tvm_output_list
+    else:
+        tvm_output = m.get_output(0, tvm.nd.empty((output_shape), output_dtype))
+        return tvm_output.asnumpy()
 
 def run_tf_graph(sess, input_data, input_node, output_node):
     """ Generic function to execute tensorflow """
@@ -434,6 +443,159 @@ def test_forward_variable():
 
 
 #######################################################################
+# LSTM
+# ----
+def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
+    tf.reset_default_graph()
+    input_size = num_hidden
+    input_data = np.full((batch_size, input_size), 1., dtype=dtype)
+    in_state_c = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
+    in_state_h = np.full((num_layers, batch_size, num_hidden), 0.1, dtype=dtype)
+
+    def _get_tensorflow_output():
+        with tf.Session() as sess:
+            with variable_scope.variable_scope(
+                "root", initializer=init_ops.constant_initializer(0.5)):
+                m0 = array_ops.zeros([batch_size, num_hidden])
+                m1 = array_ops.zeros([batch_size, num_hidden])
+                x=tf.placeholder(shape=(batch_size, input_size), dtype=dtype)
+                g, ((out_m0, out_m1)) = \
+                     tf.contrib.rnn.LSTMBlockCell(num_hidden,
+                                                  forget_bias=forget_bias)(x, ((m0, m1)))
+                sess.run([variables.global_variables_initializer()])
+                res = sess.run([g, out_m0, out_m1], {
+                    x.name: np.array([[1., 1.]]),
+                    m0.name: 0.1 * np.ones([batch_size, num_hidden]),
+                    m1.name: 0.1 * np.ones([batch_size, num_hidden]),
+                })
+            graph_def = sess.graph.as_graph_def(add_shapes=True)
+            final_graph_def = graph_util.convert_variables_to_constants(
+                sess,
+                graph_def,
+                ['root/lstm_cell/LSTMBlockCell'])
+            return final_graph_def, res
+
+    graph_def, tf_out = _get_tensorflow_output()
+    tvm_output = run_tvm_graph(graph_def, [input_data, in_state_c, in_state_h],
+                               ['root/Placeholder', 'root/lstm_cell/LSTMBlockCell_c',
+                                'root/lstm_cell/LSTMBlockCell_h'],
+                               [tf_out[0].shape, (2, batch_size, num_hidden)],
+                               [tf_out[0].dtype, tf_out[1].dtype])
+
+    if isinstance(tvm_output, list):
+        out = tvm_output[0]
+        out_state = tvm_output[1]
+        out_state_tup = np.split(out_state, indices_or_sections=2, axis=0)
+        out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
+        out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
+        tvm_out = [out, out_state_c, out_state_h]
+        np.testing.assert_allclose(tf_out, tvm_out, rtol=1e-3, atol=1e-3)
+
+def test_forward_lstm():
+    '''test LSTM block cell'''
+    _test_lstm_cell(1, 2, 1, 0.0, 'float32')
+
+
+#######################################################################
+# StridedSlice
+# ------------
+
+def _test_stridedslice(ip_shape, begin, end, stride, dtype,
+                             begin_mask=0, end_mask=0, new_axis_mask=0,
+                             shrink_axis_mask=0, ellipsis_mask=0):
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
+                         end_mask=end_mask, new_axis_mask=new_axis_mask,
+                         shrink_axis_mask=shrink_axis_mask,
+                         ellipsis_mask=ellipsis_mask, name="strided_slice")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['strided_slice'])
+        tf_output = run_tf_graph(sess, np_data,
+                                 'in_data:0', 'strided_slice:0')
+        tvm_output = run_tvm_graph(final_graph_def, np_data,
+                                   "in_data", tf_output.shape, np_data.dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_stridedslice():
+    '''test StridedSlice'''
+    _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], 'float32', new_axis_mask=5)
+    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=4)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3,4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2, begin_mask=8, end_mask=8)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
+                       end_mask=8)
+
+
+#######################################################################
+# Gather
+# ------
+
+def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    indices = tf.placeholder("int32", indice_shape, name="indices")
+    tf.gather(in_data, indices, axis=axis)
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    def _fill_indices(indice_value):
+        indices = np.array(ip_shape, dtype=dtype)
+        if isinstance(indice_value, int):
+            indices = np.array([indice_value], dtype='int32')
+        else:
+            indices = np.asarray(indice_value, dtype='int32')
+        return indices
+    np_indices = _fill_indices(indice_value)
+
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['GatherV2'])
+        tf_output = run_tf_graph(sess, [np_data, np_indices], ['in_data:0',
+                                 'indices:0'], 'GatherV2:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data, np_indices],
+                                   ['in_data', 'indices'], tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_gather():
+    '''test gather layer'''
+    _test_gather((4,), (1,), 1, 0, 'int32')
+    _test_gather((4,), (1,), 1, 0, 'float32')
+    _test_gather((1,4), (1,), [0], 0, 'int32')
+    _test_gather((4,), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 1, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
+    _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -584,6 +746,115 @@ def test_forward_mobilenet():
             np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# PTB
+# ---
+dir(tf.contrib)
+def test_forward_ptb():
+    '''test ptb model'''
+    config = nnvm.testing.tf.get_config()
+    num_steps = config.num_steps
+    num_hidden = config.hidden_size
+    num_layers = config.num_layers
+    batch_size = config.batch_size
+    vocab_size = config.vocab_size
+    out_sample_shape = (batch_size, vocab_size)
+    out_state_shape = (num_layers, 2, batch_size, num_hidden)
+    #Sample input
+    inpt = "we have no useful information on"
+    cnt_sample = 20
+
+    def _pretty_print(items, is_char_model, id2word):
+        if not is_char_model:
+            return ' '.join([id2word[x] for x in items])
+        else:
+            return ''.join([id2word[x] for x in items]).replace('_', ' ')
+
+    def _get_tvm_graph_module(graph_def):
+        sym, params = nnvm.frontend.from_tensorflow(graph_def)
+
+        #Cell inputs 'c and 'h' consist of all layers values
+        shape_dict = {'Model/Placeholder': (batch_size, num_steps),
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':(num_layers, batch_size, num_hidden),
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':(num_layers, batch_size, num_hidden)}
+        dtype_dict = {'Model/Placeholder': 'int32',
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c':'float32',
+                      'Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h':'float32'}
+        target = 'llvm'
+        graph, lib, params = nnvm.compiler.build(sym, target, shape_dict,
+                                                 dtype=dtype_dict, params=params)
+        from tvm.contrib import graph_runtime
+        ctx = tvm.cpu(0)
+        return params, graph_runtime.create(graph, lib, ctx)
+
+    def _do_tvm_sample(model, data, in_states, params, num_samples):
+        """Sampled from the model"""
+        samples = []
+        state = in_states
+        sample = None
+        def _get_sample(data, state):
+            input_data = np.full((batch_size, num_steps), data, dtype="int32")
+            in_state_tup = np.split(state, indices_or_sections=2, axis=1)
+            in_state_c = np.reshape(in_state_tup[0], (num_layers, batch_size, num_hidden))
+            in_state_h = np.reshape(in_state_tup[1], (num_layers, batch_size, num_hidden))
+
+            model.set_input('Model/Placeholder', tvm.nd.array(input_data.astype("int32")))
+            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_c',
+                        tvm.nd.array(in_state_c.astype("float32")))
+            model.set_input('Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_h',
+                        tvm.nd.array(in_state_h.astype("float32")))
+            model.set_input(**params)
+            model.run()
+            tvm_output = model.get_output(0, tvm.nd.empty(out_sample_shape,
+                                                      "float32")).asnumpy()
+            state_output = model.get_output(1, tvm.nd.empty(out_state_shape,
+                                                        "float32")).asnumpy()
+            sample = nnvm.testing.tf.pick_from_weight(tvm_output[0])
+            return sample, state_output
+
+        for x in data:
+            sample, state = _get_sample(x, state)
+
+        if sample is not None:
+            samples.append(sample)
+        else:
+            samples.append(0)
+
+        k = 1
+        while k < num_samples:
+            sample, state = _get_sample(samples[-1], state)
+            samples.append(sample)
+            k += 1
+        return samples, state
+
+    with tf.Graph().as_default():
+        word_to_id, id_to_word, graph_def = nnvm.testing.tf.get_workload_ptb()
+        vocab_size = len(word_to_id)
+        # Call the utility to import the graph definition into default graph.
+        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
+        sess = tf.Session()
+
+    #TVM graph module creation
+    params, m = _get_tvm_graph_module(graph_def)
+
+    # Create 10 predicted statments of 20 words
+    cnt_stm = 0
+    while cnt_stm < 10:
+        cnt_stm += 1
+        in_state = np.full((num_layers, 2, batch_size, num_hidden), 0, dtype="float32")
+        seed_for_sample = inpt.split()
+        tvm_samples, tvm_state = _do_tvm_sample(m, [word_to_id[word] \
+                                                    for word in seed_for_sample],
+                                                in_state, params, cnt_sample)
+        tvm_sample_str = _pretty_print(tvm_samples, False, id_to_word)
+        tf_samples, tf_state = nnvm.testing.tf.do_tf_sample(sess,
+                                [word_to_id[word] for word in seed_for_sample],
+                                in_state, cnt_sample)
+        tf_sample_str = _pretty_print(tf_samples, False, id_to_word)
+        inpt = tvm_sample_str
+        np.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
+        assert(tvm_sample_str == tf_sample_str)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -600,3 +871,7 @@ if __name__ == '__main__':
     test_forward_mobilenet()
     test_forward_variable()
     test_forward_resize_bilinear()
+    test_forward_lstm()
+    test_forward_stridedslice()
+    test_forward_gather()
+    test_forward_ptb()
