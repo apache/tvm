@@ -70,14 +70,14 @@ from tvm.contrib import util, graph_runtime as runtime
 # we do not have access to Raspberry Pi.
 # So we simply start a "fake" RPC server on the same machine for demonstration.
 # If you have set up the remote environment, please change the three lines below:
-# change the :code:`use_rasp` to True, also change the :code:`host` and :code:`port`
+# change the :code:`local_demo` to True, also change the :code:`host` and :code:`port`
 # with your device's host address and port number.
 
-use_rasp = False
-host = '10.77.1.xxx'
+local_demo = False
+host = '10.77.1.162'
 port = 9090
 
-if not use_rasp:
+if local_demo:
     # run server locally
     host = 'localhost'
     port = 9091
@@ -162,14 +162,14 @@ out_shape = (batch_size, num_classes)
 # specify its instruction set. We also need to add :code:`-device=arm_cpu`
 # to the target string to enable optimizations for arm_cpu.
 
-if use_rasp:
+if local_demo:
+    target = tvm.target.create('llvm')
+else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
     # target = tvm.target.create('llvm -devcie=arm_cpu -target=armv7l-linux-gnueabihf')
-else:
-    target = tvm.target.create('llvm')
 
-with nnvm.compiler.build_config(opt_level=3):
+with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
     graph, lib, params = nnvm.compiler.build(
         net, target, shape={"data": data_shape}, params=params)
 
@@ -179,7 +179,7 @@ with nnvm.compiler.build_config(opt_level=3):
 
 # Save the library at local temporary directory.
 tmp = util.tempdir()
-lib_fname = tmp.relpath('net.so')
+lib_fname = tmp.relpath('net.tar')
 lib.export_library(lib_fname)
 
 ######################################################################
@@ -193,7 +193,7 @@ remote = rpc.connect(host, port)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
-rlib = remote.load_module('net.so')
+rlib = remote.load_module('net.tar')
 
 # upload the parameter
 ctx = remote.cpu(0)
@@ -213,7 +213,7 @@ out = module.get_output(0, tvm.nd.empty(out_shape, ctx=ctx))
 top1 = np.argmax(out.asnumpy())
 print('TVM prediction top-1: {}'.format(synset[top1]))
 
-if not use_rasp:
+if local_demo:
     # terminate the local server
     server.terminate()
 

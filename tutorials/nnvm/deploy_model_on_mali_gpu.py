@@ -74,18 +74,19 @@ from tvm.contrib import util, graph_runtime as runtime
 # we do not have access to Raspberry Pi.
 # So we simply start a "fake" RPC server on the same machine for demonstration.
 # If you have set up the remote environment, please change the three lines below:
-# change the :code:`use_mali` to True, also change the :code:`host` and :code:`port`
+# change the :code:`local_demo` to False, also change the :code:`host` and :code:`port`
 # with your device's host address and port number.
 
-use_mali = False
-host = '10.77.1.xxx'
-port = 9090
+local_demo = False
 
-if not use_mali:
+if local_demo:
     # run server locally
     host = 'localhost'
     port = 9091
     server = rpc.Server(host=host, port=port, use_popen=True)
+else:
+    host = '10.77.1.145'
+    port = 9090
 
 ######################################################################
 # Prepare the Pretrained Model
@@ -165,19 +166,19 @@ out_shape = (batch_size, num_classes)
 # set it as :code:`llvm`. If running it on the RK3399, we need to
 # specify its instruction set. 
 
-if use_mali:
+if local_demo:
+    target_host = "llvm"
+    target = "llvm"
+else:
     # Here is the setting for my rk3399 board
     # If you don't use rk3399, you can query your target triple by 
     # execute `gcc -v` on your board.
     target_host = "llvm -target=aarch64-linux-gnu"
     target = tvm.target.mali()
-else:
-    target_host = "llvm"
-    target = "llvm"
 
 # set target as  `tvm.target.mali` instead of 'opencl' to enable
 # target-specified optimization
-with nnvm.compiler.build_config(opt_level=3):
+with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(net, target=target,
             shape={"data": data_shape}, params=params, target_host=target_host)
 
@@ -187,7 +188,7 @@ with nnvm.compiler.build_config(opt_level=3):
 
 # Save the library at local temporary directory.
 tmp = util.tempdir()
-lib_fname = tmp.relpath('net.so')
+lib_fname = tmp.relpath('net.tar')
 lib.export_library(lib_fname)
 
 ######################################################################
@@ -201,9 +202,9 @@ remote = rpc.connect(host, port)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
-rlib = remote.load_module('net.so')
+rlib = remote.load_module('net.tar')
 
-ctx = remote.cl(0) if use_mali else remote.cpu(0)
+ctx = remote.cpu(0) if local_demo else remote.cl(0)
 # upload the parameter
 rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 
@@ -221,7 +222,7 @@ out = module.get_output(0, tvm.nd.empty(out_shape, ctx=ctx))
 top1 = np.argmax(out.asnumpy())
 print('TVM prediction top-1: {}'.format(synset[top1]))
 
-if not use_mali:
+if local_demo:
     # terminate the local server
     server.terminate()
 
