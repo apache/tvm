@@ -6,8 +6,6 @@
 #include <tvm/runtime/registry.h>
 #include <vector>
 #include <string>
-#include <iostream>
-#include <fstream>
 #include <unordered_map>
 #include "./opencl_common.h"
 #include "./opencl_module.h"
