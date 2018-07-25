@@ -159,6 +159,42 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   return std::move(module_);
 }
 
+
+void CodeGenLLVM::HandleImport(const std::string& code) {
+  std::unique_ptr<llvm::Module> mlib;
+  llvm::SMDiagnostic err;
+  if (code.length() >= 3 &&
+      (code.substr(code.length() - 3) == ".ll" ||
+       code.substr(code.length() - 3) == ".bc")) {
+    mlib = llvm::parseIRFile(code, err, *ctx_);
+    if (mlib.get() == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load bitcode file " << code << "\n"
+                 << "line " << err.getLineNo() << ":" << msg;
+    }
+  } else {
+    std::unique_ptr<llvm::MemoryBuffer> buf =
+        llvm::MemoryBuffer::getMemBuffer(code);
+    mlib = llvm::parseIR(*buf, err, *ctx_);
+    if (mlib.get() == nullptr) {
+      std::string msg = err.getMessage();
+      LOG(FATAL) << "Fail to load llvm ir "
+                 << "line " << err.getLineNo() << ":" << msg
+                 << "\ncontent:\n"  << code;
+    }
+  }
+  mlib->setTargetTriple(target_machine_->getTargetTriple().str());
+  mlib->setDataLayout(target_machine_->createDataLayout());
+  // mark all the functions as force inline
+  for (llvm::Function &f : mlib->functions()) {
+    f.removeFnAttr(llvm::Attribute::NoInline);
+    f.addFnAttr(llvm::Attribute::AlwaysInline);
+    f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
+  }
+  // add to linker libraries.
+  this->AddLinkModule(std::move(mlib));
+}
+
 void CodeGenLLVM::AddLinkModule(std::unique_ptr<llvm::Module>&& mod) {
   link_modules_.emplace_back(std::move(mod));
 }

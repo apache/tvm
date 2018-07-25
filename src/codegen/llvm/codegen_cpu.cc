@@ -701,6 +701,11 @@ void CodeGenCPU::VisitStmt_(const AttrStmt* op) {
       builder_->CreateCall(
           RuntimeTVMParallelBarrier(),
           {MakeValue(parallel_env_.task_id),  parallel_env_.penv});
+    } else if (op->attr_key == ir::attr::pragma_import_llvm) {
+      const StringImm* value = op->value.as<StringImm>();
+      CHECK(value != nullptr);
+      this->HandleImport(value->value);
+      this->VisitStmt(op->body);
     } else {
       LOG(WARNING) << "Unknown pragma " << op->attr_key;
       this->VisitStmt(op->body);
