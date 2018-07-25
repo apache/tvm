@@ -76,7 +76,7 @@ BIT_PATH = $(BUILD_DIR)/vivado/$(CONF)/export/$(CONF).bit
 
 .PHONY: all ip bit bsp clean clean_all
 
-all: bsp
+all: bit
 ip: $(IP_PATH)
 bit: $(BIT_PATH)
 
