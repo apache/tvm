@@ -38,7 +38,7 @@ and Firefly-RK3399 for opencl example.
 #   git clone --recursive https://github.com/dmlc/tvm
 #   cd tvm
 #   cp cmake/config.cmake .
-#   make runtime
+#   make runtime -j4
 #
 # After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
