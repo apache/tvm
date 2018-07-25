@@ -71,21 +71,27 @@ def verify_transpose(dshape, axes):
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
         np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
-
-def verify_reduce(dshape, fnp, fsym, **kwargs):
+def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float32', **kwargs):
+    """ Verify reduce operations by comparign its result with `result` """
     x = sym.Variable("x")
-    y = fsym(x + 1, **kwargs)
-    dtype = "float32"
+    y = fsym(x + 0, **kwargs)
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = graph_runtime.create(graph, lib, ctx)
         # set input
-        data = np.random.uniform(size=dshape).astype(dtype)
-        out_np = fnp(data + 1, **kwargs)
         m.run(x=data)
-        out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        # oshape set to None means do not test the shape-correctness
+        oshape = result.shape if oshape is None else oshape
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype=otype))
+        np.testing.assert_equal(out.asnumpy().shape, result.shape)
+        np.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
 
+def verify_reduce(dshape, fnp, fsym, oshape=None, otype='float32', **kwargs):
+    """ Verify reduce operations by generating data at random and calling numpy
+    version as reference """
+    data = np.random.uniform(size=dshape).astype(otype)
+    result = fnp(data + 0, **kwargs)
+    verify_reduce_explicit(dshape, data, result, fsym, oshape=oshape, otype=otype, **kwargs)
 
 def verify_collapse(dshape, target_shape, fnp):
     x = sym.Variable("x", shape=dshape)
@@ -109,10 +115,42 @@ def test_transpose():
 
 
 def test_reduce():
+
+    def _with_keepdims(func):
+        """ Wrapper around numpy's argmax/argmin with `keepdims` argument supported """
+        def wrapper(data, axis=None, keepdims=False):
+            if not keepdims:
+                return func(data, axis=axis)
+            else:
+                if axis is not None:
+                    out_shape = list(data.shape)
+                    out_shape[axis] = 1
+                else:
+                    out_shape = [1 for _ in range(len(data.shape))]
+                return func(data, axis=axis).reshape(out_shape)
+        return wrapper
+
     verify_reduce((2, 3, 4), np.max, sym.max, axis=1, keepdims=True)
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
     verify_reduce((4, 4, 3), np.sum, sym.sum)
+
+    data = np.array([[[1,2],[3,4]],[[3,44],[5,6]]], dtype=np.float32)
+    verify_reduce_explicit([2,2,2], data, np.array([[1,1],[1,0]]), sym.argmax, otype='int32', axis=[0,2], exclude=True)
+    verify_reduce_explicit([2,2,2], data, np.array([[0,0],[0,1]]), sym.argmin, otype='int32', axis=[0,2], exclude=True)
+    shape = [4, 4, 3]
+    for axis in [None, 0, 1, 2]:
+        for keepdims in [True,False]:
+            kwargs = { 'keepdims':keepdims }
+            if axis is None:
+                # FIXME: NNVM doesn't support setting `axis=None` explicitly.
+                kwargs.update({'oshape': [1,1,1] if keepdims else [] })
+            else:
+                kwargs.update({'axis': axis})
+                kwargs.update({'oshape': shape[:axis]+[1]+shape[axis+1:] if keepdims else shape[:axis]+shape[axis+1:]})
+
+            verify_reduce(shape, _with_keepdims(np.argmax), sym.argmax, otype='int32', **kwargs)
+            verify_reduce(shape, _with_keepdims(np.argmin), sym.argmin, otype='int32', **kwargs)
 
 
 def test_collapse():
