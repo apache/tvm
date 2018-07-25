@@ -1,4 +1,4 @@
-# Performance Benchark
+# Performance Benchmark
 
 ## ARM CPU
 
