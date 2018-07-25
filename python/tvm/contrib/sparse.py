@@ -48,9 +48,11 @@ class CSRNDArray(object):
         assert self.shape is not None
         assert isinstance(self.data, _nd.NDArray)
         assert isinstance(self.indices, _nd.NDArray)
-        assert str(self.indices.dtype) == 'int32' or str(self.indices.dtype) == 'int64', str(self.indices.dtype)
+        assert str(self.indices.dtype) == 'int32' or \
+            str(self.indices.dtype) == 'int64', str(self.indices.dtype)
         assert isinstance(self.indptr, _nd.NDArray)
-        assert str(self.indptr.dtype) == 'int32' or str(self.indptr.dtype) == 'int64', str(self.indptr.dtype)
+        assert str(self.indptr.dtype) == 'int32' or \
+            str(self.indptr.dtype) == 'int64', str(self.indptr.dtype)
 
     def asnumpy(self):
         """Construct a full matrix and convert it to numpy array."""
