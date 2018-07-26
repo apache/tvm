@@ -132,7 +132,7 @@ def multibox_prior_gpu(data, sizes=(1,), ratios=(1,), steps=(-1, -1), \
         out = topi.clip(out, 0, 1)
     return out
 
-def transform_loc_ir_first(cls_prob, loc_pred, anchor, valid_count, temp_out, clip, threshold, variances):
+def transform_loc_ir_first(cls_prob, anchor, valid_count, temp_flag, temp_id, temp_score_out, threshold):
     batch_size = cls_prob.shape[0]
     num_classes = cls_prob.shape[1]
     num_anchors = cls_prob.shape[2]
@@ -140,11 +140,13 @@ def transform_loc_ir_first(cls_prob, loc_pred, anchor, valid_count, temp_out, cl
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     max_temp = int(math.sqrt(max_threads))
     ib = tvm.ir_builder.create()
-    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
-                 ), name="temp_score", scope="global")
-    score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
-    cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
-    flag = ib.buffer_ptr(temp_out)
+#    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
+#                 ), name="temp_score", scope="global")
+    #score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
+    #cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
+    score = ib.buffer_ptr(temp_score_out)
+    cls_id = ib.buffer_ptr(temp_id)
+    flag = ib.buffer_ptr(temp_flag)
     #flag = ib.allocate('int32', (num_anchors, ), name="flag", scope="global")
     flag_temp = ib.allocate('int32', (max_threads, ), name="flag_temp", scope="global")
     flag_temp1 = ib.allocate('int32', (max_threads, ), name="flag_temp1", scope="global")
@@ -156,7 +158,6 @@ def transform_loc_ir_first(cls_prob, loc_pred, anchor, valid_count, temp_out, cl
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
     p_cls_prob = ib.buffer_ptr(cls_prob)
-    p_loc_pred = ib.buffer_ptr(loc_pred)
     p_anchor = ib.buffer_ptr(anchor)
     p_valid_count = ib.buffer_ptr(valid_count)
 
@@ -241,7 +242,7 @@ def transform_loc_ir_first(cls_prob, loc_pred, anchor, valid_count, temp_out, cl
             p_valid_count[n] = flag[tid * num_anchors + num_anchors - 1]
 
 
-def transform_loc_ir(cls_prob, loc_pred, anchor, temp_in, out, clip, threshold, variances):
+def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, out, clip, variances, batch_size, num_classes, num_anchors):
     """Low level IR routing for transform location in multibox_detection operator.
 
     Parameters
@@ -299,18 +300,16 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, temp_in, out, clip, threshold, 
                tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox + ow)), ox + ow), \
                tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy + oh)), oy + oh)
 
-    batch_size = cls_prob.shape[0]
-    num_classes = cls_prob.shape[1]
-    num_anchors = cls_prob.shape[2]
-
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     max_temp = int(math.sqrt(max_threads))
     ib = tvm.ir_builder.create()
-    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
-                 ), name="temp_score", scope="global")
-    score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
-    cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
-    flag = ib.buffer_ptr(temp_in) 
+    #temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
+    #             ), name="temp_score", scope="global")
+    #score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
+    score = ib.buffer_ptr(temp_score_in)
+    #cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
+    cls_id = ib.buffer_ptr(temp_id)
+    flag = ib.buffer_ptr(temp_flag) 
 #    flag = ib.allocate('int32', (num_anchors, ), name="flag", scope="global")
 #    flag_temp = ib.allocate('int32', (max_threads, ), name="flag_temp", scope="global")
 #    flag_temp1 = ib.allocate('int32', (max_threads, ), name="flag_temp1", scope="global")
@@ -321,7 +320,7 @@ def transform_loc_ir(cls_prob, loc_pred, anchor, temp_in, out, clip, threshold, 
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
-    p_cls_prob = ib.buffer_ptr(cls_prob)
+#    p_cls_prob = ib.buffer_ptr(cls_prob)
     p_loc_pred = ib.buffer_ptr(loc_pred)
     p_anchor = ib.buffer_ptr(anchor)
     #p_valid_count = ib.buffer_ptr(valid_count)
@@ -467,7 +466,8 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=
         1-D tensor with shape (batch_size,), number of valid anchor boxes.
     """
     batch_size = cls_prob.shape[0]
-    num_anchors = anchor.shape[1]
+    num_classes = cls_prob.shape[1]
+    num_anchors = cls_prob.shape[2]
     oshape = (batch_size, num_anchors, 6)
     # Define data alignment for intermediate buffer
     valid_count_dtype = "int32"
@@ -476,22 +476,24 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=
     out_buf = api.decl_buffer(oshape, cls_prob.dtype, "out_buf", data_alignment=8)
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     size = num_anchors
-    temp_buf = api.decl_buffer((size, ), valid_count_dtype, "flag", data_alignment=4)
+    temp_flag_buf = api.decl_buffer((size,), valid_count_dtype, "flag", data_alignment=4)
+    temp_id_buf = api.decl_buffer((size,), valid_count_dtype, "cls_id", data_alignment=4)
+    temp_score_buf = api.decl_buffer((size,), cls_prob.dtype, "score", data_alignment=8)
 
-    valid_count, temp_out = \
-        tvm.extern([(batch_size,), (size, )],
-                   [cls_prob, loc_pred, anchor],
+    valid_count, temp_flag, temp_id, temp_score = \
+        tvm.extern([(batch_size,), (size,), (size,), (size,)],
+                   [cls_prob, anchor],
                    lambda ins, outs: transform_loc_ir_first(
-                       ins[0], ins[1], ins[2], outs[0], outs[1], clip, threshold, variances),
-                   dtype=[valid_count_dtype, valid_count_dtype],
-                   out_buffers=[valid_count_buf, temp_buf],
+                       ins[0], ins[1], outs[0], outs[1], outs[2], outs[3], threshold),
+                   dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype],
+                   out_buffers=[valid_count_buf, temp_flag_buf, temp_id_buf, temp_score_buf],
                    tag="multibox_transform_loc_first_step")
 
     out = \
         tvm.extern([oshape],
-                   [cls_prob, loc_pred, anchor, temp_out],
+                   [loc_pred, anchor, temp_flag, temp_id, temp_score],
                    lambda ins, outs: transform_loc_ir(
-                       ins[0], ins[1], ins[2], ins[3], outs[0], clip, threshold, variances),
+                       ins[0], ins[1], ins[2], ins[3], ins[4], outs[0], clip, variances, batch_size, num_classes, num_anchors),
                    dtype=[cls_prob.dtype],
                    out_buffers=[out_buf],
                    tag="multibox_transform_loc")
@@ -539,5 +541,5 @@ def multibox_detection_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     """
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                        clip, threshold, variances)
-    #out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
+    out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
     return inter_out[1]
