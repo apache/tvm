@@ -168,7 +168,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   if (Bind_(buffer->data, TVMArrayGet(Handle(), handle, intrinsic::kArrData),
             arg_name + ".data", true)) {
     Var vptr(buffer->data);
-    def_handle_dtype_.Set(vptr, make_const(buffer->dtype, 0));
+    def_handle_dtype_.Set(vptr, ir::TypeAnnotation(buffer->dtype));
     // mark alignment of external bufs
     init_nest_.emplace_back(AttrStmt::make(
         vptr, ir::attr::storage_alignment,
@@ -190,7 +190,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer,
   }
   // strides field
   Var v_strides(arg_name + ".strides", Handle());
-  def_handle_dtype_.Set(v_strides, make_const(tvm_shape_type, 0));
+  def_handle_dtype_.Set(v_strides, ir::TypeAnnotation(tvm_shape_type));
   init_nest_.emplace_back(LetStmt::make(
       v_strides, TVMArrayGet(Handle(), handle, intrinsic::kArrStrides),
       nop));
