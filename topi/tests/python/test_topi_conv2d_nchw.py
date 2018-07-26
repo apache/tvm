@@ -74,7 +74,7 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 256, 14, 512, 3, 2, 1)
     verify_conv2d_nchw(1, 256, 14, 512, 1, 2, 0)
     verify_conv2d_nchw(1, 512, 7, 512, 3, 1, 1)
-    # ResNet 50 workloads
+    # ResNet50 workloads
     verify_conv2d_nchw(1, 64, 56, 256, 1, 1, 0)
     verify_conv2d_nchw(1, 256, 56, 64, 1, 1, 0)
     verify_conv2d_nchw(1, 256, 56, 128, 1, 2, 0)
