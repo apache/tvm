@@ -324,6 +324,31 @@ def test_forward_rnn():
     test_rnn_forward(net)
     LIB.free_network(net)
 
+def test_forward_crnn():
+    '''test softmax layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    c = 3
+    h = 224
+    w = 224
+    hidden_filters = c
+    output_filters = c
+    steps = 1
+    activation = 0
+    batch_normalize = 0
+    inputs = 256
+    outputs = 256
+    layer_1 = LIB.make_crnn_layer(batch, h, w, c, hidden_filters, output_filters,
+                                  steps, activation, batch_normalize)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = output_filters * h * w
+    net.w = w
+    net.h = h
+    LIB.resize_network(net, net.w, net.h)
+    test_forward(net)
+    LIB.free_network(net)
+
 def test_forward_activation_logistic():
     '''test logistic activation layer'''
     net = LIB.make_network(1)
@@ -369,4 +394,5 @@ if __name__ == '__main__':
     test_forward_region()
     test_forward_elu()
     test_forward_rnn()
+    test_forward_crnn()
     test_forward_activation_logistic()
