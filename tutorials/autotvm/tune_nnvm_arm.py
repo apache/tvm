@@ -212,14 +212,14 @@ def tune_and_evaluate():
 
         # export library
         tmp = tempdir()
-        filename = "net.so"
-        path_name = tmp.relpath(filename)
-
-        if tuning_option.get('use_ndk', False):
-            # for android
+        if tuning_option.get('use_ndk', False): # for android
             from tvm.contrib import ndk
+            filename = "net.so"
+            path_name = tmp.relpath(filename)
             lib.export_library(path_name, ndk.create_shared)
         else:
+            filename = "net.tar"
+            path_name = tmp.relpath(filename)
             lib.export_library(path_name)
 
         # upload module to device
@@ -249,7 +249,9 @@ def tune_and_evaluate():
 ######################################################################
 # Sample Output 
 # -------------
-# The tuning takes about 1.5 hour on a 32 threads AMD server.
+# The tuning needs to train xgboost models and use them for prediction.
+# So a high performance CPU is recommended.
+# It takes about 1.5 hour on a 32T AMD Ryzen CPU.
 # One sample output is
 # 
 # .. code-block:: bash
