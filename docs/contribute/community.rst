@@ -16,27 +16,27 @@ See `CONTRIBUTORS.md <https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md>`_
 Project Management Committee
 ----------------------------
 
-The PMC consists of a small group of active committers that moderate the discussion, provide mentorship to committers and code owners and manage the project release. PMC members need to actively manage the general project directions. Note that most major design choices and proposed changes should reach consensus among committers.
+The PMC consists of a small group of active committers that moderate the discussion, provide mentorship to committers and code owners and manage the project release. PMC members need to actively manage the general project directions. Note that most major design choices and proposed changes should reach consensus among the committers.
 
 Committer
 ---------
 
-Committers are individuals who are granted the write access to the project. Committers oversee the general project directions and participates in the evaluation of the RFCs involving major design changes. We look for the following traits from potential comitters
+Committers are individuals who are granted the write access to the project. Committers oversee the general project directions and participate in the evaluation of the RFCs involving major design changes. Here is a list of useful things to do to help become a committer.
 
-- Own at least one module in the project
+- Deep understanding of one or a few modules in the project.
 - Good understanding of general project structure, demonstrated by discussion over RFCs, code reviews and proposals of new features
 - Active history of code reviews that demonstrate a good technical ability
 - Contribution history of high-quality documentation and tutorials to the promote project
 - History of creating clean, maintainable code and including good test cases.
 
-New committers are nominated by current committers from current code owners by providing evidence of these perspectives.
+New committers are nominated by current committers from current code owners.
 
 Code Owner
 ----------
 
-A code owner is an individual who is responsible for a specific area of the code-base. Code owners are responsible for the areas they are in charge of and oversee the code review process of the corresponding module. Changes to a specific area need to be approved by one of its owners in order to be merged. Once a pull request is approved by the designated code owner, the code can be directly merged into the repo.
+A code owner is an individual who is responsible for a specific area of the code-base. Code owners are responsible for the areas they are in charge of and oversee the code review process of the corresponding module. Changes to a specific area need to be approved by one of its owners in order to be merged. Once a pull request is approved by the designated code owner, the code can be directly merged into the repo. Code owners are essential for a high quality and healthy codebase.
 
-Code owners are promoted from contributors. In order to become code owner, one needs to make substantial contributions to a module. A candidate for code owner also needs to demonstrate good code quality, testing, and documentation in specific areas. These traits of code owners are essential for a high quality and healthy codebase. These traits are evaluated by the contributor’s participation in the project, including, but not limited to:
+We welcome new code owners that help to keep good code quality, testing, and documentation in specific areas. Here is a list of useful traits that help the community to recognize potential code owners:
 
 - High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review
 - Good coverage of tests and documentation in the contributions
