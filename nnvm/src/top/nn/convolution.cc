@@ -371,10 +371,10 @@ weight transformation in advance.
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
   return true;
   })
-.set_attr<FCorrectLayout>("FCorrectLayot",[](const NodeAttrs& attrs,
-                                             std::vector<Layout> *ilayouts,
-                                             const std::vector<Layout> *last_ilayouts,
-                                             std::vector<Layout> *olayouts) {
+.set_attr<FCorrectLayout>("FCorrectLayot", [](const NodeAttrs& attrs,
+                                              std::vector<Layout> *ilayouts,
+                                              const std::vector<Layout> *last_ilayouts,
+                                              std::vector<Layout> *olayouts) {
   Layout layout("OIHW");
   NNVM_ASSIGN_LAYOUT(*ilayouts, 0, layout);
   NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
