@@ -156,6 +156,14 @@ reg.register_schedule("elemwise_mul", _fschedule_broadcast)
 reg.register_pattern("elemwise_div", OpPattern.BROADCAST)
 reg.register_schedule("elemwise_div", _fschedule_broadcast)
 
+# elemwise_mod
+reg.register_pattern("elemwise_mod", OpPattern.BROADCAST)
+reg.register_schedule("elemwise_mod", _fschedule_broadcast)
+
+# elemwise_pow
+reg.register_pattern("elemwise_pow", OpPattern.BROADCAST)
+reg.register_schedule("elemwise_pow", _fschedule_broadcast)
+
 # broadcast_add
 reg.register_pattern("broadcast_add", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_add", _fschedule_broadcast)
