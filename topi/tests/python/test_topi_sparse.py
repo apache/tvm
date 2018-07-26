@@ -47,6 +47,9 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(c_np, ctx)
         d = tvm.nd.array(np.zeros((_nr, 1), dtype=dtype), ctx)
+        assert a.data.dtype == A.data.dtype
+        assert a.indices.dtype == A.indices.dtype
+        assert a.indptr.dtype == A.indptr.dtype
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
         print(d.asnumpy().T)

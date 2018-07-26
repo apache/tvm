@@ -60,7 +60,7 @@ def test_dynamic_tensor():
     np.testing.assert_allclose(c.asnumpy(), a.asnumpy() * 2., rtol=1e-5)
 
 def test_sparse_array_tuple():
-    dtype = 'float32'
+    dtype, itype = 'float32', 'int32'
     stype = 'csr'
     target = 'llvm'
     ctx = tvm.context(target, 0)
@@ -76,10 +76,10 @@ def test_sparse_array_tuple():
     ridx, cidx = np.nonzero(source_array)
     data = source_array[ridx, cidx]
     a_data = _nd.array(data, ctx)
-    indices = np.nonzero(source_array)[1].astype('int32')
+    indices = np.nonzero(source_array)[1].astype(itype)
     a_indices = _nd.array(indices, ctx)
     indptr = [0]+np.apply_along_axis(np.count_nonzero, axis=1, arr=source_array).tolist()
-    indptr = np.cumsum(np.array(indptr, 'int32')).astype('int32')
+    indptr = np.cumsum(np.array(indptr, itype)).astype(itype)
     a_indptr = _nd.array(indptr, ctx)
     a_init = (a_data, a_indices, a_indptr)
     # construct tvm sparse array with tuple

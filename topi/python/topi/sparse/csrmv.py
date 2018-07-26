@@ -9,24 +9,24 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     Parameters
     ----------
     data : tvm.Tensor
-        1-D with shape [num_nonzeros]
+        1-D with shape [nonzeros]
 
     indices : tvm.Tensor
-        1-D with shape [num_nonzeros]
+        1-D with shape [nonzeros]
 
     indptr : tvm.Tensor
-        1-D with shape [num_rows+1]
+        1-D with shape [m+1]
 
     weight : tvm.Tensor
-        2-D with shape [num_cols, 1]
+        2-D with shape [k, 1]
 
     bias : tvm.Tensor, optional
-        1-D with shape [num_rows]
+        1-D with shape [1]
 
     Returns
     -------
     output : tvm.Tensor
-        2-D with shape [num_rows, 1]
+        2-D with shape [m, 1]
     """
     assert len(data.shape) == 1 and len(weight.shape) == 2, \
         "only support 2-dim csrmv"
@@ -36,7 +36,7 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
         assert len(bias.shape) == 1
     batch = indptr.shape[0]-1
     def csrmv_default_ir(data, indices, indptr, weight, out):
-        """Define IR for SpMV"""
+        """define ir for csrmv"""
         irb = tvm.ir_builder.create()
         data_ptr = irb.buffer_ptr(data)
         indices_ptr = irb.buffer_ptr(indices)
@@ -66,23 +66,25 @@ def csrmv_default(data, indices, indptr, weight, bias=None):
     return matmul
 
 
-def csrmv(data, weight, bias=None):
-    """Applies a linear transformation: :math:`Y = XW^T + b`.
+def csrmv(a, x, y=None):
+    """The `csrmv` routine performs a matrix-vector operation defined as :math:`y := A*x + y`,
+    where `x` and `y` are vectors, `A` is an m-by-k sparse matrix in the CSR format.
 
     Parameters
+
     ----------
-    data : tvm.contrib.CSRTensor
-        2-D with shape [batch, in_dim]
+    a : tvm.contrib.sparse.CSRNDArray
+        2-D sparse matrix with shape [m, k]
 
-    weight : tvm.Tensor
-        2-D with shape [out_dim, in_dim]
+    x : tvm.Tensor
+        2-D dense matrix with shape [k, 1]
 
-    bias : tvm.Tensor, optional
-        1-D with shape [out_dim]
+    y : tvm.Tensor, optional
+        1-D dense vector with shape [1]
 
     Returns
     -------
     output : tvm.Tensor
-        2-D with shape [batch, out_dim]
+        2-D dense matrix with shape [m, 1]
     """
-    return csrmv_default(data.data, data.indices, data.indptr, weight, bias)
+    return csrmv_default(a.data, a.indices, a.indptr, x, y)

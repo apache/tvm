@@ -77,7 +77,7 @@ def dense(data, weight, bias=None):
 
     Parameters
     ----------
-    data : tvm.contrib.CSRTensor
+    data : tvm.contrib.sparse.CSRNDArray
         2-D with shape [batch, in_dim]
 
     weight : tvm.Tensor
