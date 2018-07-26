@@ -93,11 +93,11 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
     n, co, oh, ow = cfg.axis(N), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
     ci, kh, kw = cfg.reduce_axis(CI), cfg.reduce_axis(KH), cfg.reduce_axis(KW)
 
-    if num_tile == 2:     # for cpu
+    if num_tile == 2:     # for arm cpu
         co, vc = cfg.define_split('tile_co', co, num_outputs=2)
         oh, vh = cfg.define_split('tile_oh', oh, num_outputs=2)
         ow, vw = cfg.define_split('tile_ow', ow, num_outputs=2)
-    elif num_tile == 3:   # for gpu
+    elif num_tile == 3:   # for mali gpu
         co, _, vc = cfg.define_split('tile_co', co, num_outputs=3)
         oh, _, vh = cfg.define_split('tile_oh', oh, num_outputs=3)
         ow, _, vw = cfg.define_split('tile_ow', ow, num_outputs=3)
@@ -194,9 +194,12 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
 
     if kernel_vec.op.name == 'kernel_vec':
         co, _, _, _, _ = s[kernel_vec].op.axis
-        s[kernel_vec].pragma(co, 'debug_skip_region')
-        # kernel packing will be pre-computed during compliation, so we skip this part
-        # to make tuning records correct
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # kernel packing will be pre-computed during compliation, so we skip
+            # this part to make tuning records correct
+            s[kernel_vec].pragma(co, 'debug_skip_region')
+        else:
+            s[kernel_vec].parallel(co)
 
     return s
 
@@ -209,10 +212,10 @@ def decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
 def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
     N, CI, IH, IW = get_const_tuple(data.shape)
     if len(kernel.shape) == 4:
-        pre_packed = False
+        pre_computed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
     else:
-        pre_packed = True
+        pre_computed = True
         H_CAT, W_CAT, CO, CI, VC = get_const_tuple(kernel.shape)
         CO *= VC
         KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
@@ -295,23 +298,23 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
                              name='d')
 
     # transform kernel
-    if pre_packed:
+    if pre_computed:
         U = kernel
     else:
         G = const_matrix(G_data, 'G')
         r_kh = tvm.reduce_axis((0, KH), 'r_kh')
         r_kw = tvm.reduce_axis((0, KW), 'r_kw')
         U = tvm.compute((alpha, alpha, K // VK, C, VK), lambda eps, nu, k, c, kk:
-                        tvm.sum(kernel[k * VK + kk][c][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw],
-                                axis=[r_kh, r_kw]), name='U')
+                        tvm.sum(kernel[k * VK + kk][c][r_kh][r_kw].astype(out_dtype) *
+                                G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]), name='U')
 
     # transform image
     B = const_matrix(B_data, 'B')
     r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
     r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
     V = tvm.compute((alpha, alpha, P // VP, C, VP), lambda eps, nu, b, c, bb:
-                    tvm.sum(input_tile[c][b][r_eps][r_nu][bb] * B[r_eps][eps] * B[r_nu][nu],
-                            axis=[r_eps, r_nu]), name='V')
+                    tvm.sum(input_tile[c][b][r_eps][r_nu][bb].astype(out_dtype) *
+                            B[r_eps][eps] * B[r_nu][nu], axis=[r_eps, r_nu]), name='V')
 
     # batch gemm
     c = tvm.reduce_axis((0, C), name='c')
@@ -362,9 +365,12 @@ def _schedule_winograd(cfg, s, output, last):
         s[U].unroll(nu)
         s[U].unroll(r_kh)
         s[U].unroll(r_kw)
-        s[U].pragma(k, 'debug_skip_region')
-        # kernel transformation will be pre-computed during compliation, so we skip this part
-        # to make tuning records correct
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # kernel transformation will be pre-computed during compliation, so we skip
+            # this part to make tuning records correct
+            s[U].pragma(k, 'debug_skip_region')
+        else:
+            s[U].parallel(k)
 
     # transform image
     DD = s.cache_read(d, 'global', [V])
@@ -483,13 +489,14 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
     if groups == 1:
         # query config of this workload
-        workload = _conv_arg_to_workload(tinfos[0], tinfos[1], strides, padding, layout, out_dtype)
+        workload = _conv_arg_to_workload(tinfos[0], tinfos[1], strides, padding,
+                                         layout, out_dtype)
         cfg = autotvm.task.DispatchContext.current.query(tvm.target.current_target(), workload)
 
-        if cfg.template_key == 'vanilla':
+        if cfg.template_key == 'vanilla':  # simple packing
             new_attrs['kernel_layout'] = 'OIHW%do' % (cfg['tile_co'].size[-1])
             return sym.conv2d(*copy_inputs, **new_attrs)
-        else:
+        else:  # pre-compute weight transformation in winograd
             tile_size = 4
 
             weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1],
@@ -503,6 +510,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             copy_inputs[1] = weight
             new_attrs['tile_size'] = tile_size
             return sym.contrib.conv2d_winograd_without_weight_transform(*copy_inputs, **new_attrs)
-    else:
-        # do nothing for depthwise convolution
-        return sym.conv2d(*copy_inputs, **new_attrs)
+
+    # do nothing for depthwise convolution
+    return None

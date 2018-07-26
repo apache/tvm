@@ -233,7 +233,7 @@ class TrackerSession(object):
             keys.sort()
             max_key_len = max([len(k) for k in keys])
         else:
-            max_ken_len = 0
+            max_key_len = 0
 
         res += "Queue Status\n"
         res += "----------------------------\n"

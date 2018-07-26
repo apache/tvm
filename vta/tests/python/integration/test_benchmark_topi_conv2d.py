@@ -1,6 +1,7 @@
 """Testing if we can generate code in topi style"""
 
 import tvm
+from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
 import topi
@@ -21,6 +22,9 @@ def my_clip(x, a_min, a_max):
     return x
 
 def test_cpu_conv2d():
+    # load pre-tuned parameters
+    autotvm.load_op_param()
+
     def run_cpu_conv2d(env, remote, key, batch_size, wl, profile=True):
         data_shape = (batch_size, wl.in_filter, wl.height, wl.width)
         kernel_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
@@ -62,8 +66,7 @@ def test_cpu_conv2d():
 
         def verify(s, check_correctness):
             mod = tvm.build(s, [data, kernel, res],
-                            "llvm -device=vtacpu",
-                            env.target_host,
+                            target_host=env.target_host,
                             name="conv2d")
             temp = util.tempdir()
             mod.save(temp.relpath("conv2d.o"))
@@ -124,7 +127,7 @@ def test_cpu_conv2d():
             key = "resnet-cfg[%d]" % i
             print("key=%s" % key)
             print(wl)
-            with tvm.target.create("llvm -device=vtacpu"):
+            with tvm.target.arm_cpu("pynq"):
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
     vta.testing.run(_run)
 

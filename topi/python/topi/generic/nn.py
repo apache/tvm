@@ -93,12 +93,12 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, strides,
 
 @tvm.target.generic_func
 def schedule_conv2d_winograd_weight_transform(outs):
-    """Schedule for conv2d_nhwc
+    """Schedule for weight transformation of winograd
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of conv2d_nchw
+          The computation graph description of this operator
           in the format of an array of tensors.
 
     Returns
@@ -106,6 +106,8 @@ def schedule_conv2d_winograd_weight_transform(outs):
     sch: Schedule
         The computation schedule for the op.
     """
+    # Typically this is computed in nnvm PreCompute pass
+    # so we make a schedule here for cpu llvm
     s = tvm.create_schedule([x.op for x in outs])
     output = outs[0]
     _, G = s[output].op.input_tensors
@@ -121,12 +123,12 @@ def schedule_conv2d_winograd_weight_transform(outs):
 
 @tvm.target.generic_func
 def schedule_conv2d_winograd_without_weight_transform(outs):
-    """Schedule for conv2d_nhwc
+    """Schedule for winograd without weight transformation
 
     Parameters
     ----------
     outs: Array of Tensor
-          The computation graph description of conv2d_nchw
+          The computation graph description of this operator
           in the format of an array of tensors.
 
     Returns

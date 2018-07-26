@@ -176,13 +176,11 @@ inline bool WinogradConv2DInferShape(const nnvm::NodeAttrs& attrs,
       << "output channels must divide group size";
 
   // NOTE: Do not check weight shape here!
-  // TShape wshape({param.channels / param.groups,
-  //                dshape[1] / param.groups,
-  //                param.kernel_size[0],
-  //                param.kernel_size[1]});
-  // wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
-  // wshape[kernel_layout.indexof('O')] *= param.groups;
-  // NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
+  // Different backend requires different layout to compute
+  // the batch gemm stage in winograd efficiently, but we want to
+  // make this NNVM symbol work for all backends.
+  // So we accept all weight shapes, and assume the TOPI developers
+  // can handle this correctly in alter_op_layout.
 
   if (param.use_bias) {
     static const Layout default_bias_layout("C");

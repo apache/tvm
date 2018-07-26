@@ -7,6 +7,7 @@ import numpy as np
 from ..measure import MeasureInput
 from ..measure import create_measure_batch
 
+from ..env import GLOBAL_SCOPE
 
 class Tuner(object):
     """Base class for tuners
@@ -89,6 +90,7 @@ class Tuner(object):
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
         early_stopping = early_stopping or 1e9
 
+        GLOBAL_SCOPE.in_tuning = True
         i = 0
         while i < n_trial:
             if not self.has_next():
@@ -128,6 +130,7 @@ class Tuner(object):
                 if verbose >= 1:
                     logging.info("Early stopped. Best iter: %d.", self.best_iter)
                 break
+        GLOBAL_SCOPE.in_tuning = False
 
         del measure_batch
 

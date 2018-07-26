@@ -77,7 +77,7 @@ python3 -m tvm.exec.rpc_tracker
   
   E.g. For my RK3399, I use `python3 -m tvm.exec.rpc_sever --tracker=10.77.1.123:9190 --key=rk3399`
 
-* For Andoird device
+* For Android device
    * Build and install tvm rpc apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).
      Make sure you can pass the android rpc test. Then you have alreadly known how to register.
 
@@ -116,7 +116,7 @@ python3 -m tvm.exec.rpc_tracker
   ```
   
   If you do not do tuning and run the benchmark for other devices directly,
-  the performance is not gauranteed (This is still doable, you can pick a most
+  the performance is not guaranteed (This is still doable, you can pick a most
   similar device and reuse its parameter).
   In order to get the best performance, you need to tune for you own device,
   please follow [tutorial](404.html).
