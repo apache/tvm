@@ -55,7 +55,7 @@ download(weights_url, weights_name)
 # Download and Load darknet library
 # ---------------------------------
 
-darknet_lib = 'libdarknet.so'
+darknet_lib = 'libdarknet2.0.so'
 darknetlib_url = 'https://github.com/siju-samuel/darknet/blob/master/lib/' + \
                         darknet_lib + '?raw=true'
 download(darknetlib_url, darknet_lib)
