@@ -103,7 +103,47 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
     for device in ["llvm"]:
         check_device(device)
 
-def verify_dense(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
+def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
+    nonzeros = tvm.var('nonzeros')
+    A = tvmsp.placeholder(shape=(batch, in_dim), nonzeros=nonzeros, dtype=dtype, name='A')
+    B = tvm.placeholder((out_dim, in_dim), dtype=dtype, name='B')
+    C = tvm.placeholder((out_dim,), dtype=dtype, name='C')
+    D = topi.sparse.dense(A, B, C if use_bias else None)
+    s = tvm.create_schedule(D.op)
+    print(tvm.lower(s, [A.data, A.indices, A.indptr, B, C], simple_mode=True))
+
+    # get the test data
+    def get_ref_data():
+        mag = 10.
+        a_np = np.maximum(mag*(np.random.uniform(size=(batch, in_dim)).astype('float32')-0.5), 0.).astype(dtype)
+        b_np = (mag*(np.random.uniform(size=(out_dim, in_dim)).astype('float32')-.5)).astype(dtype)
+        c_np = (mag*(np.random.uniform(size=(out_dim,)).astype('float32')-.5)).astype(dtype)
+        if use_bias:
+            d_np = np.dot(a_np, b_np.T) + c_np
+        else:
+            d_np = np.dot(a_np, b_np.T)
+        return (a_np, b_np, c_np, d_np)
+    a_np, b_np, c_np, d_np = get_ref_data()
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        a = tvmsp.array(a_np, ctx)
+        b = tvm.nd.array(b_np, ctx)
+        c = tvm.nd.array(c_np, ctx)
+        d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
+        f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
+        f(a.data, a.indices, a.indptr, b, c, d)
+        print(d.asnumpy())
+        print(d_np)
+        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
+
+    check_device('llvm')
+
+def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
     nonzeros = tvm.var('nonzeros')
     A = tvmsp.placeholder(shape=(batch, in_dim), nonzeros=nonzeros, dtype=dtype, name='A')
     B = tvm.placeholder((out_dim, in_dim), dtype=dtype, name='B')
@@ -152,14 +192,27 @@ def test_csrmm():
     verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=False)
     verify_dynamic_csrmm(batch=M, in_dim=K, out_dim=N, use_bias=True)
 
-def test_dense():
+def test_dense_si():
     M, K, N = 3, 5, 2
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='float32')
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='float32')
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int32')
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int32')
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int16')
-    verify_dense(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int16')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='float32')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='float32')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int32')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int32')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int16')
+    verify_dense_si(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int16')
+
+def test_dense_sw():
+    M, K, N = 3, 5, 2
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='float32')
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='float32')
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int32')
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int32')
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=False, dtype='int16')
+    verify_dense_sw(batch=M, in_dim=K, out_dim=N, use_bias=True, dtype='int16')
+
+def test_dense():
+    test_dense_si()
+    test_dense_sw()
 
 if __name__ == "__main__":
     test_csrmv()
