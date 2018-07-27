@@ -100,14 +100,14 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
     """
     assert len(w_data.shape) == 1 and len(w_indices.shape) == 1 and len(w_indptr.shape) == 1 \
         and len(data.shape) == 2, "only support 2-dim dense"
-    assert isinstance(weight, tvm.tensor.Tensor), \
-        "weight matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(weight))
+    assert isinstance(data, tvm.tensor.Tensor), \
+        "data matrix is assumed to be tvm.Tensor, but weight is `%s`" % (type(data))
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
     M, K = data.shape
     N = simplify(w_indptr.shape[0]-1)
-    def dense_default_ir(data, indices, indptr, weight, out):
+    def dense_default_ir(data, w_data, w_indices, w_indptr, out):
         """Define IR for Dense"""
         dtype = data.dtype
         irb = tvm.ir_builder.create()
@@ -118,20 +118,20 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
         out_ptr = irb.buffer_ptr(out)
         M, K = data.shape
         N = simplify(w_indptr.shape[0]-1)
-        with irb.for_range(0, N, for_type="vectorize", name='n') as n:
-            with irb.for_range(0, M, for_type="parallel", name='m') as m:
+        with irb.for_range(0, M, for_type="vectorize", name='m') as m:
+            with irb.for_range(0, N, for_type="parallel", name='n') as n:
                 dot = irb.allocate(dtype, (1,), name='dot', scope='local')
                 out_ptr[m*N+n] = tvm.const(0, dtype)
                 dot[0] = tvm.const(0, dtype)
-                row_start = w_indptr_ptr[m]
-                row_elems = w_indptr_ptr[m+1]-row_start
+                row_start = w_indptr_ptr[n]
+                row_elems = w_indptr_ptr[n+1]-row_start
                 with irb.for_range(0, row_elems, name='k') as k:
                     elem = row_start+k
-                    dot[0] += w_data_ptr[elem] * data_ptr[w_indices_ptr[elem]+n*K]
+                    dot[0] += w_data_ptr[elem] * data_ptr[w_indices_ptr[elem]+m*K]
                 out_ptr[m*N+n] += dot[0]
         return irb.get()
     oshape = (M, N)
-    matmul = tvm.extern(oshape, [data, indices, indptr, weight],
+    matmul = tvm.extern(oshape, [data, w_data, w_indices, w_indptr],
                         lambda ins, outs: dense_default_ir(ins[0], ins[1], ins[2], ins[3], outs[0]),
                         tag="dense", dtype=dtype, name='out')
     if bias is not None:
@@ -169,5 +169,5 @@ def dense(data, weight, bias=None):
         ret = dense_sw(data, weight.data, weight.indices, weight.indptr, bias)
     else:
         raise NotImplementedError("implementation for %s as data and %s as weights, "
-        "is not supported yet." % (type(data), type(weight), ))
+                                  "is not supported yet." % (type(data), type(weight), ))
     return ret
