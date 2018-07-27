@@ -65,7 +65,7 @@ class Tuner(object):
         """
         pass
 
-    def tune(self, n_trial, measure_option, early_stopping=None, verbose=1, callbacks=()):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
         """Begin tuning
 
         Parameters
@@ -77,9 +77,6 @@ class Tuner(object):
             You should use the return value ot autotvm.measure_option for this argument.
         early_stopping: int
             Early stop the tuning when not finding better configs in this number of trials
-        verbose: int
-            0: silent mode, no output
-            1: print every measurement result
         callbacks: List of callable
             A list of callback functions. The signature of callback function is
             (Tuner, List of MeasureInput, List of MeasureResult)
@@ -114,10 +111,9 @@ class Tuner(object):
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
-                if verbose >= 1:
-                    logging.info("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                                 i + k + 1, flops / 1e9, self.best_flops / 1e9,
-                                 res, config)
+                logging.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                              i + k + 1, flops / 1e9, self.best_flops / 1e9,
+                              res, config)
 
             i += len(results)
 
@@ -127,9 +123,7 @@ class Tuner(object):
                 callback(self, inputs, results)
 
             if i > self.best_iter + early_stopping:
-                if verbose >= 1:
-                    logging.info("Early stopped. Best iter: %d.", self.best_iter)
-                break
+                logging.debug("Early stopped. Best iter: %d.", self.best_iter)
         GLOBAL_SCOPE.in_tuning = False
 
         del measure_batch

@@ -194,7 +194,7 @@ class ApplyHistoryBest(DispatchContext):
 
         self.load(records)
 
-    def load(self, records, verbose=0):
+    def load(self, records):
         """Load records to this dispatch context
 
         Parameters
@@ -204,9 +204,6 @@ class ApplyHistoryBest(DispatchContext):
             If is str, then it should be the filename of a records log file.
                        Each row of this file is an encoded record pair.
             Otherwise, it is an iterator.
-        verbose: int, optional
-            If is 0, output nothing
-            If is 1, output some debug information
         """
         if isinstance(records, str):
             records = load_from_file(records)
@@ -245,8 +242,7 @@ class ApplyHistoryBest(DispatchContext):
                             best_by_model[key] = (inp, res)
                     break
 
-        if verbose:
-            logging.info("Finish loading %d records", counter)
+        logging.debug("Finish loading %d records", counter)
 
     def query(self, target, workload):
         if target is None:
@@ -354,7 +350,7 @@ def pick_best(in_file, out_file):
             best_set.remove(measure_str_key(inp))
 
 
-def load_op_param(rootpath=_target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH, verbose=0):
+def load_op_param(rootpath=_target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH):
     """Load pre-tuned parameters of operators.
     This function will load all "*.log" file under root path and select best configs.
 
@@ -362,15 +358,12 @@ def load_op_param(rootpath=_target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH, verbose=0):
     ----------
     rootpath: str, optional
         The root path of stored parameters
-    verbose: int, optional
-        If is 0, output nothing
-        If is 1, output some debug information
     """
     best_context = ApplyHistoryBest([])
     for dirpath, _, filenames in os.walk(rootpath):
         for filename in filenames:
             if filename.endswith('.log'):
-                best_context.load(os.path.join(dirpath, filename), verbose)
+                best_context.load(os.path.join(dirpath, filename))
 
     assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
     DispatchContext.current = best_context
@@ -397,6 +390,7 @@ def download_pretuned_op_param(backend):
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/op_param/%s.log" % backend,
              os.path.join(root_path, backend + ".log"), True, verbose=0)
 
+
 def list_pretuned_op_param():
     """List all available pre-tuned op parameters for targets
 
@@ -419,6 +413,7 @@ def list_pretuned_op_param():
     keys.sort()
 
     return [(k, info[k]) for k in keys]
+
 
 """
 Usage:

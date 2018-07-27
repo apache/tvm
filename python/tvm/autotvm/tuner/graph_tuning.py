@@ -96,7 +96,6 @@ def tune_tasks(tasks,
         tuner_obj.tune(n_trial=min(n_trial, len(tsk.config_space)),
                        early_stopping=early_stopping,
                        measure_option=measure_option,
-                       verbose=0,
                        callbacks=[
                            callback.progress_bar(n_trial, prefix=prefix),
                            callback.log_to_file(tmp_log_file)])

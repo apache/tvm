@@ -27,8 +27,6 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1):
     verbose: int, optional
         Verbose level
     """
-
-    import requests
     if sys.version_info >= (3,):
         import urllib.request as urllib2
     else:
@@ -36,6 +34,7 @@ def download(url, path, overwrite=False, size_compare=False, verbose=1):
 
     if os.path.isfile(path) and not overwrite:
         if size_compare:
+            import requests
             file_size = os.path.getsize(path)
             res_head = requests.head(url)
             res_get = requests.get(url, stream=True)

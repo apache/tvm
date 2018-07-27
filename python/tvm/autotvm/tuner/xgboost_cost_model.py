@@ -164,19 +164,18 @@ class XGBoostCostModel(CostModel):
                                  ],
                                  verbose_eval=self.verbose)])
 
-        if self.verbose:
-            logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                         time.time() - tic, len(xs),
-                         len(xs) - np.sum(valid_index),
-                         self.feature_cache.size(self.fea_type))
+        logging.debug("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+                      time.time() - tic, len(xs),
+                      len(xs) - np.sum(valid_index),
+                      self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
         self._reset_pool()
 
         args = list(records)
-        if self.verbose:
-            logging.info("Load %d entries from history log file", len(args))
+        logging.debug("Load %d entries from history log file", len(args))
+
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
         elif self.fea_type == 'knob':
