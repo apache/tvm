@@ -133,7 +133,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 # for this template
 
 # logging config (for printing tuning log to screen)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
 # the last layer in resnet
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
