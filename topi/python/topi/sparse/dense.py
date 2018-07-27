@@ -105,7 +105,7 @@ def dense_sw(data, w_data, w_indices, w_indptr, bias=None):
     if bias is not None:
         assert len(bias.shape) == 1
     dtype = data.dtype
-    M, K = data.shape
+    M, _ = data.shape
     N = simplify(w_indptr.shape[0]-1)
     def dense_default_ir(data, w_data, w_indices, w_indptr, out):
         """Define IR for Dense"""
