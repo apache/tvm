@@ -48,8 +48,7 @@ def test_graph_simple():
         mod.set_input(x=a)
 
         #verify dumproot created
-        path = mod._dump_path
-        directory = os.path.dirname(path)
+        directory = mod._dump_path
         assert(os.path.exists(directory))
 
         #verify graph is there
@@ -57,7 +56,7 @@ def test_graph_simple():
         assert(len(os.listdir(directory)) == 1)
 
         #verify the file name is proper
-        assert(os.path.exists(directory + "/" + GRAPH_DUMP_FILE_NAME))
+        assert(os.path.exists(os.path.join(directory, GRAPH_DUMP_FILE_NAME)))
 
         mod.run()
         #Verify the tensors are dumped

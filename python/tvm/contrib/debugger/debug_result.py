@@ -1,7 +1,7 @@
 """Graph debug results dumping class."""
 import os
 import json
-import numpy as np
+import nnvm
 
 GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
 
@@ -40,16 +40,12 @@ class DebugResult():
         json_obj = json.loads(graph_json)
         self._nodes_list = json_obj['nodes']
         self._shapes_list = json_obj['attrs']['shape']
-        self._dltype_list = json_obj['attrs']['dltype']
+        self._dtype_list = json_obj['attrs']['dltype']
         self._update_graph_json()
 
     def _update_graph_json(self):
         """update the nodes_list with name, shape and data type,
         for temporarily storing the output.
-
-        Parameters
-        ----------
-        None
         """
 
         nodes_len = len(self._nodes_list)
@@ -59,14 +55,14 @@ class DebugResult():
             for input_node in node['inputs']:
                 input_list.append(self._nodes_list[input_node[0]]['name'])
             node['inputs'] = input_list
-            dltype = str("type: " + self._dltype_list[1][i])
+            dtype = str("type: " + self._dtype_list[1][i])
             if 'attrs' not in node:
                 node['attrs'] = {}
                 node['op'] = "param"
             else:
                 node['op'] = node['attrs']['func_name']
             node['name'] = node['name'].replace("/", "_")
-            node['attrs'].update({"T": dltype})
+            node['attrs'].update({"T": dtype})
             node['shape'] = self._shapes_list[1][i]
 
     def get_graph_nodes(self):
@@ -79,10 +75,10 @@ class DebugResult():
         """
         return self._shapes_list
 
-    def get_graph_node_dltypes(self):
-        """Return the nodes dltype list
+    def get_graph_node_dtypes(self):
+        """Return the nodes dtype list
         """
-        return self._dltype_list
+        return self._dtype_list
 
     def set_time(self, time):
         """set the timestamp to the timelist, the list is appended in the same order as node list
@@ -97,30 +93,27 @@ class DebugResult():
     def dump_output_tensor(self, out_stats):
         """Dump the outputs to a temporary folder, the tensors is in numpy format
 
-
         Parameters
         ----------
         out_stats: list
             Contains the list of output tensors
-
-        Returns
-        -------
-        None
         """
         #cleanup existing tensors before dumping
         self._cleanup_tensors()
         eid = 0
         order = 0
+        output_tensors = {}
         for node, time in zip(self._nodes_list, self._time_list):
             num_outputs = 1 if node['op'] == 'param' \
                             else int(node['attrs']['num_outputs'])
             for j in range(num_outputs):
-                ndbuffer = out_stats[eid]
-                eid += 1
                 order += time
-                key = node['name'] + "_" + str(j) + "__" + str(order) + ".npy"
-                dump_file = str(self._dump_path + key.replace("/", "_"))
-                np.save(dump_file, ndbuffer.asnumpy())
+                key = node['name'].replace("/", "_") + "_" + str(j) + "__" + str(order)
+                output_tensors[key] = out_stats[eid]
+                eid += 1
+
+        with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
+            param_f.write(nnvm.compiler.save_param_dict(output_tensors))
 
     def dump_graph_json(self, graph):
         """Dump json formatted graph.
@@ -130,13 +123,9 @@ class DebugResult():
         graph : json format
             json formatted NNVM graph contain list of each node's
             name, shape and type.
-
-        Returns
-        -------
-        none
         """
         graph_dump_file_name = GRAPH_DUMP_FILE_NAME
-        with open((self._dump_path + graph_dump_file_name), 'w') as outfile:
+        with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
             json.dump(graph, outfile, indent=2, sort_keys=False)
 
     def _cleanup_tensors(self):

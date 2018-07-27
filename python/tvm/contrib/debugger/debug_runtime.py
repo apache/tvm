@@ -11,6 +11,7 @@ from . import common
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
+_DUMP_PATH_PREFIX = "_tvmdbg_"
 
 def create(graph_json_str, libmod, ctx, dbg_ux=None, dump_root=None):
     """Create a runtime executor module given a graph and module.
@@ -29,12 +30,12 @@ def create(graph_json_str, libmod, ctx, dbg_ux=None, dump_root=None):
         The context to deploy the module, can be local or remote.
 
     dbg_ux : str
-        To select which ux user needs, Exampel, curses/tensorboard/None.
+        To select which ux user needs, Example, curses/tensorboard/None.
         None will just do the dumping
 
     dump_root : str
         To select which folder the outputs should be kept.
-        None will make a temp folder in /tmp and does the dumping
+        None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
     Returns
     -------
     graph_module : GraphModuleDebug
@@ -78,11 +79,11 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         points to the name of PackedFunc in the libmod.
 
     dbg_ux : str
-        To select which ui user needs, curses, tensorboard, etc
+        To select which ui user needs, curses, tensorboard
 
     dump_root : str
         To select which folder the outputs should be kept.
-        None will make a temp folder in /tmp and does the dumping
+        None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
     """
     def __init__(self, module, ctx, graph_json_str, dbg_ux, dump_root):
         self.ui_obj = None
@@ -134,25 +135,19 @@ class GraphModuleDebug(graph_runtime.GraphModule):
 
         This function will get called before run performs.
         GraphRuntime copy the execution out to the allocated memory for each nodes.
-
-        Parameters
-        ----------
-          None
         """
         for eid in range(self._get_debug_buffer_count()):
             self._debug_buffer(self._get_debug_buffer(eid))
 
-    def _ensure_dir(self, file_path):
+    def _ensure_dir(self, directory):
         """Create a directory if not exists
 
         Parameters
         ----------
 
-        file_path : str
+        directory : str
             File path to create
-
         """
-        directory = os.path.dirname(file_path)
         if not os.path.exists(directory):
             os.makedirs(directory)
 
@@ -170,9 +165,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             Directory path where the graph and node outputs will be stored.
         """
         # save to file
-        folder_name = "/_" + _DUMP_ROOT_PREFIX + "ctx_"
-        folder_name = folder_name + ctx.replace(":", "_") + "/"
-        path = self._dump_root + folder_name
+        folder_name = _DUMP_PATH_PREFIX + "ctx_"
+        folder_name = folder_name + ctx.replace(":", "_")# + "/"
+        path = os.path.join(self._dump_root, folder_name)
         self._ensure_dir(path)
         return path
 
@@ -180,7 +175,26 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         if os.path.isdir(self._dump_root):
             shutil.rmtree(self._dump_root)
 
-    def _create_debug_ui(self, graph_json, ctx, dbg_ux):
+    def _get_run_command(self):
+        """Invoke run from ux"""
+        return common.UxAction.DEBUG_RUN
+
+    def _run_end(self, action, retvals):
+        """Notify run end to ux
+
+        Parameters
+        ----------
+        action : common.UxAction
+           The previous action
+
+        retvals: int
+           The return value of previous execution result, for ux
+        """
+        action = action
+        retvals = retvals
+        return common.UxAction.EXIT
+
+    def _create_debug_ui(self, graph_json, ctx, dbg_ux): #pylint: disable=unused-argument
         """Create UI wrapper framework to handle multiple UI frontends for tvmdbg
 
         Parameters
@@ -197,10 +211,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         dbg_ux : str
             'curses'- involve curses based CLI
             'tensorboard'- make data format for tensorbard.
-
-        Returns
-        -------
-        None
         """
         #make the dump folder if not given
         if not self._dump_root:
@@ -209,24 +219,19 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         #format the context
         ctx = self._format_context(ctx)
 
-        self.ui_obj = DebugGraphUXWrapper(self._dump_root, graph_json, ctx, dbg_ux)
         #updates the dumping directories
         self._dump_path = self._get_dump_path(ctx)
 
     def _make_debug_buffer_list(self):
         """Allocate output buffer for each node to copy the node's
         output after Run completed.
-
-        Parameters
-        ----------
-        None
         """
         debug_datum = self.debug_datum
         shapes_list = debug_datum.get_graph_node_shapes()
-        dltype_list = debug_datum.get_graph_node_dltypes()
+        dtype_list = debug_datum.get_graph_node_dtypes()
         dbg_out_buffer_list = []
         for i in range(len(shapes_list[1])):
-            dbg_out_buffer_list.append(nd.empty(shapes_list[1][i], dltype_list[1][i]))
+            dbg_out_buffer_list.append(nd.empty(shapes_list[1][i], dtype_list[1][i]))
         self.dbg_buff_list = dbg_out_buffer_list
 
     def _debug_run_op_exec(self, index=None):
@@ -239,10 +244,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         index : int
             Node index to be executed now. Only the op corresponding to this index will be executed
         This will be mainly used for stepping each node and finding the output
-
-        Returns
-        -------
-        None
         """
         if index:
             time_stamp = self._debug_run(index)
@@ -262,20 +263,12 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         'set_debug_buffer' will set the empty buffer for setting node outputs.
         Once the execution compled, output will be in the dump path and CLI will
         be notified as run ends.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        None
         """
 
         #The ux may continue to execute multiple times, so after execution, give the control back
         #to ux and it will decide when to stop
         while True:
-            action = self.ui_obj.get_run_command()
+            action = self._get_run_command()
             if action == common.UxAction.DEBUG_RUN:
                 # Step 1. Set the debug buffer to catch the output
                 self._set_debug_buffer()
@@ -284,10 +277,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
                 # Step 3. Dump the output tensors to the dump folder
                 self.debug_datum.dump_output_tensor(self.dbg_buff_list)
                 # Step 4. Inform ux execution completion.
-                action = self.ui_obj.run_end(action, retvals)
+                action = self._run_end(action, retvals)
             elif action == common.UxAction.NON_DEBUG_RUN:
                 retvals = super(GraphModuleDebug, self).run()
-                action = self.ui_obj.run_end(action, retvals)
+                action = self._run_end(action, retvals)
             else:
                 break
             #If ux exits
@@ -323,10 +316,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
 
         params : dict of str to NDArray
            Additonal arguments
-
-        Returns
-        -------
-        None
         """
         super(GraphModuleDebug, self).set_input(key, value, **params)
 
@@ -336,89 +325,3 @@ class GraphModuleDebug(graph_runtime.GraphModule):
     def exit(self):
         """Exits the dump folder and all its contents"""
         self._remove_dump_root()
-
-class DebugGraphUXWrapper(object):
-    """UI Wrapper module for debug runtime
-
-    This is a thin wrapper of the debug for TVM runtime.
-    Create the UI fronted framework for tvmdbg, includes
-    initialization and interfacing.
-
-
-    Parameters
-    ----------
-    dump_root : str
-        The dump folder for graph and tensors.
-
-    graph_json : json format
-        json formatted NNVM graph contain list of each node's name, shape and type.
-
-    ctx : TVMContext
-       The context this module is under.
-
-    dbg_ux : str
-        'curses'- involve curses based CLI frontend
-        'tensorboard'- make data format for tensorbard frontend.
-    """
-    def __init__(self, dump_root, graph_json, ctx, dbg_ux):
-        """Init the DebugGraphUXWrapper"""
-        self._ux = dbg_ux
-        dump_root = dump_root
-        graph_json = graph_json
-        ctx = ctx
-        #Register the UX here, For example
-        #if ux == FRONTEND_CURSES:
-        #    self.curses_obj = tvmdbg.curses_register(self,
-        #                                             graph_json,
-        #                                             ctx=ctx,
-        #                                             dump_root=dump_root)
-
-    def get_run_command(self):
-        """Invoke run from ux"""
-        return common.UxAction.DEBUG_RUN
-
-    def run_end(self, action, retvals):
-        """Notify run end to ux
-        Parameters
-        ----------
-        action : common.UxAction
-           The previous action
-
-        retvals: int
-           The return value of previous execution result, for ux
-
-        """
-        action = action
-        retvals = retvals
-        return common.UxAction.EXIT
-
-    def set_input(self, key, value):
-        """Set inputs to the UX via kwargs
-
-        Parameters
-        ----------
-        key : int or str
-           The input key
-
-        value : the input value.
-           The input key
-
-        params : dict of str to NDArray
-           Additonal arguments
-        """
-        pass
-
-    def set_output_nodes(self, outputs):
-        """Give the ouputs node list to ux
-
-        Parameters
-        ----------
-
-        cli_obj : obj
-            The CLI object
-
-        outputs : List
-            The list of outputs from the json node
-
-        """
-        pass
