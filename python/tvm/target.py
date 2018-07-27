@@ -40,8 +40,6 @@ We can also use other specific function in this module to create specific target
 """
 from __future__ import absolute_import
 
-import os
-
 from ._ffi.base import _LIB_NAME
 from ._ffi.node import NodeBase, register_node
 from . import _api_internal
@@ -52,8 +50,6 @@ except ImportError as err_msg:
     # Allow decorator to be missing in runtime
     if _LIB_NAME != "libtvm_runtime.so":
         raise err_msg
-
-AUTOTVM_PRETUNED_PARAM_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "op_param")
 
 def _merge_opts(opts, new_opts):
     """Helper function to merge options"""
@@ -426,7 +422,9 @@ def arm_cpu(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opt_table = {
+    from . import autotvm
+
+    trans_table = {
         "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android"],
         "mate10":    ["-model=kirin970", "-target=arm64-linux-android"],
         "mate10pro": ["-model=kirin970", "-target=arm64-linux-android"],
@@ -436,11 +434,10 @@ def arm_cpu(model='unknown', options=None):
         "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu"],
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi"],
     }
-    pre_defined_opt = opt_table.get(model, [])
+    pre_defined_opt = trans_table.get(model, [])
 
-    if not os.path.isfile(os.path.join(AUTOTVM_PRETUNED_PARAM_ROOT_PATH, "arm_cpu.log")):
-        from .autotvm.record import download_pretuned_op_param
-        download_pretuned_op_param("arm_cpu")
+    # download pre-tuned parameters for arm_cpu if there is not any.
+    autotvm.tophub.check_package('arm_cpu')
 
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)

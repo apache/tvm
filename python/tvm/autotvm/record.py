@@ -9,7 +9,6 @@ import multiprocessing
 import pickle
 import json
 import time
-import os
 from collections import OrderedDict
 
 import numpy as np
@@ -19,9 +18,6 @@ from .. import build, lower, target as _target
 from . import task
 from .task import DispatchContext, ConfigEntity
 from .measure import MeasureInput, MeasureResult
-
-from ..contrib.util import tempdir
-from ..contrib.download import download
 
 AUTOTVM_LOG_VERSION = 0.1
 
@@ -123,8 +119,8 @@ def decode(row, protocol='json'):
         tgt = _target.create(str(tgt))
 
         def clean_json_to_python(x):
-            """1. convert all list in x to tuple (hashable)
-               2. convert unicode to str for python2
+            """1. Convert all list in x to tuple (hashable)
+               2. Convert unicode to str for python2
             """
             if isinstance(x, list):
                 return tuple([clean_json_to_python(a) for a in x])
@@ -153,6 +149,7 @@ def decode(row, protocol='json'):
         return MeasureInput(tgt, tsk, config), MeasureResult(*result)
     else:
         raise RuntimeError("Invalid log protocol: " + protocol)
+
 
 def load_from_file(filename):
     """Generator: load records from file.
@@ -348,72 +345,6 @@ def pick_best(in_file, out_file):
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
             best_set.remove(measure_str_key(inp))
-
-
-def load_op_param(rootpath=_target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH):
-    """Load pre-tuned parameters of operators.
-    This function will load all "*.log" file under root path and select best configs.
-
-    Parameters
-    ----------
-    rootpath: str, optional
-        The root path of stored parameters
-    """
-    best_context = ApplyHistoryBest([])
-    for dirpath, _, filenames in os.walk(rootpath):
-        for filename in filenames:
-            if filename.endswith('.log'):
-                best_context.load(os.path.join(dirpath, filename))
-
-    assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
-    DispatchContext.current = best_context
-
-
-def download_pretuned_op_param(backend):
-    """Download pre-tuned parameters of operators for a backend
-
-    Parameters
-    ----------
-    backend: str
-        The compilation target
-    """
-    root_path = _target.AUTOTVM_PRETUNED_PARAM_ROOT_PATH
-    if not os.path.isdir(root_path):
-        # make directory
-        splits = os.path.split(root_path)
-        for j in range(1, len(splits)+1):
-            path = os.path.join(*splits[:j])
-            if not os.path.isdir(path):
-                os.mkdir(path)
-
-    print("Download pre-tuned parameters for %s" % backend)
-    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/op_param/%s.log" % backend,
-             os.path.join(root_path, backend + ".log"), True, verbose=0)
-
-
-def list_pretuned_op_param():
-    """List all available pre-tuned op parameters for targets
-
-    Returns
-    -------
-    ret: List
-        All available packets
-    """
-    path = tempdir()
-    filename = path.relpath("info.json")
-    print("Download meta info for pre-tuned parameters")
-    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/op_param/info.json",
-             filename, True, verbose=0)
-    print("")
-
-    with open(filename, "r") as fin:
-        text = "".join(fin.readlines())
-    info = json.loads(text)
-    keys = list(info.keys())
-    keys.sort()
-
-    return [(k, info[k]) for k in keys]
-
 
 """
 Usage:

@@ -240,8 +240,8 @@ def build(graph, target=None, shape=None, dtype="float32",
     target = tvm.target.create(target)
 
     if autotvm.task.DispatchContext.current is None:
-        # load pre-tuned parameters from default directory
-        autotvm.load_op_param()
+        # load pre-tuned parameters of operators from the default directory of TopHub
+        autotvm.tophub.load_context(target)
 
     shape = shape if shape else {}
     if not isinstance(shape, dict):
