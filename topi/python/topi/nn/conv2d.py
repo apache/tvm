@@ -244,7 +244,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
     Returns
     -------
     output : tvm.Tensor
-        4-D with shape [batch, out_height,  out_width, out_channel]
+        4-D with shape [batch, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 2
     batch, in_height, in_width, in_channel = Input.shape
@@ -327,9 +327,14 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
     Parameters
     ----------
     kernel: Tensor
-        The raw kernel tensor
+        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now
     tile_size: int
         Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [alpha, alpha, CO, CI]
     """
     K = 3
 
@@ -385,5 +390,10 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
         Padding size, or ['VALID', 'SAME']
     tile_size: int
         Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : tvm.Tensor
+        4-D with shape [batch, out_height, out_width, out_channel]
     """
     raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")

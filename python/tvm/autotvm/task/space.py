@@ -114,7 +114,7 @@ class VirtualAxis(TransformSpace):
         elif isinstance(var, VirtualAxis):
             self.length = var.length
         else:
-            raise RuntimeError("Invalid type of axis: " + type(var))
+            raise RuntimeError("Invalid type of axis: " + str(type(var)))
 
     @staticmethod
     def get_num_output(var, name=None):
