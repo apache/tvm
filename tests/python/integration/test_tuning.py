@@ -108,19 +108,18 @@ def test_task_tuner_without_measurement():
     """test task and tuner without measurement"""
     task, target = get_sample_task()
 
-    def measure_batch(inputs):
+    def custom_measure(input_pack, **kwargs):
         from tvm.autotvm import MeasureResult
 
         results = []
-        for inp in inputs:
+        for inp in input_pack:
             tic = time.time()
             # do nothing
             time.sleep(0.001)
             results.append(MeasureResult([time.time() - tic], 0,
                                          time.time() - tic, time.time()))
         return results
-    measure_option = autotvm.measure_option(mode='custom',
-                                            custom_measure_batch=measure_batch)
+    measure_option = autotvm.measure_option(custom_measure)
 
     logging.info("%s", task.config_space)
 
@@ -140,7 +139,7 @@ def test_tuning_with_measure():
         task, target = get_sample_task(target, target_host)
         logging.info("%s", task.config_space)
 
-        measure_option = autotvm.measure_option(mode='local',
+        measure_option = autotvm.measure_option('local',
                                                 timeout=4,
                                                 number=2)
 
@@ -152,7 +151,8 @@ def test_tuning_with_measure():
 
 if __name__ == "__main__":
     # only print log when invoked from main
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     test_task_tuner_without_measurement()
     test_tuning_with_measure()
+

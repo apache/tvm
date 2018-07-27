@@ -250,7 +250,7 @@ print(task.config_space)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
 # use local cpu, measure 5 times for every config to reduce variance
-measure_option = autotvm.measure_option(mode='local',
+measure_option = autotvm.measure_option('local',
                                         number=5)
 
 # begin tuning, log records to file `matmul.log`

@@ -5,19 +5,13 @@ from . import callback, XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from .. import measure, record, task
 
 def tune_tasks(tasks,
-               rpc_device_key,
-
-               tuner='ga',
+               measure_option,
+               tuner='xgb',
                n_trial=500,
                early_stopping=200,
                log_filename='tuning.log',
-
-               mea_number=5,
-               mea_parallel_num=1,
-               mea_timeout=20,
-               mea_use_ndk=False,
-
-               use_transfer_learning=True):
+               use_transfer_learning=True,
+               try_winograd=True):
     """
     Tune a set of tasks
 
@@ -40,26 +34,20 @@ def tune_tasks(tasks,
         config after `early_stopping` trials
     log_filename: str
         The filename of output log file to store best configs
-    mea_number: int
-        The number of runs for taking average for one measurement.
-    mea_parallel_num: int
-        The parallel number in measurement. Set this to the number of devices you have.
-    mea_timeout: int
-        The timeout of a measurement.
-    mea_use_ndk: bool
-        Whether use Android NDK. The this to true if your target is android system
     use_transfer_learning: bool
         Whether reuse history tuning log to accelerate tuning
+    try_winograd: bool
+        Whether try to use winograd template
     """
-
-    for i in range(len(tasks)):  # pylint:disable=consider-using-enumerate
-        try:  # try winograd template
-            tsk = task.create(tasks[i].name, tasks[i].args,
-                              tasks[i].target, tasks[i].target_host,
-                              'winograd')
-            tasks.append(tsk)
-        except Exception:  # pylint:disable=broad-except
-            pass
+    if try_winograd:
+        for i in range(len(tasks)):  # pylint:disable=consider-using-enumerate
+            try:  # try winograd template
+                tsk = task.create(tasks[i].name, tasks[i].args,
+                                  tasks[i].target, tasks[i].target_host,
+                                  'winograd')
+                tasks.append(tsk)
+            except Exception:  # pylint:disable=broad-except
+                pass
 
     tmp_log_file = log_filename + ".tmp"
     if os.path.exists(tmp_log_file):
@@ -67,14 +55,6 @@ def tune_tasks(tasks,
 
     for i, tsk in enumerate(tasks):
         prefix = "[Task %2d/%2d] " %(i+1, len(tasks))
-
-        measure_option = measure.measure_option(mode='rpc',
-                                                repeat=3,
-                                                number=mea_number,
-                                                rpc_device_key=rpc_device_key,
-                                                parallel_num=mea_parallel_num,
-                                                timeout=mea_timeout,
-                                                use_ndk=mea_use_ndk)
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':

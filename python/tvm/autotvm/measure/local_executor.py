@@ -117,11 +117,11 @@ class LocalExecutor(executor.Executor):
         ----------
         By default, the executor will fork a new process for a new job
         But some runtime does not support fork (e.g. cuda runtime, cudnn).
-        In this circumstance, you should set 'fork_new_process' to False in kwargs
+        In this circumstance, you should set 'do_fork' to False in kwargs.
         """
-        fork_new_process = kwargs.pop('fork_new_process', True)
+        do_fork = kwargs.pop('do_fork', True)
 
-        if not fork_new_process:
+        if not do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
         queue = Queue(1)

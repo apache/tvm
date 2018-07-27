@@ -167,15 +167,16 @@ dtype = 'float32'
 
 tuning_option = {
    'log_filename': log_file,
-   'rpc_device_key': device_key,
 
    'tuner':'xgb',
    'n_trial': 1000,
    'early_stopping': 200,
 
-   'mea_number': 4,
-   'mea_parallel_num': 1,
-   'mea_timeout': 10,
+   'measure_option': autotvm.measure_option(
+       'rpc',
+       rpc_device_key=device_key,
+       timeout=10,
+       parallel_num=1),
 
    'use_transfer_learning': True,
 }
@@ -191,6 +192,9 @@ tuning_option = {
 #   boards to the tracker).
 #
 #   You can also refer to our doc :any:`tune_tasks` (click this) to see some comments.
+#
+#   For andoird phone, add :code:`build_func='ndk'` to the argument list of autotvm.measure_option
+#   to use Android NDK for creating shared library.
 #
 
 def tune_and_evaluate():
@@ -213,20 +217,18 @@ def tune_and_evaluate():
 
         # export library
         tmp = tempdir()
-        if tuning_option.get('use_ndk', False): # for android
+        if tuning_option['measure_option']['build_func'] == 'ndk': # for android
             from tvm.contrib import ndk
             filename = "net.so"
-            path_name = tmp.relpath(filename)
-            lib.export_library(path_name, ndk.create_shared)
+            lib.export_library(tmp.relpath(filename), ndk.create_shared)
         else:
             filename = "net.tar"
-            path_name = tmp.relpath(filename)
-            lib.export_library(path_name)
+            lib.export_library(tmp.relpath(filename))
 
         # upload module to device
         print("Upload...")
         remote = autotvm.measure.request_remote(device_key, timeout=10000)
-        remote.upload(path_name)
+        remote.upload(tmp.relpath(filename))
         rlib = remote.load_module(filename)
 
         # upload parameters to device
@@ -245,7 +247,7 @@ def tune_and_evaluate():
                 (np.mean(prof_res), np.std(prof_res)))
 
 # We do not run the tuning in our webpage server. Uncomment this line to run by yourself.
-#tune_and_evaluate()
+tune_and_evaluate()
 
 ######################################################################
 # Sample Output 

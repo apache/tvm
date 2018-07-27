@@ -12,7 +12,7 @@ from random import getrandbits
 
 import numpy as np
 
-from ...contrib import ndk, nvcc, util
+from ...contrib import nvcc, util
 from ... import rpc, ir_pass, build, build_config, nd, context, TVMError, register_func
 
 from ..util import get_const_tuple
@@ -58,12 +58,15 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
     return remote
 
 
-def _measure_generic(fbuild, input_pack, ref_input, ref_output):
-    """Generic measurement function
+def _measure_pack(fbuild, input_pack, ref_input, ref_output):
+    """Do measure for a pack of inputs.
+    This function mainly does error handling and correctness check.
+
+    (Note: A pack is a list of inputs which will be measured inside a same RPC session)
 
     Parameters
     ----------
-    fbuild : function takes MeasureInput returns tuple of (time_func, ctx)
+    fbuild : function takes MeasureInput returns tuple of (time_func, ctx, args)
         The build function used to build each input.
     input_pack : list of MeasureInput
         The inputs we need to evaluate
@@ -135,10 +138,34 @@ def _measure_generic(fbuild, input_pack, ref_input, ref_output):
         res_pack.append(MeasureResult(costs, errno, tstamp - tic, tstamp))
     return res_pack
 
-def _build_func(inp, build_option, kwargs):
-    """Build function module. Exception will be raised when error occurs"""
+
+def default_build_func(inp, tmp_dir=None, **kwargs):
+    """Build function module. Exception will be raised when any error occurs
+    
+    Parameters
+    ----------
+    inp: MeasureInput
+       The input of this measurement
+    tmp_dir: tvm.contrib.util.TempDirectory, optional
+       The temporary directory for output built binary library.
+       In RPC mode, we will upload this library to remote device
+    kwargs: Dict
+       Other arguments
+
+    Returns
+    -------
+    func: Function
+        TVM built function. Typically this is the return value of tvm.build.
+    args: Array of Buffer or Tensor
+        The argument list for the function. Typically this is the second argument of tvm.build.
+    filename: str
+        The filename of the output build library
+    """
+    # build function
     with inp.target:
         s, args = inp.task.instantiate(inp.config)
+
+        # check invalidity of template and code hash consistency
         if not inp.config.valid():
             raise InstantiationError(inp.config.errors)
         code_hash = getattr(s, 'code_hash', None)
@@ -146,7 +173,8 @@ def _build_func(inp, build_option, kwargs):
             raise HashMismatchError('got {0:s}, expected {1:s}'
                                     .format(str(inp.config.code_hash), str(code_hash)))
 
-        opts = build_option or {}
+        opts = {}
+
         if "check_gpu" in kwargs:
             values = kwargs['check_gpu']
             # Add gpu verify pass to filter out invalid configs in advance.
@@ -155,24 +183,33 @@ def _build_func(inp, build_option, kwargs):
                           'max_thread_x', 'max_thread_y', 'max_thread_z']
             opts["add_lower_pass"] = [
                 (2, gpu_verify_pass(**{key: values[key] for key in check_keys}))]
-
         if 'cuda_arch' in kwargs:
             set_cuda_target_arch(kwargs['cuda_arch'])
 
         with build_config(**opts):
             func = build(s, args, target_host=inp.task.target_host)
 
-    return func, args
+    # export library to temp directory
+    if tmp_dir:
+        if kwargs.get('use_ndk', False):  # for Android NDK
+            from ...contrib import ndk
+            filename = "tmp_func_%0x.so" % getrandbits(64)
+            func.export_library(tmp_dir.relpath(filename), ndk.create_shared)
+        else:
+            filename = "tmp_func_%0x.tar" % getrandbits(64)
+            func.export_library(tmp_dir.relpath(filename))
+
+    return func, args, filename
 
 
 def measure_rpc(input_pack,
                 rpc_device_key,
                 number,
                 repeat=1,
-                build_option=None,
                 rpc_tracker_addr=None,
                 rpc_priority=1,
                 rpc_timeout=60,
+                build_func='default',
                 **kwargs):
     """Measure the time cost on a device by rpc
 
@@ -186,8 +223,6 @@ def measure_rpc(input_pack,
         Number of times to get the running measurement
     repeat : int, optional
         How many times we want to repeat the measurement.
-    build_option: Dict
-        build options for tvm.build_config
 
     rpc_tracker_addr: Tuple(string, int), optional
         The address of rpc tracker in (host, port) format
@@ -196,6 +231,13 @@ def measure_rpc(input_pack,
         priority of this task, used by scheduler in tracker
     rpc_timeout: int, optional
         timeout of the rpc session
+
+    build_func: str or callable, optional
+        'default': call default build_func. This works for normal target (llvm, cuda)
+
+        'ndk': use Android NDK to create shared library. Use this for android target
+
+        callable; customized build function for other backends (e.g. VTA)
 
     kwargs: dict, optional
         Additional key word arguments
@@ -207,34 +249,32 @@ def measure_rpc(input_pack,
     """
     def _fbuild(inp):
         """ Local build function."""
-        func, args = _build_func(inp, build_option, kwargs)
-
         tmp_dir = util.tempdir()
-        if kwargs.get('use_ndk', False):  # for Android NDK
-            file_name = "tmp_func_%0x.so" % getrandbits(64)
-            path = tmp_dir.relpath(file_name)
-            func.export_library(path, ndk.create_shared)
+
+        if build_func == 'default':
+            func, args, filename = default_build_func(inp, tmp_dir, **kwargs)
+        elif build_func == 'ndk':
+            kwargs['use_ndk'] = True
+            func, args, filename = default_build_func(inp, tmp_dir, **kwargs)
         else:
-            file_name = "tmp_func_%0x.tar" % getrandbits(64)
-            path = tmp_dir.relpath(file_name)
-            func.export_library(path)
+            func, args, filename = build_func(inp, tmp_dir, **kwargs)
+
         remote = request_remote(rpc_device_key, rpc_tracker_addr, rpc_priority, rpc_timeout)
-        remote.upload(path)
-        func = remote.load_module(file_name)
+        remote.upload(tmp_dir.relpath(filename))
+        func = remote.load_module(filename)
         ctx = remote.context(str(inp.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat)
         return time_f, ctx, args
 
-    ret = _measure_generic(_fbuild, input_pack,
-                           kwargs.get("ref_input", None), kwargs.get("ref_output", None))
+    ret = _measure_pack(_fbuild, input_pack,
+                        kwargs.get("ref_input", None), kwargs.get("ref_output", None))
     return ret
-
 
 def measure_local(input_pack,
                   number,
                   repeat=1,
-                  build_option=None,
+                  build_func='default',
                   **kwargs):
     """Measure the time cost on a local machine.
 
@@ -246,8 +286,14 @@ def measure_local(input_pack,
         Number of times to get the running measurement
     repeat : int, optional
         How many times we want to repeat the measurement.
-    build_option: dict, optional
-        Build options for tvm.build_config
+
+    build_func: str or callable, optional
+        'default': call default build_func. This works for normal target (llvm, cuda)
+
+        'ndk': use Android NDK to create shared library. Use this for android target
+
+        callable; customized build function for other backends (e.g. VTA)
+
     kwargs: dict, optional
         Additional key word arguments
 
@@ -256,17 +302,22 @@ def measure_local(input_pack,
     res_pack : Array of MeasureResult
         The list of execution results of measurement.
     """
-
     def _fbuild(inp):
         """ Local build function """
-        func, args = _build_func(inp, build_option, kwargs)
+        tmp_dir = util.tempdir()
+
+        if build_func == 'default':
+            func, args, filename = default_build_func(inp, tmp_dir, **kwargs)
+        else:
+            func, args, filename = build_func(inp, tmp_dir, **kwargs)
+
         ctx = context(str(inp.target), 0)
         time_f = func.time_evaluator(
             func.entry_name, ctx, number=number, repeat=repeat)
         return time_f, ctx, args
 
-    ret = _measure_generic(_fbuild, input_pack,
-                           kwargs.get("ref_input", None), kwargs.get("ref_output", None))
+    ret = _measure_pack(_fbuild, input_pack,
+                        kwargs.get("ref_input", None), kwargs.get("ref_output", None))
     return ret
 
 
