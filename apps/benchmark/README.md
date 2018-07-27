@@ -4,10 +4,10 @@
 
 See results on wiki page https://github.com/dmlc/tvm/wiki/Benchmark
 
-## How to reporduce
+## How to Reproduce
 
 ### ARM CPU
-We use RPC infrasturecture in TVM to make device management easy. So you need to use it for reproducing benchmark results.
+We use RPC infrastructure in TVM to make device management easy. So you need to use it for reproducing benchmark results.
 
 1. Start an RPC Tracker on the host machine
 ```bash
@@ -26,7 +26,7 @@ python3 -m tvm.exec.rpc_tracker
   E.g. For my RK3399, I use `python3 -m tvm.exec.rpc_sever --tracker=10.77.1.123:9190 --key=rk3399`
 
 * For Android device
-   * Build and install tvm rpc apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).
+   * Build and install tvm RPC apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).
      Make sure you can pass the android rpc test. Then you have alreadly known how to register.
 
 3. Verify the device registration  
@@ -62,7 +62,7 @@ python3 -m tvm.exec.rpc_tracker
   python3 arm_cpu_imagenet_bench.py --device mate10pro --rpc-key mate10pro  
   ```
 
-  If your device has a same SoC of the above device, you can resue these parameters
+  If your device has a same SoC of the above device, you can reuse these parameters
   (e.g. use `llvm -device=arm_cpu -mode=rk3399 -target=aarch64-linux-gnu` as target).
-  Otherwise, you need to tune for your own devcie, please follow this [tutorial](please_fix_this_later.html).
+  Otherwise, you need to tune for your own device, please follow this [tutorial](please_fix_this_later.html).
 
