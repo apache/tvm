@@ -201,6 +201,12 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
     if (trackerMagic != RPC.RPC_TRACKER_MAGIC) {
       throw new SocketException("failed to connect to tracker (WRONG MAGIC)");
     }
+    String infoJSON = generateCinfo(key);
+    Utils.sendString(trackerOut, infoJSON);
+    int recvCode = Integer.parseInt(Utils.recvString(trackerIn));
+    if (recvCode != RPC.TrackerCode.SUCCESS) {
+      throw new SocketException("failed to connect to tracker (not SUCCESS)");
+    }
     return trackerSocket;
   }
 
@@ -236,6 +242,12 @@ public class ConnectTrackerServerProcessor implements ServerProcessor {
       return true;
     }
     return false;
+  }
+
+  // handcrafted JSON
+  private String generateCinfo(String key) {
+    String cinfo = "{\"key\" : " + "\"server:" + key + "\"}";
+    return "[" + RPC.TrackerCode.UPDATE_INFO + ", " + cinfo + "]";
   }
 
   // handcrafted JSON
