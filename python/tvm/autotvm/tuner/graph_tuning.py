@@ -2,7 +2,7 @@
 
 import os
 from . import callback, XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from .. import measure, record, task
+from .. import record, task
 
 def tune_tasks(tasks,
                measure_option,

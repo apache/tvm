@@ -82,7 +82,7 @@ def measure_option(measure_func='local',
         and a RPC server silently for the user.
 
         'rpc': request devices for measurement from the rpc tracker. In this mode,
-        you should start a rpc tracker in a separate processing and register your 
+        you should start a rpc tracker in a separate processing and register your
         device to the tracker.
 
         callable: It is a customized function for measurement.
@@ -102,7 +102,7 @@ def measure_option(measure_func='local',
         Set this according to the number of cpu cores (for compilation) and
         the number of devices you have (for measuring generate code).
     do_fork: bool, optional
-        Whether use multiprocessing (based on fork) for parallel measure jobs.
+        Whether use multiprocessing (based on fork) for running measure jobs in parallel.
         Set this to False if you want to debug or fork is not suitable for you case.
         NOTE: If this is False, parallel and timeout do not work.
     pack_size : int, optional
@@ -122,7 +122,7 @@ def measure_option(measure_func='local',
 
         'ndk': use Android NDK to create shared library. Use this for android target.
 
-        callable; customized build function for other backends (e.g. VTA)
+        callable: customized build function for other backends (e.g. VTA)
 
     rpc_priority: int, optional
         Priority of this task, used by scheduler in tracker

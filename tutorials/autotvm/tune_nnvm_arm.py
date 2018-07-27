@@ -175,8 +175,9 @@ tuning_option = {
    'measure_option': autotvm.measure_option(
        'rpc',
        rpc_device_key=device_key,
-       timeout=10,
-       parallel_num=1),
+       number=4,
+       parallel_num=1,
+       timeout=10),
 
    'use_transfer_learning': True,
 }
@@ -247,7 +248,7 @@ def tune_and_evaluate():
                 (np.mean(prof_res), np.std(prof_res)))
 
 # We do not run the tuning in our webpage server. Uncomment this line to run by yourself.
-tune_and_evaluate()
+# tune_and_evaluate()
 
 ######################################################################
 # Sample Output 

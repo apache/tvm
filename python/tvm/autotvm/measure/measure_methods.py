@@ -141,14 +141,15 @@ def _measure_pack(fbuild, input_pack, ref_input, ref_output):
 
 def default_build_func(inp, tmp_dir=None, **kwargs):
     """Build function module. Exception will be raised when any error occurs
-    
+
     Parameters
     ----------
     inp: MeasureInput
        The input of this measurement
     tmp_dir: tvm.contrib.util.TempDirectory, optional
-       The temporary directory for output built binary library.
-       In RPC mode, we will upload this library to remote device
+       The temporary directory for exporting built binary library.
+       If is not None (in RPC mode), the library in this direcotyr will be uploaded to
+       remote devices.
     kwargs: Dict
        Other arguments
 
@@ -237,7 +238,7 @@ def measure_rpc(input_pack,
 
         'ndk': use Android NDK to create shared library. Use this for android target
 
-        callable; customized build function for other backends (e.g. VTA)
+        callable: customized build function for other backends (e.g. VTA)
 
     kwargs: dict, optional
         Additional key word arguments
@@ -292,7 +293,7 @@ def measure_local(input_pack,
 
         'ndk': use Android NDK to create shared library. Use this for android target
 
-        callable; customized build function for other backends (e.g. VTA)
+        callable: customized build function for other backends (e.g. VTA)
 
     kwargs: dict, optional
         Additional key word arguments
@@ -307,9 +308,9 @@ def measure_local(input_pack,
         tmp_dir = util.tempdir()
 
         if build_func == 'default':
-            func, args, filename = default_build_func(inp, tmp_dir, **kwargs)
+            func, args, _ = default_build_func(inp, tmp_dir, **kwargs)
         else:
-            func, args, filename = build_func(inp, tmp_dir, **kwargs)
+            func, args, _ = build_func(inp, tmp_dir, **kwargs)
 
         ctx = context(str(inp.target), 0)
         time_f = func.time_evaluator(
