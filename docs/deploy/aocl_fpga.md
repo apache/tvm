@@ -12,7 +12,7 @@ We use two python scripts for this tutorial.
 import tvm
 
 tgt_host="llvm"
-tgt="aocl -device=de5net_a7 -mattr=emulator"
+tgt="aocl -device=s5_ref -mattr=emulator"
 
 n = tvm.var("n")
 A = tvm.placeholder((n,), name='A')
@@ -38,7 +38,7 @@ import tvm
 import numpy as np
 import os
 
-tgt="aocl -device=de5net_a7 -mattr=emulator"
+tgt="aocl -device=s5_ref -mattr=emulator"
 
 fadd = tvm.module.load("myadd.so")
 fadd_dev = tvm.module.load("myadd.aocx")
@@ -65,9 +65,9 @@ Setup
 ```
 /opt/intelFPGA/17.1/hld/linux64/lib/libalteracl.so
 ```
-- Create an FCD file for example at /opt/Intel/OpenCL/Boards/de5net.fcd so that your FPGA device can be found.
+- Create an FCD file for example at /opt/Intel/OpenCL/Boards/s5_ref.fcd so that your FPGA device can be found.
 ```
-/opt/intelFPGA/17.1/hld/board/terasic/linux64/lib/libterasic_apb_16_0_mmd.so
+/opt/intelFPGA/17.1/hld/board/s5_ref/linux64/lib/libaltera_s5_ref_mmd.so
 ```
 - Setup TVM with AOCL and OpenCL enabled.
 
@@ -83,7 +83,7 @@ python run.py
 ```
 
 - Run on FPGA devices (not tested)
-    - Change tgt value to "aocl -device=de5net_a7" on build.py and run.py
+    - Change tgt value to "aocl -device=s5_ref" on build.py and run.py
 ```
 unset CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA
 

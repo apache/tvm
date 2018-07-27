@@ -36,8 +36,10 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
     LOG(FATAL) << "AOCL device name not specified in build target.";
   }
   std::string cmd = "aoc aocl.cl";
-  if (target_str.find("-mattr=emulator") != std::string::npos) {
-    cmd += " -march=emulator";
+  for (std::string option : target->options()) {
+    if (option == "-mattr=emulator") {
+      cmd += " -march=emulator";
+    }
   }
   cmd += " -board=" + target->device_name;
   if (system(cmd.c_str()) != 0) {
