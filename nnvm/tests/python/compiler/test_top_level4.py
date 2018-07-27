@@ -399,7 +399,7 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
     def backward(head_grads, x, y):
         odim = len(out_shape)
 
-        keepdims = len(x.shape) == len(y.shape) 
+        keepdims = len(x.shape) == len(y.shape)
 
         if x.shape == (1,) and len(y.shape) == odim:
             x = np.reshape(x, ())
