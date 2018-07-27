@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.2)
 project(tvm C CXX)
+
 # Utility functions
 include(cmake/util/Util.cmake)
 include(cmake/util/FindCUDA.cmake)
