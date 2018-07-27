@@ -15,6 +15,10 @@ reg.register_schedule("expand_dims", _fschedule_broadcast)
 @reg.register_compute("expand_like")
 def compute_expand_like(attrs, inputs, _):
     """Compute definition of expand_like"""
+    if len(inputs[0].shape) == len(inputs[1].shape):
+        # If the number of dimensions is not changed then it is just a broadcasting
+        return topi.broadcast_to(inputs[0], inputs[1].shape)
+
     exclude = attrs.get_bool("exclude")
     axis = attrs.get_int_tuple("axis")
     if exclude:

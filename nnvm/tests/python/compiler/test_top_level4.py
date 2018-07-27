@@ -378,6 +378,13 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
 
     def forward(x, y):
         odim = len(out_shape)
+
+        if len(x.shape) == len(y.shape):
+            return np.broadcast_to(x, y.shape)
+
+        if x.shape == (1,) and len(y.shape) == odim:
+            x = np.reshape(x, ())
+
         real_axis = [i if i >= 0 else i + odim for i in axis]
         real_axis = sorted(real_axis)
         if exclude:
@@ -391,11 +398,17 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
 
     def backward(head_grads, x, y):
         odim = len(out_shape)
+
+        keepdims = len(x.shape) == len(y.shape)
+
+        if x.shape == (1,) and len(y.shape) == odim:
+            x = np.reshape(x, ())
+
         real_axis = [i if i >= 0 else i + odim for i in axis]
         real_axis = sorted(real_axis)
         if exclude:
             real_axis = list(set(range(odim)) - set(real_axis))
-        return [np.sum(head_grads, axis=tuple(real_axis)),
+        return [np.sum(head_grads, axis=tuple(real_axis), keepdims=keepdims),
                 np.zeros_like(y)]
 
 
@@ -410,6 +423,11 @@ def test_expand_like():
     verify_expand_like((2,), (2, 3), [1], False)
     verify_expand_like((3, 4), (3, 5, 4), [1], False)
     verify_expand_like((5, 7), (5, 6, 7, 8), [0, 2], True)
+    verify_expand_like((2, 3), (2, 3), [], False)
+    verify_expand_like((1,), (2, 3), [0, 1], False)
+    verify_expand_like((1, 1), (2, 3), [0, 1], False)
+    verify_expand_like((2, 1), (2, 3), [1], False)
+    verify_expand_like((1, 3), (2, 3), [0], False)
 
 
 def verify_elemwise_sum(num_args):
