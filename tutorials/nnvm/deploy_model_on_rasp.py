@@ -16,6 +16,8 @@ from tvm import rpc
 from tvm.contrib import util, graph_runtime as runtime
 
 ######################################################################
+# .. _build-tvm-runtime-on-device:
+#
 # Build TVM Runtime on Device
 # ---------------------------
 #
@@ -34,9 +36,7 @@ from tvm.contrib import util, graph_runtime as runtime
 # .. code-block:: bash
 #
 #   git clone --recursive https://github.com/dmlc/tvm
-#   cd tvm
-#   cp cmake/config.cmake .
-#   make runtime
+#   make runtime -j4
 #
 # After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`

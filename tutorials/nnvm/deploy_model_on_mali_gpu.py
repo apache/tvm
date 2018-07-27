@@ -40,7 +40,7 @@ from tvm.contrib import util, graph_runtime as runtime
 #   cd tvm
 #   cp cmake/config.cmake .
 #   sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake 
-#   make runtime
+#   make runtime -j4
 #
 # After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`

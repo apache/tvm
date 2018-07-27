@@ -16,8 +16,6 @@ and Firefly-RK3399 for opencl example.
 """
 
 ######################################################################
-# .. _build-tvm-runtime-on-device:
-#
 # Build TVM Runtime on Device
 # ---------------------------
 #
@@ -36,9 +34,7 @@ and Firefly-RK3399 for opencl example.
 # .. code-block:: bash
 #
 #   git clone --recursive https://github.com/dmlc/tvm
-#   cd tvm
-#   cp cmake/config.cmake .
-#   make runtime -j4
+#   make runtime -j2
 #
 # After building runtime successfully, we need to set environment varibles
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`

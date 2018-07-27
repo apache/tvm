@@ -362,7 +362,7 @@ def compute_flop(sch):
                 exp = body[0]
 
                 ret += num_element * _count_flop(exp)
-                ret += traverse([sch[t].op for t in op.input_tensors])
+                ret += traverse([t.op for t in op.input_tensors])
 
             elif isinstance(op, tensor.PlaceholderOp):
                 pass
@@ -382,5 +382,4 @@ def compute_flop(sch):
         raise RuntimeError("Cannot find float number operation in this operator. "
                            "Please use `cfg.add_flop` to manually set "
                            "FLOP for this operator")
-
     return ret

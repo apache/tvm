@@ -272,8 +272,6 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
     else:
         raise ValueError("Unsupported tile size for winograd: " + str(tile_size))
 
-
-
     m = A_data.shape[1]
     r = 3
     alpha = m + r - 1
@@ -337,6 +335,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
                          attrs={'workload': _winograd_conv_arg_to_workload(
                              data, kernel, strides, padding, layout, out_dtype, tile_size)})
 
+    # we have to manually assign effective GFLOP for winogard
     cfg.add_flop(2 * N * K * H * W * KH * KW * C)
     return output
 
@@ -360,13 +359,14 @@ def _schedule_winograd(cfg, s, output, last):
         s[G].compute_inline()
         eps, nu, k, c, kk, = s[U].op.axis
         r_kh, r_kw = s[U].op.reduce_axis
-        s[U].reorder(k, c, kk, eps, nu, r_kh, r_kw)
+        s[U].reorder(k, c, eps, nu, r_kh, r_kw, kk)
         s[U].unroll(eps)
         s[U].unroll(nu)
         s[U].unroll(r_kh)
         s[U].unroll(r_kw)
+        s[U].vectorize(kk)
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel transformation will be pre-computed during compliation, so we skip
+            # kernel transformation will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
             s[U].pragma(k, 'debug_skip_region')
         else:
@@ -377,13 +377,14 @@ def _schedule_winograd(cfg, s, output, last):
     s[B].compute_inline()
     eps, nu, b, c, bb = s[V].op.axis
     r_eps, r_nu = s[V].op.reduce_axis
-    s[V].reorder(b, c, bb, eps, nu)
+    s[V].reorder(b, c, eps, nu, r_eps, r_nu, bb)
     s[V].unroll(eps)
     s[V].unroll(nu)
     s[V].unroll(r_eps)
     s[V].unroll(r_nu)
+    s[DD].compute_at(s[V], c)
+    s[V].vectorize(bb)
     s[V].parallel(b)
-    s[DD].compute_at(s[V], bb)
 
     # batch gemm
     eps, nu, k, b = s[M].op.axis
@@ -416,13 +417,14 @@ def _schedule_winograd(cfg, s, output, last):
     s[last].parallel(co)
 
     MM = s.cache_read(M, 'global', [Y])
-    m = get_const_int(A.shape[1])
+    m = get_const_int(V.shape[0]) + 1 - 3
     ho, wo, hi, wi = s[last].tile(h, w, m, m)
     s[Y].compute_at(s[last], wo)
     s[MM].compute_at(s[last], wo)
 
     if output != last:
         s[output].compute_inline()
+
 
 def _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype, tile_size):
     """convert argument to workload"""
