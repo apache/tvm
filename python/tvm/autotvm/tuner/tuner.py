@@ -124,6 +124,8 @@ class Tuner(object):
 
             if i > self.best_iter + early_stopping:
                 logging.debug("Early stopped. Best iter: %d.", self.best_iter)
+                break
+
         GLOBAL_SCOPE.in_tuning = False
 
         del measure_batch

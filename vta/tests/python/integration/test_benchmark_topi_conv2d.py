@@ -22,7 +22,8 @@ def my_clip(x, a_min, a_max):
     return x
 
 def test_cpu_conv2d():
-    # load pre-tuned parameters
+    # download pre-tuned parameters
+    autotvm.record.download_pretuned_op_param('arm_cpu')
     autotvm.load_op_param()
 
     def run_cpu_conv2d(env, remote, key, batch_size, wl, profile=True):

@@ -15,7 +15,7 @@ the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://github.com/merrymercy/tvm/blob/arm_cpu/apps/benchmark/README.md#arm-cpu>`_
+`ARM CPU Benchmark https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu`_
 to see the results.
 """
 
@@ -158,14 +158,13 @@ def get_network(name, batch_size):
 target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
 
 # Also replace this with the device key in your tracker
-device_key = 'rk3399-other'
-
-network = 'resnet-18'
-log_file = "%s.%s.log" % (device_key, network)
-
-dtype = 'float32'
+device_key = 'rk3399'
 
 # tuning option
+network = 'resnet-18'
+log_file = "%s.%s.log" % (device_key, network)
+dtype = 'float32'
+
 tuning_option = {
    'log_filename': log_file,
    'rpc_device_key': device_key,
@@ -200,6 +199,8 @@ def tune_and_evaluate():
     tasks = autotvm.task.extract_from_graph(net, shape=shape, dtype=dtype,
                                             symbols=(nnvm.sym.conv2d,),
                                             target=target)
+
+    # run tuning tasks
     autotvm.tune_tasks(tasks, **tuning_option)
 
     # compile kernels with history best records
@@ -244,7 +245,7 @@ def tune_and_evaluate():
                 (np.mean(prof_res), np.std(prof_res)))
 
 # We do not run the tuning in our webpage server. Uncomment this line to run by yourself.
-# tune_and_evaluate()
+#tune_and_evaluate()
 
 ######################################################################
 # Sample Output 
