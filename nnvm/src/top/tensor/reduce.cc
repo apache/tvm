@@ -170,12 +170,18 @@ Example::
   "FGradient", [](const NodePtr& n,
                   const std::vector<NodeEntry>& ograds){
     const ReduceParam& param = nnvm::get<ReduceParam>(n->attrs.parsed);
-    std::ostringstream axis; axis << param.axis;
+    bool exclude = param.exclude;
+    TShape p_axis = param.axis;
+    if (!param.exclude && param.axis.ndim() == 0) {
+      exclude = true;
+      p_axis = TShape();
+    }
+    std::ostringstream axis; axis << p_axis;
     return std::vector<NodeEntry>{
       MakeNode("expand_like", n->attrs.name + "_grad",
                {ograds[0], n->inputs[0]},
                {{"axis", axis.str()},
-                {"exclude", std::to_string(param.exclude)}})
+                {"exclude", std::to_string(exclude)}})
   };
 });
 
