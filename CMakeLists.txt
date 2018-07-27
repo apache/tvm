@@ -78,6 +78,10 @@ else(MSVC)
   check_cxx_compiler_flag("-std=c++11"    SUPPORT_CXX11)
   set(CMAKE_C_FLAGS "-O2 -Wall -fPIC ${CMAKE_C_FLAGS}")
   set(CMAKE_CXX_FLAGS "-O2 -Wall -fPIC -std=c++11 ${CMAKE_CXX_FLAGS}")
+  if (CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND
+      CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 7.0)
+    set(CMAKE_CXX_FLAGS "-faligned-new ${CMAKE_CXX_FLAGS}")
+  endif()
 endif(MSVC)
 
 # add source group
