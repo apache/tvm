@@ -3,24 +3,22 @@
 This folder contain golang interface for TVM runtime. It brings TVM runtime to Golang.
 
 - It enable c runtime api of tvm exposed to golang.
-- We use swig (http://www.swig.org) for interface generation.
 - It enables module loading (lib, graph and params) and inference operations.
 
 ## Installation
 
 ### Requirements
 
-- swig 3.x for interface generation.
 - go compiler (https://golang.org/)
 
 ### Modules
 
 - runtime
   Module that generates golang package corresponding to the c runtime api exposed from tvm source tree.
-  This process include wrapers generation golang and building golang package _tvmgo.a_
+  This process build golang package _tvmgo.a_
 
 - sample
-  Sample golang reference application to load a compiled tvm module and inference through tvmgo package.
+  Sample golang reference applications to inference through tvmgo package.
 
 ### Build
 
@@ -41,4 +39,4 @@ complex : Reference application to deploy a realtime module with lib, graph and 
 
 ## TODO
 
-Function registration API are exposed via swig but not tested.
+Function registration API are not implemented.

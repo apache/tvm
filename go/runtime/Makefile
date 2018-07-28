@@ -1,9 +1,7 @@
 .PHONY: clean all
 
 TVM_BASE   = $(PWD)/../../
-SWIGEXE    = swig
-TARGET     = tvmgo
-INTERFACE  = tvmgo.i
+TARGET     = gotvm
 LIBS       = -lm -ldl
 NATIVE_SRC = tvm.cc
 
@@ -15,11 +13,11 @@ CGO_LDFLAGS="-ldl -lm"
 
 
 all:
-	@${SWIGEXE} -DSWIGWORDSIZE64 -go -c++ -cgo -intgosize 64 -I../../include -I../../dlpack/include -o $(TARGET)_wrap.cxx $(INTERFACE)
 	@mkdir gopath 2>/dev/null || true
 	@mkdir gopath/src 2>/dev/null || true
-	@mkdir gopath/src/$(INTERFACE:.i=) 2>/dev/null || true
-	@cp $(TARGET)_wrap.cxx gopath/src/$(TARGET)
+	@mkdir gopath/src/$(TARGET) 2>/dev/null || true
+	@cp $(TARGET).cxx gopath/src/$(TARGET)
+	@cp $(TARGET).h gopath/src/$(TARGET)
 	@cp $(NATIVE_SRC) gopath/src/$(TARGET)
 	@cp $(TARGET).go gopath/src/$(TARGET)
 	@export GOPATH=$(GOPATH); \
@@ -36,4 +34,4 @@ clean:
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) && go clean -cache); fi
 	rm -rf gopath
-	rm -f *_wrap* *.a $(TARGET).go *.o
+	rm -f *.a *.o
