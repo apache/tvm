@@ -11,6 +11,7 @@ from topi.rasp import conv2d as _rasp_conv2d
 from topi import generic
 
 _WORKLOADS = [
+    Workload('float32', 'float32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
     Workload('int8', 'int32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
     Workload('int8', 'int32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
     Workload('int8', 'int32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
@@ -26,6 +27,7 @@ _WORKLOADS = [
 ]
 _SCHEDULES = [
     # float32 imagenet
+    SpatialPack(1, 8, 4, 1, 4, True),
     SpatialPack(1, 8, 4, 1, 4, True),
     SpatialPack(1, 7, 4, 2, 4, True),
     SpatialPack(1, 4, 8, 4, 1, True),
