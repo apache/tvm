@@ -3,6 +3,7 @@ import numpy as np
 import os
 
 os.environ["XCL_EMULATION_MODE"] = "1"
+os.environ["CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA"] = "1"
 
 @tvm.register_func
 def tvm_callback_vhls_postproc(code):
@@ -43,6 +44,7 @@ def test_exp():
     if "AWS_PLATFORM" in os.environ:
         check_device("sdaccel -device=" + os.environ.get("AWS_PLATFORM"))
 
+    check_device("aocl -device=s5_ref -mattr=emulator")
 
 def test_multi_kernel():
     # graph
@@ -80,6 +82,7 @@ def test_multi_kernel():
             d.asnumpy(), a.asnumpy() * 2 + b.asnumpy(), rtol=1e-5)
 
     check_device("sdaccel")
+    check_device("aocl -device=s5_ref -mattr=emulator")
 
 
 if __name__ == "__main__":
