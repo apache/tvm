@@ -63,16 +63,12 @@ def measure_option(measure_func='local',
                    do_fork=True,
                    pack_size=1,
                    check_correctness=False,
-
+                   build_func='default',
+                   replay_db=None,
                    rpc_device_key=None,
                    rpc_priority=1,
                    rpc_timeout=60,
-                   rpc_tracker_addr=None,
-
-                   build_func='default',
-
-                   replay_db=None,
-                   save_to_replay_db=True):
+                   rpc_tracker_addr=None):
     """Configure how to do measurement
 
     Parameters
@@ -114,8 +110,6 @@ def measure_option(measure_func='local',
 
     replay_db : Database, optional
         The database that we retrieve saved MeasureResults from
-    save_to_replay_db: bool, optional
-        Whether save measure result to database. This is useless when replay_db is None
 
     build_func: str or callable, optional
         'default': call default builder. This works for normal target (llvm, cuda)
@@ -158,7 +152,6 @@ def measure_option(measure_func='local',
         'build_func': build_func,
 
         'replay_db': replay_db,
-        'save_to_replay_db': save_to_replay_db,
     }
 
 def create_measure_batch(task, options):
@@ -189,7 +182,6 @@ def create_measure_batch(task, options):
     rpc_priority, rpc_timeout = options['rpc_priority'], options['rpc_timeout']
     build_func = options['build_func']
     replay_db = options['replay_db']
-    save_to_replay_db = options['save_to_replay_db']
 
     kwargs = {}
     executor = LocalExecutor(timeout=timeout)
@@ -280,10 +272,6 @@ def create_measure_batch(task, options):
                 results.extend(result)
 
         if replay_db is not None:
-            if save_to_replay_db:  # save result to database
-                for measure_input, result in zip(measure_inputs, results):
-                    replay_db.save(measure_input, result)
-
             result_idx = 0
             for i in range(len(partial_results)):
                 if partial_results[i] is None:

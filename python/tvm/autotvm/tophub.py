@@ -4,6 +4,8 @@ To get the best performance, we typically need auto-tuning for the specific devi
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
 TVM will download these parameters for you when you create the target for the first time.
 """
+
+import logging
 import os
 import json
 
@@ -40,8 +42,9 @@ def context(target, extra_files=None):
             if os.path.isfile(os.path.join(rootpath, model) + ".log"):
                 best_context.load(os.path.join(rootpath, model) + ".log")
 
-    for filename in extra_files:
-        best_context.load(filename)
+    if extra_files:
+        for filename in extra_files:
+            best_context.load(filename)
 
     return best_context
 
@@ -81,7 +84,7 @@ def download_package(backend):
             if not os.path.isdir(path):
                 os.mkdir(path)
 
-    print("Download pre-tuned parameters for %s" % backend)
+    logging.info("Download pre-tuned parameters for %s" % backend)
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s.log" % backend,
              os.path.join(rootpath, backend + ".log"), True, verbose=0)
 
@@ -111,10 +114,9 @@ def list_packages():
     """
     path = tempdir()
     filename = path.relpath("info.json")
-    print("Download meta info for pre-tuned parameters")
+    logging.info("Download meta info for pre-tuned parameters")
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/info.json",
              filename, True, verbose=0)
-    print("")
 
     with open(filename, "r") as fin:
         text = "".join(fin.readlines())

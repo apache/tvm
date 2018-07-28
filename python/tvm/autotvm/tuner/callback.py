@@ -7,6 +7,7 @@ import numpy as np
 
 from .. import record
 
+
 def log_to_file(file_out, protocol='json'):
     """Log the tuning records into file.
     The rows of the log are stored in the format of autotvm.record.encode.
@@ -23,7 +24,6 @@ def log_to_file(file_out, protocol='json'):
     callback : callable
         Callback function to do the logging.
     """
-
     def _callback(_, inputs, results):
         """Callback implementation"""
         if isinstance(file_out, str):
@@ -36,53 +36,18 @@ def log_to_file(file_out, protocol='json'):
     return _callback
 
 
-def save_tuner_state(prefix, save_every_sample=100):
-    """Save the state of tuner
+def log_to_database(db):
+    """Save the tuning records to a database object.
 
     Parameters
     ----------
-    prefix : srt
-        prefix of the filename to store state
-    save_every_sample: int
-        save the state every x samples
-
-    Returns
-    -------
-    callback : function
-        Callback function to do the auto saving.
+    db: Database
+        The database
     """
-    def _callback(tuner, inputs, results):
-        for _, __ in zip(inputs, results):
-            try:
-                ct = len(tuner.visited)
-            except AttributeError:
-                ct = 0
-            if ct % save_every_sample == 0:
-                tuner.save_state(prefix + "_%d.state" % ct)
-
-    return _callback
-
-
-def log_to_redis(host="localhost", port=6379, dbn=11):
-    """Record the tuning record to a redis DB.
-
-    Parameters
-    ----------
-    host: str, optional
-        Host address of redis db
-    port: int, optional
-        Port of redis db
-    dbn: int, optional
-        which redis db to use, default 11
-    """
-    # import here so only depend on redis when necessary
-    import redis
-    red = redis.StrictRedis(host=host, port=port, db=dbn)
-
     def _callback(_, inputs, results):
         """Callback implementation"""
         for inp, result in zip(inputs, results):
-            red.set(inp, result)
+            db.save(inp, result)
     return _callback
 
 
@@ -125,8 +90,7 @@ def progress_bar(total, prefix=''):
     prefix: str
         The prefix of output message
     """
-
-    class Context:
+    class _Context:
         """Context to store local variables"""
         def __init__(self):
             self.best_flops = 0
@@ -137,7 +101,7 @@ def progress_bar(total, prefix=''):
         def __del__(self):
             sys.stdout.write(' Done.\n')
 
-    ctx = Context()
+    ctx = _Context()
     tic = time.time()
 
     def _callback(tuner, inputs, results):
@@ -155,6 +119,6 @@ def progress_bar(total, prefix=''):
                          '| %.2f s' %
                          (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
                           time.time() - tic))
-        sys.stdout.flush()  # As suggested by Rom Ruben
+        sys.stdout.flush()
 
     return _callback
