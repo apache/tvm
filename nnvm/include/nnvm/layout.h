@@ -298,7 +298,7 @@ class Layout {
     std::ostringstream repr;
     if (is_subdim(layout_simplified_[i])) {
       auto factor = subsizeof(layout_simplified_[i]);
-      CHECK_LT(factor, 0);
+      CHECK_GT(factor, 0);
       repr << factor;
     }
     repr << layout_simplified_[i];
