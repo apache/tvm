@@ -3,11 +3,6 @@ import numpy as np
 from tvm.contrib.nvcc import have_fp16, have_int8
 from tvm.contrib import nvcc
 
-@tvm.register_func
-def tvm_callback_cuda_compile(code):
-    ptx = nvcc.compile_cuda(code, target="ptx")
-    return ptx
-
 def test_cuda_vectorize_add():
     num_thread = 8
     def check_cuda(dtype, n, lanes):
@@ -37,6 +32,7 @@ def test_cuda_vectorize_add():
     check_cuda("float32", 64, 2)
     check_cuda("float16", 64, 2)
     check_cuda("int8", 64, 4)
+
 
 def test_cuda_multiply_add():
     num_thread = 8
