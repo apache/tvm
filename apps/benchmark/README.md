@@ -64,5 +64,6 @@ python3 -m tvm.exec.rpc_tracker
 
   If your device has a same SoC of the above device, you can reuse these parameters
   (e.g. use `llvm -device=arm_cpu -mode=rk3399 -target=aarch64-linux-gnu` as target).
-  Otherwise, you need to tune for your own device, please follow this [tutorial](please_fix_this_later.html).
+  Otherwise, you need to tune for your own device, please follow this 
+  [tutorial](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html).
 

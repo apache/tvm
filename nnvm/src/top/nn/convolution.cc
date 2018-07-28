@@ -131,8 +131,8 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
 }
 
 inline bool WinogradConv2DInferShape(const nnvm::NodeAttrs& attrs,
-                             std::vector<TShape>* in_shape,
-                             std::vector<TShape>* out_shape) {
+                                     std::vector<TShape>* in_shape,
+                                     std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
 

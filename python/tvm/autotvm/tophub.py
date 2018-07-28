@@ -1,9 +1,8 @@
 """
 TopHub: Tensor Operator Hub
 To get the best performance, we typically need auto-tuning for the specific devices.
-TVM releases pre-tuned parameters in TopHub (https://github.com/uwsaml/tvm-distro)
-for some common networks and hardware targets.
-TVM will donwload these parameters for you when you create the target for the first time.
+TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
+TVM will download these parameters for you when you create the target for the first time.
 """
 import os
 import json
@@ -15,18 +14,20 @@ from ..contrib.download import download
 
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
 
-def load_context(target, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
-    """Load dispatch context with pre-tuned parameters.
-    This function will load corresponding "*.log" files under root path
-    and select the best configs.
+
+def context(target, extra_files=None):
+    """Return the dispatch context with pre-tuned parameters.
+    The corresponding downloaded *.log files under tophub root path will be loaded.
+    Users can also add their own files in argument `extra_files`.
 
     Parameters
     ----------
     target: Target
         The compilation target
-    rootpath: str, optional
-        The root path of stored parameters
+    extra_files: list of str, optional
+        Extra log files to load
     """
+    rootpath = AUTOTVM_TOPHUB_ROOT_PATH
     best_context = ApplyHistoryBest([])
 
     big_target = str(target).split()[0]
@@ -39,20 +40,39 @@ def load_context(target, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
             if os.path.isfile(os.path.join(rootpath, model) + ".log"):
                 best_context.load(os.path.join(rootpath, model) + ".log")
 
+    for filename in extra_files:
+        best_context.load(filename)
+
+    return best_context
+
+
+def load_context(target, extra_files=None):
+    """Load the dispatch context with pre-tuned parameters.
+    The corresponding downloaded *.log files under tophub root path will be loaded.
+    Users can also add their own files in argument `extra_files`.
+
+    Parameters
+    ----------
+    target: Target
+        The compilation target
+    extra_files: list of str, optional
+        Extra log files to load
+    """
+    best_context = context(target, extra_files)
     assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
-    DispatchContext.current = best_context
+    best_context.__enter__()
 
 
-def download_package(backend, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
+def download_package(backend):
     """Download pre-tuned parameters of operators for a backend
 
     Parameters
     ----------
     backend: str
         The name of package
-    rootpath: str, optional
-        The root path of stored parameters
     """
+    rootpath = AUTOTVM_TOPHUB_ROOT_PATH
+
     if not os.path.isdir(rootpath):
         # make directory
         splits = os.path.split(rootpath)
@@ -66,7 +86,7 @@ def download_package(backend, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
              os.path.join(rootpath, backend + ".log"), True, verbose=0)
 
 
-def check_package(backend, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
+def check_package(backend):
     """Check whether have pre-tuned parameters of the certain target.
     If not, will download it.
 
@@ -74,10 +94,8 @@ def check_package(backend, rootpath=AUTOTVM_TOPHUB_ROOT_PATH):
     ----------
     backend: str
         The name of package
-    rootpath: str, optional
-        The root path of stored parameters
     """
-    if os.path.isfile(os.path.join(rootpath, backend + ".log")):
+    if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, backend + ".log")):
         return
 
     download_package(backend)
