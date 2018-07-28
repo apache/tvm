@@ -102,7 +102,6 @@ def filelock(path):
     return FileLock(path)
 
 
-<<<<<<< HEAD
 def is_source_path(path):
     """Check if path is source code path.
 
