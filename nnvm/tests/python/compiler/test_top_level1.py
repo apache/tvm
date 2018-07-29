@@ -176,9 +176,11 @@ def test_softmax():
         return [grad]
 
     dtype = "float32"
-    dshape = (10, 1000)
-    inputs = [(x, dshape)]
-    check_function(y, inputs, forward, backward, dtype=dtype)
+    inputs = [x]
+    check_function(y, inputs, forward, backward,
+                   shape={'x': (10, 1000)}, dtype=dtype, numerical_grads=False)
+    check_function(y, inputs, forward, backward,
+                   shape={'x': (2, 10)}, dtype=dtype)
 
 
 def test_log_softmax():
@@ -194,9 +196,11 @@ def test_log_softmax():
         return [grad]
 
     dtype = "float32"
-    dshape = (10, 1000)
-    inputs = [(x, dshape)]
-    check_function(y, inputs, forward, backward, dtype=dtype)
+    inputs = [x]
+    check_function(y, inputs, forward, backward,
+                   shape={'x': (10, 1000)}, dtype=dtype, numerical_grads=False)
+    check_function(y, inputs, forward, backward,
+                   shape={'x': (2, 10)}, dtype=dtype)
 
 
 def test_dense():
