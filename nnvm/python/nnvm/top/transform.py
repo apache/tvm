@@ -2,6 +2,7 @@
 """Tensor transformation ops"""
 from __future__ import absolute_import
 
+import tvm
 import topi
 from .tensor import _fschedule_broadcast, _fschedule_injective
 from . import registry as reg
