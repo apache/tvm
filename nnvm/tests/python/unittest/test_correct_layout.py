@@ -77,14 +77,12 @@ def test_concatenate():
     g, ldict = correct_layout(z, {"x": "HW", "y": "HW"})
     assert(ldict["x"][0] == "HW")
     assert(ldict["y"][0] == "HW")
-    assert(ldict["concat"][0] == "__undef__")
+    assert(ldict["concat"][0] == "HW")
     # second pass will insert layout transform
     _, ldict = correct_layout(g, {"x": "HW16w", "y": "HW16w"})
     assert(ldict["x"][0] == "HW16w")
     assert(ldict["y"][0] == "HW16w")
-    assert(ldict["x_HW"][0] == "HW")
-    assert(ldict["y_HW"][0] == "HW")
-    assert(ldict["concat"][0] == "__undef__")
+    assert(ldict["concat"][0] == "HW16w")
 
 
 def test_expand_dims():
