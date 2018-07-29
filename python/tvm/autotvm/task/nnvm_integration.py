@@ -198,7 +198,7 @@ class TaskExtractEnv:
                             not in self.task_collection:
                         self.task_collection.append((self.topi_to_task[local_func],
                                                      serialize_args(args)))
-                    with _target.create("llvm"):
+                    with _target.create("opencl"):
                         return local_func(*args)
 
             _local_scope(func)
@@ -279,7 +279,7 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
 
     # run compiler to collect all TOPI calls during compilation
     env.reset()
-    dummy_target = _target.create("llvm -device=dummy")
+    dummy_target = _target.create("opencl -device=dummy")
     nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
 
     tasks = []
