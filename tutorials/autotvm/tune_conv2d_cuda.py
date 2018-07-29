@@ -145,13 +145,13 @@ print(task.config_space)
 # use local gpu, measure 5 times for every config to reduce variance
 # run 8 parallel threads for compilation
 measure_option = autotvm.measure_option('local',
-                                        number=10,
+                                        number=5,
                                         parallel_num=8,
                                         timeout=20)
 
 # begin tuning, log records to file `conv2d.log`
 tuner = autotvm.tuner.XGBTuner(task)
-tuner.tune(n_trial=200,
+tuner.tune(n_trial=20,
            measure_option=measure_option,
            callbacks=[autotvm.callback.log_to_file('conv2d.log')])
 
