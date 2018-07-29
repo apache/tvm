@@ -108,7 +108,8 @@ def test_task_tuner_without_measurement():
     """test task and tuner without measurement"""
     task, target = get_sample_task()
 
-    def custom_measure(input_pack, **kwargs):
+    def custom_measure(input_pack, build_func, build_args, number, repeat,
+                       ref_input, ref_output):
         from tvm.autotvm import MeasureResult
 
         results = []
@@ -127,6 +128,7 @@ def test_task_tuner_without_measurement():
     for tuner_class in [autotvm.tuner.RandomTuner, autotvm.tuner.GridSearchTuner]:
         tuner = tuner_class(task)
         tuner.tune(n_trial=10, measure_option=measure_option)
+        assert tuner.best_flops > 1
 
 def test_tuning_with_measure():
     def check(target, target_host):
