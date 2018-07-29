@@ -84,7 +84,7 @@ def download_package(backend):
             if not os.path.isdir(path):
                 os.mkdir(path)
 
-    logging.info("Download pre-tuned parameters for %s" % backend)
+    logging.info("Download pre-tuned parameters for %s", backend)
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s.log" % backend,
              os.path.join(rootpath, backend + ".log"), True, verbose=0)
 

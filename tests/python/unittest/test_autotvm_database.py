@@ -163,7 +163,7 @@ def test_db_save_replay():
     measure_option = autotvm.measure_option('local',
                                             do_fork=False,
                                             timeout=2,
-                                            replay_db=_db, save_to_replay_db=True)
+                                            replay_db=_db)
     measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     batch_size = 2
@@ -183,6 +183,8 @@ def test_db_save_replay():
         results = measure_batch(inputs)
         all_results += results
         ct += 1
+    callback = autotvm.callback.log_to_database(_db)
+    callback(None, all_inputs, all_results)
 
     assert len(_db.db.keys()) == batch_size * TRIAL_LIMIT, \
         "%d vs %d" % (len(_db.db.keys()), batch_size * TRIAL_LIMIT)

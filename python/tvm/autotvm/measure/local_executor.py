@@ -106,22 +106,23 @@ class LocalFutureNoFork(executor.Future):
 
 
 class LocalExecutor(executor.Executor):
-    """Local executor that runs workers on the same machine with multiprocessing."""
-    def __init__(self, timeout=None):
+    """Local executor that runs workers on the same machine with multiprocessing.
+
+    Parameters
+    ----------
+    timeout: float, optional
+        timeout of a job. If time is out. A TimeoutError will be returned (not raised)
+    do_fork: bool, optional
+        For some runtime systems that do not support fork after initialization
+        (e.g. cuda runtime, cudnn). Set this to False if you have used these runtime
+        before submitting jobs.
+    """
+    def __init__(self, timeout=None, do_fork=True):
         self.timeout = timeout or executor.Executor.DEFAULT_TIMEOUT
+        self.do_fork = do_fork
 
     def submit(self, func, *args, **kwargs):
-        """
-
-        Note
-        ----------
-        By default, the executor will fork a new process for a new job
-        But some runtime does not support fork (e.g. cuda runtime, cudnn).
-        In this circumstance, you should set 'do_fork' to False in kwargs.
-        """
-        do_fork = kwargs.pop('do_fork', True)
-
-        if not do_fork:
+        if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
         queue = Queue(1)
