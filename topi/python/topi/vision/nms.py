@@ -2,7 +2,67 @@
 """Non-maximum suppression operator"""
 import tvm
 
-from tvm import api
+from tvm import api, hybrid
+
+@hybrid.script
+def rearrange_out(input, output):
+    """Rearrange nms output to move all valid entries to top.
+
+    Parameters
+    ----------
+    input : Tensor or Var or numpy NDArray
+        NMS output. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+
+    output : Tensor or Var or numpy NDArray
+        Transformed NMS output. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+        It should filled with invalid entry -1.
+    """
+    batch_size = input.shape[0]
+    num_anchors = input.shape[1]
+    elem_length = input.shape[2]
+    for i in range(batch_size):
+        valid_idx = 0
+        for j in range(num_anchors):
+            if input[i, j, 0] >= 0:
+                for k in range(elem_length):
+                    output[i, valid_idx, k] = input[i, j, k]
+                valid_idx += 1
+
+
+@hybrid.script
+def get_valid_counts(data, inter_data, valid_count, score_threshold):
+    """Get valid count of bounding boxes given a score threshlod.
+    Also moves valid boxes to the top of input data.
+
+    Parameters
+    ----------
+    data : Tensor or Var or numpy NDArray
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+
+    inter_data : Tensor or Var or numpy NDArray
+        Intermediate output. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+
+    valid_count : Tensor or Var or numpy NDArray
+        1-D tensor for valid number of boxes.
+
+    score_threshold : float
+        Lower limit of score for valid bounding boxes.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    for i in range(batch_size):
+        valid_count[i] = 0
+        inter_idx = 0
+        for j in range(num_anchors):
+            score = data[i, j, 1]
+            if score >= score_threshold:
+                valid_count[i] += 1
+                inter_data[i, inter_idx] = data[i, j]
+                inter_idx += 1
+
 
 def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, nms_topk):
     """Low level IR routing for transform location in multibox_detection operator.
@@ -107,12 +167,13 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
 
 
 @tvm.target.generic_func
-def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
+def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
+        do_rearrange=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
     ----------
-    data: tvm.Tensor
+    data : tvm.Tensor
         3-D tensor with shape [batch_size, num_anchors, 6].
         The last dimension should be in format of
         [class_id, score, box_left, box_top, box_right, box_bottom].
@@ -120,14 +181,17 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
     valid_count : tvm.Tensor
         1-D tensor for valid number of boxes.
 
-    nms_threshold : float
+    nms_threshold : optional, float
         Non-maximum suppression threshold.
 
-    force_suppress : boolean
+    force_suppress : optional, boolean
         Whether to suppress all detections regardless of class_id.
 
-    nms_topk : int
+    nms_topk : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    do_rearrange : optional, boolean
+        Whether to move all valid bounding boxes to the top.
 
     Returns
     -------
@@ -189,4 +253,7 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
                    dtype="float32",
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
                    tag="nms")
+    if do_rearrange:
+        normalized_out = tvm.compute(out.shape, lambda *index: -1)
+        hybrid.parse(rearrange_out, [out, normalized_out])
     return out
