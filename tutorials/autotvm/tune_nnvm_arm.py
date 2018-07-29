@@ -29,6 +29,8 @@ to see the results.
 #   pip install psutil xgboost
 #
 
+import logging
+
 import time
 import os
 
@@ -173,8 +175,7 @@ tuning_option = {
    'early_stopping': 200,
 
    'measure_option': autotvm.measure_option(
-       'rpc',
-       rpc_device_key=device_key,
+       autotvm.use_rpc(device_key),
        number=4,
        parallel_num=1,
        timeout=10),
@@ -248,7 +249,7 @@ def tune_and_evaluate():
                 (np.mean(prof_res), np.std(prof_res)))
 
 # We do not run the tuning in our webpage server. Uncomment this line to run by yourself.
-# tune_and_evaluate()
+#tune_and_evaluate()
 
 ######################################################################
 # Sample Output 

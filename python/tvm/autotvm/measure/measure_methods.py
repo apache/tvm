@@ -52,8 +52,8 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
     """
     # connect to the tracker
     if tracker_addr:
-        host = tracker_addr[0]
-        port = tracker_addr[1]
+        host = tracker_addr[0] or os.environ['TVM_TRACKER_HOST']
+        port = tracker_addr[1] or int(os.environ['TVM_TRACKER_PORT'])
     else:
         host = os.environ['TVM_TRACKER_HOST']
         port = int(os.environ['TVM_TRACKER_PORT'])

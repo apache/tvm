@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument('--tracker', type=str,
                         help="The address of RPC tracker in host:port format. "
                              "e.g. (10.77.1.234:9190)")
-    parser.add_argument('--key', type=str,
+    parser.add_argument('--key', type=str, default="",
                         help="The key used to identify the device type in tracker.")
     parser.add_argument('--silent', action='store_true',
                         help="Whether run in silent mode.")
