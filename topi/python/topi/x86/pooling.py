@@ -5,14 +5,27 @@ from .. import generic
 from .. import tag
 
 def _parallel_sch(sch):
+    reorder_axis = []
     if len(sch.op.axis) >= 5:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1], sch.op.axis[2])
-        sch.parallel(fused)
+        reorder_axis.append(fused)
+        for i in range(3, len(sch.op.axis) - 1):
+            reorder_axis.append(sch.op.axis[i])
     elif len(sch.op.axis) >= 3:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1])
-        sch.parallel(fused)
+        reorder_axis.append(fused)
+        for i in range(2, len(sch.op.axis) - 1):
+            reorder_axis.append(sch.op.axis[i])
     else:
         sch.parallel(sch.op.axis[0])
+        return
+    kw, kh = sch.op.reduce_axis
+    fuse_k = sch.fuse(kw, kh)
+    c = sch.op.axis[len(sch.op.axis) - 1]
+    reorder_axis += [fuse_k, c]
+    sch.reorder(*reorder_axis)
+    sch.vectorize(c)
+    sch.parallel(fused)
 
 
 @generic.schedule_pool.register(["cpu"])

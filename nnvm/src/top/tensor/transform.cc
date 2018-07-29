@@ -133,11 +133,9 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
   CHECK_EQ(olayouts->size(), 1U);
 
   for (size_t i = 0; i < ilayouts->size(); ++i) {
-    const Layout& input = last_ilayouts->at(i).defined() ?
-                          last_ilayouts->at(i) : ilayouts->at(i);
-    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
   }
-
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, ilayouts->at(0));
   return true;
 }
 
