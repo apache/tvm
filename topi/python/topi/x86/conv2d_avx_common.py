@@ -85,13 +85,16 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_vec[n, ic//sch.ic_bn, oh*HSTR+kh, ic%sch.ic_bn, ow*WSTR+kw] *
-                               kernel_vec[oc_chunk, ic//sch.ic_bn, kh, kw, ic%sch.ic_bn, oc_block],
+                       tvm.sum(data_vec[n, ic//sch.ic_bn, oh*HSTR+kh, ic%sch.ic_bn, ow*WSTR+kw]
+                               .astype(out_dtype) *
+                               kernel_vec[oc_chunk, ic//sch.ic_bn, kh, kw, ic%sch.ic_bn, oc_block]
+                               .astype(out_dtype),
                                axis=[ic, kh, kw]),
                        name='conv')
 
     unpack = tvm.compute(unpack_shape,
-                         lambda n, c, h, w: conv[n, c // sch.oc_bn, h, w, c % sch.oc_bn],
+                         lambda n, c, h, w: conv[n, c // sch.oc_bn, h, w, c % sch.oc_bn]
+                         .astype(out_dtype),
                          name='output_unpack',
                          tag='conv2d_nchw')
     return unpack
