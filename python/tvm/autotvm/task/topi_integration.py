@@ -77,7 +77,11 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
             def template_call(cfg, *args, **kwargs):
                 """call the topi func and attach workload to compute node"""
                 assert not kwargs, "Do not support kwargs in template function call"
-                node = f(cfg, *args, **kwargs)
+
+                if f == topi_compute.fdefault:
+                    node = f(*args, **kwargs)
+                else:
+                    node = f(cfg, *args, **kwargs)
 
                 # attach workload to return op
                 op = node.op
@@ -175,7 +179,10 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
             @config_dispatcher.register(template_keys)
             def template_call(cfg, outs):
                 """call the schedule func"""
-                return f(cfg, outs)
+                if f == topi_schedule.fdefault:
+                    return f(outs)
+                else:
+                    return f(cfg, outs)
 
     if func:
         _decorator(func)
