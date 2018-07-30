@@ -249,7 +249,7 @@ def tune_tasks(tasks,
 
         if use_transfer_learning:
             if os.path.isfile(tmp_log_file):
-                tuner_obj.load_history(record.load_from_file(tmp_log_file))
+                tuner_obj.load_history(autotvm.record.load_from_file(tmp_log_file))
 
         # do tuning
         tuner_obj.tune(n_trial=min(n_trial, len(tsk.config_space)),
@@ -260,7 +260,7 @@ def tune_tasks(tasks,
                            autotvm.callback.log_to_file(tmp_log_file)])
 
     # pick best records to a cache file
-    record.pick_best(tmp_log_file, log_filename)
+    autotvm.record.pick_best(tmp_log_file, log_filename)
     os.remove(tmp_log_file)
 
 
