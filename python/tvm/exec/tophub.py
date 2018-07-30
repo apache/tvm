@@ -10,12 +10,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--download", type=str, nargs='+',
                         help="Target to download. Use 'all' to download for all targets")
-    parser.add_argument("-l", action='store_true', help="List available packages")
+    parser.add_argument("-l", "--list", action='store_true', help="List available packages")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
 
-    if args.l:
+    if args.list:
         info = list_packages()
         print("\n%-20s %-20s" % ("Target", "Size"))
         print("-" * 41)
