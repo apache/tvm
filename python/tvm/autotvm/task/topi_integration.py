@@ -6,7 +6,7 @@ Decorators for registering tunable templates to topi
 from ... import _api_internal, tensor
 
 from ..util import get_func_name
-from .task import args_to_workload, dispatcher, register
+from .task import args_to_workload, dispatcher
 
 
 # A table that records all registered dispatcher for all targets

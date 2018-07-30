@@ -111,7 +111,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
 
         heap_items.sort(key=lambda item: -item[0])
         logging.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
-                     k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
+                      k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
         logging.debug("SA Maximums: %s", heap_items)
 
         if self.persistent:

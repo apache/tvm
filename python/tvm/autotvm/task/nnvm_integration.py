@@ -128,7 +128,7 @@ class TaskExtractEnv:
 
 def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
     """ Extract tuning tasks from a nnvm graph.
-    
+
     This function collects tunning tasks by building the graph
     with a "dummy" target and tracing all the calls to topi.
 
