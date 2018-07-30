@@ -187,7 +187,8 @@ public class Function extends TVMValue {
    * @return this
    */
   public Function pushArg(NDArrayBase arg) {
-    Base._LIB.tvmFuncPushArgHandle(arg.handle, TypeCode.ARRAY_HANDLE.id);
+    int id = arg.isView ? TypeCode.ARRAY_HANDLE.id : TypeCode.NDARRAY_CONTAINER.id;
+    Base._LIB.tvmFuncPushArgHandle(arg.handle, id);
     return this;
   }
 
@@ -247,7 +248,9 @@ public class Function extends TVMValue {
     } else if (arg instanceof byte[]) {
       Base._LIB.tvmFuncPushArgBytes((byte[]) arg);
     } else if (arg instanceof NDArrayBase) {
-      Base._LIB.tvmFuncPushArgHandle(((NDArrayBase) arg).handle, TypeCode.ARRAY_HANDLE.id);
+      NDArrayBase nd = (NDArrayBase) arg;
+      int id = nd.isView ? TypeCode.ARRAY_HANDLE.id : TypeCode.NDARRAY_CONTAINER.id;
+      Base._LIB.tvmFuncPushArgHandle(nd.handle, id);
     } else if (arg instanceof Module) {
       Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, TypeCode.MODULE_HANDLE.id);
     } else if (arg instanceof Function) {
