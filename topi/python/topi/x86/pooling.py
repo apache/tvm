@@ -35,7 +35,7 @@ def _parallel_sch(sch, oshape):
                 split_factor = i
                 break
         if split_factor > 1:
-            c_o, c_i = sch.split(c, split_factor)
+            _, c_i = sch.split(c, split_factor)
             sch.vectorize(c_i)
     sch.parallel(fused)
 

@@ -72,7 +72,7 @@ def schedule_concatenate(outs):
                 split_factor = i
                 break
         if split_factor > 1:
-            inner_o, inner_i = s[x].split(inner_axis, split_factor)
+            _, inner_i = s[x].split(inner_axis, split_factor)
             s[x].vectorize(inner_i)
     return s
 

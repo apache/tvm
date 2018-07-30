@@ -141,8 +141,7 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
       NNVM_ASSIGN_LAYOUT(*ilayouts, i, last_ilayouts->at(0));
     }
     NNVM_ASSIGN_LAYOUT(*olayouts, 0, last_ilayouts->at(0));
-  }
-  else {
+  } else {
     for (size_t i = 0; i < ilayouts->size(); ++i) {
       NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
     }
