@@ -102,9 +102,10 @@ def ActivationParams(op, insym, symtab):
     elif whichActivation == 'leakyReLU':
         return _sym.leaky_relu(insym, alpha=par.alpha)
     elif whichActivation == 'thresholdedReLU':
-        raise NotImplementedError('thresholdedReLU not implemented')
+        alpha_tensor = _sym.full_like(insym, fill_value=float(par.alpha))
+        return _sym.elemwise_mul(insym, _sym.greater(insym, alpha_tensor))
     elif whichActivation == 'PReLU':
-        raise NotImplementedError('PReLU not implemented')
+        return _sym.prelu(insym, alpha=par.alpha)
     elif whichActivation == 'tanh':
         return _sym.tanh(insym)
     elif whichActivation == 'scaledTanh':
@@ -113,12 +114,13 @@ def ActivationParams(op, insym, symtab):
     elif whichActivation == 'sigmoid':
         return _sym.sigmoid(insym)
     elif whichActivation == 'sigmoidHard':
-        raise NotImplementedError('sigmoidHard not immplemented')
+        transformX = (par.alpha * insym) + par.beta
+        return _sym.clip(transformX, a_min=0, a_max=1)
     elif whichActivation == 'ELU':
         return _sym.__mul_scalar__(_sym.__add_scalar__(
             _sym.exp(insym), scalar=-1), scalar=par.alpha)
     elif whichActivation == 'softsign':
-        raise NotImplementedError('softsign not implemented')
+        return insym / (1 + (_sym.relu(insym) + _sym.relu(_sym.negative(insym))))
     elif whichActivation == 'softplus':
         return _sym.log(_sym.__add_scalar__(_sym.exp(insym), scalar=1))
     elif whichActivation == 'parametricSoftplus':
