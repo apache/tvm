@@ -8,7 +8,10 @@ try:
 except ImportError:
     from Queue import Empty
 
-import psutil
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 from . import executor
 
@@ -120,6 +123,10 @@ class LocalExecutor(executor.Executor):
     def __init__(self, timeout=None, do_fork=True):
         self.timeout = timeout or executor.Executor.DEFAULT_TIMEOUT
         self.do_fork = do_fork
+
+        if self.do_fork:
+            if not psutil:
+                raise RuntimeError("Python package psutil is missing. please try `pip install psutil`")
 
     def submit(self, func, *args, **kwargs):
         if not self.do_fork:
