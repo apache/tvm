@@ -134,10 +134,10 @@ jobject newFunction(JNIEnv *env, jlong value) {
   return object;
 }
 
-jobject newNDArray(JNIEnv *env, jlong value) {
+jobject newNDArray(JNIEnv *env, jlong handle, jboolean isview) {
   jclass cls = env->FindClass("ml/dmlc/tvm/NDArrayBase");
-  jmethodID constructor = env->GetMethodID(cls, "<init>", "(J)V");
-  jobject object = env->NewObject(cls, constructor, value);
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(JZ)V");
+  jobject object = env->NewObject(cls, constructor, handle, isview);
   env->DeleteLocalRef(cls);
   return object;
 }
@@ -181,7 +181,9 @@ jobject tvmRetValueToJava(JNIEnv *env, TVMValue value, int tcode) {
     case kFuncHandle:
       return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
     case kArrayHandle:
-      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle));
+      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), true);
+    case kNDArrayContainer:
+      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), false);
     case kStr:
       return newTVMValueString(env, value.v_str);
     case kBytes:
