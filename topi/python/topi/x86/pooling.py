@@ -119,7 +119,7 @@ def schedule_global_pool(outs):
         # schedule pool
         elif OP.tag.startswith('global_pool'):
             Pool = OP.output(0)
-            _parallel_sch(s[Pool])
+            _parallel_sch(s[Pool], outs[0].shape)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
 
