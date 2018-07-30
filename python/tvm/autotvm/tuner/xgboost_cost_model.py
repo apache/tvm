@@ -139,9 +139,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
-        if np.max(y_train) < 1e-6:
-            return
-        y_train = y_train / np.max(y_train)
+        y_max = np.max(y_train)
+        y_train = y_train / max(y_max, 1e-8)
 
         valid_index = y_train > 1e-6
         index = np.random.permutation(len(x_train))
@@ -190,9 +189,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = xs
         y_train = ys
-        if np.max(y_train) < 1e-6:
-            return
-        y_train /= np.max(y_train)
+        y_max = np.max(y_train)
+        y_train = y_train / max(y_max, 1e-8)
 
         index = np.random.permutation(len(x_train))
         dtrain = xgb.DMatrix(x_train[index], y_train[index])
