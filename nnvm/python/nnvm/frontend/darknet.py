@@ -673,6 +673,31 @@ class GraphProto(object):
             self._sym_array[layer_num] = sym
             processed = True
 
+        elif LAYERTYPE.CRNN == layer.type:
+            attr.update({'n' : layer.n})
+            attr.update({'batch' : layer.batch})
+            attr.update({'num_hidden' : str(layer.outputs)})
+
+            state = self._get_rnn_state_buffer(layer)
+
+            for _ in range(layer.steps):
+                input_layer = layer.input_layer
+                sym = self._get_darknet_rnn_attrs(input_layer, sym)
+
+                self_layer = layer.self_layer
+                state = self._get_darknet_rnn_attrs(self_layer, state)
+
+                op_name, new_attrs = 'elemwise_add', {}
+                new_inputs = _as_list([sym, state])
+                state = _darknet_get_nnvm_op(op_name)(*new_inputs, **new_attrs)
+                self._outs.append(state)
+
+                output_layer = layer.output_layer
+                sym = self._get_darknet_rnn_attrs(output_layer, state)
+
+            self._sym_array[layer_num] = sym
+            processed = True
+
         return processed, sym
 
     def from_darknet(self):
