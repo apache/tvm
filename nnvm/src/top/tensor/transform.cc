@@ -129,13 +129,25 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
                                      std::vector<Layout> *ilayouts,
                                      const std::vector<Layout> *last_ilayouts,
                                      std::vector<Layout> *olayouts) {
+  const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
-  for (size_t i = 0; i < ilayouts->size(); ++i) {
-    NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
+  if (param.axis >= ilayouts->at(0).ndim()) {
+    for (size_t i = 0; i < ilayouts->size(); ++i) {
+      CHECK(last_ilayouts->at(0).defined())
+        << "If concatenate axis is equal to or larger than the current "
+          "layout dimension, original layout needs to be defines.";
+      NNVM_ASSIGN_LAYOUT(*ilayouts, i, last_ilayouts->at(0));
+    }
+    NNVM_ASSIGN_LAYOUT(*olayouts, 0, last_ilayouts->at(0));
   }
-  NNVM_ASSIGN_LAYOUT(*olayouts, 0, ilayouts->at(0));
+  else {
+    for (size_t i = 0; i < ilayouts->size(); ++i) {
+      NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
+    }
+    NNVM_ASSIGN_LAYOUT(*olayouts, 0, ilayouts->at(0));
+  }
   return true;
 }
 

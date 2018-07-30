@@ -4,7 +4,7 @@ import tvm
 from .. import generic
 from .. import tag
 
-def _parallel_sch(sch):
+def _parallel_sch(sch, oshape):
     reorder_axis = []
     if len(sch.op.axis) >= 5:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1], sch.op.axis[2])
@@ -24,8 +24,21 @@ def _parallel_sch(sch):
     c = sch.op.axis[len(sch.op.axis) - 1]
     reorder_axis += [fuse_k, c]
     sch.reorder(*reorder_axis)
-    sch.vectorize(c)
+    inner_length = oshape[len(oshape) - 1].value
+    vectorize_limit = 64
+    if inner_length <= vectorize_limit:
+        sch.vectorize(c)
+    else:
+        split_factor = 1
+        for i in reversed(range(1, inner_length)):
+            if inner_length % i == 0 and i <= vectorize_limit:
+                split_factor = i
+                break
+        if split_factor > 1:
+            c_o, c_i = sch.split(c, split_factor)
+            sch.vectorize(c_i)
     sch.parallel(fused)
+
 
 
 @generic.schedule_pool.register(["cpu"])
@@ -50,7 +63,7 @@ def schedule_pool(outs):
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
-        _parallel_sch(s[Pool])
+        _parallel_sch(s[Pool], outs[0].shape)
 
     def traverse(OP):
         """Internal travserse function"""

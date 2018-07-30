@@ -84,6 +84,19 @@ def test_concatenate():
     assert(ldict["y"][0] == "HW16w")
     assert(ldict["concat"][0] == "HW16w")
 
+    x1 = sym.Variable("x", shape=(10, 20, 60))
+    x2 = sym.Variable("y", shape=(10, 30, 60))
+    z = sym.concatenate(x1, x2, axis=2, name="concat")
+    g, ldict = correct_layout(z, {"x": "HW60w", "y": "HW60w"})
+    assert(ldict["x"][0] == "HW60w")
+    assert(ldict["y"][0] == "HW60w")
+    assert(ldict["concat"][0] == "HW60w")
+    # second pass will insert layout transform
+    _, ldict = correct_layout(g, {"x": "HW", "y": "HW"})
+    assert(ldict["x_HW60w"][0] == "HW60w")
+    assert(ldict["x_HW60w"][0] == "HW60w")
+    assert(ldict["concat"][0] == "HW60w")
+
 
 def test_expand_dims():
     x = sym.Variable("x", shape=(10, 20))
