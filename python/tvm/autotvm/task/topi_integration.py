@@ -5,7 +5,7 @@ Decorators for registering tunable templates to TOPI.
 These decorators can make your simple implementation be able to use different configurations
 for different workloads.
 Here we directly use all arguments to the TOPI call as "workload", so make sure all the arguments
-(except tvm.Tensor) in you calls are hashable. For tvm.Tensor, we will serialize it to a hashable 
+(except tvm.Tensor) in you calls are hashable. For tvm.Tensor, we will serialize it to a hashable
 tuple.
 
 See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
