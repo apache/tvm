@@ -71,6 +71,7 @@ def graph_to_function(graph, target, ctx):
 
 def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=None,
                    shape=None, dtype=None, in_range=None,
+                   exclude_targets=None, only_targets=None,
                    numerical_grads='if_possible', delta=1e-2,
                    atol=1e-5, rtol=1e-5, ng_atol=1e-2, ng_rtol=1e-2,
                    dump_graph=False):
@@ -108,6 +109,12 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
         (the same for all variables). Input values will be generated from
         uniform distributions on these ranges. `head_grads` can also be
         assigned a range this way.
+
+    exclude_targets : Set[str]
+        Skip compiling and running anything for these targets.
+
+    only_targets : Set[str]
+        Test only for those targets from `ctx_list()` that are also in this set.
 
     numerical_grads : bool or "if_possible"
         Whether to additionally check against numerically computed gradients. If 'if_possible' is
@@ -245,22 +252,43 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
 
     # Compute and compare the results
     for target, ctx in ctx_list():
+        if (exclude_targets is not None and (target in exclude_targets or
+                                             str(target) in exclude_targets)) or\
+           (only_targets is not None and not (target in only_targets or
+                                              str(target) in only_targets)):
+            logging.info("Skipping target = %s, ctx = %s", target, ctx)
+            continue
+
+        logging.info("Checking computation on target = %s, ctx = %s", target, ctx)
+
+        debug_stage = None
+
         try:
+            debug_stage = "compiling"
             nnvm_res = None
             main_function = graph_to_function(main_graph, target, ctx)
             # nnvm_res contains the output and gradients (if they are needed)
             nnvm_res = main_function(**np_inputs)
 
             if np_forward is not None:
+                debug_stage = "checking forward computation"
+                logging.debug(debug_stage)
+
                 numpy_res = np_forward(**np_inputs_without_head_grads)
                 np.testing.assert_allclose(nnvm_res[0], numpy_res, atol=atol, rtol=rtol)
 
             if np_backward is not None:
+                debug_stage = "checking gradients"
+                logging.debug(debug_stage)
+
                 numpy_grads = np_backward(**np_inputs)
                 for i, np_grad in enumerate(numpy_grads):
                     np.testing.assert_allclose(nnvm_res[i + 1], np_grad, atol=atol, rtol=rtol)
 
             if numerical_grads:
+                debug_stage = "checking gradients numerically"
+                logging.debug(debug_stage)
+
                 forward_function = graph_to_function(forward_graph, target, ctx)
 
                 # Since the result may be non-scalar, we have to put another operation on the top,
@@ -283,7 +311,7 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
                     delta=delta, atol=ng_atol, rtol=ng_rtol)
 
         except:
-            print("\ncheck_function failed, here is the main graph")
+            print("\ncheck_function failed while {}, here is the main graph".format(debug_stage))
             print(main_graph.ir(join_node_attrs=['shape', 'dtype']))
             if nnvm_res is not None:
                 print("Generated inputs:")

@@ -218,7 +218,9 @@ def test_dense():
         (w, (3, 100)),
         (b, (3,))
     ]
-    check_function(y, inputs, forward, dtype=dtype)
+    # Don't check gradients on cuda because is doesn't yet support ewise after reduce
+    check_function(y, inputs, forward, dtype=dtype, exclude_targets={'cuda'}, numerical_grads=True)
+    check_function(y, inputs, forward, dtype=dtype, only_targets={'cuda'}, numerical_grads=False)
 
 
 def test_batchnorm():
