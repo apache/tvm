@@ -133,7 +133,7 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
-  if (static_cast<dim_t>(param.axis) >= ilayouts->at(0).ndim()) {
+  if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
     for (size_t i = 0; i < ilayouts->size(); ++i) {
       CHECK(last_ilayouts->at(0).defined())
         << "If concatenate axis is equal to or larger than the current "
