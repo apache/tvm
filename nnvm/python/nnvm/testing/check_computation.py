@@ -74,6 +74,7 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
                    exclude_targets=None, only_targets=None,
                    numerical_grads='if_possible', delta=1e-2,
                    atol=1e-5, rtol=1e-5, ng_atol=1e-2, ng_rtol=1e-2,
+                   ng_max_error=1e+3, ng_max_discarded_frac=0.1,
                    dump_graph=False):
     """Compute the function and/or its gradients on a random input and raise
     an exception if the result doesn't match the reference implementation.
@@ -137,6 +138,12 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
     ng_rtol : float
         Relative tolerance for numerical grad checking.
 
+    ng_max_error : float
+        Discard numerical partial derivatives whose estimated error is larger than this value.
+
+    ng_max_discarded_frac : float
+        Allow discarding no more than this fraction of partial derivatives.
+
     dump_graph : bool
         Dump the graph even on success.
     """
@@ -158,7 +165,13 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
         if isinstance(x, tuple):
             if len(x) != 2:
                 raise ValueError("Expected (var_name, shape), not {}".format(x))
-            shape[x[0] if isinstance(x[0], str) else x[0].attr('name')] = x[1]
+            x_name = x[0] if isinstance(x[0], str) else x[0].attr('name')
+            if x_name in shape:
+                if shape[x_name] != x[1]:
+                    raise ValueError("Can't decide which shape to use for {}: "
+                                     "{} from shape or {} from grad_input_vars"
+                                     .format(x_name, shape[x_name], x[1]))
+            shape[x_name] = x[1]
             x = x[0]
 
         grad_input_vars_real.append(input_dict[x] if isinstance(x, str) else x)
@@ -308,7 +321,10 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
                     input_values=np_inputs_without_head_grads,
                     function_value=function_value,
                     grad_values=grad_values,
-                    delta=delta, atol=ng_atol, rtol=ng_rtol)
+                    delta=delta,
+                    max_error=ng_max_error,
+                    max_discarded_frac=ng_max_discarded_frac,
+                    atol=ng_atol, rtol=ng_rtol)
 
         except:
             print("\ncheck_function failed while {}, here is the main graph".format(debug_stage))
@@ -320,8 +336,9 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
             raise
 
 
-def check_numerical_grads(function, grad_input_vars, input_values, grad_values,
-                          function_value=None, delta=1e-3, atol=1e-2, rtol=1e-2):
+def check_numerical_grads(function, grad_input_vars, input_values, grad_values, function_value=None,
+                          delta=1e-3, max_error=1e+3, max_discarded_frac=0.1,
+                          atol=1e-2, rtol=1e-2):
     """A helper function that checks that numerical gradients of a function are equal to
     gradients computed in some different way.
 
@@ -351,6 +368,12 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values,
 
     delta : float
         A small number used for numerical computation of partial derivatives.
+
+    max_error : float
+        Discard numerical partial derivatives whose estimated error is larger than this value.
+
+    max_discarded_frac : float
+        Allow discarding no more than this fraction of partial derivatives.
 
     atol : float
         Absolute tolerance.
@@ -382,6 +405,9 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values,
                 "Gradient wrt '{}' has unexpected shape {}, expected {} "
                 .format(x.attr('name'), grad.shape, input_values[x_name].shape))
 
+        discarded_count = 0
+        nondiscarded_count = 0
+
         ngrad1 = np.zeros_like(grad)
         ngrad2 = np.zeros_like(grad)
 
@@ -389,6 +415,23 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values,
         for j in range(np.prod(grad.shape)):
             ngrad1.reshape(-1)[j] = derivative(x_name, j, delta)
             ngrad2.reshape(-1)[j] = derivative(x_name, j, -delta)
+
+            error_estimation = np.abs(ngrad1.reshape(-1)[j] - ngrad2.reshape(-1)[j])
+            if error_estimation > max_error or not np.isfinite(error_estimation):
+                logging.warning("Estimated error for the partial derivative number %i wrt %s "
+                                "is too large (or nan): %f; This derivative will be discarded.",
+                                j, x_name, error_estimation)
+                ngrad1.reshape(-1)[j] = ngrad2.reshape(-1)[j] = grad.reshape(-1)[j]
+                discarded_count += 1
+            else:
+                nondiscarded_count += 1
+
+        if discarded_count / (discarded_count + nondiscarded_count) > max_discarded_frac:
+            raise AssertionError(
+                "Too many ({} out of {}) numerical derivatives wrt {} were discarded "
+                "because of high estimated error. Try changing parameters like delta "
+                "or in_range, or turn off numerical grad checking for this function."
+                .format(discarded_count, discarded_count + nondiscarded_count, x_name))
 
         ngrad = (ngrad1 + ngrad2)/2
         dist_1_2 = np.linalg.norm(ngrad1 - ngrad2)

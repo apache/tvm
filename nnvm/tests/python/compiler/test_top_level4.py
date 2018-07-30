@@ -225,7 +225,10 @@ def test_broadcast():
         da = head_grads / b
         db = _collapse(- head_grads * a / b**2)
         return da, db
-    check_function(y, inputs, lambda a, b: a / b, _backward_div, dtype=dtype)
+    # We avoid computing numerical derivatives too close to zero here
+    check_function(y, inputs, lambda a, b: a / b, _backward_div, dtype=dtype, numerical_grads=False)
+    check_function(y, inputs, lambda a, b: a / b, _backward_div, dtype=dtype,
+                   in_range={'b': (0.1, 20)})
 
     y = sym.broadcast_mod(a, b)
     check_function(y, inputs,
