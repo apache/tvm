@@ -215,8 +215,7 @@ def schedule_conv2d(outs):
         s[C].reorder(fused, rc, h, wo, ry, rx, wi)  # move rc to outer loop
         s[C].unroll(rx)
         s[C].unroll(ry)
-        if w.dom.extent.value % 16 == 0:
-            s[C].vectorize(wi)
+        s[C].vectorize(wi)
 
     def traverse(op):
         """Traverse operators from computation graph"""
