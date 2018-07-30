@@ -135,10 +135,9 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
 
   if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
     for (size_t i = 0; i < ilayouts->size(); ++i) {
-      CHECK(last_ilayouts->at(0).defined())
-        << "If concatenate axis is equal to or larger than the current "
-          "layout dimension, original layout needs to be defines.";
-      NNVM_ASSIGN_LAYOUT(*ilayouts, i, last_ilayouts->at(0));
+      const Layout& input = last_ilayouts->at(i).defined() ?
+                            last_ilayouts->at(i) : ilayouts->at(i);
+      NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
     }
     NNVM_ASSIGN_LAYOUT(*olayouts, 0, last_ilayouts->at(0));
   } else {
