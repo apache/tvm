@@ -126,7 +126,8 @@ class LocalExecutor(executor.Executor):
 
         if self.do_fork:
             if not psutil:
-                raise RuntimeError("Python package psutil is missing. please try `pip install psutil`")
+                raise RuntimeError("Python package psutil is missing. "
+                                   "please try `pip install psutil`")
 
     def submit(self, func, *args, **kwargs):
         if not self.do_fork:
