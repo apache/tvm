@@ -172,6 +172,6 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
     for task_name, args in env.get_tasks():
         tasks.append(create(task_name, args,
                             target=target, target_host=target_host,
-                            template_key='vanilla'))
+                            template_key='direct'))
 
     return tasks

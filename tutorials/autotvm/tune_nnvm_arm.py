@@ -40,6 +40,7 @@ import nnvm.testing
 import nnvm.compiler
 import tvm
 from tvm import autotvm
+from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
 
@@ -151,8 +152,8 @@ def get_network(name, batch_size):
 #    ----------------------------
 
 ###########################################
-# Begin Tuning
-# ------------
+# Set Tuning Options
+# ------------------
 # Now we can extract tuning tasks from the network and begin tuning.
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
@@ -199,6 +200,73 @@ tuning_option = {
 #   to use Android NDK for creating shared library.
 #
 
+
+###################################################################
+# Begin Tuning
+# ------------
+# Now we can begin tuning. Here we provide a simple utility function to tune a list of tasks.
+# This function is just an initial implementation which tune them in sequential order.
+# Later we will bring more sophisticated tuner scheduler.
+
+
+# You can skip the implementation of function for this tutorial.
+def tune_tasks(tasks,
+               measure_option,
+               tuner='xgb',
+               n_trial=500,
+               early_stopping=200,
+               log_filename='tuning.log',
+               use_transfer_learning=True,
+               try_winograd=True):
+    if try_winograd:
+        for i in range(len(tasks)):
+            try:  # try winograd template
+                tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
+                                          tasks[i].target, tasks[i].target_host, 'winograd')
+                tasks.append(tsk)
+            except Exception:
+                pass
+
+    # create tmp log file
+    tmp_log_file = log_filename + ".tmp"
+    if os.path.exists(tmp_log_file):
+        os.remove(tmp_log_file)
+
+    for i, tsk in enumerate(tasks):
+        prefix = "[Task %2d/%2d] " %(i+1, len(tasks))
+
+        # create tuner
+        if tuner == 'xgb' or tuner == 'xgb-rank':
+            tuner_obj = XGBTuner(tsk, loss_type='rank')
+        elif tuner == 'ga':
+            tuner_obj = GATuner(tsk, pop_size=50)
+        elif tuner == 'random':
+            tuner_obj = RandomTuner(tsk)
+        elif tuner == 'gridsearch':
+            tuner_obj = GridSearchTuner(tsk)
+        else:
+            raise ValueError("Invalid tuner: " + tuner)
+
+        if use_transfer_learning:
+            if os.path.isfile(tmp_log_file):
+                tuner_obj.load_history(record.load_from_file(tmp_log_file))
+
+        # do tuning
+        tuner_obj.tune(n_trial=min(n_trial, len(tsk.config_space)),
+                       early_stopping=early_stopping,
+                       measure_option=measure_option,
+                       callbacks=[
+                           autotvm.callback.progress_bar(n_trial, prefix=prefix),
+                           autotvm.callback.log_to_file(tmp_log_file)])
+
+    # pick best records to a cache file
+    record.pick_best(tmp_log_file, log_filename)
+    os.remove(tmp_log_file)
+
+
+########################################################################
+# Finally we launch tuning jobs and evaluate the end-to-end performance.
+
 def tune_and_evaluate():
     # extract workloads from nnvm graph
     net, params, shape, out_shape = get_network(network, batch_size=1)
@@ -207,7 +275,7 @@ def tune_and_evaluate():
                                             target=target)
 
     # run tuning tasks
-    autotvm.tune_tasks(tasks, **tuning_option)
+    tune_tasks(tasks, **tuning_option)
 
     # compile kernels with history best records
     with autotvm.apply_history_best(log_file):
@@ -244,11 +312,12 @@ def tune_and_evaluate():
         # evaluate
         print("Evaluate inference time cost...")
         ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=10)
-        prof_res = np.array(ftimer().results) * 1000 # convert to millionsecond
+        prof_res = np.array(ftimer().results) * 1000 # convert to million second
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
                 (np.mean(prof_res), np.std(prof_res)))
 
-# We do not run the tuning in our webpage server. Uncomment this line to run by yourself.
+# We do not run the tuning in our webpage server since it takes too long.
+# Uncomment the following line to run by yourself.
 #tune_and_evaluate()
 
 ######################################################################

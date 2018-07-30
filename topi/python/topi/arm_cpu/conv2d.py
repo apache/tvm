@@ -30,12 +30,12 @@ def config_dispatcher(data, kernel, strides, padding, layout, out_dtype):
     this template can assign config according to workload"""
     return _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
 
-@config_dispatcher.register(['vanilla'])
+@config_dispatcher.register(['direct'])
 def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
     """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=2)
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['vanilla', 'winograd'])
+@autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -495,7 +495,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                                          layout, out_dtype)
         cfg = autotvm.task.DispatchContext.current.query(tvm.target.current_target(), workload)
 
-        if cfg.template_key == 'vanilla':  # simple packing
+        if cfg.template_key == 'direct':  # packing weight tensor
             new_attrs['kernel_layout'] = 'OIHW%do' % (cfg['tile_co'].size[-1])
             return sym.conv2d(*copy_inputs, **new_attrs)
         else:  # pre-compute weight transformation in winograd

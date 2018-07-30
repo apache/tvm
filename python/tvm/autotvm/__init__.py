@@ -23,7 +23,7 @@ from . import tophub
 
 # some shortcuts
 from .measure import measure_option, MeasureInput, MeasureResult, MeasureErrorNo, use_rpc
-from .tuner import callback, tune_tasks
+from .tuner import callback
 from .task import template, get_config, create, ConfigSpace, ConfigEntity
 from .record import ApplyHistoryBest as apply_history_best
 from .env import GLOBAL_SCOPE
