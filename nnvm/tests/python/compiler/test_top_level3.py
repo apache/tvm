@@ -5,15 +5,15 @@ import topi.testing
 import nnvm.symbol as sym
 import nnvm.compiler
 from nnvm.testing.config import ctx_list
-from test_top_level1 import helper
+from nnvm.testing.check_computation import check_function
 
 def check_map(symfunc, np_func, np_backward=None, dtype="float32", rnd_min=-1, rnd_max=1):
     x = sym.Variable("x")
     y = symfunc(x)
     dshape = (1, 3, 32, 32)
-    inputs = [('x', dshape, x)]
-    helper(y, inputs, dtype, lambda x: np_func(x), np_backward,
-           rnd_min=rnd_min, rnd_max=rnd_max)
+    inputs = [('x', dshape)]
+    check_function(y, inputs, lambda x: np_func(x), np_backward,
+                   dtype=dtype, in_range=(rnd_min, rnd_max))
 
 
 def test_floor():
