@@ -261,11 +261,11 @@ def tune_and_evaluate():
 # 
 # .. code-block:: bash
 #
-# [Task  1/16]  Current/Best:   15.48/  21.21 GFLOPS | Progress: (412/1000) | 531.53 s Done.
-# [Task  2/16]  Current/Best:   18.85/  23.81 GFLOPS | Progress: (269/1000) | 261.59 s Done.
-# [Task  3/16]  Current/Best:   10.58/  14.46 GFLOPS | Progress: (406/1000) | 317.72 s Done.
-# [Task  4/16]  Current/Best:   14.74/  21.69 GFLOPS | Progress: (268/1000) | 246.84 s Done.
-# [Task  5/16]  Current/Best:    6.58/  16.31 GFLOPS | Progress: (376/1000) | 301.62 s Done.
-# [Task  6/16]  Current/Best:    9.70/  25.04 GFLOPS | Progress: (127/1000) | 154.13 s
-# ....
+#  [Task  1/16]  Current/Best:   15.48/  21.21 GFLOPS | Progress: (412/1000) | 531.53 s Done.
+#  [Task  2/16]  Current/Best:   18.85/  23.81 GFLOPS | Progress: (269/1000) | 261.59 s Done.
+#  [Task  3/16]  Current/Best:   10.58/  14.46 GFLOPS | Progress: (406/1000) | 317.72 s Done.
+#  [Task  4/16]  Current/Best:   14.74/  21.69 GFLOPS | Progress: (268/1000) | 246.84 s Done.
+#  [Task  5/16]  Current/Best:    6.58/  16.31 GFLOPS | Progress: (376/1000) | 301.62 s Done.
+#  [Task  6/16]  Current/Best:    9.70/  25.04 GFLOPS | Progress: (127/1000) | 154.13 s
+#  ....
 
