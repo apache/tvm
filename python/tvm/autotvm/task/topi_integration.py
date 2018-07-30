@@ -181,8 +181,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
                 """call the schedule func"""
                 if f == topi_schedule.fdefault:
                     return f(outs)
-                else:
-                    return f(cfg, outs)
+                return f(cfg, outs)
 
     if func:
         _decorator(func)
