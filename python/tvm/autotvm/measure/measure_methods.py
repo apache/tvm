@@ -188,7 +188,9 @@ def use_rpc(key,
             session_timeout=60,
             pack_size=1):
     """
-    Create a standard measure_func which uses RPC Tracker for measurement
+    Create a standard measure_func which uses RPC Tracker for measurement.
+    This measure_func will request a device from the RPC Tracker and
+    upload the built binary library to that device for measurement.
 
     Parameters
     ----------

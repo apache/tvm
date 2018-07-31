@@ -92,12 +92,27 @@ def measure_option(measure_func,
     check_correctness: bool
         Whether check correctness after measurement. This will use llvm cpu as reference.
     replay_db : Database, optional
-        The database that we retrieve saved MeasureResults from.
+        The database that we retrieve saved MeasureResult from.
 
     Returns
     -------
     options: dict
         A dict to store all options
+
+    Note
+    ----
+    To support customized measure, you can pass callable `measure_func` or
+    `build_func` in. The `measure_func` will call `build_func` to build binary library
+    and handle the logic of measurement.
+
+    Signature:
+    * measure_func (see the return value of measure/measure_methods.py::use_rpc for example)
+    def measure_func(input_pack, build_func, build_kwargs, number, repeat, ref_input, ref_output):
+        return measure_results
+
+    * build_func (see measure/measure_methods.py::default_build_func for example)
+    def build_func(inp, tmp_dir, **kwargs):
+        return func, args, filename
     """
     return {
         'measure_func': measure_func,
