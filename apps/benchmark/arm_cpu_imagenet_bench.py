@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
         rlib = remote.load_module(filename)
         module = runtime.create(graph, rlib, ctx)
-        data_tvm = tvm.nd.array((np.random.uniform(size=shape['data'])).astype(dtype))
+        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input('data', data_tvm)
         module.set_input(**rparams)
 
