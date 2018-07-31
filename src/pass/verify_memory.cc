@@ -145,7 +145,7 @@ class MemoryAccessVerifier final : protected IRVisitor {
   }
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes FPGA device.
   static bool IsFPGADevice(int dev_type) {
-    return kDLSDAccel == dev_type;
+    return kDLSDAccel == dev_type || kDLAOCL == dev_type;
   }
 
  private:
