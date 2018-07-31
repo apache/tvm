@@ -337,8 +337,7 @@ Example::
       });
     NodeEntry dy = MakeNode("broadcast_div", n->attrs.name + "_drhs_div", {
         NodeEntry{n, 0, 0},
-        MakeNode("__mul_scalar__", n->attrs.name + "_rhs_by_two",
-                 {n->inputs[1]}, {{"scalar", "2"}})
+        MakeNode("negative", n->attrs.name + "_rhs_neg", {n->inputs[1]})
       });
     NodeEntry drhs = MakeNode("collapse_sum", n->attrs.name + "_drhs_sum", {
         MakeNode("broadcast_mul", n->attrs.name + "_drhs_mul", { dy, ograds[0] }),

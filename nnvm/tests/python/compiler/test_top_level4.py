@@ -268,7 +268,7 @@ def test_broadcast():
     y = sym.broadcast_div(a, b)
     def _backward_div(head_grads, a, b):
         da = head_grads / b
-        db = _collapse(head_grads * a / (2 * b**2))
+        db = _collapse(- head_grads * a / b**2)
         return da, db
     helper(y, inputs, dtype, lambda a, b: a / b, _backward_div)
 
