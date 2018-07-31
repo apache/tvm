@@ -4,7 +4,7 @@ Auto-tuning a convolutional network for ARM CPU
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
 Auto-tuning for a specific ARM device is critical for getting the best
-performance. This is a tutorial about how to tune a whole convolutional 
+performance. This is a tutorial about how to tune a whole convolutional
 network.
 
 The operator implementation for ARM CPU in TVM is wrote in template form.
@@ -15,7 +15,7 @@ the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu`_
+`ARM CPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu>`_
 to see the results.
 """
 
@@ -25,7 +25,7 @@ to see the results.
 # To use autotvm package in tvm, we need to install some extra dependencies.
 #
 # .. code-block:: bash
-#  
+#
 #   pip install psutil xgboost
 #
 
@@ -49,7 +49,7 @@ import tvm.contrib.graph_runtime as runtime
 # --------------
 # First we need to define the network in nnvm symbol API.
 # We can load some pre-defined network from :code:`nnvm.testing`.
-# We can also load models from mxnet, ONNX and tensorflow (see NNVM 
+# We can also load models from MXNet, ONNX and TensorFlow (see NNVM
 # tutorials :ref:`tutorial-nnvm` for more details).
 
 def get_network(name, batch_size):
@@ -87,22 +87,22 @@ def get_network(name, batch_size):
 #################################################################
 # Start RPC Tracker
 # -----------------
-# TVM uses RPC session to communicate with ARM boards. 
+# TVM uses RPC session to communicate with ARM boards.
 # During tuning, the tuner will send the generated code to the board and
 # measure the speed of code on the board.
-#  
+#
 # To scale up the tuning, TVM uses RPC Tracker to manage distributed devices.
 # The RPC Tracker is a centralized master node. We can register all devices to
 # the tracker. For example, if we have 10 phones, we can register all of them
-# to the tracker, then we can run 10 measurements in parallle, which accelerates
+# to the tracker, then we can run 10 measurements in parallel, which accelerates
 # the tuning process.
-# 
+#
 # To start an RPC tracker, run this command in the host machine. The tracker is
 # required during the whole tuning process, so we need to open a new terminal for
 # this command:
 #
 # .. code-block:: bash
-#   
+#
 #   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
 #
 # The expected output is
@@ -120,11 +120,11 @@ def get_network(name, batch_size):
 # * For Linux:
 #   Follow this section :ref:`build-tvm-runtime-on-device` to build
 #   tvm runtime on the device. Then register the device to tracker by
-# 
+#
 #   .. code-block:: bash
 #
 #     python -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=rk3399
-# 
+#
 #   (replace :code:`[HOST_IP]` with the IP address of your host machine)
 #
 # * For Android:
@@ -143,7 +143,7 @@ def get_network(name, batch_size):
 # .. code-block:: bash
 #
 #    Queue Status
-#    ----------------------------                                                
+#    ----------------------------
 #    key          free    pending
 #    ----------------------------
 #    mate10pro    2       0
@@ -154,10 +154,12 @@ def get_network(name, batch_size):
 ###########################################
 # Set Tuning Options
 # ------------------
-# Now we can extract tuning tasks from the network and begin tuning.
+# Before tuning, we should do some configurations. Here I use an RK3399 board
+# in our environment as example. In your setting, you should modify the target
+# and device_key accordingly.
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
-# This target is used for cross compilation.
+# This target is used for cross compilation. you can query it by :code:`gcc -v` on your device.
 target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
 
 # Also replace this with the device key in your tracker
@@ -185,31 +187,32 @@ tuning_option = {
 }
 
 ####################################################################
-# 
+#
 # .. note:: How to set tuning options
 #
 #   In general, the default value provided here works well. It is the same
 #   value that we used to generate pre-tuned parameters.
-#   If you have multiple devices, you can set :code:`mea_parallel_num` to
+#   If you have multiple devices, you can set :code:`parallel_num` to
 #   the number of devices you have. (e.g. set it to 3 if you register 3 rk3399
 #   boards to the tracker).
+#   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
+#   which makes the tuning run longer.
+#   If your device is very slow or a single conv2d operator in your network has large FLOPs,
+#   considering to set timeout larger.
 #
-#   You can also refer to our doc :any:`tune_tasks` (click this) to see some comments.
+#   **For andoird phone**, add :code:`build_func='ndk'` to the argument list of
+#   :code:`autotvm.measure_option` to use Android NDK for creating shared library.
 #
-#   For andoird phone, add :code:`build_func='ndk'` to the argument list of autotvm.measure_option
-#   to use Android NDK for creating shared library.
-#
-
 
 ###################################################################
 # Begin Tuning
 # ------------
-# Now we can begin tuning. Here we provide a simple utility function to tune a list of tasks.
+# Now we can extract tuning tasks from the network and begin tuning.
+# Here we provide a simple utility function to tune a list of tasks.
 # This function is just an initial implementation which tune them in sequential order.
 # Later we will bring more sophisticated tuner scheduler.
 
-
-# You can skip the implementation of function for this tutorial.
+# You can skip the implementation of this function for this tutorial.
 def tune_tasks(tasks,
                measure_option,
                tuner='xgb',
@@ -321,13 +324,13 @@ def tune_and_evaluate():
 # tune_and_evaluate()
 
 ######################################################################
-# Sample Output 
+# Sample Output
 # -------------
 # The tuning needs to train xgboost models and use them for prediction.
 # So a high performance CPU is recommended.
 # It takes about 1.5 hour on a 32T AMD Ryzen CPU.
 # One sample output is
-# 
+#
 # .. code-block:: bash
 #
 #  [Task  1/16]  Current/Best:   15.48/  21.21 GFLOPS | Progress: (412/1000) | 531.53 s Done.
