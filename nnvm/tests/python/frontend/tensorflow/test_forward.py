@@ -404,6 +404,37 @@ def test_forward_sigmoid():
 
     _test_sigmoid(np.random.uniform(size=(3, 4, 4, 3)).astype('float32'))
 
+#######################################################################
+# Argmin/Argmax
+# -------------
+
+def _test_argx(func, data, **kwargs):
+
+    with tf.Graph().as_default():
+        inp = constant_op.constant(data, shape=data.shape, dtype=data.dtype, name="c0")
+
+        # pylint: disable=unused-variable
+        out = func(inp, name="argx0", **kwargs)
+        # pylint: enable=unused-variable
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess=sess,
+                input_graph_def=sess.graph.as_graph_def(add_shapes=True),
+                output_node_names=["argx0"])
+
+            tf_output = run_tf_graph(sess, data, input_node="c0:0", output_node="argx0:0")
+            tvm_output = run_tvm_graph(graph_def, data, "c0", tf_output.shape, output_dtype='int32')
+
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+
+            sess.close()
+
+def test_argmin_argmax():
+    for axis in [None,0,1,2]:
+        data = np.random.uniform(size=(8,4,9)).astype('float32')
+        _test_argx(tf.argmax, data=data, axis=axis)
+        _test_argx(tf.argmin, data=data, axis=axis)
 
 #######################################################################
 # Variable

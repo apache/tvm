@@ -91,6 +91,20 @@ def _rsqrt():
         return AttrCvt(op_name="__pow_scalar__", extras={'scalar': -0.5})(inputs, attr)
     return _impl
 
+def _argx(func, func_name):
+    """ A common wrapper for argmin and argmax operations """
+    def _impl(inputs, attr, params):
+        try:
+            # In Tensorflow, `axis` argument is a Tensor, not attribute. We
+            # support the case where it inputs from a scalar constant.
+            axis_input_name = inputs[1].list_output_names()[0]
+            axis_input_vlaue = params[axis_input_name].asnumpy()[0]
+        except (IndexError, KeyError):
+            raise TypeError( \
+                "Unsupported argument for `{}` : `axis` should be a constant".format(func_name))
+        return func(inputs[0], axis=axis_input_vlaue, keepdims=False)
+    return _impl
+
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
@@ -650,6 +664,8 @@ _identity_list = []
 # for 1 to N mapping(composed), use custom callable functions
 # for N to 1 mapping, currently not supported(?)
 _convert_map = {
+    'ArgMax'                            : _argx(_sym.argmax, 'argmax'),
+    'ArgMin'                            : _argx(_sym.argmin, 'argmin'),
     'AvgPool'                           : _pooling('avg_pool'),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BiasAdd'                           : _bias_add(),
