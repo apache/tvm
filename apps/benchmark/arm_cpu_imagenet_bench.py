@@ -55,10 +55,6 @@ if __name__ == "__main__":
 
     target = tvm.target.arm_cpu(model=args.device)
 
-    # get remote device session
-    tracker = tvm.rpc.connect_tracker(args.host, args.port)
-    remote = tracker.request(args.rpc_key)
-
     print("--------------------------------------------------")
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))
     print("--------------------------------------------------")
@@ -79,6 +75,9 @@ if __name__ == "__main__":
             lib.export_library(tmp.relpath(filename))
 
         # upload library and params
+        tracker = tvm.rpc.connect_tracker(args.host, args.port)
+        remote = tracker.request(args.rpc_key)
+
         ctx = remote.context(str(target), 0)
         remote.upload(tmp.relpath(filename))
         rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
