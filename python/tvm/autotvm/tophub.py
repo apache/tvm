@@ -17,6 +17,15 @@ from ..contrib.download import download
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
 
 
+class EmptyContext(object):
+    """An empty context"""
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 def context(target, extra_files=None):
     """Return the dispatch context with pre-tuned parameters.
     The corresponding downloaded *.log files under tophub root path will be loaded.
