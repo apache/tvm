@@ -34,6 +34,7 @@ and Firefly-RK3399 for opencl example.
 # .. code-block:: bash
 #
 #   git clone --recursive https://github.com/dmlc/tvm
+#   cd tvm
 #   make runtime -j2
 #
 # After building runtime successfully, we need to set environment varibles

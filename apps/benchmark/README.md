@@ -23,7 +23,8 @@ python3 -m tvm.exec.rpc_tracker
   ```
   replace `[HOST_IP]` with the IP address of the host machine, `[DEVICE_KEY]` with the name of device.
   
-  E.g. For my RK3399, I use `python3 -m tvm.exec.rpc_sever --tracker=10.77.1.123:9190 --key=rk3399`
+  E.g. Here is an example command for RK3399,
+  `python3 -m tvm.exec.rpc_sever --tracker=10.77.1.123:9190 --key=rk3399`, where 10.77.1.123 is the IP address of the tracker.
 
 * For Android device
    * Build and install tvm RPC apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).

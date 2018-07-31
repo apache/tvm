@@ -15,24 +15,10 @@ from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
 
 def get_network(name, batch_size):
-    """Get the symbol definition and random weight of a network
- 
-    Parameters
-    ----------
-    name: str
-        The name of network
-    batch_size: int
-        The batch size
-
-    Returns
-    -------
-    net: Symbol
-    params: dict
-    shape: dict
-    output_shape: tuple
-    """
-    shape = {"data": (batch_size, 3, 224, 224)}
+    """Get the symbol definition and random weight of a network"""
+    input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
+
     if name == 'resnet-18':
         net, params = nnvm.testing.resnet.get_workload(num_layers=18,
                                                        batch_size=batch_size, image_shape=(3, 224, 224))
@@ -46,7 +32,7 @@ def get_network(name, batch_size):
     else:
         raise RuntimeError("Unsupported network: " + name)
 
-    return net, params, shape, output_shape
+    return net, params, input_shape, output_shape
 
 
 if __name__ == "__main__":
@@ -77,26 +63,24 @@ if __name__ == "__main__":
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))
     print("--------------------------------------------------")
     for network in networks:
-        net, params, shape, out_shape = get_network(network, batch_size=1)
+        net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
         with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
             graph, lib, params = nnvm.compiler.build(
-                net, target=target, shape=shape, params=params, dtype=dtype)
+                net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
 
         tmp = tempdir()
         if 'android' in str(target):
             from tvm.contrib import ndk
             filename = "%s.so" % network
-            path_name = tmp.relpath(filename)
-            lib.export_library(path_name, ndk.create_shared)
+            lib.export_library(tmp.relpath(filename), ndk.create_shared)
         else:
             filename = "%s.tar" % network
-            path_name = tmp.relpath(filename)
-            lib.export_library(path_name)
+            lib.export_library(tmp.relpath(filename))
 
         # upload library and params
         ctx = remote.context(str(target), 0)
-        remote.upload(path_name)
+        remote.upload(tmp.relpath(filename))
         rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 
         rlib = remote.load_module(filename)

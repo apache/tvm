@@ -7,7 +7,7 @@ Auto-tuning for a specific ARM device is critical for getting the best
 performance. This is a tutorial about how to tune a whole convolutional
 network.
 
-The operator implementation for ARM CPU in TVM is wrote in template form.
+The operator implementation for ARM CPU in TVM is written in template form.
 It has many tunable knobs (tile factor, vectorization, unrolling, etc).
 We will do tuning for all convolution and depthwise convolution operators
 in the neural network. After the tuning, we can get a log file which stores
@@ -137,7 +137,7 @@ def get_network(name, batch_size):
 #
 #   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 #
-# For exmpale, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 3B and 2 rk3399,
+# For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 3B and 2 rk3399,
 # the output can be
 #
 # .. code-block:: bash
@@ -159,7 +159,7 @@ def get_network(name, batch_size):
 # and device_key accordingly.
 
 # Replace "aarch64-linux-gnu" with the correct target of your board.
-# This target is used for cross compilation. you can query it by :code:`gcc -v` on your device.
+# This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
 target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
 
 # Also replace this with the device key in your tracker
@@ -178,7 +178,7 @@ tuning_option = {
    'early_stopping': 200,
 
    'measure_option': autotvm.measure_option(
-       autotvm.use_rpc(device_key),
+       autotvm.use_rpc(device_key, host='localhost', port=9190),
        number=4,
        parallel_num=1,
        timeout=10),
@@ -197,8 +197,7 @@ tuning_option = {
 #   boards to the tracker).
 #   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
 #   which makes the tuning run longer.
-#   If your device is very slow or a single conv2d operator in your network has large FLOPs,
-#   considering to set timeout larger.
+#   If your device is very slow or a single conv2d operator in your network has large FLOPs, consider setting timeout larger.
 #
 #   **For andoird phone**, add :code:`build_func='ndk'` to the argument list of
 #   :code:`autotvm.measure_option` to use Android NDK for creating shared library.

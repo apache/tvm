@@ -36,6 +36,7 @@ from tvm.contrib import util, graph_runtime as runtime
 # .. code-block:: bash
 #
 #   git clone --recursive https://github.com/dmlc/tvm
+#   cd tvm
 #   make runtime -j4
 #
 # After building runtime successfully, we need to set environment varibles

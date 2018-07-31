@@ -70,7 +70,7 @@ print(net.debug_str())
 #
 # We'll first compile for Nvidia GPU. Behind the scene, `nnvm.compiler.build`
 # first does a number of graph-level optimizations, e.g. pruning, fusing, etc.,
-# then registers the operators (i.e. the nodes of the optmized graphs) to
+# then registers the operators (i.e. the nodes of the optimized graphs) to
 # TVM implementations to generate a `tvm.module`.
 # To generate the module library, TVM will first transfer the High level IR
 # into the lower intrinsic IR of the specified target backend, which is CUDA
@@ -109,7 +109,7 @@ print(out.asnumpy().flatten()[0:10])
 # Save and Load Compiled Module
 # -----------------------------
 # We can also save the graph, lib and parameters into files and load them
-# back in deploment environment.
+# back in development environment.
 
 ####################################################
 
