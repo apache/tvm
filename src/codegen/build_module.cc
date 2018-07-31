@@ -91,6 +91,9 @@ Target CreateTarget(const std::string& target_name,
   } else if (target_name == "sdaccel") {
     t->device_type = kDLOpenCL;
     t->keys_array.push_back(ir::StringImm::make("sdaccel"));
+  } else if (target_name == "aocl") {
+    t->device_type = kDLAOCL;
+    t->keys_array.push_back(ir::StringImm::make("aocl"));
   } else if (target_name == "opengl") {
     t->device_type = kOpenGL;
     t->keys_array.push_back(ir::StringImm::make("opengl"));

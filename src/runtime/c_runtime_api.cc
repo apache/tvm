@@ -32,6 +32,7 @@ inline std::string DeviceName(int type) {
     case kDLGPU: return "gpu";
     case kDLOpenCL: return "opencl";
     case kDLSDAccel: return "sdaccel";
+    case kDLAOCL: return "aocl";
     case kDLVulkan: return "vulkan";
     case kDLMetal: return "metal";
     case kDLVPI: return "vpi";

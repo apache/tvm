@@ -191,7 +191,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w,
         program_ = clCreateProgramWithSource(w->context, 1, &s, &len, &err);
         OPENCL_CHECK_ERROR(err);
       }
-    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin") {
+    } else if (fmt_ == "xclbin" || fmt_ == "awsxclbin" || fmt_ == "aocx") {
       const unsigned char* s = (const unsigned char *)data_.c_str();
       size_t len = data_.length();
       cl_int err;
