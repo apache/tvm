@@ -66,6 +66,29 @@ def test_cuda_multiply_add():
         np.testing.assert_allclose(d.asnumpy(), np_d)
     check_cuda("int8", 64, 4)
 
+def test_cuda_vectorize_load():
+    num_thread = 8
+    def check_cuda(dtype, n, lanes):
+        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
+        ctx = tvm.gpu(0)
+        A = tvm.placeholder((n,), name='A', dtype="%sx%d" % (dtype, lanes))
+        B = tvm.compute((n,), lambda i: A[i], name='B')
+        s = tvm.create_schedule(B.op)
+        bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
+        s[B].bind(bx, tvm.thread_axis("blockIdx.x"))
+        s[B].bind(tx, tvm.thread_axis("threadIdx.x"))
+        fun = tvm.build(s, [A, B], "cuda", name="vector_load")
+        np_a = np.random.randint(low=-128, high=127, size=(n,lanes))
+        a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
+        b = tvm.nd.empty((n,), B.dtype, ctx)
+        fun(a,b)
+        np.testing.assert_allclose(a.asnumpy(), b.asnumpy())
+    check_cuda("int8", 64, 8)
+    check_cuda("int8", 64, 16)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
+    test_cuda_load_store()
