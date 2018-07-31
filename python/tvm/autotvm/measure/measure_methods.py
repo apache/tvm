@@ -209,6 +209,33 @@ def use_rpc(key,
         rpc connection, set this higher.
     """
     def fmeasure(input_pack, build_func, build_kwargs, number, repeat, ref_input, ref_output):
+        """Do measurement for a list of inputs inside a same RPC session.
+
+        Parameters
+        ----------
+        input_pack: List of MeasureInput
+            The inputs of measurement
+        build_func: callable
+            Function for building the code. see :any:`default_build_func` for example
+        build_kwargs: dict
+            Extra arguments for build_func
+        number : int, optional
+            Number of times to do the measurement for average
+        repeat : int, optional
+            Number of times to repeat the measurement.
+            In total, the generated code will be run (1 + number x repeat) times,
+            where the first one is warm up. The returned result contains `repeat` costs,
+            each of which is the average of `number` test run.
+        ref_input: List of numpy array
+            Reference input for correctness check
+        ref_output: List of numpy array
+            Reference output for correctness check
+
+        Returns
+        -------
+        results: List of MeasureResult
+            The results for input_pack
+        """
         remote = request_remote(key, (host, port), priority, session_timeout)
 
         res = _measure_common(input_pack, build_func, build_kwargs, number, repeat,

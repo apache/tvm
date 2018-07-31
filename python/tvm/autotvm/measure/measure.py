@@ -63,7 +63,7 @@ def measure_option(measure_func,
         and a RPC server silently for the user.
 
         callable: It is a callable function for measurement.
-
+                  See the return value of measure/measure_methods.py::use_rpc for example.
     number : int, optional
         Number of times to do the measurement for average
     repeat : int, optional
@@ -88,7 +88,7 @@ def measure_option(measure_func,
         'ndk': use Android NDK to create shared library. Use this for android target.
 
         callable: customized build function for other backends (e.g. VTA).
-                  See measure/measure_methods.py default_build_func for example.
+                  See measure/measure_methods.py::default_build_func for example.
     check_correctness: bool
         Whether check correctness after measurement. This will use llvm cpu as reference.
     replay_db : Database, optional
