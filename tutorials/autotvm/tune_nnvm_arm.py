@@ -199,7 +199,7 @@ tuning_option = {
 #   which makes the tuning run longer.
 #   If your device is very slow or a single conv2d operator in your network has large FLOPs, consider setting timeout larger.
 #
-#   **For andoird phone**, add :code:`build_func='ndk'` to the argument list of
+#   **For android phone**, add :code:`build_func='ndk'` to the argument list of
 #   :code:`autotvm.measure_option` to use Android NDK for creating shared library.
 #
 
