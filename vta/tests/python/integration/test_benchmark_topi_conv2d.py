@@ -22,9 +22,6 @@ def my_clip(x, a_min, a_max):
     return x
 
 def test_cpu_conv2d():
-    # download pre-tuned parameters and load the dispatch context
-    autotvm.tophub.load_context(tvm.target.arm_cpu())
-
     def run_cpu_conv2d(env, remote, key, batch_size, wl, profile=True):
         data_shape = (batch_size, wl.in_filter, wl.height, wl.width)
         kernel_shape = (wl.out_filter, wl.in_filter, wl.hkernel, wl.wkernel)
@@ -264,5 +261,7 @@ def test_vta_conv2d():
 
 
 if __name__ == "__main__":
-    test_cpu_conv2d()
-    test_vta_conv2d()
+    # download pre-tuned parameters and load the dispatch context
+    with autotvm.tophub.context(tvm.target.arm_cpu()):
+        test_cpu_conv2d()
+        test_vta_conv2d()

@@ -12,9 +12,6 @@ from topi.util import get_const_tuple
 def verify_conv2d(batch, in_size, in_channel, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    # load pre-tuned parameters
-    autotvm.tophub.load_context(tvm.target.arm_cpu())
-
     with tvm.target.arm_cpu():
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
@@ -46,4 +43,5 @@ def test_conv2d():
     verify_conv2d(1, 56, 64, 64, 3, 1, 1)
 
 if __name__ == "__main__":
-    test_conv2d()
+    with autotvm.tophub.context(tvm.target.arm_cpu()):
+        test_conv2d()

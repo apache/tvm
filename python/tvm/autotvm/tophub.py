@@ -9,7 +9,6 @@ import logging
 import os
 import json
 
-from .task import DispatchContext
 from .record import ApplyHistoryBest
 from ..contrib.util import tempdir
 from ..contrib.download import download
@@ -56,23 +55,6 @@ def context(target, extra_files=None):
             best_context.load(filename)
 
     return best_context
-
-
-def load_context(target, extra_files=None):
-    """Load the dispatch context with pre-tuned parameters.
-    The corresponding downloaded *.log files under tophub root path will be loaded.
-    Users can also add their own files in argument `extra_files`.
-
-    Parameters
-    ----------
-    target: Target
-        The compilation target
-    extra_files: list of str, optional
-        Extra log files to load
-    """
-    best_context = context(target, extra_files)
-    assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
-    best_context.__enter__()
 
 
 def download_package(backend):
