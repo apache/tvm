@@ -42,6 +42,9 @@ set(USE_ROCM OFF)
 # Whether enable SDAccel runtime
 set(USE_SDACCEL OFF)
 
+# Whether enable Intel FPGA SDK for OpenCL (AOCL) runtime
+set(USE_AOCL OFF)
+
 # Whether enable OpenCL runtime
 set(USE_OPENCL OFF)
 
