@@ -5,38 +5,38 @@ from .. import generic
 from .. import tag
 
 def _parallel_sch(sch, oshape):
-    reorder_axis = []
+    def vectorize(fused_axis, num_parallel_axis, vectorize_limit=64):
+        """Internal vectorization utility function."""
+        reorder_axis = [fused_axis]
+        for i in range(num_parallel_axis, len(sch.op.axis) - 1):
+            reorder_axis.append(sch.op.axis[i])
+        kw, kh = sch.op.reduce_axis
+        fuse_k = sch.fuse(kw, kh)
+        c = sch.op.axis[len(sch.op.axis) - 1]
+        reorder_axis += [fuse_k, c]
+        sch.reorder(*reorder_axis)
+        inner_length = oshape[len(oshape) - 1].value
+        if inner_length <= vectorize_limit:
+            sch.vectorize(c)
+        else:
+            split_factor = 1
+            for i in reversed(range(1, inner_length)):
+                if inner_length % i == 0 and i <= vectorize_limit:
+                    split_factor = i
+                    break
+            if split_factor > 1:
+                _, c_i = sch.split(c, split_factor)
+                sch.vectorize(c_i)
+
     if len(sch.op.axis) >= 5:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1], sch.op.axis[2])
-        reorder_axis.append(fused)
-        for i in range(3, len(sch.op.axis) - 1):
-            reorder_axis.append(sch.op.axis[i])
+        vectorize(fused, 3)
+
     elif len(sch.op.axis) >= 3:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1])
-        reorder_axis.append(fused)
-        for i in range(2, len(sch.op.axis) - 1):
-            reorder_axis.append(sch.op.axis[i])
     else:
         sch.parallel(sch.op.axis[0])
         return
-    kw, kh = sch.op.reduce_axis
-    fuse_k = sch.fuse(kw, kh)
-    c = sch.op.axis[len(sch.op.axis) - 1]
-    reorder_axis += [fuse_k, c]
-    sch.reorder(*reorder_axis)
-    inner_length = oshape[len(oshape) - 1].value
-    vectorize_limit = 64
-    if inner_length <= vectorize_limit:
-        sch.vectorize(c)
-    else:
-        split_factor = 1
-        for i in reversed(range(1, inner_length)):
-            if inner_length % i == 0 and i <= vectorize_limit:
-                split_factor = i
-                break
-        if split_factor > 1:
-            _, c_i = sch.split(c, split_factor)
-            sch.vectorize(c_i)
     sch.parallel(fused)
 
 
