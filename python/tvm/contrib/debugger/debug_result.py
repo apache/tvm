@@ -1,7 +1,7 @@
 """Graph debug results dumping class."""
 import os
 import json
-import nnvm
+import tvm
 
 GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
 
@@ -113,7 +113,7 @@ class DebugResult():
                 eid += 1
 
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
-            param_f.write(nnvm.compiler.save_param_dict(output_tensors))
+            param_f.write(save_tensors(output_tensors))
 
     def dump_graph_json(self, graph):
         """Dump json formatted graph.
@@ -134,3 +134,27 @@ class DebugResult():
         for filename in os.listdir(self._dump_path):
             if os.path.isfile(filename) and not filename.endswith(".json"):
                 os.remove(filename)
+
+def save_tensors(params):
+    """Save parameter dictionary to binary bytes.
+
+    The result binary bytes can be loaded by the
+    GraphModule with API "load_params".
+
+    Parameters
+    ----------
+    params : dict of str to NDArray
+        The parameter dictionary.
+
+    Returns
+    -------
+    param_bytes: bytearray
+        Serialized parameters.
+    """
+    _save_tensors = tvm.get_global_func("tvm.graph_runtime_debug._save_param_dict")
+
+    args = []
+    for k, v in params.items():
+        args.append(k)
+        args.append(tvm.nd.array(v))
+    return _save_tensors(*args)

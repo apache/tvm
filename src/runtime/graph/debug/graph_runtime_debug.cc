@@ -90,5 +90,37 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     *rv = GraphRuntimeDebugCreate(args[0], args[1], args[2], args[3]);
   });
+
+TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug._save_param_dict")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    CHECK_EQ(args.size() % 2, 0u);
+    size_t num_params = args.size() / 2;
+    std::vector<std::string> names;
+    names.reserve(num_params);
+    std::vector<DLTensor*> arrays;
+    arrays.reserve(num_params);
+    for (size_t i = 0; i < num_params * 2; i += 2) {
+      names.emplace_back(args[i].operator std::string());
+      arrays.emplace_back(args[i + 1].operator DLTensor*());
+    }
+    std::string bytes;
+    dmlc::MemoryStringStream strm(&bytes);
+    dmlc::Stream* fo = &strm;
+    uint64_t header = kTVMNDArrayListMagic, reserved = 0;
+    fo->Write(header);
+    fo->Write(reserved);
+    fo->Write(names);
+    {
+      uint64_t sz = static_cast<uint64_t>(arrays.size());
+      fo->Write(sz);
+      for (size_t i = 0; i < sz; ++i) {
+        tvm::runtime::SaveDLTensor(fo, arrays[i]);
+      }
+    }
+    TVMByteArray arr;
+    arr.data = bytes.c_str();
+    arr.size = bytes.length();
+    *rv = arr;
+  });
 }  // namespace runtime
 }  // namespace tvm
