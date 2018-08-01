@@ -446,7 +446,6 @@ class Unsqueeze(OnnxOpConverter):
             inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
-
 class Slice(OnnxOpConverter):
     """ Operator converter for Slice.
     """
@@ -486,6 +485,19 @@ class Slice(OnnxOpConverter):
                        transforms={'starts': 'begin',
                                    'ends': 'end'},
                        ignores=['axes'])(inputs, attr)
+
+class Gather(OnnxOpConverter):
+    """ Operator converter for Gather.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr['axis']
+        indices = np.array(attr['indices'], dtype='int32')
+        name = 'gather_indices'
+        gather_indices = _sym.Variable(name=name, init=indices)
+        params[name] = indices
+        return _sym.take(inputs[0], gather_indices, axis=axis)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -593,7 +605,7 @@ def _get_convert_map(opset):
         'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
-        # 'Gather'
+        'Gather': Gather.get_converter(opset),
         'Squeeze': Renamer('squeeze'),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
