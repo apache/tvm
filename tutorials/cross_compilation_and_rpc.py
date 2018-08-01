@@ -27,8 +27,8 @@ and Firefly-RK3399 for opencl example.
 #   executed on the target device, e.g. Raspberry Pi. And we assume it
 #   has Linux running.
 # 
-# Since we do compilaton on local machine, the remote device is only used
-# for runing the generated code. We only need to build tvm runtime on
+# Since we do compilation on local machine, the remote device is only used
+# for running the generated code. We only need to build tvm runtime on
 # the remote device.
 #
 # .. code-block:: bash
@@ -37,9 +37,9 @@ and Firefly-RK3399 for opencl example.
 #   cd tvm
 #   make runtime -j2
 #
-# After building runtime successfully, we need to set environment varibles
+# After building runtime successfully, we need to set environment variables
 # in :code:`~/.bashrc` file. We can edit :code:`~/.bashrc`
-# using :code:`vi ~/.bashrc` and add the line below (Assuming your TVM 
+# using :code:`vi ~/.bashrc` and add the line below (Assuming your TVM
 # directory is in :code:`~/tvm`):
 #
 # .. code-block:: bash
@@ -52,7 +52,7 @@ and Firefly-RK3399 for opencl example.
 # Set Up RPC Server on Device
 # ---------------------------
 # To start an RPC server, run the following command on your remote device
-# (Which is Raspberry Pi in our example).
+# (Which is Raspberry Pi in this example).
 #
 #   .. code-block:: bash
 #
@@ -65,27 +65,6 @@ and Firefly-RK3399 for opencl example.
 #
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
-# In our webpage building server (the machine that built this tutorial webpage),
-# we do not have access to Raspberry Pi.
-# So for local demonstration, we simply start a "fake" RPC server on the same machine.
-#
-# .. note::
-#
-#  If you have real remote device, you should change :code:`local_demo` to False, and 
-#  set the host and port correctly.
-
-local_demo = True
-
-if local_demo:
-    # start a "fake" RPC server
-    from tvm import rpc
-    server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
-    host = '0.0.0.0'
-    port = 9090
-else:
-    # The following is my environment, change this to your target device IP
-    host = '10.77.1.162'  
-    port = 9090
 
 ######################################################################
 # Declare and Cross Compile Kernel on Local Machine
@@ -97,8 +76,11 @@ else:
 #   (with LLVM).
 #
 # Here we will declare a simple kernel on the local machine:
-import tvm
+
 import numpy as np
+
+import tvm
+from tvm import rpc
 from tvm.contrib import util
 
 n = tvm.convert(1024)
@@ -107,10 +89,12 @@ B = tvm.compute((n,), lambda i: A[i] + 1.0, name='B')
 s = tvm.create_schedule(B.op)
 
 ######################################################################
-# Then we cross compile the kernel:
+# Then we cross compile the kernel.
 # The target should be 'llvm -target=armv7l-linux-gnueabihf' for
-# Raspberry Pi 3B, but we use 'llvm' for local demo.
-# See the detailed note in the following block.
+# Raspberry Pi 3B, but we use 'llvm' here to make this tutorial runnable
+# on our webpage building server. See the detailed note in the following block.
+
+local_demo = True
 
 if local_demo:
     target = 'llvm'
@@ -126,13 +110,12 @@ func.export_library(path)
 ######################################################################
 # .. note::
 #
-#   The argument :code:`target` in :code:`build` should be replaced
-#   with the true target triple of your device, which might be
-#   different for different device. For example, it is
+#   To run this tutorial with real remote device, change :code:`local_demo`
+#   to False and replace :code:`target` in :code:`build` with the true
+#   target triple of your device. The target triple which might be
+#   different for different devices. For example, it is
 #   :code:`'llvm -target=armv7l-linux-gnueabihf'` for Raspberry Pi 3B and
 #   :code:`'llvm -target=aarch64-linux-gnu'` for RK3399.
-#   Here we use :code:`'llvm'` directly to make the tutorial runable on our x86 
-#   server.
 #
 #   Usually, you can query the target by execute :code:`gcc -v` on your
 #   device, and look for the line starting with :code:`Target:`
@@ -161,12 +144,16 @@ func.export_library(path)
 ######################################################################
 # Run CPU Kernel Remotely by RPC
 # ------------------------------
-# We show how to run the generated cpu kernel on the remote device
+# We show how to run the generated cpu kernel on the remote device.
+# First we obtain an RPC session from remote device.
 
-from tvm import rpc
-
-# connect the remote device
-remote = rpc.connect(host, port)
+if local_demo:
+    remote = rpc.LocalSession()
+else:
+    # The following is my environment, change this to the IP address of your target device
+    host = '10.77.1.162'
+    port = 9090
+    remote = rpc.connect(host, port)
 
 ######################################################################
 # Upload the lib to the remote device, then invoke a device local
@@ -206,9 +193,14 @@ print('%g secs/op' % cost)
 #    Firefly-RK3399. You may follow this `tutorial <https://gist.github.com/mli/585aed2cec0b5178b1a510f9f236afa2>`_
 #    to setup the OS and OpenCL driver for RK3399.
 #
-#    Also we need to build the runtime with OpenCL enabled in rk3399 board.
-#    You need to modify :code:`set(USE_OPENCL OFF)` to :code:`set(USE_OPENCL_ON)` in
-#    :code:`tvm/config.cmake`, and execute :code:`make runtime -j4`.
+#    Also we need to build the runtime with OpenCL enabled on rk3399 board. In the tvm
+#    root directory, execute
+#
+# .. code-block:: bash
+#
+#    cp cmake/config.cmake .
+#    sed -i "s/USE_OPENCL OFF/USE_OPENCL ON/" config.cmake
+#    make runtime -j4
 #
 # The following function shows how we run OpenCL kernel remotely
 
@@ -240,14 +232,7 @@ def run_opencl():
     b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
     func(a, b)
     np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
-
-#####################################################################
-
-# Terminate the "fake" server after experiment
-# You can delete this line if you started "real" rpc server on your remote device
-
-if local_demo:
-    server.terminate()
+    print("OpenCP test passed!")
 
 ######################################################################
 # Summary
@@ -259,4 +244,3 @@ if local_demo:
 # - Set up target device configuration to cross compile kernel on the
 #   local machine.
 # - Upload and run the kernel remotely by RPC API.
-

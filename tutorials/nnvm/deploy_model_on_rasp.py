@@ -29,8 +29,8 @@ from tvm.contrib import util, graph_runtime as runtime
 #   executed on the target device, e.g. Raspberry Pi. And we assume it
 #   has Linux running.
 # 
-# Since we do compilaton on local machine, the remote device is only used
-# for runing the generated code. We only need to build tvm runtime on
+# Since we do compilation on local machine, the remote device is only used
+# for running the generated code. We only need to build tvm runtime on
 # the remote device.
 #
 # .. code-block:: bash
@@ -67,37 +67,15 @@ from tvm.contrib import util, graph_runtime as runtime
 #
 #      INFO:root:RPCServer: bind to 0.0.0.0:9090
 #
-# In our webpage building server (the machine that built this tutorial webpage),
-# we do not have access to Raspberry Pi.
-# So for local demonstration, we simply start a "fake" RPC server on the same machine.
-#
-# .. note::
-#
-#  If you have real remote device, you should change :code:`local_demo` to False, and 
-#  set the host and port correctly.
-
-local_demo = True
-
-if local_demo:
-    # start a "fake" RPC server locally
-    from tvm import rpc
-    server = rpc.Server(host='0.0.0.0', port=9090, use_popen=True)
-    host = '0.0.0.0'
-    port = 9090
-else:
-    # The following is my environment, change this to your target device IP
-    host = '10.77.1.162'  
-    port = 9090
-
 
 ######################################################################
-# Prepare the Pretrained Model
-# ----------------------------
+# Prepare the Pre-trained Model
+# -----------------------------
 # Back to the host machine, which should have a full TVM installed (with LLVM).
 # 
 # We will use pre-trained model from
 # `MXNet Gluon model zoo <https://mxnet.incubator.apache.org/api/python/gluon/model_zoo.html>`_.
-# You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`
+# You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`.
 
 from mxnet.gluon.model_zoo.vision import get_model
 from mxnet.gluon.utils import download
@@ -166,8 +144,10 @@ out_shape = (batch_size, num_classes)
 ######################################################################
 # If we run the example on our x86 server for demonstration, we can simply
 # set it as :code:`llvm`. If running it on the Raspberry Pi, we need to
-# specify its instruction set. We also need to add :code:`-device=arm_cpu`
-# to the target string to enable optimizations for arm_cpu.
+# specify its instruction set. Set :code:`local_demo` to False if you want
+# to run this tutorial with a real device.
+
+local_demo = True
 
 if local_demo:
     target = tvm.target.create('llvm')
@@ -195,14 +175,20 @@ lib.export_library(lib_fname)
 # With RPC, you can deploy the model remotely from your host machine
 # to the remote device.
 
-# connect the server
-remote = rpc.connect(host, port)
+# obtain an RPC session from remote device.
+if local_demo:
+    remote = rpc.LocalSession()
+else:
+    # The following is my environment, change this to the IP address of your target device
+    host = '10.77.1.162'
+    port = 9090
+    remote = rpc.connect(host, port)
 
 # upload the library to remote device and load it
 remote.upload(lib_fname)
 rlib = remote.load_module('net.tar')
 
-# upload the parameter
+# upload the parameter (this may take a while)
 ctx = remote.cpu(0)
 rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 
@@ -219,8 +205,3 @@ out = module.get_output(0, tvm.nd.empty(out_shape, ctx=ctx))
 # get top1 result
 top1 = np.argmax(out.asnumpy())
 print('TVM prediction top-1: {}'.format(synset[top1]))
-
-if local_demo:
-    # terminate the local server
-    server.terminate()
-

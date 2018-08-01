@@ -205,7 +205,8 @@ tuning_option = {
 #   boards to the tracker).
 #   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
 #   which makes the tuning run longer.
-#   If your device is very slow or a single conv2d operator in your network has large FLOPs, consider setting timeout larger.
+#   If your device is very slow or a single conv2d operator in your network has large FLOPs,
+#   consider setting timeout larger.
 #
 #   **For android phone**, add :code:`build_func='ndk'` to the argument list of
 #   :code:`autotvm.measure_option` to use Android NDK for creating shared library.
@@ -340,11 +341,24 @@ def tune_and_evaluate():
 #
 # .. code-block:: bash
 #
-#  [Task  1/16]  Current/Best:   15.48/  21.21 GFLOPS | Progress: (412/1000) | 531.53 s Done.
-#  [Task  2/16]  Current/Best:   18.85/  23.81 GFLOPS | Progress: (269/1000) | 261.59 s Done.
-#  [Task  3/16]  Current/Best:   10.58/  14.46 GFLOPS | Progress: (406/1000) | 317.72 s Done.
-#  [Task  4/16]  Current/Best:   14.74/  21.69 GFLOPS | Progress: (268/1000) | 246.84 s Done.
-#  [Task  5/16]  Current/Best:    6.58/  16.31 GFLOPS | Progress: (376/1000) | 301.62 s Done.
-#  [Task  6/16]  Current/Best:    9.70/  25.04 GFLOPS | Progress: (127/1000) | 154.13 s
-#  ....
-
+#    [Task  1/16]  Current/Best:   13.15/  20.49 GFLOPS | Progress: (297/1000) | 348.51 s Done.
+#    [Task  2/16]  Current/Best:   16.66/  22.64 GFLOPS | Progress: (475/1000) | 415.42 s Done.
+#    [Task  3/16]  Current/Best:   10.33/  14.19 GFLOPS | Progress: (306/1000) | 239.61 s Done.
+#    [Task  4/16]  Current/Best:   13.29/  20.88 GFLOPS | Progress: (242/1000) | 227.48 s Done.
+#    [Task  5/16]  Current/Best:   13.28/  15.61 GFLOPS | Progress: (237/1000) | 191.56 s Done.
+#    [Task  6/16]  Current/Best:   20.16/  23.86 GFLOPS | Progress: (315/1000) | 304.31 s Done.
+#    [Task  7/16]  Current/Best:    9.22/  22.00 GFLOPS | Progress: (458/1000) | 433.26 s Done.
+#    [Task  8/16]  Current/Best:   14.12/  17.80 GFLOPS | Progress: (270/1000) | 240.73 s Done.
+#    [Task  9/16]  Current/Best:   14.59/  24.02 GFLOPS | Progress: (209/1000) | 213.61 s Done.
+#    [Task 10/16]  Current/Best:    9.86/  21.74 GFLOPS | Progress: (367/1000) | 359.93 s Done.
+#    [Task 11/16]  Current/Best:    5.01/  18.86 GFLOPS | Progress: (202/1000) | 191.18 s Done.
+#    [Task 12/16]  Current/Best:    8.61/  25.23 GFLOPS | Progress: (220/1000) | 220.74 s Done.
+#    [Task 13/16]  Current/Best:   10.87/  25.79 GFLOPS | Progress: (465/1000) | 902.14 s Done.
+#    [Task 14/16]  Current/Best:   15.33/  29.38 GFLOPS | Progress: (239/1000) | 481.33 s Done.
+#    [Task 15/16]  Current/Best:   12.09/  38.60 GFLOPS | Progress: (476/1000) | 928.35 s Done.
+#    [Task 16/16]  Current/Best:   16.77/  47.08 GFLOPS | Progress: (255/1000) | 439.91 s Done.
+#    Compile...
+#    Upload...
+#    Evaluate inference time cost...
+#    Mean inference time (std dev): 156.51 ms (0.89 ms)
+#
