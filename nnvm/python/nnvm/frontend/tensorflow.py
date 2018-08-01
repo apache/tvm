@@ -468,6 +468,20 @@ def _fill():
             ignores=['index_type', 'T'])(new_inputs, attr)
     return _impl
 
+def _lrn():
+    def _impl(inputs, attr, params):
+        new_inputs = []
+        size = (attr['depth_radius'] * 2) + 1
+        return AttrCvt(
+            op_name='lrn',
+            extras={'axis': 3, # Fix axis
+                    'size': size,
+                    'alpha': attr['alpha'] * size},
+            ignores=['name',
+                     'alpha',
+                     'depth_radius'])(new_inputs, attr)
+    return _impl
+
 def _gather_v2():
     "Tensorflow now support only gatherv2"
     def _impl(inputs, attr, params):
@@ -680,6 +694,7 @@ _convert_map = {
     'Fill'                              : _fill(),
     'GatherV2'                          : _gather_v2(),
     'StridedSlice'                      : _stridedSlice(),
+    'LRN'                               : _lrn(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
