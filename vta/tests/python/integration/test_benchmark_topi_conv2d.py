@@ -124,7 +124,7 @@ def test_cpu_conv2d():
             key = "resnet-cfg[%d]" % i
             print("key=%s" % key)
             print(wl)
-            with tvm.target.arm_cpu("pynq"):
+            with tvm.target.arm_cpu("vtacpu"):
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
 
     # load pre-tuned operator parameters for ARM CPU
@@ -175,7 +175,6 @@ def test_vta_conv2d():
             b_np = topi.testing.conv2d_nchw_python(
                 a_np.astype(acc_dtype), w_np.astype(acc_dtype), stride, padding).astype(acc_dtype)
             return a_np, w_np, b_np
-
 
         def verify(s, check_correctness):
             mod = vta.build(s, [data, kernel, bias, res], "ext_dev",

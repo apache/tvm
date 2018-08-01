@@ -434,7 +434,7 @@ def arm_cpu(model='unknown', options=None):
         "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu"],
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi"],
     }
-    pre_defined_opt = trans_table.get(model, [])
+    pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
     # download pre-tuned parameters for arm_cpu if there is not any.
     autotvm.tophub.check_package('arm_cpu')

@@ -172,7 +172,6 @@ port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 # We configure both the bitstream and the runtime system on the Pynq
 # to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
-
     # Make sure that TVM was compiled with RPC=1
     assert tvm.module.enabled("rpc")
     remote = rpc.connect(host, port)
@@ -214,7 +213,6 @@ m = graph_runtime.create(graph, lib, ctx)
 
 # Set the parameters
 m.set_input(**params)
-
 
 ######################################################################
 # Run ResNet-18 inference on a sample image
