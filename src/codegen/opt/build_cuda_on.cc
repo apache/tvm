@@ -64,7 +64,6 @@ std::string FindCUDAIncludePath() {
 std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   std::vector<std::string> compile_params;
   std::vector<const char*> param_cstrings{};
-  int num_options = 0;
   nvrtcProgram prog;
   cudaDeviceProp device_prop;
   std::string cc = "30";
@@ -78,13 +77,11 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
   }
 
   compile_params.push_back("-arch=compute_" + cc);
-  num_options++;
 
   if (include_path) {
     std::string include_option = "--include-path=" + FindCUDAIncludePath();
 
     compile_params.push_back(include_option);
-    num_options++;
   }
 
   for (const auto& string : compile_params) {

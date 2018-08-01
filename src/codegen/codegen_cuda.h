@@ -20,7 +20,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Init(bool output_ssa);
   void AddFunction(LoweredFunc f);
   std::string Finish();
-  bool need_include_path() { return enable_fp16_; }
+  bool need_include_path() { return (enable_fp16_ || enable_int8_); }
   // override behavior
   void VisitStmt_(const ir::For* op) final;
   void PrintStorageSync(const Call* op) final;
@@ -49,6 +49,8 @@ class CodeGenCUDA final : public CodeGenC {
   std::string vid_global_barrier_expect_;
   // whether enable fp16
   bool enable_fp16_{false};
+  // whether enable int8
+  bool enable_int8_{false};
 };
 
 }  // namespace codegen
