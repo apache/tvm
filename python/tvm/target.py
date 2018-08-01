@@ -454,7 +454,8 @@ def rasp(options=None):
     options : str or list of str
         Additional options
     """
-    warnings.warn('tvm.target.rasp() is going to be deprecated. Please use tvm.target.arm_cpu("rasp3b")')
+    warnings.warn('tvm.target.rasp() is going to be deprecated. '
+                  'Please use tvm.target.arm_cpu("rasp3b")')
     return arm_cpu('rasp3b', options)
 
 
