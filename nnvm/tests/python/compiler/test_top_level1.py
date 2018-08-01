@@ -7,6 +7,111 @@ import nnvm.compiler
 from nnvm.testing.config import ctx_list
 from nnvm.testing.check_computation import check_function
 
+def test_check_function():
+    # test the testing function
+
+    x = sym.Variable("x")
+    y = sym.Variable("y")
+
+    # different styles of returning gradients from the backward function
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: [head_grads, 2*head_grads],
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: (head_grads, 2*head_grads),
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: {'x': head_grads, 'y': 2*head_grads},
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: {'y': 2*head_grads},
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: [2*head_grads],
+                   grad_input_vars=[y],
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, lambda x, y: x + 2*y,
+                   lambda x, y, head_grads: 2*head_grads,
+                   grad_input_vars=[y],
+                   shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+
+    # test just numerical gradients
+    # different styles of shape and dtype passing
+    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
+    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype={x: 'float32', 'y': 'float32'})
+    check_function(x + 2*y, shape=(1, 2), dtype='float32')
+
+    # specifying variable attributes on variable creation
+    # (in this case type codes must be used)
+    x = sym.Variable("x", dtype=0, shape=(1, 2))
+    check_function(x + 2*y, shape={y: (1, 2)}, dtype={'y': 'float32'})
+    y = sym.Variable("y", dtype=0, shape=(1, 2))
+
+    # shape overriding
+    def _fwd1(x, y):
+        assert x.shape == (1, 1)
+        assert y.shape == (1, 2)
+        return x + 2*y
+    check_function(x + 2*y, _fwd1, shape={x: (1, 1)})
+
+    # in_range
+    def _fwd2(x, y):
+        assert x.shape == (100,)
+        assert (x <= 0.9).all()
+        assert (x >= 0.8).all()
+        return x + 2*y
+    check_function(x + 2*y, _fwd2, shape=(100,), in_range=(0.8, 0.9), numerical_grads=False)
+    check_function(x + 2*y, _fwd2, shape=(100,), in_range={'x': (0.8, 0.9)}, numerical_grads=False)
+    check_function(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0],
+                   in_range={'head_grads_0': (1.0, 1.0)})
+
+    # check that the function reports errors
+    def _check_function_must_fail(*args, **kwargs):
+        error = AssertionError
+        if 'error' in kwargs:
+            error = kwargs['error']
+            del kwargs['error']
+        try:
+            check_function(*args, quiet=True, **kwargs)
+        except error:
+            pass
+        else:
+            raise AssertionError("check_function didn't raise an exception")
+
+    _check_function_must_fail(x + 2*y, lambda x, y: x + y)
+    _check_function_must_fail(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0])
+    _check_function_must_fail(sym.block_grad(x + 2*y))
+
+    # different styles of returning results from the forward function
+    check_function(x + 2*y, lambda x, y: [x + 2*y], numerical_grads=False)
+    _check_function_must_fail(x + 2*y, lambda x, y: [x + 2*y, x], numerical_grads=False,
+                              error=ValueError)
+    _check_function_must_fail(x + 2*y, lambda x, y: [], numerical_grads=False,
+                              error=ValueError)
+
+    # multiple outputs
+    z = sym.Group([2*x + y, x + 2*y])
+    check_function(z, lambda x, y: [2*x + y, x + 2*y])
+    check_function(z, lambda x, y: (2*x + y, x + 2*y))
+    check_function(z, backward=lambda x, y, head_grads: [2*head_grads[0] + head_grads[1],
+                                                         head_grads[0] + 2*head_grads[1]])
+    _check_function_must_fail(z, backward=lambda x, y, head_grads: [2*head_grads[0],
+                                                                    2*head_grads[1]])
+    check_function(z, backward=lambda x, y, head_grads: [head_grads[1], 2*head_grads[1]],
+                   in_range={'head_grads_0': (0, 0)})
+    check_function(z)
+
+    z = sym.Group([sym.block_grad(2*x + y), x + 2*y])
+    check_function(z, lambda x, y: [2*x + y, x + 2*y], numerical_grads=False)
+    _check_function_must_fail(z, lambda x, y: [2*x + y, x + 2*y])
+    _check_function_must_fail(z)
+
+    z = sym.Group([2*x + y, sym.block_grad(x + 2*y)])
+    _check_function_must_fail(z)
+
+    z = sym.Group([2*x + y, x + 2*y, x, y, sym.sum(x)])
+    check_function(z, lambda x, y: [2*x + y, x + 2*y, x, y, np.sum(x)])
+
 def test_relu():
     x = sym.Variable("x")
     y = sym.relu(sym.leaky_relu(x, alpha=0.3) - 0.2)
@@ -440,6 +545,7 @@ def test_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
 
 if __name__ == "__main__":
+    test_check_function()
     test_split()
     test_concatenate()
     test_log_softmax()

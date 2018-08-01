@@ -13,7 +13,7 @@ from nnvm.compiler import graph_util
 from nnvm.compiler.graph_attr import TCODE_TO_DTYPE
 from .config import ctx_list
 
-def graph_to_function(graph, target, ctx):
+def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     """Convert a graph to a function taking a keyword args and returning a list of results
     (both args and results are numpy arrays).
 
@@ -27,35 +27,50 @@ def graph_to_function(graph, target, ctx):
     graph : nnvm.graph.Graph
         A graph we want to convert to a function.
 
-    target : str or :any:`tvm.target.Target`, optional
+    target : str or :any:`tvm.target.Target`
         The build target
 
     ctx : TVMContext
         The context to deploy the module.
+
+    shape : Dict[str, Tuple[int]], optional
+        A dict mapping input variable names to shapes.
+        By default shapes will be inferred automatically.
+
+    dtype : Dict[str, str] or str, optional
+        A dict mapping input variable names to dtypes, or just a single dtype.
+        By default dtypes will be inferred automatically.
 
     Returns
     -------
     function : Callable[..., List[numpy.ndarray]]
     """
 
-    shapes = graph.json_attr('shape')
-    dtypes = graph.json_attr('dtype')
+    if shape is None or dtype is None:
+        all_shapes = graph.json_attr('shape')
+        all_dtypes = graph.json_attr('dtype')
 
-    if shapes is None or dtypes is None:
-        graph = graph.apply('InferShape').apply('InferType')
-        shapes = graph.json_attr('shape')
-        dtypes = graph.json_attr('dtype')
+        if all_shapes is None or all_dtypes is None:
+            graph = graph.apply('InferShape').apply('InferType')
+            all_shapes = graph.json_attr('shape')
+            all_dtypes = graph.json_attr('dtype')
 
-    dtypes = [TCODE_TO_DTYPE[dtype] for dtype in dtypes]
+        all_dtypes = [None if t == -1 else TCODE_TO_DTYPE[t] for t in all_dtypes]
 
-    ishapes = {x: shapes[graph.index.entry_id(x)] for x in graph.index.input_names}
-    idtypes = {x: dtypes[graph.index.entry_id(x)] for x in graph.index.input_names}
+        if shape is None:
+            shape = {x: all_shapes[graph.index.entry_id(x)] for x in graph.index.input_names}
 
-    compute_graph, lib, _ = nnvm.compiler.build(graph, target, shape=ishapes, dtype=idtypes)
+        if dtype is None:
+            dtype = {x: all_dtypes[graph.index.entry_id(x)] for x in graph.index.input_names}
+
+    if None in dtype.values():
+        raise ValueError("Input variables with no type: {}".format(dtype))
+
+    compute_graph, lib, _ = nnvm.compiler.build(graph, target, shape=shape, dtype=dtype)
     module = graph_runtime.create(compute_graph, lib, ctx)
 
-    shapes = compute_graph.json_attr('shape')
-    dtypes = [TCODE_TO_DTYPE[dtype] for dtype in compute_graph.json_attr('dtype')]
+    all_shapes = compute_graph.json_attr('shape')
+    all_dtypes = [TCODE_TO_DTYPE[dtype] for dtype in compute_graph.json_attr('dtype')]
 
     def run(**kwargs):
         module.run(**kwargs)
@@ -63,7 +78,7 @@ def graph_to_function(graph, target, ctx):
         for i, out_entry in enumerate(compute_graph.index.output_entries):
             res.append(
                 module.get_output(
-                    i, tvm.nd.empty(shapes[out_entry[0]], dtypes[out_entry[0]])).asnumpy())
+                    i, tvm.nd.empty(all_shapes[out_entry[0]], all_dtypes[out_entry[0]])).asnumpy())
         return res
 
     return run
@@ -76,13 +91,13 @@ def _dict_var_to_dict_str(dictionary):
     else:
         return dictionary
 
-def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=None,
+def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
                    numerical_grads='if_possible', delta=1e-3,
                    atol=1e-5, rtol=1e-5, ng_atol=1e-2, ng_rtol=1e-2,
                    ng_max_error=1e+3, ng_max_discarded_frac=0.1,
-                   dump_graph=False):
+                   quiet=False, dump_graph=False):
     """Compute the function and/or its gradients on a random input and raise
     an exception if the result doesn't match the reference implementation.
 
@@ -91,12 +106,14 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
     symbol : nnvm.Symbol
         A symbol representing the output.
 
-    np_forward : Callable[..., List[numpy.ndarray]], optional
+    forward : Callable[..., List[numpy.ndarray]], optional
         A reference implementation to compare with.
 
-    np_backward : Callable[..., List[numpy.ndarray] or Dict[str, numpy.ndarray]], optional
+    backward : Callable[..., List[numpy.ndarray] or Dict[str, numpy.ndarray]], optional
         A reference implementation of gradients. Should also accept head_grads besides
-        normal inputs. Should return either a dict mapping input variable names to the respective
+        normal inputs which is a list of gradients of some scalar wrt the outputs or just a
+        single gradient if there are multiple outputs.
+        Should return either a dict mapping input variable names to the respective
         gradients or a list of gradients wrt variables from grad_input_vars in
         exactly the same order (in alphabetical order by default).
 
@@ -151,6 +168,9 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
     ng_max_discarded_frac : float
         Allow discarding no more than this fraction of partial derivatives.
 
+    quiet : bool
+        Don't dump additional information to stdout on failure.
+
     dump_graph : bool
         Dump the graph even on success.
     """
@@ -190,23 +210,28 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
     forward_graph = forward_graph.apply('InferShape').apply('InferType')
     shapes = forward_graph.json_attr('shape')
     dtypes = forward_graph.json_attr('dtype')
-    out_shape = shapes[forward_graph.index.output_entries[0][0]]
-    out_dtype = dtypes[forward_graph.index.output_entries[0][0]]
+
+    out_len = len(symbol.list_output_names())
+
+    out_shapes = [shapes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
+    out_dtypes = [dtypes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
 
     backward_graph = None
 
     # If we want gradients, we have to recreate the graph, but now with gradient computations
     # Note that here we need out_shape for defining the shape of head grads, so we have to
     # create the graph twice
-    if np_backward is not None or numerical_grads:
+    if backward is not None or numerical_grads:
         try:
-            head_grads_symbol = nnvm.symbol.Variable("head_grads", shape=out_shape, dtype=out_dtype)
+            head_grads_symbols = [nnvm.symbol.Variable("head_grads_" + str(i),
+                                                       shape=out_shapes[i], dtype=out_dtypes[i])
+                                  for i in range(out_len)]
             grad_symbols = graph_util.gradients([symbol], grad_input_vars,
-                                                grad_ys=head_grads_symbol)
+                                                grad_ys=head_grads_symbols)
             # Sometimes grads do not depend on head_grads, so head_grads does not appear
             # in the variable list; adding it manually prevents this, making things a bit easier
             backward_graph = \
-                nnvm.graph.create(nnvm.symbol.Group([symbol] + grad_symbols + [head_grads_symbol]))
+                nnvm.graph.create(nnvm.symbol.Group([symbol] + grad_symbols + head_grads_symbols))
 
             if dtype is not None:
                 nnvm.compiler.graph_attr.set_dtype_inputs(backward_graph, dtype)
@@ -218,7 +243,7 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
             shapes = backward_graph.json_attr('shape')
             dtypes = backward_graph.json_attr('dtype')
         except nnvm._base.NNVMError as err:
-            if np_backward is None and numerical_grads == "if_possible":
+            if backward is None and numerical_grads == "if_possible":
                 logging.warning("Won't check gradients because: %s", str(err).split('\n', 1)[0])
                 numerical_grads = False
                 backward_graph = None
@@ -260,7 +285,8 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
 
         np_inputs[x_name] = x_value
 
-    np_inputs_without_head_grads = {k: np_inputs[k] for k in np_inputs if k != 'head_grads'}
+    np_inputs_without_head_grads = {k: np_inputs[k] for k in np_inputs
+                                    if not k.startswith('head_grads_')}
 
     # Compute and compare the results
     for target, ctx in ctx_list():
@@ -284,21 +310,43 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
 
             if backward_graph is not None:
                 grad_var_names = [x.attr('name') for x in grad_input_vars]
-                nnvm_grads = {x: v for x, v in zip(grad_var_names, nnvm_res[1:])}
+                nnvm_grads = {x: v for x, v in zip(grad_var_names, nnvm_res[out_len:])}
 
-            if np_forward is not None:
+            if forward is not None:
                 debug_stage = "checking forward computation"
                 logging.debug(debug_stage)
 
-                numpy_res = np_forward(**np_inputs_without_head_grads)
-                np.testing.assert_allclose(nnvm_res[0], numpy_res, atol=atol, rtol=rtol)
+                numpy_res = forward(**np_inputs_without_head_grads)
 
-            if np_backward is not None:
+                if isinstance(numpy_res, tuple):
+                    numpy_res = list(numpy_res)
+
+                if not isinstance(numpy_res, list):
+                    numpy_res = [numpy_res]
+
+                if len(numpy_res) != out_len:
+                    raise ValueError("Forward function returned {} values, but "
+                                     "the nnvm graph returns {} values"
+                                     .format(len(numpy_res), out_len))
+
+                for i in range(out_len):
+                    np.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
+
+            if backward is not None:
                 debug_stage = "checking gradients"
                 logging.debug(debug_stage)
 
-                numpy_grads = np_backward(**np_inputs)
+                np_head_grads = [np_inputs["head_grads_" + str(i)] for i in range(out_len)]
+
+                if out_len == 1:
+                    np_head_grads = np_head_grads[0]
+
+                numpy_grads = backward(head_grads=np_head_grads, **np_inputs_without_head_grads)
                 if not isinstance(numpy_grads, dict):
+                    if isinstance(numpy_grads, tuple):
+                        numpy_grads = list(numpy_grads)
+                    if not isinstance(numpy_grads, list):
+                        numpy_grads = [numpy_grads]
                     numpy_grads = {x: v for x, v in zip(grad_var_names, numpy_grads)}
                     if len(numpy_grads) != len(grad_var_names):
                         raise ValueError("The backward function returns a list of gradients which "
@@ -316,19 +364,16 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
                 forward_function = graph_to_function(forward_graph, target, ctx)
 
                 # Since the result may be non-scalar, we have to put another operation on the top,
-                # so we just multiple by the randomly generated head_grads.
+                # so we just multiple by the randomly generated head_grads and then sum everything.
                 # This way we can reuse the gradient values which has been already computed.
                 def function(**kwargs):
-                    res = forward_function(**kwargs)[0]
-                    return np.dot(np_inputs['head_grads'].ravel(), res.ravel())
-
-                function_value = np.dot(np_inputs['head_grads'].ravel(), nnvm_res[0].ravel())
+                    res = forward_function(**kwargs)
+                    return np.sum([np.dot(np_inputs['head_grads_' + str(i)].ravel(), res[i].ravel())
+                                   for i in range(out_len)])
 
                 check_numerical_grads(
                     function,
-                    grad_input_vars=grad_var_names,
                     input_values=np_inputs_without_head_grads,
-                    function_value=function_value,
                     grad_values=nnvm_grads,
                     delta=delta,
                     max_error=ng_max_error,
@@ -336,16 +381,18 @@ def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=No
                     atol=ng_atol, rtol=ng_rtol)
 
         except:
-            print("\ncheck_function failed while {}, here is the main graph".format(debug_stage))
-            print(main_graph.ir(join_node_attrs=['shape', 'dtype']))
-            if nnvm_res is not None:
-                print("Generated inputs:")
-                print(np_inputs)
-                print()
+            if not quiet:
+                print("\ncheck_function failed while {}, here is the main graph"
+                      .format(debug_stage))
+                print(main_graph.ir(join_node_attrs=['shape', 'dtype']))
+                if nnvm_res is not None:
+                    print("Generated inputs:")
+                    print(np_inputs)
+                    print()
             raise
 
 
-def check_numerical_grads(function, grad_input_vars, input_values, grad_values, function_value=None,
+def check_numerical_grads(function, input_values, grad_values, function_value=None,
                           delta=1e-3, max_error=1e+3, max_discarded_frac=0.1,
                           atol=1e-2, rtol=1e-2):
     """A helper function that checks that numerical gradients of a function are equal to
@@ -353,7 +400,7 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values, 
 
     We compute two approximations for each gradient using forward and backward differences.
     Then we use the distance between these gradients as our estimate for the error and check if the
-    provided symbolic gradient lies within this distance from the central difference approximation
+    provided analytical gradient lies within this distance from the central difference approximation
     of the gradient.
 
     Parameters
@@ -361,9 +408,6 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values, 
     function
         A function that takes inputs as keyword arguments (like `function(**input_values)`) and
         returns a scalar result. Should accept and return numpy arrays.
-
-    grad_input_vars : List[str]
-        A list of variables with respect to which the gradients will be computed.
 
     input_values : Dict[str, numpy.ndarray]
         A dict assigning values to variables. Represents the point at which gradients should be
@@ -406,9 +450,7 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values, 
                            for n, val in input_values.items()}
         return (function(**modified_values) - function_value)/a_delta
 
-    for x_name in grad_input_vars:
-        grad = grad_values[x_name]
-
+    for x_name, grad in grad_values.items():
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
                 "Gradient wrt '{}' has unexpected shape {}, expected {} "
@@ -448,8 +490,8 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values, 
 
         if dist_n_s > dist_1_2 + atol + np.linalg.norm(ngrad)*rtol:
             raise AssertionError(
-                "Sym and num grads wrt {} differ too much\n"
-                "sym grad = {}\n num grad = {}\ndistance {} > {} + {} + {}*{}"
+                "Analytical and numerical grads wrt {} differ too much\n"
+                "analytical grad = {}\n numerical grad = {}\ndistance {} > {} + {} + {}*{}"
                 .format(x_name, grad, ngrad,
                         dist_n_s, dist_1_2, atol, np.linalg.norm(ngrad), rtol))
 
