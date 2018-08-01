@@ -208,7 +208,6 @@ NNVM_REGISTER_REDUCE_OP(max)
     NodeEntry sub0 = MakeNode("expand_like", n->attrs.name + "_grad_sub0",
                              {ograds[0], n->inputs[0]},
                              {{"axis", axis.str()},
-                              {"keepdims", std::to_string(param.keepdims)},
                               {"exclude", std::to_string(param.exclude)}});
     NodeEntry sub1 = MakeNode("_max_mask", n->attrs.name + "_grad_sub1",
                               {ograds[0]},
@@ -242,7 +241,6 @@ NNVM_REGISTER_REDUCE_OP(min)
     NodeEntry sub0 = MakeNode("expand_like", n->attrs.name + "_grad_sub0",
                               {ograds[0], n->inputs[0]},
                               {{"axis", axis.str()},
-                               {"keepdims", std::to_string(param.keepdims)},
                                {"exclude", std::to_string(param.exclude)}});
     NodeEntry sub1 = MakeNode("_min_mask", n->attrs.name + "_grad_sub1",
                               {ograds[0]},
