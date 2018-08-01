@@ -24,7 +24,10 @@ all:
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
-	(cd $(GOPATHDIR) && go clean && go build -o $(TARGET).a && go install)
+	(cd $(GOPATHDIR) && go clean && golint && go build -o $(TARGET).a && go install)
+	@mkdir gopath/doc 2>/dev/null || true
+	@godoc -html -goroot gopath/ gotvm | grep -v "for documentation on the gotvm command" > gopath/doc/gotvm.html
+	@echo "Run 'godoc -http=:6060  -goroot=./gopath' for documentation"
 
 clean:
 	@if [ -d $(GOPATHDIR) ] ; then \

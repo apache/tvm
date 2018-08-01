@@ -1,6 +1,7 @@
 .PHONY: clean all
 
 all:
+	@golint
 	@go tool compile -pack -o simple.o simple.go
 	@go tool link -linkmode external -extld "g++" -extldflags "-ldl" -o simple simple.o
 	@python3 deploy.py

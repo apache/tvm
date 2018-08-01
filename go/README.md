@@ -40,3 +40,12 @@ complex : Reference application to deploy a realtime module with lib, graph and 
 ## TODO
 
 Function registration API are not implemented.
+
+## Documentation
+gotvm.go is very well documented with sufficient information about gotvm package.
+A html version documentation can be accessed by running below command after building runtime.
+
+```bash
+godoc -http=:6060  -goroot=./gopath
+```
+After above command try http://127.0.0.1:6060 from any browser.

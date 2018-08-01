@@ -257,8 +257,12 @@ void *_DLTensorGetData(DLTensor *pdltensor) {
 
 // Helpers for TVMByteArray
 void _TVMByteArraySetData(TVMByteArray *tbytearray, _gostring_ val) {
+  if(tbytearray->data) {
+    delete tbytearray->data;
+  }
   tbytearray->data = (char*) (new char[val.n]);
   memcpy((char *)tbytearray->data, (const char *)val.p, val.n);
+  tbytearray->size = (size_t)val.n;
 }
 
 _gostring_ _TVMByteArrayGetData(TVMByteArray *tbytearray) {
@@ -266,23 +270,18 @@ _gostring_ _TVMByteArrayGetData(TVMByteArray *tbytearray) {
   return _native_to_gostring(tbytearray->data, (tbytearray->size - 1));
 }
 
-
-void _TVMByteArraySetSize(TVMByteArray *tbytearray, long long val) {
-  tbytearray->size = (size_t)val;
-}
-
-
-long long _TVMByteArrayGetSize(TVMByteArray *tbytearray) {
-  return tbytearray->size;
-}
-
-
 TVMByteArray *_NewTVMByteArray() {
-  return (TVMByteArray *)new TVMByteArray();
+  TVMByteArray *val =  (TVMByteArray *)new TVMByteArray();
+  val->data = NULL;
+  val->size = 0;
+  return val;
 }
 
 
 void _DeleteTVMByteArray(TVMByteArray *tbytearray) {
+  if(tbytearray->data) {
+    delete tbytearray->data;
+  }
   delete tbytearray;
 }
 
