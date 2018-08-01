@@ -83,9 +83,6 @@ def generate_graph(graph_fn, params_fn, device="vta"):
     elif env.TARGET == "pynq":
         target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
 
-    # Load pre-tuned parameters of conv2d for ARM CPU
-    autotvm.tophub.load(tvm.target.arm_cpu('pynq'))
-
     # Load the ResNet-18 graph and parameters
     sym = nnvm.graph.load_json(open(graph_fn).read())
     params = nnvm.compiler.load_param_dict(open(params_fn, 'rb').read())
@@ -156,6 +153,9 @@ for file in [categ_fn, graph_fn, params_fn]:
 # Read in ImageNet Categories
 synset = eval(open(os.path.join(data_dir, categ_fn)).read())
 
+# Download pre-tuned op parameters of conv2d for ARM CPU used in VTA
+autotvm.tophub.check_package('vta')
+
 
 ######################################################################
 # Setup the Pynq Board's RPC Server
@@ -198,8 +198,8 @@ elif env.TARGET == "sim":
 # ------------------------
 # Build the ResNet graph runtime, and configure the parameters.
 
-# Set ``device=cpu`` to run inference on the CPU,
-# or ``device=vtacpu`` to run inference on the FPGA.
+# Set ``device=vtacpu`` to run inference on the CPU
+# or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 
 # Device context

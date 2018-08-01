@@ -124,13 +124,13 @@ def test_cpu_conv2d():
             key = "resnet-cfg[%d]" % i
             print("key=%s" % key)
             print(wl)
-            with tvm.target.arm_cpu("vtacpu"):
+            with tvm.target.create("llvm -device=vtacpu"):
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
 
     # load pre-tuned operator parameters for ARM CPU
-    autotvm.tophub.load(tvm.target.arm_cpu())
-
-    vta.testing.run(_run)
+    autotvm.tophub.check_package('vta')
+    with autotvm.tophub.context('llvm -device=vtacpu'):
+        vta.testing.run(_run)
 
 
 def test_vta_conv2d():
@@ -259,9 +259,6 @@ def test_vta_conv2d():
             print("key=%s" % key)
             print(wl)
             run_vta_conv2d(env, remote, key, batch_size, wl)
-
-    # load pre-tuned operator parameters for ARM CPU
-    autotvm.tophub.load(tvm.target.arm_cpu())
 
     vta.testing.run(_run)
 
