@@ -12,6 +12,27 @@ In this tutorial, you can learn how to perform these two steps in tvm.
 The whole workflow is illustrated by a matrix multiplication example.
 """
 
+######################################################################
+# Install dependencies
+# ----------------------------------------
+# To use autotvm package in tvm, we need to install some extra dependencies.
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user psutil xgboost
+#
+# To make tvm run faster in tuning, it is recommended to use cython
+# as FFI of tvm. In the root directory of tvm, execute
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user cython
+#   sudo make cython3
+#
+# Now return to python code. Import packages.
+
 import logging
 import sys
 
