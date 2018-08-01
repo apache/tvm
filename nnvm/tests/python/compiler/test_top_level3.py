@@ -10,10 +10,10 @@ from nnvm.testing.check_computation import check_function
 def check_map(symfunc, np_func, np_backward=None, dtype="float32", rnd_min=-1, rnd_max=1):
     x = sym.Variable("x")
     y = symfunc(x)
-    dshape = (1, 3, 32, 32)
-    inputs = [('x', dshape)]
+    shape = {'x': (1, 3, 32, 32)}
+    inputs = [x]
     check_function(y, inputs, lambda x: np_func(x), np_backward,
-                   dtype=dtype, in_range=(rnd_min, rnd_max))
+                   dtype=dtype, shape=shape, in_range=(rnd_min, rnd_max))
 
 
 def test_floor():

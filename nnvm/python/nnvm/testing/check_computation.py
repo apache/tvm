@@ -68,11 +68,18 @@ def graph_to_function(graph, target, ctx):
 
     return run
 
+def _dict_var_to_dict_str(dictionary):
+    """Convert a Dict[nnvm.Symbol, T] to Dict[str, T]"""
+    if isinstance(dictionary, dict):
+        return {s.attr('name') if isinstance(s, nnvm.symbol.Symbol) else s:
+                dictionary[s] for s in dictionary}
+    else:
+        return dictionary
 
 def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
-                   numerical_grads='if_possible', delta=1e-2,
+                   numerical_grads='if_possible', delta=1e-3,
                    atol=1e-5, rtol=1e-5, ng_atol=1e-2, ng_rtol=1e-2,
                    ng_max_error=1e+3, ng_max_discarded_frac=0.1,
                    dump_graph=False):
@@ -84,10 +91,9 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
     symbol : nnvm.Symbol
         A symbol representing the output.
 
-    grad_input_vars : List[nnvm.Symbol or str or (str, Tuple[int])], optional
+    grad_input_vars : List[nnvm.Symbol or str], optional
         A list of variables with respect to which the gradients will be computed.
-        None (default) means that all input variables will be used. May be a
-        list of pairs `(var_name, shape)`.
+        None (default) means that all input variables will be used but in an unpredictable order.
 
     np_forward : Callable[..., List[numpy.ndarray]], optional
         A reference implementation to compare with.
@@ -97,15 +103,15 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
         normal inputs. Should return gradients with respect to variables from grad_input_vars in
         exactly the same order.
 
-    shape : Dict[str, Tuple], optional
-        A dict mapping input variable names to shapes.
+    shape : Dict[nnvm.Symbol or str, Tuple[int]] or Tuple[int], optional
+        A dict mapping input variable names to shapes, or just a single shape.
         By default shapes will be inferred automatically.
 
-    dtype : Dict[str, str] or str, optional
+    dtype : Dict[nnvm.Symbol or str, str] or str, optional
         A dict mapping input variable names to dtypes, or just a single dtype.
         By default dtypes will be inferred automatically.
 
-    in_range : Dict[str, (float, float)] or (float, float), optional
+    in_range : Dict[nnvm.Symbol or str, (float, float)] or (float, float), optional
         A dict mapping input variable names to ranges or just a single range
         (the same for all variables). Input values will be generated from
         uniform distributions on these ranges. `head_grads` can also be
@@ -152,31 +158,23 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
         raise ValueError("numerical_grads must be a bool or 'if_possible', not {}"
                          .format(numerical_grads))
 
-    input_vars = [x for x in symbol.list_input_variables()]
+    input_vars = symbol.list_input_variables()
     input_dict = {x.attr('name'): x for x in input_vars}
 
     if grad_input_vars is None:
         grad_input_vars = input_vars
+    else:
+        grad_input_vars = [input_dict[x] if isinstance(x, str) else x for x in grad_input_vars]
 
-    shape = shape.copy() if shape else {}
+    if shape is None:
+        shape = {}
 
-    grad_input_vars_real = []
-    for x in grad_input_vars:
-        if isinstance(x, tuple):
-            if len(x) != 2:
-                raise ValueError("Expected (var_name, shape), not {}".format(x))
-            x_name = x[0] if isinstance(x[0], str) else x[0].attr('name')
-            if x_name in shape:
-                if shape[x_name] != x[1]:
-                    raise ValueError("Can't decide which shape to use for {}: "
-                                     "{} from shape or {} from grad_input_vars"
-                                     .format(x_name, shape[x_name], x[1]))
-            shape[x_name] = x[1]
-            x = x[0]
+    if not isinstance(shape, dict):
+        shape = {x: shape for x in input_dict}
 
-        grad_input_vars_real.append(input_dict[x] if isinstance(x, str) else x)
-
-    grad_input_vars = grad_input_vars_real
+    shape = _dict_var_to_dict_str(shape)
+    dtype = _dict_var_to_dict_str(dtype)
+    in_range = _dict_var_to_dict_str(in_range)
 
     # Infer the output shape and dtype by creating a graph and running passes
 
@@ -403,7 +401,7 @@ def check_numerical_grads(function, grad_input_vars, input_values, grad_values, 
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
                 "Gradient wrt '{}' has unexpected shape {}, expected {} "
-                .format(x.attr('name'), grad.shape, input_values[x_name].shape))
+                .format(x_name, grad.shape, input_values[x_name].shape))
 
         discarded_count = 0
         nondiscarded_count = 0
