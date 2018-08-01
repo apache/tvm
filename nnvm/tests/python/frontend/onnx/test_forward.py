@@ -312,6 +312,49 @@ def test_matmul():
 
         np.testing.assert_allclose(np.matmul(a_array, b_array), tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
 
+
+def test_lrn():
+    print("LRN test is started")
+    alpha = 0.0002
+    beta = 0.5
+    bias = 2.0
+    nsize = 3
+    shape = (5, 5, 5, 5)
+    dtype = 'float32'
+    in_array = np.random.uniform(size=shape).astype('float32')
+    node = onnx.helper.make_node(
+        'LRN',
+        inputs=['in'],
+        outputs=['out'],
+        alpha=alpha,
+        beta=beta,
+        bias=bias,
+        size=nsize
+    )
+
+    graph = helper.make_graph([node],
+                              "lrn_test",
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(shape))])
+    model = helper.make_model(graph, producer_name='lrn_test')
+    c2_out = get_caffe2_output(model, in_array, dtype)
+
+    for target, ctx in ctx_list():
+        new_sym, params = nnvm.frontend.from_onnx(model)
+        input_name = model.graph.input[0].name
+        shape_dict = {input_name: in_array.shape}
+        dtype_dict = {input_name: dtype}
+
+        graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, dtype_dict, params=params)
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input(input_name, tvm.nd.array(in_array.astype(dtype)))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        tvm_out = m.get_output(0, tvm.nd.empty(shape, dtype))
+        np.testing.assert_allclose(c2_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -328,3 +371,4 @@ if __name__ == '__main__':
     test_clip()
     test_matmul()
     test_gather()
+    test_lrn()
