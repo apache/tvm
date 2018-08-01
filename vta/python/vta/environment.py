@@ -110,7 +110,7 @@ class Environment(object):
         self.INP_WIDTH = 1 << self.LOG_INP_WIDTH
         self.WGT_WIDTH = 1 << self.LOG_WGT_WIDTH
         self.ACC_WIDTH = 1 << self.LOG_ACC_WIDTH
-        self.OUT_WIDTH = self.INP_WIDTH
+        self.OUT_WIDTH = 1 << self.LOG_OUT_WIDTH
         # tensor intrinsic shape
         self.BATCH = 1 << self.LOG_BATCH
         self.BLOCK_IN = 1 << self.LOG_BLOCK_IN
