@@ -337,6 +337,30 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_div)
     };
 });
 
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_mod)
+  .describe(R"code(Element-wise modulo
+
+)code" NNVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::mod(inputs[0], inputs[1]) };
+});
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_pow)
+  .describe(R"code(Element-wise power
+
+)code" NNVM_ADD_FILELINE)
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::power(inputs[0], inputs[1]) };
+});
+
 // negative
 NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
 .describe(R"code(Elemenwise numeric negative
