@@ -86,8 +86,10 @@ def main():
     if not ok_path_list:
         raise RuntimeError("Cannot find config in %s" % str(path_list))
     cfg = json.load(open(ok_path_list[0]))
-    cfg["LOG_OUT_WIDTH"] = cfg["LOG_INP_WIDTH"]
-    cfg["LOG_OUT_BUFF_SIZE"] = cfg["LOG_ACC_BUFF_SIZE"] + cfg["LOG_ACC_WIDTH"] - cfg["LOG_OUT_WIDTH"]
+    cfg["LOG_OUT_BUFF_SIZE"] = (
+        cfg["LOG_ACC_BUFF_SIZE"] +
+        cfg["LOG_OUT_WIDTH"] -
+        cfg["LOG_ACC_WIDTH"])
     pkg = get_pkg_config(cfg)
 
     if args.target:
