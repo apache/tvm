@@ -32,7 +32,7 @@ if __name__ == '__main__':
                         try:
                             autotvm.record.pick_best(filename, tmp_fout)
                         except Exception:  # pylint: disable=broad-except
-                            warnings.warn("Ignore invalid file %s", filename)
+                            warnings.warn("Ignore invalid file %s" % filename)
 
             logging.info("Run final filter...")
             autotvm.record.pick_best(tmp_filename, args.o)
