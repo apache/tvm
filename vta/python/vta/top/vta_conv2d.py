@@ -244,8 +244,11 @@ def is_packed_layout(layout):
     return False
 
 @reg.register_alter_op_layout("conv2d", level=15)
-def alter_conv2d_layout(*_):
-    return None
+def alter_conv2d_layout(attrs, inputs, out):
+    layout = attrs['layout']
+    if is_packed_layout(layout):
+        return None
+    return _nn.alter_conv2d_layout(attrs, inputs, out)
 
 
 @reg.register_compute("conv2d", level=15)
@@ -368,7 +371,6 @@ def schedule_packed_conv2d(outs):
     oshape = topi.util.get_const_tuple(output.shape)
     s = tvm.create_schedule(output.op)
 
-
     # setup pad
     if pad_data is not None:
         cdata = pad_data
@@ -393,7 +395,6 @@ def schedule_packed_conv2d(outs):
                  else plan.out_filter // env.BLOCK_OUT)
     h_factor = (plan.h_factor if plan.h_factor else oshape[2])
     w_factor = (plan.w_factor if plan.w_factor else oshape[3])
-
 
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
     x_co0, x_co1 = s[output].split(x_co, factor=oc_factor)
@@ -459,6 +460,7 @@ class Conv2DSchedule(object):
         self.oc_nthread = oc_nthread
         self.h_nthread = h_nthread
         self.debug_sync = debug_sync
+
     def __str__(self):
         return "{}.{}.{}.{}.{}.{}.{}".format(
             self.b_factor, self.oc_factor, self.ic_factor,
@@ -483,7 +485,6 @@ RESNET = {
     11: Workload(1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
 }
 
-_WL2PLAN = {}
 for idx in RESNET:
     scheds = find_schedules(RESNET[idx], vt_only=True, best_only=True)[0]
     _WL2PLAN[RESNET[idx]] = scheds

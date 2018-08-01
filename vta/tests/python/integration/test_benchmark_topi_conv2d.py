@@ -127,9 +127,10 @@ def test_cpu_conv2d():
             with tvm.target.arm_cpu("pynq"):
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
 
-    # download pre-tuned parameters and load the dispatch context
-    with autotvm.tophub.context(tvm.target.arm_cpu()):
-        vta.testing.run(_run)
+    # load pre-tuned operator parameters for ARM CPU
+    autotvm.tophub.load(tvm.target.arm_cpu())
+
+    vta.testing.run(_run)
 
 
 def test_vta_conv2d():
@@ -260,9 +261,10 @@ def test_vta_conv2d():
             print(wl)
             run_vta_conv2d(env, remote, key, batch_size, wl)
 
-    # download pre-tuned parameters and load the dispatch context
-    with autotvm.tophub.context(tvm.target.arm_cpu()):
-        vta.testing.run(_run)
+    # load pre-tuned operator parameters for ARM CPU
+    autotvm.tophub.load(tvm.target.arm_cpu())
+
+    vta.testing.run(_run)
 
 
 if __name__ == "__main__":

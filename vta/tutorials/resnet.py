@@ -8,7 +8,6 @@ onto the VTA accelerator design to perform ImageNet classification tasks.
 
 """
 
-
 ######################################################################
 # Import Libraries
 # ----------------
@@ -17,26 +16,21 @@ onto the VTA accelerator design to perform ImageNet classification tasks.
 from __future__ import absolute_import, print_function
 
 import os
-import sys
-import nnvm
-import nnvm.compiler
-import tvm
-import vta
-import vta.testing
-import numpy as np
-import json
-import requests
 import time
-
-from nnvm.compiler import graph_attr
-from tvm import rpc
-from tvm.contrib import graph_runtime, util
-from tvm.contrib.download import download
-from vta.testing import simulator
-
 from io import BytesIO
+
+import numpy as np
+import requests
 from matplotlib import pyplot as plt
 from PIL import Image
+
+import tvm
+from tvm import rpc, autotvm
+from tvm.contrib import graph_runtime, util
+from tvm.contrib.download import download
+import nnvm.compiler
+import vta
+import vta.testing
 
 # Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
@@ -76,7 +70,6 @@ def classify(m, image):
 # Takes in a path to a graph file, params file, and device target
 # Returns the NNVM graph object, a compiled library object, and the params dict
 def generate_graph(graph_fn, params_fn, device="vta"):
-
     # Measure build start time
     build_start = time.time()
 
@@ -90,6 +83,9 @@ def generate_graph(graph_fn, params_fn, device="vta"):
     elif env.TARGET == "pynq":
         target_host = "llvm -mtriple=armv7-none-linux-gnueabihf -mcpu=cortex-a9 -mattr=+neon"
 
+    # Load pre-tuned parameters of conv2d for ARM CPU
+    autotvm.tophub.load(tvm.target.arm_cpu('pynq'))
+
     # Load the ResNet-18 graph and parameters
     sym = nnvm.graph.load_json(open(graph_fn).read())
     params = nnvm.compiler.load_param_dict(open(params_fn, 'rb').read())
@@ -99,12 +95,6 @@ def generate_graph(graph_fn, params_fn, device="vta"):
     dtype_dict = {"data": 'float32'}
     shape_dict.update({k: v.shape for k, v in params.items()})
     dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
-
-    # Create NNVM graph
-    graph = nnvm.graph.create(sym)
-    graph_attr.set_shape_inputs(sym, shape_dict)
-    graph_attr.set_dtype_inputs(sym, dtype_dict)
-    graph = graph.apply("InferShape").apply("InferType")
 
     # Apply NNVM graph optimization passes
     sym = vta.graph.clean_cast(sym)
