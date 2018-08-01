@@ -11,12 +11,10 @@ import json
 import time
 from collections import OrderedDict
 
-import numpy as np
-
 from .. import build, lower, target as _target
 
 from . import task
-from .task import DispatchContext, ConfigEntity
+from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.1
@@ -166,105 +164,6 @@ def load_from_file(filename):
     """
     for row in open(filename):
         yield decode(row)
-
-
-class ApplyHistoryBest(DispatchContext):
-    """
-    Apply the history best config
-
-    Parameters
-    ----------
-    records : str or iterator of (MeasureInput, MeasureResult)
-        Collection of tuning records.
-        If is str, then it should be the filename of a records log file.
-                   Each row of this file is an encoded record pair.
-        Otherwise, it is an iterator.
-    default: ConfigEntity, optional
-        The default config to return when no history records
-    """
-    def __init__(self, records, default=None):
-        super(ApplyHistoryBest, self).__init__()
-
-        self.best_by_targetkey = {}
-        self.best_by_model = {}
-        self._default = default
-
-        self.load(records)
-
-    def load(self, records):
-        """Load records to this dispatch context
-
-        Parameters
-        ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
-            Collection of tuning records.
-            If is str, then it should be the filename of a records log file.
-                       Each row of this file is an encoded record pair.
-            Otherwise, it is an iterator.
-        """
-        if isinstance(records, str):
-            records = load_from_file(records)
-        if not records:
-            return
-
-        best_by_targetkey = self.best_by_targetkey
-        best_by_model = self.best_by_model
-
-        counter = 0
-        for inp, res in records:
-            counter += 1
-            if res.error_no != 0:
-                continue
-
-            # use target keys in tvm target system as key to build best map
-            for k in inp.target.keys:
-                key = (k, inp.task.workload)
-                if key not in best_by_targetkey:
-                    best_by_targetkey[key] = (inp, res)
-                else:
-                    _, other_res = best_by_targetkey[key]
-                    if np.mean(other_res.costs) > np.mean(res.costs):
-                        best_by_targetkey[key] = (inp, res)
-
-            # use model as key to build best map
-            for opt in inp.target.options:
-                if opt.startswith("-model"):
-                    model = opt[7:]
-                    key = (model, inp.task.workload)
-                    if key not in best_by_model:
-                        best_by_model[key] = (inp, res)
-                    else:
-                        _, other_res = best_by_model[key]
-                        if np.mean(other_res.costs) > np.mean(res.costs):
-                            best_by_model[key] = (inp, res)
-                    break
-
-        logging.debug("Finish loading %d records", counter)
-
-    def query(self, target, workload):
-        if target is None:
-            raise RuntimeError("Need a target context to find the history best. "
-                               "Hint: If your target is llvm, use `with tvm.target.create('llvm'):`"
-                               " above the dispatcher call. So does other target. ")
-
-        # first try matching by model
-        for opt in target.options:
-            if opt.startswith("-model"):
-                model = opt[7:]
-                key = (model, workload)
-                if key in self.best_by_model:
-                    return self.best_by_model[key][0].config
-
-        # then try matching by target key
-        for k in target.keys:
-            key = (k, workload)
-            if key in self.best_by_targetkey:
-                return self.best_by_targetkey[key][0].config
-
-        if self._default:
-            return self._default
-        raise RuntimeError(
-            "Cannot find config for target=%s, workload=%s" % (target, workload))
 
 
 def split_workload(in_file, clean=True):

@@ -34,7 +34,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     Parameters
     ----------
     topi_compute: GenericFunc
-        The overloaded topi compute call
+        The topi compute function that will be overloaded
     target_keys: str or list of str
         The compilation target. The same as the argument of GenericFunc.register.
     template_keys: str or list of str
@@ -104,6 +104,8 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
                     return op.output(0)
                 return [op.output(i) for i in range(len(node))]
 
+        return f
+
     if func:
         _decorator(func)
 
@@ -122,7 +124,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
     Parameters
     ----------
     topi_schedule: GenericFunc
-        The overloaded topi schedule call
+        The topi schedule function that will be overloaded
     target_keys: str or list of str
         The compilation target
     template_keys: str or list of str
@@ -182,6 +184,8 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
                 if f == topi_schedule.fdefault:
                     return f(outs)
                 return f(cfg, outs)
+
+        return f
 
     if func:
         _decorator(func)

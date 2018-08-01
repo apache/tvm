@@ -58,6 +58,15 @@ tvm.autotvm.task
 .. automodule:: tvm.autotvm.task.space
     :members:
 
+.. automodule:: tvm.autotvm.task.dispatcher
+    :members:
+
+.. automodule:: tvm.autotvm.task.topi_integration
+    :members:
+
+.. automodule:: tvm.autotvm.task.nnvm_integration
+    :members:
+
 tvm.autotvm.record
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.record

@@ -25,18 +25,18 @@ def _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype):
 
 @conv2d.register('arm_cpu')
 @autotvm.task.dispatcher
-def config_dispatcher(data, kernel, strides, padding, layout, out_dtype):
+def conv2d_arm_cpu(data, kernel, strides, padding, layout, out_dtype):
     """TOPI compute callback. Mark this function as a dispatcher, so
     this template can assign config according to workload"""
     return _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
 
-@config_dispatcher.register(['direct'])
+@conv2d_arm_cpu.register(['direct'])
 def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
     """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=2)
 
 @autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
-def schedule_conv2d_nchw_(cfg, outs):
+def schedule_conv2d_nchw_arm_cpu(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
 
@@ -204,7 +204,7 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     return s
 
 
-@config_dispatcher.register('winograd')
+@conv2d_arm_cpu.register('winograd')
 def decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
     tile_size = 4
     return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
@@ -251,24 +251,23 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
             [1, -2, 4, -8],
             [0, 0, 0, 1]], out_dtype)
     elif tile_size == 2:
+        G_data = np.array([
+            [1, 0, 0],
+            [1.0/2, 1.0/2, 1.0/2],
+            [1.0/2, -1.0/2, 1.0/2],
+            [0, 0, 1]], np.float32)
+
         B_data = np.array([
             [1, 0, 0, 0],
             [0, 1, -1, 1],
             [-1, 1, 1, 0],
             [0, 0, 0, -1]], out_dtype)
 
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1], ], out_dtype)
-
         A_data = np.array([
             [1, 0],
             [1, 1],
             [1, -1],
-            [0, -1],
-        ], out_dtype)
+            [0, -1]], out_dtype)
     else:
         raise ValueError("Unsupported tile size for winograd: " + str(tile_size))
 
@@ -345,7 +344,6 @@ def _schedule_winograd(cfg, s, output, last):
     U, V = M.op.input_tensors
     d, B = V.op.input_tensors
     data_pad = d.op.input_tensors[0]
-    data = data_pad.op.input_tensors[0]
 
     # padding
     s[data_pad].compute_inline()

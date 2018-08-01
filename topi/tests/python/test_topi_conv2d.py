@@ -40,8 +40,8 @@ def verify_conv2d(batch, in_size, in_channel, num_filter, kernel, stride, paddin
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 def test_conv2d():
-    with autotvm.tophub.context(tvm.target.arm_cpu()):
-        verify_conv2d(1, 56, 64, 64, 3, 1, 1)
+    autotvm.tophub.load(tvm.target.arm_cpu('rasp3b'))
+    verify_conv2d(1, 56, 64, 64, 3, 1, 1)
 
 if __name__ == "__main__":
     test_conv2d()
