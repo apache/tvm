@@ -22,8 +22,7 @@ def test_relu():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 def test_prelu_nchw():
     x = sym.Variable("x")
@@ -35,8 +34,7 @@ def test_prelu_nchw():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32), 'a': (3,)}
-    inputs = [x, a]
-    check_function(y, inputs, forward, dtype=dtype, shape=shape)
+    check_function(y, forward, dtype=dtype, shape=shape)
 
 def test_prelu_nhwc():
     x = sym.Variable("x")
@@ -48,8 +46,7 @@ def test_prelu_nhwc():
 
     dtype = "float32"
     shape = {'x': (1, 32, 32, 3), 'a': (3,)}
-    inputs = [x, a]
-    check_function(y, inputs, forward, dtype=dtype, shape=shape)
+    check_function(y, forward, dtype=dtype, shape=shape)
 
 def test_sym_scalar_pow():
     scalar = 3
@@ -64,8 +61,7 @@ def test_sym_scalar_pow():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_scalar_sym_pow():
@@ -81,8 +77,7 @@ def test_scalar_sym_pow():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_exp():
@@ -97,8 +92,7 @@ def test_exp():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_log():
@@ -113,8 +107,7 @@ def test_log():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, in_range=(0.001, 2.0), dtype=dtype, shape=shape)
+    check_function(y, forward, backward, in_range=(0.001, 2.0), dtype=dtype, shape=shape)
 
 
 def test_tanh():
@@ -130,8 +123,7 @@ def test_tanh():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_sigmoid():
@@ -147,8 +139,7 @@ def test_sigmoid():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_softmax():
@@ -164,10 +155,9 @@ def test_softmax():
         return [grad]
 
     dtype = "float32"
-    inputs = [x]
-    check_function(y, inputs, forward, backward,
+    check_function(y, forward, backward,
                    shape={'x': (10, 1000)}, dtype=dtype, numerical_grads=False)
-    check_function(y, inputs, forward, backward,
+    check_function(y, forward, backward,
                    shape={'x': (2, 10)}, dtype=dtype)
 
 
@@ -184,10 +174,9 @@ def test_log_softmax():
         return [grad]
 
     dtype = "float32"
-    inputs = [x]
-    check_function(y, inputs, forward, backward,
+    check_function(y, forward, backward,
                    shape={'x': (10, 1000)}, dtype=dtype, numerical_grads=False)
-    check_function(y, inputs, forward, backward,
+    check_function(y, forward, backward,
                    shape={'x': (2, 10)}, dtype=dtype)
 
 
@@ -206,11 +195,10 @@ def test_dense():
         'w': (3, 100),
         'b': (3,)
     }
-    inputs = [x, w, b]
     # Don't check gradients on cuda because is doesn't yet support ewise after reduce
-    check_function(y, inputs, forward, dtype=dtype, shape=shape,
+    check_function(y, forward, dtype=dtype, shape=shape,
                    exclude_targets={'cuda'}, numerical_grads=True)
-    check_function(y, inputs, forward, dtype=dtype, shape=shape,
+    check_function(y, forward, dtype=dtype, shape=shape,
                    only_targets={'cuda'}, numerical_grads=False)
 
 
@@ -235,9 +223,8 @@ def test_batchnorm():
         'moving_mean': (20,),
         'moving_var': (20,)
     }
-    inputs = [x, gamma, beta, moving_mean, moving_var]
 
-    check_function(y, inputs, forward, in_range=(0.001, 1.0), dtype=dtype, shape=shape)
+    check_function(y, forward, in_range=(0.001, 1.0), dtype=dtype, shape=shape)
 
 
 def verify_concatenate(ishape, axis):
@@ -370,8 +357,7 @@ def verify_squeeze(shape, axis):
         return [np.reshape(head_grads, x.shape)]
 
     dtype = "float32"
-    inputs = [x]
-    check_function(y, inputs, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, dtype=dtype, shape=shape)
 
 
 def test_squeeze():
@@ -391,8 +377,7 @@ def test_pad():
 
     dtype = "float32"
     shape = {'x': (1, 3, 28, 28)}
-    inputs = [x]
-    check_function(y, inputs, forward, dtype=dtype, shape=shape)
+    check_function(y, forward, dtype=dtype, shape=shape)
 
 def verify_lrn(ishape, size, axis, bias, alpha, beta):
     x = sym.Variable("x")

@@ -11,8 +11,7 @@ def check_map(symfunc, np_func, np_backward=None, dtype="float32", rnd_min=-1, r
     x = sym.Variable("x")
     y = symfunc(x)
     shape = {'x': (1, 3, 32, 32)}
-    inputs = [x]
-    check_function(y, inputs, lambda x: np_func(x), np_backward,
+    check_function(y, lambda x: np_func(x), np_backward,
                    dtype=dtype, shape=shape, in_range=(rnd_min, rnd_max))
 
 

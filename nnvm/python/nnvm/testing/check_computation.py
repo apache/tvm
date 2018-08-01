@@ -76,7 +76,7 @@ def _dict_var_to_dict_str(dictionary):
     else:
         return dictionary
 
-def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=None,
+def check_function(symbol, np_forward=None, np_backward=None, grad_input_vars=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
                    numerical_grads='if_possible', delta=1e-3,
@@ -91,17 +91,18 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
     symbol : nnvm.Symbol
         A symbol representing the output.
 
-    grad_input_vars : List[nnvm.Symbol or str], optional
-        A list of variables with respect to which the gradients will be computed.
-        None (default) means that all input variables will be used but in an unpredictable order.
-
     np_forward : Callable[..., List[numpy.ndarray]], optional
         A reference implementation to compare with.
 
-    np_backward : Callable[..., List[numpy.ndarray]], optional
+    np_backward : Callable[..., List[numpy.ndarray] or Dict[str, numpy.ndarray]], optional
         A reference implementation of gradients. Should also accept head_grads besides
-        normal inputs. Should return gradients with respect to variables from grad_input_vars in
-        exactly the same order.
+        normal inputs. Should return either a dict mapping input variable names to the respective
+        gradients or a list of gradients wrt variables from grad_input_vars in
+        exactly the same order (in alphabetical order by default).
+
+    grad_input_vars : List[nnvm.Symbol or str], optional
+        A list of variables with respect to which the gradients will be computed.
+        None (default) means that all input variables will be used in an alphabetical order.
 
     shape : Dict[nnvm.Symbol or str, Tuple[int]] or Tuple[int], optional
         A dict mapping input variable names to shapes, or just a single shape.
@@ -162,7 +163,7 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
     input_dict = {x.attr('name'): x for x in input_vars}
 
     if grad_input_vars is None:
-        grad_input_vars = input_vars
+        grad_input_vars = sorted(input_vars, key=lambda x: x.attr('name'))
     else:
         grad_input_vars = [input_dict[x] if isinstance(x, str) else x for x in grad_input_vars]
 
@@ -281,6 +282,10 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
             # nnvm_res contains the output and gradients (if they are needed)
             nnvm_res = main_function(**np_inputs)
 
+            if backward_graph is not None:
+                grad_var_names = [x.attr('name') for x in grad_input_vars]
+                nnvm_grads = {x: v for x, v in zip(grad_var_names, nnvm_res[1:])}
+
             if np_forward is not None:
                 debug_stage = "checking forward computation"
                 logging.debug(debug_stage)
@@ -293,8 +298,16 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
                 logging.debug(debug_stage)
 
                 numpy_grads = np_backward(**np_inputs)
-                for i, np_grad in enumerate(numpy_grads):
-                    np.testing.assert_allclose(nnvm_res[i + 1], np_grad, atol=atol, rtol=rtol)
+                if not isinstance(numpy_grads, dict):
+                    numpy_grads = {x: v for x, v in zip(grad_var_names, numpy_grads)}
+                    if len(numpy_grads) != len(grad_var_names):
+                        raise ValueError("The backward function returns a list of gradients which "
+                                         "does not contain gradients for these variables: {}"
+                                         .format(set(grad_var_names) - set(numpy_grads)))
+
+                for x_name in numpy_grads:
+                    np.testing.assert_allclose(nnvm_grads[x_name], numpy_grads[x_name],
+                                               atol=atol, rtol=rtol)
 
             if numerical_grads:
                 debug_stage = "checking gradients numerically"
@@ -310,15 +323,13 @@ def check_function(symbol, grad_input_vars=None, np_forward=None, np_backward=No
                     return np.dot(np_inputs['head_grads'].ravel(), res.ravel())
 
                 function_value = np.dot(np_inputs['head_grads'].ravel(), nnvm_res[0].ravel())
-                grad_var_names = [x.attr('name') for x in grad_input_vars]
-                grad_values = {x: v for x, v in zip(grad_var_names, nnvm_res[1:])}
 
                 check_numerical_grads(
                     function,
                     grad_input_vars=grad_var_names,
                     input_values=np_inputs_without_head_grads,
                     function_value=function_value,
-                    grad_values=grad_values,
+                    grad_values=nnvm_grads,
                     delta=delta,
                     max_error=ng_max_error,
                     max_discarded_frac=ng_max_discarded_frac,
