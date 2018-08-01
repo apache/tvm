@@ -413,7 +413,7 @@ def opengl(options=None):
 
 def arm_cpu(model='unknown', options=None):
     """Returns a ARM CPU target.
-    This function will also donwload pre-tuned op parameters
+    This function will also download pre-tuned op parameters when there is none.
 
     Parameters
     ----------
@@ -442,6 +442,17 @@ def arm_cpu(model='unknown', options=None):
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)
     return _api_internal._TargetCreate("llvm", *opts)
+
+
+def rasp(options=None):
+    """Return a Raspberry 3b target.
+
+    Parameters
+    ----------
+    options : str or list of str
+        Additional options
+    """
+    return arm_cpu('rasp3b', options)
 
 
 def create(target_str):

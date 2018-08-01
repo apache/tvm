@@ -9,16 +9,26 @@ import logging
 import os
 import json
 
-from .task import ROOT_DISPATCH_CONTEXT
+from .task import ApplyHistoryBest
+from .. import target as _target
 from ..contrib.util import tempdir
 from ..contrib.download import download
 
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
 
 
-def load(target, extra_files=None):
-    """Load pre-tuned parameters to the root dispatch context.
-    The corresponding downloaded *.log files under TopHub root path will be loaded.
+def _alias(name):
+    """convert alias for some packages"""
+    table = {
+        'vtacpu': 'vta',
+    }
+    return table.get(name, name)
+
+
+def context(target, extra_files=None):
+    """Return the dispatch context with pre-tuned parameters.
+    The corresponding downloaded *.log files under tophub root path will be loaded.
+    Users can also add their own files in argument `extra_files`.
 
     Parameters
     ----------
@@ -26,28 +36,28 @@ def load(target, extra_files=None):
         The compilation target
     extra_files: list of str, optional
         Extra log files to load
-
-    Note
-    ----
-    If the current dispatch context is not root dispatch context,
-    this function won't affect the current dispatch context.
     """
     rootpath = AUTOTVM_TOPHUB_ROOT_PATH
-    root_context = ROOT_DISPATCH_CONTEXT
+    best_context = ApplyHistoryBest([])
+
+    if isinstance(target, str):
+        target = _target.create(target)
 
     big_target = str(target).split()[0]
     if os.path.isfile(os.path.join(rootpath, big_target + ".log")):
-        root_context.load(os.path.join(rootpath, big_target + ".log"))
+        best_context.load(os.path.join(rootpath, big_target + ".log"))
 
     for opt in target.options:
         if opt.startswith("-device"):
-            model = opt[8:]
+            model = _alias(opt[8:])
             if os.path.isfile(os.path.join(rootpath, model) + ".log"):
-                root_context.load(os.path.join(rootpath, model) + ".log")
+                best_context.load(os.path.join(rootpath, model) + ".log")
 
     if extra_files:
         for filename in extra_files:
-            root_context.load(filename)
+            best_context.load(filename)
+
+    return best_context
 
 
 def download_package(backend):
@@ -68,6 +78,7 @@ def download_package(backend):
             if not os.path.isdir(path):
                 os.mkdir(path)
 
+    backend = _alias(backend)
     logging.info("Download pre-tuned parameters for %s", backend)
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s.log" % backend,
              os.path.join(rootpath, backend + ".log"), True, verbose=0)
@@ -82,9 +93,10 @@ def check_package(backend):
     backend: str
         The name of package
     """
+    backend = _alias(backend)
+
     if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, backend + ".log")):
         return
-
     download_package(backend)
 
 

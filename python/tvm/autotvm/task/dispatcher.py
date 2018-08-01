@@ -242,6 +242,3 @@ class ApplyHistoryBest(DispatchContext):
             return self._default
         raise RuntimeError(
             "Cannot find config for target=%s, workload=%s" % (target, workload))
-
-ROOT_DISPATCH_CONTEXT = ApplyHistoryBest([])
-DispatchContext.current = ROOT_DISPATCH_CONTEXT
