@@ -40,6 +40,8 @@ We can also use other specific function in this module to create specific target
 """
 from __future__ import absolute_import
 
+import warnings
+
 from ._ffi.base import _LIB_NAME
 from ._ffi.node import NodeBase, register_node
 from . import _api_internal
@@ -452,6 +454,7 @@ def rasp(options=None):
     options : str or list of str
         Additional options
     """
+    warnings.warn('tvm.target.rasp() is going to be deprecated. Please use tvm.target.arm_cpu("rasp3b")')
     return arm_cpu('rasp3b', options)
 
 
