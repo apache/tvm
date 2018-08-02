@@ -172,6 +172,77 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
   static const constexpr int kBias = 2;
 };
 
+struct WinogradWeightTransformParam : public dmlc::Parameter<WinogradWeightTransformParam> {
+    int tile_size;
+
+    DMLC_DECLARE_PARAMETER(WinogradWeightTransformParam) {
+      DMLC_DECLARE_FIELD(tile_size)
+        .describe("Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)");
+    }
+
+    static const constexpr int kWeight = 0;
+};
+
+struct WinogradConv2DParam : public dmlc::Parameter<WinogradConv2DParam> {
+  int channels;
+  TShape kernel_size;
+  TShape strides;
+  TShape padding;
+  TShape dilation;
+  int groups;
+  std::string layout;
+  std::string kernel_layout;
+  std::string out_layout;
+  int out_dtype;
+  bool use_bias;
+  int tile_size;
+
+  DMLC_DECLARE_PARAMETER(WinogradConv2DParam) {
+    DMLC_DECLARE_FIELD(channels)
+      .describe("The dimensionality of the output space"
+                "i.e. the number of output channels in the convolution.");
+    DMLC_DECLARE_FIELD(kernel_size)
+      .describe("Specifies the dimensions of the convolution window.");
+    DMLC_DECLARE_FIELD(strides).set_default(TShape({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    DMLC_DECLARE_FIELD(padding).set_default(TShape({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "on both sides for padding number of points");
+    DMLC_DECLARE_FIELD(dilation).set_default(TShape({1, 1}))
+      .describe("Specifies the dilation rate to use for dilated convolution.");
+    DMLC_DECLARE_FIELD(groups).set_default(1)
+      .describe("Controls the connections between inputs and outputs."
+                "At groups=1, all inputs are convolved to all outputs."
+                "At groups=2, the operation becomes equivalent to having two convolution"
+                "layers side by side, each seeing half the input channels, and producing"
+                "half the output channels, and both subsequently concatenated.");
+    DMLC_DECLARE_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    DMLC_DECLARE_FIELD(out_layout).set_default("__undef__")
+      .describe("Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Default to be same as input layout.");
+    DMLC_DECLARE_FIELD(kernel_layout).set_default("OIHW")
+      .describe("Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+                "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
+                "dimensions respectively.");
+    DMLC_DECLARE_DTYPE_FIELD(out_dtype)
+      .add_enum("same", -1)
+      .set_default(-1)
+      .describe("Output data type, set to explicit type under mixed precision setting");
+    DMLC_DECLARE_FIELD(use_bias).set_default(true)
+      .describe("Whether the layer uses a bias vector.");
+    DMLC_DECLARE_FIELD(tile_size)
+      .describe("Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)");
+  }
+  // constants
+  static const constexpr int kData = 0;
+  static const constexpr int kWeight = 1;
+  static const constexpr int kBias = 2;
+};
 
 struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
   int channels;

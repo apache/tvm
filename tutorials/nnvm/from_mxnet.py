@@ -1,4 +1,6 @@
 """
+.. _tutorial-from-mxnet:
+
 Compile MXNet Models
 ====================
 **Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_
