@@ -117,7 +117,7 @@ int main()
 }
 ```
 
-# Deploy as System Module
+## Deploy as System Module
 C++ additionally support deployment as system module.
 This process need few additional options as given below to NNVM build.
 
