@@ -94,10 +94,8 @@ def _dict_var_to_dict_str(dictionary):
 def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
-                   numerical_grads='if_possible', delta=1e-3,
-                   atol=1e-5, rtol=1e-5, ng_atol=1e-2, ng_rtol=1e-2,
-                   ng_max_error=1e+3, ng_max_discarded_frac=0.1,
-                   quiet=False, dump_graph=False):
+                   numerical_grads='if_possible', numerical_grads_params=None,
+                   atol=1e-5, rtol=1e-5, quiet=False):
     """Compute the function and/or its gradients on a random input and raise
     an exception if the result doesn't match the reference implementation.
 
@@ -135,44 +133,29 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         uniform distributions on these ranges. `head_grads` can also be
         assigned a range this way.
 
-    exclude_targets : Set[str]
+    exclude_targets : Set[str], optional
         Skip compiling and running anything for these targets.
 
-    only_targets : Set[str]
+    only_targets : Set[str], optional
         Test only for those targets from `ctx_list()` that are also in this set.
 
-    numerical_grads : bool or "if_possible"
+    numerical_grads : bool or "if_possible", optional
         Whether to additionally check against numerically computed gradients. If 'if_possible' is
         passed (which is the default) then it will try to create a gradient computation graph and
         then check gradients numerically only if this graph can be created (i.e. if there are some
         operations with unimplemented gradients, it will just issue a warning).
 
-    delta : float
-        A small value used for numerical gradient computation (usually called h in textbooks).
+    numerical_grads_params : dict, optional
+        Additional parameters for `check_numerical_grads`.
 
-    atol : float
-        Absolute tolerance.
+    atol : float, optional
+        Absolute tolerance for `np.testing.assert_allclose`.
 
-    rtol : float
-        Relative tolerance.
+    rtol : float, optional
+        Relative tolerance for `np.testing.assert_allclose`.
 
-    ng_atol : float
-        Absolute tolerance for numerical grad checking.
-
-    ng_rtol : float
-        Relative tolerance for numerical grad checking.
-
-    ng_max_error : float
-        Discard numerical partial derivatives whose estimated error is larger than this value.
-
-    ng_max_discarded_frac : float
-        Allow discarding no more than this fraction of partial derivatives.
-
-    quiet : bool
+    quiet : bool, optional
         Don't dump additional information to stdout on failure.
-
-    dump_graph : bool
-        Dump the graph even on success.
     """
 
     if numerical_grads not in [False, True, 'if_possible']:
@@ -251,10 +234,6 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 raise
 
     main_graph = backward_graph if backward_graph is not None else forward_graph
-
-    if dump_graph:
-        print()
-        print(main_graph.ir(join_node_attrs=['shape', 'dtype']))
 
     # Generate random data for inputs (including head_grads)
 
@@ -371,14 +350,14 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                     return np.sum([np.dot(np_inputs['head_grads_' + str(i)].ravel(), res[i].ravel())
                                    for i in range(out_len)])
 
+                if numerical_grads_params is None:
+                    numerical_grads_params = {}
+
                 check_numerical_grads(
                     function,
                     input_values=np_inputs_without_head_grads,
                     grad_values=nnvm_grads,
-                    delta=delta,
-                    max_error=ng_max_error,
-                    max_discarded_frac=ng_max_discarded_frac,
-                    atol=ng_atol, rtol=ng_rtol)
+                    **numerical_grads_params)
 
         except:
             if not quiet:
@@ -419,19 +398,19 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
     function_value : float, optional
         Should be equal to `function(**input_values)`.
 
-    delta : float
+    delta : float, optional
         A small number used for numerical computation of partial derivatives.
 
-    max_error : float
+    max_error : float, optional
         Discard numerical partial derivatives whose estimated error is larger than this value.
 
-    max_discarded_frac : float
+    max_discarded_frac : float, optional
         Allow discarding no more than this fraction of partial derivatives.
 
-    atol : float
+    atol : float, optional
         Absolute tolerance.
 
-    rtol : float
+    rtol : float, optional
         Relative tolerance.
     """
 
