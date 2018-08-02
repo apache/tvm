@@ -402,7 +402,7 @@ def default_build_func(inp, tmp_dir=None, **kwargs):
 
     # export library to temp directory
     if tmp_dir:
-        if kwargs.get('use_ndk', False):  # for Android NDK
+        if kwargs.get('use_ndk', True):  # for Android NDK
             filename = "tmp_func_%0x.so" % getrandbits(64)
             func.export_library(tmp_dir.relpath(filename), ndk.create_shared)
         else:
