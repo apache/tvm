@@ -263,6 +263,15 @@ def _expand_dims(inputs, attrs):
     new_attrs['axis'] = _required_attr(attrs, 'axis')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _lrn(inputs, attrs):
+    op_name, new_attrs = "lrn", {}
+    new_attrs['alpha'] = attrs.get('alpha', 0.0001)
+    new_attrs['beta'] = attrs.get('beta', 0.75)
+    new_attrs['bias'] = attrs.get('knorm', 2)
+    # NCHW format and normalization along channel axis
+    new_attrs['axis'] = 1
+    new_attrs['size'] = _required_attr(attrs, 'nsize')
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -314,7 +323,8 @@ _convert_map = {
     'sum_axis'      : _rename('sum'),
     'UpSampling'    : _upsampling,
     'clip'          : _clip,
-    'expand_dims'   : _expand_dims
+    'expand_dims'   : _expand_dims,
+    'LRN'           : _lrn
 }
 
 def _convert_symbol(op_name, inputs, attrs,
