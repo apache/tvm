@@ -116,3 +116,22 @@ int main()
     return 0;
 }
 ```
+
+# Deploy as System Module
+C++ additionally support deployment as system module.
+This process need few additional options as given below to NNVM build.
+
+- For target llvm append --system-lib as ```target=llvm --system-lib```
+- For a GPU build (or non llvm) the additional option should be given to targat_host as ```target_host=llvm --system-lib```
+
+Saving the module also differs as ```lib.save``` instead of ```lib.export_library```
+
+The output of lib.save is an object file which should be added to other object files while building c++ application.
+Please refer to [Makefile](https://github.com/dmlc/tvm/blob/54ca1493bd9808a481ca0e7ed32897c12f36796e/apps/howto_deploy/Makefile#L32) for a reference.
+
+The c++ code to load this system module require the below change.
+
+```cpp
+    // tvm module for compiled functions
+    tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
+```
