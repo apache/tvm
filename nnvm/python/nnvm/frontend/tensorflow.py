@@ -471,15 +471,15 @@ def _fill():
 def _lrn():
     def _impl(inputs, attr, params):
         new_inputs = []
-        size = (attr['depth_radius'] * 2) + 1
-        return AttrCvt(
-            op_name='lrn',
-            extras={'axis': 3, # Fix axis
-                    'size': size,
-                    'alpha': attr['alpha'] * size},
-            ignores=['name',
-                     'alpha',
-                     'depth_radius'])(new_inputs, attr)
+        attr_new = {}
+        depth_radius = attr.get('depth_radius', 5)
+        size = (depth_radius * 2) + 1
+        attr_new['axis'] = 3 # Fix axis, NHWC format
+        attr_new['size'] = size
+        attr_new['bias'] = attr.get('bias', 1)
+        attr_new['alpha'] = attr.get('alpha', 1) * size
+        attr_new['beta'] = attr.get('beta', 0.5)
+        return AttrCvt(op_name='lrn')(new_inputs, attr_new)
     return _impl
 
 def _gather_v2():
