@@ -149,6 +149,11 @@ def test_forward_pooling():
     mx_sym = mx.sym.Pooling(data, kernel=(3, 3), pad=(1, 1), pool_type='max')
     verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
 
+def test_forward_lrn():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.LRN(data, alpha=2, beta=2, knorm=1, nsize=5)
+    verify_mxnet_frontend_impl(mx_sym, (1, 10, 24, 24), (1, 10, 24, 24))
+
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -163,3 +168,4 @@ if __name__ == '__main__':
     test_forward_split_squeeze()
     test_forward_expand_dims()
     test_forward_pooling()
+    test_forward_lrn()
