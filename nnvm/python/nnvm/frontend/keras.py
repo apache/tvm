@@ -74,7 +74,9 @@ def _convert_activation(insym, keras_layer, _):
 
 def _convert_advanced_activation(insym, keras_layer, symtab):
     act_type = type(keras_layer).__name__
-    if act_type == 'LeakyReLU':
+    if act_type == 'ReLU':
+        return _sym.relu(insym)
+    elif act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
     elif act_type == 'ELU':
         alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1
@@ -382,6 +384,7 @@ def _default_skip(insym, keras_layer, _): # pylint: disable=unused-argument
 _convert_map = {
     'Dense'                    : _convert_dense,
     'Activation'               : _convert_activation,
+    'ReLU'                     : _convert_advanced_activation,
     'LeakyReLU'                : _convert_advanced_activation,
     'PReLU'                    : _convert_advanced_activation,
     'ELU'                      : _convert_advanced_activation,
