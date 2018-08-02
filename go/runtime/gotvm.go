@@ -295,6 +295,26 @@ func (tbytearray TVMByteArray) Delete() {
 	C._DeleteTVMByteArray(C.uintptr_t(tbytearray.NativeCPtr()))
 }
 
+// TVMModule type in golang hold pointer for the TVMModule handle.
+//
+// TVMModule initialization happen through TVMModLoadFromFile api in TVM runtime.
+type TVMModule uintptr
+
+// NativeCPtr returns type freed uintptr for the TVMModule.
+func (tvmmodule TVMModule) NativeCPtr() uintptr {
+    return (uintptr)(tvmmodule)
+}
+
+// TVMFunction type in golang hold pointer for the TVMFunction handle.
+//
+// TVMFunction initialization happen through TVMModGetFunction or TVMFuncGetGlobal.
+type TVMFunction uintptr
+
+// NativeCPtr returns type freed uintptr for the TVMFunction.
+func (tvmfunction TVMFunction) NativeCPtr() uintptr {
+    return (uintptr)(tvmfunction)
+}
+
 // TVMFuncListGlobalNames is used to query global callable packed function names from TVM.
 //
 // `names` return argument which holds golang slice of strings for all the global function names.
@@ -360,7 +380,7 @@ func TVMFuncGetGlobal(funcname string, funp *TVMFunction) int32 {
 
 // TVMArrayAlloc is used to allocate TVMArray from given attributes.
 //
-// `shape` is int64 array holding shape of the TVMArray to be created.
+// `shape` is int64 slice holding shape of the TVMArray to be created.
 //
 // `ndim` is the rank of the TVMArray to be created.
 //
@@ -373,14 +393,14 @@ func TVMFuncGetGlobal(funcname string, funp *TVMFunction) int32 {
 // `pTvmArray` return argument holding newly allocated TVMArray.
 //
 // `ret` indicates the status of this api execution.
-func TVMArrayAlloc(shape *int64, ndim int32,
+func TVMArrayAlloc(shape []int64, ndim int32,
                    dtypeCode int32, dtypeBits int32, dtypeLanes int32,
                    deviceType int32, deviceID int32, pTvmArray *TVMArray) int32 {
     var ret int32
 
     var newTvmArray uintptr
 
-    ret = (int32)(C._TVMArrayAlloc(C.native_voidp(shape), C.int(ndim),
+    ret = (int32)(C._TVMArrayAlloc(C.native_voidp(&(shape[0])), C.int(ndim),
                                    C.int(dtypeCode), C.int(dtypeBits), C.int(dtypeLanes),
                                    C.int(deviceType), C.int(deviceID), C.native_voidp(&newTvmArray)))
 
@@ -412,6 +432,20 @@ func TVMArrayFree(ptvmarray TVMArray) int32 {
 func TVMModGetFunction(modp TVMModule, funcname string, queryImports int32, funp *TVMFunction) int32 {
     return (int32)(C._TVMModGetFunction(C.uintptr_t(modp), *(*C._gostring_)(unsafe.Pointer(&funcname)),
                                         C.int(queryImports), C.native_voidp(funp)))
+}
+
+// TVMModFree free the module handle allocated in TVM runtime.
+//
+// `modp` is the Module handle to be freed.
+func TVMModFree(modp TVMModule) int32 {
+    return (int32) (C.TVMModFree(C.TVMModuleHandle(modp.NativeCPtr())))
+}
+
+// TVMFuncFree free the function handle allocated in TVM runtime.
+//
+// `funp` is the Function handle to be freed.
+func TVMFuncFree(funp TVMFunction) int32 {
+    return (int32) (C.TVMFuncFree(C.TVMFunctionHandle(funp.NativeCPtr())))
 }
 
 // TVMFuncCall executes the function with given arguments
@@ -471,24 +505,4 @@ func TVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes *int32, numAr
     C._TVMValueNativeFree(C.native_voidp(unsafe.Pointer(nretValues)))
 
 	return result
-}
-
-// TVMModule type in golang hold pointer for the TVMModule handle.
-//
-// TVMModule initialization happen through TVMModLoadFromFile api in TVM runtime.
-type TVMModule uintptr
-
-// NativeCPtr returns type freed uintptr for the TVMModule.
-func (tvmmodule TVMModule) NativeCPtr() uintptr {
-    return (uintptr)(tvmmodule)
-}
-
-// TVMFunction type in golang hold pointer for the TVMFunction handle.
-//
-// TVMFunction initialization happen through TVMModGetFunction or TVMFuncGetGlobal.
-type TVMFunction uintptr
-
-// NativeCPtr returns type freed uintptr for the TVMFunction.
-func (tvmfunction TVMFunction) NativeCPtr() uintptr {
-    return (uintptr)(tvmfunction)
 }

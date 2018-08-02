@@ -39,17 +39,20 @@ func main() {
 
   // Import tvm module (dso)
   var modp gotvm.TVMModule
+
   if gotvm.TVMModLoadFromFile(modLib, "so", &modp) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     fmt.Printf("Please copy tvm compiled modules here and update the sample.go accordingly.")
     fmt.Printf("You may need to update modLib, modJSON, modParams, tshapeIn, tshapeOut")
     return
   }
+  defer gotvm.TVMModFree(modp)
 
   fmt.Printf("Module Imported:%p\n", modp)
 
   // Get function pointer for tvm.graph_runtime.create
   var funp gotvm.TVMFunction
+
   if gotvm.TVMFuncGetGlobal("tvm.graph_runtime.create", &funp) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
@@ -85,6 +88,7 @@ func main() {
   }
 
   argsIn[0].UnSetVStr()
+  gotvm.TVMFuncFree(funp)
 
   graphmod := graphrt.GetVMHandle()
   graphrt.Delete()
@@ -106,23 +110,27 @@ func main() {
 
   // Allocate input TVMArray
   var inX gotvm.TVMArray
-  if gotvm.TVMArrayAlloc(&(tshapeIn[0]), ndim, dtypeCode, dtypeBits, dtypeLanes,
+
+  if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
                          deviceType, deviceID, &inX) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMArrayFree(inX)
 
   // Allocate output TVMArray
   ndim = 2
 
   var out gotvm.TVMArray
+
   tshapeOut := []int64{1, 1001}
 
-  if gotvm.TVMArrayAlloc(&(tshapeOut[0]), ndim, dtypeCode, dtypeBits, dtypeLanes,
+  if gotvm.TVMArrayAlloc(tshapeOut, ndim, dtypeCode, dtypeBits, dtypeLanes,
                          deviceType, deviceID, &out) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMArrayFree(out)
 
   fmt.Printf("Input and Output TVMArrays allocated\n")
 
@@ -156,6 +164,7 @@ func main() {
   }
   fmt.Printf("Module params loaded\n")
 
+  gotvm.TVMFuncFree(funp)
   paramsByteArray.Delete()
   for ii := range argsIn {
     argsIn[ii].Delete()
@@ -192,6 +201,7 @@ func main() {
   fmt.Printf("Module input is set\n")
 
   argsIn[0].UnSetVStr()
+  gotvm.TVMFuncFree(funp)
 
   for ii := range argsIn {
     argsIn[ii].Delete()
@@ -213,6 +223,7 @@ func main() {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  gotvm.TVMFuncFree(funp)
   fmt.Printf("Module Executed \n")
 
   // Get module function from graph runtime : get_output
@@ -238,6 +249,7 @@ func main() {
   }
   fmt.Printf("Got Module Output \n")
 
+  gotvm.TVMFuncFree(funp)
   for ii := range argsIn {
     argsIn[ii].Delete()
   }
@@ -245,8 +257,4 @@ func main() {
   // We use unsafe package to access underlying array to any type.
   outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:1001:1001]
   fmt.Printf("Result:%v\n", outSlice[:10])
-
-  // Free all the allocations safely
-  gotvm.TVMArrayFree(inX)
-  gotvm.TVMArrayFree(out)
 }

@@ -40,15 +40,9 @@ func main() {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMModFree(modp)
 
   fmt.Printf("Module Imported\n")
-
-  // Get function pointer for tvm.graph_runtime.create
-  var funp gotvm.TVMFunction
-  if gotvm.TVMFuncGetGlobal("tvm.graph_runtime.create", &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
 
   // TVMArray allocation attributes
   var ndim int32 = 1
@@ -62,29 +56,34 @@ func main() {
   // Allocate input TVMArray : inX
   var inX gotvm.TVMArray
 
-  if gotvm.TVMArrayAlloc(&(tshapeIn[0]), ndim, dtypeCode, dtypeBits, dtypeLanes,
+  if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
                          deviceType, deviceID, &inX) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMArrayFree(inX)
 
   // Allocate input TVMArray : inY
   var inY gotvm.TVMArray
-  if gotvm.TVMArrayAlloc(&(tshapeIn[0]), ndim, dtypeCode, dtypeBits, dtypeLanes,
+
+  if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
                          deviceType, deviceID, &inY) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMArrayFree(inY)
 
   // Allocate output TVMArray
   var out gotvm.TVMArray
+
   tshapeOut := []int64{4}
 
-  if gotvm.TVMArrayAlloc(&(tshapeOut[0]), ndim, dtypeCode, dtypeBits, dtypeLanes,
+  if gotvm.TVMArrayAlloc(tshapeOut, ndim, dtypeCode, dtypeBits, dtypeLanes,
                          deviceType, deviceID, &out) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
+  defer gotvm.TVMArrayFree(out)
 
   fmt.Printf("Input and Output TVMArrays allocated\n")
 
@@ -102,6 +101,8 @@ func main() {
   fmt.Printf("Y: %v\n", inYSlice)
 
   // Get module function : myadd
+  var funp gotvm.TVMFunction
+
   if gotvm.TVMModGetFunction(modp, "myadd", 1, &funp) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
@@ -135,9 +136,6 @@ func main() {
   outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:4:4]
   fmt.Printf("Result:%v\n", outSlice)
 
-  // Free all the allocations safely
-
-  gotvm.TVMArrayFree(inX)
-  gotvm.TVMArrayFree(inY)
-  gotvm.TVMArrayFree(out)
+  // Free TVM resources.
+  gotvm.TVMFuncFree(funp)
 }
