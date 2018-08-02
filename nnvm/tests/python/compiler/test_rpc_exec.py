@@ -7,7 +7,7 @@ import numpy as np
 
 def test_rpc_executor():
     host = "localhost"
-    port = 9100
+    port = 9711
     server = rpc.Server(host, port, use_popen=True)
 
     x = sym.Variable("x")
