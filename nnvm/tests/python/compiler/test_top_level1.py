@@ -37,14 +37,17 @@ def test_check_function():
 
     # test just numerical gradients
     # different styles of shape and dtype passing
-    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype='float32')
-    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype={x: 'float32', 'y': 'float32'})
-    check_function(x + 2*y, shape=(1, 2), dtype='float32')
+    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype='float32',
+                   numerical_grads=True)
+    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype={x: 'float32', 'y': 'float32'},
+                   numerical_grads=True)
+    check_function(x + 2*y, shape=(1, 2), dtype='float32',
+                   numerical_grads=True)
 
     # specifying variable attributes on variable creation
     # (in this case type codes must be used)
     x = sym.Variable("x", dtype=0, shape=(1, 2))
-    check_function(x + 2*y, shape={y: (1, 2)}, dtype={'y': 'float32'})
+    check_function(x + 2*y, shape={y: (1, 2)}, dtype={'y': 'float32'}, numerical_grads=True)
     y = sym.Variable("y", dtype=0, shape=(1, 2))
 
     # shape overriding
@@ -78,9 +81,10 @@ def test_check_function():
         else:
             raise AssertionError("check_function didn't raise an exception")
 
+    _check_function_must_fail(x + 2*y, error=ValueError)
     _check_function_must_fail(x + 2*y, lambda x, y: x + y)
     _check_function_must_fail(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0])
-    _check_function_must_fail(sym.block_grad(x + 2*y))
+    _check_function_must_fail(sym.block_grad(x + 2*y), numerical_grads=True)
 
     # different styles of returning results from the forward function
     check_function(x + 2*y, lambda x, y: [x + 2*y], numerical_grads=False)
@@ -99,15 +103,15 @@ def test_check_function():
                                                                     2*head_grads[1]])
     check_function(z, backward=lambda x, y, head_grads: [head_grads[1], 2*head_grads[1]],
                    in_range={'head_grads_0': (0, 0)})
-    check_function(z)
+    check_function(z, numerical_grads=True)
 
     z = sym.Group([sym.block_grad(2*x + y), x + 2*y])
     check_function(z, lambda x, y: [2*x + y, x + 2*y], numerical_grads=False)
     _check_function_must_fail(z, lambda x, y: [2*x + y, x + 2*y])
-    _check_function_must_fail(z)
+    _check_function_must_fail(z, numerical_grads=True)
 
     z = sym.Group([2*x + y, sym.block_grad(x + 2*y)])
-    _check_function_must_fail(z)
+    _check_function_must_fail(z, numerical_grads=True)
 
     z = sym.Group([2*x + y, x + 2*y, x, y, sym.sum(x)])
     check_function(z, lambda x, y: [2*x + y, x + 2*y, x, y, np.sum(x)])

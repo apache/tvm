@@ -94,7 +94,7 @@ def _dict_var_to_dict_str(dictionary):
 def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
-                   numerical_grads='if_possible', numerical_grads_params=None,
+                   numerical_grads=None, numerical_grads_params=None,
                    atol=1e-5, rtol=1e-5, quiet=False):
     """Compute the function and/or its gradients on a random input and raise
     an exception if the result doesn't match the reference implementation.
@@ -139,11 +139,11 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     only_targets : Set[str], optional
         Test only for those targets from `ctx_list()` that are also in this set.
 
-    numerical_grads : bool or "if_possible", optional
-        Whether to additionally check against numerically computed gradients. If 'if_possible' is
-        passed (which is the default) then it will try to create a gradient computation graph and
-        then check gradients numerically only if this graph can be created (i.e. if there are some
-        operations with unimplemented gradients, it will just issue a warning).
+    numerical_grads : bool or 'if_possible', optional
+        Whether to additionally check against numerically computed gradients. If 'if_possible' or
+        None is passed (which is the default) then it will try to create a gradient computation
+        graph and then check gradients numerically only if this graph can be created (i.e. if there
+        are some operations with unimplemented gradients, it will just issue a warning).
 
     numerical_grads_params : dict, optional
         Additional parameters for `check_numerical_grads`.
@@ -157,6 +157,12 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     quiet : bool, optional
         Don't dump additional information to stdout on failure.
     """
+    if numerical_grads is None and forward is None and backward is None:
+        raise ValueError("No reference function was passed to check_function. If you only want to "
+                         "check gradients numerically, pass numerical_grads=True explicitly.")
+
+    if numerical_grads is None:
+        numerical_grads = 'if_possible'
 
     if numerical_grads not in [False, True, 'if_possible']:
         raise ValueError("numerical_grads must be a bool or 'if_possible', not {}"
