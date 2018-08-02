@@ -9,15 +9,12 @@ import multiprocessing
 import pickle
 import json
 import time
-import os
 from collections import OrderedDict
-
-import numpy as np
 
 from .. import build, lower, target as _target
 
 from . import task
-from .task import DispatchContext, ConfigEntity
+from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.1
@@ -120,8 +117,8 @@ def decode(row, protocol='json'):
         tgt = _target.create(str(tgt))
 
         def clean_json_to_python(x):
-            """1. convert all list in x to tuple (hashable)
-               2. convert unicode to str for python2
+            """1. Convert all list in x to tuple (hashable)
+               2. Convert unicode to str for python2
             """
             if isinstance(x, list):
                 return tuple([clean_json_to_python(a) for a in x])
@@ -151,6 +148,7 @@ def decode(row, protocol='json'):
     else:
         raise RuntimeError("Invalid log protocol: " + protocol)
 
+
 def load_from_file(filename):
     """Generator: load records from file.
     This is a generator that yields the records.
@@ -166,105 +164,6 @@ def load_from_file(filename):
     """
     for row in open(filename):
         yield decode(row)
-
-
-class ApplyHistoryBest(DispatchContext):
-    """
-    Apply the history best config
-
-    Parameters
-    ----------
-    records : str or iterator of (MeasureInput, MeasureResult)
-        Collection of tuning records.
-        If is str, then it should be the filename of a records log file.
-                   Each row of this file is an encoded record pair.
-        Otherwise, it is an iterator.
-    default: ConfigEntity, optional
-        The default config to return when no history records
-    """
-    def __init__(self, records, default=None):
-        super(ApplyHistoryBest, self).__init__()
-
-        self.best_by_targetkey = {}
-        self.best_by_model = {}
-        self._default = default
-
-        self.load(records)
-
-    def load(self, records):
-        """Load records to this dispatch context
-
-        Parameters
-        ----------
-        records : str or iterator of (MeasureInput, MeasureResult)
-            Collection of tuning records.
-            If is str, then it should be the filename of a records log file.
-                       Each row of this file is an encoded record pair.
-            Otherwise, it is an iterator.
-        """
-        if isinstance(records, str):
-            records = load_from_file(records)
-        if not records:
-            return
-
-        best_by_targetkey = self.best_by_targetkey
-        best_by_model = self.best_by_model
-
-        counter = 0
-        for inp, res in records:
-            counter += 1
-            if res.error_no != 0:
-                continue
-
-            # use target keys in tvm target system as key to build best map
-            for k in inp.target.keys:
-                key = (k, inp.task.workload)
-                if key not in best_by_targetkey:
-                    best_by_targetkey[key] = (inp, res)
-                else:
-                    _, other_res = best_by_targetkey[key]
-                    if np.mean(other_res.costs) > np.mean(res.costs):
-                        best_by_targetkey[key] = (inp, res)
-
-            # use model as key to build best map
-            for opt in inp.target.options:
-                if opt.startswith("-model"):
-                    model = opt[7:]
-                    key = (model, inp.task.workload)
-                    if key not in best_by_model:
-                        best_by_model[key] = (inp, res)
-                    else:
-                        _, other_res = best_by_model[key]
-                        if np.mean(other_res.costs) > np.mean(res.costs):
-                            best_by_model[key] = (inp, res)
-                    break
-
-        logging.info("Finish loading %d records", counter)
-
-    def query(self, target, workload):
-        if target is None:
-            raise RuntimeError("Need a target context to find the history best. "
-                               "Hint: If your target is llvm, use `with tvm.target.create('llvm'):`"
-                               " above the dispatcher call. So does other target. ")
-
-        # first try matching by model
-        for opt in target.options:
-            if opt.startswith("-model"):
-                model = opt[7:]
-                key = (model, workload)
-                if key in self.best_by_model:
-                    return self.best_by_model[key][0].config
-
-        # then try matching by target key
-        for k in target.keys:
-            key = (k, workload)
-            if key in self.best_by_targetkey:
-                return self.best_by_targetkey[key][0].config
-
-        if self._default:
-            return self._default
-        raise RuntimeError(
-            "Cannot find config for target=%s, workload=%s" % (target, workload))
 
 
 def split_workload(in_file, clean=True):
@@ -326,7 +225,7 @@ def pick_best(in_file, out_file):
     ----------
     in_file: str
         The filename of input
-    out_file:
+    out_file: str or file
         The filename of output
     """
     best_context = ApplyHistoryBest(load_from_file(in_file))
@@ -338,31 +237,13 @@ def pick_best(in_file, out_file):
     for v in best_context.best_by_targetkey.values():
         best_set.add(measure_str_key(v[0]))
 
-    logging.info("Extract %d best records from the log file", len(best_set))
+    logging.info("Extract %d best records from the %s", len(best_set), in_file)
+    fout = open(out_file, 'w') if isinstance(out_file, str) else out_file
 
-    fout = open(out_file, 'w')
     for inp, res in load_from_file(in_file):
         if measure_str_key(inp) in best_set:
             fout.write(encode(inp, res) + "\n")
-
-
-def load_op_param(rootpath=os.path.join(os.path.expanduser('~'), ".tvm", "op_params")):
-    """Load pre-tuned parameters of operators.
-    This function will load all "*.log" file under root path and select best configs.
-
-    Parameters
-    ----------
-    rootpath: str
-        The root path of stored parameters
-    """
-    best_context = ApplyHistoryBest([])
-    for dirpath, _, filenames in os.walk(rootpath):
-        for filename in filenames:
-            if os.path.splitext(filename)[1] == '.log':
-                best_context.load(os.path.join(dirpath, filename))
-
-    assert not DispatchContext.current, "Cannot load pre-tuned parameters inside a dispatch context"
-    DispatchContext.current = best_context
+            best_set.remove(measure_str_key(inp))
 
 """
 Usage:

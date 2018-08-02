@@ -1,6 +1,7 @@
 """Testing if we can generate code in topi style"""
 
 import tvm
+from tvm import autotvm
 from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
 import topi
@@ -62,8 +63,7 @@ def test_cpu_conv2d():
 
         def verify(s, check_correctness):
             mod = tvm.build(s, [data, kernel, res],
-                            "llvm -device=vtacpu",
-                            env.target_host,
+                            target_host=env.target_host,
                             name="conv2d")
             temp = util.tempdir()
             mod.save(temp.relpath("conv2d.o"))
@@ -126,7 +126,11 @@ def test_cpu_conv2d():
             print(wl)
             with tvm.target.create("llvm -device=vtacpu"):
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
-    vta.testing.run(_run)
+
+    # load pre-tuned operator parameters for ARM CPU
+    autotvm.tophub.check_package('vta')
+    with autotvm.tophub.context('llvm -device=vtacpu'):
+        vta.testing.run(_run)
 
 
 def test_vta_conv2d():
@@ -171,7 +175,6 @@ def test_vta_conv2d():
             b_np = topi.testing.conv2d_nchw_python(
                 a_np.astype(acc_dtype), w_np.astype(acc_dtype), stride, padding).astype(acc_dtype)
             return a_np, w_np, b_np
-
 
         def verify(s, check_correctness):
             mod = vta.build(s, [data, kernel, bias, res], "ext_dev",

@@ -60,6 +60,8 @@ The configuration of tvm can be modified by `config.cmake`.
 - Edit ``build/config.cmake`` to customize the compilation options
 
   - On macOS, for some versions of XCode, you need to add ``-lc++abi`` in the LDFLAGS or you'll get link errors.
+  - Change ``set(USE_CUDA OFF)`` to ``set(USE_CUDA ON)`` to enable CUDA backend. So do other backends and libraries
+    (OpenCL, RCOM, METAL, VULKAN, ...).
 
 - TVM optionally depends on LLVM. LLVM is required for CPU codegen that needs LLVM.
 
@@ -84,7 +86,7 @@ The configuration of tvm can be modified by `config.cmake`.
       cmake ..
       make -j4
 
-If everything goes well, we can go to :ref:`python-package-installation`_
+If everything goes well, we can go to :ref:`python-package-installation`
 
 Building on Windows
 ~~~~~~~~~~~~~~~~~~~

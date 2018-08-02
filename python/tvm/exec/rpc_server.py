@@ -40,20 +40,21 @@ if __name__ == "__main__":
                         help='The port of the PRC')
     parser.add_argument('--port-end', type=int, default=9199,
                         help='The end search port of the PRC')
+    parser.add_argument('--tracker', type=str,
+                        help="The address of RPC tracker in host:port format. "
+                             "e.g. (10.77.1.234:9190)")
     parser.add_argument('--key', type=str, default="",
-                        help="RPC key used to identify the connection type.")
-    parser.add_argument('--load-library', type=str, default="",
+                        help="The key used to identify the device type in tracker.")
+    parser.add_argument('--silent', action='store_true',
+                        help="Whether run in silent mode.")
+    parser.add_argument('--load-library', type=str,
                         help="Additional library to load")
-    parser.add_argument('--tracker', type=str, default="",
-                        help="Report to RPC tracker")
     parser.add_argument('--no-fork', dest='fork', action='store_false',
                         help="Use spawn mode to avoid fork. This option \
                          is able to avoid potential fork problems with Metal, OpenCL \
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
-    parser.add_argument('--silent', action='store_true',
-                        help="Whether run in silent mode.")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

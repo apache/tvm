@@ -43,7 +43,7 @@ _QUANTIZED_SCHEDULES_NCHW = [
     SpatialPackNCHW(1, 1, 8, 1, 16),
 ]
 
-@_get_schedule.register("rasp")
+@_get_schedule.register("arm_cpu")
 def _get_schedule_bitserial_conv2d(wkl, layout):
     if wkl not in _WORKLOADS:
         raise ValueError("no schedule for such workload: {}".format(wkl))
@@ -55,7 +55,7 @@ def _get_schedule_bitserial_conv2d(wkl, layout):
     return sch
 
 
-@bitserial_conv2d.register("rasp")
+@bitserial_conv2d.register("arm_cpu")
 def _declaration_bitserial_conv2d(data, kernel, stride, padding, activation_bits, weight_bits,
                                   layout='NCHW', pack_dtype=None, out_dtype=None, dorefa=False):
     if out_dtype is None:
@@ -323,7 +323,7 @@ def _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
     s = s.normalize()
     return s
 
-@generic.schedule_bitserial_conv2d_nhwc.register(["rasp"])
+@generic.schedule_bitserial_conv2d_nhwc.register(["arm_cpu"])
 def schedule_bitserial_conv2d_nhwc(outs):
     """Raspverry pi schedule for bitserial conv2d"""
     s = tvm.create_schedule([x.op for x in outs])

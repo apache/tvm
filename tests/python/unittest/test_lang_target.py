@@ -28,7 +28,7 @@ def test_target_dispatch():
     with tvm.target.create("cuda"):
         assert mygeneric(1) == 3
 
-    with tvm.target.rasp():
+    with tvm.target.arm_cpu():
         assert mygeneric(1) == 11
 
     with tvm.target.create("metal"):

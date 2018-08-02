@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import tvm
+from tvm import autotvm
 import topi
 import topi.testing
 from tvm.contrib.pickle_memoize import memoize
@@ -11,10 +12,10 @@ from topi.util import get_const_tuple
 def verify_conv2d(batch, in_size, in_channel, num_filter, kernel, stride, padding):
     in_height = in_width = in_size
 
-    with tvm.target.rasp():
+    with tvm.target.arm_cpu():
         A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-        B = topi.nn.conv2d(A, W, stride, padding)
+        B = topi.nn.conv2d(A, W, (stride, stride), (padding, padding), 'NCHW', 'float32')
         s = topi.generic.schedule_conv2d_nchw([B])
 
     a_shape = get_const_tuple(A.shape)
@@ -39,7 +40,8 @@ def verify_conv2d(batch, in_size, in_channel, num_filter, kernel, stride, paddin
     np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
 def test_conv2d():
-    verify_conv2d(1, 56,  64, 64,  3, 1, 1)
+    with autotvm.tophub.context(tvm.target.arm_cpu('rasp3b')):
+        verify_conv2d(1, 56, 64, 64, 3, 1, 1)
 
 if __name__ == "__main__":
     test_conv2d()

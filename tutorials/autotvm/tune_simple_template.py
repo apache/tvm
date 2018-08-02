@@ -12,6 +12,27 @@ In this tutorial, you can learn how to perform these two steps in tvm.
 The whole workflow is illustrated by a matrix multiplication example.
 """
 
+######################################################################
+# Install dependencies
+# ----------------------------------------
+# To use autotvm package in tvm, we need to install some extra dependencies.
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user psutil xgboost
+#
+# To make tvm run faster in tuning, it is recommended to use cython
+# as FFI of tvm. In the root directory of tvm, execute
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user cython
+#   sudo make cython3
+#
+# Now return to python code. Import packages.
+
 import logging
 import sys
 
@@ -247,10 +268,10 @@ print(task.config_space)
 # used to get the best config later.
 
 # logging config (for printing tuning log to screen)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
 # use local cpu, measure 5 times for every config to reduce variance
-measure_option = autotvm.measure_option(mode='local',
+measure_option = autotvm.measure_option('local',
                                         number=5)
 
 # begin tuning, log records to file `matmul.log`

@@ -8,6 +8,16 @@ import numpy as np
 
 from .. import expr, ir_pass
 
+
+class EmptyContext(object):
+    """An empty context"""
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 def get_rank(values):
     """get rank of items
 

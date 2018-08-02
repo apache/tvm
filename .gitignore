@@ -188,3 +188,6 @@ build*
 
 # Jetbrain
 .idea
+
+# tmp file
+.nfs*

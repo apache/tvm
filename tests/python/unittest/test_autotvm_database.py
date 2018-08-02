@@ -47,7 +47,7 @@ def test_db_filter():
 
     batch_size = 2
 
-    measure_option = autotvm.measure_option(mode='local-nofork', timeout=2)
+    measure_option = autotvm.measure_option('local', do_fork=False, timeout=2)
     measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     ct = 0
@@ -72,7 +72,7 @@ def test_db_filter():
     db.flush()
 
     # First setting, memoize one input at a time, check that each is saved and replayed
-    measure_option = autotvm.measure_option(mode='local-nofork', timeout=2, replay_db=db)
+    measure_option = autotvm.measure_option('local', do_fork=False, timeout=2, replay_db=db)
     measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     for i in range(len(all_inputs)+1):
@@ -160,9 +160,10 @@ def test_db_save_replay():
     if not ctx.exist:
         logging.warning("Skip this test because there is no supported device for test")
 
-    measure_option = autotvm.measure_option(mode='local-nofork',
+    measure_option = autotvm.measure_option('local',
+                                            do_fork=False,
                                             timeout=2,
-                                            replay_db=_db, save_to_replay_db=True)
+                                            replay_db=_db)
     measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     batch_size = 2
@@ -182,6 +183,8 @@ def test_db_save_replay():
         results = measure_batch(inputs)
         all_results += results
         ct += 1
+    callback = autotvm.callback.log_to_database(_db)
+    callback(None, all_inputs, all_results)
 
     assert len(_db.db.keys()) == batch_size * TRIAL_LIMIT, \
         "%d vs %d" % (len(_db.db.keys()), batch_size * TRIAL_LIMIT)
@@ -207,7 +210,7 @@ def test_check_hashmismatch():
     if not ctx.exist:
         logging.warning("Skip this test because there is no supported device for test")
 
-    measure_option = autotvm.measure_option(mode='local-nofork')
+    measure_option = autotvm.measure_option('local', do_fork=False)
     measure_batch = autotvm.measure.create_measure_batch(task, measure_option)
 
     inputs = list()
