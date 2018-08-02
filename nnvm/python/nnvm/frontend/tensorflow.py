@@ -938,6 +938,7 @@ class GraphProto(object):
             raise ImportError(
                 "Unable to import tensorflow which is required {}".format(e))
 
+        # pylint: disable=too-many-nested-blocks
         for node in graph.node:
             # Tensorflow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
