@@ -116,6 +116,15 @@ def test_check_function():
     z = sym.Group([2*x + y, x + 2*y, x, y, sym.sum(x)])
     check_function(z, lambda x, y: [2*x + y, x + 2*y, x, y, np.sum(x)])
 
+    # passing additional parameters to forward and backward
+    def _fwd3(x, p):
+        assert p == 'v'
+        return x + 1
+    def _bwd3(x, p, head_grads):
+        assert p == 'v'
+        return head_grads
+    check_function(x + 1, _fwd3, _bwd3, additional_params={'p': 'v'})
+
 def test_relu():
     x = sym.Variable("x")
     y = sym.relu(sym.leaky_relu(x, alpha=0.3) - 0.2)

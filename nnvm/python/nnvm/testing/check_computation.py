@@ -94,6 +94,7 @@ def _dict_var_to_dict_str(dictionary):
 def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                    shape=None, dtype=None, in_range=None,
                    exclude_targets=None, only_targets=None,
+                   additional_params=None,
                    numerical_grads=None, numerical_grads_params=None,
                    atol=1e-5, rtol=1e-5, quiet=False):
     """Compute the function and/or its gradients on a random input and raise
@@ -139,6 +140,9 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     only_targets : Set[str], optional
         Test only for those targets from `ctx_list()` that are also in this set.
 
+    additional_params : dict, optional
+        A dict of additional parameters which will be passed to forward and backward.
+
     numerical_grads : bool or 'if_possible', optional
         Whether to additionally check against numerically computed gradients. If 'if_possible' or
         None is passed (which is the default) then it will try to create a gradient computation
@@ -167,6 +171,9 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     if numerical_grads not in [False, True, 'if_possible']:
         raise ValueError("numerical_grads must be a bool or 'if_possible', not {}"
                          .format(numerical_grads))
+
+    if additional_params is None:
+        additional_params = {}
 
     input_vars = symbol.list_input_variables()
     input_dict = {x.attr('name'): x for x in input_vars}
@@ -301,7 +308,10 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 debug_stage = "checking forward computation"
                 logging.debug(debug_stage)
 
-                numpy_res = forward(**np_inputs_without_head_grads)
+                params = {}
+                params.update(np_inputs_without_head_grads)
+                params.update(additional_params)
+                numpy_res = forward(**params)
 
                 if isinstance(numpy_res, tuple):
                     numpy_res = list(numpy_res)
@@ -326,7 +336,11 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 if out_len == 1:
                     np_head_grads = np_head_grads[0]
 
-                numpy_grads = backward(head_grads=np_head_grads, **np_inputs_without_head_grads)
+                params = {'head_grads': np_head_grads}
+                params.update(np_inputs_without_head_grads)
+                params.update(additional_params)
+                numpy_grads = backward(**params)
+
                 if not isinstance(numpy_grads, dict):
                     if isinstance(numpy_grads, tuple):
                         numpy_grads = list(numpy_grads)
@@ -351,7 +365,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 # Since the result may be non-scalar, we have to put another operation on the top,
                 # so we just multiple by the randomly generated head_grads and then sum everything.
                 # This way we can reuse the gradient values which has been already computed.
-                def function(**kwargs):
+                def scalar_function(**kwargs):
                     res = forward_function(**kwargs)
                     return np.sum([np.dot(np_inputs['head_grads_' + str(i)].ravel(), res[i].ravel())
                                    for i in range(out_len)])
@@ -360,7 +374,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                     numerical_grads_params = {}
 
                 check_numerical_grads(
-                    function,
+                    scalar_function,
                     input_values=np_inputs_without_head_grads,
                     grad_values=nnvm_grads,
                     **numerical_grads_params)
@@ -392,7 +406,7 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
     ----------
     function
         A function that takes inputs as keyword arguments (like `function(**input_values)`) and
-        returns a scalar result. Should accept and return numpy arrays.
+        returns a scalar result. Should accept numpy ndarrays.
 
     input_values : Dict[str, numpy.ndarray]
         A dict assigning values to variables. Represents the point at which gradients should be
