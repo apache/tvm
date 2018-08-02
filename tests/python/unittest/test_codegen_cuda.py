@@ -91,4 +91,4 @@ def test_cuda_vectorize_load():
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
-    test_cuda_load_store()
+    test_cuda_vectorize_load()
