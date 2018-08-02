@@ -855,6 +855,40 @@ def test_forward_ptb():
         assert(tvm_sample_str == tf_sample_str)
 
 #######################################################################
+# LRN (Local Response Normalization)
+# ----------------------------------
+
+def _test_lrn(ishape, size, axis, bias, alpha, beta):
+    """ testing local response normalization """
+    lrn_depth_radius = size / 2
+
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype, name="lrn0_data")
+        nn_ops.local_response_normalization(in1,
+                                            name="lrn",
+                                            depth_radius=lrn_depth_radius,
+                                            bias=bias,
+                                            alpha=alpha,
+                                            beta=beta)
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                ['lrn'],)
+
+            tf_output = run_tf_graph(sess, inp_array, 'lrn0_data:0', 'lrn:0')
+            tvm_output = run_tvm_graph(graph_def,
+                                       inp_array,
+                                       "lrn0_data", tf_output.shape, tf_output.dtype)
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
+            sess.close()
+
+def test_forward_lrn():
+    _test_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
+
 # Main
 # ----
 if __name__ == '__main__':
@@ -875,3 +909,4 @@ if __name__ == '__main__':
     test_forward_stridedslice()
     test_forward_gather()
     test_forward_ptb()
+    test_forward_lrn()
