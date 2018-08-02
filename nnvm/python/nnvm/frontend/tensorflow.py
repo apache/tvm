@@ -91,16 +91,6 @@ def _rsqrt():
         return AttrCvt(op_name="__pow_scalar__", extras={'scalar': -0.5})(inputs, attr)
     return _impl
 
-def _local_response_normalization():
-    def _impl(inputs, attr, params):
-        depth_radius = attr.get('depth_radius', 2)
-        depth_radius = depth_radius * 2 + 1
-        axis = 3 #default NHWC
-        return AttrCvt(op_name="lrn",
-                       ignores=['depth_radius'],
-                       extras={'size': depth_radius, 'axis': axis})(inputs, attr)
-    return _impl
-
 def _split():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(0)
@@ -706,10 +696,9 @@ _convert_map = {
     'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
+    'Split'                             : _split(),
     'GatherV2'                          : _gather_v2(),
     'StridedSlice'                      : _stridedSlice(),
-    'LRN'                               : _local_response_normalization(),
-    'Split'                             : _split(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to

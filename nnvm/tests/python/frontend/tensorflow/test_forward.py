@@ -443,6 +443,36 @@ def test_forward_variable():
 
 
 #######################################################################
+# Split
+# ------
+
+def _test_split(ip_shape, num_or_size_splits, axis):
+    tf.reset_default_graph()
+    dtype = 'float32'
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.split(in_data, num_or_size_splits, axis=axis, name="split")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['split'])
+        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], 'split:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
+                                   tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_split():
+    '''test split operator'''
+    _test_split((2, 3), 2, axis=0)
+    _test_split((6, 3), 3, axis=0)
+    _test_split((5, 9, 3), 3, axis=1)
+    _test_split((2,5,3,9), 3, axis=3)
+
+
+#######################################################################
 # LSTM
 # ----
 def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
@@ -593,72 +623,6 @@ def test_forward_gather():
     _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
     _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
     _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
-
-
-#######################################################################
-# LocalResponseNormalization[LRN]
-# ------
-
-def _test_lrn(ip_shape, depth_radius=2, alpha=1e-05, beta=0.75, bias=1.0):
-    tf.reset_default_graph()
-    dtype = 'float32'
-    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    tf.nn.local_response_normalization(in_data,
-                                        depth_radius=depth_radius,
-                                        alpha=alpha,
-                                        beta=beta,
-                                        bias=bias,
-                                        name="local_response_normalization")
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-    with tf.Session() as sess:
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            ['local_response_normalization'])
-        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'],
-                                 'local_response_normalization:0')
-        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
-                                   tf_output.shape, dtype)
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-        sess.close()
-
-def test_forward_lrn():
-    '''test local_response_normalization operator'''
-    _test_lrn((4, 4, 4, 4))
-    _test_lrn((4,3,5,6), 1, 1e-05, 0.5)
-    _test_lrn((1, 3, 20, 20), 2, 1e-05, 0.5, 1.0)
-    _test_lrn((1, 3, 20, 20), 2, 1e-05, 0.75, 2.0)
-
-
-#######################################################################
-# Split
-# ------
-
-def _test_split(ip_shape, num_or_size_splits, axis):
-    tf.reset_default_graph()
-    dtype = 'float32'
-    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    tf.split(in_data, num_or_size_splits, axis=axis, name="split")
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-    with tf.Session() as sess:
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            ['split'])
-        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], 'split:0')
-        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
-                                   tf_output.shape, dtype)
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-        sess.close()
-
-def test_forward_split():
-    '''test split operator'''
-    _test_split((2, 3), 2, axis=0)
-    _test_split((6, 3), 3, axis=0)
-    _test_split((5, 9, 3), 3, axis=1)
-    _test_split((2,5,3,9), 3, axis=3)
 
 
 #######################################################################
@@ -940,6 +904,5 @@ if __name__ == '__main__':
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
-    test_forward_ptb()
-    test_forward_lrn()
     test_forward_split()
+    test_forward_ptb()
