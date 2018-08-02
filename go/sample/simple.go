@@ -119,10 +119,10 @@ func main() {
   typeCodes := []int32{gotvm.KArrayHandle, gotvm.KArrayHandle, gotvm.KArrayHandle}
 
   argsOut := []gotvm.TVMValue{}
+  retTypeCode := new(int32)
 
   // Call module function myadd
-  var ret int32
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 3, argsOut, &ret) != 0 {
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }

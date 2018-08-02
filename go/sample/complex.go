@@ -81,8 +81,8 @@ func main() {
   argsOut := []gotvm.TVMValue{graphrt}
 
  // Load module on tvm runtime - call tvm.graph_runtime.create
-  ret := new(int32)
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 4, argsOut, ret) != 0 {
+  retTypeCode := new(int32)
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
@@ -158,7 +158,7 @@ func main() {
   argsOut = []gotvm.TVMValue{}
 
   // Call runtime function load_params
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 1, argsOut, ret) != 0 {
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
@@ -194,7 +194,7 @@ func main() {
   argsOut = []gotvm.TVMValue{}
 
   // Call runtime function set_input
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 2, argsOut, ret) != 0 {
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
@@ -219,7 +219,7 @@ func main() {
   typeCodes = []int32{gotvm.KDLInt}
 
   // Call runtime function get_output
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 0, argsOut, ret) != 0 {
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }
@@ -243,7 +243,7 @@ func main() {
   argsOut = []gotvm.TVMValue{}
 
   // Call runtime function get_output
-  if gotvm.TVMFuncCall(funp, argsIn, &(typeCodes[0]), 2, argsOut, ret) != 0 {
+  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
     fmt.Printf("%v", gotvm.TVMGetLastError())
     return
   }

@@ -384,7 +384,7 @@ func TVMFuncGetGlobal(funcname string, funp *TVMFunction) int32 {
 //
 // `ndim` is the rank of the TVMArray to be created.
 //
-// `dtypeCode`, `dtype_bits` and `dtype_lanes` describe the data type in TVMArray.
+// `dtypeCode`, `dtypeBits` and `dtypeLanes` describe the data type in TVMArray.
 //
 // `deviceType` indicates the device on whose memory the TVMArray to allocated.
 //
@@ -454,17 +454,17 @@ func TVMFuncFree(funp TVMFunction) int32 {
 //
 // `argValues` is the slice of TVMValue which are arguments to the packed function.
 //
-// `typeCodes` is the argument type codes corresponding to arg_values.
-//
-// `numArgs` indicates number of arguments in arg_values.
+// `typeCodes` is the alice of argument type codes corresponding to argValues.
 //
 // `retValues` is return argument which is slice of return values from the packed function.
 //
-// `retTypeCode` is alice of int32 holding type codes for ret_valModule
+// `retTypeCode` is int32 holding type codes for retValue
 //
-// `ret` indicates the status of this api execution.
-func TVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes *int32, numArgs int32,
+// `result` indicates the status of this api execution.
+func TVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes []int32,
                  retValues []TVMValue, retTypeCode *int32) int32 {
+    numArgs := int32(len(argValues))
+
     nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
 
     for ii := range argValues {
@@ -483,7 +483,7 @@ func TVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes *int32, numAr
 
 	result := (int32)(C._TVMFuncCall(C.uintptr_t(funp),
                                      C.uintptr_t((uintptr)(unsafe.Pointer(nargValues))),
-                                     C.native_voidp(typeCodes), C.int(numArgs),
+                                     C.native_voidp(&(typeCodes[0])), C.int(numArgs),
                                      C.uintptr_t((uintptr)(unsafe.Pointer(nretValues))),
                                      C.native_voidp(retTypeCode)))
 
