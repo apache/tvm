@@ -434,6 +434,21 @@ def _lrn():
         return AttrCvt(op_name='lrn')(new_inputs, attr_new)
     return _impl
 
+def _sum():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+        return AttrCvt(
+            op_name='sum',
+            extras={'axis': axis},
+            transforms={'keep_dims':'keepdims'},
+            ignores=['name', 'Tidx'])(inputs[0], attr)
+    return _impl
+
+def _square():
+    def _impl(inputs, attr, params):
+        return _sym.elemwise_mul(inputs[0], inputs[0])
+    return _impl
+
 def _gather_v2():
     "Tensorflow now support only gatherv2"
     def _impl(inputs, attr, params):
@@ -631,13 +646,17 @@ _convert_map = {
     'Identity'                          : _identity(),
     'MatMul'                            : _matmul(),
     'MaxPool'                           : _pooling('max_pool'),
+    'Add'                               : _elemwise('add'),
+    'Sub'                               : _elemwise('sub'),
     'Mul'                               : _elemwise('mul'),
+    'Maximum'                           : _elemwise('max'),
+    'Minimum'                           : _elemwise('min'),
+    'Sum'                               : _sum(),
+    'Square'                            : _square(),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
     'Softmax'                           : AttrCvt('softmax', {'axis': ('axis', 1)}),
-    'Sub'                               : _elemwise('sub'),
-    'Add'                               : _elemwise('add'),
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
