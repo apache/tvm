@@ -268,7 +268,8 @@ def _lrn(inputs, attrs):
     new_attrs['alpha'] = attrs.get('alpha', 0.0001)
     new_attrs['beta'] = attrs.get('beta', 0.75)
     new_attrs['bias'] = attrs.get('knorm', 2)
-    new_attrs['axis'] = attrs.get('axis', 1)
+    # NCHW format and normalization along channel axis
+    new_attrs['axis'] = 1
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
