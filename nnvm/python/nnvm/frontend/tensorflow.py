@@ -91,6 +91,26 @@ def _rsqrt():
         return AttrCvt(op_name="__pow_scalar__", extras={'scalar': -0.5})(inputs, attr)
     return _impl
 
+def _local_response_normalization():
+    def _impl(inputs, attr, params):
+        depth_radius = attr.get('depth_radius', 2)
+        depth_radius = depth_radius * 2 + 1
+        axis = 3 #default NHWC
+        return AttrCvt(op_name="lrn",
+                       ignores=['depth_radius'],
+                       extras={'size': depth_radius, 'axis': axis})(inputs, attr)
+    return _impl
+
+def _split():
+    def _impl(inputs, attr, params):
+        pop_node = inputs.pop(0)
+        axis = params[pop_node.list_output_names()[0]].asnumpy()[0]
+        return AttrCvt(op_name="split",
+                       ignores=['num_split'],
+                       extras={'indices_or_sections':attr['num_split'],
+                               'axis': axis})(inputs, attr)
+    return _impl
+
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
@@ -158,17 +178,26 @@ def _conv():
     def _impl(inputs, attr, params):
         attr['data_format'] = attr['data_format'].decode("utf-8")
 
+        input_shapes = attr['_input_shapes'][inputs[0]]
+        if len(input_shapes) == 1:
+            input_shapes = input_shapes[0]
+
         # Extract kernel shape from params
-        conv_param_weights = params[inputs[1].list_output_names()[0]]
+        if inputs[1] in attr['_input_shapes']:
+            conv_param_weights = tuple(attr['_input_shapes'][inputs[1]])
+            if len(conv_param_weights) == 1:
+                conv_param_weights = conv_param_weights[0]
+        else:
+            conv_param_weights = params[inputs[1].list_output_names()[0]].shape
 
         if attr['data_format'] == 'NHWC':
-            attr['kernel_shape'] = (conv_param_weights.shape[0], conv_param_weights.shape[1])
-            attr['channels'] = conv_param_weights.shape[3]
+            attr['kernel_shape'] = (conv_param_weights[0], conv_param_weights[1])
+            attr['channels'] = conv_param_weights[3]
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
         elif attr['data_format'] == 'NCHW':
-            attr['kernel_shape'] = (conv_param_weights.shape[2], conv_param_weights.shape[3])
-            attr['channels'] = conv_param_weights.shape[1]
+            attr['kernel_shape'] = (conv_param_weights[2], conv_param_weights[3])
+            attr['channels'] = conv_param_weights[1]
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
         else:
@@ -178,7 +207,6 @@ def _conv():
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
-        input_shapes = attr['_input_shapes'][inputs[0]]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -187,11 +215,11 @@ def _conv():
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
             if attr['data_format'] == 'NHWC':
-                in_h = input_shapes[0][1]
-                in_w = input_shapes[0][2]
+                in_h = input_shapes[1]
+                in_w = input_shapes[2]
             else:
-                in_h = input_shapes[0][2]
-                in_w = input_shapes[0][3]
+                in_h = input_shapes[2]
+                in_w = input_shapes[3]
 
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
@@ -680,6 +708,8 @@ _convert_map = {
     'Fill'                              : _fill(),
     'GatherV2'                          : _gather_v2(),
     'StridedSlice'                      : _stridedSlice(),
+    'LRN'                               : _local_response_normalization(),
+    'Split'                             : _split(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
@@ -982,23 +1012,48 @@ class GraphProto(object):
                 # Pass the node name too in attr
                 attr["_node_name"] = node.name
 
-                #ToDo: Some of the tensorflow operators maintain internaly maintain
-                #execution layers and its output name will the layer number along with
-                #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                #the digit has to be ignored.
-                if ":" in node.input[0]:
-                    in_name, _ = node.input[0].split(':')
-                    node.input[0] = in_name
-                try:
-                    inputs = [self._nodes[i] for i in node.input]
-                    for i in node.input:
-                        if i not in self._params:
-                            input_shapes[self._nodes[i]] = self._output_shapes[i]
-                    attr['_input_shapes'] = input_shapes
-                except KeyError:
-                    # TODO: Need to find clean way to handle '^CheckNumerics'
-                    pass
+                #ToDo: Tensorflow Split operators outputs need to extract properly
+                #depend on Name and ouput slot number and prepare input for next
+                #operator.eg: ['split', 'split:1']. In this case, 'split' and 'split:1'
+                #two input properly feed to next operator.
+                if "split" in node.input[0]:
+                    inputs = []
+                    input_shapes = {}
+                    try:
+                        for node_input_name in node.input:
+                            node_input_key = node_input_name.split(':')
+                            slot_num = 0
+                            if len(node_input_key) > 1:
+                                slot_num = int(node_input_key[1])
+                                node_input_key = node_input_key[0]
+                            else:
+                                node_input_key = node_input_key[0]
+                            new_input = self._nodes[node_input_key].__getitem__(slot_num)
+                            inputs.append(new_input)
+                            if node_input_name not in self._params:
+                                input_shapes[new_input] = self._output_shapes[
+                                    node_input_key].__getitem__(slot_num)
+                        attr['_input_shapes'] = input_shapes
+                    except KeyError:
+                        pass
+                else:
+                    #ToDo: Some of the tensorflow operators maintain internaly maintain
+                    #execution layers and its output name will the layer number along with
+                    #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
+                    #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
+                    #the digit has to be ignored.
+                    if ":" in node.input[0]:
+                        in_name, _ = node.input[0].split(':')
+                        node.input[0] = in_name
+                    try:
+                        inputs = [self._nodes[i] for i in node.input]
+                        for i in node.input:
+                            if i not in self._params:
+                                input_shapes[self._nodes[i]] = self._output_shapes[i]
+                        attr['_input_shapes'] = input_shapes
+                    except KeyError:
+                        # TODO: Need to find clean way to handle '^CheckNumerics'
+                        pass
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 
