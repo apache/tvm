@@ -50,52 +50,22 @@ func main() {
 
   fmt.Printf("Module Imported:%p\n", modp)
 
-  // Get function pointer for tvm.graph_runtime.create
-  var funp gotvm.TVMFunction
-
-  if gotvm.TVMFuncGetGlobal("tvm.graph_runtime.create", &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-
-  // Read graph json
   bytes, err := ioutil.ReadFile(modJSON)
   if err != nil {
     fmt.Print(err)
+    return
   }
   jsonStr := string(bytes)
 
-  // Fill arguments for tvm.graph_runtime.create
-  argsIn := []gotvm.TVMValue{gotvm.NewTVMValue(),
-                              gotvm.NewTVMValue(),
-                              gotvm.NewTVMValue(),
-                              gotvm.NewTVMValue()}
-
-  argsIn[0].SetVStr(jsonStr);
-  argsIn[1].SetVMHandle(modp);
-  argsIn[2].SetVInt64((int64)(gotvm.KDLCPU));
-  argsIn[3].SetVInt64((int64)(0));
-  typeCodes := []int32{gotvm.KStr, gotvm.KModuleHandle, gotvm.KDLInt, gotvm.KDLInt}
-
-  graphrt := gotvm.NewTVMValue()
-  argsOut := []gotvm.TVMValue{graphrt}
-
- // Load module on tvm runtime - call tvm.graph_runtime.create
-  retTypeCode := new(int32)
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  // Load module on tvm runtime - call tvm.graph_runtime.create
+  graphrt, _, tvmerr := gotvm.TVMFunctionExec(nil, "tvm.graph_runtime.create", jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
+  if tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
 
-  argsIn[0].UnSetVStr()
-  gotvm.TVMFuncFree(funp)
-
-  graphmod := graphrt.GetVMHandle()
+  graphmod := graphrt.GetValue(gotvm.KModuleHandle)
   graphrt.Delete()
-
-  for ii := range argsIn {
-    argsIn[ii].Delete()
-  }
 
   fmt.Printf("Graph runtime Created\n")
 
@@ -135,11 +105,6 @@ func main() {
   fmt.Printf("Input and Output TVMArrays allocated\n")
 
   // Get module function from graph runtime : load_params
-  if gotvm.TVMModGetFunction(graphmod, "load_params", 1, &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-
   // Read params
   bytes, err = ioutil.ReadFile(modParams)
   if err != nil {
@@ -150,37 +115,13 @@ func main() {
   paramsByteArray := gotvm.NewTVMByteArray()
   paramsByteArray.SetData(paramsStr)
 
-  // Fill arguments for load_params
-  argsIn = []gotvm.TVMValue{gotvm.NewTVMValue()}
-  argsIn[0].SetVBHandle(paramsByteArray);
-  typeCodes = []int32{gotvm.KBytes}
-
-  argsOut = []gotvm.TVMValue{}
-
-  // Call runtime function load_params
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod, "load_params", paramsByteArray); tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
-  fmt.Printf("Module params loaded\n")
 
-  gotvm.TVMFuncFree(funp)
   paramsByteArray.Delete()
-  for ii := range argsIn {
-    argsIn[ii].Delete()
-  }
-
-  // Get module function from graph runtime : set_input
-  if gotvm.TVMModGetFunction(graphmod, "set_input", 1, &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-
-  // Fill arguments for set_input
-  argsIn = []gotvm.TVMValue{gotvm.NewTVMValue(),
-                             gotvm.NewTVMValue()}
-
-  argsIn[0].SetVStr("input");
+  fmt.Printf("Module params loaded\n")
 
   // Set some data in input TVMArray
   // We use unsafe package to access underlying array to any type.
@@ -188,71 +129,28 @@ func main() {
   rand.Seed(10)
   rand.Shuffle(len(inSlice), func(i, j int) { inSlice[i], inSlice[j] = rand.Float32(), rand.Float32() })
 
-  argsIn[1].SetVAHandle(inX);
-  typeCodes = []int32{gotvm.KStr, gotvm.KArrayHandle}
-
-  argsOut = []gotvm.TVMValue{}
-
-  // Call runtime function set_input
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod, "set_input", "input", inX); tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
+
   fmt.Printf("Module input is set\n")
 
-  argsIn[0].UnSetVStr()
-  gotvm.TVMFuncFree(funp)
-
-  for ii := range argsIn {
-    argsIn[ii].Delete()
-  }
-
-  // Get module function from graph runtime : run
-  if gotvm.TVMModGetFunction(graphmod, "run", 1, &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  // Call runtime function run
+  if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod, "run"); tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
 
-  // Fill arguments for get_output
-  argsIn = []gotvm.TVMValue{}
-  argsOut = []gotvm.TVMValue{}
-  typeCodes = []int32{gotvm.KDLInt}
-
-  // Call runtime function get_output
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-  gotvm.TVMFuncFree(funp)
   fmt.Printf("Module Executed \n")
 
-  // Get module function from graph runtime : get_output
-  if gotvm.TVMModGetFunction(graphmod, "get_output", 1, &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-
-  // Fill arguments for get_output
-  argsIn = []gotvm.TVMValue{gotvm.NewTVMValue(),
-                             gotvm.NewTVMValue()}
-
-  argsIn[0].SetVInt64((int64)(0));
-  argsIn[1].SetVAHandle(out);
-  typeCodes = []int32{gotvm.KDLInt, gotvm.KArrayHandle}
-
-  argsOut = []gotvm.TVMValue{}
-
   // Call runtime function get_output
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod, "get_output", int64(0), out); tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
-  fmt.Printf("Got Module Output \n")
 
-  gotvm.TVMFuncFree(funp)
-  for ii := range argsIn {
-    argsIn[ii].Delete()
-  }
+  fmt.Printf("Got Module Output \n")
 
   // We use unsafe package to access underlying array to any type.
   outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:1001:1001]

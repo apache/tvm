@@ -33,6 +33,10 @@ func main() {
 
   fmt.Printf("Global Functions:%v\n", funcNames)
 
+  val := gotvm.NewTVMValue()
+  val.SetValue(int64(1234))
+  fmt.Printf("VAL:%v\n", val.GetValue(gotvm.KDLInt))
+
   // Import tvm module (dso)
   var modp gotvm.TVMModule
 
@@ -100,42 +104,16 @@ func main() {
   fmt.Printf("X: %v\n", inXSlice)
   fmt.Printf("Y: %v\n", inYSlice)
 
-  // Get module function : myadd
-  var funp gotvm.TVMFunction
-
-  if gotvm.TVMModGetFunction(modp, "myadd", 1, &funp) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
-    return
-  }
-
-  // Fill arguments for myadd
-  argsIn := []gotvm.TVMValue{gotvm.NewTVMValue(),
-                             gotvm.NewTVMValue(),
-                             gotvm.NewTVMValue()}
-
-  argsIn[0].SetVAHandle(inX);
-  argsIn[1].SetVAHandle(inY);
-  argsIn[2].SetVAHandle(out);
-  typeCodes := []int32{gotvm.KArrayHandle, gotvm.KArrayHandle, gotvm.KArrayHandle}
-
-  argsOut := []gotvm.TVMValue{}
-  retTypeCode := new(int32)
-
   // Call module function myadd
-  if gotvm.TVMFuncCall(funp, argsIn, typeCodes, argsOut, retTypeCode) != 0 {
-    fmt.Printf("%v", gotvm.TVMGetLastError())
+  _, _, tvmerr := gotvm.TVMFunctionExec(modp, "myadd", inX, inY, out)
+  if tvmerr != nil {
+    fmt.Print(tvmerr)
     return
   }
-  fmt.Printf("Module function myadd executed\n")
 
-  for ii := range argsIn {
-    argsIn[ii].Delete()
-  }
+  fmt.Printf("Module function myadd executed\n")
 
   // We use unsafe package to access underlying array to any type.
   outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:4:4]
   fmt.Printf("Result:%v\n", outSlice)
-
-  // Free TVM resources.
-  gotvm.TVMFuncFree(funp)
 }
