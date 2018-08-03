@@ -2,7 +2,7 @@
 ==============================================
 
 [![GitHub license](https://dmlc.github.io/img/apache2.svg)](./LICENSE)
-[![Build Status](http://mode-gpu.cs.washington.edu:8080/buildStatus/icon?job=tvm/master)](http://mode-gpu.cs.washington.edu:8080/job/tvm/job/master/)
+[![Build Status](http://ci.tvm.ai:8080/buildStatus/icon?job=tvm/master)](http://ci.tvm.ai:8080/job/tvm/job/master/)
 
 [Documentation](https://docs.tvm.ai) |
 [Contributors](CONTRIBUTORS.md) |
