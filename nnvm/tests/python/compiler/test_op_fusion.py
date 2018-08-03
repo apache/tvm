@@ -5,7 +5,7 @@ import topi.testing
 from tvm.contrib import graph_runtime
 from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
-from nnvm.testing import ctx_list
+from nnvm.testing import ctx_list, utils
 
 def test_ewise_injective():
     x = sym.Variable("x")
@@ -96,6 +96,7 @@ def test_fuse_conv2d_elu():
         data = sym.Variable(name="data")
         data = sym.conv2d(data=data, kernel_size=(3,3), channels=out_channel, padding=(1, 1),
                           layout="NCHW", kernel_layout="OIHW", use_bias=True)
+        data = sym.batch_norm(data)
         data = elu(data)
         return data
 
@@ -104,25 +105,18 @@ def test_fuse_conv2d_elu():
     size = 64
     dshape = (1, in_channel, size, size)
     oshape = (1, out_channel, size, size)
-
-    conv_weight = np.random.uniform(-1, 1, (out_channel, in_channel, 3, 3)).astype(np.float32)
-    conv_bias = np.random.uniform(-1, 1, (out_channel)).astype(np.float32)
-    params = {
-        "conv2d0_weight" : tvm.nd.array(conv_weight, ctx=tvm.cpu(0)),
-        "conv2d0_bias" : tvm.nd.array(conv_bias, ctx=tvm.cpu(0))
-    }
-
-    params2 = {
-        "conv2d1_weight" : tvm.nd.array(conv_weight.copy(), ctx=tvm.cpu(0)),
-        "conv2d1_bias" : tvm.nd.array(conv_bias.copy(), ctx=tvm.cpu(0))
-    }
-
-    data = np.random.uniform(-1, 1, dshape).astype(np.float32)
     sym1 = get_sym(out_channel)
     sym2 = get_sym(out_channel)
+    _, params1 = utils.create_workload(sym1, 1, dshape[1:])
+    _, params2 = utils.create_workload(sym2, 1, dshape[1:])
+    for (p1, p2) in zip(params1.values(), params2.values()):
+        p2.copyfrom(p1)
+
+    data = np.random.uniform(-1, 1, dshape).astype(np.float32)
 
     for target, ctx in ctx_list():
-        output, g1 = build_and_run(sym1, params, data, oshape, target, ctx, opt_level=2)
+        print("Running on target", target)
+        output, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
         output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
         np.testing.assert_allclose(output, output2, rtol=1e-5, atol=1e-5)
 
