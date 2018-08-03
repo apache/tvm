@@ -4,8 +4,7 @@ import logging
 
 import numpy as np
 
-from ..measure import MeasureInput
-from ..measure import create_measure_batch
+from ..measure import MeasureInput, create_measure_batch
 
 from ..env import GLOBAL_SCOPE
 
