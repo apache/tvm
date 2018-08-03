@@ -270,6 +270,16 @@ def _l2_normalize(inputs, attrs):
     new_attrs['eps'] = attrs.get('eps', 0.001)
     return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
 
+def _lrn(inputs, attrs):
+    op_name, new_attrs = "lrn", {}
+    new_attrs['alpha'] = attrs.get('alpha', 0.0001)
+    new_attrs['beta'] = attrs.get('beta', 0.75)
+    new_attrs['bias'] = attrs.get('knorm', 2)
+    # NCHW format and normalization along channel axis
+    new_attrs['axis'] = 1
+    new_attrs['size'] = _required_attr(attrs, 'nsize')
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -321,7 +331,9 @@ _convert_map = {
     'UpSampling'    : _upsampling,
     'clip'          : _clip,
     'expand_dims'   : _expand_dims,
-    'L2Normalization':_l2_normalize
+    'L2Normalization':_l2_normalize,
+    'LRN'           : _lrn
+
 }
 
 def _convert_symbol(op_name, inputs, attrs,

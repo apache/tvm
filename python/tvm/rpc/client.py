@@ -225,18 +225,24 @@ class TrackerSession(object):
             res += item["key"] + "\n"
         res += "----------------------------\n"
         res += "\n"
-        res += "Queue Status\n"
-        res += "----------------------------\n"
-        res += "key\tfree\tpending\n"
-        res += "----------------------------\n"
+
+        # compute max length of device key
         queue_info = data['queue_info']
         keys = list(queue_info.keys())
         if keys:
             keys.sort()
             max_key_len = max([len(k) for k in keys])
-            for k in keys:
-                res += ("%%-%d" % max_key_len + "s\t%d\t%g\n") % \
-                       (k, queue_info[k]["free"], queue_info[k]["pending"])
+        else:
+            max_key_len = 0
+
+        res += "Queue Status\n"
+        res += "----------------------------\n"
+        res += ("%%-%ds" % max_key_len + "\tfree\tpending\n") % 'key'
+        res += "----------------------------\n"
+        for k in keys:
+            res += ("%%-%ds" % max_key_len + "\t%d\t%g\n") % \
+                   (k, queue_info[k]["free"], queue_info[k]["pending"])
+
         res += "----------------------------\n"
         return res
 

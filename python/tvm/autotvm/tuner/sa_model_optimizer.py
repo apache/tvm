@@ -26,11 +26,11 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         If is an Array, then perform linear cooling from temp[0] to temp[1]
     early_stop: int, optional
         Stop iteration if the optimal set do not change in `early_stop` rounds
-    verbose: int, optional
-        Print log every `verbose` iterations
+    log_interval: int, optional
+        Print log every `log_interval` iterations
     """
     def __init__(self, task, n_iter=500, temp=(1, 0), persistent=True, parallel_size=128,
-                 early_stop=50, verbose=50):
+                 early_stop=50, log_interval=50):
         super(SimulatedAnnealingOptimizer, self).__init__()
 
         self.task = task
@@ -41,12 +41,13 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
         self.persistent = persistent
         self.parallel_size = min(parallel_size, len(self.task.config_space))
         self.early_stop = early_stop or 1e9
-        self.verbose = verbose
+        self.log_interval = log_interval
         self.points = None
 
     def find_maximums(self, model, num, exclusive):
         tic = time.time()
-        temp, n_iter, early_stop, verbose = self.temp, self.n_iter, self.early_stop, self.verbose
+        temp, n_iter, early_stop, log_interval = \
+                self.temp, self.n_iter, self.early_stop, self.log_interval
 
         if self.persistent and self.points is not None:
             points = self.points
@@ -100,19 +101,18 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
             k += 1
             t -= cool
 
-            if verbose >= 1 and k % verbose == 0:
+            if log_interval and k % log_interval == 0:
                 t_str = "%.2f" % t
-                logging.info("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
-                             "elapsed: %.2f",
-                             k, k_last_modify, heap_items[0][0],
-                             np.max([v for v, _ in heap_items]), t_str,
-                             time.time() - tic)
+                logging.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
+                              "elapsed: %.2f",
+                              k, k_last_modify, heap_items[0][0],
+                              np.max([v for v, _ in heap_items]), t_str,
+                              time.time() - tic)
 
         heap_items.sort(key=lambda item: -item[0])
-        if verbose:
-            logging.info("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
-                         k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
-            logging.info("SA Maximums: %s", heap_items)
+        logging.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
+                      k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
+        logging.debug("SA Maximums: %s", heap_items)
 
         if self.persistent:
             self.points = points

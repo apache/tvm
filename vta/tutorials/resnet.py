@@ -8,7 +8,6 @@ onto the VTA accelerator design to perform ImageNet classification tasks.
 
 """
 
-
 ######################################################################
 # Import Libraries
 # ----------------
@@ -17,26 +16,21 @@ onto the VTA accelerator design to perform ImageNet classification tasks.
 from __future__ import absolute_import, print_function
 
 import os
-import sys
-import nnvm
-import nnvm.compiler
-import tvm
-import vta
-import vta.testing
-import numpy as np
-import json
-import requests
 import time
-
-from nnvm.compiler import graph_attr
-from tvm import rpc
-from tvm.contrib import graph_runtime, util
-from tvm.contrib.download import download
-from vta.testing import simulator
-
 from io import BytesIO
+
+import numpy as np
+import requests
 from matplotlib import pyplot as plt
 from PIL import Image
+
+import tvm
+from tvm import rpc, autotvm
+from tvm.contrib import graph_runtime, util
+from tvm.contrib.download import download
+import nnvm.compiler
+import vta
+import vta.testing
 
 # Load VTA parameters from the vta/config/vta_config.json file
 env = vta.get_env()
@@ -76,7 +70,6 @@ def classify(m, image):
 # Takes in a path to a graph file, params file, and device target
 # Returns the NNVM graph object, a compiled library object, and the params dict
 def generate_graph(graph_fn, params_fn, device="vta"):
-
     # Measure build start time
     build_start = time.time()
 
@@ -99,12 +92,6 @@ def generate_graph(graph_fn, params_fn, device="vta"):
     dtype_dict = {"data": 'float32'}
     shape_dict.update({k: v.shape for k, v in params.items()})
     dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
-
-    # Create NNVM graph
-    graph = nnvm.graph.create(sym)
-    graph_attr.set_shape_inputs(sym, shape_dict)
-    graph_attr.set_dtype_inputs(sym, dtype_dict)
-    graph = graph.apply("InferShape").apply("InferType")
 
     # Apply NNVM graph optimization passes
     sym = vta.graph.clean_cast(sym)
@@ -166,6 +153,9 @@ for file in [categ_fn, graph_fn, params_fn]:
 # Read in ImageNet Categories
 synset = eval(open(os.path.join(data_dir, categ_fn)).read())
 
+# Download pre-tuned op parameters of conv2d for ARM CPU used in VTA
+autotvm.tophub.check_package('vta')
+
 
 ######################################################################
 # Setup the Pynq Board's RPC Server
@@ -182,7 +172,6 @@ port = int(os.environ.get("VTA_PYNQ_RPC_PORT", "9091"))
 # We configure both the bitstream and the runtime system on the Pynq
 # to match the VTA configuration specified by the vta_config.json file.
 if env.TARGET == "pynq":
-
     # Make sure that TVM was compiled with RPC=1
     assert tvm.module.enabled("rpc")
     remote = rpc.connect(host, port)
@@ -209,8 +198,8 @@ elif env.TARGET == "sim":
 # ------------------------
 # Build the ResNet graph runtime, and configure the parameters.
 
-# Set ``device=cpu`` to run inference on the CPU,
-# or ``device=vtacpu`` to run inference on the FPGA.
+# Set ``device=vtacpu`` to run inference on the CPU
+# or ``device=vta`` to run inference on the FPGA.
 device = "vta"
 
 # Device context
@@ -224,7 +213,6 @@ m = graph_runtime.create(graph, lib, ctx)
 
 # Set the parameters
 m.set_input(**params)
-
 
 ######################################################################
 # Run ResNet-18 inference on a sample image

@@ -1,9 +1,12 @@
 # pylint: disable=consider-using-enumerate,invalid-name
 """Namespace of callback utilities of AutoTVM"""
+import sys
+import time
 
 import numpy as np
 
 from .. import record
+
 
 def log_to_file(file_out, protocol='json'):
     """Log the tuning records into file.
@@ -21,7 +24,6 @@ def log_to_file(file_out, protocol='json'):
     callback : callable
         Callback function to do the logging.
     """
-
     def _callback(_, inputs, results):
         """Callback implementation"""
         if isinstance(file_out, str):
@@ -34,54 +36,20 @@ def log_to_file(file_out, protocol='json'):
     return _callback
 
 
-def save_tuner_state(prefix, save_every_sample=100):
-    """Save the state of tuner
+def log_to_database(db):
+    """Save the tuning records to a database object.
 
     Parameters
     ----------
-    prefix : srt
-        prefix of the filename to store state
-    save_every_sample: int
-        save the state every x samples
-
-    Returns
-    -------
-    callback : function
-        Callback function to do the auto saving.
+    db: Database
+        The database
     """
-    def _callback(tuner, inputs, results):
-        for _, __ in zip(inputs, results):
-            try:
-                ct = len(tuner.visited)
-            except AttributeError:
-                ct = 0
-            if ct % save_every_sample == 0:
-                tuner.save_state(prefix + "_%d.state" % ct)
-
-    return _callback
-
-
-def log_to_redis(host="localhost", port=6379, dbn=11):
-    """Record the tuning record to a redis DB.
-
-    Parameters
-    ----------
-    host: str, optional
-        Host address of redis db
-    port: int, optional
-        Port of redis db
-    dbn: int, optional
-        which redis db to use, default 11
-    """
-    # import here so only depend on redis when necessary
-    import redis
-    red = redis.StrictRedis(host=host, port=port, db=dbn)
-
     def _callback(_, inputs, results):
         """Callback implementation"""
         for inp, result in zip(inputs, results):
-            red.set(inp, result)
+            db.save(inp, result)
     return _callback
+
 
 class Monitor(object):
     """A monitor to collect statistic during tuning"""
@@ -110,3 +78,47 @@ class Monitor(object):
     def trial_timestamps(self):
         """get wall clock time stamp of all trials"""
         return np.array(self.timestamps)
+
+
+def progress_bar(total, prefix=''):
+    """Display progress bar for tuning
+
+    Parameters
+    ----------
+    total: int
+        The total number of trials
+    prefix: str
+        The prefix of output message
+    """
+    class _Context:
+        """Context to store local variables"""
+        def __init__(self):
+            self.best_flops = 0
+            self.cur_flops = 0
+            self.ct = 0
+            self.total = total
+
+        def __del__(self):
+            sys.stdout.write(' Done.\n')
+
+    ctx = _Context()
+    tic = time.time()
+
+    def _callback(tuner, inputs, results):
+        ctx.ct += len(inputs)
+
+        flops = 0
+        for inp, res in zip(inputs, results):
+            if res.error_no == 0:
+                flops = inp.task.flop / np.mean(res.costs)
+
+        ctx.cur_flops = flops
+        ctx.best_flops = tuner.best_flops
+
+        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+                         '| %.2f s' %
+                         (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
+                          time.time() - tic))
+        sys.stdout.flush()
+
+    return _callback

@@ -138,6 +138,7 @@ def test_forward_activations():
     weights = np.random.rand(1, 32, 32, 3)
     act_funcs = [keras.layers.Activation('softmax'),
                  keras.layers.Activation('softplus'),
+                 keras.layers.ReLU(),
                  keras.layers.LeakyReLU(alpha=0.3),
                  keras.layers.PReLU(weights=weights, alpha_initializer="zero"),
                  keras.layers.ELU(alpha=0.5),

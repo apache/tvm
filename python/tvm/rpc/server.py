@@ -20,6 +20,7 @@ import multiprocessing
 import subprocess
 import time
 import sys
+import signal
 
 from .._ffi.function import register_func
 from .._ffi.base import py_str
@@ -257,7 +258,7 @@ def _popen(cmd):
 
 
 class Server(object):
-    """Start RPC server on a seperate process.
+    """Start RPC server on a separate process.
 
     This is a simple python implementation based on multi-processing.
     It is also possible to implement a similar C based sever with
@@ -284,14 +285,21 @@ class Server(object):
         This is recommended to switch on if we want to do local RPC demonstration
         for GPU devices to avoid fork safety issues.
 
-    silent: bool, optional
-        Whether run this server in silent mode.
+    tracker_addr: Tuple (str, int) , optional
+        The address of RPC Tracker in tuple(host, ip) format.
+        If is not None, the server will register itself to the tracker.
 
     key : str, optional
-        The key used to identify the server in Proxy connection.
+        The key used to identify the device type in tracker.
 
     load_library : str, optional
         List of additional libraries to be loaded during execution.
+
+    custom_addr: str, optional
+        Custom IP Address to Report to RPC Tracker
+
+    silent: bool, optional
+        Whether run this server in silent mode.
     """
     def __init__(self,
                  host,
@@ -299,11 +307,11 @@ class Server(object):
                  port_end=9199,
                  is_proxy=False,
                  use_popen=False,
-                 silent=False,
                  tracker_addr=None,
                  key="",
                  load_library=None,
-                 custom_addr=None):
+                 custom_addr=None,
+                 silent=False):
         try:
             if base._ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
@@ -313,6 +321,7 @@ class Server(object):
         self.port = port
         self.libs = []
         self.custom_addr = custom_addr
+        self.use_popen = use_popen
 
         self.logger = logging.getLogger("RPCServer")
         if silent:
@@ -334,10 +343,7 @@ class Server(object):
             if silent:
                 cmd += ["--silent"]
 
-            self.proc = multiprocessing.Process(
-                target=subprocess.check_call, args=(cmd,))
-            self.proc.deamon = True
-            self.proc.start()
+            self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -371,9 +377,14 @@ class Server(object):
 
     def terminate(self):
         """Terminate the server process"""
-        if self.proc:
-            self.proc.terminate()
-            self.proc = None
+        if self.use_popen:
+            if self.proc:
+                os.killpg(self.proc.pid, signal.SIGTERM)
+                self.proc = None
+        else:
+            if self.proc:
+                self.proc.terminate()
+                self.proc = None
 
     def __del__(self):
         self.terminate()
