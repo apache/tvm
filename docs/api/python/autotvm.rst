@@ -44,9 +44,6 @@ tvm.autotvm.tuner
 .. automodule:: tvm.autotvm.tuner.callback
     :members:
 
-.. automodule:: tvm.autotvm.tuner.graph_tuning
-    :members:
-
 tvm.autotvm.task
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.autotvm.task
