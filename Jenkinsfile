@@ -200,8 +200,7 @@ stage('Unit Test') {
 }
 
 stage('Integration Test') {
-  parallel
-  'topi': {
+  parallel 'topi': {
     node('GPU') {
       ws('workspace/tvm/it-python-gpu') {
         init_git()
