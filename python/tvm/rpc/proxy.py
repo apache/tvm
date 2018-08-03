@@ -23,7 +23,8 @@ try:
     from tornado import ioloop
     from . import tornado_util
 except ImportError as error_msg:
-    raise ImportError("RPCProxy module requires tornado package %s" % error_msg)
+    raise ImportError(
+        "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
 from . import base
 from .base import TrackerCode
@@ -540,7 +541,7 @@ def websocket_proxy_server(url, key=""):
     def _connect(key):
         conn = yield websocket.websocket_connect(url)
         on_message = create_on_message(conn)
-        temp = _server_env(None, None)
+        temp = _server_env(None)
         # Start connecton
         conn.write_message(struct.pack('<i', base.RPC_MAGIC), binary=True)
         key = "server:" + key

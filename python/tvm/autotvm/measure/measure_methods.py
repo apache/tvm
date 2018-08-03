@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from random import getrandbits
+import threading
 
 import numpy as np
 
@@ -23,6 +24,7 @@ from ..task.space import InstantiationError
 from .measure import MeasureResult, MeasureErrorNo
 from .local_executor import LocalExecutor
 
+logger = logging.getLogger('autotvm')
 
 class HashMismatchError(ValueError):
     """Raised when the code hash of a submitted config doesn't match that on the
@@ -42,9 +44,9 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
         If is none, will use environment variable "TVM_TRACKER_HOST"
         and "TVM_TRACKER_PORT"
     priority: int, optional
-        priority of this request, larger is more prior
+        The priority of this request, larger is more prior
     timeout: float, optional
-        timeout of this session (units: seconds)
+        The timeout of this session (units: seconds)
 
     Returns
     ------
@@ -63,6 +65,33 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
                              session_timeout=timeout)
     return remote
 
+def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=10):
+    """
+    Check the availability of a remote device
+
+    Parameters
+    ----------
+    target: Target
+        The wanted compilation target
+    device_key: string
+        device key of registered device in tracker
+    tracker_addr: Tuple(string, int), optional
+        The address of rpc tracker in (host, port) format.
+        If is none, will use environment variable "TVM_TRACKER_HOST"
+        and "TVM_TRACKER_PORT"
+    priority: int, optional
+        The priority of this request, larger is more prior
+    timeout: float, optional
+        The timeout of this check (units: seconds).
+        If time is out, a RuntimerError will be raised.
+    """
+    def _check():
+        remote = request_remote(device_key, tracker_addr, priority)
+        remote.context(str(target))
+    t = threading.Thread(target=_check,)
+    t.start()
+    t.join(timeout)
+    return not t.is_alive()
 
 def create_measure_batch(task, option):
     """Get a standard measure_batch function.
@@ -114,6 +143,17 @@ def create_measure_batch(task, option):
     if build_func == 'ndk':
         build_func = default_build_func
         build_kwargs['use_ndk'] = True
+
+    # check the availability of remote devices
+    if hasattr(measure_func, 'rpc_info'):
+        rpc_info = measure_func.rpc_info
+        if check_remote(task.target, rpc_info['key'], (rpc_info['host'], rpc_info['port'])):
+            logger.info("Get devices for measurement successfully!")
+        else:
+            raise RuntimeError("Cannot get remote devices from the tracker. "
+                               "Please check the status of tracker by "
+                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+                               "and make sure you have free devices on the queue status.")
 
     # add device info of cuda and opencl target
     if ('cuda' in task.target.keys or 'opencl' in task.target.keys) \
@@ -313,7 +353,7 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             continue
         except InstantiationError as e:
             tstamp = time.time()
-            res_pack.append(MeasureResult((e,),
+            res_pack.append(MeasureResult((InstantiationError(str(e)),),
                                           MeasureErrorNo.INSTANTIATION_ERROR,
                                           tstamp - tic, tstamp))
             continue
@@ -346,7 +386,7 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             if ref_output:
                 for expected, real in zip(ref_output, args):
                     if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                        logging.warning("Wrong Answer!")
+                        logger.warning("Wrong Answer!")
                         errno = MeasureErrorNo.WRONG_ANSWER
         except TVMError as exc:
             msg = str(exc)

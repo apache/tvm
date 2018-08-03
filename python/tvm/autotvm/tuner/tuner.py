@@ -4,10 +4,11 @@ import logging
 
 import numpy as np
 
-from ..measure import MeasureInput
-from ..measure import create_measure_batch
+from ..measure import MeasureInput, create_measure_batch
 
 from ..env import GLOBAL_SCOPE
+
+logger = logging.getLogger('autotvm')
 
 class Tuner(object):
     """Base class for tuners
@@ -86,9 +87,10 @@ class Tuner(object):
         measure_batch = create_measure_batch(self.task, measure_option)
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
         early_stopping = early_stopping or 1e9
+        old_level = logger.level
 
         GLOBAL_SCOPE.in_tuning = True
-        i = 0
+        i = error_ct = 0
         while i < n_trial:
             if not self.has_next():
                 break
@@ -103,17 +105,20 @@ class Tuner(object):
                 config = inp.config
                 if res.error_no == 0:
                     flops = inp.task.flop / np.mean(res.costs)
+                    error_ct = 0
                 else:
                     flops = 0
+                    error_ct += 1
+
                 if flops > self.best_flops:
                     self.best_flops = flops
                     self.best_config = config
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
-                logging.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                              i + k + 1, flops / 1e9, self.best_flops / 1e9,
-                              res, config)
+                logger.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                             i + k + 1, flops / 1e9, self.best_flops / 1e9,
+                             res, config)
 
             i += len(results)
 
@@ -123,11 +128,16 @@ class Tuner(object):
                 callback(self, inputs, results)
 
             if i > self.best_iter + early_stopping:
-                logging.debug("Early stopped. Best iter: %d.", self.best_iter)
+                logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
-        GLOBAL_SCOPE.in_tuning = False
+            if error_ct > 50:
+                logger.warning("Too many errors happen in the tuning. Now is in debug mode")
+                logger.setLevel(logging.DEBUG)
+            else:
+                logger.setLevel(old_level)
 
+        GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
     def reset(self):

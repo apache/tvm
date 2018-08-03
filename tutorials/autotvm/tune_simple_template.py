@@ -267,8 +267,9 @@ print(task.config_space)
 # We will log the tuning results into a log file. This file can be
 # used to get the best config later.
 
-# logging config (for printing tuning log to screen)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+# logging config (for printing tuning log to the screen)
+logging.getLogger('autotvm').setLevel(logging.DEBUG)
+logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
 # use local cpu, measure 5 times for every config to reduce variance
 measure_option = autotvm.measure_option('local',

@@ -23,6 +23,8 @@ List of available APIs:
   - input: [TrackerCode.REQUEST, [key, user, priority]]
   - return: [TrackerCode.SUCCESS, [url, port, match-key]]
 """
+# pylint: disable=invalid-name
+
 import heapq
 import time
 import logging
@@ -37,12 +39,13 @@ try:
     from . import tornado_util
 except ImportError as error_msg:
     raise ImportError(
-        "RPCTracker module requires tornado package %s" % error_msg)
+        "RPCTracker module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
 from .._ffi.base import py_str
 from . import base
 from .base import RPC_TRACKER_MAGIC, TrackerCode
 
+logger = logging.getLogger("RPCTracker")
 
 class Scheduler(object):
     """Abstratc interface of scheduler."""
@@ -141,11 +144,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
     def _init_conn(self, message):
         """Initialie the connection"""
         if len(message) != 4:
-            logging.info("Invalid connection from %s", self.name())
+            logger.warning("Invalid connection from %s", self.name())
             self.close()
         magic = struct.unpack('<i', message)[0]
         if magic != RPC_TRACKER_MAGIC:
-            logging.info("Invalid magic from %s", self.name())
+            logger.warning("Invalid magic from %s", self.name())
             self.close()
         self.write_message(struct.pack('<i', RPC_TRACKER_MAGIC), binary=True)
         self._init_req_nbytes = 0
@@ -232,14 +235,14 @@ class TCPEventHandler(tornado_util.TCPHandler):
             status = self._tracker.summary()
             self.ret_value([TrackerCode.SUCCESS, status])
         else:
-            logging.info("Unknown tracker code %d", code)
+            logger.warning("Unknown tracker code %d", code)
             self.close()
 
     def on_close(self):
         self._tracker._connections.remove(self)
 
     def on_error(self, err):
-        logging.info("%s: Error in RPC Tracker: %s", self.name(), err)
+        logger.warning("%s: Error in RPC Tracker: %s", self.name(), err)
         self.close()
 
 
@@ -335,9 +338,8 @@ class Tracker(object):
                  port=9190,
                  port_end=9199,
                  silent=False):
-        self.logger = logging.getLogger("RPCTracker")
         if silent:
-            self.logger.disabled = True
+            logger.setLevel(logging.WARN)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.port = None
@@ -354,7 +356,7 @@ class Tracker(object):
                     raise sock_err
         if not self.port:
             raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-        self.logger.info("bind to %s:%d", host, self.port)
+        logger.info("bind to %s:%d", host, self.port)
         sock.listen(1)
         self.proc = multiprocessing.Process(
             target=_tracker_server, args=(sock, self.stop_key))
@@ -380,7 +382,7 @@ class Tracker(object):
                 self._stop_tracker()
                 self.proc.join(1)
             if self.proc.is_alive():
-                self.logger.info("Terminating Tracker Server...")
+                logger.info("Terminating Tracker Server...")
                 self.proc.terminate()
             self.proc = None
 
