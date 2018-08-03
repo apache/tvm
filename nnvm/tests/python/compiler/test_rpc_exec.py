@@ -4,12 +4,13 @@ from tvm.contrib import util, graph_runtime
 import nnvm.symbol as sym
 import nnvm.compiler
 import numpy as np
+import time
 
 def test_rpc_executor():
     host = "localhost"
-    port = 9120
-    server = rpc.Server(host, port)
-
+    port = 9021
+    server = rpc.Server(host, port, use_popen=True)
+    time.sleep(1)
     x = sym.Variable("x")
     y = sym.Variable("y")
     z = sym.exp(y + x)
@@ -22,7 +23,7 @@ def test_rpc_executor():
     graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
     # save module
     lib.save(lib_name)
-    remote = rpc.connect(server.host, server.port)
+    remote = rpc.connect(host, port)
     remote.upload(lib_name)
     ctx = remote.cpu(0)
     # load remote
