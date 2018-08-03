@@ -7,8 +7,8 @@ import numpy as np
 
 def test_rpc_executor():
     host = "localhost"
-    port = 9711
-    server = rpc.Server(host, port, use_popen=True)
+    port = 9120
+    server = rpc.Server(host, port)
 
     x = sym.Variable("x")
     y = sym.Variable("y")
@@ -22,7 +22,7 @@ def test_rpc_executor():
     graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
     # save module
     lib.save(lib_name)
-    remote = rpc.connect(host, port)
+    remote = rpc.connect(server.host, server.port)
     remote.upload(lib_name)
     ctx = remote.cpu(0)
     # load remote
