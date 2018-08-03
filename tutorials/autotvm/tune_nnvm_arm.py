@@ -196,7 +196,6 @@ tuning_option = {
        parallel_num=1,
        timeout=10,
        build_func='ndk' if use_android else 'default',
-       # do_fork=False,     # uncomment this line if you want to debug
    ),
 }
 
@@ -283,12 +282,14 @@ def tune_tasks(tasks,
 
 def tune_and_evaluate():
     # extract workloads from nnvm graph
+    print("Extract tasks...")
     net, params, shape, out_shape = get_network(network, batch_size=1)
     tasks = autotvm.task.extract_from_graph(net, shape=shape, dtype=dtype,
                                             symbols=(nnvm.sym.conv2d,),
                                             target=target)
 
     # run tuning tasks
+    print("Tuning...")
     tune_tasks(tasks, **tuning_option)
 
     # compile kernels with history best records
@@ -332,6 +333,7 @@ def tune_and_evaluate():
 
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run by yourself.
+
 # tune_and_evaluate()
 
 ######################################################################
@@ -344,6 +346,8 @@ def tune_and_evaluate():
 #
 # .. code-block:: bash
 #
+#    Extract tasks...
+#    Tuning...
 #    [Task  1/16]  Current/Best:   13.15/  20.49 GFLOPS | Progress: (297/1000) | 348.51 s Done.
 #    [Task  2/16]  Current/Best:   16.66/  22.64 GFLOPS | Progress: (475/1000) | 415.42 s Done.
 #    [Task  3/16]  Current/Best:   10.33/  14.19 GFLOPS | Progress: (306/1000) | 239.61 s Done.
@@ -371,18 +375,17 @@ def tune_and_evaluate():
 #
 # .. note:: **Meet some problems?**
 #
-#   The auto tuning module is error prone. If you always see 0.00/0.00 GFLOPS, then
-#   there must be something wrong.
+#   The auto tuning module is error prone. If you always see " 0.00/ 0.00 GFLOPS",
+#   then there must be something wrong.
 #
 #   First, make sure you set the correct configuration of your device.
-#   Then, you can try to uncomment :code:`do_fork=False` and see some error.
-#   Or you can add these lines in the begging of the script to see every
-#   the measurement result.
+#   Then, you can print debug information by adding these lines in the beginning
+#   of the script. It will print every measurement result, where you can find useful
+#   error messages.
 #
 #   .. code-block:: python
 #
 #      import logging
 #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
-#      logging.getLogger('autotvm').addHandler(logging.StreamHandler())
 #
 #   Finally, always feel free to ask our community for help on https://discuss.tvm.ai

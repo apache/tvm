@@ -332,6 +332,7 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
         try:
             func, arg_bufs, filename = build_func(inp, tmp_dir, **build_kwargs)
         except TVMError as exc:
+            msg = str(exc)
             tstamp = time.time()
             if "Stack trace returned" in msg:
                 msg = msg[:msg.index("Stack trace returned")]
