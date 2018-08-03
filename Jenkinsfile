@@ -36,7 +36,7 @@ def init_git_win() {
 
 stage("Sanity Check") {
   timeout(time: max_time, unit: 'MINUTES') {
-    node('linux') {
+    node('CPU') {
       ws('workspace/tvm/sanity') {
         init_git()
         sh "${docker_run} tvmai/ci-lint  ./tests/scripts/task_lint.sh"
@@ -80,8 +80,8 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  parallel 'GPU': {
-    node('GPU' && 'linux') {
+  parallel 'BUILD: GPU': {
+    node('GPUBUILD') {
       ws('workspace/tvm/build-gpu') {
         init_git()
         sh """
@@ -117,8 +117,8 @@ stage('Build') {
       }
     }
   },
-  'CPU': {
-    node('CPU' && 'linux') {
+  'BUILD: CPU': {
+    node('CPU') {
       ws('workspace/tvm/build-cpu') {
         init_git()
         sh """
@@ -139,8 +139,8 @@ stage('Build') {
       }
     }
   },
-  'i386': {
-    node('CPU' && 'linux') {
+  'BUILD : i386': {
+    node('CPU') {
       ws('workspace/tvm/build-i386') {
         init_git()
         sh """
@@ -162,18 +162,19 @@ stage('Build') {
 
 stage('Unit Test') {
   parallel 'python2/3: GPU': {
-    node('GPU' && 'linux') {
+    node('GPU') {
       ws('workspace/tvm/ut-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_unittest.sh"
+          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_integration.sh"
         }
       }
     }
   },
   'python2/3: i386': {
-    node('CPU' && 'linux') {
+    node('CPU') {
       ws('workspace/tvm/ut-python-i386') {
         init_git()
         unpack_lib('i386', tvm_multilib)
@@ -185,8 +186,8 @@ stage('Unit Test') {
       }
     }
   },
-  'java': {
-    node('GPU' && 'linux') {
+  'java: GPU': {
+    node('GPU') {
       ws('workspace/tvm/ut-java') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
@@ -199,22 +200,31 @@ stage('Unit Test') {
 }
 
 stage('Integration Test') {
-  parallel 'python': {
-    node('GPU' && 'linux') {
+  parallel 'topi: GPU': {
+    node('GPU') {
       ws('workspace/tvm/it-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
-          sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_integration.sh"
           sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_topi.sh"
           sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_cpp_topi.sh"
+        }
+      }
+    }
+  },
+  'nnvm: GPU': {
+    node('GPU') {
+      ws('workspace/tvm/it-python-gpu') {
+        init_git()
+        unpack_lib('gpu', tvm_multilib)
+        timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-gpu ./tests/scripts/task_python_nnvm.sh"
         }
       }
     }
   },
-  'docs': {
-    node('GPU' && 'linux') {
+  'docs: GPU': {
+    node('GPU') {
       ws('workspace/tvm/docs-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
@@ -228,7 +238,7 @@ stage('Integration Test') {
 }
 
 stage('Deploy') {
-    node('docker' && 'doc') {
+    node('doc') {
       ws('workspace/tvm/deploy-docs') {
         if (env.BRANCH_NAME == "master") {
            unpack_lib('mydocs', 'docs.tgz')
