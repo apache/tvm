@@ -135,3 +135,16 @@ The c++ code to load this system module require the below change.
     // tvm module for compiled functions
     tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
 ```
+
+Based on the build environment the system object should be linked as a whole archive. An example with bazel build is given below.
+```bash
+cc_library(
+    name = "nnvm_sys_module",
+    srcs = ["nnvm_sys_module.o"],
+    alwayslink=1
+)
+```
+
+This build directive creates a new library ```nnvm_sys_module``` out of ```nnvm_sys_module.o``` which can be used as a dependency to final deploy application.
+
+In bazel ```alwayslink=1``` enforce embedding entire lib into application (even though it doesn't call any API from this module).
