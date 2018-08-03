@@ -474,6 +474,36 @@ def test_forward_variable():
 
 
 #######################################################################
+# Split
+# ------
+
+def _test_split(ip_shape, num_or_size_splits, axis):
+    tf.reset_default_graph()
+    dtype = 'float32'
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.split(in_data, num_or_size_splits, axis=axis, name="split")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['split'])
+        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], 'split:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
+                                   tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_split():
+    '''test split operator'''
+    _test_split((2, 3), 2, axis=0)
+    _test_split((6, 3), 3, axis=0)
+    _test_split((5, 9, 3), 3, axis=1)
+    _test_split((2,5,3,9), 3, axis=3)
+
+
+#######################################################################
 # LSTM
 # ----
 def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
@@ -939,5 +969,6 @@ if __name__ == '__main__':
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
+    test_forward_split()
     test_forward_ptb()
     test_forward_lrn()
