@@ -15,8 +15,9 @@ class DebugResult():
     Parameters
     ----------
     graph_json : str
-        The graph to be deployed in json format output by nnvm graph. The graph can only contain
-        one operator(tvm_op) that points to the name of PackedFunc in the libmod.
+        The graph to be deployed in json format output by nnvm graph. Each operator (tvm_op)
+        in the graph will have a one to one mapping with the symbol in libmod which is used
+        to construct a "PackedFunc" .
 
     dump_path : str
         Output data path is read/provided from frontend
@@ -61,7 +62,6 @@ class DebugResult():
                 node['op'] = "param"
             else:
                 node['op'] = node['attrs']['func_name']
-            node['name'] = node['name'].replace("/", "_")
             node['attrs'].update({"T": dtype})
             node['shape'] = self._shapes_list[1][i]
 
@@ -108,7 +108,7 @@ class DebugResult():
                             else int(node['attrs']['num_outputs'])
             for j in range(num_outputs):
                 order += time
-                key = node['name'].replace("/", "_") + "_" + str(j) + "__" + str(order)
+                key = node['name'] + "_" + str(j) + "__" + str(order)
                 output_tensors[key] = out_stats[eid]
                 eid += 1
 
@@ -129,7 +129,7 @@ class DebugResult():
             json.dump(graph, outfile, indent=2, sort_keys=False)
 
     def _cleanup_tensors(self):
-        """Remove the tensor dumps files(grah wont be removed)
+        """Remove the tensor dump file (graph wont be removed)
         """
         for filename in os.listdir(self._dump_path):
             if os.path.isfile(filename) and not filename.endswith(".json"):

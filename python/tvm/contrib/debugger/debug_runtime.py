@@ -74,9 +74,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         The context this module is under.
 
     graph_json_str : str or graph class
-        The graph to be deployed in json format output by nnvm graph.
-        The graph can only contain one operator(tvm_op) that
-        points to the name of PackedFunc in the libmod.
+        Content of graph json file in string format
 
     dbg_ux : str
         To select which ui user needs, curses, tensorboard
@@ -98,14 +96,12 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         return str(ctx).upper().replace("(", ":").replace(")", "")
 
     def _prepare_data_and_ui(self, graph_json, ctx, dbg_ux):
-        """Create the framework for debug data dumpling and initialize the frontend
+        """Create the framework for debug data dumping and initialize the frontend
 
         Parameters
         ----------
         graph_json : str or graph class
-            The graph to be deployed in json format output by nnvm graph.
-            The graph can only contain one operator(tvm_op) that
-            points to the name of PackedFunc in the libmod.
+            Content of graph json file in string format
 
         ctx : TVMContext
             The context this module is under.
@@ -149,10 +145,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             File path to create
         """
         if not os.path.exists(directory):
-            os.makedirs(directory)
+            os.makedirs(directory, 0o700)
 
     def _get_dump_path(self, ctx):
-        """Dump json formatted graph.
+        """Make the graph and tensor dump folder and return the path.
 
         Parameters
         ----------
@@ -300,7 +296,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._run_debug()
 
     def set_input(self, key=None, value=None, **params):
-        """Set inputs to the module via kwargs
+        """Set inputs to the module
 
         Along with the value setting to runtime, the same will be notified to
         UI frontend as well.
