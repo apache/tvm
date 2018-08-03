@@ -85,9 +85,32 @@ If everything goes well, you will find compile tools in `/opt/android-toolchain-
 
 ### Cross Compile and Upload to the Android Device
 
-First start an RPC tracker using `python -m tvm.exec.rpc_tracker --port [PORT]` and connect your Android device to this RPC tracker via the TVM RPC application.
-Set the `Address` and `Port` fields to the address and port of the RPC tracker respectively.
+First start an RPC tracker using 
+
+```python -m tvm.exec.rpc_tracker --port [PORT]``` 
+
+and connect your Android device to this RPC tracker via the TVM RPC application. Open the app,
+set the `Address` and `Port` fields to the address and port of the RPC tracker respectively.
 The key should be set to "android" if you wish to avoid modifying the default test script.
+
+After pushing "START RPC" button on the app, you can check the connect by run 
+
+```python -m tvm.exec.query_rpc_tracker --port [PORT]``` 
+
+on your host machine. 
+You are supposed to find a free "android" in the queue status.
+
+```
+...
+
+Queue Status
+----------------------------
+key    	free	pending
+----------------------------
+android	1	0
+----------------------------
+```
+
 
 Then checkout [android\_rpc/tests/android\_rpc\_test.py](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py) and run,
 

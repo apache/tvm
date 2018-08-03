@@ -6,12 +6,12 @@ import logging
 import argparse
 import multiprocessing
 import sys
-from .. import rpc
+from ..rpc.tracker import Tracker
 
 def main(args):
     """Main funciton"""
-    tracker = rpc.Tracker(args.host, port=args.port, port_end=args.port_end,
-                          silent=args.silent)
+    tracker = Tracker(args.host, port=args.port, port_end=args.port_end,
+                      silent=args.silent)
     tracker.proc.join()
 
 

@@ -27,7 +27,7 @@ to see the results.
 #
 # .. code-block:: bash
 #
-#   pip3 install --user psutil xgboost
+#   pip3 install --user psutil xgboost tornado
 #
 # To make tvm run faster in tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute

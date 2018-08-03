@@ -163,7 +163,8 @@ def load_from_file(filename):
     result: autotvm.tuner.MeasureResult
     """
     for row in open(filename):
-        yield decode(row)
+        if row and not row.startswith('#'):
+            yield decode(row)
 
 
 def split_workload(in_file, clean=True):
