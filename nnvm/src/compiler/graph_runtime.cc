@@ -6,6 +6,10 @@
 #include <dmlc/memory_io.h>
 #include "./graph_runtime.h"
 
+namespace dmlc{
+  DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
+}
+
 namespace nnvm {
 namespace compiler {
 
