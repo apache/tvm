@@ -8,6 +8,27 @@ NVIDIA GPU. By running auto-tuner on this template, we can outperform the
 vendor provided library CuDNN in many cases.
 """
 
+######################################################################
+# Install dependencies
+# ----------------------------------------
+# To use autotvm package in tvm, we need to install some extra dependencies.
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user psutil xgboost
+#
+# To make tvm run faster in tuning, it is recommended to use cython
+# as FFI of tvm. In the root directory of tvm, execute
+# (change "3" to "2" if you use python2):
+#
+# .. code-block:: bash
+#
+#   pip3 install --user cython
+#   sudo make cython3
+#
+# Now return to python code. Import packages.
+
 import logging
 import sys
 import numpy as np
@@ -133,7 +154,7 @@ def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
 # for this template
 
 # logging config (for printing tuning log to screen)
-logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
 # the last layer in resnet
 N, H, W, CO, CI, KH, KW, strides, padding = 1, 7, 7, 512, 512, 3, 3, (1, 1), (1, 1)
@@ -144,12 +165,12 @@ print(task.config_space)
 
 # use local gpu, measure 5 times for every config to reduce variance
 # run 8 parallel threads for compilation
-measure_option = autotvm.measure_option(mode='local',
-                                        number=10,
+measure_option = autotvm.measure_option('local',
+                                        number=5,
                                         parallel_num=8,
                                         timeout=20)
 
-# begin tuning, log records to file `conv2d.tsv`
+# begin tuning, log records to file `conv2d.log`
 tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(n_trial=20,
            measure_option=measure_option,
@@ -186,6 +207,6 @@ np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
 # Evaluate running time. Here we choose a large repeat number (200) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.
-
 evaluator = func.time_evaluator(func.entry_name, ctx, number=200)
 print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)
+

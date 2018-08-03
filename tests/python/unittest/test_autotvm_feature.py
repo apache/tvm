@@ -84,7 +84,7 @@ def test_feature_shape():
     targets = [
         tvm.target.cuda(),
         tvm.target.mali(),
-        tvm.target.rasp(),
+        tvm.target.arm_cpu(),
     ]
 
     for target in targets:

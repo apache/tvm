@@ -42,10 +42,10 @@ class XGBoostCostModel(CostModel):
                      The cost model predicts relative rank score.
     num_threads: int, optional
         The number of threads.
-    verbose: int, optional
-        If is not none, the cost model will print training log every `verbose` iterations.
+    log_interval: int, optional
+        If is not none, the cost model will print training log every `log_interval` iterations.
     """
-    def __init__(self, task, feature_type, loss_type, num_threads=None, verbose=20):
+    def __init__(self, task, feature_type, loss_type, num_threads=None, log_interval=25):
         super(XGBoostCostModel, self).__init__()
 
         if xgb is None:
@@ -60,7 +60,7 @@ class XGBoostCostModel(CostModel):
         self.fea_type = feature_type
         self.loss_type = loss_type
         self.num_threads = num_threads
-        self.verbose = verbose
+        self.log_interval = log_interval
 
         if loss_type == 'reg':
             self.xgb_params = {
@@ -139,7 +139,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
-        y_train = y_train / np.max(y_train)
+        y_max = np.max(y_train)
+        y_train = y_train / max(y_max, 1e-8)
 
         valid_index = y_train > 1e-6
         index = np.random.permutation(len(x_train))
@@ -160,19 +161,20 @@ class XGBoostCostModel(CostModel):
                                  fevals=[
                                      xgb_average_recalln_curve_score(plan_size),
                                  ],
-                                 verbose_eval=self.verbose)])
+                                 verbose_eval=self.log_interval)])
 
-        logging.info("train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                     time.time() - tic, len(xs),
-                     len(xs) - np.sum(valid_index),
-                     self.feature_cache.size(self.fea_type))
+        logging.debug("XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+                      time.time() - tic, len(xs),
+                      len(xs) - np.sum(valid_index),
+                      self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
         self._reset_pool()
 
         args = list(records)
-        logging.info("Load %d entries from history log file", len(args))
+        logging.debug("XGB load %d entries from history log file", len(args))
+
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
         elif self.fea_type == 'knob':
@@ -187,7 +189,8 @@ class XGBoostCostModel(CostModel):
 
         x_train = xs
         y_train = ys
-        y_train /= np.max(y_train)
+        y_max = np.max(y_train)
+        y_train = y_train / max(y_max, 1e-8)
 
         index = np.random.permutation(len(x_train))
         dtrain = xgb.DMatrix(x_train[index], y_train[index])
@@ -203,9 +206,9 @@ class XGBoostCostModel(CostModel):
                                  fevals=[
                                      xgb_average_recalln_curve_score(plan_size),
                                  ],
-                                 verbose_eval=self.verbose)])
+                                 verbose_eval=self.log_interval)])
 
-        logging.info("train: %.2f\tobs: %d", time.time() - tic, len(xs))
+        logging.debug("XGB train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
     def predict(self, xs, output_margin=False):
         feas = self._get_feature(xs)
@@ -232,7 +235,7 @@ class XGBoostCostModel(CostModel):
 
     def clone_new(self):
         return XGBoostCostModel(self.task, self.fea_type, self.loss_type,
-                                self.num_threads, self.verbose)
+                                self.num_threads, self.log_interval)
 
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
@@ -282,7 +285,7 @@ def _extract_itervar_feature_log(arg):
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 def _extract_knob_feature_index(index):
@@ -301,7 +304,7 @@ def _extract_knob_feature_log(arg):
             inp.task.instantiate(config)
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 def _extract_curve_feature_index(index):
@@ -325,12 +328,11 @@ def _extract_curve_feature_log(arg):
     if res.error_no == 0:
         y = inp.task.flop / np.mean(res.costs)
     else:
-        y = 0
+        y = 0.0
     return x, y
 
 
 def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
-                    save_file="xgb_checkpoint", save_every=None,
                     maximize=False, verbose_eval=True):
     """callback function for xgboost to support multiple custom evaluation functions"""
     from xgboost.core import EarlyStopException
@@ -400,17 +402,11 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
                 continue
             infos.append("%s: %.6f" % (item[0], item[1]))
 
-        if not isinstance(verbose_eval, bool) and i % verbose_eval == 0:
-            logging.info("\t".join(infos))
+        if not isinstance(verbose_eval, bool) and verbose_eval and i % verbose_eval == 0:
+            logging.debug("\t".join(infos))
         if log_file:
             with open(log_file, "a") as fout:
                 fout.write("\t".join(infos) + '\n')
-
-        ##### save model #####
-        if save_every and i % save_every == 0:
-            filename = save_file + ".%05d.bst" % i
-            logging.info("save model to %s ...", filename)
-            bst.save_model(filename)
 
         ##### choose score and do early stopping #####
         score = None
@@ -439,7 +435,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
         elif env.iteration - best_iteration >= stopping_rounds:
             best_msg = state['best_msg']
             if verbose_eval and env.rank == 0:
-                logging.info("Stopping. Best iteration: %s ", best_msg)
+                logging.debug("XGB stopped. Best iteration: %s ", best_msg)
             raise EarlyStopException(best_iteration)
 
     return callback

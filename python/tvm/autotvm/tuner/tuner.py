@@ -7,6 +7,7 @@ import numpy as np
 from ..measure import MeasureInput
 from ..measure import create_measure_batch
 
+from ..env import GLOBAL_SCOPE
 
 class Tuner(object):
     """Base class for tuners
@@ -64,7 +65,7 @@ class Tuner(object):
         """
         pass
 
-    def tune(self, n_trial, measure_option, early_stop=None, verbose=1, callbacks=()):
+    def tune(self, n_trial, measure_option, early_stopping=None, callbacks=()):
         """Begin tuning
 
         Parameters
@@ -74,11 +75,8 @@ class Tuner(object):
         measure_option: dict
             The options for how to measure generated code.
             You should use the return value ot autotvm.measure_option for this argument.
-        early_stop: int
+        early_stopping: int
             Early stop the tuning when not finding better configs in this number of trials
-        verbose: int
-            0: silent mode, no output
-            1: print every measurement result
         callbacks: List of callable
             A list of callback functions. The signature of callback function is
             (Tuner, List of MeasureInput, List of MeasureResult)
@@ -87,8 +85,9 @@ class Tuner(object):
         """
         measure_batch = create_measure_batch(self.task, measure_option)
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
-        early_stop = early_stop or 1e9
+        early_stopping = early_stopping or 1e9
 
+        GLOBAL_SCOPE.in_tuning = True
         i = 0
         while i < n_trial:
             if not self.has_next():
@@ -99,23 +98,22 @@ class Tuner(object):
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
             results = measure_batch(inputs)
 
-            # print info
-            if verbose >= 1:
-                for k, (inp, res) in enumerate(zip(inputs, results)):
-                    config = inp.config
-                    if res.error_no == 0:
-                        flops = inp.task.flop / np.mean(res.costs)
-                    else:
-                        flops = 0
-                    if flops > self.best_flops:
-                        self.best_flops = flops
-                        self.best_config = config
-                        self.best_measure_pair = (inp, res)
-                        self.best_iter = i + k
+            # keep best config
+            for k, (inp, res) in enumerate(zip(inputs, results)):
+                config = inp.config
+                if res.error_no == 0:
+                    flops = inp.task.flop / np.mean(res.costs)
+                else:
+                    flops = 0
+                if flops > self.best_flops:
+                    self.best_flops = flops
+                    self.best_config = config
+                    self.best_measure_pair = (inp, res)
+                    self.best_iter = i + k
 
-                    logging.info("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                                 i + k + 1, flops / 1e9, self.best_flops / 1e9,
-                                 res, config)
+                logging.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                              i + k + 1, flops / 1e9, self.best_flops / 1e9,
+                              res, config)
 
             i += len(results)
 
@@ -124,9 +122,11 @@ class Tuner(object):
             for callback in callbacks:
                 callback(self, inputs, results)
 
-            if i > self.best_iter + early_stop:
-                logging.info("Early stopped. Best iter: %d.", self.best_iter)
+            if i > self.best_iter + early_stopping:
+                logging.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
+
+        GLOBAL_SCOPE.in_tuning = False
 
         del measure_batch
 

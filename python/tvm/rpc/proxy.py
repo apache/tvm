@@ -460,6 +460,10 @@ class Proxy(object):
     timeout_server : float, optional
         Timeout of server until it sees a matching connection.
 
+    tracker_addr: Tuple (str, int) , optional
+        The address of RPC Tracker in tuple (host, ip) format.
+        If is not None, the server will register itself to the tracker.
+
     index_page : str, optional
         Path to an index page that can be used to display at proxy index.
 

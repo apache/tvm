@@ -1,6 +1,29 @@
+# pylint: disable=invalid-name
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
 import tvm
+
+from . import tag
+
+def traverse_inline(s, op, callback):
+    """Traverse computation graph and do auto inline
+
+    Parameters
+    ----------
+    s: schedule
+        The schedule
+    op: Operation
+        The final output operator.
+    callback: callable
+        The callback function on each op
+    """
+    if tag.is_injective(op.tag):
+        if op not in s.outputs:
+            s[op].compute_inline()
+        for tensor in op.input_tensors:
+            if tensor.op.input_tensors:
+                traverse_inline(s, tensor.op, callback)
+    callback(op)
 
 
 def prod(x):
@@ -151,3 +174,33 @@ def unravel_index(idx, shape):
         idx = idx // shape[i]
     indices = indices[::-1]
     return indices
+
+
+def const_matrix(matrix, name="const_matrix"):
+    """convert a const numpy 2-dimensional matrix to tvm tensor
+
+    Parameters
+    ----------
+    matrix: numpy.ndarray
+        Const input array
+    name: str, optional
+        The name of output op
+
+    Returns
+    -------
+    tensor: Tensor
+        The created tensor
+    """
+    row, col = matrix.shape
+    dtype = str(matrix.dtype)
+
+    def select_array(i, j):
+        now = tvm.const(0.0, dtype)
+        for ii in range(row):
+            for jj in range(col):
+                now = tvm.select(tvm.all(i % row == ii, j % col == jj),
+                                 tvm.const(matrix[ii][jj], dtype),
+                                 now)
+        return now
+
+    return tvm.compute(matrix.shape, select_array, name=name)

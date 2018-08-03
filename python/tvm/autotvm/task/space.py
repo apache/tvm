@@ -21,6 +21,11 @@ from tvm.autotvm.util import get_const_int
 
 Axis = namedtuple('Axis', ['space', 'index'])
 
+try:
+    _long = long
+except NameError:
+    _long = int
+
 
 class InstantiationError(ValueError):
     """Actively detected error in instantiating a template with a config,
@@ -103,7 +108,7 @@ class VirtualAxis(TransformSpace):
             VirtualAxis.name_ct += 1
 
         self.name = name
-        if isinstance(var, int):
+        if isinstance(var, (int, _long)):
             self.length = var
         elif isinstance(var, schedule.IterVar):
             self.name = var.var.name
@@ -114,7 +119,7 @@ class VirtualAxis(TransformSpace):
         elif isinstance(var, VirtualAxis):
             self.length = var.length
         else:
-            raise RuntimeError("Invalid type of axis")
+            raise RuntimeError("Invalid type of axis: " + str(type(var)))
 
     @staticmethod
     def get_num_output(var, name=None):

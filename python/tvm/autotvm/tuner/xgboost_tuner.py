@@ -40,16 +40,21 @@ class XGBTuner(ModelBasedTuner):
         If is not None, the tuner will first select
         top-(plan_size * diversity_filter_ratio) candidates according to the cost model
         and then pick batch_size of them according to the diversity metric.
+    log_interval: int, optional
+        The verbose level.
+        If is 0, output nothing.
+        Otherwise, output debug information every `verbose` iterations.
     """
     def __init__(self, task, plan_size=32,
                  feature_type='itervar', loss_type='rank', num_threads=None,
-                 optimizer='sa', diversity_filter_ratio=None):
+                 optimizer='sa', diversity_filter_ratio=None, log_interval=50):
         cost_model = XGBoostCostModel(task,
                                       feature_type=feature_type,
                                       loss_type=loss_type,
-                                      num_threads=num_threads)
+                                      num_threads=num_threads,
+                                      log_interval=log_interval // 2)
         if optimizer == 'sa':
-            optimizer = SimulatedAnnealingOptimizer(task)
+            optimizer = SimulatedAnnealingOptimizer(task, log_interval=log_interval)
         else:
             assert isinstance(optimizer, ModelOptimizer), "Optimizer must be " \
                                                           "a supported name string" \
