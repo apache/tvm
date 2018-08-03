@@ -23,7 +23,8 @@ try:
     from tornado import ioloop
     from . import tornado_util
 except ImportError as error_msg:
-    raise ImportError("RPCProxy module requires tornado package %s" % error_msg)
+    raise ImportError(
+        "RPCProxy module requires tornado package %s. Try 'pip install tornado'." % error_msg)
 
 from . import base
 from .base import TrackerCode
