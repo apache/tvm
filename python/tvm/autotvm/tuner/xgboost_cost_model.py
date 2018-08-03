@@ -16,6 +16,8 @@ from ..util import get_rank
 from .metric import max_curve, recall_curve, cover_curve
 from .model_based_tuner import CostModel, FeatureCache
 
+logger = logging.getLogger('autotvm')
+
 class XGBoostCostModel(CostModel):
     """XGBoost as cost model
 
@@ -163,17 +165,17 @@ class XGBoostCostModel(CostModel):
                                  ],
                                  verbose_eval=self.log_interval)])
 
-        logging.debug("XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                      time.time() - tic, len(xs),
-                      len(xs) - np.sum(valid_index),
-                      self.feature_cache.size(self.fea_type))
+        logger.debug("XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
+                     time.time() - tic, len(xs),
+                     len(xs) - np.sum(valid_index),
+                     self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()
         self._reset_pool()
 
         args = list(records)
-        logging.debug("XGB load %d entries from history log file", len(args))
+        logger.debug("XGB load %d entries from history log file", len(args))
 
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
@@ -208,7 +210,7 @@ class XGBoostCostModel(CostModel):
                                  ],
                                  verbose_eval=self.log_interval)])
 
-        logging.debug("XGB train: %.2f\tobs: %d", time.time() - tic, len(xs))
+        logger.debug("XGB train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
     def predict(self, xs, output_margin=False):
         feas = self._get_feature(xs)
@@ -403,7 +405,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
             infos.append("%s: %.6f" % (item[0], item[1]))
 
         if not isinstance(verbose_eval, bool) and verbose_eval and i % verbose_eval == 0:
-            logging.debug("\t".join(infos))
+            logger.debug("\t".join(infos))
         if log_file:
             with open(log_file, "a") as fout:
                 fout.write("\t".join(infos) + '\n')
@@ -435,7 +437,7 @@ def custom_callback(stopping_rounds, metric, fevals, evals=(), log_file=None,
         elif env.iteration - best_iteration >= stopping_rounds:
             best_msg = state['best_msg']
             if verbose_eval and env.rank == 0:
-                logging.debug("XGB stopped. Best iteration: %s ", best_msg)
+                logger.debug("XGB stopped. Best iteration: %s ", best_msg)
             raise EarlyStopException(best_iteration)
 
     return callback

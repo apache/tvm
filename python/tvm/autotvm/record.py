@@ -18,6 +18,7 @@ from .task import ConfigEntity, ApplyHistoryBest
 from .measure import MeasureInput, MeasureResult
 
 AUTOTVM_LOG_VERSION = 0.1
+logger = logging.getLogger('autotvm')
 
 try:  # convert unicode to str for python2
     _unicode = unicode
@@ -181,10 +182,10 @@ def split_workload(in_file, clean=True):
     tic = time.time()
     lines = list(open(in_file).readlines())
 
-    logging.info("start converting...")
+    logger.info("start converting...")
     pool = multiprocessing.Pool()
     lines = pool.map(decode, lines)
-    logging.info("map done %.2f", time.time() - tic)
+    logger.info("map done %.2f", time.time() - tic)
 
     wkl_dict = OrderedDict()
     for inp, res in lines:
@@ -206,13 +207,13 @@ def split_workload(in_file, clean=True):
                 cleaned.append([inp, res])
 
             # write to file
-            logging.info("Key: %s\tValid: %d\tDup: %d\t", k, len(cleaned), len(v) - len(cleaned))
+            logger.info("Key: %s\tValid: %d\tDup: %d\t", k, len(cleaned), len(v) - len(cleaned))
             with open(args.i + ".%03d.wkl" % i, 'w') as fout:
                 for inp, res in cleaned:
                     fout.write(encode(inp, res) + '\n')
     else:
         for i, (k, v) in enumerate(wkl_dict.items()):
-            logging.info("Key: %s\tNum: %d", k, len(v))
+            logger.info("Key: %s\tNum: %d", k, len(v))
             with open(args.i + ".%03d.wkl" % i, 'w') as fout:
                 for inp, res in v:
                     fout.write(encode(inp, res) + '\n')
@@ -238,7 +239,7 @@ def pick_best(in_file, out_file):
     for v in best_context.best_by_targetkey.values():
         best_set.add(measure_str_key(v[0]))
 
-    logging.info("Extract %d best records from the %s", len(best_set), in_file)
+    logger.info("Extract %d best records from the %s", len(best_set), in_file)
     fout = open(out_file, 'w') if isinstance(out_file, str) else out_file
 
     for inp, res in load_from_file(in_file):
@@ -270,7 +271,7 @@ if __name__ == '__main__':
     parser.add_argument("--code", action='store_true')
 
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO)
+    logger.basicConfig(level=logger.INFO)
 
     if args.mode == 'pick':
         args.o = args.o or args.i + ".best.log"

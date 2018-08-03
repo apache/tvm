@@ -2,11 +2,13 @@
 """Namespace of callback utilities of AutoTVM"""
 import sys
 import time
+import logging
 
 import numpy as np
 
 from .. import record
 
+logger = logging.getLogger('autotvm')
 
 def log_to_file(file_out, protocol='json'):
     """Log the tuning records into file.
@@ -90,7 +92,7 @@ def progress_bar(total, prefix=''):
     prefix: str
         The prefix of output message
     """
-    class _Context:
+    class _Context(object):
         """Context to store local variables"""
         def __init__(self):
             self.best_flops = 0
@@ -112,13 +114,14 @@ def progress_bar(total, prefix=''):
             if res.error_no == 0:
                 flops = inp.task.flop / np.mean(res.costs)
 
-        ctx.cur_flops = flops
-        ctx.best_flops = tuner.best_flops
+        if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
+            ctx.cur_flops = flops
+            ctx.best_flops = tuner.best_flops
 
-        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
-                         '| %.2f s' %
-                         (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
-                          time.time() - tic))
-        sys.stdout.flush()
+            sys.stdout.write('%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+                             '| %.2f s\r' %
+                             (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
+                              time.time() - tic))
+            sys.stdout.flush()
 
     return _callback
