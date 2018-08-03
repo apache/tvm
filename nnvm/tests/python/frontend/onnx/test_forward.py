@@ -236,14 +236,10 @@ def verify_gather(in_shape, indices, axis, dtype):
 
 def test_gather():
     verify_gather((4,), [1], 0, 'int32')
-    verify_gather((4,), [1], 0, 'float32')
     verify_gather((1,4), [0], 0, 'int32')
     verify_gather((4,), [[[1,0],[0,1]]], 0, 'float32')
-    verify_gather((2,2), [[[1,0],[0,1]]], 0, 'int32')
     verify_gather((2,2), [[[1,0],[0,1]]], 1, 'int32')
-    verify_gather((2,2), [[[1,0],[0,1]]], 0, 'float32')
-    verify_gather((3,3,3), [[[1,0]]], 0, 'int32')
-    verify_gather((3,3,3), [[[1,0]]], 2, 'int32')
+    verify_gather((3,3,3), [[[1,0]]], -1, 'int32')
     verify_gather((4,3,5,6), [[2,1,0,0]], 0, 'float32')
 
 def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
