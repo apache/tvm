@@ -120,7 +120,10 @@ Currently, ROCm is supported only on linux, so all the instructions are written 
 Python Package Installation
 ---------------------------
 
-The python package is located at python
+TVM package
+~~~~~~~~~~~
+
+The python package is located at `tvm/python`
 There are several ways to install the package:
 
 1. Set the environment variable `PYTHONPATH` to tell python where to find
@@ -131,7 +134,8 @@ There are several ways to install the package:
 
    .. code:: bash
 
-       export PYTHONPATH=/path/to/tvm/python:/path/to/tvm/topi/python:/path/to/tvm/nnvm/python:${PYTHONPATH}
+       export TVM_HOME=/path/to/tvm
+       export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:$TVM_HOME/nnvm/python:${PYTHONPATH}
 
 
 2. Install tvm python bindings by `setup.py`:
@@ -146,6 +150,27 @@ There are several ways to install the package:
        cd python; python setup.py install --user; cd ..
        cd topi/python; python setup.py install --user; cd ../..
        cd nnvm/python; python setup.py install --user; cd ../..
+
+
+Python dependencies
+~~~~~~~~~~~~~~~~~~~
+   * Necessary dependencies:
+
+   .. code:: bash
+
+       pip install --user numpy decorator
+
+   * If you want to use RPC Tracker
+
+   .. code:: bash
+
+       pip install --user tornado
+
+   * If you want to use auto-tuning module
+
+   .. code:: bash
+
+       pip install --user tornado psutil xgboost
 
 
 Install Contrib Libraries

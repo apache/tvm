@@ -95,12 +95,15 @@ def create_measure_batch(task, option):
     attach_objects = None
     if measure_func == 'local':
         # start temporary rpc tracker and rpc server for the user
-        tracker = rpc.Tracker('localhost', port=9000, port_end=10000, silent=True)
+        from ...rpc.tracker import Tracker
+        from ...rpc.server import Server
+
+        tracker = Tracker('localhost', port=9000, port_end=10000, silent=True)
         device_key = '$local$device$%d' % tracker.port
-        server = rpc.Server('localhost', port=9000, port_end=10000,
-                            key=device_key,
-                            use_popen=True, silent=True,
-                            tracker_addr=(tracker.host, tracker.port))
+        server = Server('localhost', port=9000, port_end=10000,
+                        key=device_key,
+                        use_popen=True, silent=True,
+                        tracker_addr=(tracker.host, tracker.port))
 
         measure_func = use_rpc(device_key, tracker.host, tracker.port)
         attach_objects = (server, tracker)

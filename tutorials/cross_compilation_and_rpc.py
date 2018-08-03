@@ -110,7 +110,7 @@ func.export_library(path)
 ######################################################################
 # .. note::
 #
-#   To run this tutorial with real remote device, change :code:`local_demo`
+#   To run this tutorial with a real remote device, change :code:`local_demo`
 #   to False and replace :code:`target` in :code:`build` with the true
 #   target triple of your device. The target triple which might be
 #   different for different devices. For example, it is
