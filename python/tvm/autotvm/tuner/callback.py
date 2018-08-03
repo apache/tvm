@@ -92,7 +92,7 @@ def progress_bar(total, prefix=''):
     prefix: str
         The prefix of output message
     """
-    class _Context:
+    class _Context(object):
         """Context to store local variables"""
         def __init__(self):
             self.best_flops = 0

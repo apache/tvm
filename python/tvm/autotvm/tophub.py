@@ -4,6 +4,7 @@ To get the best performance, we typically need auto-tuning for the specific devi
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
 TVM will download these parameters for you when you create the target for the first time.
 """
+# pylint: disable=invalid-name
 
 import logging
 import os

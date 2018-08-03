@@ -147,9 +147,10 @@ def create_measure_batch(task, option):
         if check_remote(task.target, rpc_info['key'], (rpc_info['host'], rpc_info['port'])):
             logger.info("Get devices for measurement successfully!")
         else:
-            raise RuntimeError("Cannot get remote devices from the tracker. Please check the status of tracker by "
-                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' and make sure "
-                               "you have free devices on the queue status.")
+            raise RuntimeError("Cannot get remote devices from the tracker. "
+                               "Please check the status of tracker by "
+                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+                               "and make sure you have free devices on the queue status.")
 
     # add device info of cuda and opencl target
     if ('cuda' in task.target.keys or 'opencl' in task.target.keys) \
@@ -332,8 +333,8 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
         try:
             func, arg_bufs, filename = build_func(inp, tmp_dir, **build_kwargs)
         except TVMError as exc:
-            msg = str(exc)
             tstamp = time.time()
+            msg = str(exc)
             if "Stack trace returned" in msg:
                 msg = msg[:msg.index("Stack trace returned")]
             if "InstantiationError" in msg:

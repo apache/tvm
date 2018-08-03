@@ -8,6 +8,8 @@ Server is TCP based with the following protocol:
 - The key is in format
    - {server|client}:device-type[:random-key] [-timeout=timeout]
 """
+# pylint: disable=invalid-name
+
 from __future__ import absolute_import
 
 import os
@@ -141,7 +143,7 @@ def _listen_loop(sock, port, rpc_key, tracker_addr, load_library, custom_addr):
             if arr[0] != expect_header:
                 conn.sendall(struct.pack("<i", base.RPC_CODE_MISMATCH))
                 conn.close()
-                logger.warn("mismatch key from %s", addr)
+                logger.warning("mismatch key from %s", addr)
                 continue
             else:
                 conn.sendall(struct.pack("<i", base.RPC_CODE_SUCCESS))
@@ -208,7 +210,7 @@ def _connect_proxy_loop(addr, key, load_library):
             if magic == base.RPC_CODE_DUPLICATE:
                 raise RuntimeError("key: %s has already been used in proxy" % key)
             elif magic == base.RPC_CODE_MISMATCH:
-                logger.warn("RPCProxy do not have matching client key %s", key)
+                logger.warning("RPCProxy do not have matching client key %s", key)
             elif magic != base.RPC_CODE_SUCCESS:
                 raise RuntimeError("%s is not RPC Proxy" % str(addr))
             keylen = struct.unpack("<i", base.recvall(sock, 4))[0]
@@ -227,7 +229,7 @@ def _connect_proxy_loop(addr, key, load_library):
             retry_count = 0
         except (socket.error, IOError) as err:
             retry_count += 1
-            logger.warn("Error encountered %s, retry in %g sec", str(err), retry_period)
+            logger.warning("Error encountered %s, retry in %g sec", str(err), retry_period)
             if retry_count > max_retry:
                 raise RuntimeError("Maximum retry error: last error: %s" % str(err))
             time.sleep(retry_period)

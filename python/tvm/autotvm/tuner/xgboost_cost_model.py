@@ -166,9 +166,9 @@ class XGBoostCostModel(CostModel):
                                  verbose_eval=self.log_interval)])
 
         logger.debug("XGB train: %.2f\tobs: %d\terror: %d\tn_cache: %d",
-                      time.time() - tic, len(xs),
-                      len(xs) - np.sum(valid_index),
-                      self.feature_cache.size(self.fea_type))
+                     time.time() - tic, len(xs),
+                     len(xs) - np.sum(valid_index),
+                     self.feature_cache.size(self.fea_type))
 
     def fit_log(self, records, plan_size):
         tic = time.time()

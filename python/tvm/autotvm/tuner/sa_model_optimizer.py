@@ -1,4 +1,4 @@
-# pylint: disable=consider-using-enumerate
+# pylint: disable=consider-using-enumerate, invalid-name
 """
 Cost model optimizer based on simulated annealing
 """
@@ -106,14 +106,14 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
             if log_interval and k % log_interval == 0:
                 t_str = "%.2f" % t
                 logger.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\ttemp: %s\t"
-                              "elapsed: %.2f",
-                              k, k_last_modify, heap_items[0][0],
-                              np.max([v for v, _ in heap_items]), t_str,
-                              time.time() - tic)
+                             "elapsed: %.2f",
+                             k, k_last_modify, heap_items[0][0],
+                             np.max([v for v, _ in heap_items]), t_str,
+                             time.time() - tic)
 
         heap_items.sort(key=lambda item: -item[0])
         logger.debug("SA iter: %d\tlast_update: %d\tmax-0: %.2f\tmax-1: %.2f\telapsed: %.2f",
-                      k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
+                     k, k_last_modify, heap_items[-1][0], heap_items[0][0], time.time() - tic)
         logger.debug("SA Maximums: %s", heap_items)
 
         if self.persistent:

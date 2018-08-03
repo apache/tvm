@@ -1,4 +1,6 @@
 """Base definitions for RPC."""
+# pylint: disable=invalid-name
+
 from __future__ import absolute_import
 
 import socket
@@ -150,8 +152,8 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
             if period > timeout:
                 raise RuntimeError(
                     "Failed to connect to server %s" % str(addr))
-            logger.warn("Cannot connect to tracker %s, retry in %g secs...",
-                        str(addr), retry_period)
+            logger.warning("Cannot connect to tracker %s, retry in %g secs...",
+                           str(addr), retry_period)
             time.sleep(retry_period)
 
 

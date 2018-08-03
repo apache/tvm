@@ -267,7 +267,7 @@ print(task.config_space)
 # We will log the tuning results into a log file. This file can be
 # used to get the best config later.
 
-# logging config (for printing tuning log to screen)
+# logging config (for printing tuning log to the screen)
 logging.getLogger('autotvm').setLevel(logging.DEBUG)
 logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 

@@ -23,6 +23,8 @@ List of available APIs:
   - input: [TrackerCode.REQUEST, [key, user, priority]]
   - return: [TrackerCode.SUCCESS, [url, port, match-key]]
 """
+# pylint: disable=invalid-name
+
 import heapq
 import time
 import logging
@@ -142,11 +144,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
     def _init_conn(self, message):
         """Initialie the connection"""
         if len(message) != 4:
-            logger.warn("Invalid connection from %s", self.name())
+            logger.warning("Invalid connection from %s", self.name())
             self.close()
         magic = struct.unpack('<i', message)[0]
         if magic != RPC_TRACKER_MAGIC:
-            logger.warn("Invalid magic from %s", self.name())
+            logger.warning("Invalid magic from %s", self.name())
             self.close()
         self.write_message(struct.pack('<i', RPC_TRACKER_MAGIC), binary=True)
         self._init_req_nbytes = 0
@@ -233,14 +235,14 @@ class TCPEventHandler(tornado_util.TCPHandler):
             status = self._tracker.summary()
             self.ret_value([TrackerCode.SUCCESS, status])
         else:
-            logger.warn("Unknown tracker code %d", code)
+            logger.warning("Unknown tracker code %d", code)
             self.close()
 
     def on_close(self):
         self._tracker._connections.remove(self)
 
     def on_error(self, err):
-        logger.warn("%s: Error in RPC Tracker: %s", self.name(), err)
+        logger.warning("%s: Error in RPC Tracker: %s", self.name(), err)
         self.close()
 
 

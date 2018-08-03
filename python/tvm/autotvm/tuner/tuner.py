@@ -117,8 +117,8 @@ class Tuner(object):
                     self.best_iter = i + k
 
                 logger.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
-                              i + k + 1, flops / 1e9, self.best_flops / 1e9,
-                              res, config)
+                             i + k + 1, flops / 1e9, self.best_flops / 1e9,
+                             res, config)
 
             i += len(results)
 
@@ -132,7 +132,7 @@ class Tuner(object):
                 break
 
             if error_ct > 50:
-                logger.warn("Too many errors happen in the tuning. Now is in debug mode")
+                logger.warning("Too many errors happen in the tuning. Now is in debug mode")
                 logger.setLevel(logging.DEBUG)
             else:
                 logger.setLevel(old_level)

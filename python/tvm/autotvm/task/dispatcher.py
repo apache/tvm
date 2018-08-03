@@ -10,6 +10,8 @@ of the DispatchContext base class.
 - During search, we can use it to pass the current proposal from tuner.
 - During evaluation, we can use it to set pick the best policy.
 """
+# pylint: disable=invalid-name
+
 from __future__ import absolute_import as _abs
 
 import logging
