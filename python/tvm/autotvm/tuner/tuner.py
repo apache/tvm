@@ -9,6 +9,8 @@ from ..measure import create_measure_batch
 
 from ..env import GLOBAL_SCOPE
 
+logger = logging.getLogger('autotvm')
+
 class Tuner(object):
     """Base class for tuners
 
@@ -111,7 +113,7 @@ class Tuner(object):
                     self.best_measure_pair = (inp, res)
                     self.best_iter = i + k
 
-                logging.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
+                logger.debug("No: %d\tGFLOPS: %.2f/%.2f\tresult: %s\t%s",
                               i + k + 1, flops / 1e9, self.best_flops / 1e9,
                               res, config)
 
@@ -123,7 +125,7 @@ class Tuner(object):
                 callback(self, inputs, results)
 
             if i > self.best_iter + early_stopping:
-                logging.debug("Early stopped. Best iter: %d.", self.best_iter)
+                logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
         GLOBAL_SCOPE.in_tuning = False

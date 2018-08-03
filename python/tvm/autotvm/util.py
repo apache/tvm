@@ -8,6 +8,7 @@ import numpy as np
 
 from .. import expr, ir_pass
 
+logger = logging.getLogger('autotvm')
 
 class EmptyContext(object):
     """An empty context"""
@@ -92,15 +93,15 @@ def pool_map(func, args, batch_size, verbose=False, pool=None):
     tic = time.time()
     local_pool = pool or multiprocessing.Pool()
     if verbose:
-        logging.info("mapping begin")
+        logger.info("mapping begin")
     for i in range(0, len(args), batch_size):
         if verbose:
-            logging.info("mapping %d/%d elapsed %.2f", i, len(args),
+            logger.info("mapping %d/%d elapsed %.2f", i, len(args),
                          time.time() - tic)
         tmp = np.array(local_pool.map(func, args[i:i+batch_size]))
         ret = tmp if ret is None else np.concatenate((ret, tmp))
     if verbose:
-        logging.info("mapping done")
+        logger.info("mapping done")
     if not pool:
         local_pool.close()
     return ret

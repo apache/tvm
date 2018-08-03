@@ -23,6 +23,7 @@ from ..task.space import InstantiationError
 from .measure import MeasureResult, MeasureErrorNo
 from .local_executor import LocalExecutor
 
+logger = logging.getLogger('autotvm')
 
 class HashMismatchError(ValueError):
     """Raised when the code hash of a submitted config doesn't match that on the
@@ -343,7 +344,7 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             if ref_output:
                 for expected, real in zip(ref_output, args):
                     if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                        logging.warning("Wrong Answer!")
+                        logger.warning("Wrong Answer!")
                         errno = MeasureErrorNo.WRONG_ANSWER
         except TVMError as exc:
             msg = str(exc)

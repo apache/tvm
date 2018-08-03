@@ -19,6 +19,8 @@ import numpy as np
 
 from tvm import target as _target
 
+logger = logging.getLogger('autotvm')
+
 class DispatchContext(object):
     """
     Base class of dispatch context.
@@ -216,7 +218,7 @@ class ApplyHistoryBest(DispatchContext):
                             best_by_model[key] = (inp, res)
                     break
 
-        logging.debug("Finish loading %d records", counter)
+        logger.debug("Finish loading %d records", counter)
 
     def query(self, target, workload):
         if target is None:

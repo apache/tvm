@@ -16,6 +16,7 @@ from ..contrib.download import download
 
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
 
+logger = logging.getLogger('autotvm')
 
 def _alias(name):
     """convert alias for some packages"""
@@ -79,7 +80,7 @@ def download_package(backend):
                 os.mkdir(path)
 
     backend = _alias(backend)
-    logging.info("Download pre-tuned parameters for %s", backend)
+    logger.info("Download pre-tuned parameters for %s", backend)
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s.log" % backend,
              os.path.join(rootpath, backend + ".log"), True, verbose=0)
 
@@ -110,7 +111,7 @@ def list_packages():
     """
     path = tempdir()
     filename = path.relpath("info.json")
-    logging.info("Download meta info for pre-tuned parameters")
+    logger.info("Download meta info for pre-tuned parameters")
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/info.json",
              filename, True, verbose=0)
 
