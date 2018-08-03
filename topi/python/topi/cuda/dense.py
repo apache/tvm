@@ -86,6 +86,8 @@ def schedule_dense(outs):
         s[Dense].set_store_predicate(thread_x.var.equal(0))
         s[Out].set_store_predicate(thread_x.var.equal(0))
 
+    scheduled_ops = []
+
     def traverse(OP):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -93,7 +95,7 @@ def schedule_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule dense
         elif OP.tag == 'dense':
@@ -101,6 +103,8 @@ def schedule_dense(outs):
             _schedule(Dense)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+        scheduled_ops.append(OP)
 
     traverse(outs[0].op)
     return s

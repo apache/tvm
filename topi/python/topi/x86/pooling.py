@@ -32,6 +32,7 @@ def schedule_pool(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
@@ -45,7 +46,7 @@ def schedule_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('pool'):
@@ -54,6 +55,9 @@ def schedule_pool(outs):
             _schedule(PaddedInput, Pool)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+        scheduled_ops.append(OP)
+
     traverse(outs[0].op)
     return s
 
@@ -75,6 +79,8 @@ def schedule_global_pool(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
+
     def traverse(OP):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -82,7 +88,7 @@ def schedule_global_pool(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule pool
         elif OP.tag.startswith('global_pool'):
@@ -90,5 +96,8 @@ def schedule_global_pool(outs):
             _parallel_sch(s[Pool])
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+        scheduled_ops.append(OP)
+
     traverse(outs[0].op)
     return s

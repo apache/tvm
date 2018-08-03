@@ -53,6 +53,7 @@ def schedule_dense(outs):
 
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def traverse(op):
         """Traverse operators from computation graph"""
@@ -61,7 +62,7 @@ def schedule_dense(outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         if 'dense' in op.tag:
@@ -88,6 +89,8 @@ def schedule_dense(outs):
 
             # Parallelization
             s[C].parallel(yo)
+
+        scheduled_ops.append(op)
 
     traverse(outs[0].op)
     return s

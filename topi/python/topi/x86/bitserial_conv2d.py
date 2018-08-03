@@ -71,6 +71,7 @@ def _declaration_bitserial_conv2d(data, kernel, stride, padding, activation_bits
 def schedule_bitserial_conv2d(outs):
     """CPU schedule for bitserial convolutions NCHW and NHWC"""
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def traverse(op):
         """Traverse operators from computation graph"""
@@ -79,7 +80,7 @@ def schedule_bitserial_conv2d(outs):
         if tag.is_broadcast(op.tag) or 'elemwise' in op.tag:
             if op not in s.outputs:
                 s[op].compute_inline()
-            for tensor in op.input_tensors:
+            for tensor in op.input_tensors and tensor.op not in scheduled_ops:
                 if tensor.op.input_tensors:
                     traverse(tensor.op)
 
@@ -111,6 +112,7 @@ def schedule_bitserial_conv2d(outs):
                 _schedule_spatial_conv2d_nhwc(s, data, data_q, data_pad, data_vec,
                                               kernel, kernel_q, kernel_vec,
                                               conv_out, output, outs[0])
+        scheduled_ops.append(op)
 
     traverse(outs[0].op)
     return s

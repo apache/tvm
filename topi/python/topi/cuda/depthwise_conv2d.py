@@ -101,6 +101,8 @@ def schedule_depthwise_conv2d_nchw(outs):
         s[FS].bind(ty, thread_y)
         s[FS].bind(tx, thread_x)
 
+    scheduled_ops = []
+
     def traverse(OP):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -108,7 +110,7 @@ def schedule_depthwise_conv2d_nchw(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
         if OP.tag == 'depthwise_conv2d_nchw':
@@ -118,6 +120,8 @@ def schedule_depthwise_conv2d_nchw(outs):
                 s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
+
+        scheduled_ops.append(OP)
 
     traverse(outs[0].op)
     return s
@@ -180,6 +184,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
         fused = s[FS].fuse(fi, ci)
         s[FS].bind(fused, thread_x)
 
+    scheduled_ops = []
+
     def traverse(OP):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -187,7 +193,7 @@ def schedule_depthwise_conv2d_nhwc(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule depthwise_conv2d
         if OP.tag == 'depthwise_conv2d_nhwc':
@@ -197,6 +203,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
                 s[Filter].compute_inline()
             DepthwiseConv2d = OP.output(0)
             _schedule(PaddedInput, Filter, DepthwiseConv2d)
+
+        scheduled_ops.append(OP)
 
     traverse(outs[0].op)
     return s

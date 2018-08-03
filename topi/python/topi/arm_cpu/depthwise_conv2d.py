@@ -79,8 +79,10 @@ def schedule_depthwise_conv2d_nchw_(cfg, outs):
 
         return s
 
+    scheduled_ops = []
+
     def _callback(op):
-        if op.tag == 'depthwise_conv2d_nchw':
+        if op.tag == 'depthwise_conv2d_nchw' and op not in scheduled_ops:
             output = op.output(0)
             kernel = op.input_tensors[1]
             data = op.input_tensors[0]
@@ -89,6 +91,8 @@ def schedule_depthwise_conv2d_nchw_(cfg, outs):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
             _schedule(cfg, s, data, data_pad, kernel, output)
+
+        scheduled_ops.append(op)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

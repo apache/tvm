@@ -99,13 +99,15 @@ def schedule_conv2d_hwcn(outs):
         sch[WW].bind(tx, thread_x)
         sch[WW].vectorize(fi)
 
+    scheduled_ops = []
+
     def traverse(operator):
         """Traverse operators from computation graph"""
         if tag.is_broadcast(operator.tag):
             if operator not in sch.outputs:
                 sch[operator].compute_inline()
             for tensor in operator.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         elif operator.tag == 'conv2d_hwcn':
             Apad = operator.input_tensors[0]
@@ -116,6 +118,8 @@ def schedule_conv2d_hwcn(outs):
             schedule(Apad, W, B)
         else:
             raise RuntimeError("Unsupported operator: %s" % operator.tag)
+
+        scheduled_ops.append(operator)
 
     traverse(outs[0].op)
     return sch

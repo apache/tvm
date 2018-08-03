@@ -73,6 +73,8 @@ def schedule_conv2d_transpose_small_batch(outs):
         else:
             conv2d_56_64_64(s, Filter, temp_S, Filter_S, Out, Out_L)
 
+    scheduled_ops = []
+
     def traverse(OP):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -80,7 +82,7 @@ def schedule_conv2d_transpose_small_batch(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule conv2d_transpose_nchw
         if 'conv2d_transpose_nchw' in OP.tag:
@@ -90,6 +92,8 @@ def schedule_conv2d_transpose_small_batch(outs):
             Filter = OP.input_tensors[1]
             Output = OP.output(0)
             schedule(temp, Filter, Output)
+
+        scheduled_ops.append(OP)
 
     traverse(outs[0].op)
     return s

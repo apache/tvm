@@ -113,6 +113,7 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, layout, out_
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def traverse(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
@@ -120,11 +121,13 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, layout, out_
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
            or "1_16" in op.tag:
             _schedule_cl_spatialpack_NCHWc(s, op)
+
+        scheduled_ops.append(op)
 
     traverse(outs[0].op)
 
@@ -360,6 +363,7 @@ def schedule_conv2d_nchw(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def traverse(op):
         """inline all one-to-one-mapping operators except the last stage (output)"""
@@ -367,11 +371,13 @@ def schedule_conv2d_nchw(outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
            or "1_16" in op.tag:
             _schedule_cl_spatialpack(s, op)
+
+        scheduled_ops.append(op)
 
     traverse(outs[0].op)
     return s
