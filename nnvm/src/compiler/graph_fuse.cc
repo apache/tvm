@@ -181,6 +181,8 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
         // propagate new group id from child
         group_vec[nid] = new_group_id[group_vec[nid]];
       }
+      TOpPattern pt = op_pattern.get(idx[nid].source->op(), kOpaque);
+      if (pt == kOpaque) continue;
       const auto& group_ids = children_group_ids[nid];
       if (group_ids.size() <= 1) continue;
       const auto child_group_id = group_ids[0];
