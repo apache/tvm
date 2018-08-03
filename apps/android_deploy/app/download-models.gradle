@@ -11,7 +11,7 @@
 def models = ['extraction.zip']
 
 // Root URL for model archives
-def MODEL_URL = 'https://github.com/PariksheetPinjari909/TVM_models/blob/master/extraction_model'
+def MODEL_URL = 'https://github.com/dmlc/web-data/raw/master/darknet/compiled-models/extraction'
 buildscript {
     repositories {
         jcenter()

@@ -2,7 +2,7 @@
 
 This folder contains Android Demo app that allows us to show how to deploy model using TVM runtime api on a Android phone.
 
-You will need [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html), [Android SDK](https://developer.android.com/studio/index.html), [Android NDK](https://developer.android.com/ndk) and an Android device to use this.
+You will need [JDK](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html), [Android SDK](https://developer.android.com/studio/index.html), [Android NDK](https://developer.android.com/ndk) , [Vulkan SDK](https://github.com/ARM-software/vulkan-sdk) and an Android device to use this.
 
 ## Build and Installation
 
@@ -43,6 +43,9 @@ APP_PLATFORM = android-17
 
 # whether enable OpenCL during compile
 USE_OPENCL = 0
+
+# whether to enable Vulkan during compile
+USE_VULKAN = 1
 ```
 
 Now use Gradle to compile JNI, resolve Java dependencies and build the Android application together with tvm4j. Run following script to generate the apk file.
@@ -57,6 +60,13 @@ In `app/build/outputs/apk` you'll find `app-release-unsigned.apk`, use `dev_tool
 
 Upload `tvmdemo-release.apk` to your Android device and install it.
 
+### Build with Vulkan
+To compile Application with Vulkan just need to enable vulkan config in `config.mk`, by-default Vulkan is enable.
+```makefile
+# whether to enable Vulkan during compile
+USE_VULKAN = 1
+```
+
 ### Build with OpenCL
 
 Application does not link with OpenCL library unless you configure it to. Modify JNI Makefile config `app/src/main/jni` with proper target OpenCL configuration.
@@ -70,6 +80,9 @@ APP_PLATFORM = android-17
 
 # whether enable OpenCL during compile
 USE_OPENCL = 1
+
+# whether to enable Vulkan during compile
+USE_VULKAN = 1
 
 # the additional include headers you want to add, e.g., SDK_PATH/adrenosdk/Development/Inc
 ADD_C_INCLUDES = /opt/adrenosdk-osx/Development/Inc
@@ -103,17 +116,8 @@ Follow instruction to get compiled version model for android target [here.](http
 
 Copied these compiled model deploy_lib.so, deploy_graph.json and deploy_param.params to apps/android_deploy/app/src/main/assets/ and modify TVM flavor changes on [java](https://github.com/dmlc/tvm/blob/master/apps/android_deploy/app/src/main/java/ml/dmlc/tvm/android/demo/MainActivity.java#L81)
 
-`CPU Verison flavor`
-```
-    private static final boolean EXE_GPU            = false;
-```
-
-`OpenCL Verison flavor`
-```
-    private static final boolean EXE_GPU            = true;
-```
-
-
 Install compiled android application on phone and enjoy the image classifier demo using extraction model
+
+Different flavor version `CPU Version flavor` or `GPU[Vulkan/OpenCL] Version flavor` can test by choosing flavor under android application UI `TVM Android Demo->Menu->Flavor Settings`.
 
 You can define your own TVM operators and deploy via this demo application on your Android device to find the most optimized TVM schedule.
