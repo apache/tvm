@@ -80,7 +80,7 @@ def unpack_lib(name, libs) {
 }
 
 stage('Build') {
-  parallel 'GPU': {
+  parallel 'BUILD: GPU': {
     node('GPUBUILD') {
       ws('workspace/tvm/build-gpu') {
         init_git()
@@ -117,7 +117,7 @@ stage('Build') {
       }
     }
   },
-  'CPU': {
+  'BUILD: CPU': {
     node('CPU') {
       ws('workspace/tvm/build-cpu') {
         init_git()
@@ -139,8 +139,8 @@ stage('Build') {
       }
     }
   },
-  'i386': {
-    node('CPU' && 'linux') {
+  'BUILD : i386': {
+    node('CPU') {
       ws('workspace/tvm/build-i386') {
         init_git()
         sh """
@@ -186,7 +186,7 @@ stage('Unit Test') {
       }
     }
   },
-  'java': {
+  'java: GPU': {
     node('GPU') {
       ws('workspace/tvm/ut-java') {
         init_git()
@@ -200,7 +200,7 @@ stage('Unit Test') {
 }
 
 stage('Integration Test') {
-  parallel 'topi': {
+  parallel 'topi: GPU': {
     node('GPU') {
       ws('workspace/tvm/it-python-gpu') {
         init_git()
@@ -212,7 +212,7 @@ stage('Integration Test') {
       }
     }
   },
-  'nnvm': {
+  'nnvm: GPU': {
     node('GPU') {
       ws('workspace/tvm/it-python-gpu') {
         init_git()
@@ -223,7 +223,7 @@ stage('Integration Test') {
       }
     }
   },
-  'docs': {
+  'docs: GPU': {
     node('GPU') {
       ws('workspace/tvm/docs-python-gpu') {
         init_git()
