@@ -87,9 +87,10 @@ class Tuner(object):
         measure_batch = create_measure_batch(self.task, measure_option)
         parallel_num = getattr(measure_batch, 'parallel_num', 1)
         early_stopping = early_stopping or 1e9
+        old_level = logger.level
 
         GLOBAL_SCOPE.in_tuning = True
-        i = 0
+        i = error_ct = 0
         while i < n_trial:
             if not self.has_next():
                 break
@@ -104,8 +105,11 @@ class Tuner(object):
                 config = inp.config
                 if res.error_no == 0:
                     flops = inp.task.flop / np.mean(res.costs)
+                    error_ct = 0
                 else:
                     flops = 0
+                    error_ct += 1
+
                 if flops > self.best_flops:
                     self.best_flops = flops
                     self.best_config = config
@@ -127,8 +131,13 @@ class Tuner(object):
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
-        GLOBAL_SCOPE.in_tuning = False
+            if error_ct > 50:
+                logger.warn("Too many errors happen in the tuning. Now is in debug mode")
+                logger.setLevel(logging.DEBUG)
+            else:
+                logger.setLevel(old_level)
 
+        GLOBAL_SCOPE.in_tuning = False
         del measure_batch
 
     def reset(self):

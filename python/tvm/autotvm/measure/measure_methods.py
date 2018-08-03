@@ -65,7 +65,7 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
                              session_timeout=timeout)
     return remote
 
-def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=20):
+def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=10):
     """
     Check the availability of a remote device
 
@@ -88,13 +88,10 @@ def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=20):
     def _check():
         remote = request_remote(device_key, tracker_addr, priority)
         remote.context(str(target))
-    t = threading.Thread(_check)
+    t = threading.Thread(target=_check,)
     t.start()
     t.join(timeout)
-    if t.is_alive():
-        raise RuntimeError("Cannot get remote devices from the tracker. Please check the status of tracker by"
-                           "'python -m tvm.exec.query_rpc_tracker' and make sure you have free devices on "
-                           "the queue status.")
+    return not t.is_alive()
 
 def create_measure_batch(task, option):
     """Get a standard measure_batch function.
@@ -133,7 +130,7 @@ def create_measure_batch(task, option):
                             key=device_key,
                             use_popen=True, silent=True,
                             tracker_addr=(tracker.host, tracker.port))
-        server.terminate()
+
         measure_func = use_rpc(device_key, tracker.host, tracker.port)
         attach_objects = (server, tracker)
 
@@ -147,8 +144,12 @@ def create_measure_batch(task, option):
     # check the availability of remote devices
     if hasattr(measure_func, 'rpc_info'):
         rpc_info = measure_func.rpc_info
-        check_remote(task.target, rpc_info['key'], (rpc_info['host'], rpc_info['port']))
-        logger.debug("Pass the connection test!")
+        if check_remote(task.target, rpc_info['key'], (rpc_info['host'], rpc_info['port'])):
+            logger.info("Get devices for measurement successfully!")
+        else:
+            raise RuntimeError("Cannot get remote devices from the tracker. Please check the status of tracker by "
+                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' and make sure "
+                               "you have free devices on the queue status.")
 
     # add device info of cuda and opencl target
     if ('cuda' in task.target.keys or 'opencl' in task.target.keys) \
@@ -332,7 +333,6 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             func, arg_bufs, filename = build_func(inp, tmp_dir, **build_kwargs)
         except TVMError as exc:
             tstamp = time.time()
-            msg = str(exc)
             if "Stack trace returned" in msg:
                 msg = msg[:msg.index("Stack trace returned")]
             if "InstantiationError" in msg:
@@ -348,7 +348,7 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             continue
         except InstantiationError as e:
             tstamp = time.time()
-            res_pack.append(MeasureResult((e,),
+            res_pack.append(MeasureResult((InstantiationError(str(e)),),
                                           MeasureErrorNo.INSTANTIATION_ERROR,
                                           tstamp - tic, tstamp))
             continue
