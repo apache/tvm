@@ -189,33 +189,62 @@ def test_unsqueeze():
 
     np.testing.assert_allclose(out_shape, tvm_out.shape)
 
-def verify_gather(in_shape, indices, axis=0):
-    indices_src = np.array(indices, dtype="int32")
+def verify_gather(in_shape, indices, axis, dtype):
+    x = np.random.uniform(size=in_shape).astype(dtype)
+    indices = np.array(indices, dtype="int32")
+    out_np = np.take(x, indices, axis=axis)
 
-    x = np.random.uniform(size=in_shape)
-    out_np = np.take(x, indices_src, axis=axis)
-
-    y = helper.make_node("Gather", ['in'], ['out'], indices=indices, axis=axis)
+    y = helper.make_node("Gather", ['in', 'indices'], ['out'], axis=axis)
 
     graph = helper.make_graph([y],
                               'gather_test',
                               inputs = [helper.make_tensor_value_info("in",
-                                  TensorProto.FLOAT, list(in_shape))],
+                                      TensorProto.FLOAT, list(in_shape)),
+                                  helper.make_tensor_value_info("indices",
+                                      TensorProto.INT32, list(indices.shape))],
                               outputs = [helper.make_tensor_value_info("out",
-                                  TensorProto.FLOAT, list(out_np.shape))])
-
+                                      TensorProto.FLOAT, list(out_np.shape))])
     model = helper.make_model(graph, producer_name='gather_test')
 
+    def _get_tvm_output(model, x, indices, target, ctx, out_shape):
+        sym, params = nnvm.frontend.from_onnx(model)
+
+        input_name = model.graph.input[0].name
+        indices_name = model.graph.input[1].name
+
+        shape_dict = {input_name: x.shape,
+                      indices_name: indices.shape}
+        dtype_dict = {input_name: x.dtype,
+                      indices_name: indices.dtype}
+
+        graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, dtype_dict, params=params)
+
+        m = graph_runtime.create(graph, lib, ctx)
+        # set inputs
+        m.set_input(input_name, tvm.nd.array(x.astype(x.dtype)))
+        m.set_input(indices_name, tvm.nd.array(indices.astype(indices.dtype)))
+        m.set_input(**params)
+        m.run()
+        # get outputs
+        out = m.get_output(0, tvm.nd.empty(out_shape, x.dtype))
+        return out.asnumpy()
+
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output(model, x, target, ctx, out_np.shape, 'float32')
+        tvm_out = _get_tvm_output(model, x, indices, target, ctx, out_np.shape)
 
     np.testing.assert_allclose(out_np, tvm_out)
 
 def test_gather():
-    verify_gather((4,), [1])
-    verify_gather((4,), [0, 1, 2, 3])
-    verify_gather((4, 2), [1], 1)
-    verify_gather((4, 3, 5, 6), [2, 1, 0, 0], -2)
+    verify_gather((4,), [1], 0, 'int32')
+    verify_gather((4,), [1], 0, 'float32')
+    verify_gather((1,4), [0], 0, 'int32')
+    verify_gather((4,), [[[1,0],[0,1]]], 0, 'float32')
+    verify_gather((2,2), [[[1,0],[0,1]]], 0, 'int32')
+    verify_gather((2,2), [[[1,0],[0,1]]], 1, 'int32')
+    verify_gather((2,2), [[[1,0],[0,1]]], 0, 'float32')
+    verify_gather((3,3,3), [[[1,0]]], 0, 'int32')
+    verify_gather((3,3,3), [[[1,0]]], 2, 'int32')
+    verify_gather((4,3,5,6), [[2,1,0,0]], 0, 'float32')
 
 def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
     if axes:
