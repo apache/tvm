@@ -171,10 +171,11 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
       CHECK_NE(group_vec[nid], -1);
       node_ids_per_group[group_vec[nid]].push_back(nid);
       if (inode.inputs.size() != 1) continue;
-      const auto& parent_nid = inode.inputs[0].node_id;
+      const uint32_t parent_nid = inode.inputs[0].node_id;
       // if parent node has more than one child, record each child's group id.
       if (ref_count[parent_nid] > 1) children_group_ids[parent_nid].push_back(group_vec[nid]);
     }
+
     std::vector<int> new_group_id(idx.num_nodes(), -1);
     for (uint32_t nid = idx.num_nodes() - 1; nid != 0; --nid) {
       if (new_group_id[group_vec[nid]] != -1) {
@@ -185,10 +186,23 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
       if (pt == kOpaque) continue;
       const auto& group_ids = children_group_ids[nid];
       if (group_ids.size() <= 1) continue;
-      const auto child_group_id = group_ids[0];
-      // fuse this node with children if all children belong to the same group
-      auto is_same_group_id = [child_group_id](uint32_t id) { return id == child_group_id; };
-      if (std::all_of(group_ids.begin(), group_ids.end(), is_same_group_id)) {
+      const uint32_t child_group_id = group_ids[0];
+      const auto& children_node_ids = node_ids_per_group[child_group_id];
+
+      auto is_same_group_id = [child_group_id](uint32_t id) {
+          return id == child_group_id;
+      };
+      auto is_fusible_pattern = [&idx](uint32_t child_nid) {
+        TOpPattern child_pt = op_pattern.get(idx[child_nid].source->op(), kOpaque);
+        return child_pt  <= kBroadcast;
+      };
+      // fuse this node with children if
+      // all children belong to the same group and
+      // all nodes in the group are element wise or broadcast op.
+      const bool can_be_fused = std::all_of(group_ids.begin(), group_ids.end(), is_same_group_id) &&
+        std::all_of(children_node_ids.begin(), children_node_ids.end(), is_fusible_pattern);
+
+      if (can_be_fused) {
         new_group_id[group_vec[nid]] = child_group_id;
         group_vec[nid] = child_group_id;
         for (uint32_t nid2 : node_ids_per_group[child_group_id]) {
