@@ -105,16 +105,15 @@ def test_fuse_conv2d_elu():
     size = 64
     dshape = (1, in_channel, size, size)
     oshape = (1, out_channel, size, size)
-    sym1 = get_sym(out_channel)
-    sym2 = get_sym(out_channel)
-    _, params1 = utils.create_workload(sym1, 1, dshape[1:])
-    _, params2 = utils.create_workload(sym2, 1, dshape[1:])
-    for (p1, p2) in zip(params1.values(), params2.values()):
-        p2.copyfrom(p1)
-
     data = np.random.uniform(-1, 1, dshape).astype(np.float32)
 
     for target, ctx in ctx_list():
+        sym1 = get_sym(out_channel)
+        sym2 = get_sym(out_channel)
+        _, params1 = utils.create_workload(sym1, 1, dshape[1:], seed=0)
+        _, params2 = utils.create_workload(sym2, 1, dshape[1:], seed=0)
+        print(params1.keys())
+        print(params2.keys())
         print("Running on target", target)
         output, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
         output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
