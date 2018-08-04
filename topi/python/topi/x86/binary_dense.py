@@ -23,6 +23,7 @@ def schedule_binary_dense(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def _schedule(A, B, C):
         s[C].split(s[C].op.reduce_axis[0], factor=8)
@@ -41,7 +42,7 @@ def schedule_binary_dense(outs):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
         # schedule binary_dense
         elif OP.tag == 'binary_dense':
@@ -51,6 +52,8 @@ def schedule_binary_dense(outs):
             _schedule(data, weight, output)
         else:
             raise RuntimeError("Unsupported operator: %s" % OP.tag)
+
+        scheduled_ops.append(OP)
 
     traverse(outs[0].op)
     return s

@@ -39,10 +39,11 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
+    scheduled_ops = []
 
     def _callback(op):
         # schedule conv2d
-        if 'spatial_conv_output' in op.tag:
+        if 'spatial_conv_output' in op.tag and op not in scheduled_ops:
             output = op.output(0)
             conv = op.input_tensors[0]
 
@@ -63,6 +64,8 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
         if 'winograd_conv_output' in op.tag:
             output = op.output(0)
             _schedule_winograd(cfg, s, output, outs[0])
+
+        scheduled_ops.append(op)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

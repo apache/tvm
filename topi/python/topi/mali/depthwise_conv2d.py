@@ -86,6 +86,8 @@ def schedule_depthwise_conv2d_nchw(outs):
             s[conv].vectorize(xi)
             s[conv].compute_at(s[output], ji)
 
+    scheduled_ops = []
+
     def traverse(op):
         """Internal travserse function"""
         # inline all one-to-one-mapping operators except the last stage (output)
@@ -93,7 +95,7 @@ def schedule_depthwise_conv2d_nchw(outs):
             if op not in s.outputs:
                 s[op].compute_inline()
             for tensor in op.input_tensors:
-                if tensor.op.input_tensors:
+                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
 
         # schedule depthwise_conv2d
@@ -104,6 +106,8 @@ def schedule_depthwise_conv2d_nchw(outs):
                 s[kernel].compute_inline()
             conv = op.output(0)
             _schedule(pad_data, kernel, conv)
+
+        scheduled_ops.append(op)
 
     traverse(outs[0].op)
     return s
