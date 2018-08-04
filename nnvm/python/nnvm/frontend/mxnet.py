@@ -263,6 +263,13 @@ def _expand_dims(inputs, attrs):
     new_attrs['axis'] = _required_attr(attrs, 'axis')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _l2_normalize(inputs, attrs):
+    op_name, new_attrs = 'l2_normalize', {}
+    mode = attrs.get('mode', 'instance')
+    new_attrs['axis'] = 0 if mode == 'instance' else 1
+    new_attrs['eps'] = attrs.get('eps', 0.001)
+    return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
+
 def _lrn(inputs, attrs):
     op_name, new_attrs = "lrn", {}
     new_attrs['alpha'] = attrs.get('alpha', 0.0001)
@@ -324,7 +331,9 @@ _convert_map = {
     'UpSampling'    : _upsampling,
     'clip'          : _clip,
     'expand_dims'   : _expand_dims,
+    'L2Normalization':_l2_normalize,
     'LRN'           : _lrn
+
 }
 
 def _convert_symbol(op_name, inputs, attrs,
