@@ -208,8 +208,8 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
         propagate the new group id to a grand parent and upward
   */
   if (opt_level >= 1) {
-    std::vector<std::vector<uint32_t>> children_group_ids(idx.num_nodes());
-    std::vector<std::vector<uint32_t>> node_ids_per_group(idx.num_nodes());
+    std::vector<std::vector<uint32_t> > children_group_ids(idx.num_nodes());
+    std::vector<std::vector<uint32_t> > node_ids_per_group(idx.num_nodes());
     for (uint32_t nid = idx.num_nodes() - 1; nid != 0; --nid) {
       const auto& inode = idx[nid];
       if (inode.source->is_variable()) continue;
