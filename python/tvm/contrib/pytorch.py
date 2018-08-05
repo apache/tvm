@@ -1,16 +1,31 @@
 """PyTorch bridge wrapping torch tensor."""
 
-from .. import register_extension, TypeCode
 import ctypes
-import numpy as np
 from decorator import decorate
+from .. import register_extension, TypeCode
 
 def to_pytorch(module):
+    """Wrap a TVM function as PyTorch function
+
+    Parameters
+    ----------
+    func : Function
+        A TVM function that can take positional arguments
+
+    args : Tuple of arguments
+        Tuple of arguments to pass to the wrapped function
+
+    Returns
+    -------
+    func : Function
+        A function that can take PyTorch tensor as argument
+        in places that used to expect TVM NDArray.
+    """
     #import pytorch, check for pytorch tensor
     import torch
     def converter(func, *args):
-        new_args = tuple([FireTensor(arg) if isinstance(arg, torch.Tensor) else arg for arg in args])
-        return func(*new_args)
+        args = tuple([FireTensor(arg) if isinstance(arg, torch.Tensor) else arg for arg in args])
+        return func(*args)
 
     def wrapper(*args):
         module(*args)
