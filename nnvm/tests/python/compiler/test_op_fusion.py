@@ -85,7 +85,7 @@ def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
     module.set_input("data", data)
     module.run()
     out =  module.get_output(0, tvm.nd.empty(out_shape))
-    return out.asnumpy()
+    return out.asnumpy(), graph
 
 
 def test_fuse_conv2d_elu():
@@ -112,9 +112,11 @@ def test_fuse_conv2d_elu():
         sym2 = get_sym(out_channel)
         _, params1 = utils.create_workload(sym1, 1, dshape[1:], seed=0)
         _, params2 = utils.create_workload(sym2, 1, dshape[1:], seed=0)
-        output1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
-        output2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
+        output1, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
+        output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
         np.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
+        # data, conv weight, bias, batch norm gamma, batch norm beta, conv op
+        assert g1.index.num_nodes == 6
 
 if __name__ == "__main__":
     test_injective_reduce_injective()
