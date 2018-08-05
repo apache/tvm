@@ -16,7 +16,7 @@ all:
 	@mkdir gopath 2>/dev/null || true
 	@mkdir gopath/src 2>/dev/null || true
 	@mkdir gopath/src/$(TARGET) 2>/dev/null || true
-	@cp $(TARGET).cxx gopath/src/$(TARGET)
+	@cp $(TARGET).cc gopath/src/$(TARGET)
 	@cp $(TARGET).h gopath/src/$(TARGET)
 	@cp $(NATIVE_SRC) gopath/src/$(TARGET)
 	@cp $(TARGET).go gopath/src/$(TARGET)

@@ -1,4 +1,4 @@
-# tvmgo - Golang Frontend for TVM Runtime
+# gotvm - Golang Frontend for TVM Runtime
 
 This folder contain golang interface for TVM runtime. It brings TVM runtime to Golang.
 
@@ -15,10 +15,10 @@ This folder contain golang interface for TVM runtime. It brings TVM runtime to G
 
 - runtime
   Module that generates golang package corresponding to the c runtime api exposed from tvm source tree.
-  This process build golang package _tvmgo.a_
+  This process build golang package _gotvm.a_
 
 - sample
-  Sample golang reference applications to inference through tvmgo package.
+  Sample golang reference applications to inference through gotvm package.
 
 ### Build
 

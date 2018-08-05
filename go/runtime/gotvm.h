@@ -3,6 +3,9 @@
  * \brief gotvm native interface declaration.
  * \file gotvm.h
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 #include <tvm/runtime/c_runtime_api.h>
@@ -70,3 +73,7 @@ extern void _TVMByteArraySetSize(uintptr_t tbytearray, native_long_long val);
 extern native_long_long _TVMByteArrayGetSize(uintptr_t tbytearray);
 extern uintptr_t _NewTVMByteArray(void);
 extern void _DeleteTVMByteArray(uintptr_t tbytearray);
+
+#ifdef __cplusplus
+}
+#endif

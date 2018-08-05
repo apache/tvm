@@ -33,10 +33,6 @@ func main() {
 
     fmt.Printf("Global Functions:%v\n", funcNames)
 
-    val := gotvm.NewTVMValue()
-    val.SetValue(int64(1234))
-    fmt.Printf("VAL:%v\n", val.GetValue(gotvm.KDLInt))
-
     // Import tvm module (dso)
     var modp gotvm.TVMModule
 
