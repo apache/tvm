@@ -34,6 +34,7 @@ def to_pytorch(module):
 
 @register_extension
 class FireTensor(object):
+    """Class to wrap PyTorh tensor"""
     _tvm_tcode = TypeCode.ARRAY_HANDLE
 
     def __init__(self, tensor):
