@@ -5,25 +5,33 @@ import tvm
 
 from . import tag
 
-def traverse_inline(s, op, callback):
+def traverse_inline(s, final_op, callback):
     """Traverse computation graph and do auto inline
 
     Parameters
     ----------
     s: schedule
         The schedule
-    op: Operation
+    final_op: Operation
         The final output operator.
     callback: callable
         The callback function on each op
     """
-    if tag.is_injective(op.tag):
-        if op not in s.outputs:
-            s[op].compute_inline()
-        for tensor in op.input_tensors:
-            if tensor.op.input_tensors:
-                traverse_inline(s, tensor.op, callback)
-    callback(op)
+    visited = set()
+
+    def _traverse(op):
+        if op in visited:
+            return
+        visited.add(op)
+        if tag.is_injective(op.tag):
+            if op not in s.outputs:
+                s[op].compute_inline()
+            for tensor in op.input_tensors:
+                if tensor.op.input_tensors:
+                    _traverse(tensor.op)
+        callback(op)
+
+    _traverse(final_op)
 
 
 def prod(x):
