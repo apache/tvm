@@ -68,6 +68,18 @@ void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
   this->stream << "#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n";
 }
 
+template<typename T>
+inline void PrintBinaryExpr(const T* op,
+                            const char *opstr,
+                            std::ostream& os,  // NOLINT(*)
+                            CodeGenVivadoHLS* p) {
+  os << opstr << '(';
+  p->PrintExpr(op->a, os);
+  os << ", ";
+  p->PrintExpr(op->b, os);
+  os << ')';
+}
+
 void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
   const char *opstr = "std::min";
   if (op->type.is_float()) {
@@ -79,11 +91,7 @@ void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(
     }
   }
 
-  os << opstr << '(';
-  PrintExpr(op->a, os);
-  os << ", ";
-  PrintExpr(op->b, os);
-  os << ')';
+  PrintBinaryExpr(op, opstr, os, this);
 }
 
 void CodeGenVivadoHLS::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
@@ -97,11 +105,7 @@ void CodeGenVivadoHLS::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(
     }
   }
 
-  os << opstr << '(';
-  PrintExpr(op->a, os);
-  os << ", ";
-  PrintExpr(op->b, os);
-  os << ')';
+  PrintBinaryExpr(op, opstr, os, this);
 }
 
 
