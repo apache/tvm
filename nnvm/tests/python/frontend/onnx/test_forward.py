@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import nnvm
 import tvm
 from tvm.contrib import graph_runtime
@@ -312,40 +313,43 @@ def test_matmul():
 
         np.testing.assert_allclose(np.matmul(a_array, b_array), tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
 
+def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
+    in_array = np.random.uniform(size=shape).astype(dtype)
 
-def test_lrn():
-    print("LRN test is started")
-    alpha = 0.0002
-    beta = 0.5
-    bias = 2.0
-    nsize = 3
-    shape = (5, 5, 5, 5)
-    dtype = 'float32'
-    in_array = np.random.uniform(size=shape).astype('float32')
-    node = onnx.helper.make_node(
-        'LRN',
-        inputs=['in'],
-        outputs=['out'],
-        alpha=alpha,
-        beta=beta,
-        bias=bias,
-        size=nsize
-    )
+    if alpha == None and beta == None and bias==None:
+        alpha = 0.0001
+        beta = 0.75
+        bias = 1.0
+        node = onnx.helper.make_node('LRN', inputs=['in'], outputs=['out'], size=nsize)
+    else:
+        node = onnx.helper.make_node('LRN', inputs=['in'], outputs=['out'], alpha=alpha,
+                                     beta=beta, bias=bias, size=nsize)
 
     graph = helper.make_graph([node],
                               "lrn_test",
                               inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(shape))],
                               outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(shape))])
     model = helper.make_model(graph, producer_name='lrn_test')
-    c2_out = get_caffe2_output(model, in_array, dtype)
+
+    def _get_python_lrn():
+        square_sum = np.zeros(shape).astype(dtype)
+        for n, c, h, w in np.ndindex(in_array.shape):
+            square_sum[n, c, h, w] = sum(in_array[n,
+                                         max(0, c - int(math.floor((nsize - 1) / 2))): \
+                                             min(5, c + int(math.ceil((nsize - 1) / 2)) + 1),
+                                         h,
+                                         w] ** 2)
+        py_out = in_array / ((bias + (alpha / nsize) * square_sum) ** beta)
+        return py_out
 
     for target, ctx in ctx_list():
         new_sym, params = nnvm.frontend.from_onnx(model)
+
         input_name = model.graph.input[0].name
         shape_dict = {input_name: in_array.shape}
         dtype_dict = {input_name: dtype}
-
-        graph, lib, params = nnvm.compiler.build(new_sym, target, shape_dict, dtype_dict, params=params)
+        graph, lib, params = nnvm.compiler.build(new_sym, target,
+                                                 shape_dict, dtype_dict, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         # set inputs
         m.set_input(input_name, tvm.nd.array(in_array.astype(dtype)))
@@ -353,7 +357,13 @@ def test_lrn():
         m.run()
         # get outputs
         tvm_out = m.get_output(0, tvm.nd.empty(shape, dtype))
-        np.testing.assert_allclose(c2_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+        py_out = _get_python_lrn()
+        np.testing.assert_allclose(py_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+
+def test_lrn():
+    verify_lrn((5, 5, 5, 5), 3, 'float32')
+    verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
+
 
 if __name__ == '__main__':
     # verify_super_resolution_example()
