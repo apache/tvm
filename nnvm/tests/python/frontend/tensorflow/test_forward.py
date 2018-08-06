@@ -706,8 +706,8 @@ def test_forward_resize_bilinear():
 
 #######################################################################
 # Pad
-# -------
-def _test_pad(input_shape, paddings, **kwargs):
+# ---
+def _test_pad(input_shape, paddings, mode, **kwargs):
     """ One iteration of pad operation with given shape"""
 
     x = np.arange(np.prod(input_shape), dtype=np.float32).reshape(input_shape)
@@ -715,14 +715,15 @@ def _test_pad(input_shape, paddings, **kwargs):
     with tf.Graph().as_default():
         in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
         pad_values = constant_op.constant(paddings)
-        pad = tf.pad(in_data, paddings=pad_values, **kwargs)
+        pad = tf.pad(in_data, paddings=pad_values, mode=mode, **kwargs)
 
-        if 'constant_values' in kwargs:
-            out_node = 'PadV2'
-            out_name = 'PadV2:0'
-        else:
-            out_node = 'Pad'
-            out_name = 'Pad:0'
+        if mode == 'CONSTANT':
+            if 'constant_values' in kwargs:
+                out_node = 'PadV2'
+                out_name = 'PadV2:0'
+            else:
+                out_node = 'Pad'
+                out_name = 'Pad:0'
 
         with tf.Session() as sess:
             graph_def = tf.graph_util.convert_variables_to_constants(

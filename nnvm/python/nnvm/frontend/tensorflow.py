@@ -609,7 +609,11 @@ def _LSTMBlockCell():
 
 def _pad(name):
     def _impl(inputs, attr, params):
-        padlist = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+        padlist_key = inputs[1].list_output_names()[0]
+        if padlist_key in params:
+            padlist = params.pop(padlist_key).asnumpy()
+        else:
+            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
