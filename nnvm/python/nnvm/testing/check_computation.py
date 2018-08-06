@@ -1,4 +1,4 @@
-# pylint: disable=cell-var-from-loop
+# pylint: disable=cell-var-from-loop,no-else-return
 """Helper utilities to check functions and their gradients."""
 from __future__ import absolute_import as _abs
 
