@@ -69,7 +69,7 @@ using GroupVec = std::vector<int>;
 using MasterVec = std::vector<int>;
 
 // FuseVec stores fused entries.
-using FuseVec = std::vector<FuseEntry>;
+using FuseEntryVec = std::vector<FuseEntry>;
 
 // PatternVec stores operator patterns.
 using PatternVec = std::vector<TOpPattern>;

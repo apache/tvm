@@ -72,11 +72,11 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
   const ShapeVector& shape_vec = g.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
   const GroupVec& group_vec = g.GetAttr<GroupVec>("group_root");
-  const MasterVec &master_vec = g.GetAttr<MasterVec>("group_master");
-  const PatternVec &pattern_vec = g.GetAttr<PatternVec>("pattern");
+  const MasterVec& master_vec = g.GetAttr<MasterVec>("group_master");
+  const PatternVec& pattern_vec = g.GetAttr<PatternVec>("pattern");
 
   CHECK(g.HasAttr("fused_entries")) << "Fusion hasn't been applied yet.";
-  FuseVec fuse_vec = g.MoveCopyAttr<FuseVec>("fused_entries");
+  FuseEntryVec fuse_entries = g.MoveCopyAttr<FuseEntryVec>("fused_entries");
 
   std::string target = g.GetAttr<std::string>("target");
   std::string target_host;
@@ -90,7 +90,7 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
   // Start lowering
   Array<tvm::LoweredFunc> func_list;
   std::unordered_set<const tvm::Node*> func_set;
-  const IndexedGraph &idx = g.indexed_graph();
+  const IndexedGraph& idx = g.indexed_graph();
 
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
@@ -98,7 +98,7 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
     int root_id = group_vec[nid];
         if (static_cast<int>(nid) != root_id) continue;
     int master = master_vec[root_id];
-    FuseEntry& fe = fuse_vec[root_id];
+    FuseEntry& fe = fuse_entries[root_id];
 
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     CHECK_EQ(subidx.input_nodes().size(), fe.imap.size());
@@ -142,7 +142,7 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
     if (static_cast<int>(nid) != root_id) continue;
 
     // Handle normal op
-    FuseEntry& fe = fuse_vec[root_id];
+    FuseEntry& fe = fuse_entries[root_id];
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     nnvm::NodePtr np = nnvm::Node::Create();
     np->attrs.op = tvm_op;
@@ -209,7 +209,7 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
     const auto& inode = idx[nid];
     uint32_t new_nid = new_idx.node_id(kv.second.get());
     if (inode.source->op() == assign_op) {
-      // Check if rhs of assign can be comute inplace
+      // Check if rhs of assign can be computed inplace
       // If yes, we can simply set that memory to be assign target
       // and change assign to nop
       const IndexedGraph::NodeEntry& rhs = inode.inputs[1];
@@ -223,7 +223,7 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
       } else {
         assign_flag[new_nid] = 1;
       }
-          }
+    }
     for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
       uint32_t new_eid = new_idx.entry_id(new_idx.node_id(kv.second.get()), i);
       uint32_t old_eid = idx.entry_id(nid, i);

@@ -25,8 +25,8 @@ using namespace tvm;
 
 // Partition the graph into segments
 // Each segment will be compiled into one operator.
-// Need also mark the property of the segment.
-nnvm::Graph GraphFusePartition(nnvm::Graph g) {
+// Also mark the property of the segment.
+nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
   // setup ref counter
   const IndexedGraph& idx = g.indexed_graph();
   int opt_level = 2;
@@ -151,37 +151,36 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
   return g;
 }
 
-
-NNVM_REGISTER_PASS(GraphFusePartition)
-.set_body(GraphFusePartition)
+NNVM_REGISTER_PASS(GraphFindFusibleGroups)
+.set_body(GraphFindFusibleGroups)
 .depend_graph_attr("shape")
 .depend_graph_attr("dtype");
 
 // Fuse the partitioned graph into segments.
-// Create a new graph with fused noded.
-// Also inheritate attribute shape, dltype from previous graph.
+// Create a new graph with fused nodes.
+// Also inherit attribute shape, dltype from previous graph.
 nnvm::Graph GraphFuse(nnvm::Graph&& g) {
   CHECK(g.HasAttr("group_root") && g.HasAttr("pattern"))
-      << "GraphFusePartition pass hasn't been applied yet.";
+      << "GraphFindFusibleGroups pass hasn't been applied yet.";
 
   const IndexedGraph& idx = g.indexed_graph();
   // Get attributes from the graph
   const ShapeVector& shape_vec = g.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
   const GroupVec& group_vec = g.GetAttr<GroupVec>("group_root");
-  const PatternVec &pattern_vec = g.GetAttr<PatternVec>("pattern");
+  const PatternVec& pattern_vec = g.GetAttr<PatternVec>("pattern");
 
   // specially handle assign
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
-  FuseVec fuse_vec(idx.num_nodes());
+  FuseEntryVec fuse_entries(idx.num_nodes());
   // setup inputs and placeholder.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     CHECK_GE(group_vec[nid], 0);
     int root_id = group_vec[nid];
-    FuseEntry& fe = fuse_vec[root_id];
+    FuseEntry& fe = fuse_entries[root_id];
     fe.flatten_data = (pattern_vec[root_id] == kElemWise ||
                        inode.source->op() == assign_op);
     for (const auto& e : inode.inputs) {
@@ -219,7 +218,7 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
-    FuseEntry& fe = fuse_vec[root_id];
+    FuseEntry& fe = fuse_entries[root_id];
     // copy and create subgraph node.
     NodePtr gnode = Node::Create();
     gnode->attrs = inode.source->attrs;
@@ -248,7 +247,7 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
       }
     }
   }
-  g.attrs["fused_entries"] = std::make_shared<any>(std::move(fuse_vec));
+  g.attrs["fused_entries"] = std::make_shared<any>(std::move(fuse_entries));
   return g;
 }
 

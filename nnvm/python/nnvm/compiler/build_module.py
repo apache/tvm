@@ -298,9 +298,10 @@ def build(graph, target=None, shape=None, dtype="float32",
         else:
             graph._set_json_attr("opt_level", 0, "int")
         graph = graph.apply("InferShape").apply("InferType")
+        graph = graph.apply("GraphFindFusibleGroups")
+        graph = graph.apply("GraphFuse")
         with target:
-            graph = graph.apply("GraphFusePartition").apply(
-                "GraphFuse").apply("GraphCompile")
+            graph = graph.apply("GraphCompile")
         libmod = graph_attr._move_out_module(graph, "module")
         # Write variable initial values into params
         if init_var:
