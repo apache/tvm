@@ -124,9 +124,9 @@ This process need few additional options as given below to NNVM build.
 - For target llvm append --system-lib as ```target=llvm --system-lib```
 - For a GPU build (or non llvm) the additional option should be given to targat_host as ```target_host=llvm --system-lib```
 
-Saving the module also differs as ```lib.save``` instead of ```lib.export_library```
+Module export require additional options for not to compile but save as ```lib.export_library (path, fcompile=False)```
 
-The output of lib.save is an object file which should be added to other object files while building c++ application.
+The output of above API is a tar compressed file containing object file ```(lib.o)``` and cpp source file ```(devc.cc)``` which embeds device blob. Thease two files should be compiled along with other files or objects while building c++ application.
 Please refer to [Makefile](https://github.com/dmlc/tvm/blob/54ca1493bd9808a481ca0e7ed32897c12f36796e/apps/howto_deploy/Makefile#L32) for a reference.
 
 The c++ code to load this system module require the below change.
@@ -136,15 +136,40 @@ The c++ code to load this system module require the below change.
     tvm::runtime::Module mod_syslib = (*tvm::runtime::Registry::Get("module._GetSystemLib"))();
 ```
 
-Based on the build environment the system object should be linked as a whole archive. An example with bazel build is given below.
+Based on the build environment the system object, device blob source should be included in the final executable. An example with bazel build is given below.
 ```bash
 cc_library(
-    name = "nnvm_sys_module",
-    srcs = ["nnvm_sys_module.o"],
+    name = "host_module",
+    srcs = ["lib.o"],
     alwayslink=1
 )
+
+cc_library(
+    name = "device_module",
+    srcs = ["devc.cc"],
+    alwayslink=1
+)
+
+cc_library(
+    name = "tvm_runtime",
+    srcs = ["libtvm_runtime_pack.cc"],
+)
+
+cc_binary(
+    name = "bazel_deploy",
+    srcs = ["cpp_deploy.cc"],
+    deps = [
+        ":tvm_runtime", ":host_module", ":device_module"
+    ],
+    linkopts = [ "-lpthread -ldl" ]
+)
+
 ```
 
-This build directive creates a new library ```nnvm_sys_module``` out of ```nnvm_sys_module.o``` which can be used as a dependency to final deploy application.
+This build directive creates
+- new library ```host_module``` out of ```lib.o```
+- new library ```device_module``` out of ```devc.cc```
+
+These intermediate modules can be used as a dependency to final deploy application.
 
 In bazel ```alwayslink=1``` enforce embedding entire lib into application (even though it doesn't call any API from this module).
