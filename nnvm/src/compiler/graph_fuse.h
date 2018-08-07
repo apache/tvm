@@ -1,7 +1,7 @@
 /*!
  * Copyright (c) 2018 by Contributors
  * \file graph_fuse.h
- * \brief Definition of structs used by for graph fusion
+ * \brief Definition of structs used by graph fusion
 */
 #ifndef NNVM_COMPILER_GRAPH_FUSE_H_
 #define NNVM_COMPILER_GRAPH_FUSE_H_
