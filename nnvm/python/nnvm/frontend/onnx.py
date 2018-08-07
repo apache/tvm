@@ -499,6 +499,23 @@ class Gather(OnnxOpConverter):
         params[name] = indices
         return _sym.take(inputs[0], gather_indices, axis=axis)
 
+class LRN(OnnxOpConverter):
+    """ Operator converter for Local Response Normalization.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        """LRN support only NCHW format
+        https://github.com/onnx/onnx/blob/master/docs/Operators.md#LRN
+        """
+        axis = 1
+        alpha = attr.get('alpha', 0.0001)
+        beta = attr.get('beta', 0.75)
+        bias = attr.get('bias', 1.0)
+        nsize = attr.get('size')
+        return _sym.lrn(inputs[0], size=nsize, axis=axis,
+                        alpha=alpha, beta=beta, bias=bias)
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -586,7 +603,7 @@ def _get_convert_map(opset):
         # 'LpNormalization'
         'Dropout': AttrCvt('dropout', {'ratio': 'rate'}, ignores=['is_test']),
         'Flatten': Renamer('flatten'),
-        # 'LRN'
+        'LRN': LRN.get_converter(opset),
 
         # defs/reduction
         'ReduceMax': AttrCvt('max', {'axes', 'axis'}),

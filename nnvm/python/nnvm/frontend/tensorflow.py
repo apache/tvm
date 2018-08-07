@@ -622,6 +622,26 @@ def _LSTMBlockCell():
     return _impl
 
 
+def _pad(name):
+    def _impl(inputs, attr, params):
+        padlist_key = inputs[1].list_output_names()[0]
+        if padlist_key in params:
+            padlist = params.pop(padlist_key).asnumpy()
+        else:
+            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+        paddings = tuple([tuple(l) for l in padlist])
+        attr['pad_width'] = paddings
+        attr['pad_value'] = 0
+        new_inputs = [inputs[0]]
+        if name == 'PadV2':
+            constant_values = params.pop(inputs[2].list_output_names()[0]).asnumpy()
+            attr['pad_value'] = constant_values[0]
+        return AttrCvt(
+            op_name='pad',
+            ignores=['Tpaddings'],)(new_inputs, attr)
+    return _impl
+
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -668,6 +688,8 @@ _convert_map = {
     'GatherV2'                          : _gather_v2(),
     'StridedSlice'                      : _stridedSlice(),
     'LRN'                               : _lrn(),
+    'Pad'                               : _pad('Pad'),
+    'PadV2'                             : _pad('PadV2'),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
