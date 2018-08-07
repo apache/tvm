@@ -3,9 +3,6 @@
  * \file graph_fuse.cc
  * \brief Fuse the operators together.
  */
-#include "graph_fuse.h"
-#include "./graph_runtime.h"
-#include "./pattern_util.h"
 #include <dmlc/parameter.h>
 #include <nnvm/compiler/packed_func_ext.h>
 #include <nnvm/graph.h>
@@ -17,6 +14,10 @@
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
+
+#include "./graph_fuse.h"
+#include "./graph_runtime.h"
+#include "./pattern_util.h"
 
 namespace nnvm {
 namespace compiler {
@@ -260,5 +261,5 @@ NNVM_REGISTER_PASS(GraphFuse)
     .depend_graph_attr("group_root")
     .depend_graph_attr("group_master");
 
-} // namespace compiler
-} // namespace nnvm
+}  // namespace compiler
+}  // namespace nnvm

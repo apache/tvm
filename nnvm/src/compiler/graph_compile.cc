@@ -4,10 +4,6 @@
  * \brief Compile a graph. It lowers the graph nodes into low level IR.
  */
 
-#include "compile_engine.h"
-#include "graph_fuse.h"
-#include "graph_runtime.h"
-#include "pattern_util.h"
 #include <dmlc/parameter.h>
 #include <nnvm/compiler/packed_func_ext.h>
 #include <nnvm/graph.h>
@@ -19,6 +15,11 @@
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
+
+#include "compile_engine.h"
+#include "graph_fuse.h"
+#include "graph_runtime.h"
+#include "pattern_util.h"
 
 namespace nnvm {
 namespace compiler {
@@ -253,5 +254,5 @@ NNVM_REGISTER_PASS(GraphCompile)
     .depend_graph_attr("pattern")
     .depend_graph_attr("group_master");
 
-} // namespace compiler
+}  // namespace compiler
 }  // namespace nnvm

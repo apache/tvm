@@ -6,8 +6,10 @@
 #ifndef NNVM_COMPILER_GRAPH_FUSE_H_
 #define NNVM_COMPILER_GRAPH_FUSE_H_
 
-#include "compile_engine.h"
 #include <nnvm/graph.h>
+#include <vector>
+
+#include "compile_engine.h"
 
 namespace nnvm {
 namespace compiler {
@@ -70,9 +72,9 @@ using MasterVec = std::vector<int>;
 using FuseVec = std::vector<FuseEntry>;
 
 // PatternVec stores operator patterns.
-using PatternVec = std::vector<TOpPattern>;;
+using PatternVec = std::vector<TOpPattern>;
 
-} // namespace compiler
-} // namespace nnvm
+}  // namespace compiler
+}  // namespace nnvm
 
-#endif // NNVM_COMPILER_GRAPH_FUSE_H_
+#endif  // NNVM_COMPILER_GRAPH_FUSE_H_
