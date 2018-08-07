@@ -299,7 +299,8 @@ def build(graph, target=None, shape=None, dtype="float32",
             graph._set_json_attr("opt_level", 0, "int")
         graph = graph.apply("InferShape").apply("InferType")
         with target:
-            graph = graph.apply("GraphFusePartition").apply("GraphFuseCompile")
+            graph = graph.apply("GraphFusePartition").apply(
+                "GraphFuse").apply("GraphCompile")
         libmod = graph_attr._move_out_module(graph, "module")
         # Write variable initial values into params
         if init_var:
