@@ -555,6 +555,31 @@ def test_forward_lstm():
 
     _test_lstm_cell(1, 2, 1, 0.0, 'float32')
 
+
+
+#######################################################################
+# Pack
+# ---
+def _test_pack(axis, shape, **kwargs):
+
+    a = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    b = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+
+    with tf.Graph().as_default():
+        tf_a = array_ops.placeholder(shape=shape, dtype='float32', name='pl_a')
+        tf_b = array_ops.placeholder(shape=shape, dtype='float32', name='pl_b')
+        tf_c = tf.stack([tf_a,tf_b], axis=axis, **kwargs)
+        assert tf_c.op.op_def.name == 'Pack', "tf.stack() is expected to produce 'Pack' operation"
+
+        compare_tf_with_tvm([a,b], ['pl_a:0','pl_b:0'], 'stack:0')
+
+def test_forward_pack():
+    for axis in range(-3,3):
+        _test_pack(axis, [3,2,1])
+    for axis in range(-1,1):
+        _test_pack(axis, [3])
+    _test_pack(0, [])
+
 #######################################################################
 # Pad
 # ---
@@ -822,6 +847,7 @@ if __name__ == '__main__':
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()
     test_forward_multi_input()
+    test_forward_pack()
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()
