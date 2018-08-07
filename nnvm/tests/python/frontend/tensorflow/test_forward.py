@@ -704,6 +704,45 @@ def test_forward_resize_bilinear():
     _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
     _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
 
+#######################################################################
+# Pad
+# ---
+def _test_pad(input_shape, paddings, mode, **kwargs):
+    """ One iteration of pad operation with given shape"""
+
+    x = np.arange(np.prod(input_shape), dtype=np.float32).reshape(input_shape)
+
+    with tf.Graph().as_default():
+        in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
+        pad_values = constant_op.constant(paddings)
+        pad = tf.pad(in_data, paddings=pad_values, mode=mode, **kwargs)
+
+        if mode == 'CONSTANT':
+            if 'constant_values' in kwargs:
+                out_node = 'PadV2'
+                out_name = 'PadV2:0'
+            else:
+                out_node = 'Pad'
+                out_name = 'Pad:0'
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                [out_node],
+                )
+
+            tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
+            tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
+                                       "Const", tf_output.shape, 'float32')
+            np.testing.assert_allclose(tf_output, tvm_output)
+            sess.close()
+
+def test_forward_pad():
+    """ Pad """
+    _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT")
+    _test_pad((2, 3), [[1,1], [2,2]], mode="CONSTANT", constant_values=1.0)
+
 
 #######################################################################
 # Inception V3
@@ -936,6 +975,7 @@ if __name__ == '__main__':
     test_forward_mobilenet()
     test_forward_variable()
     test_forward_resize_bilinear()
+    test_forward_pad()    
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
