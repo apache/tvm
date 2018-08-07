@@ -92,7 +92,7 @@ def _dict_var_to_dict_str(dictionary):
         return dictionary
 
 def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
-                   shape=None, dtype=None, in_range=None,
+                   shape=None, dtype=None, in_range=None, values=None,
                    exclude_targets=None, only_targets=None,
                    additional_params=None,
                    numerical_grads=None, numerical_grads_params=None,
@@ -133,6 +133,9 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         (the same for all variables). Input values will be generated from
         uniform distributions on these ranges. `head_grads` can also be
         assigned a range this way.
+
+    values : Dict[nnvm.Symbol or str, numpy.ndarray], optional
+        A dict explicitly providing values for some variables instead of random generation.
 
     exclude_targets : Set[str], optional
         Skip compiling and running anything for these targets.
@@ -192,6 +195,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     shape = _dict_var_to_dict_str(shape)
     dtype = _dict_var_to_dict_str(dtype)
     in_range = _dict_var_to_dict_str(in_range)
+    values = _dict_var_to_dict_str(values)
 
     # Infer the output shape and dtype by creating a graph and running passes
 
@@ -255,6 +259,17 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     for x in main_graph.symbol.list_input_variables():
         x_name = x.attr('name')
 
+        x_node_id = main_graph.index.node_id(x_name)
+        x_shape = shapes[x_node_id]
+        x_dtype = dtypes[x_node_id]
+
+        if not isinstance(x_dtype, str):
+            x_dtype = TCODE_TO_DTYPE[x_dtype]
+
+        if values is not None and x_name in values:
+            np_inputs[x_name] = values[x_name].astype(x_dtype)
+            continue
+
         low = -1.0
         high = 1.0
         if in_range is not None:
@@ -266,19 +281,12 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 low = in_range[0]
                 high = in_range[1]
 
-        x_node_id = main_graph.index.node_id(x_name)
-        x_shape = shapes[x_node_id]
-        x_dtype = dtypes[x_node_id]
-
-        if not isinstance(x_dtype, str):
-            x_dtype = TCODE_TO_DTYPE[x_dtype]
-
-        x_value = np.random.uniform(size=x_shape, low=low, high=high).astype(x_dtype)
-
-        np_inputs[x_name] = x_value
+        np_inputs[x_name] = np.random.uniform(size=x_shape, low=low, high=high).astype(x_dtype)
 
     np_inputs_without_head_grads = {k: np_inputs[k] for k in np_inputs
                                     if not k.startswith('head_grads_')}
+
+    nothing_was_done = True
 
     # Compute and compare the results
     for target, ctx in ctx_list():
@@ -295,8 +303,8 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
         try:
             debug_stage = "compiling"
-            nnvm_res = None
             main_function = graph_to_function(main_graph, target, ctx)
+
             # nnvm_res contains the output and gradients (if they are needed)
             nnvm_res = main_function(**np_inputs)
 
@@ -305,6 +313,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                 nnvm_grads = {x: v for x, v in zip(grad_var_names, nnvm_res[out_len:])}
 
             if forward is not None:
+                nothing_was_done = False
                 debug_stage = "checking forward computation"
                 logging.debug(debug_stage)
 
@@ -328,6 +337,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                     np.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
 
             if backward is not None:
+                nothing_was_done = False
                 debug_stage = "checking gradients"
                 logging.debug(debug_stage)
 
@@ -357,6 +367,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                                                atol=atol, rtol=rtol)
 
             if numerical_grads:
+                nothing_was_done = False
                 debug_stage = "checking gradients numerically"
                 logging.debug(debug_stage)
 
@@ -390,17 +401,14 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                     print()
             raise
 
+    if nothing_was_done:
+        logging.warning("Nothing was done in check_function. Check ctx_list().")
+
 
 def check_numerical_grads(function, input_values, grad_values, function_value=None,
-                          delta=1e-3, max_error=1e+3, max_discarded_frac=0.1,
-                          atol=1e-2, rtol=1e-2):
+                          delta=1e-3, atol=1e-2, rtol=0.1):
     """A helper function that checks that numerical gradients of a function are equal to
-    gradients computed in some different way.
-
-    We compute two approximations for each gradient using forward and backward differences.
-    Then we use the distance between these gradients as our estimate for the error and check if the
-    provided analytical gradient lies within this distance from the central difference approximation
-    of the gradient.
+    gradients computed in some different way (analytical gradients).
 
     Parameters
     ----------
@@ -420,12 +428,6 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
 
     delta : float, optional
         A small number used for numerical computation of partial derivatives.
-
-    max_error : float, optional
-        Discard numerical partial derivatives whose estimated error is larger than this value.
-
-    max_discarded_frac : float, optional
-        Allow discarding no more than this fraction of partial derivatives.
 
     atol : float, optional
         Absolute tolerance.
@@ -449,53 +451,54 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
                            for n, val in input_values.items()}
         return (function(**modified_values) - function_value)/a_delta
 
+    def compare_derivative(j, n_der, grad):
+        der = grad.reshape(-1)[j]
+        return np.abs(n_der - der) < atol + rtol*np.abs(n_der)
+
     for x_name, grad in grad_values.items():
         if grad.shape != input_values[x_name].shape:
             raise AssertionError(
                 "Gradient wrt '{}' has unexpected shape {}, expected {} "
                 .format(x_name, grad.shape, input_values[x_name].shape))
 
-        discarded_count = 0
-        nondiscarded_count = 0
-
-        ngrad1 = np.zeros_like(grad)
-        ngrad2 = np.zeros_like(grad)
+        ngrad = np.zeros_like(grad)
 
         # compute partial derivatives for each position in this variable
         for j in range(np.prod(grad.shape)):
-            ngrad1.reshape(-1)[j] = derivative(x_name, j, delta)
-            ngrad2.reshape(-1)[j] = derivative(x_name, j, -delta)
+            # forward difference approximation
+            nder = derivative(x_name, j, delta)
 
-            error_estimation = np.abs(ngrad1.reshape(-1)[j] - ngrad2.reshape(-1)[j])
-            if error_estimation > max_error or not np.isfinite(error_estimation):
-                logging.warning("Estimated error for the partial derivative number %i wrt %s "
-                                "is too large (or nan): %f; This derivative will be discarded.",
-                                j, x_name, error_estimation)
-                ngrad1.reshape(-1)[j] = ngrad2.reshape(-1)[j] = grad.reshape(-1)[j]
-                discarded_count += 1
-            else:
-                nondiscarded_count += 1
+            # if the derivative is not equal to the analytical one, try to use more
+            # precise and expensive methods
+            if not compare_derivative(j, nder, grad):
+                # central difference approximation
+                nder = (derivative(x_name, j, -delta) + nder)/2
 
-        if discarded_count / (discarded_count + nondiscarded_count) > max_discarded_frac:
-            raise AssertionError(
-                "Too many ({} out of {}) numerical derivatives wrt {} were discarded "
-                "because of high estimated error. Try changing parameters like delta "
-                "or in_range, or turn off numerical grad checking for this function."
-                .format(discarded_count, discarded_count + nondiscarded_count, x_name))
+                if not compare_derivative(j, nder, grad):
+                    # central difference approximation using h = delta/2
+                    cnder2 = (derivative(x_name, j, delta/2) + derivative(x_name, j, -delta/2))/2
+                    # five-point derivative
+                    nder = (4*cnder2 - nder)/3
 
-        ngrad = (ngrad1 + ngrad2)/2
-        dist_1_2 = np.linalg.norm(ngrad1 - ngrad2)
-        dist_n_s = np.linalg.norm(ngrad - grad)
+            ngrad.reshape(-1)[j] = nder
 
-        if dist_n_s > dist_1_2 + atol + np.linalg.norm(ngrad)*rtol:
+        dist = np.sqrt(np.sum((ngrad - grad)**2))
+        grad_norm = np.sqrt(np.sum(ngrad**2))
+
+        # we multiple atol by this number to make it more universal for different sizes
+        sqrt_n = np.sqrt(float(np.prod(grad.shape)))
+
+        if dist > atol*sqrt_n + rtol*grad_norm:
             raise AssertionError(
                 "Analytical and numerical grads wrt {} differ too much\n"
-                "analytical grad = {}\n numerical grad = {}\ndistance {} > {} + {} + {}*{}"
+                "analytical grad = {}\n numerical grad = {}\n"
+                "distance > atol*sqrt(n) + rtol*grad_norm\n"
+                "distance {} > {}*{} + {}*{}"
                 .format(x_name, grad, ngrad,
-                        dist_n_s, dist_1_2, atol, np.linalg.norm(ngrad), rtol))
+                        dist, atol, sqrt_n, rtol, grad_norm))
 
         max_diff = np.max(np.abs(ngrad - grad))
         avg_diff = np.mean(np.abs(ngrad - grad))
         logging.info("Numerical grad test wrt %s of shape %s passes, "
                      "dist = %f, max_diff = %f, avg_diff = %f",
-                     x_name, grad.shape, dist_n_s, max_diff, avg_diff)
+                     x_name, grad.shape, dist, max_diff, avg_diff)

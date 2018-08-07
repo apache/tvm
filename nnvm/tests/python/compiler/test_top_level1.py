@@ -67,6 +67,9 @@ def test_check_function():
     check_function(x + 2*y, _fwd2, shape=(100,), in_range={'x': (0.8, 0.9)}, numerical_grads=False)
     check_function(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0],
                    in_range={'head_grads_0': (1.0, 1.0)})
+    # explicit passing of values
+    check_function(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0],
+                   values={'head_grads_0': np.full((1, 2), 1.0)})
 
     # check that the function reports errors
     def _check_function_must_fail(*args, **kwargs):
@@ -225,7 +228,7 @@ def test_log():
 
     dtype = "float32"
     shape = {'x': (1, 3, 32, 32)}
-    check_function(y, forward, backward, in_range=(0.001, 2.0), dtype=dtype, shape=shape)
+    check_function(y, forward, backward, in_range=(0.002, 2.0), dtype=dtype, shape=shape)
 
 
 def test_tanh():
