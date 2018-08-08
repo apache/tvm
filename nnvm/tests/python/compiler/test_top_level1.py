@@ -88,6 +88,8 @@ def test_check_function():
     _check_function_must_fail(x + 2*y, lambda x, y: x + y)
     _check_function_must_fail(x + 2*y, backward=lambda x, y, head_grads: [1.0, 2.0])
     _check_function_must_fail(sym.block_grad(x + 2*y), numerical_grads=True)
+    _check_function_must_fail(x*x, numerical_grads=True,
+                              numerical_grads_params={'atol': 0.0, 'rtol': 0.0})
 
     # different styles of returning results from the forward function
     check_function(x + 2*y, lambda x, y: [x + 2*y], numerical_grads=False)

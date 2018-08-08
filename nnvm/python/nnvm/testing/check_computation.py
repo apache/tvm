@@ -163,6 +163,26 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
     quiet : bool, optional
         Don't dump additional information to stdout on failure.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = sym.Variable("x", shape=(1, 2))
+        y = sym.Variable("y", shape=(1, 2))
+
+        # check the function and its gradients both numerically and using a reference function
+        check_function(x + 2*y,
+                       lambda x, y: x + 2*y,
+                       lambda x, y, head_grads: {'x': head_grads, 'y': 2*head_grads},
+                       dtype='float32')
+
+        # just check gradients numerically
+        check_function(x + 2*y, dtype='float32', numerical_grads=True)
+
+        # just check the forward computation
+        check_function(x + 2*y, lambda x, y: x + 2*y,
+                       dtype='float32', numerical_grads=False)
     """
     if numerical_grads is None and forward is None and backward is None:
         raise ValueError("No reference function was passed to check_function. If you only want to "
@@ -410,6 +430,10 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
     """A helper function that checks that numerical gradients of a function are equal to
     gradients computed in some different way (analytical gradients).
 
+    Numerical gradients are computed using finite difference approximation. To reduce the number of
+    function evaluations, the number of points used is gradually increased if the error value is
+    too high (up to 5 points).
+
     Parameters
     ----------
     function
@@ -427,7 +451,8 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         Should be equal to `function(**input_values)`.
 
     delta : float, optional
-        A small number used for numerical computation of partial derivatives.
+        A small number used for numerical computation of partial derivatives. The default 1e-3 is a
+        good choice for float32.
 
     atol : float, optional
         Absolute tolerance.
