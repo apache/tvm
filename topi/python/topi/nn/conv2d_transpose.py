@@ -10,7 +10,7 @@ from ..util import simplify
 
 
 @tvm.target.generic_func
-def conv2d_transpose_nchw(Input, Filter, strides, padding):
+def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -26,6 +26,9 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding):
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
+
+    out_dtype : str
+        The output data type. This is used for mixed precision.
 
     Returns
     -------
@@ -58,7 +61,8 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding):
     Output = tvm.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
-            PaddedInput[b, dc, h+dh, w+dw] * Filter[dc, c, filter_h-1-dh, filter_w-1-dw],
+            PaddedInput[b, dc, h+dh, w+dw].astype(out_dtype) *
+            Filter[dc, c, filter_h-1-dh, filter_w-1-dw].astype(out_dtype),
             axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
 
     return Output

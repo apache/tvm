@@ -251,11 +251,15 @@ def compute_conv2d_transpose(attrs, inputs, _):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
+    out_dtype = attrs.get_string("out_dtype")
     layout = attrs["layout"]
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+
     assert layout == "NCHW", "only support nchw for now"
     assert dilation == (1, 1), "not support dilate now"
     assert groups == 1, "only support groups == 1 for now"
-    out = topi.nn.conv2d_transpose_nchw(inputs[0], inputs[1], strides, padding)
+
+    out = topi.nn.conv2d_transpose_nchw(inputs[0], inputs[1], strides, padding, out_dtype)
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
         bias = topi.expand_dims(bias, axis=1, num_newaxis=2)

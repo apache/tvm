@@ -40,24 +40,27 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
     net = mx.sym.Activation(net, name="%s_act" % prefix, act_type='relu')
     return net
 
-def get_symbol(oshape=(3, 32, 32), ngf=128, code=None):
+def get_symbol(oshape=(3, 64, 64), ngf=128, code=None):
     """get symbol of dcgan generator"""
-    assert oshape[-1] == 32, "Only support 32x32 image"
-    assert oshape[-2] == 32, "Only support 32x32 image"
+    assert oshape[-1] == 64, "Only support 64x64 image"
+    assert oshape[-2] == 64, "Only support 64x64 image"
 
     code = mx.sym.Variable("data") if code is None else code
-    net = mx.sym.FullyConnected(code, name="g1", num_hidden=4*4*ngf*4, no_bias=True, flatten=False)
+    net = mx.sym.FullyConnected(code, name="g1", num_hidden=ngf*8*4*4, no_bias=True, flatten=False)
     net = mx.sym.Activation(net, act_type='relu')
     # 4 x 4
-    net = mx.sym.reshape(net, shape=(-1, ngf * 4, 4, 4))
+    net = mx.sym.reshape(net, shape=(-1, ngf * 8, 4, 4))
     # 8 x 8
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 4, 4, 4), oshape=(ngf * 2, 8, 8), kshape=(4, 4), prefix="g2")
+        net, ishape=(ngf * 8, 4, 4), oshape=(ngf * 4, 8, 8), kshape=(4, 4), prefix="g2")
     # 16x16
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 2, 8, 8), oshape=(ngf, 16, 16), kshape=(4, 4), prefix="g3")
+        net, ishape=(ngf * 4, 8, 8), oshape=(ngf * 2, 16, 16), kshape=(4, 4), prefix="g3")
     # 32x32
+    net = deconv2d_bn_relu(
+        net, ishape=(ngf * 2, 16, 16), oshape=(ngf, 32, 32), kshape=(4, 4), prefix="g4")
+    # 64x64
     net = deconv2d(
-        net, ishape=(ngf, 16, 16), oshape=oshape[-3:], kshape=(4, 4), name="g4_deconv")
+        net, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
     net = mx.sym.Activation(net, act_type='tanh')
     return net
