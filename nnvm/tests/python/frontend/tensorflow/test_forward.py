@@ -924,40 +924,69 @@ def test_forward_ptb():
         np.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
         assert(tvm_sample_str == tf_sample_str)
 
+
+#######################################################################
+# Split
+# ------
+def _test_split(ip_shape, num_or_size_splits, axis):
+    tf.reset_default_graph()
+    dtype = 'float32'
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.split(in_data, num_or_size_splits, axis=axis, name="split")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['split'])
+        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], 'split:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
+                                   tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
+def test_forward_split():
+    '''test split operator'''
+    _test_split((2, 3), 2, axis=0)
+    _test_split((6, 3), 3, axis=0)
+    _test_split((5, 9, 3), 3, axis=1)
+    _test_split((2,5,3,9), 3, axis=3)
+
+
 #######################################################################
 # LRN (Local Response Normalization)
 # ----------------------------------
-
-def _test_lrn(ishape, size, axis, bias, alpha, beta):
-    """ testing local response normalization """
-    lrn_depth_radius = size / 2
-
-    inp_array = np.random.uniform(size=ishape).astype(np.float32)
-
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype, name="lrn0_data")
-        nn_ops.local_response_normalization(in1,
-                                            name="lrn",
-                                            depth_radius=lrn_depth_radius,
-                                            bias=bias,
-                                            alpha=alpha,
-                                            beta=beta)
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['lrn'],)
-
-            tf_output = run_tf_graph(sess, inp_array, 'lrn0_data:0', 'lrn:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       inp_array,
-                                       "lrn0_data", tf_output.shape, tf_output.dtype)
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
-            sess.close()
+def _test_lrn(ip_shape, depth_radius=2, alpha=1e-05, beta=0.75, bias=1.0):
+    tf.reset_default_graph()
+    dtype = 'float32'
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.nn.local_response_normalization(in_data,
+                                        depth_radius=depth_radius,
+                                        alpha=alpha,
+                                        beta=beta,
+                                        bias=bias,
+                                        name="local_response_normalization")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+    with tf.Session() as sess:
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            ['local_response_normalization'])
+        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'],
+                                 'local_response_normalization:0')
+        tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
+                                   tf_output.shape, dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
 
 def test_forward_lrn():
-    _test_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
+    '''test local_response_normalization operator'''
+    _test_lrn((4, 4, 4, 4))
+    _test_lrn((4,3,5,6), 1, 1e-05, 0.5)
+    _test_lrn((1, 3, 20, 20), 2, 1e-05, 0.5, 1.0)
+    _test_lrn((1, 3, 20, 20), 2, 1e-05, 0.75, 2.0)
+
+
 
 # Main
 # ----
@@ -977,6 +1006,7 @@ if __name__ == '__main__':
     test_forward_resize_bilinear()
     test_forward_pad()    
     test_forward_lstm()
+    test_forward_split()
     test_forward_stridedslice()
     test_forward_gather()
     test_forward_ptb()
