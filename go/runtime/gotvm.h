@@ -19,6 +19,12 @@ typedef unsigned long long native_u_long_long;
 // golang string in native structure
 typedef struct { char *p; int n; } _gostring_;
 
+// golang TVMType
+typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } _tvmtype_;
+
+// golang TVMContext
+typedef struct { int device_type; int device_id; } _tvmcontext_;
+
 // native memory allocation and free routines
 extern void _native_free(void *ptr);
 extern void* _native_malloc(int len);
@@ -65,6 +71,10 @@ extern void _TVMValueNativeFree(native_voidp ptr);
 extern uintptr_t _NewDLTensor(void);
 extern void _DeleteDLTensor(uintptr_t dltensor);
 extern uintptr_t _DLTensorGetData(uintptr_t pdltensor);
+extern int _DLTensorGetNdim(uintptr_t pdltensor);
+extern void * _DLTensorGetShape(uintptr_t pdltensor);
+extern _tvmtype_ _DLTensorGetDType(uintptr_t pdltensor);
+extern _tvmcontext_ _DLTensorGetCtx(uintptr_t pdltensor);
 
 // TVMByteArray
 extern void _TVMByteArraySetData(uintptr_t tbytearray, _gostring_ val);

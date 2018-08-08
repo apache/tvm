@@ -246,13 +246,28 @@ DLTensor *_NewDLTensor() {
   return (DLTensor *)new DLTensor();
 }
 
-
 void _DeleteDLTensor(DLTensor *dltensor) {
   delete dltensor;
 }
 
 void *_DLTensorGetData(DLTensor *pdltensor) {
   return (void *) (pdltensor->data);
+}
+
+int _DLTensorGetNdim(DLTensor *pdltensor) {
+  return pdltensor->ndim;
+}
+
+int64_t* _DLTensorGetShape(DLTensor *pdltensor) {
+  return pdltensor->shape;
+}
+
+TVMType _DLTensorGetDType(DLTensor *pdltensor) {
+  return pdltensor->dtype;
+}
+
+TVMContext _DLTensorGetCtx(DLTensor *pdltensor) {
+  return pdltensor->ctx;
 }
 
 // Helpers for TVMByteArray

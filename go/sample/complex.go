@@ -8,10 +8,10 @@ package main
 
 import (
     "fmt"
-    "unsafe"
     "io/ioutil"
     "math/rand"
     "./gotvm"
+    "runtime"
 )
 
 // NNVM compiled model paths.
@@ -23,31 +23,29 @@ const (
 
 // main
 func main() {
+    defer runtime.GC()
     // Welcome
     fmt.Printf("TVM Go Interface : v%v\n", gotvm.GoTVMVersion)
     fmt.Printf("TVM Version   : v%v\n", gotvm.TVMVersion)
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
 
     // Query global functions available
-    funcNames := []string{}
-    if gotvm.TVMFuncListGlobalNames(&funcNames) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
+    funcNames, err := gotvm.TVMFuncListGlobalNames()
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
     fmt.Printf("Global Functions:%v\n", funcNames)
 
     // Import tvm module (dso)
-    var modp gotvm.TVMModule
-
-    if gotvm.TVMModLoadFromFile(modLib, "so", &modp) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
+    modp, err := gotvm.ModLoadFromFile(modLib)
+    if err != nil {
+        fmt.Print(err)
         fmt.Printf("Please copy tvm compiled modules here and update the sample.go accordingly.")
         fmt.Printf("You may need to update modLib, modJSON, modParams, tshapeIn, tshapeOut")
         return
     }
-    defer gotvm.TVMModFree(modp)
-
     fmt.Printf("Module Imported:%p\n", modp)
 
     bytes, err := ioutil.ReadFile(modJSON)
@@ -58,51 +56,40 @@ func main() {
     jsonStr := string(bytes)
 
     // Load module on tvm runtime - call tvm.graph_runtime.create
-    graphrt, _, tvmerr := gotvm.TVMFunctionExec(nil, "tvm.graph_runtime.create", jsonStr,
-                                                modp, (int64)(gotvm.KDLCPU), (int64)(0))
-    if tvmerr != nil {
-        fmt.Print(tvmerr)
+    funp, err := gotvm.GetGlobalFunction("tvm.graph_runtime.create")
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
-    graphmod := graphrt.GetValue(gotvm.KModuleHandle)
-    graphrt.Delete()
+    // Call function
+    graphrt, err := funp(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
+
+    graphmod := graphrt.(*gotvm.TVMModule)
 
     fmt.Printf("Graph runtime Created\n")
 
     // TVMArray allocation attributes
-    var ndim int32 = 4
-    dtypeCode := gotvm.KDLFloat
-    var dtypeBits int32 = 32
-    var dtypeLanes int32 = 1
-    deviceType := gotvm.KDLCPU
-    var deviceID int32
     tshapeIn  := []int64{1, 224, 224, 3}
-
-    // Allocate input TVMArray
-    var inX gotvm.TVMArray
-
-    if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                           deviceType, deviceID, &inX) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-    defer gotvm.TVMArrayFree(inX)
-
-    // Allocate output TVMArray
-    ndim = 2
-
-    var out gotvm.TVMArray
-
     tshapeOut := []int64{1, 1001}
 
-    if gotvm.TVMArrayAlloc(tshapeOut, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                           deviceType, deviceID, &out) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
+    // Allocate input TVMArray
+    inX, err := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    if err != nil {
+        fmt.Print(err)
         return
     }
-    defer gotvm.TVMArrayFree(out)
 
+    // Allocate output TVMArray
+    out, err := gotvm.EmptyArray(tshapeOut, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
     fmt.Printf("Input and Output TVMArrays allocated\n")
 
     // Get module function from graph runtime : load_params
@@ -111,57 +98,82 @@ func main() {
     if err != nil {
         fmt.Print(err)
     }
-    paramsStr := string(bytes)
+    paramsByteArray := gotvm.NewTVMByteArray(bytes)
 
-    paramsByteArray := gotvm.NewTVMByteArray()
-    paramsByteArray.SetData(paramsStr)
-
-    if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod,
-                                             "load_params",
-                                             paramsByteArray); tvmerr != nil {
-        fmt.Print(tvmerr)
+    // Load Params
+    funp, err = graphmod.GetFunction("load_params")
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
-    paramsByteArray.Delete()
+    fmt.Printf("Func load_params:%p\n", funp)
+
+    // Call function
+    _, err = funp(paramsByteArray)
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
+
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input TVMArray
     // We use unsafe package to access underlying array to any type.
-    inSlice := (*[1<<31] float32)(unsafe.Pointer(inX.GetData()))[:(224*224*3):(224*224*3)]
+    inSlice := inX.GetData().([]float32)
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
                                                inSlice[j] = rand.Float32(),
                                                rand.Float32() })
 
-    if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod,
-                                             "set_input",
-                                             "input", inX); tvmerr != nil {
-        fmt.Print(tvmerr)
+    // Set Input
+    funp, err = graphmod.GetFunction("set_input")
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
+
+    // Call function
+    _, err = funp("input", inX)
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
     fmt.Printf("Module input is set\n")
 
-    // Call runtime function run
-    if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod, "run"); tvmerr != nil {
-        fmt.Print(tvmerr)
+    // Run
+    funp, err = graphmod.GetFunction("run")
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
+
+    // Call function
+    _, err = funp()
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
     fmt.Printf("Module Executed \n")
 
     // Call runtime function get_output
-    if _, _, tvmerr := gotvm.TVMFunctionExec(graphmod,
-                                             "get_output",
-                                             int64(0), out); tvmerr != nil {
-        fmt.Print(tvmerr)
+    funp, err = graphmod.GetFunction("get_output")
+    if err != nil {
+        fmt.Print(err)
         return
     }
 
+    // Call function
+    _, err = funp(int64(0), out)
+    if err != nil {
+        fmt.Print(err)
+        return
+    }
     fmt.Printf("Got Module Output \n")
 
     // We use unsafe package to access underlying array to any type.
-    outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:1001:1001]
+    outSlice := out.GetData().([]float32)
     fmt.Printf("Result:%v\n", outSlice[:10])
 }

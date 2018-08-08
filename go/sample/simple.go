@@ -8,7 +8,7 @@ package main
 
 import (
     "fmt"
-    "unsafe"
+    "runtime"
     "./gotvm"
 )
 
@@ -20,77 +20,32 @@ const (
 // main
 func main() {
     // Welcome
+    defer runtime.GC()
     fmt.Printf("TVM Go Interface : v%v\n", gotvm.GoTVMVersion)
     fmt.Printf("TVM Version   : v%v\n", gotvm.TVMVersion)
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
 
-    // Query global functions available
-    funcNames := []string{}
-    if gotvm.TVMFuncListGlobalNames(&funcNames) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-
-    fmt.Printf("Global Functions:%v\n", funcNames)
-
     // Import tvm module (dso)
-    var modp gotvm.TVMModule
-
-    if gotvm.TVMModLoadFromFile(modLib, "so", &modp) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-    defer gotvm.TVMModFree(modp)
-
+    modp, _ := gotvm.ModLoadFromFile(modLib)
     fmt.Printf("Module Imported\n")
 
-    // TVMArray allocation attributes
-    var ndim int32 = 1
-    dtypeCode := gotvm.KDLFloat
-    var dtypeBits int32 = 32
-    var dtypeLanes int32 = 1
-    deviceType := gotvm.KDLCPU
-    var deviceID int32
-    tshapeIn  := []int64{4}
 
     // Allocate input TVMArray : inX
-    var inX gotvm.TVMArray
-
-    if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                           deviceType, deviceID, &inX) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-    defer gotvm.TVMArrayFree(inX)
+    tshapeIn  := []int64{4}
+    inX, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
 
     // Allocate input TVMArray : inY
-    var inY gotvm.TVMArray
+    inY, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
 
-    if gotvm.TVMArrayAlloc(tshapeIn, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                           deviceType, deviceID, &inY) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-    defer gotvm.TVMArrayFree(inY)
-
-    // Allocate output TVMArray
-    var out gotvm.TVMArray
-
-    tshapeOut := []int64{4}
-
-    if gotvm.TVMArrayAlloc(tshapeOut, ndim, dtypeCode, dtypeBits, dtypeLanes,
-                           deviceType, deviceID, &out) != 0 {
-        fmt.Printf("%v", gotvm.TVMGetLastError())
-        return
-    }
-    defer gotvm.TVMArrayFree(out)
+    // Allocate output TVMArray : out
+    out, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
 
     fmt.Printf("Input and Output TVMArrays allocated\n")
 
     // Fill Input Data : inX , inY
     // We use unsafe package to access underlying array to any type.
-    inXSlice := (*[1<<15] float32)(unsafe.Pointer(inX.GetData()))[:4:4]
-    inYSlice := (*[1<<15] float32)(unsafe.Pointer(inY.GetData()))[:4:4]
+    inXSlice := inX.GetData().([]float32)
+    inYSlice := inY.GetData().([]float32)
 
     for ii := 0; ii < 4 ; ii++ {
         inXSlice[ii] = float32(ii)
@@ -100,16 +55,15 @@ func main() {
     fmt.Printf("X: %v\n", inXSlice)
     fmt.Printf("Y: %v\n", inYSlice)
 
-    // Call module function myadd
-    _, _, tvmerr := gotvm.TVMFunctionExec(modp, "myadd", inX, inY, out)
-    if tvmerr != nil {
-        fmt.Print(tvmerr)
-        return
-    }
+    // Get function "myadd"
+    funp, _ := modp.GetFunction("myadd")
+
+    // Call function
+    funp(inX, inY, out)
 
     fmt.Printf("Module function myadd executed\n")
 
     // We use unsafe package to access underlying array to any type.
-    outSlice := (*[1<<15] float32)(unsafe.Pointer(out.GetData()))[:4:4]
+    outSlice := out.GetData().([]float32)
     fmt.Printf("Result:%v\n", outSlice)
 }
