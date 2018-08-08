@@ -161,6 +161,103 @@ nnvm::Graph GraphFusePartition(nnvm::Graph g) {
       }
     }
   }
+
+  /*
+     Above algorithm will not fuse a node whose output is fed to more than one
+     child node. This is because in general, it does not make sense to fuse multiple
+     children branches with their parent, as in the following example.
+
+            conv2d
+            /  |  \
+           /   |   \
+         op    op   op
+          |    |    |
+          |    |    |
+
+     However, when all children branches meet at a certain node, there is a possibility for
+     further operator fusion. For example, all nodes in the following subgraph can be fused
+     into a single node, if three 'in-between' nodes and the bottom node are all element wise
+     operation.
+
+            conv2d
+            /  |  \
+           /   |   \
+         op    op   op
+          \    |    /
+           \   |   /
+          elemwise add
+               |
+
+     This pattern is not uncommon. For example, it arises when conv2d op is followed by exponential
+     linear unit. If bias add and batch normalization are also present, they can be fused as well.
+
+     In fact, above fusion algorithm already fuses three in-between nodes and the element wise
+     add node in the figure above. The following code fuses the conv2d node with the already
+     fused children nodes. The following patterns are supported.
+
+     * Any number of child nodes from the top node
+     * The path from the top node to bottom node can contain any number of element wise ops.
+
+     The only restriction is that in-between nodes cannot have more than one child.
+
+     The overview of the algorithm below is as follows:
+
+     1. Check if all children nodes are fused into a single op by the existing fusion algorithm
+     2. Fuse the parent node to children nodes, and update its group id to be the children's group id
+     3. If the parent node originally belongs to another group (for example, conv + batch norm),
+        propagate the new group id to a grand parent and upward
+  */
+  if (opt_level >= 1) {
+    std::vector<std::vector<uint32_t> > children_group_ids(idx.num_nodes());
+    std::vector<std::vector<uint32_t> > node_ids_per_group(idx.num_nodes());
+    for (uint32_t nid = idx.num_nodes() - 1; nid != 0; --nid) {
+      const auto& inode = idx[nid];
+      if (inode.source->is_variable()) continue;
+      CHECK_NE(group_vec[nid], -1);
+      node_ids_per_group[group_vec[nid]].push_back(nid);
+      if (inode.inputs.size() != 1) continue;
+      const uint32_t parent_nid = inode.inputs[0].node_id;
+      // if parent node has more than one child, record each child's group id.
+      if (ref_count[parent_nid] > 1) children_group_ids[parent_nid].push_back(group_vec[nid]);
+    }
+
+    std::vector<int> new_group_id(idx.num_nodes(), -1);
+    for (uint32_t nid = idx.num_nodes() - 1; nid != 0; --nid) {
+      if (new_group_id[group_vec[nid]] != -1) {
+        // propagate new group id from child
+        group_vec[nid] = new_group_id[group_vec[nid]];
+      }
+      TOpPattern pt = op_pattern.get(idx[nid].source->op(), kOpaque);
+      if (pt == kOpaque) continue;
+      const auto& group_ids = children_group_ids[nid];
+      if (group_ids.size() <= 1) continue;
+      const uint32_t child_group_id = group_ids[0];
+      const auto& children_node_ids = node_ids_per_group[child_group_id];
+
+      auto is_same_group_id = [child_group_id](uint32_t id) {
+          return id == child_group_id;
+      };
+      auto is_fusible_pattern = [&idx](uint32_t child_nid) {
+        TOpPattern child_pt = op_pattern.get(idx[child_nid].source->op(), kOpaque);
+        return child_pt  <= kBroadcast;
+      };
+      // fuse this node with children if
+      // all children belong to the same group and
+      // all nodes in the group are element wise or broadcast op.
+      const bool can_be_fused = std::all_of(group_ids.begin(), group_ids.end(), is_same_group_id) &&
+        std::all_of(children_node_ids.begin(), children_node_ids.end(), is_fusible_pattern);
+
+      if (can_be_fused) {
+        new_group_id[group_vec[nid]] = child_group_id;
+        group_vec[nid] = child_group_id;
+        for (uint32_t nid2 : node_ids_per_group[child_group_id]) {
+          pattern_vec[nid2] = pattern_vec[nid];
+          master_vec[nid2] = master_vec[nid];
+        }
+      }
+    }
+  }
+
   g.attrs["group_root"] = std::make_shared<any>(std::move(group_vec));
   g.attrs["group_master"] = std::make_shared<any>(std::move(master_vec));
   g.attrs["pattern"] = std::make_shared<any>(std::move(pattern_vec));
