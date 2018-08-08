@@ -27,7 +27,6 @@ using namespace tvm;
 // Each segment will be compiled into one operator.
 // Also mark the property of the segment.
 nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
-  // setup ref counter
   const IndexedGraph& idx = g.indexed_graph();
   int opt_level = 2;
   if (g.attrs.count("opt_level") != 0) {
@@ -61,7 +60,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
     TOpPattern pt = op_pattern.get(inode.source->op(), kOpaque);
 
     if (pt <= kBroadcast) {
-      // Try to check if we can fuse to the master.
+      // Check if we can fuse to the master.
       int chosen_master = -1;
       bool ewise = inode.source->num_outputs() == 1;
       for (const auto& e : inode.inputs) {
@@ -92,7 +91,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
         pt = ewise ? kElemWise : kBroadcast;
       }
     } else if (pt == kInjective || pt == kCommReduce) {
-      // fuse to the comm reduce or injective
+      // Fuse to the comm reduce or injective
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
           TOpPattern ipt = pattern_vec[e.node_id];
@@ -107,7 +106,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
         master_vec[nid] = nid;
       }
     } else {
-      // realize
+      // Realize
       master_vec[nid] = nid;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
@@ -128,7 +127,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
     }
   }
 
-  // point to the group root id of each node
+  // Point to the group root id of each node.
   GroupVec group_vec(idx.num_nodes(), -1);
   for (uint32_t i = idx.num_nodes(); i != 0; --i) {
     uint32_t nid = i - 1;
@@ -136,7 +135,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
     if (group_vec[nid] == -1) {
       group_vec[nid] = nid;
     }
-    // propagate the group id.
+    // Propagate the group id.
     for (const auto& e : inode.inputs) {
       if (fuse_vec[e.node_id] == FuseRule::kFuseToMaster) {
         CHECK(group_vec[e.node_id] == -1||
@@ -158,7 +157,7 @@ NNVM_REGISTER_PASS(GraphFindFusibleGroups)
 
 // Fuse the partitioned graph into segments.
 // Create a new graph with fused nodes.
-// Also inherit attribute shape, dltype from previous graph.
+// Also inherit attribute shape, dltype from the previous graph.
 nnvm::Graph GraphFuse(nnvm::Graph&& g) {
   CHECK(g.HasAttr("group_root") && g.HasAttr("pattern"))
       << "GraphFindFusibleGroups pass hasn't been applied yet.";
@@ -170,11 +169,11 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
   const GroupVec& group_vec = g.GetAttr<GroupVec>("group_root");
   const PatternVec& pattern_vec = g.GetAttr<PatternVec>("pattern");
 
-  // specially handle assign
+  // Specially handle assign op.
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
   FuseEntryVec fuse_entries(idx.num_nodes());
-  // setup inputs and placeholder.
+  // Setup inputs and placeholder.
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
@@ -187,7 +186,7 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
       if (group_vec[e.node_id] != root_id && fe.imap.count(e) == 0) {
         Array<Expr> shape;
         if (fe.flatten_data) {
-          // elementwise support flatten
+          // Elementwise support flatten
           int64_t prod = 1;
           for (int64_t x : shape_vec[idx.entry_id(e)]) {
             prod *= x;
@@ -212,6 +211,7 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
       }
     }
   }
+
   // Setup the Subgraph
   std::vector<NodeEntry> subgraph_vec(idx.num_node_entries());
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
@@ -219,10 +219,10 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
     FuseEntry& fe = fuse_entries[root_id];
-    // copy and create subgraph node.
+    // Create a subgraph node.
     NodePtr gnode = Node::Create();
     gnode->attrs = inode.source->attrs;
-    // input loading
+    // Set input entries for the subgraph node.
     for (const auto& e : inode.inputs) {
       if (group_vec[e.node_id] != root_id) {
         auto it = fe.imap.find(e);
@@ -235,7 +235,7 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
         gnode->inputs.push_back(ne);
       }
     }
-    // schedule on root node, and use master's schedule
+    // Schedule on the root node and use the master's schedule
     if (static_cast<int>(nid) != root_id) {
       for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
         uint32_t eid = idx.entry_id(nid, index);

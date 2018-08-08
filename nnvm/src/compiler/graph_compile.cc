@@ -34,7 +34,6 @@ using namespace tvm;
 nnvm::Graph DecorateMemoryPlan(
     nnvm::Graph g,
     const std::vector<int>& assign_flag) {
-  // setup ref counter
   const IndexedGraph& idx = g.indexed_graph();
   StorageVector storage_vec = g.MoveCopyAttr<StorageVector>("storage_id");
   g.attrs.erase("storage_allocated_bytes");
@@ -44,7 +43,7 @@ nnvm::Graph DecorateMemoryPlan(
   CHECK_EQ(num_not_allocated, 0U)
       << "Can only build inference graph with all statically allocated memory";
 
-  // reassign variable id so that they are different.
+  // Reassign variable id so that they are different.
   int max_id = 0;
   for (size_t i = 0; i < storage_vec.size(); ++i) {
     max_id = std::max(storage_vec[i] + 1, max_id);
@@ -52,7 +51,7 @@ nnvm::Graph DecorateMemoryPlan(
   for (uint32_t nid : idx.input_nodes()) {
     storage_vec[idx.entry_id(nid, 0)] = max_id++;
   }
-  // tie up the assign node storage properly
+  // Tie up the assign node storage properly.
   for (uint32_t nid = 0 ; nid < idx.num_nodes(); ++nid) {
     if (assign_flag[nid] == 0) continue;
     const auto& inode = idx[nid];
@@ -68,7 +67,7 @@ nnvm::Graph DecorateMemoryPlan(
 }
 
 nnvm::Graph GraphCompile(const nnvm::Graph& g) {
-  // Get attributes from the graph
+  // Get attributes from the graph.
   const ShapeVector& shape_vec = g.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
   const GroupVec& group_vec = g.GetAttr<GroupVec>("group_root");
@@ -84,7 +83,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   if (g.HasAttr("target_host")) {
     target_host = g.GetAttr<std::string>("target_host");
   }
-  // specially handle assign
+  // Specially handle assign
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
   // Start lowering
@@ -109,7 +108,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       auto it = fe.input_info.find(subidx[sub_input_id].source);
       inputs.push_back(it->second);
     }
-    // find master idx in subgraph
+    // Find master idx in the subgraph
     int sub_master_idx = 0;
     for (uint32_t i = 0; i < subidx.num_nodes(); i++) {
       if (subidx[i].source->op() == idx[master].source->op()) {
@@ -132,7 +131,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) {
-      // only copy over name since that is sufficient.
+      // Only copy name since that is sufficient.
       nnvm::NodePtr np = nnvm::Node::Create();
       np->attrs.name = inode.source->attrs.name;
       old_new[nid] = np;
@@ -156,7 +155,8 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     np->attrs.parsed = std::move(param);
 
     for (uint32_t sub_input_id : subidx.input_nodes()) {
-      // Need to make sure subgraph input order meets order of the graph input
+      // Need to make sure subgraph input order is consistent to the order of
+      // the graph input.
       auto rit = fe.reverse_imap.find(subidx[sub_input_id].source);
       CHECK(rit != fe.reverse_imap.end());
       const IndexedGraph::NodeEntry& e = rit->second;
@@ -182,11 +182,11 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
         nnvm::NodeEntry{it->second, e.index, e.version});
   }
 
-  // Reference counter of each op node
+  // Reference counter of each op node.
   // For now, always store result when an op is referred more than once.
   std::vector<uint32_t> ref_count = GetNodeRefCounts(idx);
   for (const auto& e : idx.outputs()) {
-    // this line will realize all the outputs
+    // This line will realize all the outputs.
     ref_count[e.node_id] += 1;
   }
 
@@ -209,9 +209,9 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     const auto& inode = idx[nid];
     uint32_t new_nid = new_idx.node_id(kv.second.get());
     if (inode.source->op() == assign_op) {
-      // Check if rhs of assign can be computed inplace
+      // Check if rhs of assign can be computed inplace.
       // If yes, we can simply set that memory to be assign target
-      // and change assign to nop
+      // and change assign to nop.
       const IndexedGraph::NodeEntry& rhs = inode.inputs[1];
       if (ref_count[rhs.node_id] <= 1 &&
           !(idx[rhs.node_id].source->is_variable()) &&
@@ -236,6 +236,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   ret.attrs["shape"] = std::make_shared<any>(std::move(new_shape_vec));
   ret.attrs["dtype"] = std::make_shared<any>(std::move(new_dtype_vec));
   ret.attrs["dltype"] = std::make_shared<any>(std::move(new_dltype_vec));
+
   // Setup module
   static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_target");
   tvm::runtime::Module module = fbuild(func_list, target, target_host);
