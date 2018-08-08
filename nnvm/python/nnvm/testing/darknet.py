@@ -118,7 +118,7 @@ class LAYERTYPE(object):
     YOLO = 23
     REORG = 24
     UPSAMPLE = 25
-    LOGXENT= 26
+    LOGXENT = 26
     L2NORM = 27
     BLANK = 28
 
