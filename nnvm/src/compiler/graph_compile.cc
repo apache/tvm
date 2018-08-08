@@ -67,7 +67,7 @@ nnvm::Graph DecorateMemoryPlan(
   return g;
 }
 
-nnvm::Graph GraphCompile(nnvm::Graph g) {
+nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   // Get attributes from the graph
   const ShapeVector& shape_vec = g.GetAttr<ShapeVector>("shape");
   const DTypeVector& dtype_vec = g.GetAttr<DTypeVector>("dtype");
@@ -75,8 +75,8 @@ nnvm::Graph GraphCompile(nnvm::Graph g) {
   const MasterVec& master_vec = g.GetAttr<MasterVec>("group_master");
   const PatternVec& pattern_vec = g.GetAttr<PatternVec>("pattern");
 
-  CHECK(g.HasAttr("fused_entries")) << "Fusion hasn't been applied yet.";
-  FuseEntryVec fuse_entries = g.MoveCopyAttr<FuseEntryVec>("fused_entries");
+  CHECK(g.HasAttr("fused_entry")) << "Fusion hasn't been applied yet.";
+  FuseEntryVec fuse_entries = g.GetAttr<FuseEntryVec>("fused_entry");
 
   std::string target = g.GetAttr<std::string>("target");
   std::string target_host;
@@ -249,7 +249,7 @@ NNVM_REGISTER_PASS(GraphCompile)
     .set_body(GraphCompile)
     .depend_graph_attr("shape")
     .depend_graph_attr("dtype")
-    .depend_graph_attr("fused_entries")
+    .depend_graph_attr("fused_entry")
     .depend_graph_attr("group_root")
     .depend_graph_attr("pattern")
     .depend_graph_attr("group_master");

@@ -26,7 +26,7 @@ using namespace tvm;
 // Partition the graph into segments
 // Each segment will be compiled into one operator.
 // Also mark the property of the segment.
-nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
+nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
   // setup ref counter
   const IndexedGraph& idx = g.indexed_graph();
   int opt_level = 2;
@@ -247,14 +247,14 @@ nnvm::Graph GraphFuse(nnvm::Graph&& g) {
       }
     }
   }
-  g.attrs["fused_entries"] = std::make_shared<any>(std::move(fuse_entries));
+  g.attrs["fused_entry"] = std::make_shared<any>(std::move(fuse_entries));
   return g;
 }
 
 NNVM_REGISTER_PASS(GraphFuse)
     .set_body(GraphFuse)
     .set_change_graph(true)
-    .provide_graph_attr("fused_entries")
+    .provide_graph_attr("fused_entry")
     .depend_graph_attr("shape")
     .depend_graph_attr("dtype")
     .depend_graph_attr("group_root")
