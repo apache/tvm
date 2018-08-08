@@ -28,7 +28,7 @@ using namespace tvm;
 
 // Decorate the result of PlanMemory
 // This function does two things:
-// - Give separate memory to each variable
+// - Give separate memory to each variable.
 // - Tie the memory of output/lhs in assign node properly
 //   so the execution of assign can have side effect.
 nnvm::Graph DecorateMemoryPlan(
@@ -83,10 +83,10 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   if (g.HasAttr("target_host")) {
     target_host = g.GetAttr<std::string>("target_host");
   }
-  // Specially handle assign
+  // Specially handle assign.
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
-  // Start lowering
+  // Start lowering.
   Array<tvm::LoweredFunc> func_list;
   std::unordered_set<const tvm::Node*> func_set;
   const IndexedGraph& idx = g.indexed_graph();
@@ -108,7 +108,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       auto it = fe.input_info.find(subidx[sub_input_id].source);
       inputs.push_back(it->second);
     }
-    // Find master idx in the subgraph
+    // Find master idx in the subgraph.
     int sub_master_idx = 0;
     for (uint32_t i = 0; i < subidx.num_nodes(); i++) {
       if (subidx[i].source->op() == idx[master].source->op()) {
