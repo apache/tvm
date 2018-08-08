@@ -46,13 +46,13 @@ struct INodeEntryEqual {
 
 // Auxiliary data structure for representing fused op.
 struct FuseEntry {
-  // subgraph of the fragement
+  // Subgraph of the fragment
   Graph subgraph;
   // The input map
   std::unordered_map<IndexedGraph::NodeEntry, nnvm::NodeEntry, INodeEntryHash,
                      INodeEntryEqual>
       imap;
-  // reverse map to the old input entry
+  // Reverse map to the old input entry
   std::unordered_map<const Node *, IndexedGraph::NodeEntry> reverse_imap;
   // TVM Placeholder for inputs
   std::unordered_map<const Node *, Tensor> input_info;
