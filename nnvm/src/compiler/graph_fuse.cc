@@ -26,7 +26,7 @@ using namespace tvm;
 // Partition the graph into segments
 // Each segment will be compiled into one operator.
 // Also mark the property of the segment.
-nnvm::Graph GraphFindFusibleGroups(nnvm::Graph&& g) {
+nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
   const IndexedGraph& idx = g.indexed_graph();
   int opt_level = 2;
   if (g.attrs.count("opt_level") != 0) {
@@ -255,7 +255,7 @@ NNVM_REGISTER_PASS(GraphFindFusibleGroups)
 // Fuse the partitioned graph into segments.
 // Create a new graph with fused nodes.
 // Also inherit attribute shape, dltype from the previous graph.
-nnvm::Graph GraphFuse(nnvm::Graph&& g) {
+nnvm::Graph GraphFuse(nnvm::Graph g) {
   CHECK(g.HasAttr("group_root") && g.HasAttr("pattern"))
       << "GraphFindFusibleGroups pass hasn't been applied yet.";
 
