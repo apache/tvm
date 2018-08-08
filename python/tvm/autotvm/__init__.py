@@ -13,6 +13,7 @@ This module includes:
 
 from . import database
 from . import feature
+from . import graph_tuner
 from . import measure
 from . import record
 from . import task

@@ -62,10 +62,8 @@ def run_remote_module(session, graph, lib, params, input_data,
     session.upload(path)
     ctx = session.context(remote_dev_type, remote_dev_id)
     rlib = session.load_module(lib_name)
-    s = time.time()
     rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
     rdata = {k: tvm.nd.array(v, ctx) for k, v in input_data.items()}
-    s = time.time()
     module = graph_runtime.create(graph, rlib, ctx)
     module.set_input(**rparams)
     module.set_input(**rdata)
