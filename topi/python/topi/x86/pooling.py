@@ -20,8 +20,8 @@ def _parallel_sch(sch, oshape):
             sch.vectorize(c)
         else:
             split_factor = 1
-            for i in reversed(range(1, inner_length)):
-                if inner_length % i == 0 and i <= vectorize_limit:
+            for i in range(vectorize_limit, 1, -1):
+                if inner_length % i == 0:
                     split_factor = i
                     break
             if split_factor > 1:
@@ -38,7 +38,6 @@ def _parallel_sch(sch, oshape):
         sch.parallel(sch.op.axis[0])
         return
     sch.parallel(fused)
-
 
 
 @generic.schedule_pool.register(["cpu"])

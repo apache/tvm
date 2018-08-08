@@ -141,6 +141,12 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
     }
     NNVM_ASSIGN_LAYOUT(*olayouts, 0, last_ilayouts->at(0));
   } else {
+    if (last_ilayouts->at(0).defined()) {
+      CHECK_EQ(ilayouts->at(0)[param.axis], last_ilayouts->at(0)[param.axis])
+        << "Layout at concatenate axis mismatch: expect"
+        << last_ilayouts->at(0)[param.axis] << " but got "
+        << ilayouts->at(0)[param.axis];
+    }
     for (size_t i = 0; i < ilayouts->size(); ++i) {
       NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
     }
