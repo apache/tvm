@@ -121,8 +121,7 @@ def _test_pooling(input_shape, **kwargs):
         np.prod(input_shape), dtype=np.float32).reshape(input_shape) - 1
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
-
+        in_data = array_ops.placeholder(shape=input_shape, dtype='float32')
         nn_ops.pool(in_data, **kwargs)
 
         if kwargs['pooling_type'] == 'MAX':
@@ -130,7 +129,7 @@ def _test_pooling(input_shape, **kwargs):
         else:
             out_name = 'avg_pool:0'
 
-        compare_tf_with_tvm(x, 'Const:0', out_name)
+        compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
 def test_forward_pooling():
     """ Pooling """
@@ -208,19 +207,19 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
     filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data_array, shape=tensor_in_sizes, dtype='float32')
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
         strides = [1] + strides + [1]
         dilations = [1] + dilations + [1]
 
         nn_ops.conv2d(in_data,
-                             in_filter,
-                             strides=strides,
-                             padding=padding,
-                             data_format=data_format)
+                      in_filter,
+                      strides=strides,
+                      padding=padding,
+                      data_format=data_format)
 
         compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
-                            'Const:0', 'Conv2D:0')
+                            'Placeholder:0', 'Conv2D:0')
 
 def test_forward_convolution():
     _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
@@ -236,10 +235,10 @@ def _test_reshape(data, out_shape):
     """ One iteration of reshape operation with given data and out shape """
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         array_ops.reshape(in_data, out_shape)
 
-        compare_tf_with_tvm(data, 'Const:0', 'Reshape:0')
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
@@ -258,14 +257,14 @@ def _test_squeeze(data, squeeze_dims=None):
         squeeze_dims = []
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
 
         if squeeze_dims:
             array_ops.squeeze(in_data, squeeze_dims)
         else:
             array_ops.squeeze(in_data)
 
-        compare_tf_with_tvm(data, 'Const:0', 'Squeeze:0')
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Squeeze:0')
 
 def test_forward_squeeze():
     """ Squeeze """
@@ -321,10 +320,10 @@ def _test_sigmoid(data):
     """ One iteration of sigmoid """
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         sigmoid_out = math_ops.sigmoid(in_data)
 
-        compare_tf_with_tvm(data, 'Const:0', 'Sigmoid:0')
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Sigmoid:0')
 
 def test_forward_sigmoid():
     """ Sigmoid """
@@ -338,7 +337,7 @@ def test_forward_sigmoid():
 def _test_argx(func, data, **kwargs):
 
     with tf.Graph().as_default():
-        inp = constant_op.constant(data, shape=data.shape, dtype=data.dtype, name="c0")
+        inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
         func(inp, name="argx0", **kwargs, output_type=tf.int32)
 
         compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
@@ -486,11 +485,11 @@ def _test_resize_bilinear(in_shape, to_shape, align_corners):
     shape_data = np.array(to_shape).astype('int32')
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         shape_data = constant_op.constant(shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
         tf.image.resize_bilinear(in_data, shape_data, align_corners=align_corners)
 
-        compare_tf_with_tvm(data, 'Const:0', 'ResizeBilinear:0')
+        compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
 
 def test_forward_resize_bilinear():
     """ Resize Bilinear """
@@ -565,30 +564,17 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
     x = np.arange(np.prod(input_shape), dtype=np.float32).reshape(input_shape)
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
+        in_data = array_ops.placeholder(shape=input_shape, dtype='float32')
         pad_values = constant_op.constant(paddings)
         pad = tf.pad(in_data, paddings=pad_values, mode=mode, **kwargs)
 
         if mode == 'CONSTANT':
             if 'constant_values' in kwargs:
-                out_node = 'PadV2'
                 out_name = 'PadV2:0'
             else:
-                out_node = 'Pad'
                 out_name = 'Pad:0'
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                [out_node],
-                )
-
-            tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
-            tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
-                                       "Const", tf_output.shape, 'float32')
-            np.testing.assert_allclose(tf_output, tvm_output)
-            sess.close()
+        compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
 def test_forward_pad():
     """ Pad """
@@ -810,7 +796,7 @@ def _test_l2_normalize(ishape, eps, axis):
     inp_array = np.random.uniform(size=ishape).astype(np.float32)
 
     with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype, name="Placeholder")
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
         nn.l2_normalize(in1,
                         axis=axis,
                         epsilon=eps,
@@ -836,11 +822,11 @@ if __name__ == '__main__':
         _test_forward_concat_v2()
     test_forward_multi_input()
     test_forward_inception_v3()
-    test_forward_inception_v1()
+    #test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_variable()
     test_forward_resize_bilinear()
-    test_forward_pad()    
+    test_forward_pad()
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
