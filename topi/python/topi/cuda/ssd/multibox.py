@@ -241,6 +241,9 @@ def transform_loc_ir_first(cls_prob, anchor, valid_count, temp_flag, temp_id, te
                     flag[tid * num_anchors + k] += flag[tid * num_anchors + k - 1]
             p_valid_count[n] = flag[tid * num_anchors + num_anchors - 1]
 
+    body = ib.get()
+    return body
+
 
 def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, out, clip, variances, batch_size, num_classes, num_anchors):
     """Low level IR routing for transform location in multibox_detection operator.
@@ -476,8 +479,8 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=
     out_buf = api.decl_buffer(oshape, cls_prob.dtype, "out_buf", data_alignment=8)
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     size = num_anchors
-    temp_flag_buf = api.decl_buffer((size,), valid_count_dtype, "flag", data_alignment=4)
-    temp_id_buf = api.decl_buffer((size,), valid_count_dtype, "cls_id", data_alignment=4)
+    temp_flag_buf = api.decl_buffer((size,), valid_count_dtype, "flag", data_alignment=8)
+    temp_id_buf = api.decl_buffer((size,), valid_count_dtype, "cls_id", data_alignment=8)
     temp_score_buf = api.decl_buffer((size,), cls_prob.dtype, "score", data_alignment=8)
 
     valid_count, temp_flag, temp_id, temp_score = \
@@ -485,7 +488,7 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=
                    [cls_prob, anchor],
                    lambda ins, outs: transform_loc_ir_first(
                        ins[0], ins[1], outs[0], outs[1], outs[2], outs[3], threshold),
-                   dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype],
+                   dtype=[valid_count_dtype, valid_count_dtype, valid_count_dtype, cls_prob.dtype],
                    out_buffers=[valid_count_buf, temp_flag_buf, temp_id_buf, temp_score_buf],
                    tag="multibox_transform_loc_first_step")
 
@@ -542,4 +545,4 @@ def multibox_detection_gpu(cls_prob, loc_pred, anchor, clip=True, threshold=0.01
     inter_out = multibox_transform_loc(cls_prob, loc_pred, anchor,
                                        clip, threshold, variances)
     out = nms(inter_out[0], inter_out[1], nms_threshold, force_suppress, nms_topk)
-    return inter_out[1]
+    return out
