@@ -71,8 +71,6 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype)
 def run_tf_graph(sess, input_data, input_node, output_node):
     """ Generic function to execute tensorflow """
 
-    tensor = sess.graph.get_tensor_by_name(output_node)
-
     if isinstance(input_data, list):
         input_dict = {}
         for i, e in enumerate(input_node):
@@ -80,7 +78,16 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     else:
         input_dict = {input_node: input_data}
 
-    output_data = sess.run(tensor, input_dict)
+    if isinstance(output_node, list):
+        output_list = []
+        for node_name in output_node:
+            tensor = sess.graph.get_tensor_by_name(node_name)
+            output_data = sess.run(tensor, input_dict)
+            output_list.append(output_data)
+        return output_list
+    else:
+        tensor = sess.graph.get_tensor_by_name(output_node)
+        output_data = sess.run(tensor, input_dict)
     return output_data
 
 #######################################################################
@@ -929,20 +936,24 @@ def test_forward_ptb():
 #######################################################################
 # Split
 # ------
-def _test_split(ip_shape, num_or_size_splits, axis):
+def _test_split(ip_shape, num_split, axis):
     tf.reset_default_graph()
     dtype = 'float32'
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    tf.split(in_data, num_or_size_splits, axis=axis, name="split")
+    tf.split(in_data, num_split, axis=axis, name="split")
     np_data = np.random.uniform(size=ip_shape).astype(dtype)
     with tf.Session() as sess:
         final_graph_def = tf.graph_util.convert_variables_to_constants(
             sess,
             sess.graph.as_graph_def(add_shapes=True),
             ['split'])
-        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], 'split:0')
+
+        tf_out_node_names = ['split:%g' % i for i in range(num_split)]
+        tf_output = run_tf_graph(sess, [np_data], ['in_data:0'], tf_out_node_names)
+        tvm_out_shapes = [tf_output[i].shape for i in range(num_split)]
+        tvm_out_dtypes = [tf_output[i].dtype for i in range(num_split)]
         tvm_output = run_tvm_graph(final_graph_def, [np_data], ['in_data'],
-                                   tf_output.shape, dtype)
+                                   tvm_out_shapes, tvm_out_dtypes)
         np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
         sess.close()
 
