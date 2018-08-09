@@ -21,9 +21,9 @@ key = "android"
 arch = "arm64"
 target = "llvm -target=%s-linux-android" % arch
 
-# whether enable to execute test on OpenCL target hardware
+# whether enable to execute test on OpenCL target
 test_opencl = False
-# whether enable to execute test on Vulkan target hardware
+# whether enable to execute test on Vulkan target
 test_vulkan = False
 
 def test_rpc_module():
