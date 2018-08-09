@@ -134,7 +134,7 @@ def _pooling(name):
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
-        input_shapes = attr['_input_shapes'][inputs[0]]
+        input_shape = attr['_input_shapes'][inputs[0]]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -143,11 +143,11 @@ def _pooling(name):
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
             if attr['data_format'] == 'NHWC':
-                in_h = input_shapes[1]
-                in_w = input_shapes[2]
+                in_h = input_shape[1]
+                in_w = input_shape[2]
             else:
-                in_h = input_shapes[2]
-                in_w = input_shapes[3]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
 
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
@@ -172,31 +172,31 @@ def _pooling(name):
 def _conv(opname):
     def _impl(inputs, attr, params):
         attr['data_format'] = attr['data_format'].decode("utf-8")
-        input_shapes = attr['_input_shapes'][inputs[0]]
+        input_shape = attr['_input_shapes'][inputs[0]]
 
         # Extract kernel shape from params
         if inputs[1] in attr['_input_shapes']:
-            conv_param_weights = tuple(attr['_input_shapes'][inputs[1]])
+            weight_shape = tuple(attr['_input_shapes'][inputs[1]])
         else:
-            conv_param_weights = params[inputs[1].list_output_names()[0]].shape
+            weight_shape = params[inputs[1].list_output_names()[0]].shape
 
         if attr['data_format'] == 'NHWC':
-            kernel_h, kernel_w, _, depth_mult = conv_param_weights
-            attr['kernel_shape'] = (conv_param_weights[0], conv_param_weights[1])
+            kernel_h, kernel_w, _, depth_mult = weight_shape
+            attr['kernel_shape'] = (weight_shape[0], weight_shape[1])
             if opname == 'conv':
-                attr['channels'] = conv_param_weights[3]
+                attr['channels'] = weight_shape[3]
             else:
-                attr['channels'] = input_shapes[3] * depth_mult
+                attr['channels'] = input_shape[3] * depth_mult
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
         elif attr['data_format'] == 'NCHW':
-            depth_mult, _, kernel_h, kernel_w = conv_param_weights
-            attr['kernel_shape'] = (conv_param_weights[2], conv_param_weights[3])
+            depth_mult, _, kernel_h, kernel_w = weight_shape
+            attr['kernel_shape'] = (weight_shape[2], weight_shape[3])
             if opname == 'conv':
-                attr['channels'] = conv_param_weights[1]
+                attr['channels'] = weight_shape[1]
             else:
-                attr['channels'] = input_shapes[1] * depth_mult
+                attr['channels'] = input_shape[1] * depth_mult
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
@@ -219,11 +219,11 @@ def _conv(opname):
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
             if attr['data_format'] == 'NHWC':
-                in_h = input_shapes[1]
-                in_w = input_shapes[2]
+                in_h = input_shape[1]
+                in_w = input_shape[2]
             else:
-                in_h = input_shapes[2]
-                in_w = input_shapes[3]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
 
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
@@ -997,7 +997,10 @@ class GraphProto(object):
                         try:
                             input_sym = self._nodes[node_input_key].__getitem__(slot_num)
                         except NNVMError:
-                            # TODO: Fancy node name invalid slot neglect
+                            # TODO: Fancy node name with invalid slot should discard and
+                            # retrieve node input with zero'th(default) index.
+                            # eg: Node name:- 'Model/RNN/cell_0/RnnCell:6', in this case
+                            # name had fancy name convention and discard slot-id.
                             input_sym = self._nodes[node_input_key].__getitem__(0)
 
                         inputs.append(input_sym)
