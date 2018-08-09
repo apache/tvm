@@ -822,7 +822,7 @@ if __name__ == '__main__':
         _test_forward_concat_v2()
     test_forward_multi_input()
     test_forward_inception_v3()
-    #test_forward_inception_v1()
+    test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_variable()
     test_forward_resize_bilinear()
