@@ -1,9 +1,8 @@
+# pylint: disable=too-many-locals,too-many-arguments
 """Remote session API to support remote and distributed auto-tuning."""
 import tvm
 
 from tvm.contrib import graph_runtime, util
-
-import time
 
 def run_remote_module(session, graph, lib, params, input_data,
                       remote_dev_type="cpu", remote_dev_id=0,

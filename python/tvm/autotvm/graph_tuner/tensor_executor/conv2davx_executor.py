@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name,no-member,unused-argument,too-many-locals
+"""Conv2d executor class for intel AVX CPU."""
 from nnvm import symbol as sym
 from topi.nn.conv2d import _get_schedule_NCHWc, _get_alter_layout_schedule
 from topi.x86.conv2d_avx_common import AVXConvCommonFwd
@@ -6,10 +8,18 @@ from .base_tensor_executor import BaseTensorExecutor
 from ..utils import get_factor
 
 class Conv2dAVXExecutor(BaseTensorExecutor):
+    """Executor class to benchmark 2D convolution for Intel CPU with
+    AVX instruction set.
+    """
     def _get_op_symbol(self):
+        """Get conv2d_NCHWc operator symbol.
+        """
         return sym.contrib.conv2d_NCHWc
 
     def _workload2params(self, workload, schedule):
+        """Convert an input workload and schedule to
+        conv2d_NCHWc parameters.
+        """
         ic_bn = schedule.ic_bn
         oc_bn = schedule.oc_bn
         is_unit_kernel = workload.hkernel == 1 and workload.wkernel == 1
@@ -26,6 +36,9 @@ class Conv2dAVXExecutor(BaseTensorExecutor):
         return param_dict
 
     def _workload2ishapes(self, workload, schedule):
+        """Convert an input workload and schedule to
+        conv2d_NCHWc input shapes.
+        """
         batch_size = 1
         in_channel = workload.in_filter
         in_height = workload.height
@@ -36,6 +49,8 @@ class Conv2dAVXExecutor(BaseTensorExecutor):
         return {"data": data_shape}
 
     def _load_schedule(self, schedule):
+        """Load schedule for conv2d_NCHWc.
+        """
         @_get_schedule_NCHWc.register("cpu", override=True)
         def _get_schedule_NCHWc_x86(wkl, layout, out_layout):
             return schedule
@@ -45,6 +60,8 @@ class Conv2dAVXExecutor(BaseTensorExecutor):
             return schedule
 
     def _create_search_space(self, workload):
+        """Create search space for conv2d_NCHWc workload.
+        """
         ih, iw = workload.height, workload.width
         ic, oc = workload.in_filter, workload.out_filter
         hk, wk = workload.hkernel, workload.wkernel
@@ -80,4 +97,6 @@ class Conv2dAVXExecutor(BaseTensorExecutor):
         return search_space_dict
 
     def _get_layout_related_fields(self):
+        """Get layout transform related fields for conv2d_NCHWc schedule.
+        """
         return "ic_bn", "oc_bn"

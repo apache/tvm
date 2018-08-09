@@ -1,6 +1,8 @@
+# pylint: disable=too-many-instance-attributes,too-many-branches,too-many-statements,too-many-arguments,too-many-locals
+"""Stage class for dynamic programming tuner"""
 import numpy as np
 
-from .traverse_graph import is_elemlike_op
+from ..utils import is_elemlike_op
 
 _RULE_OUT_TIME = 99999
 
@@ -146,7 +148,8 @@ class DPStage(object):
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
                     input_sch = input_sch_list[input_sch_idx]["schedule"]
-                    in_dshape, out_dshape, is_valid = self._infer_shape_op(self._wkl, input_sch, current_sch)
+                    in_dshape, out_dshape, is_valid = self._infer_shape_op(
+                        self._wkl, input_sch, current_sch)
                     if is_valid:
                         layout_transform_key = str((in_dshape, out_dshape))
                         layout_transform_time = \
@@ -200,8 +203,8 @@ class DPStage(object):
 
         # Generate new states
         states_list, aligned_node_list = DPStage.align_states(input_node_list,
-                                                            self._global_stage_dict,
-                                                            self._global_sch_dict)
+                                                              self._global_stage_dict,
+                                                              self._global_sch_dict)
         aligned_shape = states_list[0][3].shape
         self._full_states = np.zeros(aligned_shape).astype("float32").flatten()
         self._full_states_idx = list(aligned_node_list)
@@ -217,7 +220,6 @@ class DPStage(object):
             target_sch_idx = (i % (target_multiplier *
                                    aligned_shape[target_major_axis])) // target_multiplier
             target_sch = self._global_sch_dict[target_node_idx][target_sch_idx]["schedule"]
-            target_wkl = self._global_wkl_dict[target_node_idx]
             if node_time_counted[0]:
                 new_state = 0
             else:

@@ -1,22 +1,28 @@
+# pylint: disable=too-many-arguments,too-many-locals,too-many-statements,too-many-instance-attributes,too-many-branches,too-many-nested-blocks,unused-argument,too-few-public-methods,no-self-use, fixme
 """API to execute an operator benchmark job."""
 
 import itertools
 import logging
 import enum
-import numpy as np
-import nnvm
-import tvm
 
 from abc import abstractmethod
 from multiprocessing import Process, Value, Array
+
+import numpy as np
+import nnvm
+
 from nnvm import symbol as sym
-from nnvm.compiler import graph_util, graph_attr
+from nnvm.compiler import graph_attr
 from nnvm.testing.init import Xavier
+
+import tvm
+
 from tvm.contrib import graph_runtime
-from ..utils import log_msg
-from ..rpc import run_remote_module
+from ..utils import log_msg, run_remote_module
+
 
 class RPCMode(enum.Enum):
+    """Enum class for rpc mode."""
     local = 0
     rpc_host = 1
     rpc_tracker = 2
@@ -33,10 +39,10 @@ class BaseTensorExecutor(object):
     Some methods need to be overridden before workload_execute can be called.
     """
     def __init__(self, schedule_dict=None, target="llvm", input_dtype="float32",
-                 weight_dtype="float32",min_exec_num=10, verbose=True,
-                 rpc_mode=RPCMode.local.value, rpc_hosts=None, rpc_ports=None, export_lib_format=".o",
-                 file_logger=None, console_logger=None, log_file="tensor_tuning.log",
-                 log_level=logging.DEBUG):
+                 weight_dtype="float32", min_exec_num=10, verbose=True,
+                 rpc_mode=RPCMode.local.value, rpc_hosts=None, rpc_ports=None,
+                 export_lib_format=".o", file_logger=None, console_logger=None,
+                 log_file="tensor_tuning.log", log_level=logging.DEBUG):
         """Create a tensor executor instance. RPC hosts mode is supported.(Create RPC host server on
         target devices and connect from host device).
 
@@ -117,6 +123,8 @@ class BaseTensorExecutor(object):
             else:
                 self._console_logger = console_logger
             self._console_logger.propagate = False
+        else:
+            self._console_logger = None
 
         self._sch_dict = schedule_dict if schedule_dict else {}
         self._target = target
@@ -145,7 +153,7 @@ class BaseTensorExecutor(object):
                     self._console_logger, "error", self._verbose)
 
     @property
-    def get_schedule_dict(self):
+    def schedule_dict(self):
         """Get schedule dictionary.
 
         Returns
@@ -249,6 +257,8 @@ class BaseTensorExecutor(object):
     def _atomic_exec(self, net, input_shapes, sch=None, random_low=0, random_high=1,
                      rpc_mode=RPCMode.local.value, rpc_host="localhost",
                      rpc_port="9090", extra_compile_params=None):
+        """Run a single operator benchmark job.
+        """
         if extra_compile_params is None:
             extra_compile_params = {}
         input_data_dict = {}
@@ -260,20 +270,20 @@ class BaseTensorExecutor(object):
             input_data_dict[name] = np.random.uniform(random_low, random_high,
                                                       size=shape).astype(dtype)
         # Random initialize weights
-        g = nnvm.graph.create(net)
-        g = graph_attr.set_shape_inputs(g, input_shapes)
-        g = g.apply("InferShape")
-        shape = g.json_attr("shape")
-        index = g.index
+        graph = nnvm.graph.create(net)
+        graph = graph_attr.set_shape_inputs(graph, input_shapes)
+        graph = graph.apply("InferShape")
+        shape = graph.json_attr("shape")
+        index = graph.index
         shape_dict = {x: shape[index.entry_id(x)] for x in index.input_names}
         initializer = Xavier()
         params = {}
-        for k, v in shape_dict.items():
-            if k == "data":
+        for key, val in shape_dict.items():
+            if key == "data":
                 continue
-            init_value = np.zeros(v).astype(self._weight_dtype)
-            initializer(k, init_value)
-            params[k] = tvm.nd.array(init_value, ctx=tvm.cpu())
+            init_value = np.zeros(val).astype(self._weight_dtype)
+            initializer(key, init_value)
+            params[key] = tvm.nd.array(init_value, ctx=tvm.cpu())
 
         if sch is not None:
             self._load_schedule(sch)
@@ -297,27 +307,31 @@ class BaseTensorExecutor(object):
         elif rpc_mode == RPCMode.rpc_host.value:
             session = tvm.rpc.connect(rpc_host, rpc_port)
             exec_time = run_remote_module(session, graph, lib, params, input_data_dict,
-                                          remote_dev_type=self._target, run_times=self._min_exec_num,
+                                          remote_dev_type=self._target,
+                                          run_times=self._min_exec_num,
                                           export_lib_format=self._export_lib_format)
             # Run more times to get stable data if necessary
             real_exec_number = self._get_real_exec_number(exec_time * 1000)
             if real_exec_number > self._min_exec_num:
                 exec_time = run_remote_module(session, graph, lib, params, input_data_dict,
-                                              remote_dev_type=self._target, run_times=real_exec_number,
+                                              remote_dev_type=self._target,
+                                              run_times=real_exec_number,
                                               export_lib_format=self._export_lib_format)
         else:
-           log_msg("RPC tracker not supported.", self._file_logger, self._console_logger,
-                   "error", self._verbose)
+            log_msg("RPC tracker not supported.", self._file_logger, self._console_logger,
+                    "error", self._verbose)
 
         exec_time *= 1000
         if self._verbose:
-            self._console_logger.info("Execution time for operator %s with input_shapes=%s, "
-                              "parameters=%s, schedule=%s: %f ms."
-                              % (self._get_op_symbol().__name__, str(input_shapes),
-                                 str(net.list_attr()), str(sch), exec_time))
+            msg = "Execution time for operator %s with input_shapes=%s, " \
+                  "parameters=%s, schedule=%s: %f ms." \
+                  % (self._get_op_symbol().__name__, str(input_shapes),
+                     str(net.list_attr()), str(sch), exec_time)
+            self._console_logger.info(msg)
         return exec_time
 
     def _process_wrapper(self, *args, **kwargs):
+        """Wrapper function for subprocess benchmark job."""
         ret_val = kwargs["ret_val"]
         exec_kwargs = dict(kwargs)
         del exec_kwargs["ret_val"]
@@ -326,8 +340,37 @@ class BaseTensorExecutor(object):
 
     def parameter_execute(self, param_list, input_shape_list, sch_list=None,
                           extra_compile_params=None, random_low=0, random_high=1):
+        """Execute a set of jobs with parameters and input shapes. Schedule list
+        is optional. When schedule list is provided, _load_schedule need to be overridden.
+
+        Parameters
+        ----------
+        param_list : list of dict from str to object
+            List of parameters.
+
+        input_shape_list : list of dict from str to tuple
+            List of input shapes.
+
+        sch_list : list of namedtuple, optional
+            List of schedules.
+
+        extra_compile_params : dict of str to object, optional
+            Extra parameters for NNVM graph compilation.
+
+        random_low : int, optional
+            Lower limit for random generated input data.
+
+        random_high : int, optional
+            Higher limit for random generated input data.
+
+        Returns
+        -------
+        Output : list of float
+            Execution time list.
+        """
         def _launch_atomic_job(proc_param, proc_input_shapes, proc_ret_val, **kwargs):
-            input_var_list = [sym.Variable(name=input_name) for input_name in proc_input_shapes.keys()]
+            input_var_list = [sym.Variable(name=input_name)
+                              for input_name in proc_input_shapes.keys()]
             op_sym = self._get_op_symbol()
             net = op_sym(*input_var_list, **proc_param)
             args = [net, proc_input_shapes]
@@ -352,12 +395,13 @@ class BaseTensorExecutor(object):
                                    extra_compile_params=extra_compile_params)
                 ret_list.append(ret_val.value)
         elif self._rpc_mode == RPCMode.rpc_host.value:
-            def _launch_group_jobs(proc_param_list, proc_input_shape_list, proc_sch_list, proc_ret_array, **kwargs):
-                for i, item in enumerate(zip(proc_param_list, proc_input_shape_list,
-                                             proc_sch_list)):
-                    proc_param, proc_input_shapes, proc_sch = item
+            def _launch_group_jobs(proc_param_list, proc_input_shape_list, proc_sch_list,
+                                   proc_ret_array, **kwargs):
+                for proc_param, proc_input_shapes, proc_sch in zip(proc_param_list,
+                                                                   proc_input_shape_list,
+                                                                   proc_sch_list):
                     atomic_ret_value = Value("f", 0.0)
-                    kwargs["sch"] = proc_sch_list[i]
+                    kwargs["sch"] = proc_sch
                     _launch_atomic_job(proc_param, proc_input_shapes, atomic_ret_value, **kwargs)
                     proc_ret_array[i] = atomic_ret_value.value
 
@@ -374,9 +418,10 @@ class BaseTensorExecutor(object):
                 end_idx = min(num_jobs, start_idx + num_jobs_per_proc)
                 ret_array = Array("f", range(end_idx - start_idx))
                 proc_ret_list.append(ret_array)
-                current_param_list = [param_list[j] for j in range(start_idx ,end_idx)]
-                current_input_shape_list = [input_shape_list[j] for j in range(start_idx ,end_idx)]
-                current_sch_list = [sch_list[j] if sch_list else None for j in range(start_idx ,end_idx)]
+                current_param_list = [param_list[j] for j in range(start_idx, end_idx)]
+                current_input_shape_list = [input_shape_list[j] for j in range(start_idx, end_idx)]
+                current_sch_list = [sch_list[j] if sch_list else None
+                                    for j in range(start_idx, end_idx)]
                 args = [current_param_list, current_input_shape_list, current_sch_list,
                         ret_array]
                 kwargs = {"rpc_mode": self._rpc_mode, "rpc_host": rpc_host, "rpc_port": rpc_port,
@@ -398,16 +443,42 @@ class BaseTensorExecutor(object):
 
         for i, item in enumerate(zip(param_list, input_shape_list, ret_list)):
             params, input_shapes, exec_time = item
-            self._file_logger.info("Execution time for operator %s with input_shapes=%s, "
-                                   "parameters=%s, schedule=%s: %f ms."
-                                   % (self._get_op_symbol().__name__, str(input_shapes),
-                                      str(params), str(sch_list[i] if sch_list else None),
-                                      exec_time))
+            msg = "Execution time for operator %s with input_shapes=%s, " \
+                  "parameters=%s, schedule=%s: %f ms." \
+                  % (self._get_op_symbol().__name__, str(input_shapes), str(params),
+                     str(sch_list[i] if sch_list else None), exec_time)
+            self._file_logger.info(msg)
         return ret_list
 
     def workload_execute(self, wkl_list, search_space_list=None,
-                         extra_compile_params=None, random_low=0, random_high=1,
-                         force_search=False):
+                         extra_compile_params=None, random_low=0,
+                         random_high=1, force_search=False):
+        """Execute a set of jobs with workloads and search space.
+
+        Search space dictionary is optional. If it is not specified, _create_search_space
+        need to be overridden.
+
+        Parameters
+        ----------
+        wkl_list : list of namedtuple
+            List of workloads.
+
+        search_space_list : list of dict from str to object, optional
+            List of search space dictionary.
+
+        extra_compile_params : dict of str to object, optional
+            Extra parameters for NNVM graph compilation.
+
+        random_low : int, optional
+            Lower limit for random generated input data.
+
+        random_high : int, optional
+            Higher limit for random generated input data.
+
+        force_search : boolean, optional
+            Whether to rerun benchmark although a workload already exists
+            in schedule dictionary of executor instance.
+        """
         if search_space_list is None:
             search_space_list = []
             for wkl in wkl_list:
@@ -416,16 +487,16 @@ class BaseTensorExecutor(object):
         for wkl, search_space_dict in zip(wkl_list, search_space_list):
             if wkl in self._sch_dict and not force_search:
                 continue
-            param_list, input_shape_list= [], []
+            param_list, input_shape_list = [], []
             sch_list = self._search_space2schedules(search_space_dict)
-            sch_template = search_space_dict["schedule_template_name"]
             for sch in sch_list:
                 param_list.append(self._workload2params(wkl, sch))
                 input_shape_list.append(self._workload2ishapes(wkl, sch))
             exec_time_list = self.parameter_execute(param_list, input_shape_list,
                                                     sch_list=sch_list,
                                                     extra_compile_params=extra_compile_params,
-                                                    random_low=random_low, random_high=random_high)
+                                                    random_low=random_low,
+                                                    random_high=random_high)
 
             # Order schedule by execution time and only preserve
             # the fastest schedule in schedules generating the same
@@ -433,8 +504,7 @@ class BaseTensorExecutor(object):
             sch_record_dict = {}
             for sch, exec_time in zip(sch_list, exec_time_list):
                 layout_related_fields = self._get_layout_related_fields()
-                sch_record_key = str((getattr(sch_template, field)
-                                      for field in layout_related_fields))
+                sch_record_key = str([getattr(sch, field) for field in layout_related_fields])
                 if sch_record_key not in sch_record_dict \
                         or exec_time < sch_record_dict[sch_record_key][1]:
                     sch_record_dict[sch_record_key] = (sch, exec_time)

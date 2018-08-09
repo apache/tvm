@@ -1,15 +1,17 @@
+# pylint: disable=too-many-arguments,too-many-locals,too-many-statements,too-many-instance-attributes,too-many-branches,too-many-nested-blocks
+"""Base class for graph tuner."""
 import logging
 import json
 
 from abc import abstractmethod
 from nnvm.compiler import graph_attr
-from .utils import get_wkl_map, get_real_node, is_input_node, shape2layout
-from .traverse_graph import get_in_nodes, get_out_nodes, is_elemlike_op
+from ..utils import get_wkl_map, get_real_node, is_input_node, shape2layout, \
+    get_in_nodes, get_out_nodes, is_elemlike_op
 from ..tensor_executor.base_tensor_executor import RPCMode
-from ..tensor_executor.layout_transform_executor import LayoutTransformExecutor
+from ..tensor_executor import LayoutTransformExecutor
 from ..utils import log_msg
 
-class BaseGraphTuner(object):
+class BaseGraphExecutor(object):
     """Class to search schedules considering both kernel execution time and
     layout transformation time.
 
@@ -111,6 +113,8 @@ class BaseGraphTuner(object):
             self._console_logger.addHandler(console_handler)
             self._console_logger.setLevel(log_level)
             self._console_logger.propagate = False
+        else:
+            self._console_logger = None
 
         graph = graph_attr.set_shape_inputs(graph, input_shapes)
         graph = graph.apply("InferShape")
@@ -164,9 +168,44 @@ class BaseGraphTuner(object):
             "infer_layout_shape_func": self._infer_layout_shape_func
         }
 
-    def benchmark_layout_transform(self, target, dtype="float32", min_exec_num=100,
+    def benchmark_layout_transform(self, target="llvm", dtype="float32", min_exec_num=100,
                                    rpc_mode=RPCMode.local.value, rpc_hosts=None, rpc_ports=None,
                                    random_low=0, random_high=1, export_lib_format=".o"):
+        """Benchmark all possible layout transformation in the graph,
+        given a set of schedule candidates for each workload of target operator.
+
+        Parameters
+        ----------
+        target : str, optional
+            Build target.
+
+        dtype : str, optional
+            Data type.
+
+        min_exec_num : int, optional
+            Minimum number of execution. Final execution time is the average of
+            all execution time.
+
+        rpc_mode : int, optional
+            RPC mode. 0 represents local mode. 1 represents rpc host mode.
+            2 represents rpc tracker mode. Currently only 0 and 1 are supported.
+
+        rpc_hosts : list of str, optional
+            List of rpc hosts for rpc host mode.
+
+        rpc_ports : list of int, optional
+            List of rpc ports for rpc host mode.
+
+        random_low : int, optional
+            Lower limit for random generated input data.
+
+        random_high : int, optional
+            Higher limit for random generated input data.
+
+        export_lib_format : str, optional
+            Remote lib format. Currently ".o", ".so"
+            and ".tar" are supported.
+        """
         node_anc_dict = get_in_nodes(self._graph, self._target_op, self._input_shapes.keys())
         g_dict = json.loads(self._graph.json())
         node_list = g_dict["nodes"]
@@ -184,8 +223,9 @@ class BaseGraphTuner(object):
                 if node["op"] == self._target_op:
                     c_idx = get_real_node(node_anc_dict, node_list, item, self._target_op)
                     t_idx = key
-                    if is_input_node(node_list, self._input_shapes.keys(), c_idx) \
-                            or is_input_node(node_list, self._input_shapes.keys(), t_idx):
+                    if is_input_node(
+                            node_list, self._input_shapes.keys(), c_idx
+                    ) or is_input_node(node_list, self._input_shapes.keys(), t_idx):
                         continue
                     wkl_c = self._wkl_dict[c_idx]
                     sch_current_list = self._sch_dict[c_idx]
@@ -194,7 +234,7 @@ class BaseGraphTuner(object):
                     wkl_t = self._wkl_dict[t_idx]
                     sch_target_list = self._sch_dict[t_idx]
                     sch_target = [sch_target_list[j]["schedule"]
-                                for j in range(min(self._max_sch_num, len(sch_target_list)))]
+                                  for j in range(min(self._max_sch_num, len(sch_target_list)))]
                 elif i == 0:
                     continue
                 else:
@@ -207,17 +247,17 @@ class BaseGraphTuner(object):
                     wkl_t = self._wkl_dict[t_idx]
                     sch_target_list = self._sch_dict[t_idx]
                     sch_target = [sch_target_list[j]["schedule"]
-                                for j in range(min(self._max_sch_num, len(sch_target_list)))]
+                                  for j in range(min(self._max_sch_num, len(sch_target_list)))]
 
                 for sch_c in sch_current:
                     for sch_t in sch_target:
                         if is_elemlike_op(node):
-                            in_shape, out_shape, is_valid = \
-                                self._infer_layout_shape_func(wkl_c, sch_c, sch_t, batch_size, True,
-                                                              self._elemlike_shape_dict[key])
+                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
+                                wkl_c, sch_c, sch_t, batch_size, True,
+                                self._elemlike_shape_dict[key])
                         else:
-                            in_shape, out_shape, is_valid = \
-                                self._infer_layout_shape_func(wkl_t, sch_c, sch_t, batch_size)
+                            in_shape, out_shape, is_valid = self._infer_layout_shape_func(
+                                wkl_t, sch_c, sch_t, batch_size)
                         layout_transform_key = str((in_shape, out_shape))
                         if is_valid and layout_transform_key not in layout_transform_key_set:
                             layout_transform_key_set.add(layout_transform_key)
@@ -233,18 +273,18 @@ class BaseGraphTuner(object):
                                 input_shape_list.append(input_shapes)
 
 
-        layout_transform_executor = LayoutTransformExecutor(schedule_dict={}, target=target, input_dtype=dtype,
-                                                            min_exec_num=min_exec_num, verbose=self._verbose,
-                                                            rpc_mode=rpc_mode, rpc_hosts=rpc_hosts,
-                                                            rpc_ports=rpc_ports, export_lib_format=export_lib_format,
-                                                            file_logger=self._file_logger,
-                                                            console_logger=self._console_logger,
-                                                            log_file=self._log_file, log_level=self._log_level)
+        layout_transform_executor = LayoutTransformExecutor(
+            schedule_dict={}, target=target, input_dtype=dtype,
+            min_exec_num=min_exec_num, verbose=self._verbose,
+            rpc_mode=rpc_mode, rpc_hosts=rpc_hosts,
+            rpc_ports=rpc_ports, export_lib_format=export_lib_format,
+            file_logger=self._file_logger,
+            console_logger=self._console_logger,
+            log_file=self._log_file, log_level=self._log_level)
         start_msg = "Start to benchmark layout transformation..."
         log_msg(start_msg, self._file_logger, self._console_logger, verbose=self._verbose)
-        layout_transform_time_list = layout_transform_executor.parameter_execute(param_list, input_shape_list,
-                                                                                 random_low=random_low,
-                                                                                 random_high=random_high)
+        layout_transform_time_list = layout_transform_executor.parameter_execute(
+            param_list, input_shape_list, random_low=random_low, random_high=random_high)
         end_msg = "Finished benchmarking layout transformation. " \
                   "%d possible layout transformation tested." % (len(layout_transform_time_list))
         log_msg(end_msg, self._file_logger, self._console_logger, verbose=self._verbose)
@@ -277,5 +317,6 @@ class BaseGraphTuner(object):
         return ret
 
     @abstractmethod
-    def run(self):
+    def run(self, **kwargs):
+        """Run graph tuning."""
         pass
