@@ -11,6 +11,7 @@ from .. import symbol as _sym
 from .. import graph as _graph
 from .. compiler import graph_util
 from .common import get_nnvm_op, AttrConverter as AttrConvert
+from nnvm import NNVMError
 
 __all__ = ['from_tensorflow']
 
@@ -134,8 +135,6 @@ def _pooling(name):
 
         # Fix padding
         input_shapes = attr['_input_shapes'][inputs[0]]
-        if len(input_shapes) == 1:
-            input_shapes = input_shapes[0]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -174,14 +173,10 @@ def _conv(opname):
     def _impl(inputs, attr, params):
         attr['data_format'] = attr['data_format'].decode("utf-8")
         input_shapes = attr['_input_shapes'][inputs[0]]
-        if len(input_shapes) == 1:
-            input_shapes = input_shapes[0]
 
         # Extract kernel shape from params
         if inputs[1] in attr['_input_shapes']:
             conv_param_weights = tuple(attr['_input_shapes'][inputs[1]])
-            if len(conv_param_weights) == 1:
-                conv_param_weights = conv_param_weights[0]
         else:
             conv_param_weights = params[inputs[1].list_output_names()[0]].shape
 
@@ -486,7 +481,7 @@ def _stridedSlice():
         new_axis_mask = int(attr.get('new_axis_mask', 0))
         shrink_axis_mask = int(attr.get('shrink_axis_mask', 0))
         data_shape = attr['_input_shapes'][inputs[0]]
-        data_dim = len(data_shape[0])
+        data_dim = len(data_shape)
         stride_dim = len(stride)
 
         def _transform_mask(stride_dim, ellipsis_mask):
@@ -516,26 +511,26 @@ def _stridedSlice():
                                      + new_axes_after_ellipsis), data_dim)
                     for i in range(final_index, to_index):
                         m_begin[final_index] = 0
-                        m_end[final_index] = data_shape[0][final_index]
+                        m_end[final_index] = data_shape[final_index]
                         m_stride[final_index] = 1
                         final_index += 1
                 elif not mask & new_axis_mask:
                     if final_index == len(m_begin):
                         break
                     if mask & begin_mask:
-                        m_begin[final_index] = data_shape[0][final_index] \
+                        m_begin[final_index] = data_shape[final_index] \
                                                      if stride[index] < 0 else 0
                     elif begin[index]:
                         m_begin[final_index] = begin[index]
                     if mask & end_mask:
                         m_end[final_index] = 0 if stride[index] < 0 \
-                                                 else data_shape[0][final_index]
+                                                 else data_shape[final_index]
                     elif end[index]:
                         m_end[final_index] = end[index]
                     m_stride[final_index] = stride[index]
                     if mask & shrink_axis_mask:
                         #Tensorflow make axis with shrink_axis_mask as dimension 1
-                        m_begin[final_index] = data_shape[0][final_index] + begin[index] \
+                        m_begin[final_index] = data_shape[final_index] + begin[index] \
                                                  if begin[index] < 0 else begin[index]
                         m_end[final_index] = begin[index] + 1
                         m_stride[final_index] = 1
@@ -596,8 +591,8 @@ def _LSTMBlockCell():
         forget_bias = attr.pop('forget_bias')
         input_shape = attr['_input_shapes'][inputs[0]]
         weight_shape = attr['_input_shapes'][inputs[3]]
-        batch_size, input_size = input_shape[0][0], input_shape[0][1]
-        num_hidden_layers = weight_shape[0][1]
+        batch_size, input_size = input_shape[0], input_shape[1]
+        num_hidden_layers = weight_shape[1]
         num_hidden = num_hidden_layers // 4
 
         in_data = _sym.reshape(in_data,
@@ -786,11 +781,9 @@ class RecurrentNetworks(object):
                                       num_layers, layer):
                 """LSTM cell warapper to prepare the inputs"""
                 input_shape = attr['_input_shapes'][inputs[0]]
-                if len(input_shape) == 1:
-                    input_shape = input_shape[0]
                 weight_shape = attr['_input_shapes'][inputs[3]]
                 batch_size = input_shape[0]
-                num_hidden = weight_shape[0][1] // 4
+                num_hidden = weight_shape[1] // 4
 
                 if layer == 0:
                     #Create initial states placeholder in case of first layer
@@ -982,9 +975,13 @@ class GraphProto(object):
                     node_input_key = node_input_key[0]
 
                     try:
-                        input_sym = self._nodes[node_input_key].__getitem__(slot_num)
-                        inputs.append(input_sym)
+                        try:
+                            input_sym = self._nodes[node_input_key].__getitem__(slot_num)
+                        except NNVMError:
+                            # TODO : Fancy node name invalid slot neglect
+                            input_sym = self._nodes[node_input_key].__getitem__(0)
 
+                        inputs.append(input_sym)
                         input_shapes[input_sym] = self._output_shapes[
                             node_input_key].__getitem__(slot_num)
                         attr['_input_shapes'] = input_shapes
