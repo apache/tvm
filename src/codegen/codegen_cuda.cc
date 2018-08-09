@@ -90,7 +90,11 @@ void CodeGenCUDA::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
         if (t.lanes() == 4) {
           // directly 4 8 bit int in integer.
           enable_int8_ = true;
-          os << "char4"; return;
+
+          // We use int for int8x4 instead of char4 because using char4 is
+          // likely to produce extra instructions to pack four int8 elements
+          // into 32-bit data.
+          os << "int"; return;
         } else if (t.lanes() == 8) {
           enable_int8_ = true;
           os << "int2"; return;
