@@ -28,7 +28,8 @@ except IMPORT_EXCEPT:
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
 
 
-TVMPyCapsuleDestructor = ctypes.CFUNCTYPE(None, ctypes.py_object)
+TVMPyCapsuleDestructor = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+_c_str_dltensor = c_str('dltensor')
 
 
 # used for PyCapsule manipulation
@@ -136,9 +137,10 @@ def from_dlpack(dltensor):
 
 def _dlpack_deleter(pycapsule):
     pycapsule = ctypes.py_object(pycapsule)
-    name = ctypes.pythonapi.PyCapsule_GetName(pycapsule)
-    ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, name)
-    #_LIB.TVMDLManagedTensorCallDeleter(ptr)
+    if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
+        ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
+        _LIB.TVMDLManagedTensorCallDeleter(ptr)
+        ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
 
 
 _c_dlpack_deleter = TVMPyCapsuleDestructor(_dlpack_deleter)
@@ -297,7 +299,7 @@ class NDArrayBase(_NDArrayBase):
         """
         handle = ctypes.c_void_p()
         check_call(_LIB.TVMArrayToDLPack(self.handle, ctypes.byref(handle)))
-        return ctypes.pythonapi.PyCapsule_New(handle, c_str("dltensor"), _c_dlpack_deleter)
+        return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
  
 
 def free_extension_handle(handle, type_code):
