@@ -997,7 +997,7 @@ class GraphProto(object):
                         try:
                             input_sym = self._nodes[node_input_key].__getitem__(slot_num)
                         except NNVMError:
-                            # TODO : Fancy node name invalid slot neglect
+                            # TODO: Fancy node name invalid slot neglect
                             input_sym = self._nodes[node_input_key].__getitem__(0)
 
                         inputs.append(input_sym)
