@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tvm
 import os
+import sys
 
 from ctypes import *
 from tvm.contrib.download import download
@@ -55,9 +56,18 @@ download(weights_url, weights_name)
 # Download and Load darknet library
 # ---------------------------------
 
-darknet_lib = 'libdarknet2.0.so'
-darknetlib_url = 'https://github.com/siju-samuel/darknet/blob/master/lib/' + \
-                        darknet_lib + '?raw=true'
+if sys.platform in ['linux', 'linux2']:
+    darknet_lib = 'libdarknet2.0.so'
+    darknetlib_url = 'https://github.com/siju-samuel/darknet/blob/master/lib/' + \
+                            darknet_lib + '?raw=true'
+elif sys.platform == 'darwin':
+    darknet_lib = 'libdarknet_mac2.0.so'
+    darknetlib_url = 'https://github.com/siju-samuel/darknet/blob/master/lib_osx/' + \
+                            darknet_lib + '?raw=true'
+else:
+    err = "Darknet lib is not supported on {} platform".format(sys.platform)
+    raise NotImplementedError(err)
+
 download(darknetlib_url, darknet_lib)
 
 #if the file doesnt exist, then exit normally.
