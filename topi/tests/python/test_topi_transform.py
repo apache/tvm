@@ -22,7 +22,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 
@@ -45,7 +45,7 @@ def verify_tranpose(in_shape, axes):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 
@@ -68,7 +68,7 @@ def verify_reshape(src_shape, dst_shape):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 
@@ -96,7 +96,7 @@ def verify_squeeze(src_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 def verify_concatenate(shapes, axis):
@@ -121,7 +121,7 @@ def verify_concatenate(shapes, axis):
         foo(*(data_nds + [out_nd]))
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 
@@ -146,7 +146,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         for out_nd, out_npy in zip(out_nds, out_npys):
             np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan"]:
+    for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm", "vulkan", "sdaccel"]:
         check_device(device)
 
 
@@ -204,7 +204,7 @@ def verify_flip(in_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "cuda", "opencl"]:
+    for device in ["llvm", "cuda", "opencl", "sdaccel"]:
         check_device(device)
 
 def verify_take(src_shape, indices_src, axis=None):
@@ -243,7 +243,7 @@ def verify_take(src_shape, indices_src, axis=None):
         foo(data_nd, indices_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
 
-    for device in ["llvm", "opencl"]:
+    for device in ["llvm", "opencl", "sdaccel"]:
         check_device(device)
 
 def verify_strided_slice(in_shape, begin, end, stride=None):
@@ -270,7 +270,7 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in ["llvm", "opencl"]:
+    for device in ["llvm", "opencl", "sdaccel"]:
         check_device(device)
 
 def test_strided_slice():
