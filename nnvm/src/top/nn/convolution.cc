@@ -556,7 +556,7 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DTransposeParam>)
 .set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DTransposeParam>)
 .set_attr<FInferShape>("FInferShape", Conv2DTransposeInferShape)
-.set_attr<FInferType>("FInferType", ElemwiseType<-1, 1>)
+.set_attr<FInferType>("FInferType", Conv2DInferType<Conv2DTransposeParam>)
 .set_attr<FCorrectLayout>("FCorrectLayout", Conv2DTransposeCorrectLayout)
 .set_num_outputs(1)
 .set_num_inputs(UseBiasNumInputs<Conv2DTransposeParam>)
