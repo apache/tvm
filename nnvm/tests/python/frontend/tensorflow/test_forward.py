@@ -12,6 +12,7 @@ import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
+from tensorflow.python.ops import nn
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
@@ -979,6 +980,7 @@ def _test_lrn(ip_shape, depth_radius=2, alpha=1e-05, beta=0.75, bias=1.0):
         np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
         sess.close()
 
+
 def test_forward_lrn():
     '''test local_response_normalization operator'''
     _test_lrn((4, 4, 4, 4))
@@ -987,7 +989,42 @@ def test_forward_lrn():
     _test_lrn((1, 3, 20, 20), 2, 1e-05, 0.75, 2.0)
 
 
+#######################################################################
+# l2_normalize
+# ------------
+def _test_l2_normalize(ishape, eps, axis):
+    """ testing l2 normalize (uses max, sum, square, sqrt frontend operators)"""
 
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+    inp_array.fill(1)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype, name="Placeholder")
+        nn.l2_normalize(in1,
+                        axis=axis,
+                        epsilon=eps,
+                        name=None,
+                        dim=None)
+
+        with tf.Session() as sess:
+            graph_def = tf.graph_util.convert_variables_to_constants(
+                sess,
+                sess.graph.as_graph_def(add_shapes=True),
+                ['l2_normalize'],
+                )
+            tf_output = run_tf_graph(sess, inp_array, 'Placeholder:0', 'Placeholder:0')
+            tvm_output = run_tvm_graph(graph_def,
+                                       inp_array,
+                                       "Placeholder",
+                                       tf_output.shape,
+                                       tf_output.dtype)
+
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
+            sess.close()
+def test_forward_l2_normalize():
+    _test_l2_normalize((1, 3, 20, 20), 0.001, (0,))
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -1011,3 +1048,4 @@ if __name__ == '__main__':
     test_forward_gather()
     test_forward_ptb()
     test_forward_lrn()
+    test_forward_l2_normalize()

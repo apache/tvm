@@ -5,7 +5,7 @@ import topi.testing
 from tvm.contrib import graph_runtime
 from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
-from nnvm.testing import ctx_list
+from nnvm.testing import ctx_list, utils
 
 def test_ewise_injective():
     x = sym.Variable("x")
@@ -77,7 +77,49 @@ def test_injective_reduce_injective():
         np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
+def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
+    with nnvm.compiler.build_config(opt_level=opt_level):
+        graph, lib, params = nnvm.compiler.build(sym, target, shape={"data":data.shape}, params=params)
+    module = graph_runtime.create(graph, lib, ctx)
+    module.set_input(**params)
+    module.set_input("data", data)
+    module.run()
+    out =  module.get_output(0, tvm.nd.empty(out_shape))
+    return out.asnumpy(), graph
+
+
+def test_fuse_conv2d_elu():
+    def elu(data):
+        return -0.5 * sym.relu(1 - sym.exp(data)) + sym.relu(data)
+
+    def get_sym(out_channel):
+        data = sym.Variable(name="data")
+        data = sym.conv2d(data=data, kernel_size=(3,3), channels=out_channel, padding=(1, 1),
+                          layout="NCHW", kernel_layout="OIHW", use_bias=True)
+        data = sym.batch_norm(data)
+        data = elu(data)
+        return data
+
+    in_channel = 8
+    out_channel = 16
+    size = 64
+    dshape = (1, in_channel, size, size)
+    oshape = (1, out_channel, size, size)
+    data = np.random.uniform(-1, 1, dshape).astype(np.float32)
+
+    for target, ctx in ctx_list():
+        sym1 = get_sym(out_channel)
+        sym2 = get_sym(out_channel)
+        _, params1 = utils.create_workload(sym1, 1, dshape[1:], seed=0)
+        _, params2 = utils.create_workload(sym2, 1, dshape[1:], seed=0)
+        output1, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
+        output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
+        np.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
+        # data, conv weight, bias, batch norm gamma, batch norm beta, conv op
+        assert g1.index.num_nodes == 6
+
 if __name__ == "__main__":
     test_injective_reduce_injective()
     test_ewise_injective()
     test_conv_ewise_injective()
+    test_fuse_conv2d_elu()
