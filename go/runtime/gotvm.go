@@ -468,16 +468,16 @@ func (tvmfunction TVMFunction) nativeCPtr() uintptr {
     return (uintptr)(tvmfunction)
 }
 
-// TVMFuncListGlobalNames is used to query global callable packed function names from TVM.
+// FuncListGlobalNames is used to query global callable packed function names from TVM.
 //
 // returns slice of string holding function names and error if any.
-func TVMFuncListGlobalNames() ([]string, error) {
+func FuncListGlobalNames() ([]string, error) {
     var str string
 
     ret := (int32)(C._TVMFuncListGlobalNames(C.native_voidp(&str)))
 
     if ret != 0 {
-        return nil, errors.New(TVMGetLastError())
+        return nil, errors.New(getTVMLastError())
     }
 
     str = goStringFromNative(*(*string)(unsafe.Pointer(&str)))
@@ -495,12 +495,12 @@ func TVMFuncListGlobalNames() ([]string, error) {
     return r, nil
 }
 
-// TVMGetLastError returns the detailed error string for any api called in TVM runtime.
+// getTVMLastError returns the detailed error string for any api called in TVM runtime.
 //
 // This is useful when any api returns non zero value.
 //
 // Returns golang string for the corresponding native error message.
-func TVMGetLastError() string {
+func getTVMLastError() string {
     errStr := C._TVMGetLastError()
     return goStringFromNative(*(*string)(unsafe.Pointer(&errStr)))
 }
@@ -535,7 +535,7 @@ func ModLoadFromFile(modpath string, args ...interface{}) (*TVMModule, error) {
     runtime.SetFinalizer(handle, finalizer)
 
     if ret != 0 {
-        return handle, errors.New(TVMGetLastError())
+        return handle, errors.New(getTVMLastError())
     }
 
     return handle, nil
@@ -573,7 +573,7 @@ func GetGlobalFunction(funcname string) (func (args ...interface{}) (interface{}
     }
 
     if ret != 0 {
-        return funccall, errors.New(TVMGetLastError())
+        return funccall, errors.New(getTVMLastError())
     }
 
     return funccall, nil
@@ -665,7 +665,7 @@ func EmptyArray(shape []int64, tvmtype TVMType, deviceType int32) (*TVMArray, er
     runtime.SetFinalizer(handle, finalizer)
 
     if ret != 0 {
-        return handle, errors.New(TVMGetLastError())
+        return handle, errors.New(getTVMLastError())
     }
 
     return handle, nil
@@ -720,7 +720,7 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (interface{}, er
         defer argsOut[0].deleteTVMValue()
 
         if nativeTVMFuncCall(handle, argsIn, typeCodes, argsOut, &retTypeCode) != 0 {
-            return nil, errors.New(TVMGetLastError())
+            return nil, errors.New(getTVMLastError())
         }
 
         if retTypeCode != KNull {
@@ -773,7 +773,7 @@ func (tvmmodule *TVMModule) GetFunction (
     }
 
     if ret != 0 {
-        return funccall, errors.New(TVMGetLastError())
+        return funccall, errors.New(getTVMLastError())
     }
 
     return funccall, nil

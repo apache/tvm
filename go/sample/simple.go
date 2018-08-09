@@ -25,7 +25,7 @@ func main() {
     fmt.Printf("TVM Version   : v%v\n", gotvm.TVMVersion)
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
 
-    // Import tvm module (dso)
+    // Import tvm module (so)
     modp, _ := gotvm.ModLoadFromFile(modLib)
     fmt.Printf("Module Imported\n")
 
@@ -43,7 +43,6 @@ func main() {
     fmt.Printf("Input and Output TVMArrays allocated\n")
 
     // Fill Input Data : inX , inY
-    // We use unsafe package to access underlying array to any type.
     inXSlice := inX.GetData().([]float32)
     inYSlice := inY.GetData().([]float32)
 
@@ -63,7 +62,7 @@ func main() {
 
     fmt.Printf("Module function myadd executed\n")
 
-    // We use unsafe package to access underlying array to any type.
+    // Print results
     outSlice := out.GetData().([]float32)
     fmt.Printf("Result:%v\n", outSlice)
 }

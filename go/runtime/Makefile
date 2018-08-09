@@ -38,3 +38,8 @@ clean:
 	(cd $(GOPATHDIR) && go clean -cache); fi
 	rm -rf gopath
 	rm -f *.a *.o
+
+lint:
+	@golint
+	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.cc
+	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.h

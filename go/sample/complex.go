@@ -30,7 +30,7 @@ func main() {
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
 
     // Query global functions available
-    funcNames, err := gotvm.TVMFuncListGlobalNames()
+    funcNames, err := gotvm.FuncListGlobalNames()
     if err != nil {
         fmt.Print(err)
         return
@@ -38,12 +38,12 @@ func main() {
 
     fmt.Printf("Global Functions:%v\n", funcNames)
 
-    // Import tvm module (dso)
+    // Import tvm module (so)
     modp, err := gotvm.ModLoadFromFile(modLib)
     if err != nil {
         fmt.Print(err)
-        fmt.Printf("Please copy tvm compiled modules here and update the sample.go accordingly.")
-        fmt.Printf("You may need to update modLib, modJSON, modParams, tshapeIn, tshapeOut")
+        fmt.Printf("Please copy tvm compiled modules here and update the sample.go accordingly.\n")
+        fmt.Printf("You may need to update modLib, modJSON, modParams, tshapeIn, tshapeOut\n")
         return
     }
     fmt.Printf("Module Imported:%p\n", modp)
@@ -119,7 +119,6 @@ func main() {
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input TVMArray
-    // We use unsafe package to access underlying array to any type.
     inSlice := inX.GetData().([]float32)
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
@@ -173,7 +172,7 @@ func main() {
     }
     fmt.Printf("Got Module Output \n")
 
-    // We use unsafe package to access underlying array to any type.
+    // Print results
     outSlice := out.GetData().([]float32)
     fmt.Printf("Result:%v\n", outSlice[:10])
 }

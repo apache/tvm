@@ -2,7 +2,14 @@
  *  Copyright (c) 2018 by Contributors
  * \brief gotvm native interface declaration.
  * \file gotvm.h
+ *
+ * These declarations are in cgo interface definition while calling API
+ * across golang and native C boundaries.
  */
+
+#ifndef GO_RUNTIME_GOTVM_H_
+#define GO_RUNTIME_GOTVM_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,8 +20,8 @@ extern "C" {
 
 // Some type devinitions for golang "C"
 typedef void *native_voidp;
-typedef long long native_long_long;
-typedef unsigned long long native_u_long_long;
+typedef int64_t native_long_long;
+typedef uint64_t native_u_long_long;
 
 // golang string in native structure
 typedef struct { char *p; int n; } _gostring_;
@@ -52,8 +59,8 @@ extern _gostring_ _TVMGetLastError(void);
 // TVMValue API
 extern uintptr_t _NewTVMValue();
 extern void _DeleteTVMValue(uintptr_t tvmval);
-extern void _TVMValueSetInt64(uintptr_t tvmval, long long val);
-extern long long _TVMValueGetInt64(uintptr_t tvmval);
+extern void _TVMValueSetInt64(uintptr_t tvmval, int64_t val);
+extern int64_t _TVMValueGetInt64(uintptr_t tvmval);
 extern void _TVMValueSetFloat64(uintptr_t tvmval, double val);
 extern double _TVMValueGetFloat64(uintptr_t tvmval);
 extern void _TVMValueSetHandle(uintptr_t tvmval, uintptr_t val);
@@ -87,3 +94,4 @@ extern void _DeleteTVMByteArray(uintptr_t tbytearray);
 #ifdef __cplusplus
 }
 #endif
+#endif  // GO_RUNTIME_GOTVM_H_
