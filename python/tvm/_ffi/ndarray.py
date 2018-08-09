@@ -126,6 +126,17 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
 
 
 def from_dlpack(dltensor):
+    """Produce an array from a DLPack tensor without memory copy
+
+    Parameters
+    ----------
+    dltensor : DLPack tensor
+
+    Returns
+    -------
+    arr: tvm.nd.NDArray
+        The array view of the tensor data.
+    """
     dltensor = ctypes.py_object(dltensor)
     name = ctypes.pythonapi.PyCapsule_GetName(dltensor)
     ptr = ctypes.pythonapi.PyCapsule_GetPointer(dltensor, name)
@@ -293,14 +304,18 @@ class NDArrayBase(_NDArrayBase):
         else:
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
-    
+
     def to_dlpack(self):
-        """Produce an array from a DLPack Tensor
+        """Produce an array from a DLPack Tensor without copying memory
+    
+        Returns
+        -------
+        dlpack : DLPack tensor view of the array data
         """
         handle = ctypes.c_void_p()
         check_call(_LIB.TVMArrayToDLPack(self.handle, ctypes.byref(handle)))
         return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
- 
+
 
 def free_extension_handle(handle, type_code):
     """Free c++ extension type handle
