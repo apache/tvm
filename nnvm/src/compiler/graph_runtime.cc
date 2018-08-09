@@ -100,6 +100,6 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._load_param_dict")
     *rv = ret;
   });
 
-TVM_REGISTER_NODE_TYPE(NDArrayWrapperNode);
+TVM_EXTERNAL_REGISTER_NODE_TYPE(NDArrayWrapperNode);
 }  // namespace compiler
 }  // namespace nnvm

@@ -41,4 +41,8 @@ TVM_REGISTER_API("_TVMSetStream")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     TVMSetStream(args[0], args[1], args[2]);
   });
+
+TVM_DLL::dmlc::Registry<::tvm::NodeFactoryReg > * GetTVMNodeFactoryRegistry() {
+  return ::dmlc::Registry<::tvm::NodeFactoryReg>::Get();
+}
 }  // namespace tvm
