@@ -7,11 +7,11 @@ from __future__ import print_function
 import numpy as np
 
 import tvm
+from nnvm import NNVMError
 from .. import symbol as _sym
 from .. import graph as _graph
 from .. compiler import graph_util
 from .common import get_nnvm_op, AttrConverter as AttrConvert
-from nnvm import NNVMError
 
 __all__ = ['from_tensorflow']
 
