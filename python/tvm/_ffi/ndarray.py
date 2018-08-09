@@ -126,7 +126,10 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
 
 
 def from_dlpack(dltensor):
-    """Produce an array from a DLPack tensor without memory copy
+    """Produce an array from a DLPack tensor without memory copy.
+    Retreives the underlying DLPack tensor's pointer to create an array from the
+    data. Removes the original DLPack tensor's destructor as now the array is
+    responsible for destruction.
 
     Parameters
     ----------
@@ -307,7 +310,7 @@ class NDArrayBase(_NDArrayBase):
 
     def to_dlpack(self):
         """Produce an array from a DLPack Tensor without copying memory
-    
+
         Returns
         -------
         dlpack : DLPack tensor view of the array data
