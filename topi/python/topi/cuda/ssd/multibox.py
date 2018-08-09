@@ -140,14 +140,9 @@ def transform_loc_ir_first(cls_prob, anchor, valid_count, temp_flag, temp_id, te
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     max_temp = int(math.sqrt(max_threads))
     ib = tvm.ir_builder.create()
-#    temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
-#                 ), name="temp_score", scope="global")
-    #score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
-    #cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
     score = ib.buffer_ptr(temp_score_out)
     cls_id = ib.buffer_ptr(temp_id)
     flag = ib.buffer_ptr(temp_flag)
-    #flag = ib.allocate('int32', (num_anchors, ), name="flag", scope="global")
     flag_temp = ib.allocate('int32', (max_threads, ), name="flag_temp", scope="global")
     flag_temp1 = ib.allocate('int32', (max_threads, ), name="flag_temp1", scope="global")
     tx = tvm.thread_axis("threadIdx.x")
@@ -160,17 +155,6 @@ def transform_loc_ir_first(cls_prob, anchor, valid_count, temp_flag, temp_id, te
     p_cls_prob = ib.buffer_ptr(cls_prob)
     p_anchor = ib.buffer_ptr(anchor)
     p_valid_count = ib.buffer_ptr(valid_count)
-
-    '''
-    with ib.if_scope(tid < batch_size * num_anchors * num_classes):
-        n = tid / (num_anchors * num_classes) % batch_size # number of batches
-        j = (tid / num_anchors) % num_classes # number of classes
-        i = tid % num_anchors # number of anchors
-        with ib.if_scope(j > 0):
-            temp_score[n * num_anchors * num_classes + i * (num_classes - 1) + j-1] = \
-            p_cls_prob[tid]
-        p_valid_count[n] = 0
-    '''
 
     with ib.if_scope(tid < batch_size * num_anchors):
         n = tid / num_anchors # number of batches
@@ -190,51 +174,6 @@ def transform_loc_ir_first(cls_prob, anchor, valid_count, temp_flag, temp_id, te
         with ib.else_scope():
             flag[i] = 0
 
-        '''
-        # num_anchors is large
-        with ib.if_scope(num_anchors > max_threads):
-            item_per_thread = num_anchors / max_threads + 1
-            with ib.if_scope((tid - 1) * item_per_thread < num_anchors):
-                flag_temp[tid] = 0
-                with ib.for_range(0, item_per_thread, name = "i") as i:
-                    with ib.if_scope(tid * item_per_thread + i < num_anchors):
-                        flag_temp[tid] += flag[tid * item_per_thread + i]
-                # scan for sums
-                flag_temp1[tid] = flag_temp[tid]
-                with ib.for_range(0, max_temp + 1, name = "k") as k:
-                    with ib.if_scope(tid - (tvm.const(1, "int32") << k) >= 0):
-                        with ib.if_scope(k % 2 == 0):
-                            flag_temp[tid] += flag_temp1[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp1[tid] = flag_temp[tid]
-                        with ib.else_scope():
-                            flag_temp1[tid] += flag_temp[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp[tid] = flag_temp1[tid]
-                # scan inside threads
-                with ib.for_range(0, item_per_thread, name = "i") as i:
-                    with ib.if_scope(tid * item_per_thread + i < num_anchors):
-                        with ib.if_scope(i == 0):
-                            flag[tid * item_per_thread + i] = flag_temp[tid]
-                        with ib.else_scope():
-                            flag[tid * item_per_thread + i] += flag[tid * item_per_thread + i - 1]
-                with ib.if_scope(tid * item_per_thread ):
-                    p_valid_count[n] = flag[num_anchors - 1] 
-
-        # num_anchors is small
-        with ib.else_scope():
-            with ib.if_scope(tid < num_anchors):
-                flag_temp[tid] = flag[tid]
-                with ib.for_range(0, tvm.floor(tvm.sqrt(num_anchors.astype("float32"))) + 1, name = "k") as k:
-                    with ib.if_scope(tid - (tvm.const(1, "int32") << k) >= 0):
-                        with ib.if_scope(k % 2 == 0):
-                            flag[tid] += flag_temp[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp[tid] = flag[tid]
-                        with ib.else_scope():
-                            flag_temp[tid] += flag[tid - (tvm.const(1, "int32") << k)]
-                            flag[tid] = flag_temp[tid]
-
-            with ib.if_scope(tid == 0):
-                p_valid_count[n] = flag[num_anchors - 1] 
-        '''
         with ib.if_scope(tid < batch_size):
             with ib.for_range(0, num_anchors, name="k") as k:
                 with ib.if_scope(k > 0):
@@ -306,16 +245,9 @@ def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, out, c
     max_threads = int(tvm.target.current_target(allow_none=False).max_num_threads)
     max_temp = int(math.sqrt(max_threads))
     ib = tvm.ir_builder.create()
-    #temp_score = ib.allocate('float32', (batch_size * (num_classes -1) * num_anchors, \
-    #             ), name="temp_score", scope="global")
-    #score = ib.allocate('float32', (num_anchors, ), name="score", scope="global")
     score = ib.buffer_ptr(temp_score_in)
-    #cls_id = ib.allocate('int32', (num_anchors, ), name="id", scope="global")
     cls_id = ib.buffer_ptr(temp_id)
     flag = ib.buffer_ptr(temp_flag) 
-#    flag = ib.allocate('int32', (num_anchors, ), name="flag", scope="global")
-#    flag_temp = ib.allocate('int32', (max_threads, ), name="flag_temp", scope="global")
-#    flag_temp1 = ib.allocate('int32', (max_threads, ), name="flag_temp1", scope="global")
     tx = tvm.thread_axis("threadIdx.x")
     bx = tvm.thread_axis("blockIdx.x")
     nthread_tx = max_threads
@@ -323,97 +255,10 @@ def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, out, c
     ib.scope_attr(tx, "thread_extent", nthread_tx)
     ib.scope_attr(bx, "thread_extent", nthread_bx)
     tid = bx * max_threads + tx
-#    p_cls_prob = ib.buffer_ptr(cls_prob)
     p_loc_pred = ib.buffer_ptr(loc_pred)
     p_anchor = ib.buffer_ptr(anchor)
-    #p_valid_count = ib.buffer_ptr(valid_count)
     p_out = ib.buffer_ptr(out)
 
-    '''
-    with ib.if_scope(tid < batch_size * num_anchors * num_classes):
-        n = tid / (num_anchors * num_classes) % batch_size # number of batches
-        j = (tid / num_anchors) % num_classes # number of classes
-        i = tid % num_anchors # number of anchors
-        with ib.if_scope(j > 0):
-            temp_score[n * num_anchors * num_classes + i * (num_classes - 1) + j-1] = \
-            p_cls_prob[tid]
-        p_valid_count[n] = 0
-    '''
-
-    '''
-    with ib.if_scope(tid < batch_size * num_anchors):
-        n = tid / num_anchors # number of batches
-        i = tid % num_anchors # number of anchors
-        score[i] = -1.0
-        cls_id[i] = 0
-        p_valid_count[n] = 0
-        with ib.for_range(0, num_classes-1, name="k") as k:
-            temp = p_cls_prob[n * num_anchors * num_classes + (k + 1) * num_anchors + i]#temp_score[tid * (num_classes - 1) + k]
-            with ib.if_scope(temp > score[i]):
-                cls_id[i] = k + 1
-                score[i] = temp
-        with ib.if_scope(tvm.all(cls_id[i] > 0, score[i] < threshold)):
-            cls_id[i] = 0
-        with ib.if_scope(cls_id[i] > 0):
-            flag[i] = 1
-        with ib.else_scope():
-            flag[i] = 0
-
-        '''
-    '''
-        # num_anchors is large
-        with ib.if_scope(num_anchors > max_threads):
-            item_per_thread = num_anchors / max_threads + 1
-            with ib.if_scope((tid - 1) * item_per_thread < num_anchors):
-                flag_temp[tid] = 0
-                with ib.for_range(0, item_per_thread, name = "i") as i:
-                    with ib.if_scope(tid * item_per_thread + i < num_anchors):
-                        flag_temp[tid] += flag[tid * item_per_thread + i]
-                # scan for sums
-                flag_temp1[tid] = flag_temp[tid]
-                with ib.for_range(0, max_temp + 1, name = "k") as k:
-                    with ib.if_scope(tid - (tvm.const(1, "int32") << k) >= 0):
-                        with ib.if_scope(k % 2 == 0):
-                            flag_temp[tid] += flag_temp1[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp1[tid] = flag_temp[tid]
-                        with ib.else_scope():
-                            flag_temp1[tid] += flag_temp[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp[tid] = flag_temp1[tid]
-                # scan inside threads
-                with ib.for_range(0, item_per_thread, name = "i") as i:
-                    with ib.if_scope(tid * item_per_thread + i < num_anchors):
-                        with ib.if_scope(i == 0):
-                            flag[tid * item_per_thread + i] = flag_temp[tid]
-                        with ib.else_scope():
-                            flag[tid * item_per_thread + i] += flag[tid * item_per_thread + i - 1]
-                with ib.if_scope(tid * item_per_thread ):
-                    p_valid_count[n] = flag[num_anchors - 1] 
-
-        # num_anchors is small
-        with ib.else_scope():
-            with ib.if_scope(tid < num_anchors):
-                flag_temp[tid] = flag[tid]
-                with ib.for_range(0, tvm.floor(tvm.sqrt(num_anchors.astype("float32"))) + 1, name = "k") as k:
-                    with ib.if_scope(tid - (tvm.const(1, "int32") << k) >= 0):
-                        with ib.if_scope(k % 2 == 0):
-                            flag[tid] += flag_temp[tid - (tvm.const(1, "int32") << k)]
-                            flag_temp[tid] = flag[tid]
-                        with ib.else_scope():
-                            flag_temp[tid] += flag[tid - (tvm.const(1, "int32") << k)]
-                            flag[tid] = flag_temp[tid]
-
-            with ib.if_scope(tid == 0):
-                p_valid_count[n] = flag[num_anchors - 1] 
-        '''
-    '''
-        with ib.if_scope(tid < batch_size):
-            with ib.for_range(0, num_anchors, name="k") as k:
-                with ib.if_scope(k > 0):
-                    flag[tid * num_anchors + k] += flag[tid * num_anchors + k - 1]
-            p_valid_count[n] = flag[tid * num_anchors + num_anchors - 1]
-            '''
-
-    
     with ib.if_scope(tid < batch_size * num_anchors):
         n = tid / num_anchors # number of batches
         i = tid % num_anchors # number of anchors

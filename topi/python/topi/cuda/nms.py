@@ -182,7 +182,7 @@ def sort_ir_out(data, index, new_index, loc, output, axis_mul_before, axis_mul_a
     body = ib.get()
     return body
 
-def sort_gpu(data, index, axis, is_descend):
+def sort_gpu(data, data_buf, index, index_buf, output_buf, axis, is_descend):
     ndim = len(data.shape)
     assert data.dtype == "float32", "Currently only supports input dtype to be float32"
     assert axis < ndim, "Axis out of boundary for input ndim %d" % ndim
@@ -200,8 +200,6 @@ def sort_gpu(data, index, axis, is_descend):
     dshape = axis_mul_before*axis_mul_after
     fshape = data.shape[axis] * dshape
 
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data", data_alignment=8)
-    index_buf = api.decl_buffer(index.shape, index.dtype, "index", data_alignment=8)
     loc_buf = api.decl_buffer(dshape, index.dtype, "sizes", data_alignment = 8)
     new_index_buf = api.decl_buffer(fshape, index.dtype, "index_new", data_alignment = 8)
     out_index_buf = api.decl_buffer(fshape, index.dtype, "index_out", data_alignment = 8)
@@ -243,6 +241,7 @@ def sort_gpu(data, index, axis, is_descend):
                         ins[0], ins[1], ins[2], ins[3], outs[0], axis_mul_before, axis_mul_after, axis),
                     dtype=[index.dtype],
                     in_buffers=[data_buf, index_buf, out_index_buf, loc_buf],
+                    out_buffers=output_buf,
                     tag="sorting_output")
     return out
 
@@ -440,7 +439,7 @@ def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk
     sort_tensor_buf = api.decl_buffer(score_shape, sort_tensor_dtype,
                                       "sort_tensor_buf", data_alignment=8)
 
-    sort_tensor = sort_gpu(score_tensor, valid_count, score_axis, True)
+    sort_tensor = sort_gpu(score_tensor, score_tensor_buf, valid_count, valid_count_buf, sort_tensor_buf, score_axis, True)
     out = \
         tvm.extern(data.shape,
                    [data, sort_tensor, valid_count],

@@ -145,18 +145,16 @@ def test_multibox_detection():
         tvm_cls_prob = tvm.nd.array(np_cls_prob.astype(cls_prob.dtype), ctx)
         tvm_loc_preds = tvm.nd.array(np_loc_preds.astype(loc_preds.dtype), ctx)
         tvm_anchors = tvm.nd.array(np_anchors.astype(anchors.dtype), ctx)
-#        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), ctx)
-        tvm_out1 = tvm.nd.array(np.zeros((batch_size, )).astype("int32"), ctx)
+        tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), ctx)
         f = tvm.build(s, [cls_prob, loc_preds, anchors, out], device)
-        f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out1)
-        print(tvm_out1.asnumpy())
-#        np.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
+        f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
+        np.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
     for device in ['llvm', 'opencl']:
         check_device(device)
 
 
 if __name__ == "__main__":
-    #test_nms()
-    #test_multibox_prior()
+    test_nms()
+    test_multibox_prior()
     test_multibox_detection()
