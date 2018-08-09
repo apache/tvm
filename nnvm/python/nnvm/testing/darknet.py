@@ -491,6 +491,9 @@ layer make_reorg_layer(int batch, int w, int h, int c, int stride, int reverse, 
 layer make_region_layer(int batch, int w, int h, int n, int classes, int coords);
 layer make_softmax_layer(int batch, int inputs, int groups);
 layer make_rnn_layer(int batch, int inputs, int outputs, int steps, ACTIVATION activation, int batch_normalize, int adam);
+layer make_crnn_layer(int batch, int h, int w, int c, int hidden_filters, int output_filters, int steps, ACTIVATION activation, int batch_normalize);
+layer make_lstm_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
+layer make_gru_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
 void free_network(network *net);
 """
                    )
