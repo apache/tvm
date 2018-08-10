@@ -130,6 +130,10 @@ class RPCSession(object):
         """Construct OpenCL device."""
         return self.context(4, dev_id)
 
+    def vulkan(self, dev_id=0):
+        """Construct Vulkan device."""
+        return self.context(7, dev_id)
+
     def metal(self, dev_id=0):
         """Construct Metal device."""
         return self.context(8, dev_id)
