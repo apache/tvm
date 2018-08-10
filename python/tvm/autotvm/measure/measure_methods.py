@@ -13,8 +13,8 @@ import threading
 
 import numpy as np
 
-from ... import rpc, ir_pass, build, build_config, nd, context, TVMError, register_func, \
-    target as _target
+from ... import ir_pass, build, build_config, nd, context, TVMError, register_func, \
+    target as _target, rpc as _rpc
 from ...contrib import nvcc, util, ndk
 
 from ..util import get_const_tuple
@@ -60,7 +60,7 @@ def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
         host = os.environ['TVM_TRACKER_HOST']
         port = int(os.environ['TVM_TRACKER_PORT'])
 
-    tracker = rpc.connect_tracker(host, port)
+    tracker = _rpc.connect_tracker(host, port)
     remote = tracker.request(device_key, priority=priority,
                              session_timeout=timeout)
     return remote
@@ -113,7 +113,7 @@ def create_measure_batch(task, option):
 
     measure_func = option['measure_func']
     number, repeat = option['number'], option['repeat']
-    timeout, parallel_num, do_fork = option['timeout'], option['parallel_num'], option['do_fork']
+    timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
     build_func = option['build_func']
     check_correctness = option['check_correctness']
     replay_db = option['replay_db']
@@ -134,7 +134,7 @@ def create_measure_batch(task, option):
                         use_popen=True, silent=True,
                         tracker_addr=(tracker.host, tracker.port))
 
-        measure_func = use_rpc(device_key, tracker.host, tracker.port)
+        measure_func = rpc(device_key, tracker.host, tracker.port)
         attach_objects = (server, tracker)
 
     build_kwargs = {}
@@ -218,18 +218,18 @@ def create_measure_batch(task, option):
             return partial_results
         return results
 
-    measure_batch.parallel_num = parallel_num
+    measure_batch.n_parallel = n_parallel
     # attach server and tracker object to avoid them of being garbage-collected
     measure_batch.attach_objects = attach_objects
     return measure_batch
 
 
-def use_rpc(key,
-            host=None,
-            port=None,
-            priority=1,
-            session_timeout=60,
-            pack_size=1):
+def rpc(key,
+        host=None,
+        port=None,
+        priority=1,
+        session_timeout=60,
+        pack_size=1):
     """
     Create a standard measure_func which uses RPC Tracker for measurement.
     This measure_func will request a device from the RPC Tracker and
