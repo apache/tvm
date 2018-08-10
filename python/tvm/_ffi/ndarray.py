@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import sys
 import ctypes
 import numpy as np
-from .base import _LIB, check_call, c_array, string_types, _FFI_MODE
+from .base import _LIB, check_call, c_array, string_types, _FFI_MODE, c_str
 from .runtime_ctypes import TVMType, TVMContext, TVMArray, TVMArrayHandle
 from .runtime_ctypes import TypeCode, tvm_shape_index_t
 
@@ -26,6 +26,17 @@ except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
     from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
+
+
+TVMPyCapsuleDestructor = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
+_c_str_dltensor = c_str('dltensor')
+
+
+# used for PyCapsule manipulation
+if hasattr(ctypes, 'pythonapi'):
+    ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
+    ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
+    ctypes.pythonapi.PyCapsule_New.restype = ctypes.py_object
 
 
 def context(dev_type, dev_id=0):
@@ -61,6 +72,7 @@ def context(dev_type, dev_id=0):
             raise ValueError("Unknown device type %s" % dev_type)
         dev_type = TVMContext.STR2MASK[dev_type]
     return TVMContext(dev_type, dev_id)
+
 
 def numpyasarray(np_data):
     """Return a TVMArray representation of a numpy array.
@@ -111,6 +123,42 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
         ctx.device_id,
         ctypes.byref(handle)))
     return _make_array(handle, False)
+
+
+def from_dlpack(dltensor):
+    """Produce an array from a DLPack tensor without memory copy.
+    Retreives the underlying DLPack tensor's pointer to create an array from the
+    data. Removes the original DLPack tensor's destructor as now the array is
+    responsible for destruction.
+
+    Parameters
+    ----------
+    dltensor : DLPack tensor
+
+    Returns
+    -------
+    arr: tvm.nd.NDArray
+        The array view of the tensor data.
+    """
+    dltensor = ctypes.py_object(dltensor)
+    name = ctypes.pythonapi.PyCapsule_GetName(dltensor)
+    ptr = ctypes.pythonapi.PyCapsule_GetPointer(dltensor, name)
+    handle = TVMArrayHandle()
+    check_call(_LIB.TVMArrayFromDLPack(ptr, ctypes.byref(handle)))
+    ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, None)
+    return _make_array(handle, False)
+
+
+def _dlpack_deleter(pycapsule):
+    pycapsule = ctypes.py_object(pycapsule)
+    if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
+        ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
+        _LIB.TVMDLManagedTensorCallDeleter(ptr)
+        ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
+
+
+_c_dlpack_deleter = TVMPyCapsuleDestructor(_dlpack_deleter)
+
 
 class NDArrayBase(_NDArrayBase):
     """A simple Device/CPU Array object in runtime."""
@@ -259,6 +307,18 @@ class NDArrayBase(_NDArrayBase):
         else:
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
+
+    def to_dlpack(self):
+        """Produce an array from a DLPack Tensor without copying memory
+
+        Returns
+        -------
+        dlpack : DLPack tensor view of the array data
+        """
+        handle = ctypes.c_void_p()
+        check_call(_LIB.TVMArrayToDLPack(self.handle, ctypes.byref(handle)))
+        return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
+
 
 def free_extension_handle(handle, type_code):
     """Free c++ extension type handle
