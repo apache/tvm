@@ -16,13 +16,16 @@ def convert_func(tvm_func, tensor_type, to_dlpack_func):
     to_dlpack_func: Function
         Function to convert the source tensors to DLPACK
     """
+    assert(callable(tvm_func))
+
     def _wrapper(*args):
         args = tuple(ndarray.from_dlpack(to_dlpack_func(arg))\
             if isinstance(arg, tensor_type) else arg for arg in args)
         return tvm_func(*args)
+
     return _wrapper
 
-def to_pytorch(tvm_func):
+def to_pytorch_func(tvm_func):
     """Convert a tvm function into one that accepts PyTorch tensors
 
     Parameters

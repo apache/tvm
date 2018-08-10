@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm.contrib.dlpack import to_pytorch
+from tvm.contrib.dlpack import to_pytorch_func
 
 def test():
     a = np.random.randn(1337)
@@ -31,7 +31,7 @@ def test():
         s = tvm.create_schedule(ZZ.op)
         f = tvm.build(s, [XX, YY, ZZ], target_host='llvm', name='f')
 
-        f_pytorch = to_pytorch(f)
+        f_pytorch = to_pytorch_func(f)
         zz2 = torch.empty(137,137)
         f_pytorch(xx, yy, zz2)
         np.testing.assert_allclose(zz.numpy(), zz2.numpy(), rtol=1e-6)

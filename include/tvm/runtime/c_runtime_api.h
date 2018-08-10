@@ -465,7 +465,10 @@ TVM_DLL int TVMArrayFromDLPack(DLManagedTensor* from,
 TVM_DLL int TVMArrayToDLPack(TVMArrayHandle from,
                              DLManagedTensor** out);
 
-/**/
+/*!
+ * \brief Delete (free) a DLManagedTensor's data.
+ * \param dltensor Pointer to the DLManagedTensor. 
+ */
 TVM_DLL void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor);
 
 /*!
