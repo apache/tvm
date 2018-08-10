@@ -1,6 +1,8 @@
 #!/bin/bash
 
 export PYTHONPATH=nnvm/python:python:topi/python
+# to avoid openblas threading error
+export OMP_NUM_THREADS=1
 
 echo "Running unittest..."
 python -m nose -v nnvm/tests/python/unittest || exit -1

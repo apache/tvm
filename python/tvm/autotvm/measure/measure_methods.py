@@ -345,7 +345,9 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
                     msg = msg.split('\n')[-2].split(": ")[1]
                 except Exception:  # pylint: disable=broad-except
                     pass
-                raise InstantiationError(msg)
+                res_pack.append(MeasureResult((InstantiationError(msg),),
+                                              MeasureErrorNo.INSTANTIATION_ERROR,
+                                              tstamp - tic, tstamp))
             else:
                 res_pack.append(MeasureResult((RuntimeError(msg),),
                                               MeasureErrorNo.COMPILE_HOST,
