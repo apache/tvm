@@ -155,7 +155,7 @@ class NDArray {
    * that is DLPack compatible.
    *
    * The memory is retained until the NDArray went out of scope.
-   *
+   * \param tensor The DLPack tensor to copy from.
    * \return The created NDArray view.
    */
   TVM_DLL static NDArray FromDLPack(DLManagedTensor* tensor);
