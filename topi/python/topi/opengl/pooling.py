@@ -63,6 +63,9 @@ def schedule_pool(outs, layout):
         The computation graph description of pool
         in the format of an array of tensors.
 
+    layout: str
+        Data layout.
+
     Returns
     -------
     s: Schedule
