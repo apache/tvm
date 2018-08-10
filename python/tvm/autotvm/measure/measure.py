@@ -49,7 +49,7 @@ def measure_option(measure_func,
                    number=1,
                    repeat=1,
                    timeout=60,
-                   parallel_num=1,
+                   n_parallel=1,
                    do_fork=True,
                    build_func='default',
                    check_correctness=False,
@@ -74,7 +74,7 @@ def measure_option(measure_func,
     timeout: int, optional
         Timeout for a whole batch. TimeoutError will be returned as the result if a
         task timeouts.
-    parallel_num: int, optional
+    n_parallel: int, optional
         The number of measurement task that can run in parallel.
         Set this according to the number of cpu cores (for compilation) and
         the number of devices you have (for measuring generate code).
@@ -119,7 +119,7 @@ def measure_option(measure_func,
         'number': number,
         'repeat': repeat,
         'timeout': timeout,
-        'parallel_num': parallel_num,
+        'n_parallel': n_parallel,
         'do_fork': do_fork,
         'build_func': build_func,
         'check_correctness': check_correctness,

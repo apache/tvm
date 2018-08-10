@@ -113,7 +113,7 @@ def create_measure_batch(task, option):
 
     measure_func = option['measure_func']
     number, repeat = option['number'], option['repeat']
-    timeout, parallel_num, do_fork = option['timeout'], option['parallel_num'], option['do_fork']
+    timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
     build_func = option['build_func']
     check_correctness = option['check_correctness']
     replay_db = option['replay_db']
@@ -218,7 +218,7 @@ def create_measure_batch(task, option):
             return partial_results
         return results
 
-    measure_batch.parallel_num = parallel_num
+    measure_batch.n_parallel = n_parallel
     # attach server and tracker object to avoid them of being garbage-collected
     measure_batch.attach_objects = attach_objects
     return measure_batch
