@@ -191,7 +191,7 @@ tuning_option = {
    'early_stopping': 250,
 
    'measure_option': autotvm.measure_option(
-       autotvm.use_rpc(device_key, host='localhost', port=9190),
+       autotvm.measure.rpc(device_key, host='localhost', port=9190),
        number=4,
        parallel_num=1,
        timeout=10,
