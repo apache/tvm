@@ -133,25 +133,24 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
+  Layout layout;
   if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
-    for (size_t i = 0; i < ilayouts->size(); ++i) {
-      const Layout& input = last_ilayouts->at(i).defined() ?
-                            last_ilayouts->at(i) : ilayouts->at(i);
-      NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
-    }
-    NNVM_ASSIGN_LAYOUT(*olayouts, 0, last_ilayouts->at(0));
+    CHECK(last_ilayouts->at(0).defined())
+      << "Current input layout is invalid but last input "
+         "layout is not defined for the first input.";
+    layout = last_ilayouts->at(0);
+  } else if (last_ilayouts->at(0).defined()
+             && ilayouts->at(0)[param.axis]
+                != last_ilayouts->at(0)[param.axis]) {
+    layout = last_ilayouts->at(0);
   } else {
-    if (last_ilayouts->at(0).defined()) {
-      CHECK_EQ(ilayouts->at(0)[param.axis], last_ilayouts->at(0)[param.axis])
-        << "Layout at concatenate axis mismatch: expect"
-        << last_ilayouts->at(0)[param.axis] << " but got "
-        << ilayouts->at(0)[param.axis];
-    }
-    for (size_t i = 0; i < ilayouts->size(); ++i) {
-      NNVM_ASSIGN_LAYOUT(*ilayouts, i, ilayouts->at(0));
-    }
-    NNVM_ASSIGN_LAYOUT(*olayouts, 0, ilayouts->at(0));
+    layout = ilayouts->at(0);
   }
+
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, layout);
+  }
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
   return true;
 }
 

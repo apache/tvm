@@ -54,7 +54,7 @@ def schedule_global_pool(outs):
 
 
 @generic.schedule_pool.register(["opengl"])
-def schedule_pool(outs):
+def schedule_pool(outs, layout):
     """Schedule for pool.
 
     Parameters

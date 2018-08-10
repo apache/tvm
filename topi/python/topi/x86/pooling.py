@@ -4,7 +4,7 @@ import tvm
 from .. import generic
 from .. import tag
 
-def _parallel_sch(sch, oshape):
+def _parallel_sch(sch, oshape, do_vectorize=False):
     def vectorize(fused_axis, num_parallel_axis, vectorize_limit=64):
         """Internal vectorization utility function."""
         reorder_axis = [fused_axis]
@@ -30,10 +30,13 @@ def _parallel_sch(sch, oshape):
 
     if len(sch.op.axis) >= 5:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1], sch.op.axis[2])
-        vectorize(fused, 3)
+        if do_vectorize:
+            vectorize(fused, 3)
 
     elif len(sch.op.axis) >= 3:
         fused = sch.fuse(sch.op.axis[0], sch.op.axis[1])
+        if do_vectorize:
+            vectorize(fused, 2)
     else:
         sch.parallel(sch.op.axis[0])
         return
@@ -41,7 +44,7 @@ def _parallel_sch(sch, oshape):
 
 
 @generic.schedule_pool.register(["cpu"])
-def schedule_pool(outs):
+def schedule_pool(outs, layout):
     """Schedule for pool
 
     Parameters
@@ -62,7 +65,9 @@ def schedule_pool(outs):
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
-        _parallel_sch(s[Pool], outs[0].shape)
+        do_vectorize = layout[-1] != "H" and layout[-1] != "W" \
+                       and layout[-1] != "h" and layout[-1] != "w"
+        _parallel_sch(s[Pool], outs[0].shape, do_vectorize)
 
     def traverse(OP):
         """Internal travserse function"""

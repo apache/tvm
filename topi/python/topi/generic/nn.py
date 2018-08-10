@@ -282,7 +282,7 @@ def schedule_dense(outs):
 
 
 @tvm.target.override_native_generic_func("schedule_pool")
-def schedule_pool(outs):
+def schedule_pool(outs, layout):
     """Schedule for pool
 
     Parameters
