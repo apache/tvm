@@ -65,8 +65,7 @@ def schedule_pool(outs, layout):
     def _schedule(PaddedInput, Pool):
         if isinstance(PaddedInput.op, tvm.tensor.ComputeOp):
             s[PaddedInput].compute_inline()
-        do_vectorize = layout[-1] != "H" and layout[-1] != "W" \
-                       and layout[-1] != "h" and layout[-1] != "w"
+        do_vectorize = layout[-1] not in "HWhw"
         _parallel_sch(s[Pool], outs[0].shape, do_vectorize)
 
     def traverse(OP):
