@@ -118,8 +118,8 @@ def progress_bar(total, prefix=''):
             ctx.cur_flops = flops
             ctx.best_flops = tuner.best_flops
 
-            sys.stdout.write('%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
-                             '| %.2f s\r' %
+            sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+                             '| %.2f s' %
                              (prefix, ctx.cur_flops/1e9, ctx.best_flops/1e9, ctx.ct, ctx.total,
                               time.time() - tic))
             sys.stdout.flush()
