@@ -123,18 +123,25 @@ export TVM_NDK_CC=/opt/android-toolchain-arm64/bin/aarch64-linux-android-g++
 python android_rpc_test.py
 ```
 
-This will compile TVM IR to shared libraries (CPU and OpenCL) and run vector addition on your Android device. On my test device, it gives following results.
+This will compile TVM IR to shared libraries (CPU, OpenCL and Vulkan) and run vector addition on your Android device. To verify compiled TVM IR shared libraries on OpenCL target set [`'test_opencl = True'`](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py#L25) and on Vulkan target set [`'test_vulkan = False'`](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py#L27) in  [tests/android_rpc_test.py](https://github.com/dmlc/tvm/blob/master/apps/android_rpc/tests/android_rpc_test.py), by default on CPU target will execute.
+On my test device, it gives following results.
 
 ```bash
-TVM: Initializing cython mode...
-[01:21:43] src/codegen/llvm/codegen_llvm.cc:75: set native vector to be 32 for target aarch64
-[01:21:43] src/runtime/opencl/opencl_device_api.cc:194: Initialize OpenCL platform 'Apple'
-[01:21:43] src/runtime/opencl/opencl_device_api.cc:214: opencl(0)='Iris' cl_device_id=0x1024500
-[01:21:44] src/codegen/llvm/codegen_llvm.cc:75: set native vector to be 32 for target aarch64
-Run GPU test ...
-0.000155807 secs/op
 Run CPU test ...
-0.00139824 secs/op
+0.000962932 secs/op
+
+Run GPU(OpenCL Flavor) test ...
+0.000155807 secs/op
+
+[23:29:34] /home/tvm/src/runtime/vulkan/vulkan_device_api.cc:674: Cannot initialize vulkan: [23:29:34] /home/tvm/src/runtime/vulkan/vulkan_device_api.cc:512: Check failed: __e == VK_SUCCESS Vulan Error, code=-9: VK_ERROR_INCOMPATIBLE_DRIVER
+
+Stack trace returned 10 entries:
+[bt] (0) /home/user/.local/lib/python3.6/site-packages/tvm-0.4.0-py3.6-linux-x86_64.egg/tvm/libtvm.so(dmlc::StackTrace[abi:cxx11]()+0x53) [0x7f477f5399f3]
+.........
+
+You can still compile vulkan module but cannot run locally
+Run GPU(Vulkan Flavor) test ...
+0.000225198 secs/op
 ```
 
 You can define your own TVM operators and test via this RPC app on your Android device to find the most optimized TVM schedule.
