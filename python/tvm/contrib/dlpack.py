@@ -16,7 +16,7 @@ def convert_func(tvm_func, tensor_type, to_dlpack_func):
     to_dlpack_func: Function
         Function to convert the source tensors to DLPACK
     """
-    assert(callable(tvm_func))
+    assert callable(tvm_func)
 
     def _wrapper(*args):
         args = tuple(ndarray.from_dlpack(to_dlpack_func(arg))\
