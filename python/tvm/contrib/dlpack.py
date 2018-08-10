@@ -1,6 +1,4 @@
 """Wrapping functions to bridge frameworks with DLPack support to TVM"""
-from decorator import decorate
-
 from .. import ndarray
 
 def convert_func(tvm_func, tensor_type, to_dlpack_func):
@@ -9,11 +7,14 @@ def convert_func(tvm_func, tensor_type, to_dlpack_func):
 
     Parameters
     ----------
-    tvm_func: Built tvm function operating on arrays
+    tvm_func: Function
+        Built tvm function operating on arrays
 
-    tensor_type: Type of the tensors of the target framework
+    tensor_type: Type
+        Type of the tensors of the target framework
 
-    to_dlpack_func: Function to convert the source tensors to DLPACK
+    to_dlpack_func: Function
+        Function to convert the source tensors to DLPACK
     """
     def _wrapper(*args):
         args = tuple(ndarray.from_dlpack(to_dlpack_func(arg))\
@@ -26,11 +27,13 @@ def to_pytorch(tvm_func):
 
     Parameters
     ----------
-    tvm_func: Built tvm function operating on arrays
+    tvm_func: Function
+        Built tvm function operating on arrays
 
     Returns
     -------
-    wrapped_func: Wrapped tvm function that operates on PyTorch tensors
+    wrapped_func: Function
+        Wrapped tvm function that operates on PyTorch tensors
     """
     import torch
     import torch.utils.dlpack
