@@ -15,13 +15,8 @@ class BaseGraphExecutor(object):
     """Class to search schedules considering both kernel execution time and
     layout transformation time.
 
-    Before creating a GlobalTuner instance, schedule candidates for all kernels in
-    graph should be provided through local searching schedules. Layout transforming
-    time for all potential layout transformation in graph can be achieved through
-    benchmark_graph_layout module.
-
-    After creating a GlobalTuner instance, call run() methods
-    to complete search.
+    Before creating a Graph Executor instance, schedule candidates for all kernels in
+    graph should be provided through tensor searching.
 
     TODO Develop more effective approximation/learning algorithm.
     """
