@@ -32,13 +32,13 @@ func main() {
 
     // Allocate input TVMArray : inX
     tshapeIn  := []int64{4}
-    inX, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    inX, _ := gotvm.EmptyArray(tshapeIn, "float32", gotvm.TVMContext{gotvm.KDLCPU, 0})
 
     // Allocate input TVMArray : inY
-    inY, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    inY, _ := gotvm.EmptyArray(tshapeIn, "float32")
 
     // Allocate output TVMArray : out
-    out, _ := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    out, _ := gotvm.EmptyArray(tshapeIn)
 
     fmt.Printf("Input and Output TVMArrays allocated\n")
 

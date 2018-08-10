@@ -78,14 +78,14 @@ func main() {
     tshapeOut := []int64{1, 1001}
 
     // Allocate input TVMArray
-    inX, err := gotvm.EmptyArray(tshapeIn, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    inX, err := gotvm.EmptyArray(tshapeIn, "float32")
     if err != nil {
         fmt.Print(err)
         return
     }
 
     // Allocate output TVMArray
-    out, err := gotvm.EmptyArray(tshapeOut, gotvm.NewTVMType("float32"), gotvm.KDLCPU)
+    out, err := gotvm.EmptyArray(tshapeOut)
     if err != nil {
         fmt.Print(err)
         return

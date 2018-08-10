@@ -87,20 +87,21 @@ var KDLUInt int32           = int32(C.kDLUInt)
 // KDLFloat is golang type code for TVM kDLFloat.
 var KDLFloat int32          = int32(C.kDLFloat)
 
-func getTVMVersion() string {
+func getTVMVersion() (retStr string) {
     version := C._TVM_VERSION()
     fmt.Printf("Welcome to gotvm\n")
-    return goStringFromNative(*(*string)(unsafe.Pointer(&version)))
+    retStr = goStringFromNative(*(*string)(unsafe.Pointer(&version)))
+    return
 }
 
 // Native string map for go string
 type nativeGoString struct { p uintptr; n int32 }
 
-func goStringFromNative (s string) string {
-  p := *(*nativeGoString)(unsafe.Pointer(&s))
-  r := string((*[0x7fffffff]byte)(unsafe.Pointer(p.p))[:p.n])
-  C._native_free(unsafe.Pointer(p.p))
-  return r
+func goStringFromNative (s string) (retStr string) {
+    p := *(*nativeGoString)(unsafe.Pointer(&s))
+    retStr = string((*[0x7fffffff]byte)(unsafe.Pointer(p.p))[:p.n])
+    C._native_free(unsafe.Pointer(p.p))
+    return
 }
 
 // TVMContext dtype corresponding to DLContext
@@ -109,11 +110,11 @@ type TVMContext struct {
     DeviceID    int32
 }
 
-// TVMType corresponding to data types.
-type TVMType struct {
-    Code uint8
-    Bits uint8
-    Lanes uint16
+// pTVMType corresponding to data types.
+type pTVMType struct {
+    code uint8
+    bits uint8
+    lanes uint16
 }
 
 // TVMValue Typemap for union exposed by TVM runtime API.
@@ -122,8 +123,9 @@ type TVMType struct {
 type TVMValue uintptr
 
 // nativeCPtr return the unitptr corresponding to TVMValue type.
-func (tvmval TVMValue) nativeCPtr() uintptr {
-    return (uintptr)(tvmval)
+func (tvmval TVMValue) nativeCPtr() (ret uintptr) {
+    ret = (uintptr)(tvmval)
+    return
 }
 
 // setVInt64 initializes the TVMValue object with given int64 value.
@@ -135,8 +137,9 @@ func (tvmval TVMValue) setVInt64(val int64) {
 
 
 // getVInt64 returns the int64 value inside the TVMValue.
-func (tvmval TVMValue) getVInt64() int64 {
-	return (int64)(C._TVMValueGetInt64(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVInt64() (retVal int64) {
+	retVal = (int64)(C._TVMValueGetInt64(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVFloat64 initializes the TVMValue object with given float64 value.
@@ -147,8 +150,9 @@ func (tvmval TVMValue) setVFloat64(val float64) {
 }
 
 // getVFloat64 returns the float64 value inside TVMValue.
-func (tvmval TVMValue) getVFloat64() float64 {
-	return (float64)(C._TVMValueGetFloat64(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVFloat64() (retVal float64) {
+	retVal = (float64)(C._TVMValueGetFloat64(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVHandle initializes the handle inside the TVMValue.
@@ -162,8 +166,9 @@ func (tvmval TVMValue) setVHandle(val uintptr) {
 }
 
 // getVHandle returns the uintptr handle
-func (tvmval TVMValue) getVHandle() uintptr {
-	return (uintptr)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVHandle() (retVal uintptr) {
+	retVal = (uintptr)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVStr intializes the TVMValue with given golang string object.
@@ -178,9 +183,10 @@ func (tvmval TVMValue) setVStr(val string) {
 
 
 // getVStr returns the golang string for the native string inside TVMValue.
-func (tvmval TVMValue) getVStr() string {
+func (tvmval TVMValue) getVStr() (retVal string) {
 	str := C._TVMValueGetStr(C.uintptr_t(tvmval))
-    return goStringFromNative(*(*string)(unsafe.Pointer(&str)))
+    retVal = goStringFromNative(*(*string)(unsafe.Pointer(&str)))
+    return
 }
 
 // unSetVStr release the memory allocated in setVStr
@@ -205,8 +211,9 @@ func (tvmval TVMValue) setVAHandle(ptvmarray TVMArray) {
 }
 
 // getVAHandle is used to get TVMArray handle in TVMValue.
-func (tvmval TVMValue) getVAHandle() TVMArray {
-	return (TVMArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVAHandle() (retVal TVMArray) {
+	retVal = (TVMArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVMHandle is used to set TVMModule handle in TVMValue.
@@ -218,8 +225,9 @@ func (tvmval TVMValue) setVMHandle(tvmmodule TVMModule) {
 }
 
 // getVMHandle is used to get TVMModule handle in TVMValue.
-func (tvmval TVMValue) getVMHandle() TVMModule {
-	return (TVMModule)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVMHandle() (retVal TVMModule) {
+	retVal = (TVMModule)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVFHandle is used to set TVMFunction handle in TVMValue.
@@ -231,8 +239,9 @@ func (tvmval TVMValue) setVFHandle(tvmfunction TVMFunction) {
 }
 
 // getVFHandle is used to get TVMFunction handle in TVMValue.
-func (tvmval TVMValue) getVFHandle() TVMFunction {
-	return (TVMFunction)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVFHandle() (retVal TVMFunction) {
+	retVal = (TVMFunction)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+    return
 }
 
 // setVBHandle is used to set TVMByteArray handle in TVMValue.
@@ -244,55 +253,57 @@ func (tvmval TVMValue) setVBHandle(tbytearray TVMByteArray) {
 }
 
 // getVBHandle is used to get TVMByteArray handle in TVMValue.
-func (tvmval TVMValue) getVBHandle() TVMByteArray {
-	return (TVMByteArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval TVMValue) getVBHandle() (retVal TVMByteArray) {
+	retVal = (TVMByteArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+    return
 }
 
 // setValue is used to set the given value in TVMValue.
 //
 // `val` is value of types accepted by TVMValue container or native union.
-func (tvmval TVMValue) setValue(val interface{}) (int32, error) {
+func (tvmval TVMValue) setValue(val interface{}) (retVal int32, err error) {
+    retVal = KNull
     switch val.(type) {
         case string:
             tvmval.setVStr(val.(string))
-            return KStr, nil
+            retVal = KStr
         case int64:
             tvmval.setVInt64(val.(int64))
-            return KDLInt, nil
+            retVal = KDLInt
         case float64:
             tvmval.setVFloat64(val.(float64))
-            return KDLFloat, nil
+            retVal = KDLFloat
         case TVMModule:
             tvmval.setVMHandle(val.(TVMModule))
-            return KModuleHandle, nil
+            retVal = KModuleHandle
         case *TVMModule:
             tvmval.setVMHandle(*(val.(*TVMModule)))
-            return KModuleHandle, nil
+            retVal = KModuleHandle
         case TVMFunction:
             tvmval.setVFHandle(val.(TVMFunction))
-            return KFuncHandle, nil
+            retVal = KFuncHandle
         case TVMByteArray:
             tvmval.setVBHandle(val.(TVMByteArray))
-            return KBytes, nil
+            retVal = KBytes
         case *TVMByteArray:
             tvmval.setVBHandle(*(val.(*TVMByteArray)))
-            return KBytes, nil
+            retVal = KBytes
         case TVMArray:
             tvmval.setVAHandle(val.(TVMArray))
-            return KArrayHandle, nil
+            retVal = KArrayHandle
         case *TVMArray:
             tvmval.setVAHandle(*(val.(*TVMArray)))
-            return KArrayHandle, nil
+            retVal = KArrayHandle
         default:
-            return KNull, errors.New("Given value Type not defined for TVMValue\n");
+            err = fmt.Errorf("Given value Type not defined for TVMValue: %v : %T\n", val, val);
     }
-    return KNull, nil
+    return
 }
 
 // getFinalizedValue is used to get the given from TVMValue container or union.
 //
 // `tvmtype` is types accepted by TVMValue container or native union.
-func (tvmval TVMValue) getFinalizedValue(tvmtype int32) (interface{}, error) {
+func (tvmval TVMValue) getFinalizedValue(tvmtype int32) (retVal interface{}, err error) {
     finalizerModule := func(mhandle *TVMModule) {
         nativeTVMModFree(*mhandle)
         mhandle = nil
@@ -305,34 +316,37 @@ func (tvmval TVMValue) getFinalizedValue(tvmtype int32) (interface{}, error) {
 
     switch tvmtype {
         case KDLInt:
-            return tvmval.getVInt64(), nil
+            retVal = tvmval.getVInt64()
         case KDLFloat:
-            return tvmval.getVFloat64(), nil
+            retVal = tvmval.getVFloat64()
         case KStr:
             str := tvmval.getVStr()
             tvmval.unSetVStr()
-            return str, nil
+            retVal = str
         case KModuleHandle:
             handle := new(TVMModule)
             *handle = tvmval.getVMHandle()
             runtime.SetFinalizer(handle, finalizerModule)
-            return handle, nil
+            retVal = handle
         case KFuncHandle:
             handle := new(TVMFunction)
             *handle = tvmval.getVFHandle()
             runtime.SetFinalizer(handle, finalizerFunction)
-            return handle, nil
+            retVal = handle
+        default:
+            err = fmt.Errorf("Cannot get requested value type from given TVMValue: %v\n", tvmtype);
     }
 
-    return nil, errors.New("Cannot get requested value type from given TVMValue")
+    return
 }
 
 // newTVMValue initialize the TVMValue native object.
 //
 // Before calling any setter or getter on any uderlaying objects of TVMValue
 // it should be initialized by thi API.
-func newTVMValue() (TVMValue) {
-	return (TVMValue(C._NewTVMValue()))
+func newTVMValue() (retVal TVMValue) {
+	retVal = (TVMValue(C._NewTVMValue()))
+    return
 }
 
 // deleteTVMValue free the native TVMValue object which is allocated in newTVMValue.
@@ -346,12 +360,13 @@ func (tvmval TVMValue) deleteTVMValue() {
 type TVMArray uintptr
 
 // nativeCPtr returns type freed uintptr for the TVMArray.
-func (ptvmarray TVMArray) nativeCPtr() uintptr {
-    return (uintptr)(ptvmarray)
+func (ptvmarray TVMArray) nativeCPtr() (retVal uintptr) {
+    retVal = (uintptr)(ptvmarray)
+    return
 }
 
 // GetData returns the unitptr of for the data inside TVMArray.
-func (ptvmarray TVMArray) GetData() interface{} {
+func (ptvmarray TVMArray) GetData() (retVal interface{}) {
     val := (uintptr)(C._DLTensorGetData(C.uintptr_t(ptvmarray)))
     shape := ptvmarray.GetShape()
     size := int64(1)
@@ -361,37 +376,40 @@ func (ptvmarray TVMArray) GetData() interface{} {
 
     outSlice := (*[1<<31] float32)(unsafe.Pointer(val))[:size:size]
 
-    return outSlice
+    retVal = outSlice
+    return
 }
 
 // GetNdim returns the number of dimentions in TVMArray
-func (ptvmarray TVMArray) GetNdim() int32 {
-    return (int32)(C._DLTensorGetNdim(C.uintptr_t(ptvmarray)))
+func (ptvmarray TVMArray) GetNdim() (retVal int32) {
+    retVal = (int32)(C._DLTensorGetNdim(C.uintptr_t(ptvmarray)))
+    return
 }
 
 // GetShape returns the number of dimentions in TVMArray
-func (ptvmarray TVMArray) GetShape() []int64 {
+func (ptvmarray TVMArray) GetShape() (retVal []int64) {
     shapeArr :=  C._DLTensorGetShape(C.uintptr_t(ptvmarray))
     ndim := ptvmarray.GetNdim()
 
     shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapeArr))[:ndim:ndim]
-    retVal := make([]int64, ndim)
+    retVal = make([]int64, ndim)
     copy(retVal, shapeSlice)
 
-    return retVal
+    return
 }
 
 // GetDType returns the number of dimentions in TVMArray
-func (ptvmarray TVMArray) GetDType() TVMType {
-    retVal := C._DLTensorGetDType(C.uintptr_t(ptvmarray))
-    //return goStringFromNative(*(*string)(unsafe.Pointer(&str)))
-    return *(*TVMType)(unsafe.Pointer(&retVal))
+func (ptvmarray TVMArray) GetDType() (retVal string) {
+    ret := C._DLTensorGetDType(C.uintptr_t(ptvmarray))
+    retVal, _ = dtypeFromTVMType(*(*pTVMType)(unsafe.Pointer(&ret)))
+    return
 }
 
 // GetCtx returns the number of dimentions in TVMArray
-func (ptvmarray TVMArray) GetCtx() TVMContext {
-    retVal := C._DLTensorGetCtx(C.uintptr_t(ptvmarray))
-    return *(*TVMContext)(unsafe.Pointer(&retVal))
+func (ptvmarray TVMArray) GetCtx() (retVal TVMContext) {
+    ret := C._DLTensorGetCtx(C.uintptr_t(ptvmarray))
+    retVal = *(*TVMContext)(unsafe.Pointer(&ret))
+    return
 }
 
 // TVMByteArray type wraps the TVMByteArray of C runtime API.
@@ -401,8 +419,9 @@ type TVMByteArray uintptr
 
 
 // nativeCPtr returns the type freed unitptr for TVMByteArray.
-func (tbytearray TVMByteArray) nativeCPtr() uintptr {
-	return (uintptr)(tbytearray)
+func (tbytearray TVMByteArray) nativeCPtr() (retVal uintptr) {
+	retVal = (uintptr)(tbytearray)
+    return
 }
 
 // SetData is used to intialize TVMByteArray from a golang string object.
@@ -416,9 +435,10 @@ func (tbytearray TVMByteArray) setData(val string) {
 }
 
 // GetData returns the golang string corresponding to the TVMByteArray.
-func (tbytearray TVMByteArray) GetData() string {
+func (tbytearray TVMByteArray) GetData() (retVal string) {
 	val := C._TVMByteArrayGetData(C.uintptr_t(tbytearray))
-	return goStringFromNative(*(*string)(unsafe.Pointer(&val)))
+	retVal = goStringFromNative(*(*string)(unsafe.Pointer(&val)))
+    return
 }
 
 // NewTVMByteArray initilizes the native TVMByteArray object with given byte slice
@@ -426,7 +446,7 @@ func (tbytearray TVMByteArray) GetData() string {
 //`val` is the golang byte array used to initialize.
 //
 // returns pointer to newly created TVMByteArray.
-func NewTVMByteArray(val []uint8) *TVMByteArray {
+func NewTVMByteArray(val []uint8) (retVal *TVMByteArray) {
 
     handle := new(TVMByteArray)
     *handle = TVMByteArray(C._NewTVMByteArray())
@@ -440,7 +460,8 @@ func NewTVMByteArray(val []uint8) *TVMByteArray {
 
     (*handle).setData(string(val))
 
-    return handle
+    retVal = handle
+    return
 }
 
 // deleteTVMByteArray releases the allocated native object of TVMByteArray.
@@ -456,43 +477,46 @@ func (tbytearray TVMByteArray) deleteTVMByteArray() {
 type TVMModule uintptr
 
 // nativeCPtr returns type freed uintptr for the TVMModule.
-func (tvmmodule TVMModule) nativeCPtr() uintptr {
-    return (uintptr)(tvmmodule)
+func (tvmmodule TVMModule) nativeCPtr() (retVal uintptr) {
+    retVal = (uintptr)(tvmmodule)
+    return
 }
 
 // TVMFunction type in golang hold pointer for the TVMFunction handle.
 type TVMFunction uintptr
 
 // nativeCPtr returns type freed uintptr for the TVMFunction.
-func (tvmfunction TVMFunction) nativeCPtr() uintptr {
-    return (uintptr)(tvmfunction)
+func (tvmfunction TVMFunction) nativeCPtr() (retVal uintptr) {
+    retVal = (uintptr)(tvmfunction)
+    return
 }
 
 // FuncListGlobalNames is used to query global callable packed function names from TVM.
 //
 // returns slice of string holding function names and error if any.
-func FuncListGlobalNames() ([]string, error) {
+func FuncListGlobalNames() (retVal []string, err error) {
     var str string
 
     ret := (int32)(C._TVMFuncListGlobalNames(C.native_voidp(&str)))
 
     if ret != 0 {
-        return nil, errors.New(getTVMLastError())
+        err = errors.New(getTVMLastError())
+        return
     }
 
     str = goStringFromNative(*(*string)(unsafe.Pointer(&str)))
     bin := binary.LittleEndian
     size := bin.Uint64([]byte(str[:8]))
     str = str[8:]
-    r := make([]string, size)
-    for i := range r {
+    retVal = make([]string, size)
+    for i := range retVal {
         len := bin.Uint64([]byte(str[:8]))
         str = str[8:]
-        r[i] = str[:len]
+        retVal[i] = str[:len]
         str = str[len:]
     }
 
-    return r, nil
+    return
 }
 
 // getTVMLastError returns the detailed error string for any api called in TVM runtime.
@@ -500,9 +524,10 @@ func FuncListGlobalNames() ([]string, error) {
 // This is useful when any api returns non zero value.
 //
 // Returns golang string for the corresponding native error message.
-func getTVMLastError() string {
+func getTVMLastError() (retVal string) {
     errStr := C._TVMGetLastError()
-    return goStringFromNative(*(*string)(unsafe.Pointer(&errStr)))
+    retVal = goStringFromNative(*(*string)(unsafe.Pointer(&errStr)))
+    return
 }
 
 // ModLoadFromFile loads the given module in TVM runtime.
@@ -512,7 +537,7 @@ func getTVMLastError() string {
 // `args` is an optional arguments of ["dll", "dylib", "dso", "so"] with default value "so"
 //
 // returns pointer to TVMModule and err or if any.
-func ModLoadFromFile(modpath string, args ...interface{}) (*TVMModule, error) {
+func ModLoadFromFile(modpath string, args ...interface{}) (retVal *TVMModule, err error) {
     modtype := "so"
 
     if len(args) > 0 {
@@ -524,6 +549,11 @@ func ModLoadFromFile(modpath string, args ...interface{}) (*TVMModule, error) {
     ret := (int32)(C._TVMModLoadFromFile(*(*C._gostring_)(unsafe.Pointer(&modpath)),
                                          *(*C._gostring_)(unsafe.Pointer(&modtype)),
                                          C.native_voidp(&modp)))
+    if ret != 0 {
+        err = errors.New(getTVMLastError())
+        return
+    }
+
     handle := new(TVMModule)
     *handle = TVMModule(modp)
 
@@ -534,12 +564,8 @@ func ModLoadFromFile(modpath string, args ...interface{}) (*TVMModule, error) {
 
     runtime.SetFinalizer(handle, finalizer)
 
-    if ret != 0 {
-        return handle, errors.New(getTVMLastError())
-    }
-
-    return handle, nil
-
+    retVal = handle
+    return
 }
 
 // GetGlobalFunction is to get handle to the given global function name.
@@ -552,11 +578,16 @@ func ModLoadFromFile(modpath string, args ...interface{}) (*TVMModule, error) {
 // The closure function can be used to call TVMFunction with arguments directly.
 //
 // Variadic arguments can be any type which can be embed into TVMValue.
-func GetGlobalFunction(funcname string) (func (args ...interface{}) (interface{}, error), error) {
+func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (interface{}, error), err error) {
     var funp uintptr
 
     ret := (int32)(C._TVMFuncGetGlobal(*(*C._gostring_)(unsafe.Pointer(&funcname)),
                                        C.native_voidp(&funp)))
+
+    if ret != 0 {
+        err = errors.New(getTVMLastError())
+        return
+    }
 
     handle := new(TVMFunction)
     *handle = TVMFunction(funp)
@@ -572,12 +603,8 @@ func GetGlobalFunction(funcname string) (func (args ...interface{}) (interface{}
         return callNativeFunction(*handle, args)
     }
 
-    if ret != 0 {
-        return funccall, errors.New(getTVMLastError())
-    }
-
-    return funccall, nil
-
+    retVal = funccall
+    return
 }
 
 // nativeTVMArrayAlloc is used to allocate TVMArray from given attributes.
@@ -592,25 +619,52 @@ func GetGlobalFunction(funcname string) (func (args ...interface{}) (interface{}
 //
 // `deviceID` indicates device index if multiple devices of same type present.
 //
-// return argument holding native pointer to newly created TVMArray and native return value.
+// return argument holding native pointer to newly created TVMArray and error is any.
 func nativeTVMArrayAlloc(shape []int64, ndim int32,
                    dtypeCode int32, dtypeBits int32, dtypeLanes int32,
-                   deviceType int32, deviceID int32) (uintptr, int32) {
-    var ret int32
-
-    var newTvmArray uintptr
-
-    ret = (int32)(C._TVMArrayAlloc(C.native_voidp(&(shape[0])), C.int(ndim),
+                   deviceType int32, deviceID int32) (retVal uintptr, err error) {
+    ret := (int32)(C._TVMArrayAlloc(C.native_voidp(&(shape[0])), C.int(ndim),
                                    C.int(dtypeCode), C.int(dtypeBits), C.int(dtypeLanes),
-                                   C.int(deviceType), C.int(deviceID), C.native_voidp(&newTvmArray)))
+                                   C.int(deviceType), C.int(deviceID), C.native_voidp(&retVal)))
 
-    return newTvmArray, ret
+    if ret != 0 {
+        err = errors.New(getTVMLastError())
+        return
+    }
+
+    return
 }
 
-// NewTVMType return the TVMType corresponding to given dtype
+// data type to pTVMType mapping
+var dtypeMap = map[string] pTVMType {
+    "int32": pTVMType{0, 32, 1},
+    "int64": pTVMType{0, 64, 1},
+    "uint32": pTVMType{1, 32, 1},
+    "uint64": pTVMType{1, 64, 1},
+    "float32": pTVMType{2, 32, 1},
+    "float64": pTVMType{2, 64, 1},
+    "handle": pTVMType{3, 64, 1},
+}
+
+// dtypeFromTVMType return the pTVMType corresponding to given dtype
 //
 // `dtype` string for the given data type.
-func NewTVMType(args ...interface{}) (tvmtype TVMType) {
+func dtypeFromTVMType(tvmtype pTVMType) (retVal string, err error) {
+    for k, v := range dtypeMap {
+        if v.code == tvmtype.code && v.bits == tvmtype.bits && v.lanes == tvmtype.lanes {
+            retVal = k
+            return
+        }
+    }
+
+    err = fmt.Errorf("Cannot map TVMType:%v to dtype", tvmtype)
+    return
+}
+
+// dtypeToTVMType return the pTVMType corresponding to given dtype
+//
+// `dtype` string for the given data type.
+func dtypeToTVMType(args ...interface{}) (tvmtype pTVMType, err error) {
     dtype := args[0].(string)
 
     lanes := 1
@@ -618,41 +672,56 @@ func NewTVMType(args ...interface{}) (tvmtype TVMType) {
         lanes = args[1].(int)
     }
 
-    dtypeMap := map[string]TVMType{
-        "int32": TVMType{0, 32, 1},
-        "int64": TVMType{0, 64, 1},
-        "uint32": TVMType{1, 32, 1},
-        "uint64": TVMType{1, 64, 1},
-        "float32": TVMType{2, 32, 1},
-        "float64": TVMType{2, 64, 1},
-        "handle": TVMType{3, 64, 1},
-    }
     for k, v := range dtypeMap {
         if k == dtype {
             tvmtype = v
-            tvmtype.Lanes = uint16(lanes)
-            break
+            tvmtype.lanes = uint16(lanes)
+            return
         }
     }
 
-    return tvmtype
+    err = fmt.Errorf("Cannot map dtype:%v to TVMType", dtype)
+    return
 }
 
 // EmptyArray is used to allocate TVM empty array of given epecification. 
 //
 // `shape` is int64 slice holding shape of the TVMArray
 //
-// `tvmtype` TVMType of underlaying data.
+// `args` is variadic args for
 //
-// `deviceType` indicated the context on which the TVMArray to allocated.
+//        `args[0]` is string for data type. Default value is 'float32'
+//
+//        `args[1]` is TVMContext. Default value is '{KDLCPU, 0}'
 //
 // returns pointer to TVMArray on successful execution and error if any.
-func EmptyArray(shape []int64, tvmtype TVMType, deviceType int32) (*TVMArray, error) {
+func EmptyArray(shape []int64, args ...interface{}) (tvmArray *TVMArray, err error) {
+    typeName := "float32"
+    ctx := TVMContext{KDLCPU, 0}
+
+    if len(args) > 0 {
+        typeName = args[0].(string)
+    }
+
+    tvmType, err := dtypeToTVMType(typeName)
+
+    if err != nil {
+        return
+    }
+
+    if len(args) > 1 {
+        ctx = args[1].(TVMContext)
+    }
+
     ndim := int32(len(shape))
 
-    newArray, ret := nativeTVMArrayAlloc(shape, ndim, int32(tvmtype.Code),
-                                    int32(tvmtype.Bits), int32(tvmtype.Lanes),
-                                    deviceType, 0)
+    newArray, err := nativeTVMArrayAlloc(shape, ndim, int32(tvmType.code),
+                                    int32(tvmType.bits), int32(tvmType.lanes),
+                                    ctx.DeviceType, ctx.DeviceID)
+
+    if err != nil {
+        return
+    }
 
     handle := new(TVMArray)
     *handle = TVMArray(newArray)
@@ -664,11 +733,8 @@ func EmptyArray(shape []int64, tvmtype TVMType, deviceType int32) (*TVMArray, er
 
     runtime.SetFinalizer(handle, finalizer)
 
-    if ret != 0 {
-        return handle, errors.New(getTVMLastError())
-    }
-
-    return handle, nil
+    tvmArray = handle
+    return
 }
 
 // nativeTVMArrayFree is used to release the TVMArray.
@@ -676,8 +742,9 @@ func EmptyArray(shape []int64, tvmtype TVMType, deviceType int32) (*TVMArray, er
 // `ptvmarray` is the TVMArray handle.
 //
 // `ret` indicates the status of this api execution.
-func nativeTVMArrayFree(ptvmarray TVMArray) int32 {
-    return (int32)(C._TVMArrayFree(C.native_voidp(ptvmarray.nativeCPtr())))
+func nativeTVMArrayFree(ptvmarray TVMArray) (retVal int32) {
+    retVal = (int32)(C._TVMArrayFree(C.native_voidp(ptvmarray.nativeCPtr())))
+    return
 }
 
 // callNativeFunction is routine which calls gotvm native wrapper with given arguments.
@@ -687,7 +754,7 @@ func nativeTVMArrayFree(ptvmarray TVMArray) int32 {
 // `args` are the variadic arguments to the TVMFunction.
 //
 // returns the interface for the return value from TVM if any and error if any.
-func callNativeFunction(handle TVMFunction, args []interface{}) (interface{}, error) {
+func callNativeFunction(handle TVMFunction, args []interface{}) (retVal interface{}, err error) {
         argsIn := make([]TVMValue, len(args))
 
         var typeCodes []int32
@@ -698,12 +765,10 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (interface{}, er
             typeCodes = make([]int32, 1)
         }
 
-        var err error
-
         for ii := range args {
             argsIn[ii] = newTVMValue()
             if typeCodes[ii], err = argsIn[ii].setValue(args[ii]); err != nil {
-                return nil, err
+                return
             }
         }
 
@@ -719,15 +784,17 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (interface{}, er
 
         defer argsOut[0].deleteTVMValue()
 
-        if nativeTVMFuncCall(handle, argsIn, typeCodes, argsOut, &retTypeCode) != 0 {
-            return nil, errors.New(getTVMLastError())
+        err = nativeTVMFuncCall(handle, argsIn, typeCodes, argsOut, &retTypeCode)
+        if err != nil {
+            return
         }
 
         if retTypeCode != KNull {
-            return argsOut[0].getFinalizedValue(retTypeCode)
+            retVal, err = argsOut[0].getFinalizedValue(retTypeCode)
+            return
         }
 
-        return nil, nil
+        return
 }
 
 // GetFunction returns the function pointer from the module for given function name.
@@ -746,7 +813,7 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (interface{}, er
 // Variadic arguments can be any type which can be embed into TVMValue.
 func (tvmmodule *TVMModule) GetFunction (
       funcname string, args ...interface{}) (
-      func (args ...interface{}) (interface{}, error), error){
+      retVal func (args ...interface{}) (interface{}, error), err error){
     queryImports := int32(1)
     if len(args) > 0 {
         queryImports = int32(args[1].(int))
@@ -757,6 +824,11 @@ func (tvmmodule *TVMModule) GetFunction (
     ret := (int32)(C._TVMModGetFunction(C.uintptr_t(*tvmmodule),
                                         *(*C._gostring_)(unsafe.Pointer(&funcname)),
                                         C.int(queryImports), C.native_voidp(&funp)))
+
+    if ret != 0 {
+        err = errors.New(getTVMLastError())
+        return
+    }
 
     handle := new(TVMFunction)
     *handle = TVMFunction(funp)
@@ -772,25 +844,24 @@ func (tvmmodule *TVMModule) GetFunction (
         return callNativeFunction(*handle, args)
     }
 
-    if ret != 0 {
-        return funccall, errors.New(getTVMLastError())
-    }
-
-    return funccall, nil
+    retVal = funccall
+    return
 }
 
 // nativeTVMModFree free the module handle allocated in TVM runtime.
 //
 // `modp` is the Module handle to be freed.
-func nativeTVMModFree(modp TVMModule) int32 {
-    return (int32) (C.TVMModFree(C.TVMModuleHandle(modp.nativeCPtr())))
+func nativeTVMModFree(modp TVMModule) (retVal int32) {
+    retVal = (int32) (C.TVMModFree(C.TVMModuleHandle(modp.nativeCPtr())))
+    return
 }
 
 // nativeTVMFuncFree free the function handle allocated in TVM runtime.
 //
 // `funp` is the Function handle to be freed.
-func nativeTVMFuncFree(funp TVMFunction) int32 {
-    return (int32) (C.TVMFuncFree(C.TVMFunctionHandle(funp.nativeCPtr())))
+func nativeTVMFuncFree(funp TVMFunction) (retVal int32) {
+    retVal = (int32) (C.TVMFuncFree(C.TVMFunctionHandle(funp.nativeCPtr())))
+    return
 }
 
 // nativeTVMFuncCall executes the function with given arguments
@@ -805,9 +876,9 @@ func nativeTVMFuncFree(funp TVMFunction) int32 {
 //
 // `retTypeCode` is int32 holding type codes for retValue
 //
-// `result` indicates the status of this api execution.
+// Returns err indicating native error if any.
 func nativeTVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes []int32,
-                 retValues []TVMValue, retTypeCode *int32) int32 {
+                 retValues []TVMValue, retTypeCode *int32) (err error) {
     numArgs := int32(len(argValues))
 
     nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
@@ -849,6 +920,10 @@ func nativeTVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes []int32
 
     C._TVMValueNativeFree(C.native_voidp(unsafe.Pointer(nretValues)))
 
-	return result
+    if result != 0 {
+	    err = errors.New(getTVMLastError())
+    }
+
+    return
 }
 
