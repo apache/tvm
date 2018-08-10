@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for pooling operators"""
 import tvm
 from .. import tag
