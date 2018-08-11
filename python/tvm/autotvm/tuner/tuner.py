@@ -85,7 +85,7 @@ class Tuner(object):
             every measurement pair. See autotvm/tuner/callback.py for some examples.
         """
         measure_batch = create_measure_batch(self.task, measure_option)
-        parallel_num = getattr(measure_batch, 'parallel_num', 1)
+        n_parallel = getattr(measure_batch, 'n_parallel', 1)
         early_stopping = early_stopping or 1e9
         old_level = logger.level
 
@@ -95,7 +95,7 @@ class Tuner(object):
             if not self.has_next():
                 break
 
-            configs = self.next_batch(min(parallel_num, n_trial - i))
+            configs = self.next_batch(min(n_parallel, n_trial - i))
 
             inputs = [MeasureInput(self.task.target, self.task, config) for config in configs]
             results = measure_batch(inputs)
