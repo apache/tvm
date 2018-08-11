@@ -1,5 +1,29 @@
 from ..runtime_ctypes import TVMArrayHandle
 
+cdef const char* _c_str_dltensor = "dltensor"
+cdef const char* _c_str_used_dltensor = "used_dltensor"
+
+
+cdef void _c_dlpack_deleter(object pycaps):
+    cdef DLManagedTensor* dltensor
+    if pycapsule.PyCapsule_IsValid(pycaps, _c_str_dltensor):
+        dltensor = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(pycaps, _c_str_dltensor)
+        TVMDLManagedTensorCallDeleter(dltensor)
+
+
+def _from_dlpack(object dltensor):
+    cdef DLManagedTensor* ptr
+    cdef DLTensorHandle chandle
+    if pycapsule.PyCapsule_IsValid(dltensor, _c_str_dltensor):
+        ptr = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(dltensor, _c_str_dltensor)
+        CALL(TVMArrayFromDLPack(ptr, &chandle))
+        # set name and destructor to be empty
+        pycapsule.PyCapsule_SetDestructor(dltensor, NULL)
+        pycapsule.PyCapsule_SetName(dltensor, _c_str_used_dltensor)
+        return c_make_array(chandle, 0)
+    raise ValueError("Expect a dltensor field, pycapsule.PyCapsule can only be consumed once")
+
+
 cdef class NDArrayBase:
     cdef DLTensor* chandle
     cdef int c_is_view
@@ -35,11 +59,25 @@ cdef class NDArrayBase:
         if self.c_is_view == 0:
             CALL(TVMArrayFree(self.chandle))
 
+    def to_dlpack(self):
+        """Produce an array from a DLPack Tensor without copying memory
+
+        Returns
+        -------
+        dlpack : DLPack tensor view of the array data
+        """
+        cdef DLManagedTensor* dltensor
+        if self.c_is_view != 0:
+            raise ValueError("to_dlpack do not work with memory views")
+        CALL(TVMArrayToDLPack(self.chandle, &dltensor))
+        return pycapsule.PyCapsule_New(dltensor, _c_str_dltensor, _c_dlpack_deleter)
+
 
 cdef c_make_array(void* chandle, is_view):
     ret = _CLASS_NDARRAY(None, is_view)
     (<NDArrayBase>ret).chandle = <DLTensor*>chandle
     return ret
+
 
 cdef _TVM_COMPATS = ()
 
