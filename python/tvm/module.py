@@ -90,9 +90,12 @@ class Module(ModuleBase):
         kwargs : dict, optiona;
             Additional arguments passed to fcompile
         """
-        if self.type_key == "stacktvm":
-            raise ValueError("Module[%s]: export_library requires llvm module,"
-                             " did you build with LLVM enabled?" % self.type_key)
+        if self.type_key == "stackvm":
+            if not file_name.endswith(".stackvm"):
+                raise ValueError("Module[%s]: can only be saved as stackvm format."
+                                 "did you build with LLVM enabled?" % self.type_key)
+            self.save(file_name)
+            return
 
         if self.type_key != "llvm":
             raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)

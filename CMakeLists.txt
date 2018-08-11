@@ -29,6 +29,7 @@ tvm_option(USE_ROCM "Build with ROCM" OFF)
 tvm_option(ROCM_PATH "The path to rocm" /opt/rocm)
 tvm_option(USE_RPC "Build with RPC" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
+tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
 tvm_option(USE_GRAPH_RUNTIME "Build with tiny graph runtime" ON)
 tvm_option(USE_GRAPH_RUNTIME_DEBUG "Build with tiny graph runtime debug mode" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
@@ -97,7 +98,6 @@ file(GLOB COMPILER_SRCS
     src/arithmetic/*.cc
     src/autotvm/*.cc
     src/codegen/*.cc
-    src/codegen/stack_vm/*.cc
     src/lang/*.cc
     src/pass/*.cc
     src/op/*.cc
@@ -134,6 +134,16 @@ if(USE_RPC)
   file(GLOB RUNTIME_RPC_SRCS src/runtime/rpc/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_RPC_SRCS})
 endif(USE_RPC)
+
+file(GLOB STACKVM_RUNTIME_SRCS src/runtime/stackvm/*.cc)
+file(GLOB STACKVM_CODEGEN_SRCS src/codegen/stackvm/*.cc)
+list(APPEND COMPILER_SRCS ${STACKVM_CODEGEN_SRCS})
+if(USE_STACKVM_RUNTIME)
+  message(STATUS "Build with stackvm support in runtime...")
+  list(APPEND RUNTIME_SRCS ${STACKVM_RUNTIME_SRCS})
+else()
+  list(APPEND COMPILER_SRCS ${STACKVM_RUNTIME_SRCS})
+endif(USE_STACKVM_RUNTIME)
 
 if(USE_GRAPH_RUNTIME)
   message(STATUS "Build with Graph runtime support...")
