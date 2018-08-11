@@ -1,6 +1,7 @@
 from ..base import TVMError
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
+from cpython cimport pycapsule
 from libc.stdint cimport int64_t, uint64_t, uint8_t, uint16_t
 import ctypes
 
@@ -40,6 +41,11 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         int64_t* strides
         uint64_t byte_offset
 
+    ctypedef struct DLManagedTensor:
+        DLTensor dl_tensor
+        void* manager_ctx
+        void (*deleter)(DLManagedTensor* self)
+
     ctypedef struct TVMValue:
         int64_t v_int64
         double v_float64
@@ -49,7 +55,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
         DLContext v_ctx
 
 ctypedef int64_t tvm_index_t
-ctypedef void* DLTensorHandle
+ctypedef DLTensor* DLTensorHandle
 ctypedef void* TVMStreamHandle
 ctypedef void* TVMRetValueHandle
 ctypedef void* TVMFunctionHandle
@@ -92,6 +98,11 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMArrayCopyFromTo(DLTensorHandle src,
                            DLTensorHandle to,
                            TVMStreamHandle stream)
+    int TVMArrayFromDLPack(DLManagedTensor* arr_from,
+                           DLTensorHandle* out)
+    int TVMArrayToDLPack(DLTensorHandle arr_from,
+                         DLManagedTensor** out)
+    void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor)
 
 cdef extern from "tvm/c_dsl_api.h":
     int TVMNodeFree(NodeHandle handle)
