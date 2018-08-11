@@ -40,7 +40,6 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib) {
     CHECK_EQ(im->imports().size(), 0U)
         << "Only support simply one-level hierarchy";
     std::string tkey = im->type_key();
-    std::string bin;
     stream->Write(tkey);
     im->SaveToBinary(stream);
   }
