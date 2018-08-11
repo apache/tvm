@@ -3,8 +3,8 @@
  * \file codegen_stack_vm.h
  * \brief Codegen into Simple Stack VM.
  */
-#ifndef TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
-#define TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
+#ifndef TVM_CODEGEN_STACKVM_CODEGEN_STACKVM_H_
+#define TVM_CODEGEN_STACKVM_CODEGEN_STACKVM_H_
 
 #include <tvm/ir.h>
 #include <tvm/ir_functor_ext.h>
@@ -14,12 +14,14 @@
 #include <vector>
 #include <unordered_map>
 
-#include "./stack_vm.h"
+#include "../../runtime/stackvm/stackvm.h"
 
 namespace tvm {
 namespace codegen {
 
 using namespace ir;
+using runtime::StackVM;
+
 /*!
  * \brief A base class to generate a stack VM.
  *  This module is used to generate host wrapper
@@ -145,4 +147,4 @@ class CodeGenStackVM
 
 }  // namespace codegen
 }  // namespace tvm
-#endif  // TVM_CODEGEN_STACK_VM_CODEGEN_STACK_VM_H_
+#endif  // TVM_CODEGEN_STACKVM_CODEGEN_STACKVM_H_
