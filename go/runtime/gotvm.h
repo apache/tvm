@@ -52,6 +52,8 @@ extern int _TVMModGetFunction(uintptr_t modp, _gostring_ funcname,
 extern int _TVMFuncCall(uintptr_t funp, uintptr_t arg_values,
                         native_voidp type_codes, int num_args,
                         uintptr_t ret_values, native_voidp ret_type_codes);
+extern int _TVMArrayCopyFromBytes(native_voidp dltensor, native_voidp data, int size);
+extern int _TVMArrayCopyToBytes(native_voidp dltensor, native_voidp data, int size);
 
 // Error API
 extern _gostring_ _TVMGetLastError(void);

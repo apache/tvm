@@ -285,6 +285,32 @@ int _TVMFuncCall(TVMFunctionHandle funp, TVMValue *arg_values, int *type_codes,
   return TVMFuncCall(funp, arg_values, type_codes, num_args, ret_values, ret_type_codes);
 }
 
+/*!
+ * \brief Native interface for TVMArrayCopyFromBytes
+ *
+ * \param dltensor if a pointer to TVMArray.
+ * \param data is pointer to bytes.
+ * \param size is the length of data to be copied.
+ *
+ * \return the status of C runtime api call
+ */
+int _TVMArrayCopyFromBytes(DLTensor *dltensor, void *data, int64_t size) {
+    return TVMArrayCopyFromBytes(dltensor, data, size);
+}
+
+/*!
+ * \brief Native interface for TVMArrayCopyToBytes
+ *
+ * \param dltensor if a pointer to TVMArray.
+ * \param data is pointer to bytes.
+ * \param size is the length of data to be copied back.
+ *
+ * \return the status of C runtime api call
+ */
+int _TVMArrayCopyToBytes(DLTensor *dltensor, void *data, int64_t size) {
+    return TVMArrayCopyToBytes(dltensor, data, size);
+}
+
 // Helpers for TVMValue
 
 /*!

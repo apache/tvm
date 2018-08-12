@@ -43,13 +43,11 @@ func main() {
     fmt.Printf("Input and Output TVMArrays allocated\n")
 
     // Fill Input Data : inX , inY
-    inXSlice := inX.GetData().([]float32)
-    inYSlice := inY.GetData().([]float32)
+    inXSlice := []float32 {1, 2, 3, 4}
+    inYSlice := []float32 {5, 6, 7, 8}
 
-    for ii := 0; ii < 4 ; ii++ {
-        inXSlice[ii] = float32(ii)
-        inYSlice[ii] = float32(ii+5)
-    }
+    inX.SetData(inXSlice)
+    inY.SetData(inYSlice)
 
     fmt.Printf("X: %v\n", inXSlice)
     fmt.Printf("Y: %v\n", inYSlice)
@@ -63,6 +61,6 @@ func main() {
     fmt.Printf("Module function myadd executed\n")
 
     // Print results
-    outSlice := out.GetData().([]float32)
-    fmt.Printf("Result:%v\n", outSlice)
+    outSlice, _ := out.GetData()
+    fmt.Printf("Result:%v\n", outSlice.([]float32))
 }

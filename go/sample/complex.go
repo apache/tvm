@@ -119,7 +119,9 @@ func main() {
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input TVMArray
-    inSlice := inX.GetData().([]float32)
+    inIntf, _ := inX.GetData()
+    inSlice := inIntf.([]float32)
+
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
                                                inSlice[j] = rand.Float32(),
@@ -173,6 +175,7 @@ func main() {
     fmt.Printf("Got Module Output \n")
 
     // Print results
-    outSlice := out.GetData().([]float32)
+    outIntf, _ := out.GetData()
+    outSlice := outIntf.([]float32)
     fmt.Printf("Result:%v\n", outSlice[:10])
 }
