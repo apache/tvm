@@ -374,9 +374,9 @@ def multibox_transform_loc_gpu(cls_prob, loc_pred, anchor, clip=True, \
 
     valid_count, temp_flag, temp_id, temp_score = \
         tvm.extern([(batch_size,), (size,), (size,), (size,)],
-                   [cls_prob, anchor],
+                   [cls_prob],
                    lambda ins, outs: transform_loc_pre(
-                       ins[0], ins[1], outs[0], outs[1], outs[2], outs[3], threshold),
+                       ins[0], outs[0], outs[1], outs[2], outs[3], threshold),
                    dtype=[valid_count_dtype,
                           valid_count_dtype, valid_count_dtype, cls_prob.dtype],
                    out_buffers=[valid_count_buf,
