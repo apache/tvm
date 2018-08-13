@@ -475,6 +475,11 @@ inline Array<Tensor> split_sections(const Tensor& x,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
+  if (axis < 0) {
+    axis += static_cast<int>(x->shape.size());
+  }
+  CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
+
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
 
   CHECK_GT(num_sections, 0) << "Slice count must be > 0";
