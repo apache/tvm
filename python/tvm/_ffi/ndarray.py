@@ -17,26 +17,15 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_ndarray, _reg_extension, _make_array
+        from ._cy3.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
         from ._cy3.core import NDArrayBase as _NDArrayBase
     else:
-        from ._cy2.core import _set_class_ndarray, _reg_extension, _make_array
+        from ._cy2.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
         from ._cy2.core import NDArrayBase as _NDArrayBase
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array
+    from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
-
-
-TVMPyCapsuleDestructor = ctypes.CFUNCTYPE(None, ctypes.c_void_p)
-_c_str_dltensor = c_str('dltensor')
-
-
-# used for PyCapsule manipulation
-if hasattr(ctypes, 'pythonapi'):
-    ctypes.pythonapi.PyCapsule_GetName.restype = ctypes.c_char_p
-    ctypes.pythonapi.PyCapsule_GetPointer.restype = ctypes.c_void_p
-    ctypes.pythonapi.PyCapsule_New.restype = ctypes.py_object
 
 
 def context(dev_type, dev_id=0):
@@ -134,30 +123,14 @@ def from_dlpack(dltensor):
     Parameters
     ----------
     dltensor : DLPack tensor
+        Input DLManagedTensor, can only be consumed once.
 
     Returns
     -------
     arr: tvm.nd.NDArray
         The array view of the tensor data.
     """
-    dltensor = ctypes.py_object(dltensor)
-    name = ctypes.pythonapi.PyCapsule_GetName(dltensor)
-    ptr = ctypes.pythonapi.PyCapsule_GetPointer(dltensor, name)
-    handle = TVMArrayHandle()
-    check_call(_LIB.TVMArrayFromDLPack(ptr, ctypes.byref(handle)))
-    ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, None)
-    return _make_array(handle, False)
-
-
-def _dlpack_deleter(pycapsule):
-    pycapsule = ctypes.py_object(pycapsule)
-    if ctypes.pythonapi.PyCapsule_IsValid(pycapsule, _c_str_dltensor):
-        ptr = ctypes.pythonapi.PyCapsule_GetPointer(pycapsule, _c_str_dltensor)
-        _LIB.TVMDLManagedTensorCallDeleter(ptr)
-        ctypes.pythonapi.PyCapsule_SetDestructor(dltensor, TVMPyCapsuleDestructor(0))
-
-
-_c_dlpack_deleter = TVMPyCapsuleDestructor(_dlpack_deleter)
+    return _from_dlpack(dltensor)
 
 
 class NDArrayBase(_NDArrayBase):
@@ -307,17 +280,6 @@ class NDArrayBase(_NDArrayBase):
         else:
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
-
-    def to_dlpack(self):
-        """Produce an array from a DLPack Tensor without copying memory
-
-        Returns
-        -------
-        dlpack : DLPack tensor view of the array data
-        """
-        handle = ctypes.c_void_p()
-        check_call(_LIB.TVMArrayToDLPack(self.handle, ctypes.byref(handle)))
-        return ctypes.pythonapi.PyCapsule_New(handle, _c_str_dltensor, _c_dlpack_deleter)
 
 
 def free_extension_handle(handle, type_code):

@@ -1,15 +1,16 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * Implementation stack VM.
- * \file stack_vm.cc
+ * \file stackvm.cc
  */
 #include <dmlc/thread_local.h>
-#include <tvm/ir.h>
+#include <tvm/runtime/util.h>
 #include <tvm/runtime/c_backend_api.h>
-#include "./stack_vm.h"
+#include <algorithm>
+#include "./stackvm.h"
 
 namespace tvm {
-namespace codegen {
+namespace runtime {
 
 typedef dmlc::ThreadLocalStore<StackVM::State> StackVMStateStore;
 
@@ -172,18 +173,56 @@ std::ostream& operator<<(std::ostream& os, const StackVM& vm) {  // NOLINT(*)
   return os;
 }
 
-void StackVM::operator()(const runtime::TVMArgs& args) const {
+void StackVM::Run(const runtime::TVMArgs& args,
+                  runtime::ModuleNode* mod_ctx) const {
   StackVM::State* s = StackVM::ThreadLocalState();
+  if (s->heap.size() < heap_size) {
+    s->heap.resize(heap_size);
+  }
   s->sp = 0;
   s->pc = 0;
-  if (s->heap.size() < this->heap_size) {
-    s->heap.resize(this->heap_size);
-  }
-
+  s->mod_ctx = mod_ctx;
   s->heap[0].v_handle = (void*)args.values;  // NOLINT(*)
   s->heap[1].v_handle = (void*)args.type_codes;  // NOLINT(*)
   s->heap[2].v_int64 = args.num_args;
   this->Run(s);
+}
+
+void StackVM::InitCache() {
+  extern_func_cache_.clear();
+  extern_func_cache_.resize(
+      extern_func_name.size(), PackedFunc(nullptr));
+}
+
+void StackVM::Save(dmlc::Stream* strm) const {
+  // to be endian invariant.
+  std::vector<int32_t> code_copy(code.size());
+  std::transform(code.begin(), code.end(), code_copy.begin(), [](Code c) {
+      return c.v_int;
+    });
+  strm->Write(code_copy);
+  strm->Write(str_data);
+  strm->Write(extern_func_name);
+  strm->Write(heap_id_name);
+  strm->Write(heap_size);
+  strm->Write(stack_size);
+}
+
+bool StackVM::Load(dmlc::Stream* strm)  {
+  // to be endian invariant.
+  std::vector<int32_t> code_copy;
+  if (!strm->Read(&code_copy)) return false;
+  code.resize(code_copy.size());
+  std::transform(code_copy.begin(), code_copy.end(), code.begin(), [](int v) {
+      Code code; code.v_int = v; return code;
+    });
+  if (!strm->Read(&str_data)) return false;
+  if (!strm->Read(&extern_func_name)) return false;
+  if (!strm->Read(&heap_id_name)) return false;
+  if (!strm->Read(&heap_size)) return false;
+  if (!strm->Read(&stack_size)) return false;
+  this->InitCache();
+  return true;
 }
 
 void StackVM::Run(State* s) const {
@@ -192,8 +231,6 @@ void StackVM::Run(State* s) const {
   int64_t alloca_sp = s->sp;
   std::vector<TVMValue>& stack = s->stack;
   std::vector<TVMValue>& heap = s->heap;
-  s->extern_func.clear();
-  s->extern_func.resize(extern_func_name.size());
   if (stack.size() < stack_size) {
     stack.resize(stack_size);
   }
@@ -488,17 +525,19 @@ void StackVM::Run(State* s) const {
 }
 
 const PackedFunc& StackVM::GetExtern(State* s, int fid) const {
-  PackedFunc& f = s->extern_func[fid];
+  CHECK_LT(static_cast<size_t>(fid), extern_func_cache_.size());
+  // allow race write in this, since write is idempotent
+  PackedFunc& f = extern_func_cache_[fid];
   if (f == nullptr) {
-    CHECK(mod_ctx != nullptr)
+    CHECK(s->mod_ctx != nullptr)
         << "No local context is set in stackvm";
-    const PackedFunc* pf = mod_ctx->GetFuncFromEnv(extern_func_name[fid]);
+    CHECK(s->mod_ctx != nullptr);
+    const PackedFunc* pf = s->mod_ctx->GetFuncFromEnv(extern_func_name[fid]);
     CHECK(pf != nullptr);
     f = *pf;
-    CHECK(f != nullptr);
   }
   return f;
 }
 
-}  // namespace codegen
+}  // namespace runtime
 }  // namespace tvm
