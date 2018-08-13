@@ -340,6 +340,7 @@ def test_concatenate():
 
 def test_split():
     verify_split((2, 12, 3), 3, 1)
+    verify_split((2, 12, 3), 3, -1)
     verify_split((2, 12, 3), [2, 4], 1)
     verify_split((10, 12, 24), [5, 7, 9], -1)
 
