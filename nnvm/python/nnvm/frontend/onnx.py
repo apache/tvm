@@ -406,6 +406,19 @@ def _fully_connected(opset):
     return _impl
 
 
+class Upsample(OnnxOpConverter):
+    """ Operator converter for Upsample (nearest mode).
+    """
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        scales = attr.get('scales')
+        mode = attr.get('mode')
+        assert mode == 'nearest'
+        params = {'scale': int(scales[-1])}
+        return _sym.upsampling(inputs[0], **params)
+
+
 class Shape(OnnxOpConverter):
     """ Operator converter for Shape.
     """
@@ -540,6 +553,7 @@ def _get_convert_map(opset):
         # 'Crop'
         # 'Embedding'
         # 'Upsample'
+        'Upsample' : Upsample.get_converter(opset),
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator

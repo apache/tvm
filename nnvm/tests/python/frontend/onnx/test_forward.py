@@ -380,6 +380,33 @@ def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
 
+def test_upsample():
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3 * scale, 3 * scale)
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[2.0])
+    
+    in_array = np.random.uniform(size=in_shape).astype('float32')
+    out_array = np.random.uniform(size=out_shape).astype('float32')
+
+    def upsample_nearest(out_shape, out_array, in_array):
+        for b in range(out_shape[0]):
+            for c in range(out_shape[1]):
+                out_array[b, c, :, :] = in_array[b, c, :, :].repeat(scale, axis=0).repeat(scale, axis=1)
+
+    upsample_nearest(out_shape, out_array, in_array)
+
+    graph = helper.make_graph([y],
+                              'upsample_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        np.testing.assert_allclose(out_array, tvm_out)
+
 
 if __name__ == '__main__':
     # verify_super_resolution_example()
@@ -398,3 +425,4 @@ if __name__ == '__main__':
     test_matmul()
     test_gather()
     test_lrn()
+    test_upsample()
