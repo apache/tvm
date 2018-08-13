@@ -414,7 +414,7 @@ class Upsample(OnnxOpConverter):
     def _impl_v7(cls, inputs, attr, params):
         scales = attr.get('scales')
         mode = attr.get('mode')
-        assert mode == 'nearest'
+        assert mode == b'nearest'
         params = {'scale': int(scales[-1])}
         return _sym.upsampling(inputs[0], **params)
 
