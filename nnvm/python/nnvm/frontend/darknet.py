@@ -705,7 +705,7 @@ class GraphProto(object):
 
         elif LAYERTYPE.LSTM == layer.type:
             if layer.steps > 1:
-                raise NotImplementedError("Currenty support only single step GRU")
+                raise NotImplementedError("Currently support only single step GRU")
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'
@@ -771,7 +771,7 @@ class GraphProto(object):
 
         elif LAYERTYPE.GRU == layer.type:
             if layer.steps > 1:
-                raise NotImplementedError("Currenty support only single step GRU")
+                raise NotImplementedError("Currently support only single step GRU")
 
             op_name_add = 'elemwise_add'
             op_name_mul = 'elemwise_mul'
