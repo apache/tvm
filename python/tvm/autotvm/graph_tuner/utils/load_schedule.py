@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,global-statement
+# pylint: disable=invalid-name,global-statement,unused-variable
 """Helper utility function for loading schedules"""
 from topi.nn.conv2d import _get_alter_layout_schedule, _get_schedule_NCHWc
 

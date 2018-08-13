@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,no-member,unused-argument,too-many-locals
+# pylint: disable=invalid-name,no-member,unused-argument,too-many-locals,unused-variable
 """Conv2d executor class for intel AVX CPU."""
 from nnvm import symbol as sym
 from topi.nn.conv2d import _get_schedule_NCHWc, _get_alter_layout_schedule

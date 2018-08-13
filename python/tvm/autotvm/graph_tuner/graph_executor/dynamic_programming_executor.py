@@ -1,4 +1,4 @@
-# pylint: disable=import-error,too-many-locals,too-many-statements,too-many-branches,arguments-differ
+# pylint: disable=import-error,too-many-locals,too-many-statements,too-many-branches,arguments-differ,unused-variable
 
 """Dynamic programming tuner."""
 import sys
