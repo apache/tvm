@@ -134,6 +134,8 @@ def test_reduce():
     verify_reduce((4, 4, 3), np.min, sym.min, keepdims=True)
     verify_reduce((4, 4, 3), np.sum, sym.sum, axis=(0, 2))
     verify_reduce((4, 4, 3), np.sum, sym.sum)
+    verify_reduce((4, 4, 3), np.mean, sym.mean, axis=(0, 2))
+    verify_reduce((4, 4, 3), np.mean, sym.mean)
 
     data = np.array([[[1,2],[3,4]],[[3,44],[5,6]]], dtype=np.float32)
     verify_reduce_explicit([2,2,2], data, np.array([[1,1],[1,0]]), sym.argmax, otype='int32', axis=[0,2], exclude=True)

@@ -14,6 +14,7 @@
 #include "../elemwise_op_common.h"
 #include "topi/detail/constant_utils.h"
 #include "topi/elemwise.h"
+#include "topi/broadcast.h"
 #include "topi/reduction.h"
 #include "topi/transform.h"
 
@@ -322,6 +323,45 @@ values over a given axis.
       topi::argmin(inputs[0], axis, param.keepdims) };
 });
 
+NNVM_REGISTER_REDUCE_OP(mean)
+.describe(R"code(Computes the mean of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[3,4]],
+          [[5,6],[7,8]],
+          [[9,10],[11,12]]]
+
+  mean(data)
+  6.5
+
+  mean(data, axis=[1,2])
+  [2.5, 6.5, 10.5]
+
+  mean(data, axis=[1,2], keepdims=True)
+  [[[2.5]],
+   [[6.5]],
+   [[10.5]]]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
+    auto axis = ShapeToArray(r_axes);
+    int count = 1;
+    for (auto& i : r_axes) {
+      count *= topi::detail::GetConstInt(inputs[0]->shape[i]);
+    }
+    auto sum_result = topi::sum(inputs[0], axis, param.keepdims);
+    auto divider = make_const(inputs[0]->dtype, count);
+    return Array<Tensor>{
+      topi::divide(sum_result, divider) };
+});
 
 }  // namespace top
 }  // namespace nnvm

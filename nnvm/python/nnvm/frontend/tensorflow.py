@@ -434,11 +434,13 @@ def _lrn():
         return AttrCvt(op_name='lrn')(new_inputs, attr_new)
     return _impl
 
-def _sum():
+def _reduce(name):
     def _impl(inputs, attr, params):
         axis = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+        # convert to tuple for preventing invalid parameter format error
+        axis = tuple(axis)
         return AttrCvt(
-            op_name='sum',
+            op_name=name,
             extras={'axis': axis},
             transforms={'keep_dims':'keepdims'},
             ignores=['name', 'Tidx'])(inputs[0], attr)
@@ -628,7 +630,7 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise RuntimeError("Required parameter {} not found.".format(padlist_key))
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
@@ -671,7 +673,8 @@ _convert_map = {
     'Mul'                               : _elemwise('mul'),
     'Maximum'                           : _elemwise('max'),
     'Minimum'                           : _elemwise('min'),
-    'Sum'                               : _sum(),
+    'Mean'                              : _reduce('mean'),
+    'Sum'                               : _reduce('sum'),
     'Square'                            : _square(),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),
