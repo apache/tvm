@@ -5,7 +5,7 @@ from __future__ import absolute_import
 import sys
 import ctypes
 import numpy as np
-from .base import _LIB, check_call, c_array, string_types, _FFI_MODE
+from .base import _LIB, check_call, c_array, string_types, _FFI_MODE, c_str
 from .runtime_ctypes import TVMType, TVMContext, TVMArray, TVMArrayHandle
 from .runtime_ctypes import TypeCode, tvm_shape_index_t
 
@@ -17,14 +17,14 @@ try:
     if _FFI_MODE == "ctypes":
         raise ImportError()
     if sys.version_info >= (3, 0):
-        from ._cy3.core import _set_class_ndarray, _reg_extension, _make_array
+        from ._cy3.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
         from ._cy3.core import NDArrayBase as _NDArrayBase
     else:
-        from ._cy2.core import _set_class_ndarray, _reg_extension, _make_array
+        from ._cy2.core import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
         from ._cy2.core import NDArrayBase as _NDArrayBase
 except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
-    from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array
+    from ._ctypes.ndarray import _set_class_ndarray, _reg_extension, _make_array, _from_dlpack
     from ._ctypes.ndarray import NDArrayBase as _NDArrayBase
 
 
@@ -61,6 +61,7 @@ def context(dev_type, dev_id=0):
             raise ValueError("Unknown device type %s" % dev_type)
         dev_type = TVMContext.STR2MASK[dev_type]
     return TVMContext(dev_type, dev_id)
+
 
 def numpyasarray(np_data):
     """Return a TVMArray representation of a numpy array.
@@ -111,6 +112,26 @@ def empty(shape, dtype="float32", ctx=context(1, 0)):
         ctx.device_id,
         ctypes.byref(handle)))
     return _make_array(handle, False)
+
+
+def from_dlpack(dltensor):
+    """Produce an array from a DLPack tensor without memory copy.
+    Retreives the underlying DLPack tensor's pointer to create an array from the
+    data. Removes the original DLPack tensor's destructor as now the array is
+    responsible for destruction.
+
+    Parameters
+    ----------
+    dltensor : DLPack tensor
+        Input DLManagedTensor, can only be consumed once.
+
+    Returns
+    -------
+    arr: tvm.nd.NDArray
+        The array view of the tensor data.
+    """
+    return _from_dlpack(dltensor)
+
 
 class NDArrayBase(_NDArrayBase):
     """A simple Device/CPU Array object in runtime."""
@@ -259,6 +280,7 @@ class NDArrayBase(_NDArrayBase):
         else:
             raise ValueError("Unsupported target type %s" % str(type(target)))
         return target
+
 
 def free_extension_handle(handle, type_code):
     """Free c++ extension type handle

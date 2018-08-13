@@ -168,7 +168,7 @@ print(task.config_space)
 # run 8 parallel threads for compilation
 measure_option = autotvm.measure_option('local',
                                         number=5,
-                                        parallel_num=8,
+                                        n_parallel=8,
                                         timeout=20)
 
 # begin tuning, log records to file `conv2d.log`

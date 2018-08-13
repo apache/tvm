@@ -254,6 +254,7 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
   int groups;
   std::string layout;
   std::string kernel_layout;
+  int out_dtype;
   bool use_bias;
 
   DMLC_DECLARE_PARAMETER(Conv2DTransposeParam) {
@@ -286,6 +287,10 @@ struct Conv2DTransposeParam : public dmlc::Parameter<Conv2DTransposeParam> {
       .describe("Dimension ordering of data and weight. Can be 'OIHW', 'OIHW16o16i', etc."
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                 "dimensions respectively.");
+    DMLC_DECLARE_DTYPE_FIELD(out_dtype)
+        .add_enum("same", -1)
+        .set_default(-1)
+        .describe("Output data type, set to explicit type under mixed precision setting");
     DMLC_DECLARE_FIELD(use_bias).set_default(true)
       .describe("Whether the layer uses a bias vector.");
   }
