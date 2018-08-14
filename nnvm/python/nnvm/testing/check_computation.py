@@ -35,11 +35,13 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
 
     shape : Dict[str, Tuple[int]], optional
         A dict mapping input variable names to shapes.
-        By default shapes will be inferred automatically.
+        By default shapes will be inferred from variables' attributes.
+        Note that this parameter takes precedence over variables' attributes.
 
     dtype : Dict[str, str] or str, optional
         A dict mapping input variable names to dtypes, or just a single dtype.
-        By default dtypes will be inferred automatically.
+        By default dtypes will be inferred from variables' attributes.
+        Note that this parameter takes precedence over variables' attributes.
 
     Returns
     -------
@@ -66,8 +68,14 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     if None in dtype.values():
         raise ValueError("Input variables with no type: {}".format(dtype))
 
-    compute_graph, lib, _ = nnvm.compiler.build(graph, target, shape=shape, dtype=dtype)
+    if any([not s for s in shape.values()]):
+        raise ValueError("Input variables with no shape: {}".format(shape))
+
+    compute_graph, lib, params = nnvm.compiler.build(graph, target, shape=shape, dtype=dtype)
     module = graph_runtime.create(compute_graph, lib, ctx)
+
+    if params:
+        module.set_inputs(**params)
 
     all_shapes = compute_graph.json_attr('shape')
     all_dtypes = [TCODE_TO_DTYPE[dtype] for dtype in compute_graph.json_attr('dtype')]
@@ -122,11 +130,13 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
     shape : Dict[nnvm.Symbol or str, Tuple[int]] or Tuple[int], optional
         A dict mapping input variable names to shapes, or just a single shape.
-        By default shapes will be inferred automatically.
+        By default shapes will be inferred from variables' attributes (see the Examples).
+        Note that this parameter takes precedence over variables' attributes.
 
     dtype : Dict[nnvm.Symbol or str, str] or str, optional
         A dict mapping input variable names to dtypes, or just a single dtype.
-        By default dtypes will be inferred automatically.
+        By default dtypes will be inferred from variables' attributes (see the Examples).
+        Note that this parameter takes precedence over variables' attributes.
 
     in_range : Dict[nnvm.Symbol or str, (float, float)] or (float, float), optional
         A dict mapping input variable names to ranges or just a single range
@@ -151,15 +161,16 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         None is passed (which is the default) then it will try to create a gradient computation
         graph and then check gradients numerically only if this graph can be created (i.e. if there
         are some operations with unimplemented gradients, it will just issue a warning).
+        Checking against numerical gradients is done via the `check_numerical_grads` function.
 
     numerical_grads_params : dict, optional
         Additional parameters for `check_numerical_grads`.
 
     atol : float, optional
-        Absolute tolerance for `np.testing.assert_allclose`.
+        Absolute tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
 
     rtol : float, optional
-        Relative tolerance for `np.testing.assert_allclose`.
+        Relative tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
 
     quiet : bool, optional
         Don't dump additional information to stdout on failure.
@@ -183,6 +194,10 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         # just check the forward computation
         check_function(x + 2*y, lambda x, y: x + 2*y,
                        dtype='float32', numerical_grads=False)
+
+        # dtypes can also be specified during variable creation with dtype codes
+        x = sym.Variable("x", dtype=0)
+        check_function(x + 1, shape=(2, 2), numerical_grads=True)
     """
     if numerical_grads is None and forward is None and backward is None:
         raise ValueError("No reference function was passed to check_function. If you only want to "
@@ -322,6 +337,8 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         debug_stage = None
 
         try:
+            nnvm_res = None
+
             debug_stage = "compiling"
             main_function = graph_to_function(main_graph, target, ctx)
 
