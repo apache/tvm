@@ -77,7 +77,7 @@ inline bool Pool2DInferShape(const nnvm::NodeAttrs& attrs,
   } else {
     oshape[hidx] = ((dshape[hidx] + pad_h - param.pool_size[0] +
                     param.strides[0] - 1) / param.strides[0]) + 1;
-    oshape[widx] = ((dshape[3] + pad_w - param.pool_size[1] +
+    oshape[widx] = ((dshape[widx] + pad_w - param.pool_size[1] +
                     param.strides[1] - 1) / param.strides[1]) + 1;
   }
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
