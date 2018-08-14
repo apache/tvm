@@ -79,16 +79,11 @@ def run_tf_graph(sess, input_data, input_node, output_node):
         input_dict = {input_node: input_data}
 
     if isinstance(output_node, list):
-        output_list = []
-        for node_name in output_node:
-            tensor = sess.graph.get_tensor_by_name(node_name)
-            output_data = sess.run(tensor, input_dict)
-            output_list.append(output_data)
-        return output_list
-    else:
-        tensor = sess.graph.get_tensor_by_name(output_node)
-        output_data = sess.run(tensor, input_dict)
-    return output_data
+        tensor = [sess.graph.get_tensor_by_name(node_name) for node_name in output_node]
+        return sess.run(tensor, input_dict)
+
+    tensor = sess.graph.get_tensor_by_name(output_node)
+    return sess.run(tensor, input_dict)
 
 #######################################################################
 # Pooling
