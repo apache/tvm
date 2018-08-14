@@ -9,6 +9,7 @@ TVM will download these parameters for you when you create the target for the fi
 import logging
 import os
 import json
+import sys
 
 from .task import ApplyHistoryBest
 from .. import target as _target
@@ -27,7 +28,7 @@ def _alias(name):
     return table.get(name, name)
 
 
-def context(target, extra_files=None):
+def context(target, extra_files=None, allow_fallback=False):
     """Return the dispatch context with pre-tuned parameters.
     The corresponding downloaded *.log files under tophub root path will be loaded.
     Users can also add their own files in argument `extra_files`.
@@ -38,9 +39,12 @@ def context(target, extra_files=None):
         The compilation target
     extra_files: list of str, optional
         Extra log files to load
+    allow_fallback: bool
+        Whether allow to use a fallback configuration if cannot find
+        tuned result.
     """
     rootpath = AUTOTVM_TOPHUB_ROOT_PATH
-    best_context = ApplyHistoryBest([])
+    best_context = ApplyHistoryBest([], allow_fallback=allow_fallback)
 
     if isinstance(target, str):
         target = _target.create(target)
@@ -99,7 +103,15 @@ def check_package(backend):
 
     if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, backend + ".log")):
         return
-    download_package(backend)
+
+    if sys.version_info >= (3,):
+        import urllib.request as urllib2
+    else:
+        import urllib2
+    try:
+        download_package(backend)
+    except urllib2.URLError:
+        logging.warning("Failed to download tophub package for %s", backend)
 
 
 def list_packages():

@@ -53,12 +53,14 @@ class TaskExtractEnv:
         import nnvm
 
         self.symbol2topi = {
-            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw]
+            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
+            nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose],
         }
 
         self.topi_to_task = {
             topi.nn.conv2d: "topi_nn_conv2d",
             topi.nn.depthwise_conv2d_nchw: "topi_nn_depthwise_conv2d_nchw",
+            topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
         }
 
         self._register_dummy()
@@ -108,6 +110,15 @@ class TaskExtractEnv:
             A, W = args[:2]
             C = topi.nn.depthwise_conv2d_nchw(*args, **kwargs)
             s = topi.generic.schedule_depthwise_conv2d_nchw([C])
+            return s, [A, W, C]
+
+        @register("topi_nn_conv2d_transpose_nchw")
+        def _topi_nn_conv2d_transpose_nchw(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, W = args[:2]
+            C = topi.nn.conv2d_transpose_nchw(*args, **kwargs)
+            s = topi.generic.schedule_conv2d_transpose_nchw([C])
             return s, [A, W, C]
 
     def reset(self):

@@ -109,7 +109,7 @@ print(out.asnumpy().flatten()[0:10])
 # Save and Load Compiled Module
 # -----------------------------
 # We can also save the graph, lib and parameters into files and load them
-# back in development environment.
+# back in deploy environment.
 
 ####################################################
 
