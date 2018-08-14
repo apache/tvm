@@ -26,14 +26,14 @@ func (tvmmodule TVMModule) nativeCPtr() (retVal uintptr) {
     return
 }
 
-// ModLoadFromFile loads the given module in TVM runtime.
+// LoadModuleFromFile loads the given module in TVM runtime.
 //
 // `modpath` is the path to tvm module.
 //
 // `args` is an optional arguments of ["dll", "dylib", "dso", "so"] with default value "so"
 //
 // returns pointer to TVMModule and err or if any.
-func ModLoadFromFile(modpath string, args ...interface{}) (retVal *TVMModule, err error) {
+func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *TVMModule, err error) {
     modtype := "so"
 
     if len(args) > 0 {

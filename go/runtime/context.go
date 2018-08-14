@@ -9,8 +9,8 @@ package gotvm
 //#include "gotvm.h"
 import "C"
 
-// TVMContext dtype corresponding to DLContext
-type TVMContext struct {
+// Context dtype corresponding to TVMContext aka DLContext
+type Context struct {
     DeviceType int32
     DeviceID    int32
 }

@@ -39,7 +39,7 @@ func main() {
     fmt.Printf("Global Functions:%v\n", funcNames)
 
     // Import tvm module (so)
-    modp, err := gotvm.ModLoadFromFile(modLib)
+    modp, err := gotvm.LoadModuleFromFile(modLib)
     if err != nil {
         fmt.Print(err)
         fmt.Printf("Please copy tvm compiled modules here and update the sample.go accordingly.\n")
@@ -78,14 +78,14 @@ func main() {
     tshapeOut := []int64{1, 1001}
 
     // Allocate input TVMArray
-    inX, err := gotvm.EmptyArray(tshapeIn, "float32")
+    inX, err := gotvm.Empty(tshapeIn, "float32")
     if err != nil {
         fmt.Print(err)
         return
     }
 
     // Allocate output TVMArray
-    out, err := gotvm.EmptyArray(tshapeOut)
+    out, err := gotvm.Empty(tshapeOut)
     if err != nil {
         fmt.Print(err)
         return
@@ -119,13 +119,14 @@ func main() {
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input TVMArray
-    inIntf, _ := inX.GetData()
-    inSlice := inIntf.([]float32)
+    inSlice := make([]float32, (244 * 244 * 3))
 
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
                                                inSlice[j] = rand.Float32(),
                                                rand.Float32() })
+
+    inX.CopyFrom(inSlice)
 
     // Set Input
     funp, err = graphmod.GetFunction("set_input")
@@ -175,7 +176,7 @@ func main() {
     fmt.Printf("Got Module Output \n")
 
     // Print results
-    outIntf, _ := out.GetData()
+    outIntf, _ := out.AsSlice()
     outSlice := outIntf.([]float32)
     fmt.Printf("Result:%v\n", outSlice[:10])
 }

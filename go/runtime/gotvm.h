@@ -79,7 +79,7 @@ extern void _TVMValueNativeFree(native_voidp ptr);
 // DLTensor API
 extern uintptr_t _NewDLTensor(void);
 extern void _DeleteDLTensor(uintptr_t dltensor);
-extern uintptr_t _DLTensorGetData(uintptr_t pdltensor);
+extern uintptr_t _DLTensorCopyTo(uintptr_t pdltensor);
 extern int _DLTensorGetNdim(uintptr_t pdltensor);
 extern void * _DLTensorGetShape(uintptr_t pdltensor);
 extern _tvmtype_ _DLTensorGetDType(uintptr_t pdltensor);

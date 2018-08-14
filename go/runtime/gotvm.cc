@@ -512,7 +512,7 @@ void _DeleteDLTensor(DLTensor *dltensor) {
  *
  * \return pointer to data inside DLTensor
  */
-void *_DLTensorGetData(DLTensor *pdltensor) {
+void *_DLTensorCopyTo(DLTensor *pdltensor) {
   return reinterpret_cast<void*>(pdltensor->data);
 }
 

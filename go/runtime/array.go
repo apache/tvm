@@ -29,7 +29,7 @@ func (ptvmarray TVMArray) nativeCPtr() (retVal uintptr) {
 }
 
 
-func (ptvmarray TVMArray) nativeSetData(data C.native_voidp, datalen int) (err error) {
+func (ptvmarray TVMArray) nativeCopyFrom(data C.native_voidp, datalen int) (err error) {
     ret := C._TVMArrayCopyFromBytes(C.native_voidp(ptvmarray.nativeCPtr()), data, C.int(datalen))
 
     if ret != 0 {
@@ -39,13 +39,13 @@ func (ptvmarray TVMArray) nativeSetData(data C.native_voidp, datalen int) (err e
     return
 }
 
-// SetData copies given data into TVMArray.
+// CopyFrom copies given golang data slice into TVMArray.
 //
 // `val` is interface homding a slice of TVMArray data type.
 //
 // returns err is any.
 // TOD: Use reflections for better handling
-func (ptvmarray TVMArray) SetData(val interface{}) (err error) {
+func (ptvmarray TVMArray) CopyFrom(val interface{}) (err error) {
     var data C.native_voidp
     var datalen int
 
@@ -56,32 +56,32 @@ func (ptvmarray TVMArray) SetData(val interface{}) (err error) {
             sliceVal := val.([]int32)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         case []int64:
             sliceVal := val.([]int64)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         case []uint32:
             sliceVal := val.([]uint32)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         case []uint64:
             sliceVal := val.([]uint64)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         case []float32:
             sliceVal := val.([]float32)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         case []float64:
             sliceVal := val.([]float64)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            return ptvmarray.nativeSetData(data, datalen)
+            return ptvmarray.nativeCopyFrom(data, datalen)
         default:
             err = fmt.Errorf("Given type not supported : %v\n", reflect.TypeOf(val))
             return
@@ -90,7 +90,7 @@ func (ptvmarray TVMArray) SetData(val interface{}) (err error) {
     return
 }
 
-func (ptvmarray TVMArray) nativeGetData (data C.native_voidp, datalen int) (err error){
+func (ptvmarray TVMArray) nativeCopyTo (data C.native_voidp, datalen int) (err error){
     ret := C._TVMArrayCopyToBytes(C.native_voidp(ptvmarray.nativeCPtr()), data, C.int(datalen))
 
     if ret != 0 {
@@ -100,11 +100,11 @@ func (ptvmarray TVMArray) nativeGetData (data C.native_voidp, datalen int) (err 
    return
 }
 
-// GetData returns the unitptr of for the data inside TVMArray.
+// AsSlice returns the unitptr of for the data inside TVMArray.
 //
 // returns the slice of array inside TVMArray and err of any.
 // TOD: Use reflections for better handling
-func (ptvmarray TVMArray) GetData() (retVal interface{}, err error) {
+func (ptvmarray TVMArray) AsSlice() (retVal interface{}, err error) {
     shape := ptvmarray.GetShape()
     size := int64(1)
 
@@ -122,37 +122,37 @@ func (ptvmarray TVMArray) GetData() (retVal interface{}, err error) {
             sliceVal := make([]int32, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         case "int64":
             sliceVal := make([]int64, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         case "uint32":
             sliceVal := make([]uint32, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         case "uint64":
             sliceVal := make([]uint64, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         case "float32":
             sliceVal := make([]float32, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         case "float64":
             sliceVal := make([]float64, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
-            err = ptvmarray.nativeGetData(data, datalen)
+            err = ptvmarray.nativeCopyTo(data, datalen)
             retVal = sliceVal
         default:
             err = fmt.Errorf("Given type not supported : %v\n", ptvmarray.GetDType())
@@ -188,9 +188,9 @@ func (ptvmarray TVMArray) GetDType() (retVal string) {
 }
 
 // GetCtx returns the number of dimentions in TVMArray
-func (ptvmarray TVMArray) GetCtx() (retVal TVMContext) {
+func (ptvmarray TVMArray) GetCtx() (retVal Context) {
     ret := C._DLTensorGetCtx(C.uintptr_t(ptvmarray))
-    retVal = *(*TVMContext)(unsafe.Pointer(&ret))
+    retVal = *(*Context)(unsafe.Pointer(&ret))
     return
 }
 
@@ -222,7 +222,7 @@ func nativeTVMArrayAlloc(shape []int64, ndim int32,
     return
 }
 
-// EmptyArray is used to allocate TVM empty array of given epecification. 
+// Empty is used to allocate TVM empty array of given epecification.
 //
 // `shape` is int64 slice holding shape of the TVMArray
 //
@@ -230,12 +230,12 @@ func nativeTVMArrayAlloc(shape []int64, ndim int32,
 //
 //        `args[0]` is string for data type. Default value is 'float32'
 //
-//        `args[1]` is TVMContext. Default value is '{KDLCPU, 0}'
+//        `args[1]` is Context. Default value is '{KDLCPU, 0}'
 //
 // returns pointer to TVMArray on successful execution and error if any.
-func EmptyArray(shape []int64, args ...interface{}) (tvmArray *TVMArray, err error) {
+func Empty(shape []int64, args ...interface{}) (tvmArray *TVMArray, err error) {
     typeName := "float32"
-    ctx := TVMContext{KDLCPU, 0}
+    ctx := Context{KDLCPU, 0}
 
     if len(args) > 0 {
         typeName = args[0].(string)
@@ -248,7 +248,7 @@ func EmptyArray(shape []int64, args ...interface{}) (tvmArray *TVMArray, err err
     }
 
     if len(args) > 1 {
-        ctx = args[1].(TVMContext)
+        ctx = args[1].(Context)
     }
 
     ndim := int32(len(shape))
