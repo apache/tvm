@@ -12,6 +12,7 @@
 #include <string>
 #include "./base.h"
 #include "./expr.h"
+#include "./runtime/util.h"
 
 namespace tvm {
 namespace ir {
@@ -449,25 +450,6 @@ constexpr const char* tvm_global_barrier_kinit = "tvm_global_barrier_kinit";
  */
 constexpr const char* tvm_thread_allreduce = "tvm_thread_allreduce";
 
-/*! \brief The kind of structure field info */
-enum TVMStructFieldKind : int {
-  // array head address
-  kArrAddr,
-  kArrData,
-  kArrShape,
-  kArrStrides,
-  kArrNDim,
-  kArrTypeCode,
-  kArrTypeBits,
-  kArrTypeLanes,
-  kArrByteOffset,
-  kArrDeviceId,
-  kArrDeviceType,
-  kArrKindBound_,
-  // TVMValue field
-  kTVMValueContent,
-  kTVMValueKindBound_
-};
 }   // namespace intrinsic
 
 // Reuse IR node defintiion from HalideIR

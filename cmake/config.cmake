@@ -65,6 +65,9 @@ set(USE_OPENGL OFF)
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
+# Whether embed stackvm into the runtime
+set(USE_STACKVM_RUNTIME OFF)
+
 # Whether enable tiny embedded graph runtime.
 set(USE_GRAPH_RUNTIME ON)
 

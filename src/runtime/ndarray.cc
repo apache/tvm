@@ -93,6 +93,16 @@ struct NDArray::Internal {
     arr.data_ = nullptr;
     return tensor;
   }
+  // Container to DLManagedTensor
+  static DLManagedTensor* ToDLPack(NDArray::Container* from) {
+    CHECK(from != nullptr);
+    DLManagedTensor* ret = new DLManagedTensor();
+    ret->dl_tensor = from->dl_tensor;
+    ret->manager_ctx = from;
+    from->IncRef();
+    ret->deleter = NDArrayDLPackDeleter;
+    return ret;
+  }
 };
 
 NDArray NDArray::CreateView(std::vector<int64_t> shape,
@@ -115,13 +125,7 @@ NDArray NDArray::CreateView(std::vector<int64_t> shape,
 }
 
 DLManagedTensor* NDArray::ToDLPack() const {
-  CHECK(data_ != nullptr);
-  DLManagedTensor* ret = new DLManagedTensor();
-  ret->dl_tensor = data_->dl_tensor;
-  ret->manager_ctx = const_cast<NDArray*>(this);
-  data_->IncRef();
-  ret->deleter = NDArrayDLPackDeleter;
-  return ret;
+  return Internal::ToDLPack(data_);
 }
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
@@ -211,6 +215,24 @@ int TVMArrayCopyFromTo(TVMArrayHandle from,
   API_BEGIN();
   NDArray::CopyFromTo(from, to, stream);
   API_END();
+}
+
+int TVMArrayFromDLPack(DLManagedTensor* from,
+                       TVMArrayHandle* out) {
+  API_BEGIN();
+  *out = NDArray::Internal::MoveAsDLTensor(NDArray::FromDLPack(from));
+  API_END();
+}
+
+int TVMArrayToDLPack(TVMArrayHandle from,
+                     DLManagedTensor** out) {
+  API_BEGIN();
+  *out = NDArray::Internal::ToDLPack(reinterpret_cast<NDArray::Container*>(from));
+  API_END();
+}
+
+void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor) {
+  (*(dltensor->deleter))(dltensor);
 }
 
 int TVMArrayCopyFromBytes(TVMArrayHandle handle,

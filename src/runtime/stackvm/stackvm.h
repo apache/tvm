@@ -1,36 +1,36 @@
 /*!
  *  Copyright (c) 2016 by Contributors
- * \file stack_vm.h
+ * \file stackvm.h
  * \brief A simple stack-based virtual machine.
  *
  *  This can be used to interepret host side code
  *  to setup calls into device functions
  *  when only Runtime compilation for device is available(via NVRTC or OpenCL).
  */
-#ifndef TVM_CODEGEN_STACK_VM_STACK_VM_H_
-#define TVM_CODEGEN_STACK_VM_STACK_VM_H_
+#ifndef TVM_RUNTIME_STACKVM_STACKVM_H_
+#define TVM_RUNTIME_STACKVM_STACKVM_H_
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
-#include <tvm/packed_func_ext.h>
 #include <string>
 #include <vector>
 
 namespace tvm {
-namespace codegen {
+namespace runtime {
 
 using runtime::operator<<;
 /*!
- * \brief A simple stack-based virtual machine.
+ * \brief A simple stack-based virtual machine program.
  */
 class StackVM {
  public:
   /*!
-   * \brief Invoke the StackVM as PackedFunc
+   * \brief Invoke the StackVM program.
    * \param args The arguments to the StackVM.
+   * \param mod_ctx The module context used in running.
    */
-  void operator()(const TVMArgs& args) const;
+  void Run(const TVMArgs& args, runtime::ModuleNode* mod_ctx) const;
   /*!
    * \brief The opcode of stack vm
    * \note Notation
@@ -276,21 +276,25 @@ class StackVM {
     std::vector<TVMValue> stack;
     /*! \brief The global heap space */
     std::vector<TVMValue> heap;
-    /*! \brief extern functions */
-    std::vector<PackedFunc> extern_func;
     /*! \brief stack pointer  */
     int64_t sp{0};
     /*! \brief program counter */
     int64_t pc{0};
+    /*! \brief The current module context of stackvm */
+    runtime::ModuleNode* mod_ctx{nullptr};
   };
-  /*! \brief The external function entries. */
-  struct ExternFuncEntry {
-    std::string name;
-    runtime::PackedFunc func;
-  };
-
-  /*! \brief execute the stack vm with given state */
-  void Run(State* state) const;
+  /*! \brief Initialize local cache*/
+  void InitCache();
+  /*!
+   * \brief Save stackvm program to an output stream
+   * \param strm The output stream
+   */
+  void Save(dmlc::Stream* strm) const;
+  /*!
+   * \brief Load stackvm program from output stream
+   * \param strm The output stream
+   */
+  bool Load(dmlc::Stream* strm);
   /*!
    * \brief Print instruction at location pc
    * \param os The ostream
@@ -300,12 +304,11 @@ class StackVM {
   int64_t PrintCode(std::ostream&os, int64_t pc) const;  // NOLINT(*)
   /*! \brief Get thread local state of the stack VM */
   static State* ThreadLocalState();
+  // The code below are programs
   /*! \brief The instructions */
   std::vector<Code> code;
   /*! \brief constant error messages */
   std::vector<std::string> str_data;
-  /*! \brief The current module context of stackvm */
-  runtime::ModuleNode* mod_ctx{nullptr};
   /*! \brief Extern functions */
   std::vector<std::string> extern_func_name;
   /*! \brief name of each heap id */
@@ -385,10 +388,18 @@ class StackVM {
   friend std::ostream& operator<<(std::ostream& os, const StackVM& vm);  // NOLINT(*)
 
  private:
+  //  execute the stack vm with given state
+  void Run(State* state) const;
   // get extern function.
   const PackedFunc& GetExtern(State* s, int fid) const;
+  // cached extern function
+  mutable std::vector<PackedFunc> extern_func_cache_;
 };
 
-}  // namespace codegen
+}  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_CODEGEN_STACK_VM_STACK_VM_H_
+
+namespace dmlc {
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::StackVM, true);
+}
+#endif  // TVM_RUNTIME_STACKVM_STACKVM_H_
