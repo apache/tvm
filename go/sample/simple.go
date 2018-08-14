@@ -30,14 +30,16 @@ func main() {
     fmt.Printf("Module Imported\n")
 
 
-    // Allocate input TVMArray : inX
+    // Allocate TVMArray for inputs and outputs.
+
+    // Allocation by explicit type and context.
     tshapeIn  := []int64{4}
     inX, _ := gotvm.EmptyArray(tshapeIn, "float32", gotvm.TVMContext{gotvm.KDLCPU, 0})
 
-    // Allocate input TVMArray : inY
+    // Default allocation on CPU
     inY, _ := gotvm.EmptyArray(tshapeIn, "float32")
 
-    // Allocate output TVMArray : out
+    // Default allocation to type "float32" and on CPU
     out, _ := gotvm.EmptyArray(tshapeIn)
 
     fmt.Printf("Input and Output TVMArrays allocated\n")
@@ -46,6 +48,7 @@ func main() {
     inXSlice := []float32 {1, 2, 3, 4}
     inYSlice := []float32 {5, 6, 7, 8}
 
+    // Copy the data on target memory through runtime CopyFrom api.
     inX.SetData(inXSlice)
     inY.SetData(inYSlice)
 
@@ -60,7 +63,9 @@ func main() {
 
     fmt.Printf("Module function myadd executed\n")
 
-    // Print results
+    // Get the output tensor as an interface holding a slice through runtime CopyTo api.
     outSlice, _ := out.GetData()
+
+    // Print results
     fmt.Printf("Result:%v\n", outSlice.([]float32))
 }

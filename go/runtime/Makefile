@@ -19,7 +19,7 @@ all:
 	@cp $(TARGET).cc gopath/src/$(TARGET)
 	@cp $(TARGET).h gopath/src/$(TARGET)
 	@cp $(NATIVE_SRC) gopath/src/$(TARGET)
-	@cp $(TARGET).go gopath/src/$(TARGET)
+	@cp *.go gopath/src/$(TARGET)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
