@@ -35,6 +35,7 @@ class AttrCvt(object):
         self._ignores.append('use_cudnn_on_gpu')
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
+        self._ignores.append('_target_layout')
         # Retain the names
         try:
             attrs['name'] = attrs['_node_name']
@@ -121,19 +122,24 @@ def _pooling(name):
     def _impl(inputs, attr, params):
 
         attr['data_format'] = attr['data_format'].decode("utf-8")
+        flip_layout = False
 
-        if attr['data_format'] == 'NHWC':
-            attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
-        elif attr['data_format'] == 'NCHW':
-            attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
-        else:
-            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+        input_shape = attr['_input_shapes'][inputs[0]][0]
+
+        if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
+            tmp_shape = attr['_input_shapes'][inputs[0]][0]
+            tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
+            input_shape = tmp_shape
+            inputs[0] = _sym.transpose(inputs[0], axes=(0, 3, 1, 2))
+            attr['data_format'] = "NCHW"
+            flip_layout = True
+
+        attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
 
         # Fix strides
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
-        input_shapes = attr['_input_shapes'][inputs[0]]
         attr['padding'] = attr['padding'].decode("utf-8")
 
         if attr['padding'] == 'VALID':
@@ -142,11 +148,11 @@ def _pooling(name):
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
             if attr['data_format'] == 'NHWC':
-                in_h = input_shapes[0][1]
-                in_w = input_shapes[0][2]
+                in_h = input_shape[1]
+                in_w = input_shape[2]
             else:
-                in_h = input_shapes[0][2]
-                in_w = input_shapes[0][3]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
 
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
@@ -158,7 +164,7 @@ def _pooling(name):
         if name == "avg_pool":
             attr['count_include_pad'] = False
 
-        return AttrCvt(
+        out = AttrCvt(
             op_name=_dimension_picker(name),
             transforms={
                 'kernel_shape':'pool_size',
@@ -166,33 +172,53 @@ def _pooling(name):
             ignores=['ksize'],
             extras={'ceil_mode': False},
             custom_check=_dimension_constraint())(inputs, attr)
+
+        if flip_layout:
+            out = _sym.transpose(out, axes=(0, 2, 3, 1))
+
+        return out
     return _impl
 
 def _conv(opname):
     def _impl(inputs, attr, params):
         attr['data_format'] = attr['data_format'].decode("utf-8")
-        input_shapes = attr['_input_shapes'][inputs[0]]
+        flip_layout = False
 
-        # Extract kernel shape from params
-        conv_param_weights = params[inputs[1].list_output_names()[0]]
+        input_shape = attr['_input_shapes'][inputs[0]][0]
+        weights_shape = params[inputs[1].list_output_names()[0]].shape
+
+        if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
+            input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+            inputs[0] = _sym.transpose(inputs[0], axes=(0, 3, 1, 2))
+            if opname == 'conv':
+                weights_shape = [weights_shape[ii] for ii in (3, 2, 0, 1)]
+                inputs[1] = _sym.transpose(inputs[1], axes=(3, 2, 0, 1))
+            else:
+                weights_shape = [weights_shape[ii] for ii in (2, 3, 0, 1)]
+                inputs[1] = _sym.transpose(inputs[1], axes=(2, 3, 0, 1))
+
+            attr['data_format'] = "NCHW"
+            flip_layout = True
 
         if attr['data_format'] == 'NHWC':
-            kernel_h, kernel_w, _, depth_mult = conv_param_weights.shape
-            attr['kernel_shape'] = (conv_param_weights.shape[0], conv_param_weights.shape[1])
+            kernel_h, kernel_w, _, depth_mult = weights_shape
+            attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
             if opname == 'conv':
-                attr['channels'] = conv_param_weights.shape[3]
+                attr['channels'] = weights_shape[3]
             else:
-                attr['channels'] = input_shapes[0][3] * depth_mult
+                attr['channels'] = input_shape[3] * depth_mult
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
         elif attr['data_format'] == 'NCHW':
-            depth_mult, _, kernel_h, kernel_w = conv_param_weights.shape
-            attr['kernel_shape'] = (conv_param_weights.shape[2], conv_param_weights.shape[3])
+            depth_mult, _, kernel_h, kernel_w = weights_shape
+            attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
             if opname == 'conv':
-                attr['channels'] = conv_param_weights.shape[1]
+                attr['channels'] = weights_shape[0]
             else:
-                attr['channels'] = input_shapes[0][1] * depth_mult
+                attr['channels'] = input_shape[0] * depth_mult
+                if attr['channels'] < 0:
+                    attr['channels'] *= -1
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
@@ -215,11 +241,11 @@ def _conv(opname):
             stride_h, stride_w = attr['strides']
             kernel_h, kernel_w = attr['kernel_shape']
             if attr['data_format'] == 'NHWC':
-                in_h = input_shapes[0][1]
-                in_w = input_shapes[0][2]
+                in_h = input_shape[1]
+                in_w = input_shape[2]
             else:
-                in_h = input_shapes[0][2]
-                in_w = input_shapes[0][3]
+                in_h = input_shape[2]
+                in_w = input_shape[3]
 
             pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
@@ -248,7 +274,7 @@ def _conv(opname):
             else:
                 attr['kernel_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
 
-        return AttrCvt(
+        out = AttrCvt(
             op_name=_dimension_picker('conv'),
             transforms={
                 'kernel_shape': 'kernel_size',
@@ -257,6 +283,11 @@ def _conv(opname):
                 'group': ('groups', 1)},
             extras={'use_bias': len(inputs) == 3},
             custom_check=_dimension_constraint())(inputs, attr)
+
+        if flip_layout:
+            out = _sym.transpose(out, axes=(0, 2, 3, 1))
+
+        return out
     return _impl
 
 def _decode_image():
@@ -305,7 +336,7 @@ def _matmul():
     def _impl(inputs, attr, params):
         channels = _infer_channels(inputs[1], params, not attr['transpose_b'])
         if attr['transpose_a']:
-            inputs[0] = _sym.transpose(inputs[0], axis(1, 0))
+            inputs[0] = _sym.transpose(inputs[0], axes(1, 0))
         if not attr['transpose_b']:
             inputs[1] = _sym.transpose(inputs[1], axes=(1, 0))
         return AttrCvt(op_name="dense",
@@ -948,7 +979,7 @@ class GraphProto(object):
         self._num_param = 0
         self._num_rnn_layer = False
 
-    def from_tensorflow(self, graph):
+    def from_tensorflow(self, graph, layout="NHWC"):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
@@ -1035,6 +1066,9 @@ class GraphProto(object):
 
                 # Pass the node name too in attr
                 attr["_node_name"] = node.name
+
+                # Pass the target layout
+                attr["_target_layout"] = layout
 
                 #ToDo: Some of the tensorflow operators internaly maintain
                 #execution layers and its output name will the layer number along with
@@ -1265,7 +1299,7 @@ class GraphProto(object):
 
         return inputs
 
-def from_tensorflow(graph):
+def from_tensorflow(graph, layout="NHWC"):
     """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
     The companion parameters will be handled automatically.
 
@@ -1283,5 +1317,5 @@ def from_tensorflow(graph):
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph)
+    sym, params = g.from_tensorflow(graph, layout)
     return sym, params
