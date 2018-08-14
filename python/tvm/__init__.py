@@ -19,6 +19,7 @@ from . import target
 from . import generic
 from . import hybrid
 from . import testing
+from . import autodiff
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl
@@ -36,6 +37,7 @@ from .ndarray import register_extension
 from .schedule import create_schedule
 from .build_module import build, lower, build_config
 from .tag import tag_scope
+from .autodiff import differentiate
 
 # Contrib initializers
 from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel

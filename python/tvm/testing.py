@@ -1,6 +1,7 @@
 """ TVM testing utilities """
 import logging
 import numpy as np
+import tvm
 
 def assert_allclose(actual, desired, rtol=1e-7, atol=1e-7):
     """ Version of np.testing.assert_allclose with `atol` and `rtol` fields set
@@ -145,3 +146,174 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         logging.info("Numerical grad test wrt '%s' of shape %s passes, "
                      "dist = %f, max_diff = %f, avg_diff = %f",
                      x_name, grad.shape, dist, max_diff, avg_diff)
+
+
+class PerformanceEstimate:
+    """A result of static performance estimation.
+
+    Parameters
+    ----------
+    iterations : int
+        The total number of iterations of all the loops.
+
+    multiplications : int
+        The total number of expensive operations like multiplications.
+
+    memory : int
+        The amount of memory to allocate.
+    """
+    def __init__(self, iterations=0, multiplications=0, memory=0):
+        self.iterations = iterations
+        self.multiplications = multiplications
+        self.memory = memory
+
+    def as_tuple(self):
+        return (self.iterations, self.multiplications, self.memory)
+
+    def __add__(self, other):
+        return PerformanceEstimate(iterations=self.iterations + other.iterations,
+                                   multiplications=self.multiplications + other.multiplications,
+                                   memory=self.memory + other.memory)
+
+    def max(self, other):
+        return PerformanceEstimate(
+            iterations=max(self.iterations, other.iterations),
+            multiplications=max(self.multiplications, other.multiplications),
+            memory=max(self.memory, other.memory))
+
+    def times(self, iters):
+        return PerformanceEstimate(iterations=self.iterations*iters,
+                                   multiplications=self.multiplications*iters,
+                                   memory=self.memory)
+
+    def __repr__(self):
+        return "PerformanceEstimate(iterations={}, multiplications={}, memory={})".format(
+            self.iterations, self.multiplications, self.memory)
+
+    def __le__(self, other):
+        return \
+            self.iterations <= other.iterations and \
+            self.multiplications <= other.multiplications and \
+            self.memory <= other.memory
+
+
+def estimate_performance(s, processed_ops=None):
+    """Statically estimate performance of statements, expressions and tensors. Note that the
+    estimate is very rough, it mustn't be used to predict future performance, its only purpose is
+    to detect possible performance regressions.
+
+    Parameters:
+    -----------
+    s
+        A statement, an expression, a tensor, an operation, or a list
+        of any of the above.
+
+    Returns
+    -------
+    estimate : PerformanceEstimate
+    """
+    from tvm import stmt
+    from tvm import expr
+
+    if processed_ops is None:
+        processed_ops = {}
+        res = estimate_performance(s, processed_ops)
+        for op_est in processed_ops.values():
+            res += op_est
+        return res
+
+    est = lambda e, processed_ops=processed_ops: estimate_performance(e, processed_ops)
+
+    def _prod(elems):
+        res = 1
+        for x in elems:
+            res *= x
+        return res
+
+    if s is None or isinstance(s, (stmt.AssertStmt, stmt.Free, stmt.Prefetch,
+                                   expr.ConstExpr, expr.Var, tvm.tensor.PlaceholderOp)):
+        return PerformanceEstimate()
+    elif isinstance(s, list):
+        res = PerformanceEstimate()
+        for item in s:
+            res += est(item)
+        return res
+    elif s in processed_ops:
+        return PerformanceEstimate()
+    elif isinstance(s, stmt.Allocate):
+        mem = _prod([e.value for e in s.extents])
+        return est(s.condition) + est(s.body) + PerformanceEstimate(memory=mem)
+    elif isinstance(s, stmt.Block):
+        return est(s.first) + est(s.rest)
+    elif isinstance(s, stmt.Evaluate):
+        return est(s.value)
+    elif isinstance(s, stmt.For):
+        body_est = est(s.body)
+        body_est.iterations = max(1, body_est.iterations)
+        return body_est.times(s.extent.value)
+    elif isinstance(s, stmt.IfThenElse):
+        return est(s.condition) + est(s.then_case) + est(s.else_case)
+    elif isinstance(s, stmt.LetStmt):
+        return est(s.value) + est(s.body)
+    elif isinstance(s, (stmt.ProducerConsumer, stmt.AttrStmt)):
+        return est(s.body)
+    elif isinstance(s, stmt.Provide):
+        return est(s.value)
+    elif isinstance(s, stmt.Realize):
+        return est(s.condition) + est(s.body)
+    elif isinstance(s, stmt.Store):
+        return est(s.value) + est(s.index) + est(s.predicate)
+    elif isinstance(s, (expr.Mul, expr.Div, expr.Mod)):
+        return est(s.a) + est(s.b) + PerformanceEstimate(multiplications=1)
+    elif isinstance(s, (expr.BinaryOpExpr, expr.CmpExpr, expr.LogicalExpr)):
+        if not hasattr(s, 'b'):
+            return est(s.a)
+        return est(s.a) + est(s.b)
+    elif isinstance(s, expr.Call):
+        res = PerformanceEstimate()
+        for a in s.args:
+            res += est(a)
+        if s.call_type == expr.Call.Halide:
+            # The estimate is added to processed_ops, we don't need the result here
+            est(s.func)
+        elif s.name == "tvm_if_then_else":
+            pass
+        else:
+            # expr.If it is a non-halide call (e.g. exp or log), consider it a mul
+            res += PerformanceEstimate(multiplications=1)
+        return res
+    elif isinstance(s, expr.Cast):
+        return est(s.value)
+    elif isinstance(s, expr.Load):
+        return est(s.index) + est(s.predicate)
+    elif isinstance(s, expr.Select):
+        return est(s.condition) + est(s.true_value) + est(s.false_value)
+    elif isinstance(s, expr.Reduce):
+        iterations = _prod([iv.dom.extent.value for iv in s.axis])
+        res = PerformanceEstimate()
+        for id_elem in s.combiner.identity_element:
+            res += est(id_elem)
+        on_each_iter = est(s.condition)
+        for src in s.source:
+            on_each_iter += est(src)
+        for comb_res in s.combiner.result:
+            on_each_iter += est(comb_res)
+        on_each_iter.iterations = max(1, on_each_iter.iterations)
+        return res + on_each_iter.times(iterations)
+    elif isinstance(s, tvm.tensor.Tensor):
+        return est(s.op)
+    elif isinstance(s, tvm.tensor.ComputeOp):
+        iterations = _prod([iv.dom.extent.value for iv in s.axis])
+        if s.reduce_axis:
+            res = est(s.body[0])
+        else:
+            res = PerformanceEstimate()
+            for b in s.body:
+                res += est(b)
+        res.iterations = max(1, res.iterations)
+        res = res.times(iterations) + PerformanceEstimate(memory=iterations*len(s.body))
+        processed_ops[s] = res
+        return PerformanceEstimate()
+
+    raise ValueError("Don't know how to estimate performance of {} of type {}"
+                     .format(s, type(s)))
