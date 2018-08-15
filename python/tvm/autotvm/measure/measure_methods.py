@@ -394,6 +394,8 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
             msg = str(exc)
             if "Stack trace returned" in msg:
                 msg = msg[:msg.index("Stack trace returned")]
+            if "CUDA Source" in msg:
+                msg = msg[:msg.index("CUDA Source")]
             costs = (RuntimeError(msg),)
             errno = MeasureErrorNo.RUNTIME_DEVICE
         tstamp = time.time()
