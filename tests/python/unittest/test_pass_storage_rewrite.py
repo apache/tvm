@@ -275,9 +275,9 @@ def test_inplace_rule2():
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 2
 
-def test_inplace_rule2_with_var(test_max_num_bits=100):
+def test_inplace_rule2_with_small_max_num_bits(test_max_num_bits = 100):
     #Test Buffer
-    scope_tb = "local_TB2"
+    scope_tb = "local_TB2S"
     @tvm.register_func("tvm.info.mem.%s" % scope_tb)
     def mem_info_inp_buffer():
         return tvm.make.node("MemoryInfo",
@@ -317,11 +317,15 @@ def test_inplace_rule2_with_var(test_max_num_bits=100):
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 2
 
-def test_inplace_rule2_Detection(test_max_num_bits=100):
+def test_exceed_mem(test_max_num_bits=10):
+    # The critical max_num_bits is between 639 and 640
     try:
-        test_inplace_rule2_with_var(test_max_num_bits)
-    except:
-        print 'Error! function: test_inplace_rule2_with_var(). The size of "max_num_bits" is improper.'
+        test_inplace_rule2_with_small_max_num_bits(test_max_num_bits)
+    except Exception, e:
+        estr = str(e)
+        flagAllocMsg = estr.find('Allocation exceed bound of memory')
+        flagEndMsg = estr.find('\n', flagAllocMsg + 1)
+        assert None==e, estr[flagAllocMsg:flagEndMsg]
 
 def test_inplace_rule3():
     #Test Buffer
@@ -513,7 +517,7 @@ if __name__ == "__main__":
     test_storage_combine()
     test_storage_share_gpu()
     test_inplace_rule2()
-    test_inplace_rule2_Detection(100)
+    test_exceed_mem()
     test_inplace_rule3()
     test_alloc_seq_type()
     test_alloc_seq_type2()
