@@ -265,9 +265,14 @@ def _expand_dims(inputs, attrs):
 
 def _l2_normalize(inputs, attrs):
     op_name, new_attrs = 'l2_normalize', {}
-    mode = attrs.get('mode', 'instance')
-    new_attrs['axis'] = 0 if mode == 'instance' else 1
-    new_attrs['eps'] = attrs.get('eps', 0.001)
+    mode = _required_attr(attrs, 'mode')
+    if mode == 'instance':
+        new_attrs['axis'] = (0,1,2,3)
+    if mode == 'channel':
+        new_attrs['axis'] = 1
+    if mode == 'spatial':
+        new_attrs['axis'] = (2, 3)
+    new_attrs['eps'] = attrs.get('eps', 1e-10)
     return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
 
 def _lrn(inputs, attrs):
