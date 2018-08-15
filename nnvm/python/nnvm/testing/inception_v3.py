@@ -8,13 +8,14 @@ arXiv preprint arXiv:1512.00567 (2015).
 Adopted from https://github.com/apache/incubator-mxnet/blob/
              master/example/image-classification/symbols/inception-v3.py
 """
-
+# pylint: disable=invalid-name,missing-docstring,unused-argument
 from .. import symbol as sym
 from .utils import create_workload
 
 def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, suffix=''):
-    conv = sym.conv2d(data=data, channels=num_filter, kernel_size=kernel, strides=stride, padding=pad,
-                      use_bias=False, name='%s%s_conv2d' % (name, suffix))
+    conv = sym.conv2d(data=data, channels=num_filter, kernel_size=kernel,
+                      strides=stride, padding=pad, use_bias=False,
+                      name='%s%s_conv2d' % (name, suffix))
     bn = sym.batch_norm(data=conv, name='%s%s_batchnorm' % (name, suffix), epsilon=2e-5)
     act = sym.relu(data=bn, name='%s%s_relu' % (name, suffix))
     return act
@@ -22,9 +23,11 @@ def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, 
 def Pooling(data, kernel, stride, pad, pool_type, name):
     if pool_type == 'max':
         return sym.max_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad, name=name)
-    else:
+    elif pool_type == 'avg':
         return sym.avg_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad, name=name,
                               count_include_pad=True)
+    else:
+        raise ValueError("Invalid pooling type: " + pool_type)
 
 def Inception7A(data,
                 num_1x1,
@@ -90,9 +93,11 @@ def Inception7C(data,
                     name=('%s_tower_1' % name), suffix='_conv_4')
     pooling = Pooling(data=data, kernel=(3, 3), stride=(1, 1), pad=(1, 1), pool_type=pool,
                       name=('%s_pool_%s_pool' % (pool, name)))
-    cproj = Conv(data=pooling, num_filter=proj, kernel=(1, 1), name=('%s_tower_2' % name), suffix='_conv')
+    cproj = Conv(data=pooling, num_filter=proj, kernel=(1, 1),
+                 name=('%s_tower_2' % name), suffix='_conv')
     # concat
-    concat = sym.concatenate(*[tower_1x1, tower_d7, tower_q7, cproj], name='ch_concat_%s_chconcat' % name)
+    concat = sym.concatenate(*[tower_1x1, tower_d7, tower_q7, cproj],
+                             name='ch_concat_%s_chconcat' % name)
     return concat
 
 def Inception7D(data,
@@ -102,7 +107,7 @@ def Inception7D(data,
                 name):
     tower_3x3 = Conv(data=data, num_filter=num_3x3_red, name=('%s_tower' % name),
                      suffix='_conv')
-    tower_3x3 = Conv(data=tower_3x3, num_filter=num_3x3, kernel=(3, 3), pad=(0,0), stride=(2, 2),
+    tower_3x3 = Conv(data=tower_3x3, num_filter=num_3x3, kernel=(3, 3), pad=(0, 0), stride=(2, 2),
                      name=('%s_tower' % name), suffix='_conv_1')
     tower_d7_3x3 = Conv(data=data, num_filter=num_d7_3x3_red, name=('%s_tower_1' % name),
                         suffix='_conv')
@@ -115,7 +120,8 @@ def Inception7D(data,
     pooling = Pooling(data=data, kernel=(3, 3), stride=(2, 2), pool_type=pool, pad=(0, 0),
                       name=('%s_pool_%s_pool' % (pool, name)))
     # concat
-    concat = sym.concatenate(*[tower_3x3, tower_d7_3x3, pooling], name='ch_concat_%s_chconcat' % name)
+    concat = sym.concatenate(*[tower_3x3, tower_d7_3x3, pooling],
+                             name='ch_concat_%s_chconcat' % name)
     return concat
 
 def Inception7E(data,
@@ -140,11 +146,12 @@ def Inception7E(data,
                           name=('%s_tower_1' % name), suffix='_mixed_conv_1')
     pooling = Pooling(data=data, kernel=(3, 3), stride=(1, 1), pad=(1, 1), pool_type=pool,
                       name=('%s_pool_%s_pool' % (pool, name)))
-    cproj = Conv(data=pooling, num_filter=proj, kernel=(1, 1), name=('%s_tower_2' %  name),
+    cproj = Conv(data=pooling, num_filter=proj, kernel=(1, 1), name=('%s_tower_2' % name),
                  suffix='_conv')
     # concat
-    concat = sym.concatenate(*[tower_1x1, tower_d3_a, tower_d3_b, tower_3x3_d3_a, tower_3x3_d3_b, cproj],
-                             name='ch_concat_%s_chconcat' % name)
+    concat = sym.concatenate(
+        *[tower_1x1, tower_d3_a, tower_d3_b, tower_3x3_d3_a, tower_3x3_d3_b, cproj],
+        name='ch_concat_%s_chconcat' % name)
     return concat
 
 
@@ -208,7 +215,8 @@ def get_symbol(num_classes=1000, **kwargs):
                        448, 384, 384, 384,
                        "max", 192, "mixed_10")
     # pool
-    pool = Pooling(data=in5b, kernel=(8, 8), stride=(1, 1), pool_type="avg", pad=(0, 0), name="global_pool")
+    pool = Pooling(data=in5b, kernel=(8, 8), stride=(1, 1), pool_type="avg", pad=(0, 0),
+                   name="global_pool")
     flatten = sym.flatten(data=pool, name="flatten")
     fc1 = sym.dense(data=flatten, units=num_classes, name='fc1')
     softmax = sym.softmax(data=fc1, name='softmax')
