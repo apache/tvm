@@ -62,7 +62,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
         for target_key in targets:
             if target_key not in _REGISTED_DISPATHCER:
                 _REGISTED_DISPATHCER[target_key] = {}
-            if topi_compute not in _REGISTED_DISPATHCER:
+            if topi_compute not in _REGISTED_DISPATHCER[target_key]:
                 @topi_compute.register(target_key)
                 @dispatcher
                 def config_dispatcher(*args, **kwargs):
