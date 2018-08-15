@@ -153,6 +153,15 @@ def test_forward_lrn():
     data = mx.sym.var('data')
     mx_sym = mx.sym.LRN(data, alpha=2, beta=2, knorm=1, nsize=5)
     verify_mxnet_frontend_impl(mx_sym, (1, 10, 24, 24), (1, 10, 24, 24))
+    
+def test_forward_l2_normalize():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.L2Normalization(data, 1e-10,mode='instance')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
+    mx_sym = mx.sym.L2Normalization(data, 1e-10,mode='channel')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
+    mx_sym = mx.sym.L2Normalization(data, 1e-10,mode='spatial')
+    verify_mxnet_frontend_impl(mx_sym, (1, 20, 8, 8), (1, 20, 8, 8))
 
 if __name__ == '__main__':
     test_forward_mlp()
@@ -169,3 +178,4 @@ if __name__ == '__main__':
     test_forward_expand_dims()
     test_forward_pooling()
     test_forward_lrn()
+    test_forward_l2_normalize()
