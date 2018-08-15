@@ -380,14 +380,15 @@ def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
 
-def test_upsample():
+def _test_upsample_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3 * scale, 3 * scale)
-    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[2.0])
+    scale = float(scale)
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[scale])
     
     in_array = np.random.uniform(size=in_shape).astype('float32')
-    out_array = np.random.uniform(size=out_shape).astype('float32')
+    out_array = np.zeros(out_shape).astype('float32')
 
     def upsample_nearest(out_shape, out_array, in_array):
         for b in range(out_shape[0]):
@@ -397,15 +398,75 @@ def test_upsample():
     upsample_nearest(out_shape, out_array, in_array)
 
     graph = helper.make_graph([y],
-                              'upsample_test',
+                              'upsample_nearest_test',
                               inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
                               outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
 
-    model = helper.make_model(graph, producer_name='upsample_test')
+    model = helper.make_model(graph, producer_name='upsample_nearest_test')
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
         np.testing.assert_allclose(out_array, tvm_out)
+
+def _test_upsample_bilinear():
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3 * scale, 3 * scale)
+    scale = float(scale)
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[scale])
+    
+    in_array = np.random.uniform(size=in_shape).astype('float32')
+    out_array = np.zeros(out_shape).astype('float32')
+
+    def upsample_bilinear(out_shape, out_array, in_shape, in_array):
+        for n in range(out_shape[0]):
+            for c in range(out_shape[1]):
+                for h in range(out_shape[2]):
+                    for w in range(out_shape[3]):
+                        in_y = h * 1.0 / scale
+                        y0 = math.floor(in_y)
+                        y1 = min(math.ceil(in_y), in_shape[2] - 1)
+                        y_lerp = in_y - y0
+
+                        y0 = int(y0)
+                        y1 = int(y1)
+
+                        in_x = w * 1.0 / scale
+                        x0 = math.floor(in_x)
+                        x1 = min(math.ceil(in_x), in_shape[3] - 1)
+                        x_lerp = in_x - x0
+
+                        x0 = int(x0)
+                        x1 = int(x1)
+
+                        A = in_array[n][c][y0][x0]
+                        B = in_array[n][c][y0][x1]
+                        C = in_array[n][c][y1][x0]
+                        D = in_array[n][c][y1][x1]
+
+                        top = A + (B - A) * x_lerp
+                        bottom = C + (D - C) * x_lerp
+
+                        pixel = np.float32(top + (bottom - top) * y_lerp)
+
+                        out_array[n][c][h][w] = pixel
+
+    upsample_bilinear(out_shape, out_array, in_shape, in_array)
+
+    graph = helper.make_graph([y],
+                              'upsample_bilinear_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_bilinear_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        np.testing.assert_allclose(out_array, tvm_out)
+
+def test_upsample():
+    _test_upsample_nearest()
+    _test_upsample_bilinear()
 
 
 if __name__ == '__main__':

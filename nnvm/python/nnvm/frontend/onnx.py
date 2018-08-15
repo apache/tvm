@@ -414,9 +414,13 @@ class Upsample(OnnxOpConverter):
     def _impl_v7(cls, inputs, attr, params):
         scales = attr.get('scales')
         mode = attr.get('mode')
-        assert mode == b'nearest'
-        params = {'scale': int(scales[-1])}
-        return _sym.upsampling(inputs[0], **params)
+        if mode == b'nearest':
+            method = "NEAREST_NEIGHBOR"
+        elif mode == b'linear':
+            method = "BILINEAR"
+        else:
+            raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
+        return _sym.upsampling(inputs[0], scale=int(scales[-1]), method=str(method))
 
 
 class Shape(OnnxOpConverter):
