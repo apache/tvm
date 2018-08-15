@@ -77,6 +77,39 @@ def test_injective_reduce_injective():
         np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
+def test_injective_conv2d():
+    channels = 16
+    data = sym.Variable(name="data")
+    pool = sym.global_avg_pool2d(data=data)
+    weight = sym.reshape(pool, shape=[1, channels, 1, 1])
+    residual = sym.conv2d(data=data, kernel_size=(3,3), channels=channels, padding=(1, 1),
+                          layout="NCHW", kernel_layout="OIHW", use_bias=False, name="conv")
+    net = weight * data + residual
+    size = 56
+    dtype="float32"
+    dshape = (1, channels, size, size)
+    kshape = (channels, channels, 3, 3)
+    oshape = dshape
+    shape_dict = {"data": dshape}
+
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(net, target, shape_dict)
+        # data, global_avg_pool, conv weight, fused op
+        assert graph.index.num_nodes == 4
+
+        data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+        kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+        m = graph_runtime.create(graph, lib, ctx)
+        m.run(data=data, conv_weight=kernel)
+        # get output
+        out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+        residual = topi.testing.conv2d_nchw_python(
+            data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
+        weight = np.mean(data.asnumpy(), axis=(2, 3))
+        c_np = weight[:, :, np.newaxis, np.newaxis] * data.asnumpy() + residual
+        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+
+
 def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
     with nnvm.compiler.build_config(opt_level=opt_level):
         graph, lib, params = nnvm.compiler.build(sym, target, shape={"data":data.shape}, params=params)
@@ -123,3 +156,4 @@ if __name__ == "__main__":
     test_ewise_injective()
     test_conv_ewise_injective()
     test_fuse_conv2d_elu()
+    test_injective_conv2d()
