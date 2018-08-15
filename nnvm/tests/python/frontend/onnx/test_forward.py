@@ -462,7 +462,7 @@ def _test_upsample_bilinear():
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
-        np.testing.assert_allclose(out_array, tvm_out)
+        np.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_upsample():
     _test_upsample_nearest()
