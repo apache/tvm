@@ -497,7 +497,7 @@ def schedule_conv2d_small_batch(outs):
     def traverse(OP):
         """Traverse operators from computation graph"""
         # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(OP.tag):
+        if tag.is_injective(OP.tag):
             if OP not in s.outputs:
                 s[OP].compute_inline()
             for tensor in OP.input_tensors:
