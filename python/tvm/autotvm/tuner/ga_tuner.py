@@ -89,7 +89,7 @@ class GATuner(Tuner):
             max_score = np.max(scores)
             if max_score < 1e-8:
                 probs = np.empty_like(scores)
-                probs[:] = 1.0 / len(scores) 
+                probs[:] = 1.0 / len(scores)
             else:
                 scores /= max_score
                 probs = scores / np.sum(scores)
