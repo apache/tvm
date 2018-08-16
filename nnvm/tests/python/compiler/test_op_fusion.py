@@ -94,8 +94,8 @@ def test_injective_conv2d():
 
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(net, target, shape_dict)
-        # data, global_avg_pool, conv weight, fused op
-        assert graph.index.num_nodes == 4
+        # data, global_avg_pool, conv weight, conv op, fused elemwise add
+        assert graph.index.num_nodes == 5
 
         data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
         kernel = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))

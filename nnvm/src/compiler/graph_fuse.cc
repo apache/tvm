@@ -63,12 +63,16 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
       // Check if we can fuse to the master.
       int chosen_master = -1;
       bool ewise = inode.source->num_outputs() == 1;
+      bool mark_as_injective = false;
       for (const auto& e : inode.inputs) {
         if (fuse_vec[e.node_id] == FuseRule::kUknown) {
           TOpPattern ipt = pattern_vec[e.node_id];
           if (ipt != kElemWise) ewise = false;
-          if (ipt <= kInjective) {
+          if (ipt <= kBroadcast) {
             fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
+          } else if (ipt == kInjective) {
+            fuse_vec[e.node_id] = FuseRule::kFuseToMaster;
+            mark_as_injective = true;
           } else if (ipt == kOutEWiseFusable &&
                      chosen_master == -1 &&
                      shape_vec[idx.entry_id(nid, 0)] == shape_vec[idx.entry_id(e)]) {
@@ -87,6 +91,8 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
       master_vec[nid] = chosen_master;
       if (chosen_master != -1) {
         pt = kOutEWiseFusable;
+      } else if (mark_as_injective) {
+        pt = kInjective;
       } else {
         pt = ewise ? kElemWise : kBroadcast;
       }
@@ -135,8 +141,25 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
     if (group_vec[nid] == -1) {
       group_vec[nid] = nid;
     }
+
+    // Check if injective op and out_ewise_fusable op (e.g. conv2d) are in the same group.
+    bool parent_out_ewise = false;
+    bool parent_injective = false;
+    for (const auto& e : inode.inputs) {
+      TOpPattern pt = pattern_vec[e.node_id];
+      if (pt == kOutEWiseFusable) parent_out_ewise = true;
+      else if (pt == kInjective) parent_injective = true;
+    }
+    // Change the master node from out_ewise_fusable op to itself
+    if (parent_injective && parent_out_ewise) master_vec[nid] = nid;
+
     // Propagate the group id.
     for (const auto& e : inode.inputs) {
+      TOpPattern pt = pattern_vec[e.node_id];
+      if (parent_out_ewise && parent_injective) {
+        if (pt == kOutEWiseFusable) continue; // Do not fuse out_ewise_fusable op
+        else if (pt == kInjective) master_vec[e.node_id] = nid;
+      }
       if (fuse_vec[e.node_id] == FuseRule::kFuseToMaster) {
         CHECK(group_vec[e.node_id] == -1||
               group_vec[e.node_id] == group_vec[nid]);
