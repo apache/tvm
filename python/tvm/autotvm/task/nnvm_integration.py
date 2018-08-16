@@ -4,12 +4,16 @@ Decorator and utilities for the integration with TOPI and NNVM
 
 """
 import warnings
+import logging
+
 
 from ... import tensor, placeholder, target as _target
 
 from ..util import get_const_tuple
 from .task import create, register
+from .dispatcher import ApplyHistoryBest
 
+logger = logging.getLogger('autotvm')
 
 def serialize_args(args):
     """serialize arguments of a topi function to a hashable tuple.
@@ -176,8 +180,17 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
 
     # run compiler to collect all TOPI calls during compilation
     env.reset()
+
+    # disable logger temporarily
+    old_state = logger.disabled
+    logger.disabled = True
+
+    # use a dummy target to do a fake compile for collecting topi calls
     dummy_target = _target.create("opencl -device=dummy")
-    nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+    with ApplyHistoryBest([], allow_fallback=True):
+        nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+
+    logger.disabled = old_state
 
     tasks = []
     for task_name, args in env.get_tasks():

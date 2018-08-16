@@ -368,7 +368,7 @@ def compute_flop(sch):
                 pass
             else:
                 raise FlopCalculationError("Only support tvm.compute currently. "
-                                           "Other ops like tvm.scan is not supported")
+                                           "Other ops like tvm.scan/tvm.extern is not supported")
         return ret
 
     try:
