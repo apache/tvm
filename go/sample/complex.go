@@ -69,7 +69,7 @@ func main() {
         return
     }
 
-    graphmod := graphrt.(*gotvm.TVMModule)
+    graphmod := graphrt.AsModule()
 
     fmt.Printf("Graph runtime Created\n")
 
@@ -78,7 +78,7 @@ func main() {
     tshapeOut := []int64{1, 1001}
 
     // Allocate input TVMArray
-    inX, err := gotvm.Empty(tshapeIn, "float32")
+    inX, err := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
     if err != nil {
         fmt.Print(err)
         return

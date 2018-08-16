@@ -15,10 +15,107 @@ import (
     "runtime"
 )
 
+// KHandle is golang type code for TVM enum kHandle.
+var KHandle int32           = int32(C.kHandle)
+// KNull is golang type code for TVM kNull.
+var KNull int32             = int32(C.kNull)
+// KTVMType is golang type code for TVM kTVMType.
+var KTVMType int32          = int32(C.kTVMType)
+// KTVMContext is golang type code for TVM kTVMContext.
+var KTVMContext int32       = int32(C.kTVMContext)
+// KArrayHandle is golang type code for TVM kArrayHandle.
+var KArrayHandle int32      = int32(C.kArrayHandle)
+// KNodeHandle is golang type code for TVM kNodeHandle.
+var KNodeHandle int32       = int32(C.kNodeHandle)
+// KModuleHandle is gonag type code for TVM kModuleHandle.
+var KModuleHandle int32     = int32(C.kModuleHandle)
+// KFuncHandle is gonalg type code for TVM kFuncHandle.
+var KFuncHandle int32       = int32(C.kFuncHandle)
+// KStr is golang type code for TVM kStr.
+var KStr int32              = int32(C.kStr)
+// KBytes is golang type code for TVM kBytes.
+var KBytes int32            = int32(C.kBytes)
+// KNDArrayContainer is golang typecode for kNDArrayContainer.
+var KNDArrayContainer int32 = int32(C.kNDArrayContainer)
+// KExtBegin is golang enum corresponding to TVM kExtBegin.
+var KExtBegin int32         = int32(C.kExtBegin)
+// KNNVMFirst is golang enum corresponding to TVM kNNVMFirst.
+var KNNVMFirst int32        = int32(C.kNNVMFirst)
+// KNNVMLast is golang enum corresponding to TVM kNNVMLast.
+var KNNVMLast int32         = int32(C.kNNVMLast)
+// KExtReserveEnd is golang enum corresponding to TVM kExtReserveEnd.
+var KExtReserveEnd int32    = int32(C.kExtReserveEnd)
+// KExtEnd is golang enum corresponding to TVM kExtEnd.
+var KExtEnd int32           = int32(C.kExtEnd)
+// KDLInt is golang type code for TVM kDLInt.
+var KDLInt int32            = int32(C.kDLInt)
+// KDLUInt is golang type code for TVM kDLUInt.
+var KDLUInt int32           = int32(C.kDLUInt)
+// KDLFloat is golang type code for TVM kDLFloat.
+var KDLFloat int32          = int32(C.kDLFloat)
+
 // TVMValue Typemap for union exposed by TVM runtime API.
 //
 // gotvm maps it to a uintptr and then dynamically allocates memory by newTVMValue method.
 type TVMValue uintptr
+
+// AsInt64 returns the int64 value inside the TVMValue.
+func (tvmval TVMValue)  AsInt64() (retVal int64) {
+    retVal = tvmval.getVInt64()
+
+    return
+}
+
+// AsFloat64 returns the Float64 value inside the TVMValue.
+func (tvmval TVMValue)  AsFloat64() (retVal float64) {
+    retVal = tvmval.getVFloat64()
+
+    return
+}
+
+// AsModule returns the TVMModule inside the TVMValue.
+func (tvmval TVMValue)  AsModule() (retVal *TVMModule) {
+    finalizerModule := func(mhandle *TVMModule) {
+        fmt.Printf("finalizerModule called \n")
+        nativeTVMModFree(*mhandle)
+        mhandle = nil
+    }
+
+    mhandle := new(TVMModule)
+    *mhandle = tvmval.getVMHandle()
+    runtime.SetFinalizer(mhandle, finalizerModule)
+    retVal = mhandle
+
+    return
+}
+
+// AsFunction returns the TVMFunction inside the TVMValue.
+func (tvmval TVMValue)  AsFunction() (retVal *TVMFunction) {
+    finalizerFunction := func(fhandle *TVMFunction) {
+        fmt.Printf("finalizerFunction called \n")
+        nativeTVMFuncFree(*fhandle)
+        fhandle = nil
+    }
+
+    fhandle := new(TVMFunction)
+    *fhandle = tvmval.getVFHandle()
+    runtime.SetFinalizer(fhandle, finalizerFunction)
+    retVal = fhandle
+
+    return
+}
+
+// AsStr returns the golang string slice in the TVMValue.
+//
+// Note: Calling this function automativally release the underlaying native memory.
+// Hence repeated calls to this may lead to segmentation faults.
+func (tvmval TVMValue) AsStr() (retVal string) {
+    str := tvmval.getVStr()
+    tvmval.unSetVStr()
+    retVal = str
+
+    return
+}
 
 // nativeCPtr return the unitptr corresponding to TVMValue type.
 func (tvmval TVMValue) nativeCPtr() (ret uintptr) {
@@ -198,20 +295,11 @@ func (tvmval TVMValue) setValue(val interface{}) (retVal int32, err error) {
     return
 }
 
+/*
 // getFinalizedValue is used to get the given from TVMValue container or union.
 //
 // `tvmtype` is types accepted by TVMValue container or native union.
 func (tvmval TVMValue) getFinalizedValue(tvmtype int32) (retVal interface{}, err error) {
-    finalizerModule := func(mhandle *TVMModule) {
-        nativeTVMModFree(*mhandle)
-        mhandle = nil
-    }
-
-    finalizerFunction := func(fhandle *TVMFunction) {
-        nativeTVMFuncFree(*fhandle)
-        fhandle = nil
-    }
-
     switch tvmtype {
         case KDLInt:
             retVal = tvmval.getVInt64()
@@ -222,21 +310,16 @@ func (tvmval TVMValue) getFinalizedValue(tvmtype int32) (retVal interface{}, err
             tvmval.unSetVStr()
             retVal = str
         case KModuleHandle:
-            handle := new(TVMModule)
-            *handle = tvmval.getVMHandle()
-            runtime.SetFinalizer(handle, finalizerModule)
-            retVal = handle
+            retVal = tvmval.getVMHandle()
         case KFuncHandle:
-            handle := new(TVMFunction)
-            *handle = tvmval.getVFHandle()
-            runtime.SetFinalizer(handle, finalizerFunction)
-            retVal = handle
+            retVal = tvmval.getVFHandle()
         default:
             err = fmt.Errorf("Cannot get requested value type from given TVMValue: %v\n", tvmtype);
     }
 
     return
 }
+*/
 
 // newTVMValue initialize the TVMValue native object.
 //

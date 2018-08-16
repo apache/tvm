@@ -34,7 +34,7 @@ func main() {
 
     // Allocation by explicit type and context.
     tshapeIn  := []int64{4}
-    inX, _ := gotvm.Empty(tshapeIn, "float32", gotvm.Context{gotvm.KDLCPU, 0})
+    inX, _ := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
 
     // Default allocation on CPU
     inY, _ := gotvm.Empty(tshapeIn, "float32")

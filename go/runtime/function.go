@@ -63,7 +63,7 @@ func FuncListGlobalNames() (retVal []string, err error) {
 // The closure function can be used to call TVMFunction with arguments directly.
 //
 // Variadic arguments can be any type which can be embed into TVMValue.
-func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (interface{}, error), err error) {
+func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*TVMValue, error), err error) {
     var funp uintptr
 
     ret := (int32)(C._TVMFuncGetGlobal(*(*C._gostring_)(unsafe.Pointer(&funcname)),
@@ -84,7 +84,7 @@ func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (inte
 
     runtime.SetFinalizer(handle, finalizer)
 
-    funccall := func (args ...interface{}) (interface{}, error) {
+    funccall := func (args ...interface{}) (*TVMValue, error) {
         return callNativeFunction(*handle, args)
     }
 
@@ -99,7 +99,7 @@ func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (inte
 // `args` are the variadic arguments to the TVMFunction.
 //
 // returns the interface for the return value from TVM if any and error if any.
-func callNativeFunction(handle TVMFunction, args []interface{}) (retVal interface{}, err error) {
+func callNativeFunction(handle TVMFunction, args []interface{}) (retVal *TVMValue, err error) {
         argsIn := make([]TVMValue, len(args))
 
         var typeCodes []int32
@@ -127,7 +127,14 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal interfac
         argsOut := []TVMValue{newTVMValue()}
         retTypeCode := KNull
 
-        defer argsOut[0].deleteTVMValue()
+        finalizerValue := func(vhandle *TVMValue) {
+            (*vhandle).deleteTVMValue()
+            vhandle = nil
+        }
+
+        vhandle := new(TVMValue)
+        *vhandle = TVMValue(argsOut[0].nativeCPtr())
+        runtime.SetFinalizer(vhandle, finalizerValue)
 
         err = nativeTVMFuncCall(handle, argsIn, typeCodes, argsOut, &retTypeCode)
         if err != nil {
@@ -135,7 +142,7 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal interfac
         }
 
         if retTypeCode != KNull {
-            retVal, err = argsOut[0].getFinalizedValue(retTypeCode)
+            retVal = vhandle
             return
         }
 
@@ -158,7 +165,7 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal interfac
 // Variadic arguments can be any type which can be embed into TVMValue.
 func (tvmmodule *TVMModule) GetFunction (
       funcname string, args ...interface{}) (
-      retVal func (args ...interface{}) (interface{}, error), err error){
+      retVal func (args ...interface{}) (*TVMValue, error), err error){
     queryImports := int32(1)
     if len(args) > 0 {
         queryImports = int32(args[1].(int))
@@ -185,7 +192,7 @@ func (tvmmodule *TVMModule) GetFunction (
 
     runtime.SetFinalizer(handle, finalizer)
 
-    funccall := func (args ...interface{}) (interface{}, error) {
+    funccall := func (args ...interface{}) (*TVMValue, error) {
         return callNativeFunction(*handle, args)
     }
 
