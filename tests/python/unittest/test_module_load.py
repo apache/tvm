@@ -109,11 +109,25 @@ def test_device_module_dump():
             f2[name](a, b)
             np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
-    check_device("cuda")
-    check_device("vulkan")
-    check_device("opencl")
-    check_device("metal")
+    def check_stackvm(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        temp = util.tempdir()
+        name = "myadd_%s" % device
+        f = tvm.build(s, [A, B], device, "stackvm", name=name)
+        path_dso = temp.relpath("dev_lib.stackvm")
+        #f.export_library(path_dso)
+        #f1 = tvm.module.load(path_dso)
+        a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), ctx)
+        f(a, b)
+        np.testing.assert_equal(b.asnumpy(), a.asnumpy() + 1)
 
+    for device in ["cuda", "vulkan", "opencl", "metal"]:
+        check_device(device)
+        check_stackvm(device)
 
 def test_combine_module_llvm():
     """Test combine multiple module into one shared lib."""

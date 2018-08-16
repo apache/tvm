@@ -366,6 +366,8 @@ class ExternOpNode : public OperationNode {
     v->Visit("tag", &tag);
     v->Visit("attrs", &attrs);
     v->Visit("inputs", &inputs);
+    v->Visit("input_placeholders", &input_placeholders);
+    v->Visit("output_placeholders", &output_placeholders);
     v->Visit("body", &body);
   }
   EXPORT static Operation make(std::string name,

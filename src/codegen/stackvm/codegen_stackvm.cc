@@ -1,11 +1,12 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file codegen_stack_vm.cc
+ * \file codegen_stackvm.cc
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <limits>
-#include "./codegen_stack_vm.h"
+#include "./codegen_stackvm.h"
+#include "../../runtime/stackvm/stackvm_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -19,6 +20,7 @@ StackVM CodeGenStackVM::Compile(LoweredFunc f) {
     CHECK_EQ(static_cast<size_t>(vid), i);
   }
   this->Push(f->body);
+  vm_.InitCache();
   return std::move(vm_);
 }
 
@@ -486,5 +488,22 @@ void CodeGenStackVM::VisitExpr_(const Let *op) {
   this->PushOp(StackVM::STORE_HEAP, static_cast<int>(vid));
   this->Push(op->body);
 }
+
+runtime::Module BuildStackVM(const Array<LoweredFunc>& funcs) {
+  CHECK_NE(funcs.size(), 0U);
+  std::unordered_map<std::string, StackVM> fmap;
+  for (LoweredFunc f : funcs) {
+    StackVM vm = codegen::CodeGenStackVM().Compile(f);
+    CHECK(!fmap.count(f->name))
+        << "Function name " << f->name << "already exist in list";
+    fmap[f->name] = std::move(vm);
+  }
+  return runtime::StackVMModuleCreate(fmap, funcs[0]->name);
+}
+
+TVM_REGISTER_API("codegen.build_stackvm")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildStackVM(args[0]);
+  });
 }  // namespace codegen
 }  // namespace tvm

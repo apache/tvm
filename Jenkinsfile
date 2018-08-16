@@ -96,6 +96,7 @@ stage('Build') {
            echo set\\(USE_RPC ON\\) >> config.cmake
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
+           echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_BLAS openblas\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake

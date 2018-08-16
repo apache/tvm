@@ -446,6 +446,32 @@ TVM_DLL int TVMArrayCopyFromTo(TVMArrayHandle from,
                                TVMStreamHandle stream);
 
 /*!
+ * \brief Produce an array from the DLManagedTensor that shares data memory
+ * with the DLManagedTensor.
+ * \param from The source DLManagedTensor.
+ * \param out The output array handle.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayFromDLPack(DLManagedTensor* from,
+                               TVMArrayHandle* out);
+
+/*!
+ * \brief Produce a DLMangedTensor from the array that shares data memory with
+ * the array.
+ * \param from The source array.
+ * \param out The DLManagedTensor handle.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayToDLPack(TVMArrayHandle from,
+                             DLManagedTensor** out);
+
+/*!
+ * \brief Delete (free) a DLManagedTensor's data.
+ * \param dltensor Pointer to the DLManagedTensor.
+ */
+TVM_DLL void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor);
+
+/*!
  * \brief Create a new runtime stream.
  *
  * \param device_type The device type of context

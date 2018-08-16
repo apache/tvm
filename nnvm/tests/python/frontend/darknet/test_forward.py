@@ -332,7 +332,7 @@ def test_forward_softmax_temperature():
     LIB.free_network(net)
 
 def test_forward_rnn():
-    '''test softmax layer'''
+    '''test RNN layer'''
     net = LIB.make_network(1)
     batch = 1
     inputs = 256
@@ -351,7 +351,7 @@ def test_forward_rnn():
     LIB.free_network(net)
 
 def test_forward_crnn():
-    '''test softmax layer'''
+    '''test CRNN layer'''
     net = LIB.make_network(1)
     batch = 1
     c = 3
@@ -373,6 +373,42 @@ def test_forward_crnn():
     net.h = h
     LIB.resize_network(net, net.w, net.h)
     test_forward(net)
+    LIB.free_network(net)
+
+def test_forward_lstm():
+    '''test LSTM layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    inputs = 256
+    outputs = 256
+    steps = 1
+    batch_normalize = 0
+    adam = 0
+    layer_1 = LIB.make_lstm_layer(batch, inputs, outputs, steps, batch_normalize, adam)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = outputs
+    net.w = net.h = 0
+    LIB.resize_network(net, net.w, net.h)
+    test_rnn_forward(net)
+    LIB.free_network(net)
+
+def test_forward_gru():
+    '''test GRU layer'''
+    net = LIB.make_network(1)
+    batch = 1
+    inputs = 256
+    outputs = 256
+    steps = 1
+    batch_normalize = 0
+    adam = 0
+    layer_1 = LIB.make_gru_layer(batch, inputs, outputs, steps, batch_normalize, adam)
+    net.layers[0] = layer_1
+    net.inputs = inputs
+    net.outputs = outputs
+    net.w = net.h = 0
+    LIB.resize_network(net, net.w, net.h)
+    test_rnn_forward(net)
     LIB.free_network(net)
 
 def test_forward_activation_logistic():
@@ -423,4 +459,6 @@ if __name__ == '__main__':
     test_forward_elu()
     test_forward_rnn()
     test_forward_crnn()
+    test_forward_lstm()
+    test_forward_gru()
     test_forward_activation_logistic()

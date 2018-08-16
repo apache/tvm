@@ -191,9 +191,9 @@ tuning_option = {
    'early_stopping': 250,
 
    'measure_option': autotvm.measure_option(
-       autotvm.use_rpc(device_key, host='localhost', port=9190),
+       autotvm.measure.rpc(device_key, host='localhost', port=9190),
        number=4,
-       parallel_num=1,
+       n_parallel=1,
        timeout=10,
        build_func='ndk' if use_android else 'default',
    ),
@@ -205,7 +205,7 @@ tuning_option = {
 #
 #   In general, the default value provided here works well. It is the same
 #   value that we used to generate pre-tuned parameters.
-#   If you have multiple devices, you can set :code:`parallel_num` to
+#   If you have multiple devices, you can set :code:`n_parallel` to
 #   the number of devices you have. (e.g. set it to 3 if you register 3 rk3399
 #   boards to the tracker).
 #   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
