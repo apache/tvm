@@ -16,11 +16,11 @@ import (
     "runtime"
 )
 
-// TVMFunction type in golang hold pointer for the TVMFunction handle.
-type TVMFunction uintptr
+// Function type in golang hold pointer for the TVMFunction handle.
+type Function uintptr
 
-// nativeCPtr returns type freed uintptr for the TVMFunction.
-func (tvmfunction TVMFunction) nativeCPtr() (retVal uintptr) {
+// nativeCPtr returns type freed uintptr for the Function.
+func (tvmfunction Function) nativeCPtr() (retVal uintptr) {
     retVal = (uintptr)(tvmfunction)
     return
 }
@@ -60,10 +60,10 @@ func FuncListGlobalNames() (retVal []string, err error) {
 // returns a function closure with signature
 //         func (args ...interface{}) (interface{}, error) and  error if any.
 //
-// The closure function can be used to call TVMFunction with arguments directly.
+// The closure function can be used to call Function with arguments directly.
 //
-// Variadic arguments can be any type which can be embed into TVMValue.
-func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*TVMValue, error), err error) {
+// Variadic arguments can be any type which can be embed into Value.
+func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*Value, error), err error) {
     var funp uintptr
 
     ret := (int32)(C._TVMFuncGetGlobal(*(*C._gostring_)(unsafe.Pointer(&funcname)),
@@ -74,17 +74,17 @@ func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*TVM
         return
     }
 
-    handle := new(TVMFunction)
-    *handle = TVMFunction(funp)
+    handle := new(Function)
+    *handle = Function(funp)
 
-    finalizer := func(fhandle *TVMFunction) {
+    finalizer := func(fhandle *Function) {
         nativeTVMFuncFree(*fhandle)
         fhandle = nil
     }
 
     runtime.SetFinalizer(handle, finalizer)
 
-    funccall := func (args ...interface{}) (*TVMValue, error) {
+    funccall := func (args ...interface{}) (*Value, error) {
         return callNativeFunction(*handle, args)
     }
 
@@ -94,13 +94,13 @@ func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*TVM
 
 // callNativeFunction is routine which calls gotvm native wrapper with given arguments.
 //
-// `handle` is the handle for TVMFunction.
+// `handle` is the handle for Function.
 //
-// `args` are the variadic arguments to the TVMFunction.
+// `args` are the variadic arguments to the Function.
 //
 // returns the interface for the return value from TVM if any and error if any.
-func callNativeFunction(handle TVMFunction, args []interface{}) (retVal *TVMValue, err error) {
-        argsIn := make([]TVMValue, len(args))
+func callNativeFunction(handle Function, args []interface{}) (retVal *Value, err error) {
+        argsIn := make([]Value, len(args))
 
         var typeCodes []int32
 
@@ -124,16 +124,16 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal *TVMValu
             }
         }()
 
-        argsOut := []TVMValue{newTVMValue()}
+        argsOut := []Value{newTVMValue()}
         retTypeCode := KNull
 
-        finalizerValue := func(vhandle *TVMValue) {
+        finalizerValue := func(vhandle *Value) {
             (*vhandle).deleteTVMValue()
             vhandle = nil
         }
 
-        vhandle := new(TVMValue)
-        *vhandle = TVMValue(argsOut[0].nativeCPtr())
+        vhandle := new(Value)
+        *vhandle = Value(argsOut[0].nativeCPtr())
         runtime.SetFinalizer(vhandle, finalizerValue)
 
         err = nativeTVMFuncCall(handle, argsIn, typeCodes, argsOut, &retTypeCode)
@@ -151,7 +151,7 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal *TVMValu
 
 // GetFunction returns the function pointer from the module for given function name.
 //
-// `tvmmodule` is handle for TVMModule
+// `tvmmodule` is handle for Module
 //
 // `funcname` function name in module.
 //
@@ -160,12 +160,12 @@ func callNativeFunction(handle TVMFunction, args []interface{}) (retVal *TVMValu
 // returns function closure with signature
 //         func (args ...interface{}) (interface{}, error) and error if any.
 //
-// The closure function can be used to call TVMFunction with arguments directly.
+// The closure function can be used to call Function with arguments directly.
 // 
-// Variadic arguments can be any type which can be embed into TVMValue.
-func (tvmmodule *TVMModule) GetFunction (
+// Variadic arguments can be any type which can be embed into Value.
+func (tvmmodule *Module) GetFunction (
       funcname string, args ...interface{}) (
-      retVal func (args ...interface{}) (*TVMValue, error), err error){
+      retVal func (args ...interface{}) (*Value, error), err error){
     queryImports := int32(1)
     if len(args) > 0 {
         queryImports = int32(args[1].(int))
@@ -182,17 +182,17 @@ func (tvmmodule *TVMModule) GetFunction (
         return
     }
 
-    handle := new(TVMFunction)
-    *handle = TVMFunction(funp)
+    handle := new(Function)
+    *handle = Function(funp)
 
-    finalizer := func(fhandle *TVMFunction) {
+    finalizer := func(fhandle *Function) {
         nativeTVMFuncFree(*fhandle)
         fhandle = nil
     }
 
     runtime.SetFinalizer(handle, finalizer)
 
-    funccall := func (args ...interface{}) (*TVMValue, error) {
+    funccall := func (args ...interface{}) (*Value, error) {
         return callNativeFunction(*handle, args)
     }
 
@@ -203,16 +203,16 @@ func (tvmmodule *TVMModule) GetFunction (
 // nativeTVMFuncFree free the function handle allocated in TVM runtime.
 //
 // `funp` is the Function handle to be freed.
-func nativeTVMFuncFree(funp TVMFunction) (retVal int32) {
+func nativeTVMFuncFree(funp Function) (retVal int32) {
     retVal = (int32) (C.TVMFuncFree(C.TVMFunctionHandle(funp.nativeCPtr())))
     return
 }
 
 // nativeTVMFuncCall executes the function with given arguments
 //
-// `funp` TVMFunction handle to the packed function.
+// `funp` Function handle to the packed function.
 //
-// `argValues` is the slice of TVMValue which are arguments to the packed function.
+// `argValues` is the slice of Value which are arguments to the packed function.
 //
 // `typeCodes` is the alice of argument type codes corresponding to argValues.
 //
@@ -221,8 +221,8 @@ func nativeTVMFuncFree(funp TVMFunction) (retVal int32) {
 // `retTypeCode` is int32 holding type codes for retValue
 //
 // Returns err indicating native error if any.
-func nativeTVMFuncCall(funp TVMFunction, argValues []TVMValue, typeCodes []int32,
-                 retValues []TVMValue, retTypeCode *int32) (err error) {
+func nativeTVMFuncCall(funp Function, argValues []Value, typeCodes []int32,
+                 retValues []Value, retTypeCode *int32) (err error) {
     numArgs := int32(len(argValues))
 
     nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))

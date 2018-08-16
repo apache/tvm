@@ -30,7 +30,7 @@ func main() {
     fmt.Printf("Module Imported\n")
 
 
-    // Allocate TVMArray for inputs and outputs.
+    // Allocate Array for inputs and outputs.
 
     // Allocation by explicit type and context.
     tshapeIn  := []int64{4}
@@ -42,7 +42,7 @@ func main() {
     // Default allocation to type "float32" and on CPU
     out, _ := gotvm.Empty(tshapeIn)
 
-    fmt.Printf("Input and Output TVMArrays allocated\n")
+    fmt.Printf("Input and Output Arrays allocated\n")
 
     // Fill Input Data : inX , inY
     inXSlice := []float32 {1, 2, 3, 4}

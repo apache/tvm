@@ -73,24 +73,24 @@ func main() {
 
     fmt.Printf("Graph runtime Created\n")
 
-    // TVMArray allocation attributes
+    // Array allocation attributes
     tshapeIn  := []int64{1, 224, 224, 3}
     tshapeOut := []int64{1, 1001}
 
-    // Allocate input TVMArray
+    // Allocate input Array
     inX, err := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
     if err != nil {
         fmt.Print(err)
         return
     }
 
-    // Allocate output TVMArray
+    // Allocate output Array
     out, err := gotvm.Empty(tshapeOut)
     if err != nil {
         fmt.Print(err)
         return
     }
-    fmt.Printf("Input and Output TVMArrays allocated\n")
+    fmt.Printf("Input and Output Arrays allocated\n")
 
     // Get module function from graph runtime : load_params
     // Read params
@@ -98,7 +98,7 @@ func main() {
     if err != nil {
         fmt.Print(err)
     }
-    paramsByteArray := gotvm.NewTVMByteArray(bytes)
+    paramsByteArray := gotvm.NewByteArray(bytes)
 
     // Load Params
     funp, err = graphmod.GetFunction("load_params")
@@ -118,7 +118,7 @@ func main() {
 
     fmt.Printf("Module params loaded\n")
 
-    // Set some data in input TVMArray
+    // Set some data in input Array
     inSlice := make([]float32, (244 * 244 * 3))
 
     rand.Seed(10)

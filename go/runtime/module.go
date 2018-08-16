@@ -15,13 +15,13 @@ import (
     "runtime"
 )
 
-// TVMModule type in golang hold pointer for the TVMModule handle.
+// Module type in golang hold pointer for the TVMModule handle.
 //
-// TVMModule initialization happen through TVMModLoadFromFile api in TVM runtime.
-type TVMModule uintptr
+// Module initialization happen through TVMModLoadFromFile api in TVM runtime.
+type Module uintptr
 
-// nativeCPtr returns type freed uintptr for the TVMModule.
-func (tvmmodule TVMModule) nativeCPtr() (retVal uintptr) {
+// nativeCPtr returns type freed uintptr for the Module.
+func (tvmmodule Module) nativeCPtr() (retVal uintptr) {
     retVal = (uintptr)(tvmmodule)
     return
 }
@@ -32,8 +32,8 @@ func (tvmmodule TVMModule) nativeCPtr() (retVal uintptr) {
 //
 // `args` is an optional arguments of ["dll", "dylib", "dso", "so"] with default value "so"
 //
-// returns pointer to TVMModule and err or if any.
-func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *TVMModule, err error) {
+// returns pointer to Module and err or if any.
+func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, err error) {
     modtype := "so"
 
     if len(args) > 0 {
@@ -50,10 +50,10 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *TVMModule,
         return
     }
 
-    handle := new(TVMModule)
-    *handle = TVMModule(modp)
+    handle := new(Module)
+    *handle = Module(modp)
 
-    finalizer := func(mhandle *TVMModule) {
+    finalizer := func(mhandle *Module) {
         nativeTVMModFree(*mhandle)
         mhandle = nil
     }
@@ -67,7 +67,7 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *TVMModule,
 // nativeTVMModFree free the module handle allocated in TVM runtime.
 //
 // `modp` is the Module handle to be freed.
-func nativeTVMModFree(modp TVMModule) (retVal int32) {
+func nativeTVMModFree(modp Module) (retVal int32) {
     retVal = (int32) (C.TVMModFree(C.TVMModuleHandle(modp.nativeCPtr())))
     return
 }
