@@ -246,6 +246,7 @@ struct NDArray::Container {
 
  private:
   friend class NDArray;
+  friend class RPCWrappedFunc;
   /*!
    * \brief The shape container,
    *  can be used used for shape data.
