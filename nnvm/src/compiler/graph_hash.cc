@@ -125,7 +125,7 @@ std::string GraphDeepCompare(const Graph& a,
   const IndexedGraph& idxb = b.indexed_graph();
   std::ostringstream err;
   if (idxa.num_nodes() != idxb.num_nodes()) {
-    err << "Number of nodes mismatch";
+    err << "Number of nodes mismatch (" <<  idxa.num_nodes() << " v.s " << idxb.num_nodes() << ")";
     return err.str();
   }
   if (idxa.num_node_entries() != idxb.num_node_entries()) {

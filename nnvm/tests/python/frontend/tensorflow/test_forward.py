@@ -12,6 +12,7 @@ import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
 from tensorflow.python.ops import nn_ops
+from tensorflow.python.ops import nn
 from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import gen_array_ops
 from tensorflow.python.ops import math_ops
@@ -82,6 +83,34 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     output_data = sess.run(tensor, input_dict)
     return output_data
 
+
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False):
+    """Generic function to generate and compare tensorflow and TVM output"""
+
+    out_node = out_name.split(':')[0] if ":" in out_name else out_name
+
+    if isinstance(in_name, list):
+        in_node = [0]*len(in_name)
+        for i in range(len(in_name)):
+            in_node[i] = in_name[i].split(':')[0] if ":" in in_name[i] else in_name[i]
+    else:
+        in_node = in_name.split(':')[0] if ":" in in_name else in_name
+
+    with tf.Session() as sess:
+        if init_global_variables:
+            sess.run(variables.global_variables_initializer())
+        final_graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            [out_node],
+            )
+
+        tf_output = run_tf_graph(sess, in_data, in_name, out_name)
+        tvm_output = run_tvm_graph(final_graph_def, in_data,
+                                   in_node, tf_output.shape, tf_output.dtype)
+        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+        sess.close()
+
 #######################################################################
 # Pooling
 # -------
@@ -92,31 +121,15 @@ def _test_pooling(input_shape, **kwargs):
         np.prod(input_shape), dtype=np.float32).reshape(input_shape) - 1
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
-        # pylint: disable=unused-variable
-        pool = nn_ops.pool(in_data, **kwargs)
-        # pylint: enable=unused-variable
+        in_data = array_ops.placeholder(shape=input_shape, dtype='float32')
+        nn_ops.pool(in_data, **kwargs)
 
         if kwargs['pooling_type'] == 'MAX':
-            out_node = 'max_pool'
             out_name = 'max_pool:0'
         else:
-            out_node = 'avg_pool'
             out_name = 'avg_pool:0'
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                [out_node],
-                )
-
-            tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
-            tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
-                                       "Const", tf_output.shape, 'float32')
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
-
-            sess.close()
+        compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
 def test_forward_pooling():
     """ Pooling """
@@ -194,35 +207,19 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
     filter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data_array, shape=tensor_in_sizes, dtype='float32')
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
         in_filter = constant_op.constant(filter_array, shape=filter_in_sizes, dtype='float32')
         strides = [1] + strides + [1]
         dilations = [1] + dilations + [1]
 
-        # pylint: disable=unused-variable
-        conv = nn_ops.conv2d(in_data,
-                             in_filter,
-                             strides=strides,
-                             padding=padding,
-                             data_format=data_format)
-        # pylint: enable=unused-variable
+        nn_ops.conv2d(in_data,
+                      in_filter,
+                      strides=strides,
+                      padding=padding,
+                      data_format=data_format)
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['Conv2D'],
-                )
-
-            tf_output = run_tf_graph(sess, np.reshape(data_array, tensor_in_sizes),
-                                     'Const:0', 'Conv2D:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       np.reshape(data_array, tensor_in_sizes).astype('float32'),
-                                       "Const", tf_output.shape, 'float32')
-
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
-
-            sess.close()
+        compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                            'Placeholder:0', 'Conv2D:0')
 
 def test_forward_convolution():
     _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
@@ -238,28 +235,10 @@ def _test_reshape(data, out_shape):
     """ One iteration of reshape operation with given data and out shape """
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        array_ops.reshape(in_data, out_shape)
 
-        # pylint: disable=unused-variable
-        reshape_out = array_ops.reshape(in_data, out_shape)
-        # pylint: enable=unused-variable
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['Reshape'],
-                )
-
-            tf_output = run_tf_graph(sess, data,
-                                     'Const:0', 'Reshape:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       data,
-                                       "Const", tf_output.shape, data.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output)
-
-            sess.close()
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0')
 
 def test_forward_reshape():
     _test_reshape(np.arange(6.0), [2, 3])
@@ -278,31 +257,14 @@ def _test_squeeze(data, squeeze_dims=None):
         squeeze_dims = []
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
 
-        # pylint: disable=unused-variable
         if squeeze_dims:
-            squeeze_out = array_ops.squeeze(in_data, squeeze_dims)
+            array_ops.squeeze(in_data, squeeze_dims)
         else:
-            squeeze_out = array_ops.squeeze(in_data)
-        # pylint: enable=unused-variable
+            array_ops.squeeze(in_data)
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['Squeeze'],
-                )
-
-            tf_output = run_tf_graph(sess, data,
-                                     'Const:0', 'Squeeze:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       data,
-                                       "Const", tf_output.shape, data.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output)
-
-            sess.close()
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Squeeze:0')
 
 def test_forward_squeeze():
     """ Squeeze """
@@ -335,28 +297,10 @@ def _test_concat_v2(data, dim):
     """ One iteration of ConcatV2 """
 
     with tf.Graph().as_default():
+        gen_array_ops._concat_v2(data, dim)
 
-        # pylint: disable=unused-variable
-        concat_out = gen_array_ops._concat_v2(data, dim)
-        # pylint: enable=unused-variable
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['ConcatV2'],
-                )
-
-            tf_output = run_tf_graph(sess, data,
-                                     ['ConcatV2/values_0:0', 'ConcatV2/values_1:0'], 'ConcatV2:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       data,
-                                       ["ConcatV2/values_0", 'ConcatV2/values_1'],
-                                       tf_output.shape, tf_output.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output)
-
-            sess.close()
+        compare_tf_with_tvm(data, ['ConcatV2/values_0:0', 'ConcatV2/values_1:0'],
+                            'ConcatV2:0')
 
 def _test_forward_concat_v2():
     t1 = np.array([])
@@ -376,28 +320,10 @@ def _test_sigmoid(data):
     """ One iteration of sigmoid """
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
-
-        # pylint: disable=unused-variable
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
         sigmoid_out = math_ops.sigmoid(in_data)
-        # pylint: enable=unused-variable
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['Sigmoid'],
-                )
-
-            tf_output = run_tf_graph(sess, data,
-                                     'Const:0', 'Sigmoid:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       data,
-                                       "Const", tf_output.shape, data.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-
-            sess.close()
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Sigmoid:0')
 
 def test_forward_sigmoid():
     """ Sigmoid """
@@ -411,24 +337,10 @@ def test_forward_sigmoid():
 def _test_argx(func, data, **kwargs):
 
     with tf.Graph().as_default():
-        inp = constant_op.constant(data, shape=data.shape, dtype=data.dtype, name="c0")
+        inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
+        func(inp, name="argx0", **kwargs, output_type=tf.int32)
 
-        # pylint: disable=unused-variable
-        out = func(inp, name="argx0", **kwargs)
-        # pylint: enable=unused-variable
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess=sess,
-                input_graph_def=sess.graph.as_graph_def(add_shapes=True),
-                output_node_names=["argx0"])
-
-            tf_output = run_tf_graph(sess, data, input_node="c0:0", output_node="argx0:0")
-            tvm_output = run_tvm_graph(graph_def, data, "c0", tf_output.shape, output_dtype='int32')
-
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-
-            sess.close()
+        compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
 
 def test_argmin_argmax():
     for axis in [None,0,1,2]:
@@ -441,6 +353,8 @@ def test_argmin_argmax():
 # --------
 
 def _test_variable(data):
+    """ One iteration of a variable """
+
     tf.reset_default_graph()
     input_op = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
     input_tensor = array_ops.reshape(input_op, data.shape)
@@ -449,24 +363,9 @@ def _test_variable(data):
     with variable_scope.variable_scope("linear", reuse=None):
         w = variable_scope.get_variable(
             "w", shape=[size, size], dtype=input_tensor.dtype)
-    # pylint: disable=unused-variable
-    output_op = math_ops.matmul(input_tensor, w)
-    # pylint: enable=unused-variable
+    math_ops.matmul(input_tensor, w)
 
-    with tf.Session() as sess:
-        sess.run(variables.global_variables_initializer())
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            ['MatMul'],
-            )
-
-        tf_output = run_tf_graph(sess, data, 'Placeholder:0', 'MatMul:0')
-        tvm_output = run_tvm_graph(final_graph_def, data,
-                                   "Placeholder", tf_output.shape, data.dtype)
-
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-        sess.close()
+    compare_tf_with_tvm(data, 'Placeholder:0', 'MatMul:0', init_global_variables=True)
 
 def test_forward_variable():
     """Variable type op test"""
@@ -474,9 +373,138 @@ def test_forward_variable():
 
 
 #######################################################################
+# StridedSlice
+# ------------
+
+def _test_stridedslice(ip_shape, begin, end, stride, dtype,
+                             begin_mask=0, end_mask=0, new_axis_mask=0,
+                             shrink_axis_mask=0, ellipsis_mask=0):
+    """ One iteration of a Stridedslice """
+
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
+                         end_mask=end_mask, new_axis_mask=new_axis_mask,
+                         shrink_axis_mask=shrink_axis_mask,
+                         ellipsis_mask=ellipsis_mask, name="strided_slice")
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    compare_tf_with_tvm(np_data, 'in_data:0', 'strided_slice:0')
+
+def test_forward_stridedslice():
+    '''test StridedSlice'''
+    _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
+    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], 'float32', new_axis_mask=5)
+    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=4)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
+    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3,4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1, new_axis_mask=2)
+    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5, new_axis_mask=1)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2, begin_mask=8, end_mask=8)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
+                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
+    _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
+                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
+                       end_mask=8)
+
+
+#######################################################################
+# Gather
+# ------
+
+def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
+    """ One iteration of a Gather """
+
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    indices = tf.placeholder("int32", indice_shape, name="indices")
+    tf.gather(in_data, indices, axis=axis)
+    np_data = np.random.uniform(size=ip_shape).astype(dtype)
+
+    def _fill_indices(indice_value):
+        indices = np.array(ip_shape, dtype=dtype)
+        if isinstance(indice_value, int):
+            indices = np.array([indice_value], dtype='int32')
+        else:
+            indices = np.asarray(indice_value, dtype='int32')
+        return indices
+    np_indices = _fill_indices(indice_value)
+
+    compare_tf_with_tvm([np_data, np_indices], ['in_data:0', 'indices:0'], 'GatherV2:0')
+
+def test_forward_gather():
+    '''test gather layer'''
+    _test_gather((4,), (1,), 1, 0, 'int32')
+    _test_gather((4,), (1,), 1, 0, 'float32')
+    _test_gather((1,4), (1,), [0], 0, 'int32')
+    _test_gather((4,), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 1, 'int32')
+    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
+    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
+    _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
+
+
+#######################################################################
+# Multi Input to graph
+# --------------------
+
+def test_forward_multi_input():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[3, 3], name='in1')
+        in2 = tf.placeholder(tf.int32, shape=[3, 3], name='in2')
+        in3 = tf.placeholder(tf.int32, shape=[3, 3], name='in3')
+        in4 = tf.placeholder(tf.int32, shape=[3, 3], name='in4')
+
+        out1 = tf.add(in1, in2, name='out1')
+        out2 = tf.subtract(in3, in4, name='out2')
+        out = tf.multiply(out1, out2, name='out')
+        in_data = np.arange(9, dtype='int32').reshape([3, 3])
+
+        compare_tf_with_tvm([in_data, in_data, in_data, in_data],
+                            ['in1:0', 'in2:0', 'in3:0', 'in4:0'], 'out:0')
+
+#######################################################################
+# Resize Bilinear
+# ---------------
+
+def _test_resize_bilinear(in_shape, to_shape, align_corners):
+    """ One iteration of resize bilinear """
+
+    data = np.random.uniform(size=in_shape).astype('float32')
+    shape_data = np.array(to_shape).astype('int32')
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        shape_data = constant_op.constant(shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
+        tf.image.resize_bilinear(in_data, shape_data, align_corners=align_corners)
+
+        compare_tf_with_tvm(data, 'Placeholder:0', 'ResizeBilinear:0')
+
+def test_forward_resize_bilinear():
+    """ Resize Bilinear """
+
+    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
+    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
+
+
+#######################################################################
 # LSTM
 # ----
+
 def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
+    """ One iteration of a LSTM cell """
+
     tf.reset_default_graph()
     input_size = num_hidden
     input_data = np.full((batch_size, input_size), 1., dtype=dtype)
@@ -512,197 +540,20 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
                                 'root/lstm_cell/LSTMBlockCell_h'],
                                [tf_out[0].shape, (2, batch_size, num_hidden)],
                                [tf_out[0].dtype, tf_out[1].dtype])
+    assert isinstance(tvm_output, list)
 
-    if isinstance(tvm_output, list):
-        out = tvm_output[0]
-        out_state = tvm_output[1]
-        out_state_tup = np.split(out_state, indices_or_sections=2, axis=0)
-        out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
-        out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
-        tvm_out = [out, out_state_c, out_state_h]
-        np.testing.assert_allclose(tf_out, tvm_out, rtol=1e-3, atol=1e-3)
+    out = tvm_output[0]
+    out_state = tvm_output[1]
+    out_state_tup = np.split(out_state, indices_or_sections=2, axis=0)
+    out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
+    out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
+    tvm_out = [out, out_state_c, out_state_h]
+    np.testing.assert_allclose(tf_out, tvm_out, rtol=1e-3, atol=1e-3)
 
 def test_forward_lstm():
     '''test LSTM block cell'''
+
     _test_lstm_cell(1, 2, 1, 0.0, 'float32')
-
-
-#######################################################################
-# StridedSlice
-# ------------
-
-def _test_stridedslice(ip_shape, begin, end, stride, dtype,
-                             begin_mask=0, end_mask=0, new_axis_mask=0,
-                             shrink_axis_mask=0, ellipsis_mask=0):
-    tf.reset_default_graph()
-    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    tf.strided_slice(in_data, begin, end, stride, begin_mask=begin_mask,
-                         end_mask=end_mask, new_axis_mask=new_axis_mask,
-                         shrink_axis_mask=shrink_axis_mask,
-                         ellipsis_mask=ellipsis_mask, name="strided_slice")
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-    with tf.Session() as sess:
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            ['strided_slice'])
-        tf_output = run_tf_graph(sess, np_data,
-                                 'in_data:0', 'strided_slice:0')
-        tvm_output = run_tvm_graph(final_graph_def, np_data,
-                                   "in_data", tf_output.shape, np_data.dtype)
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-        sess.close()
-
-def test_forward_stridedslice():
-    '''test StridedSlice'''
-    _test_stridedslice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], 'float32')
-    _test_stridedslice((3, 4, 3), [1, 0], [4, 3], [2, 1], 'float32', ellipsis_mask=8)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 2], [2, 1, 1], 'float32', new_axis_mask=5)
-    _test_stridedslice((3, 4, 3), [1, 1, 1], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=4)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=4, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 1], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=3)
-    _test_stridedslice((3, 4, 3), [1, 1, 2], [4, 4, 3], [2, 1, 1], 'float32', ellipsis_mask=2, new_axis_mask=2)
-    _test_stridedslice((3,4), [1, 0], [4, 4], [1, 1], 'float32', shrink_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=1, new_axis_mask=2)
-    _test_stridedslice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], 'float32', shrink_axis_mask=2, new_axis_mask=1)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0], [2, 3], [1, 1], 'float32', shrink_axis_mask=5, new_axis_mask=1)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=5, new_axis_mask=1, ellipsis_mask=2, begin_mask=8, end_mask=8)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [0, 0, 1, 2, 1], [2, 3, 4, 5, 3], [1, 1, 2, 2, 1],
-                       'float32', shrink_axis_mask=16, new_axis_mask=1, ellipsis_mask=2, begin_mask=5, end_mask=5)
-    _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
-                       'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
-                       end_mask=8)
-
-
-#######################################################################
-# Gather
-# ------
-
-def _test_gather(ip_shape, indice_shape, indice_value, axis, dtype):
-    tf.reset_default_graph()
-    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
-    indices = tf.placeholder("int32", indice_shape, name="indices")
-    tf.gather(in_data, indices, axis=axis)
-    np_data = np.random.uniform(size=ip_shape).astype(dtype)
-
-    def _fill_indices(indice_value):
-        indices = np.array(ip_shape, dtype=dtype)
-        if isinstance(indice_value, int):
-            indices = np.array([indice_value], dtype='int32')
-        else:
-            indices = np.asarray(indice_value, dtype='int32')
-        return indices
-    np_indices = _fill_indices(indice_value)
-
-    with tf.Session() as sess:
-        final_graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            ['GatherV2'])
-        tf_output = run_tf_graph(sess, [np_data, np_indices], ['in_data:0',
-                                 'indices:0'], 'GatherV2:0')
-        tvm_output = run_tvm_graph(final_graph_def, [np_data, np_indices],
-                                   ['in_data', 'indices'], tf_output.shape, dtype)
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
-        sess.close()
-
-def test_forward_gather():
-    '''test gather layer'''
-    _test_gather((4,), (1,), 1, 0, 'int32')
-    _test_gather((4,), (1,), 1, 0, 'float32')
-    _test_gather((1,4), (1,), [0], 0, 'int32')
-    _test_gather((4,), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'int32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 1, 'int32')
-    _test_gather((2,2), (1,2,2), [[[1,0],[0,1]]], 0, 'float32')
-    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 0, 'int32')
-    _test_gather((3,3,3), (1,1,2), [[[1,0]]], 2, 'int32')
-    _test_gather((4,3,5,6), (1,4), [[2,1,0,0]], 0, 'float32')
-
-
-#######################################################################
-# Multi Input to graph
-# --------------------
-
-def test_forward_multi_input():
-    with tf.Graph().as_default():
-        in1 = tf.placeholder(tf.int32, shape=[3, 3], name='in1')
-        in2 = tf.placeholder(tf.int32, shape=[3, 3], name='in2')
-        in3 = tf.placeholder(tf.int32, shape=[3, 3], name='in3')
-        in4 = tf.placeholder(tf.int32, shape=[3, 3], name='in4')
-
-        out1 = tf.add(in1, in2, name='out1')
-        out2 = tf.subtract(in3, in4, name='out2')
-
-        out = tf.multiply(out1, out2, name='out')
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['out'],
-                )
-
-            in_data = np.arange(9, dtype='int32').reshape([3, 3])
-
-            tf_output = run_tf_graph(sess, [in_data, in_data, in_data, in_data ],
-                                     ['in1:0', 'in2:0', 'in3:0', 'in4:0'], 'out:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       [in_data, in_data, in_data, in_data ],
-                                       ['in1', 'in2', 'in3', 'in4'],
-                                       tf_output.shape, tf_output.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output)
-
-            sess.close()
-
-#######################################################################
-# Resize Bilinear
-# ---------------
-
-def _test_resize_bilinear(in_shape, to_shape, align_corners):
-    """ One iteration of resize bilinear """
-
-    data = np.random.uniform(size=in_shape).astype('float32')
-    shape_data = np.array(to_shape).astype('int32')
-
-    with tf.Graph().as_default():
-        in_data = constant_op.constant(data, shape=data.shape, dtype=data.dtype)
-        shape_data = constant_op.constant(shape_data, shape=shape_data.shape, dtype=shape_data.dtype)
-
-        # pylint: disable=unused-variable
-        resize_out = tf.image.resize_bilinear(in_data, shape_data, align_corners=align_corners)
-        # pylint: enable=unused-variable
-
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['ResizeBilinear'],
-                )
-
-            tf_output = run_tf_graph(sess, data,
-                    'Const:0', 'ResizeBilinear:0')
-
-            tvm_output = run_tvm_graph(graph_def,
-                                       data,
-                                       "Const", tf_output.shape, data.dtype)
-
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
-
-            sess.close()
-
-def test_forward_resize_bilinear():
-    """ Resize Bilinear """
-
-    _test_resize_bilinear((4, 16, 32, 32), [50, 50], False)
-    _test_resize_bilinear((6, 32, 64, 64), [20, 20], True)
 
 #######################################################################
 # Pad
@@ -713,30 +564,17 @@ def _test_pad(input_shape, paddings, mode, **kwargs):
     x = np.arange(np.prod(input_shape), dtype=np.float32).reshape(input_shape)
 
     with tf.Graph().as_default():
-        in_data = constant_op.constant(x, shape=input_shape, dtype='float32')
+        in_data = array_ops.placeholder(shape=input_shape, dtype='float32')
         pad_values = constant_op.constant(paddings)
         pad = tf.pad(in_data, paddings=pad_values, mode=mode, **kwargs)
 
         if mode == 'CONSTANT':
             if 'constant_values' in kwargs:
-                out_node = 'PadV2'
                 out_name = 'PadV2:0'
             else:
-                out_node = 'Pad'
                 out_name = 'Pad:0'
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                [out_node],
-                )
-
-            tf_output = run_tf_graph(sess, x, 'Const:0', out_name)
-            tvm_output = run_tvm_graph(graph_def, x.astype('float32'),
-                                       "Const", tf_output.shape, 'float32')
-            np.testing.assert_allclose(tf_output, tvm_output)
-            sess.close()
+        compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
 def test_forward_pad():
     """ Pad """
@@ -943,22 +781,35 @@ def _test_lrn(ishape, size, axis, bias, alpha, beta):
                                             alpha=alpha,
                                             beta=beta)
 
-        with tf.Session() as sess:
-            graph_def = tf.graph_util.convert_variables_to_constants(
-                sess,
-                sess.graph.as_graph_def(add_shapes=True),
-                ['lrn'],)
-
-            tf_output = run_tf_graph(sess, inp_array, 'lrn0_data:0', 'lrn:0')
-            tvm_output = run_tvm_graph(graph_def,
-                                       inp_array,
-                                       "lrn0_data", tf_output.shape, tf_output.dtype)
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-3, rtol=1e-3)
-            sess.close()
+        compare_tf_with_tvm(inp_array, 'lrn0_data:0', 'lrn:0')
 
 def test_forward_lrn():
     _test_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
 
+#######################################################################
+# l2_normalize
+# ------------
+
+def _test_l2_normalize(ishape, eps, axis):
+    """ testing l2 normalize (uses max, sum, square, sqrt frontend operators)"""
+
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        nn.l2_normalize(in1,
+                        axis=axis,
+                        epsilon=eps,
+                        name=None,
+                        dim=None)
+
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'l2_normalize:0')
+
+def test_forward_l2_normalize():
+    _test_l2_normalize((1, 3, 20, 20), 0.001, (0,))
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -975,9 +826,10 @@ if __name__ == '__main__':
     test_forward_mobilenet()
     test_forward_variable()
     test_forward_resize_bilinear()
-    test_forward_pad()    
+    test_forward_pad()
     test_forward_lstm()
     test_forward_stridedslice()
     test_forward_gather()
     test_forward_ptb()
     test_forward_lrn()
+    test_forward_l2_normalize()

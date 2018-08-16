@@ -21,6 +21,8 @@ import numpy as np
 
 from tvm import target as _target
 
+from .space import ConfigSpace
+
 logger = logging.getLogger('autotvm')
 
 class DispatchContext(object):
@@ -120,7 +122,12 @@ def dispatcher(fworkload):
             raise RuntimeError("DispatchContext is not initialized")
         workload = func(*args, **kwargs)
         cfg = context.query(tgt, workload)
-        return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
+        if cfg.template_key:
+            return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
+        else:
+            assert dispatch_dict, "No func registered for this dispatcher"
+            for v in dispatch_dict.values():
+                return v(cfg, *args, **kwargs)
 
     fdecorate = decorate(fworkload, dispatch_func)
     fdecorate.register = register
@@ -159,13 +166,18 @@ class ApplyHistoryBest(DispatchContext):
         Otherwise, it is an iterator.
     default: ConfigEntity, optional
         The default config to return when no history records
+    allow_fallback: bool
+        Whether allow to use a fallback configuration if cannot find
+        tuned result.
     """
-    def __init__(self, records, default=None):
+    def __init__(self, records, default=None, allow_fallback=False):
         super(ApplyHistoryBest, self).__init__()
 
         self.best_by_targetkey = {}
         self.best_by_model = {}
         self._default = default
+        self._allow_fallback = allow_fallback
+        self.fallback = {}
 
         if records:
             self.load(records)
@@ -244,5 +256,18 @@ class ApplyHistoryBest(DispatchContext):
 
         if self._default:
             return self._default
+
+        if self._allow_fallback:
+            key = (target, workload)
+            if key in self.fallback:
+                return self.fallback[key]
+            logger.warning(
+                "Cannot find config for target=%s, workload=%s. A fallback configuration "
+                "is used, which may bring great performance regression.", target, workload)
+            cfg = ConfigSpace()
+            self.fallback[key] = cfg
+            return cfg
+
         raise RuntimeError(
-            "Cannot find config for target=%s, workload=%s" % (target, workload))
+            "Cannot find config for target=%s, workload=%s. You need to do tuning "
+            "for this workload to get the config." % (target, workload))

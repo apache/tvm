@@ -42,28 +42,31 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
 
 def get_symbol(oshape, ngf=128, code=None):
     """get symbol of dcgan generator"""
-    assert oshape[-1] == 32, "Only support 32x32 image"
-    assert oshape[-2] == 32, "Only support 32x32 image"
+    assert oshape[-1] == 64, "Only support 64x64 image"
+    assert oshape[-2] == 64, "Only support 64x64 image"
 
     code = sym.Variable("data") if code is None else code
-    net = sym.dense(code, name="g1", units=4*4*ngf*4, use_bias=False)
+    net = sym.dense(code, name="g1", units=4*4*ngf*8, use_bias=False)
     net = sym.relu(net)
     # 4 x 4
-    net = sym.reshape(net, shape=(-1, ngf * 4, 4, 4))
+    net = sym.reshape(net, shape=(-1, ngf * 8, 4, 4))
     # 8 x 8
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 4, 4, 4), oshape=(ngf * 2, 8, 8), kshape=(4, 4), prefix="g2")
+        net, ishape=(ngf * 8, 4, 4), oshape=(ngf * 4, 8, 8), kshape=(4, 4), prefix="g2")
     # 16x16
     net = deconv2d_bn_relu(
-        net, ishape=(ngf * 2, 8, 8), oshape=(ngf, 16, 16), kshape=(4, 4), prefix="g3")
+        net, ishape=(ngf * 4, 8, 8), oshape=(ngf * 2, 16, 16), kshape=(4, 4), prefix="g3")
     # 32x32
+    net = deconv2d_bn_relu(
+        net, ishape=(ngf * 2, 16, 16), oshape=(ngf, 32, 32), kshape=(4, 4), prefix="g4")
+    # 64x64
     net = deconv2d(
-        net, ishape=(ngf, 16, 16), oshape=oshape[-3:], kshape=(4, 4), name="g4_deconv")
+        net, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
     net = sym.tanh(net)
     return net
 
 
-def get_workload(batch_size, oshape=(3, 32, 32), ngf=128, random_len=100, dtype="float32"):
+def get_workload(batch_size, oshape=(3, 64, 64), ngf=128, random_len=100, dtype="float32"):
     """Get benchmark workload for a DCGAN generator
 
     Parameters

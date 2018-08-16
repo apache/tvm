@@ -16,6 +16,7 @@ void CodeGenVivadoHLS::Init(bool output_ssa) {
   CodeGenC::Init(output_ssa);
 
   this->stream << "#include <ap_int.h>\n\n";
+  this->stream << "#include <algorithm>\n\n";
 }
 
 void CodeGenVivadoHLS::PrintType(Type t, std::ostream& os) {
@@ -65,6 +66,46 @@ void CodeGenVivadoHLS::PreFunctionBody(LoweredFunc f) {
     this->stream << "#pragma HLS INTERFACE s_axilite port=" << vid << " bundle=control\n";
   }
   this->stream << "#pragma HLS INTERFACE s_axilite port=return bundle=control\n\n";
+}
+
+template<typename T>
+inline void PrintBinaryExpr(const T* op,
+                            const char *opstr,
+                            std::ostream& os,  // NOLINT(*)
+                            CodeGenVivadoHLS* p) {
+  os << opstr << '(';
+  p->PrintExpr(op->a, os);
+  os << ", ";
+  p->PrintExpr(op->b, os);
+  os << ')';
+}
+
+void CodeGenVivadoHLS::VisitExpr_(const Min *op, std::ostream& os) {  // NOLINT(*)
+  const char *opstr = "std::min";
+  if (op->type.is_float()) {
+    switch (op->type.bits()) {
+      case 32:
+        opstr = "fminf"; break;
+      case 64:
+        opstr = "fmin"; break;
+    }
+  }
+
+  PrintBinaryExpr(op, opstr, os, this);
+}
+
+void CodeGenVivadoHLS::VisitExpr_(const Max *op, std::ostream& os) {  // NOLINT(*)
+  const char *opstr = "std::max";
+  if (op->type.is_float()) {
+    switch (op->type.bits()) {
+      case 32:
+        opstr = "fmaxf"; break;
+      case 64:
+        opstr = "fmax"; break;
+    }
+  }
+
+  PrintBinaryExpr(op, opstr, os, this);
 }
 
 

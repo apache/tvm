@@ -62,7 +62,7 @@ import tvm.contrib.graph_runtime as runtime
 
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
-    shape = {"data": (batch_size, 3, 224, 224)}
+    input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
 
     if name =='resnet-18':
@@ -90,7 +90,7 @@ def get_network(name, batch_size):
     else:
         raise ValueError("Unsupported network: " + name)
 
-    return net, params, shape, output_shape
+    return net, params, input_shape, output_shape
 
 #################################################################
 # Start RPC Tracker
@@ -191,9 +191,9 @@ tuning_option = {
    'early_stopping': 250,
 
    'measure_option': autotvm.measure_option(
-       autotvm.use_rpc(device_key, host='localhost', port=9190),
+       autotvm.measure.rpc(device_key, host='localhost', port=9190),
        number=4,
-       parallel_num=1,
+       n_parallel=1,
        timeout=10,
        build_func='ndk' if use_android else 'default',
    ),
@@ -205,7 +205,7 @@ tuning_option = {
 #
 #   In general, the default value provided here works well. It is the same
 #   value that we used to generate pre-tuned parameters.
-#   If you have multiple devices, you can set :code:`parallel_num` to
+#   If you have multiple devices, you can set :code:`n_parallel` to
 #   the number of devices you have. (e.g. set it to 3 if you register 3 rk3399
 #   boards to the tracker).
 #   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
@@ -226,8 +226,8 @@ tuning_option = {
 def tune_tasks(tasks,
                measure_option,
                tuner='xgb',
-               n_trial=500,
-               early_stopping=200,
+               n_trial=1000,
+               early_stopping=None,
                log_filename='tuning.log',
                use_transfer_learning=True,
                try_winograd=True):
@@ -283,10 +283,10 @@ def tune_tasks(tasks,
 def tune_and_evaluate():
     # extract workloads from nnvm graph
     print("Extract tasks...")
-    net, params, shape, out_shape = get_network(network, batch_size=1)
-    tasks = autotvm.task.extract_from_graph(net, shape=shape, dtype=dtype,
-                                            symbols=(nnvm.sym.conv2d,),
-                                            target=target)
+    net, params, input_shape, out_shape = get_network(network, batch_size=1)
+    tasks = autotvm.task.extract_from_graph(net, target=target,
+                                            shape={'data': input_shape}, dtype=dtype,
+                                            symbols=(nnvm.sym.conv2d,))
 
     # run tuning tasks
     print("Tuning...")
@@ -298,7 +298,7 @@ def tune_and_evaluate():
         with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
             graph, lib, params = nnvm.compiler.build(
                 net, target=target,
-                shape=shape, params=params, dtype=dtype)
+                shape={'data': input_shape}, params=params, dtype=dtype)
 
         # export library
         tmp = tempdir()
@@ -319,7 +319,7 @@ def tune_and_evaluate():
         # upload parameters to device
         ctx = remote.context(str(target), 0)
         rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-        data_tvm = tvm.nd.array((np.random.uniform(size=shape['data'])).astype(dtype))
+        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module = runtime.create(graph, rlib, ctx)
         module.set_input('data', data_tvm)
         module.set_input(**rparams)
@@ -341,35 +341,33 @@ def tune_and_evaluate():
 # -------------
 # The tuning needs to train xgboost models and use them for prediction.
 # So a high performance CPU is recommended.
-# It takes about 1.5 hour on a 32T AMD Ryzen CPU.
+# It takes about 2 hours on a 32T AMD Ryzen CPU.
 # One sample output is
 #
 # .. code-block:: bash
 #
 #    Extract tasks...
 #    Tuning...
-#    [Task  1/16]  Current/Best:   13.15/  20.49 GFLOPS | Progress: (297/1000) | 348.51 s Done.
-#    [Task  2/16]  Current/Best:   16.66/  22.64 GFLOPS | Progress: (475/1000) | 415.42 s Done.
-#    [Task  3/16]  Current/Best:   10.33/  14.19 GFLOPS | Progress: (306/1000) | 239.61 s Done.
-#    [Task  4/16]  Current/Best:   13.29/  20.88 GFLOPS | Progress: (242/1000) | 227.48 s Done.
-#    [Task  5/16]  Current/Best:   13.28/  15.61 GFLOPS | Progress: (237/1000) | 191.56 s Done.
-#    [Task  6/16]  Current/Best:   20.16/  23.86 GFLOPS | Progress: (315/1000) | 304.31 s Done.
-#    [Task  7/16]  Current/Best:    9.22/  22.00 GFLOPS | Progress: (458/1000) | 433.26 s Done.
-#    [Task  8/16]  Current/Best:   14.12/  17.80 GFLOPS | Progress: (270/1000) | 240.73 s Done.
-#    [Task  9/16]  Current/Best:   14.59/  24.02 GFLOPS | Progress: (209/1000) | 213.61 s Done.
-#    [Task 10/16]  Current/Best:    9.86/  21.74 GFLOPS | Progress: (367/1000) | 359.93 s Done.
-#    [Task 11/16]  Current/Best:    5.01/  18.86 GFLOPS | Progress: (202/1000) | 191.18 s Done.
-#    [Task 12/16]  Current/Best:    8.61/  25.23 GFLOPS | Progress: (220/1000) | 220.74 s Done.
-#    [Task 13/16]  Current/Best:   10.87/  25.79 GFLOPS | Progress: (465/1000) | 902.14 s Done.
-#    [Task 14/16]  Current/Best:   15.33/  29.38 GFLOPS | Progress: (239/1000) | 481.33 s Done.
-#    [Task 15/16]  Current/Best:   12.09/  38.60 GFLOPS | Progress: (476/1000) | 928.35 s Done.
-#    [Task 16/16]  Current/Best:   16.77/  47.08 GFLOPS | Progress: (255/1000) | 439.91 s Done.
+#    [Task  1/16]  Current/Best:   18.85/  19.67 GFLOPS | Progress: (353/1000) | 387.05 s Done.
+#    [Task  2/16]  Current/Best:   16.10/  23.50 GFLOPS | Progress: (444/1000) | 379.99 s Done.
+#    [Task  3/16]  Current/Best:    5.49/  13.96 GFLOPS | Progress: (610/1000) | 485.87 s Done.
+#    [Task  4/16]  Current/Best:   10.07/  20.48 GFLOPS | Progress: (430/1000) | 391.66 s Done.
+#    [Task  5/16]  Current/Best:   11.50/  15.50 GFLOPS | Progress: (374/1000) | 356.03 s Done.
+#    [Task  6/16]  Current/Best:   10.76/  23.77 GFLOPS | Progress: (526/1000) | 526.42 s Done.
+#    [Task  7/16]  Current/Best:   12.71/  22.03 GFLOPS | Progress: (341/1000) | 322.96 s Done.
+#    [Task  8/16]  Current/Best:    8.60/  17.91 GFLOPS | Progress: (272/1000) | 236.08 s Done.
+#    [Task  9/16]  Current/Best:   15.37/  23.62 GFLOPS | Progress: (275/1000) | 275.18 s Done.
+#    [Task 10/16]  Current/Best:    6.62/  23.01 GFLOPS | Progress: (330/1000) | 315.02 s Done.
+#    [Task 11/16]  Current/Best:    1.85/  21.39 GFLOPS | Progress: (281/1000) | 239.19 s Done.
+#    [Task 12/16]  Current/Best:   15.41/  24.02 GFLOPS | Progress: (258/1000) | 270.82 s Done.
+#    [Task 13/16]  Current/Best:   17.96/  25.79 GFLOPS | Progress: (380/1000) | 738.29 s Done.
+#    [Task 14/16]  Current/Best:   14.81/  31.17 GFLOPS | Progress: (413/1000) | 799.21 s Done.
+#    [Task 15/16]  Current/Best:   24.39/  40.97 GFLOPS | Progress: (355/1000) | 700.25 s Done.
+#    [Task 16/16]  Current/Best:    9.42/  49.90 GFLOPS | Progress: (348/1000) | 603.84 s Done.
 #    Compile...
 #    Upload...
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 156.51 ms (0.89 ms)
-#
-
+#    Mean inference time (std dev): 157.29 ms (1.74 ms)
 
 ######################################################################
 #

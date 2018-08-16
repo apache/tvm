@@ -39,11 +39,10 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
-    scheduled_ops = []
 
     def _callback(op):
         # schedule conv2d
-        if 'spatial_conv_output' in op.tag and op not in scheduled_ops:
+        if 'spatial_conv2d_output' in op.tag:
             output = op.output(0)
             conv = op.input_tensors[0]
 
@@ -61,11 +60,9 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
 
             _schedule_spatial_pack(cfg, s, data_vec, kernel_vec, conv, output, outs[0])
 
-        if 'winograd_conv_output' in op.tag:
+        if 'winograd_conv2d_output' in op.tag:
             output = op.output(0)
             _schedule_winograd(cfg, s, output, outs[0])
-
-        scheduled_ops.append(op)
 
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -75,7 +72,7 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
     assert layout == "NCHW", "Only support NCHW"
     out_dtype = out_dtype or data.dtype
 
-    _, CI, IH, IW = get_const_tuple(data.shape)
+    N, CI, IH, IW = get_const_tuple(data.shape)
     if len(kernel.shape) == 4:
         pre_packed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -84,13 +81,12 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
         CO, _, KH, KW, VC = get_const_tuple(kernel.shape)
         CO = CO * VC
 
-    pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (KH, KW))
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
-    N = 1
-    OH = (IH + pad_top + pad_down - KH) // HSTR + 1
+    OH = (IH + pad_top + pad_bottom - KH) // HSTR + 1
     OW = (IW + pad_left + pad_right - KW) // WSTR + 1
-    data_pad = pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_down, pad_right])
+    data_pad = pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_bottom, pad_right])
 
     # ==================== define configuration space ====================
     n, co, oh, ow = cfg.axis(N), cfg.axis(CO), cfg.axis(OH), cfg.axis(OW)
@@ -148,7 +144,7 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
 
     output = tvm.compute(oshape, lambda n, co, h, w:
                          conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
-                         name='output_unpack', tag='spatial_conv_output',
+                         name='output_unpack', tag='spatial_conv2d_output',
                          attrs={'workload': _conv_arg_to_workload(data, kernel, strides, padding,
                                                                   layout, out_dtype)})
     return output
@@ -198,11 +194,14 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     if kernel_vec.op.name == 'kernel_vec':
         co, _, _, _, _ = s[kernel_vec].op.axis
         if autotvm.GLOBAL_SCOPE.in_tuning:
-            # kernel packing will be pre-computed during compliation, so we skip
+            # kernel packing will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
             s[kernel_vec].pragma(co, 'debug_skip_region')
         else:
             s[kernel_vec].parallel(co)
+    elif kernel_vec.op.name == 'kernel_vec_conv2d_transpose':  # for conv2d transpose
+        co, _, _, _, _ = s[kernel_vec].op.axis
+        s[kernel_vec].parallel(co)
 
     return s
 
@@ -333,7 +332,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
     # unpack output
     output = tvm.compute((N, K, H, W), lambda n, k, h, w:
                          Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m],
-                         name='output', tag='winograd_conv_output',
+                         name='output', tag='winograd_conv2d_output',
                          attrs={'workload': _winograd_conv_arg_to_workload(
                              data, kernel, strides, padding, layout, out_dtype, tile_size)})
 
@@ -465,7 +464,7 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
-        if 'winograd_conv_output' in op.tag:
+        if 'winograd_conv2d_output' in op.tag:
             output = op.output(0)
             _schedule_winograd(cfg, s, output, outs[0])
 

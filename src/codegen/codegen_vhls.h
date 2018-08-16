@@ -20,6 +20,8 @@ class CodeGenVivadoHLS final : public CodeGenC {
   void PrintType(Type t, std::ostream& os);
   void AddFunction(LoweredFunc f);
   void PreFunctionBody(LoweredFunc f);
+  void VisitExpr_(const Min *op, std::ostream& os);
+  void VisitExpr_(const Max *op, std::ostream& os);
 };
 
 }  // namespace codegen

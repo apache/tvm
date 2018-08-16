@@ -8,7 +8,7 @@ from __future__ import absolute_import as _abs
 import numpy as _np
 
 from ._ffi.ndarray import TVMContext, TVMType, NDArrayBase
-from ._ffi.ndarray import context, empty
+from ._ffi.ndarray import context, empty, from_dlpack
 from ._ffi.ndarray import _set_class_ndarray
 from ._ffi.ndarray import register_extension, free_extension_handle
 

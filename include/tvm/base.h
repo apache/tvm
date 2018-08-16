@@ -83,5 +83,11 @@ struct NodeFactoryReg
       ::dmlc::Registry<::tvm::NodeFactoryReg>::Get()->__REGISTER__(TypeName::_type_key) \
       .set_body([]() { return std::make_shared<TypeName>(); })
 
+TVM_DLL::dmlc::Registry<::tvm::NodeFactoryReg > * GetTVMNodeFactoryRegistry();
+
+#define TVM_EXTERNAL_REGISTER_NODE_TYPE(TypeName)                                \
+  static DMLC_ATTRIBUTE_UNUSED ::tvm::NodeFactoryReg & __make_Node ## _ ## TypeName ## __ = \
+      ::tvm::GetTVMNodeFactoryRegistry()->__REGISTER__(TypeName::_type_key) \
+      .set_body([]() { return std::make_shared<TypeName>(); })
 }  // namespace tvm
 #endif  // TVM_BASE_H_

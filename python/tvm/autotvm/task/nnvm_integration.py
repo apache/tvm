@@ -4,12 +4,16 @@ Decorator and utilities for the integration with TOPI and NNVM
 
 """
 import warnings
+import logging
+
 
 from ... import tensor, placeholder, target as _target
 
 from ..util import get_const_tuple
 from .task import create, register
+from .dispatcher import ApplyHistoryBest
 
+logger = logging.getLogger('autotvm')
 
 def serialize_args(args):
     """serialize arguments of a topi function to a hashable tuple.
@@ -53,12 +57,14 @@ class TaskExtractEnv:
         import nnvm
 
         self.symbol2topi = {
-            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw]
+            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
+            nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose],
         }
 
         self.topi_to_task = {
             topi.nn.conv2d: "topi_nn_conv2d",
             topi.nn.depthwise_conv2d_nchw: "topi_nn_depthwise_conv2d_nchw",
+            topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
         }
 
         self._register_dummy()
@@ -108,6 +114,15 @@ class TaskExtractEnv:
             A, W = args[:2]
             C = topi.nn.depthwise_conv2d_nchw(*args, **kwargs)
             s = topi.generic.schedule_depthwise_conv2d_nchw([C])
+            return s, [A, W, C]
+
+        @register("topi_nn_conv2d_transpose_nchw")
+        def _topi_nn_conv2d_transpose_nchw(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            A, W = args[:2]
+            C = topi.nn.conv2d_transpose_nchw(*args, **kwargs)
+            s = topi.generic.schedule_conv2d_transpose_nchw([C])
             return s, [A, W, C]
 
     def reset(self):
@@ -165,8 +180,17 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
 
     # run compiler to collect all TOPI calls during compilation
     env.reset()
+
+    # disable logger temporarily
+    old_state = logger.disabled
+    logger.disabled = True
+
+    # use a dummy target to do a fake compile for collecting topi calls
     dummy_target = _target.create("opencl -device=dummy")
-    nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+    with ApplyHistoryBest([], allow_fallback=True):
+        nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+
+    logger.disabled = old_state
 
     tasks = []
     for task_name, args in env.get_tasks():

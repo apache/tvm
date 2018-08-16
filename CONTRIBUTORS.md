@@ -18,6 +18,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Yuwei Hu](https://github.com/Huyuwei) TOPI
 - [Zhixun Tan](https://github.com/phisiart) OpenGL/WebGL backend
 - [Nick Hynes](https://github.com/nhynes) SGX and secured computing
+- [Lianmin Zheng](https://github.com/merrymercy) AutoTVM
 
 ## Reviewers
 - [Masahiro Masuda](https://github.com/masahi)
@@ -25,9 +26,9 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Siva](https://github.com/srkreddy1238)
 - [Alex Weaver](https://github.com/alex-weaver)
+- [Yao Wang](https://github.com/kevinthesun)
 - [Eddie Yan](https://github.com/eqy)
 - [Joshua Z. Zhang](https://github.com/zhreshold)
-- [Lianmin Zheng](https://github.com/merrymercy)
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)
