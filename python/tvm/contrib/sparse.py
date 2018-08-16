@@ -26,6 +26,9 @@ class CSRNDArray(object):
 
         ctx: tvm.TVMContext
             The corresponding context.
+
+        shape : tuple of int
+            The shape of the array
         """
         if isinstance(arg1, tuple):
             self.data, self.indices, self.indptr = arg1[0], arg1[1], arg1[2]
@@ -57,21 +60,48 @@ class CSRNDArray(object):
 
     def asnumpy(self):
         """Construct a full matrix and convert it to numpy array."""
-        # itype = 'int64'
         full = _np.zeros(self.shape, self.dtype)
         ridx = _np.diff(self.indptr.asnumpy())
         ridx = _np.hstack((_np.ones((v,), itype)*i for i, v in enumerate(ridx)))
         full[ridx, self.indices.asnumpy().astype(itype)] = self.data.asnumpy()
         return full
 
-def array(source_array, ctx=None, shape=None):
-    """Construct a CSRNDArray from numpy.ndarray"""
-    return CSRNDArray(source_array, shape=shape, ctx=ctx)
+def array(source_array, ctx=None, shape=None, stype='csr'):
+    """Construct a sparse NDArray from numpy.ndarray"""
+    ret = None
+    if stype == 'csr':
+        ret = CSRNDArray(source_array, shape=shape, ctx=ctx)
+    else:
+        raise NotImplementedError('stype=%s is not supported yet.' % (stype,))
+    return ret
 
 @register_node
-class CSRPlaceholderOp(object):
+class SparsePlaceholderOp(object):
+    """Placeholder class for sparse tensor representations."""
+    def __init__(self, shape, nonzeros, dtype, name):
+        # pylint: disable=unused-argument
+        """Contructing a bare bone structure for a sparse matrix
+
+        Parameters
+        ----------
+        shape: Tuple of Expr
+            The shape of the tensor
+
+        dtype: str, optional
+            The data type of the tensor
+
+        name: str, optional
+            The name hint of the tensor
+        """
+        self.shape = shape
+        self.dtype = dtype
+        self.name = name
+        self.stype = 'unknown'
+
+@register_node
+class CSRPlaceholderOp(SparsePlaceholderOp):
     """Placeholder class for CSR based sparse tensor representation."""
-    def __init__(self, shape, nonzeros, dtype, name, stype):
+    def __init__(self, shape, nonzeros, dtype, name):
         """Contructing a bare bone structure for a csr_matrix
 
         Parameters
@@ -84,15 +114,9 @@ class CSRPlaceholderOp(object):
 
         name: str, optional
             The name hint of the tensor
-
-        stype: str, optional
-            The storage type of the tensor
         """
-        # itype = 'int64'
-        self.shape = shape
-        self.dtype = dtype
-        self.name = name
-        self.stype = stype
+        SparsePlaceholderOp.__init__(self, shape, nonzeros, dtype, name)
+        self.stype = 'csr'
         self.data = _api.placeholder((nonzeros,), dtype=dtype, name=self.name+'_data')
         self.indices = _api.placeholder((nonzeros,), dtype=itype, name=self.name+'_indices')
         self.indptr = _api.placeholder((self.shape[0]+1,), dtype=itype, name=self.name+'_indptr')
@@ -123,4 +147,9 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     nonzeros = 0 if nonzeros is None else nonzeros
     dtype = float32 if dtype is None else dtype
     stype = csr if stype is None else stype
-    return CSRPlaceholderOp(shape=shape, nonzeros=nonzeros, dtype=dtype, name=name, stype=stype)
+    ret = None
+    if stype == 'csr':
+        ret = CSRPlaceholderOp(shape=shape, nonzeros=nonzeros, dtype=dtype, name=name)
+    else:
+        raise NotImplementedError('stype=%s is not supported yet.' % (stype,))
+    return ret
