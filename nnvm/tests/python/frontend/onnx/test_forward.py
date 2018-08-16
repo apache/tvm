@@ -386,7 +386,7 @@ def _test_upsample_nearest():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
-    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[2.0])
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
     
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.upsampling_python(in_array, scale, "NCHW")
@@ -406,7 +406,7 @@ def _test_upsample_bilinear():
     scale = 2
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
-    y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[2.0])
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
     
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
@@ -431,7 +431,7 @@ if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
     # verify_lenet()
-    verify_resnet18()
+    #verify_resnet18()
     test_reshape()
     test_reshape_like()
     test_power()
