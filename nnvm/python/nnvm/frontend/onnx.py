@@ -420,7 +420,8 @@ class Upsample(OnnxOpConverter):
             method = "BILINEAR"
         else:
             raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
-        return _sym.upsampling(inputs[0], scale=int(scales[-1]), method=str(method))
+        return _sym.upsampling(inputs[0], scale=int(scales[-1]),
+                   method=method, layout='NCHW')
 
 
 class Shape(OnnxOpConverter):
