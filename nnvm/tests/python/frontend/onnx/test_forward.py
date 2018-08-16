@@ -431,7 +431,7 @@ if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
     # verify_lenet()
-    #verify_resnet18()
+    verify_resnet18()
     test_reshape()
     test_reshape_like()
     test_power()
