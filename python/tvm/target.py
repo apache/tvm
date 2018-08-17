@@ -427,14 +427,14 @@ def arm_cpu(model='unknown', options=None):
     from . import autotvm
 
     trans_table = {
-        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android"],
-        "mate10":    ["-model=kirin970", "-target=arm64-linux-android"],
-        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android"],
-        "p20":       ["-model=kirin970", "-target=arm64-linux-android"],
-        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android"],
-        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf"],
-        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu"],
-        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi"],
+        "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
+        "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
+        "mate10pro": ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
+        "p20":       ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
+        "p20pro":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
+        "rasp3b":    ["-model=bcm2837", "-target=armv7l-linux-gnueabihf -mattr=+neon"],
+        "rk3399":    ["-model=rk3399", "-target=aarch64-linux-gnu -mattr=+neon"],
+        "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
