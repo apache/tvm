@@ -33,18 +33,6 @@ TVM_REGISTER_API("_load_json")
     *ret = LoadJSON<NodeRef>(args[0]);
   });
 
-TVM_REGISTER_API("_nop")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-  });
-
-// internal fucntion used for debug and testing purposes
-TVM_REGISTER_API("_ndarray_use_count")
-.set_body([](TVMArgs args,  TVMRetValue *ret) {
-    runtime::NDArray nd = args[0];
-    // substract the current one
-    *ret = (nd.use_count() - 1);
-  });
-
 TVM_REGISTER_API("_TVMSetStream")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     TVMSetStream(args[0], args[1], args[2]);
