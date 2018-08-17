@@ -147,8 +147,11 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
     bool parent_injective = false;
     for (const auto& e : inode.inputs) {
       TOpPattern pt = pattern_vec[e.node_id];
-      if (pt == kOutEWiseFusable) parent_out_ewise = true;
-      else if (pt == kInjective) parent_injective = true;
+      if (pt == kOutEWiseFusable) {
+        parent_out_ewise = true;
+      } else if (pt == kInjective) {
+        parent_injective = true;
+      }
     }
     // Change the master node from out_ewise_fusable op to itself
     if (parent_injective && parent_out_ewise) master_vec[nid] = nid;
@@ -157,8 +160,11 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
     for (const auto& e : inode.inputs) {
       TOpPattern pt = pattern_vec[e.node_id];
       if (parent_out_ewise && parent_injective) {
-        if (pt == kOutEWiseFusable) continue;  // Do not fuse out_ewise_fusable op
-        else if (pt == kInjective) master_vec[e.node_id] = nid;
+        if (pt == kOutEWiseFusable) {
+          continue;  // Do not fuse out_ewise_fusable op
+        } else if (pt == kInjective) {
+          master_vec[e.node_id] = nid;
+        }
       }
       if (fuse_vec[e.node_id] == FuseRule::kFuseToMaster) {
         CHECK(group_vec[e.node_id] == -1||
