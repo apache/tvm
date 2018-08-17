@@ -29,6 +29,7 @@ This level enables fully connected multi-layer perceptron.
 
    nnvm.symbol.dense
    nnvm.symbol.relu
+   nnvm.symbol.prelu
    nnvm.symbol.tanh
    nnvm.symbol.sigmoid
    nnvm.symbol.exp
@@ -39,6 +40,8 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.elemwise_mul
    nnvm.symbol.elemwise_div
    nnvm.symbol.elemwise_sum
+   nnvm.symbol.elemwise_mod
+   nnvm.symbol.elemwise_pow
    nnvm.symbol.flatten
    nnvm.symbol.concatenate
    nnvm.symbol.expand_dims
@@ -50,6 +53,14 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.log_softmax
    nnvm.symbol.pad
    nnvm.symbol.block_grad
+   nnvm.symbol.matmul
+   nnvm.symbol.resize
+   nnvm.symbol.upsampling
+   nnvm.symbol.take
+   nnvm.symbol.l2_normalize
+   nnvm.symbol.flip
+   nnvm.symbol.lrn
+   nnvm.symbol.where
 
 
 **Level 2: Convolutions**
@@ -92,6 +103,7 @@ This level enables typical convnet models.
    nnvm.symbol.__lshift_scalar__
    nnvm.symbol.__rshift_scalar__
 
+
 **Level 4: Broadcast and Reductions**
 
 .. autosummary::
@@ -117,11 +129,43 @@ This level enables typical convnet models.
    nnvm.symbol.ones_like
    nnvm.symbol.zeros
    nnvm.symbol.zeros_like
+   nnvm.symbol.slice_like
+   nnvm.symbol.strided_slice
+   nnvm.symbol.argmax
+   nnvm.symbol.argmin
+   nnvm.symbol.collapse_sum
+   nnvm.symbol.broadcast_equal
+   nnvm.symbol.broadcast_greater_equal
+   nnvm.symbol.broadcast_greater_equal
+   nnvm.symbol.broadcast_greater
+   nnvm.symbol.broadcast_left_shift
+   nnvm.symbol.broadcast_less_equal
+   nnvm.symbol.broadcast_less_equal
+   nnvm.symbol.broadcast_less
+   nnvm.symbol.broadcast_max
+   nnvm.symbol.broadcast_min
+   nnvm.symbol.broadcast_mod
+   nnvm.symbol.broadcast_not_equal
+   nnvm.symbol.broadcast_pow
+   nnvm.symbol.broadcast_right_shift
+
+
+**Level 5: Vision Operators**
+
+.. autosummary::
+   :nosignatures:
+
+   nnvm.symbol.multibox_prior
+   nnvm.symbol.multibox_transform_loc
+   nnvm.symbol.nms
+   nnvm.symbol.yolo_region
+   nnvm.symbol.yolo_reorg
 
 Detailed Definitions
 --------------------
 .. autofunction:: nnvm.symbol.dense
 .. autofunction:: nnvm.symbol.relu
+.. autofunction:: nnvm.symbol.prelu
 .. autofunction:: nnvm.symbol.tanh
 .. autofunction:: nnvm.symbol.sigmoid
 .. autofunction:: nnvm.symbol.exp
@@ -132,6 +176,8 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.elemwise_mul
 .. autofunction:: nnvm.symbol.elemwise_div
 .. autofunction:: nnvm.symbol.elemwise_sum
+.. autofunction:: nnvm.symbol.elemwise_mod
+.. autofunction:: nnvm.symbol.elemwise_pow
 .. autofunction:: nnvm.symbol.flatten
 .. autofunction:: nnvm.symbol.concatenate
 .. autofunction:: nnvm.symbol.expand_dims
@@ -143,6 +189,14 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.log_softmax
 .. autofunction:: nnvm.symbol.pad
 .. autofunction:: nnvm.symbol.block_grad
+.. autofunction:: nnvm.symbol.matmul
+.. autofunction:: nnvm.symbol.resize
+.. autofunction:: nnvm.symbol.upsampling
+.. autofunction:: nnvm.symbol.take
+.. autofunction:: nnvm.symbol.l2_normalize
+.. autofunction:: nnvm.symbol.flip
+.. autofunction:: nnvm.symbol.lrn
+.. autofunction:: nnvm.symbol.where
 
 .. autofunction:: nnvm.symbol.conv2d
 .. autofunction:: nnvm.symbol.conv2d_transpose
@@ -191,3 +245,28 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.ones_like
 .. autofunction:: nnvm.symbol.zeros
 .. autofunction:: nnvm.symbol.zeros_like
+.. autofunction:: nnvm.symbol.slice_like
+.. autofunction:: nnvm.symbol.strided_slice
+.. autofunction:: nnvm.symbol.argmax
+.. autofunction:: nnvm.symbol.argmin
+.. autofunction:: nnvm.symbol.collapse_sum
+.. autofunction:: nnvm.symbol.broadcast_equal
+.. autofunction:: nnvm.symbol.broadcast_greater_equal
+.. autofunction:: nnvm.symbol.broadcast_greater_equal
+.. autofunction:: nnvm.symbol.broadcast_greater
+.. autofunction:: nnvm.symbol.broadcast_left_shift
+.. autofunction:: nnvm.symbol.broadcast_less_equal
+.. autofunction:: nnvm.symbol.broadcast_less_equal
+.. autofunction:: nnvm.symbol.broadcast_less
+.. autofunction:: nnvm.symbol.broadcast_max
+.. autofunction:: nnvm.symbol.broadcast_min
+.. autofunction:: nnvm.symbol.broadcast_mod
+.. autofunction:: nnvm.symbol.broadcast_not_equal
+.. autofunction:: nnvm.symbol.broadcast_pow
+.. autofunction:: nnvm.symbol.broadcast_right_shift
+
+.. autofunction:: nnvm.symbol.multibox_prior
+.. autofunction:: nnvm.symbol.multibox_transform_loc
+.. autofunction:: nnvm.symbol.nms
+.. autofunction:: nnvm.symbol.yolo_region
+.. autofunction:: nnvm.symbol.yolo_reorg

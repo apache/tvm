@@ -101,10 +101,16 @@ def progress_bar(total, prefix=''):
             self.total = total
 
         def __del__(self):
-            sys.stdout.write(' Done.\n')
+            if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
+                sys.stdout.write(' Done.\n')
 
     ctx = _Context()
     tic = time.time()
+
+    if logger.level < logging.DEBUG:  # only print progress bar in non-debug mode
+        sys.stdout.write('\r%s Current/Best: %7.2f/%7.2f GFLOPS | Progress: (%d/%d) '
+                         '| %.2f s' % (prefix, 0, 0, 0, total, time.time() - tic))
+        sys.stdout.flush()
 
     def _callback(tuner, inputs, results):
         ctx.ct += len(inputs)

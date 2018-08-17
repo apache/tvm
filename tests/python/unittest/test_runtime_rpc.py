@@ -175,11 +175,52 @@ def test_rpc_return_func():
     @tvm.register_func("rpc.test.remote_func")
     def addone(x):
         return lambda y: x+y
+
     server = rpc.Server("localhost", key="x1")
     client = rpc.connect(server.host, server.port, key="x1")
     f1 = client.get_function("rpc.test.remote_func")
     fadd = f1(10)
     assert fadd(12) == 22
+
+
+def test_rpc_return_ndarray():
+    # Use closure to check the ref counter correctness
+    nd = tvm.nd.array(np.zeros(10).astype("float32"))
+    @tvm.register_func("rpc.test.remote_return_nd")
+    def my_module(name):
+        if name == "get_arr":
+            return lambda : nd
+        elif name == "ref_count":
+            return lambda : tvm._api_internal._ndarray_use_count(nd)
+        elif name == "get_elem":
+            return lambda idx: nd.asnumpy()[idx]
+        elif name == "get_arr_elem":
+            return lambda arr, idx: arr.asnumpy()[idx]
+
+    # start server
+    server = rpc.Server("localhost", key="x1")
+    client = rpc.connect(server.host, server.port, key="x1")
+    m = client.get_function("rpc.test.remote_return_nd")
+    get_arr = m("get_arr")
+    ref_count = m("ref_count")
+    get_elem = m("get_elem")
+    get_arr_elem = m("get_arr_elem")
+    # array test
+    def run_arr_test():
+        arr = get_arr()
+        assert ref_count() == 2
+        arr2 = get_arr()
+        assert ref_count() == 3
+        assert arr.context == client.cpu(0)
+        arr.copyfrom(np.ones(10).astype(arr.dtype))
+        assert arr2.asnumpy()[0] == 1.0
+        assert get_elem(0) == 1.0
+        assert get_arr_elem(arr2, 0) == 1.0
+
+    assert ref_count() == 1
+    run_arr_test()
+    # check recycle correctness
+    assert ref_count() == 1
 
 
 def test_local_func():
@@ -199,9 +240,10 @@ def test_local_func():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    test_rpc_return_ndarray()
+    test_rpc_return_func()
     test_bigendian_rpc()
     test_rpc_remote_module()
-    test_rpc_return_func()
     test_rpc_file_exchange()
     test_rpc_array()
     test_rpc_simple()

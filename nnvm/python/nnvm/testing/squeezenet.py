@@ -98,7 +98,7 @@ def get_symbol(num_classes, version, **kwargs):
 
 def get_workload(batch_size=1, num_classes=1000, version='1.0',
                  image_shape=(3, 224, 224), dtype="float32", **kwargs):
-    """Get benchmark workload for resnet
+    """Get benchmark workload for SqueezeNet
 
     Parameters
     ----------

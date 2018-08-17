@@ -8,6 +8,7 @@ from . import mlp
 from . import resnet
 from . import vgg
 from . import squeezenet
+from . import inception_v3
 from . import dcgan
 from . import dqn
 from . import yolo2_detection
