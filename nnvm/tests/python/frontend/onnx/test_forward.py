@@ -1,6 +1,8 @@
 import numpy as np
 import math
 import nnvm
+import topi
+import topi.testing
 import tvm
 from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
@@ -380,6 +382,50 @@ def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
     verify_lrn((5, 5, 5, 5), 3, 'float32', alpha=0.0002, beta=0.5, bias=2.0)
 
+def _test_upsample_nearest():
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3*scale, 3*scale)
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
+    
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+    out_array = topi.testing.upsampling_python(in_array, scale, "NCHW")
+
+    graph = helper.make_graph([y],
+                              'upsample_nearest_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_nearest_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        np.testing.assert_allclose(out_array, tvm_out)
+
+def _test_upsample_bilinear():
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3*scale, 3*scale)
+    y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
+    
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+    out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
+
+    graph = helper.make_graph([y],
+                              'upsample_bilinear_test',
+                              inputs = [helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+                              outputs = [helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))])
+
+    model = helper.make_model(graph, producer_name='upsample_bilinear_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
+        np.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_upsample():
+    _test_upsample_nearest()
+    _test_upsample_bilinear()
+
 
 if __name__ == '__main__':
     # verify_super_resolution_example()
@@ -398,3 +444,4 @@ if __name__ == '__main__':
     test_matmul()
     test_gather()
     test_lrn()
+    test_upsample()
