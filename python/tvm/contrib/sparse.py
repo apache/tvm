@@ -138,10 +138,13 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     name: str, optional
         The name hint of the tensor
 
+    stype: str, optional
+        The name storage type of the sparse tensor (e.g. csr, coo, ell)
+
     Returns
     -------
-    tensor: CSRNDArray
-        The created tensor
+    tensor: SparsePlaceholderOp
+        The created sparse tensor placeholder
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     nonzeros = 0 if nonzeros is None else nonzeros
