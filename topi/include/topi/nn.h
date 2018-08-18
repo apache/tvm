@@ -265,7 +265,7 @@ inline tvm::Tensor conv2d_nchw(const tvm::Tensor& I,
   auto pW = I->shape[3];
   tvm::Array<tvm::Expr> output_shape{
       I->shape[0],                                            // B
-      W->shape[1],                                            // O
+      W->shape[0],                                            // O
       (I->shape[2] - W->shape[2] + 2 * pad_h) / stride_h + 1,  // H
       (I->shape[3] - W->shape[3] + 2 * pad_w) / stride_w + 1   // W
   };
