@@ -28,7 +28,7 @@ def test_storage_share():
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 1
 
-def test_tvm_register_mem(scope_tb, test_max_num_bits):
+def register_mem(scope_tb, test_max_num_bits):
     #Register mem
     @tvm.register_func("tvm.info.mem.%s" % scope_tb)
     def mem_info_inp_buffer():
@@ -39,7 +39,7 @@ def test_tvm_register_mem(scope_tb, test_max_num_bits):
                         head_address=None)
 
 def test_alloc_seq(scope_tb = "local.L0A", test_max_num_bits = 1024 * 1024 * 1024):
-    test_tvm_register_mem(scope_tb, test_max_num_bits)
+    register_mem(scope_tb, test_max_num_bits)
 
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
@@ -247,7 +247,7 @@ def test_parallel_alloc():
 
 def test_inplace_rule2(scope_tb = "local_TB2", test_max_num_bits = 1024 * 1024 * 1024):
     #Test Buffer
-    test_tvm_register_mem(scope_tb, test_max_num_bits)
+    register_mem(scope_tb, test_max_num_bits)
     m = 10
     A = tvm.placeholder((m,), name='A')
     C = tvm.placeholder((m,), name='C')
@@ -280,19 +280,20 @@ def test_inplace_rule2(scope_tb = "local_TB2", test_max_num_bits = 1024 * 1024 *
     tvm.ir_pass.PostOrderVisit(stmt, verify)
     assert num_alloc[0] == 2
 
-def test_exceed_mem(scope_tb = "local_TEM", test_max_num_bits=10):
+def test_exceed_mem():
+    test_max_num_bits = 639
     # The critical max_num_bits is between 639 and 640
+    loc = -1
     try:
-        test_inplace_rule2(scope_tb, test_max_num_bits)
+        test_inplace_rule2("local_TEM", test_max_num_bits)
     except Exception, e:
         estr = str(e)
-        flagAllocMsg = estr.find('Allocation exceed bound of memory')
-        flagEndMsg = estr.find('\n', flagAllocMsg + 1)
-        assert None==e, estr[flagAllocMsg:flagEndMsg]
+        loc = estr.find('Allocation exceed bound of memory')
+        assert loc != -1
 
 def test_inplace_rule3(scope_tb = "local_TB3", test_max_num_bits=1024 * 1024 * 1024):
     #Test Buffer
-    test_tvm_register_mem(scope_tb, test_max_num_bits)
+    register_mem(scope_tb, test_max_num_bits)
     m = 10
     B0 = tvm.placeholder((m,), name='B0')
     B1 = tvm.placeholder((m,), name='B1')
@@ -396,7 +397,7 @@ def test_alloc_seq_type():
     assert num_alloc[0] == 1
 
 def test_alloc_seq_type2(scope_tb = "local.L0A2", test_max_num_bits=1024 * 1024 * 1024):
-    test_tvm_register_mem(scope_tb, test_max_num_bits)
+    register_mem(scope_tb, test_max_num_bits)
 
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
@@ -475,7 +476,7 @@ if __name__ == "__main__":
     test_storage_combine()
     test_storage_share_gpu()
     test_inplace_rule2()
-    test_exceed_mem(test_max_num_bits = 639)
+    test_exceed_mem()
     test_inplace_rule3()
     test_alloc_seq_type()
     test_alloc_seq_type2()
