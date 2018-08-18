@@ -584,6 +584,12 @@ class StoragePlanRewriter : public IRMutator {
           e->new_alloc = Allocate::make(
               e->alloc_var, alloc_type, {combo_size}, const_true(),
               Evaluate::make(0));
+          if (e->scope.tag.length() != 0) {
+            MemoryInfo info = GetMemoryInfo(e->scope.to_string());
+            uint64_t total_elem = e->const_nbits / e->elem_type.bits();
+            CHECK_LE(total_elem * e->elem_type.bits(), info->max_num_bits)
+                << "Allocation exceed bound of memory tag " << e->scope.to_string();
+          }
         }
       }
     }
