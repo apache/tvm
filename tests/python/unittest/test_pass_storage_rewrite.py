@@ -286,7 +286,7 @@ def test_exceed_mem():
     loc = -1
     try:
         test_inplace_rule2("local_TEM", test_max_num_bits)
-    except Exception, e:
+    except Exception as e:
         estr = str(e)
         loc = estr.find('Allocation exceed bound of memory')
         assert loc != -1
