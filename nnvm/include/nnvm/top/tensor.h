@@ -16,7 +16,7 @@ namespace top {
 struct ConcatenateParam : public dmlc::Parameter<ConcatenateParam> {
   int axis;
   DMLC_DECLARE_PARAMETER(ConcatenateParam) {
-    DMLC_DECLARE_FIELD(axis).set_lower_bound(0).set_default(1)
+    DMLC_DECLARE_FIELD(axis).set_default(1)
     .describe("the axis to be concated.");
   }
 };
