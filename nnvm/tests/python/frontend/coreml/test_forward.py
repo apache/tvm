@@ -337,8 +337,8 @@ def verify_min(input_dim):
         np.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_min():
-    verify_max((1, 3, 20, 20))
-    verify_max((20, 20))
+    verify_min((1, 3, 20, 20))
+    verify_min((20, 20))
 
 if __name__ == '__main__':
     test_mobilenet_checkonly()
