@@ -57,7 +57,7 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
             all_shapes = graph.json_attr('shape')
             all_dtypes = graph.json_attr('dtype')
 
-        all_dtypes = [None if t == -1 else TCODE_TO_DTYPE[t] for t in all_dtypes]
+        all_dtypes = [TCODE_TO_DTYPE[t] for t in all_dtypes]
 
         if shape is None:
             shape = {x: all_shapes[graph.index.entry_id(x)] for x in graph.index.input_names}
@@ -68,7 +68,7 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     if None in dtype.values():
         raise ValueError("Input variables with no type: {}".format(dtype))
 
-    if any([not s for s in shape.values()]):
+    if not all(shape.values()):
         raise ValueError("Input variables with no shape: {}".format(shape))
 
     compute_graph, lib, params = nnvm.compiler.build(graph, target, shape=shape, dtype=dtype)
@@ -325,12 +325,14 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
     # Compute and compare the results
     for target, ctx in ctx_list():
-        if (exclude_targets is not None and (target in exclude_targets or
-                                             str(target) in exclude_targets)) or\
-           (only_targets is not None and not (target in only_targets or
-                                              str(target) in only_targets)):
-            logging.info("Skipping target = %s, ctx = %s", target, ctx)
-            continue
+        if exclude_targets is not None:
+            if target in exclude_targets or str(target) in exclude_targets:
+                logging.info("Skipping target = %s, ctx = %s", target, ctx)
+                continue
+        if only_targets is not None:
+            if target not in only_targets and str(target) not in only_targets:
+                logging.info("Skipping target = %s, ctx = %s", target, ctx)
+                continue
 
         logging.info("Checking computation on target = %s, ctx = %s", target, ctx)
 

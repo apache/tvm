@@ -1,7 +1,7 @@
 Testing new operations
 ----------------------
 
-When adding new operations, it it a good idea to test them. Testing
+When adding new operations, it is a good idea to test them. Testing
 should be done with the function ``nnvm.testing.check_function``. You
 should provide it with the symbol representing the result of a
 computation and a reference numpy implementation. By default, it will
