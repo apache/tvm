@@ -223,6 +223,123 @@ def verify_l2_normalize(input_dim, eps):
 def test_forward_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001)
 
+def verify_lrn(input_dim, size, bias, alpha, beta):
+    dtype = "float32"
+    axis=1
+    a_np = np.random.uniform(size=input_dim).astype(dtype)
+    b_np = topi.testing.lrn_python(a_np, size, axis, bias, alpha, beta)
+
+    input = [('input', datatypes.Array(*input_dim))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(input, output)
+    builder.add_lrn(name='LRN',
+                    input_name='input',
+                    output_name='output',
+                    alpha=alpha,
+                    beta=beta,
+                    k=bias,
+                    local_size=size)
+
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
+        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_lrn():
+    verify_lrn((1, 3, 10, 20), 3, 1.0, 1.0, 0.5)
+
+def verify_average(input_dim1, input_dim2, axis=0):
+    dtype = 'float32'
+
+    a_np1 = np.random.uniform(size=input_dim1).astype(dtype)
+    a_np2 = np.random.uniform(size=input_dim2).astype(dtype)
+
+    b_np = np.mean((a_np1, a_np2), axis=axis)
+
+    inputs = [('input1', datatypes.Array(*input_dim1)),
+              ('input2', datatypes.Array(*input_dim2))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.add_elementwise(name='MEAN',
+                            input_names=['input1', 'input2'],
+                            output_name='output',
+                            mode='AVE')
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model,
+                           [a_np1, a_np2],
+                           ['input1', 'input2'],
+                           b_np.shape,
+                           dtype)
+        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_average():
+    verify_average((1, 3, 20, 20), (1, 3, 20, 20))
+    verify_average((3, 20, 20), (1, 3, 20, 20))
+    verify_average((20, 20), (1, 3, 20, 20))
+
+def verify_max(input_dim):
+    dtype = 'float32'
+
+    a_np1 = np.random.uniform(size=input_dim).astype(dtype)
+    a_np2 = np.random.uniform(size=input_dim).astype(dtype)
+    a_np3 = np.random.uniform(size=input_dim).astype(dtype)
+
+    b_np = np.max((a_np1, a_np2, a_np3), axis=0)
+
+    inputs = [('input1', datatypes.Array(*input_dim)),
+              ('input2', datatypes.Array(*input_dim)),
+              ('input3', datatypes.Array(*input_dim))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.add_elementwise(name='Max',
+                            input_names=['input1', 'input2', 'input3'],
+                            output_name='output',
+                            mode='MAX')
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model,
+                           [a_np1, a_np2, a_np3],
+                           ['input1', 'input2', 'input3'],
+                           b_np.shape,
+                           dtype)
+        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_max():
+    verify_max((1, 3, 20, 20))
+    verify_max((20, 20))
+
+def verify_min(input_dim):
+    dtype = 'float32'
+
+    a_np1 = np.random.uniform(size=input_dim).astype(dtype)
+    a_np2 = np.random.uniform(size=input_dim).astype(dtype)
+    a_np3 = np.random.uniform(size=input_dim).astype(dtype)
+
+    b_np = np.min((a_np1, a_np2, a_np3), axis=0)
+
+    inputs = [('input1', datatypes.Array(*input_dim)),
+              ('input2', datatypes.Array(*input_dim)),
+              ('input3', datatypes.Array(*input_dim))]
+    output = [('output', datatypes.Array(*b_np.shape))]
+    builder = NeuralNetworkBuilder(inputs, output)
+    builder.add_elementwise(name='Min',
+                            input_names=['input1', 'input2', 'input3'],
+                            output_name='output',
+                            mode='MIN')
+    model = cm.models.MLModel(builder.spec)
+    for target, ctx in ctx_list():
+        out = run_tvm_graph(model,
+                           [a_np1, a_np2, a_np3],
+                           ['input1', 'input2', 'input3'],
+                           b_np.shape,
+                           dtype)
+        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+
+def test_forward_min():
+    verify_max((1, 3, 20, 20))
+    verify_max((20, 20))
+
 if __name__ == '__main__':
     test_mobilenet_checkonly()
     test_resnet50_checkonly()
@@ -231,3 +348,7 @@ if __name__ == '__main__':
     test_forward_MultiplyLayerParams()
     test_forward_UpsampleLayerParams()
     test_forward_l2_normalize()
+    test_forward_lrn()
+    test_forward_average()
+    test_forward_max()
+    test_forward_min()
