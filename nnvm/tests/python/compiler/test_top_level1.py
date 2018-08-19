@@ -150,10 +150,11 @@ def test_check_function():
     def _fwd_dense(x, w, b):
         return np.dot(x, w.T) + b
     #check_function(y, _fwd_dense) # TODO: Segfault
-    check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'x': 'float32'})
-    check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'w': 'float64'})
+    check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'x': 'float32'}, numerical_grads=False)
+    check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'w': 'float64'}, numerical_grads=False)
     _check_function_must_fail(y, _fwd_dense, shape={'x': (1,2)},
                               dtype={'w': 'float64', 'b': 'float32'},
+                              numerical_grads=False,
                               error=nnvm._base.NNVMError)
 
 def test_relu():
