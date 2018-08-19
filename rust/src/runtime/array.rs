@@ -127,7 +127,7 @@ pub struct Tensor<'a> {
   /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
   pub(super) strides: Option<Vec<usize>>,
   pub(super) byte_offset: isize,
-  pub(super) numel: usize,
+  pub(super) size: usize,
 }
 
 impl<'a> Tensor<'a> {
@@ -143,13 +143,13 @@ impl<'a> Tensor<'a> {
   pub fn to_vec<T: 'static>(&self) -> Vec<T> {
     assert!(self.is_contiguous());
     assert!(self.dtype.is_type::<T>());
-    let mut vec: Vec<T> = Vec::with_capacity(self.numel * self.dtype.itemsize());
+    let mut vec: Vec<T> = Vec::with_capacity(self.size * self.dtype.itemsize());
     unsafe {
       vec.as_mut_ptr().copy_from_nonoverlapping(
         self.data.as_ptr().offset(self.byte_offset) as *const T,
-        self.numel,
+        self.size,
       );
-      vec.set_len(self.numel);
+      vec.set_len(self.size);
     }
     vec
   }
@@ -185,7 +185,7 @@ impl<'a> Tensor<'a> {
   /// Panics if the `Tensor` is not contiguous or does not contain elements of type `T`.
   pub fn copy(&mut self, other: &Tensor) {
     assert!(
-      self.dtype == other.dtype && self.numel == other.numel,
+      self.dtype == other.dtype && self.size == other.size,
       "Tensor shape/dtype mismatch."
     );
     assert!(
@@ -201,7 +201,7 @@ impl<'a> Tensor<'a> {
         .offset(self.byte_offset as isize)
         .copy_from_nonoverlapping(
           other.data.as_mut_ptr().offset(other.byte_offset),
-          other.numel * other.dtype.itemsize(),
+          other.size * other.dtype.itemsize(),
         );
     }
   }
@@ -212,7 +212,7 @@ impl<'a> Tensor<'a> {
       data: self.data.to_owned(),
       ctx: self.ctx.clone(),
       dtype: self.dtype.clone(),
-      numel: self.numel.clone(),
+      size: self.size.clone(),
       shape: self.shape.clone(),
       strides: None,
       byte_offset: 0,
@@ -245,7 +245,7 @@ impl DLTensor {
       ndim: if flatten { 1 } else { tensor.shape.len() } as i32,
       dtype: DLDataType::from(&tensor.dtype),
       shape: if flatten {
-        &tensor.numel as *const _ as *mut i64
+        &tensor.size as *const _ as *mut i64
       } else {
         tensor.shape.as_ptr()
       } as *mut i64,
@@ -362,7 +362,7 @@ fn tensor_from_array_storage<'a, 's, T, D: ndarray::Dimension>(
       bits: 8 * type_width,
       lanes: 1,
     },
-    numel: arr.len(),
+    size: arr.len(),
     shape: arr.shape().iter().map(|&v| v as i64).collect(),
     strides: Some(arr.strides().into_iter().map(|&v| v as usize).collect()),
     byte_offset: 0,
@@ -379,9 +379,9 @@ macro_rules! impl_tensor_from_ndarray {
     impl<D: ndarray::Dimension> From<ndarray::Array<$type, D>> for Tensor<'static> {
       fn from(arr: ndarray::Array<$type, D>) -> Self {
         assert!(arr.is_standard_layout(), "Array must be contiguous.");
-        let numel = arr.len() * mem::size_of::<$type>() as usize;
+        let size = arr.len() * mem::size_of::<$type>() as usize;
         let storage =
-          Storage::from(unsafe { slice::from_raw_parts(arr.as_ptr() as *const u8, numel) });
+          Storage::from(unsafe { slice::from_raw_parts(arr.as_ptr() as *const u8, size) });
         tensor_from_array_storage(&arr, storage, $typecode as usize)
       }
     }
