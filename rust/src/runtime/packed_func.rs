@@ -9,6 +9,11 @@ use errors::*;
 
 pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue>;
 
+/// Calls a packed function and returns a `TVMRetValue`.
+///
+/// # Example
+///
+/// `call_packed!(my_tvm_func, &mut arg1, &mut arg2)`
 #[macro_export]
 macro_rules! call_packed {
   ($fn:expr, $($args:expr),+) => {
@@ -16,6 +21,8 @@ macro_rules! call_packed {
   };
 }
 
+/// A borrowed TVMPODValue. Can be constructed using `into()` but the preferred way
+/// to obtain a `TVMArgValue` is automatically via `call_packed!`.
 #[derive(Clone, Copy)]
 pub struct TVMArgValue<'a> {
   _lifetime: PhantomData<&'a ()>,
@@ -23,6 +30,7 @@ pub struct TVMArgValue<'a> {
   type_code: i64,
 }
 
+/// Creates a conversion to a `TVMArgValue` for a primitive type and DLDataTypeCode.
 macro_rules! impl_prim_tvm_arg {
   ($type:ty, $field:ident, $code:expr, $as:ty) => {
     impl<'a> From<$type> for TVMArgValue<'a> {
@@ -56,6 +64,7 @@ impl_prim_tvm_arg!(i64, v_int64);
 impl_prim_tvm_arg!(u64, v_int64);
 impl_prim_tvm_arg!(bool, v_int64);
 
+/// Creates a conversion to a `TVMArgValue` for an object handle.
 impl<'a, T> From<*const T> for TVMArgValue<'a> {
   fn from(ptr: *const T) -> Self {
     TVMArgValue {
@@ -68,6 +77,7 @@ impl<'a, T> From<*const T> for TVMArgValue<'a> {
   }
 }
 
+/// Creates a conversion to a `TVMArgValue` for a mutable object handle.
 impl<'a, T> From<*mut T> for TVMArgValue<'a> {
   fn from(ptr: *mut T) -> Self {
     TVMArgValue {
@@ -104,9 +114,25 @@ impl<'a> From<&'a DLTensor> for TVMArgValue<'a> {
   }
 }
 
+/// An owned TVMPODValue. Can be converted from a variety of primitive and object types.
+/// Can be downcasted using `try_from` if it contains the desired type.
+///
+/// # Example
+///
+/// ```
+/// let a = 42u32;
+/// let b: i64 = TVMRetValue::from(a).try_into().unwrap();
+///
+/// let s = "hello, world!";
+/// let t: TVMRetValue = s.into();
+/// assert_eq!(String::try_from(t).unwrap(), s);
+/// ```
 pub struct TVMRetValue {
+  /// A primitive return value, if any.
   prim_value: u64,
+  /// An object return value, if any.
   box_value: Box<Any>,
+  /// The DLDataTypeCode which determines whether `prim_value` or `box_value` is in use.
   type_code: i64,
 }
 
@@ -179,6 +205,7 @@ impl_prim_ret_value!(u32, 1);
 impl_prim_ret_value!(f32, 2);
 impl_boxed_ret_value!(String, 11);
 
+// @see `WrapPackedFunc` in `llvm_module.cc`.
 pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
   box move |args: &[TVMArgValue]| {
     func(

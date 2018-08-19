@@ -10,9 +10,19 @@ use ffi::runtime::{
   DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLDataTypeCode_kDLUInt, DLTensor,
 };
 
-const NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F; // Magic number for NDArray file
-const NDARRAY_LIST_MAGIC: u64 = 0xF7E58D4F05049CB7; // Magic number for NDArray list file
+// Magic number for NDArray file. @see `kTVMNDArrayMagic` in `ndarray.h`
+const NDARRAY_MAGIC: u64 = 0xDD5E40F096B4A13F;
+// Magic number for NDArray list file. @see `kTVMNDArrayListMagic` in `graph_runtime.h`
+const NDARRAY_LIST_MAGIC: u64 = 0xF7E58D4F05049CB7;
 
+/// A TVM computation graph.
+///
+/// # Examples
+///
+/// ```
+/// let graph_json = fs::read_to_string("graph.json")).unwrap();
+/// let graph = Graph::try_from(&graph_json).unwrap();
+/// ```
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Graph {
   pub nodes: Vec<Node>,
@@ -38,6 +48,7 @@ impl Graph {
       .ok_or("Missing node_row_ptr.".into())
   }
 
+  /// Attempt to deserialize a JSON attribute to a type `T`.
   fn get_attr<T: serde::de::DeserializeOwned>(&self, attr: &str) -> Result<T> {
     Ok(serde_json::from_value::<T>(
       self
@@ -116,6 +127,31 @@ impl<'a> TryFrom<&'a str> for Graph {
   }
 }
 
+/// A executor for a TVM computation graph.
+///
+/// # Examples
+///
+/// ```
+/// use ndarray::Array;
+
+/// let syslib = SystemLibModule::default(); // a provider of TVM functions
+///
+/// let mut params_bytes = Vec::new();
+/// fs::File::open("graph.params").unwrap().read_to_end(&mut params_bytes).unwrap();
+/// let params = tvm::runtime::load_param_dict(&params_bytes).unwrap();
+///
+/// let graph = Graph::try_from(&fs::read_to_string("graph.json").unwrap()).unwrap();
+///
+/// let mut exec = GraphExecutor::new(graph, &syslib).unwrap();
+/// exec.load_params(params);
+
+/// let x = Array::from_vec(vec![1f32, 2., 3., 4.]);
+/// exec.set_input("data", x.into());
+/// exec.run();
+/// let output = exec.get_output(0).unwrap();
+///
+/// println!("{:#?}", Array::try_from(output).unwrap());
+/// ```
 pub struct GraphExecutor<'m, 't> {
   graph: Graph,
   op_execs: Vec<Box<Fn() + 'm>>,
@@ -132,15 +168,17 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     })
   }
 
+  /// Runs the computation graph.
   pub fn run(&self) {
     self.op_execs.iter().for_each(|op_exec| {
       op_exec();
     });
   }
 
+  /// Allocates `Storages` for each `storage_id` and returns `Tensor`s to hold each output.
   fn setup_storages<'a>(graph: &'a Graph) -> Result<Vec<Tensor<'t>>> {
     let storage_ids = graph.get_attr::<(String, Vec<usize>)>("storage_id")?.1;
-    let shapes = graph.get_attr::<(String, Vec<Vec<usize>>)>("shape")?.1;
+    let shapes = graph.get_attr::<(String, Vec<Vec<i64>>)>("shape")?.1;
     let dtypes = graph
       .get_attr::<(String, Vec<String>)>("dltype")?
       .1
@@ -158,7 +196,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
     for (i, &storage_id) in storage_ids.iter().enumerate() {
       let dtype_size = dtypes[i].bits * dtypes[i].lanes >> 3;
-      let nbytes = dtype_size * shapes[i].iter().product::<usize>();
+      let nbytes = dtype_size * shapes[i].iter().product::<i64>() as usize;
       storage_num_bytes[storage_id] = cmp::max(nbytes, storage_num_bytes[storage_id]);
     }
 
@@ -174,8 +212,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
           data: mem::replace(&mut storages[storage_id], storage),
           ctx: TVMContext::default(),
           dtype: dtype,
-          numel: shape.iter().product(),
-          dshape: shape.iter().map(|&v| v as i64).collect(),
+          numel: shape.iter().product::<i64>() as usize,
           shape: shape,
           strides: None,
           byte_offset: 0,
@@ -186,6 +223,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     Ok(tensors)
   }
 
+  /// Creates closures which represent the computation performed by this graph.
   fn setup_op_execs<M: 'm + Module>(
     graph: &Graph,
     lib: &'m M,
@@ -262,12 +300,14 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     }
   }
 
+  /// Returns the graph input with name `name`, if it exists.
   pub fn get_input<S: AsRef<str>>(&mut self, name: S) -> Option<&Tensor> {
     self
       .get_input_index(name.as_ref())
       .and_then(move |idx| Some(&self.tensors[idx]))
   }
 
+  /// Returns the graph output with index `index`, if it exists.
   pub fn get_output(&self, idx: usize) -> Option<&Tensor> {
     let graph = &self.graph;
     graph.heads.get(idx).and_then(|entry| {
@@ -278,6 +318,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
     })
   }
 
+  /// Returns the index for graph input with name `name`, if it exists.
   pub fn get_input_index<S: AsRef<str>>(&self, name: S) -> Option<usize> {
     let graph = &self.graph;
     (0..graph.nodes.len())
@@ -293,6 +334,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
   }
 }
 
+/// Converts a string to TVM DLDataTypeCode. @see `String2TVMType` in packed_func.h
 named!(
   tvm_str_to_type<CompleteStr, DataType>,
   do_parse!(
@@ -315,6 +357,7 @@ named!(
   )
 );
 
+/// Converts a bytes to String.
 named!(
   name<String>,
   map_res!(length_bytes!(le_u64), |b: &[u8]| {
@@ -322,6 +365,7 @@ named!(
   })
 );
 
+/// Parses a TVMContext
 named!(
   tvm_ctx<&[u8], TVMContext>,
   do_parse!(
@@ -331,6 +375,7 @@ named!(
   )
 );
 
+/// Parses a DataType
 named!(
   data_type<&[u8], DataType>,
   do_parse!(
@@ -341,17 +386,17 @@ named!(
   )
 );
 
+/// Parses a Tensor from a TVM array file.
 named!(
   tensor<Tensor>,
   do_parse!(
     take!(8) >> bits!(tag_bits!(u64, 64, 0)) >> ctx: tvm_ctx >> ndim: le_u32 >> dtype: data_type
-      >> shape: count!(map!(le_i64, |sz| sz as usize), ndim as usize) >> length: le_i64
+      >> shape: count!(map!(le_i64, |sz| sz as i64), ndim as usize) >> length: le_i64
       >> data: take!(length) >> (Tensor {
       data: Storage::from(data),
       ctx: ctx,
       dtype: dtype,
-      numel: shape.iter().product(),
-      dshape: shape.iter().map(|&v| v as i64).collect(),
+      numel: shape.iter().product::<i64>() as usize,
       shape: shape,
       strides: None,
       byte_offset: 0,
@@ -359,6 +404,7 @@ named!(
   )
 );
 
+/// Parses a graph params dict from a params binary file.
 named!(
   parse_param_dict<HashMap<String, Tensor>>,
   do_parse!(
@@ -368,6 +414,7 @@ named!(
   )
 );
 
+/// Loads a param dict saved using `nnvm.compiler.save_param_dict`.
 pub fn load_param_dict(bytes: &[u8]) -> Result<HashMap<String, Tensor>> {
   if let Ok((remaining_bytes, param_dict)) = parse_param_dict(bytes) {
     if remaining_bytes.len() > 0 {

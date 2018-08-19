@@ -11,6 +11,7 @@ pub struct Allocation {
 }
 
 impl Allocation {
+  /// Allocates a chunk of memory of `size` bytes with optional alignment.
   pub fn new(size: usize, align: Option<usize>) -> Result<Self> {
     let alignment = align.unwrap_or(DEFAULT_ALIGN_BYTES);
     let layout = Layout::from_size_align(size, alignment)?;
@@ -28,10 +29,12 @@ impl Allocation {
     self.ptr
   }
 
+  /// Returns the size of the Allocation in bytes.
   pub fn size(&self) -> usize {
     self.layout.size()
   }
 
+  /// Returns the byte alignment of the Allocation.
   pub fn align(&self) -> usize {
     self.layout.align()
   }

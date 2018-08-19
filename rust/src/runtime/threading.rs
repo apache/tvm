@@ -26,6 +26,7 @@ use ffi::runtime::TVMParallelGroupEnv;
 type FTVMParallelLambda =
   extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
 
+/// Holds a parallel job request made by a TVM library function.
 struct Job {
   cb: FTVMParallelLambda,
   cdata: *const c_void,
@@ -34,6 +35,7 @@ struct Job {
 }
 
 impl Job {
+  /// Splits this job into a number of `Task`s which can be scheduled.
   fn tasks(&self, num_workers: usize) -> Vec<Task> {
     let num_tasks = if self.req_num_tasks == 0 {
       num_workers
@@ -58,6 +60,7 @@ impl Job {
       .collect()
   }
 
+  /// Waits for all tasks in this `Job` to be completed.
   fn wait(&self) -> Result<()> {
     while self.pending.load(Ordering::Acquire) > 0 {
       #[cfg(not(target_env = "sgx"))]
@@ -67,6 +70,7 @@ impl Job {
   }
 }
 
+/// A chunk of work requested by a TVM function.
 struct Task {
   id: usize,
   flambda: FTVMParallelLambda,
@@ -166,6 +170,7 @@ impl ThreadPool {
   }
 }
 
+// Send + Sync wrapper for bounded_spsc_queue::Consumer
 struct Consumer<T> {
   consumer: bounded_spsc_queue::Consumer<T>,
 }
@@ -184,6 +189,7 @@ unsafe impl<T> Sync for Consumer<T> {}
 
 #[cfg(target_env = "sgx")]
 lazy_static! {
+  /// Holds tasks for untrusted threads which re-enter the enclave to execute.
   static ref SGX_QUEUES: Mutex<VecDeque<Consumer<Task>>> = Mutex::new(VecDeque::new());
 }
 
@@ -204,7 +210,7 @@ fn max_concurrency() -> usize {
 
 #[cfg(target_arch = "wasm32")]
 fn max_concurrency() -> usize {
-  0
+  0 // wasm doesn't support threads yet
 }
 
 #[cfg(target_env = "sgx")]
@@ -243,6 +249,7 @@ pub extern "C" fn TVMBackendParallelLaunch(
   return 0;
 }
 
+// @see https://github.com/dmlc/tvm/issues/988 for information on why this function is used.
 #[no_mangle]
 pub extern "C" fn TVMBackendParallelBarrier(_task_id: usize, penv: *const TVMParallelGroupEnv) {
   let barrier: &Arc<Barrier> = unsafe { &*((*penv).sync_handle as *const Arc<Barrier>) };

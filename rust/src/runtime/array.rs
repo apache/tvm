@@ -16,9 +16,13 @@ use ffi::runtime::{
   DLDeviceType_kDLCPU, DLTensor,
 };
 
+/// A `Storage` is a container which holds `Tensor` data.
 #[derive(PartialEq)]
 pub enum Storage<'a> {
+  /// A `Storage` which owns its contained bytes.
   Owned(Allocation),
+
+  /// A view of an existing `Storage`.
   View(&'a mut [u8], usize), // ptr, align
 }
 
@@ -52,6 +56,7 @@ impl<'a> Storage<'a> {
     self.as_mut_ptr() as *const _
   }
 
+  /// Returns a `Storage::View` which points to an owned `Storage::Owned`.
   pub fn view(&self) -> Storage<'a> {
     match self {
       Storage::Owned(alloc) => Storage::View(
@@ -72,6 +77,7 @@ impl<'a> Storage<'a> {
     }
   }
 
+  /// Returns an owned version of this storage via cloning.
   pub fn to_owned(&self) -> Storage<'static> {
     let s = Storage::new(self.size(), Some(self.align())).unwrap();
     unsafe {
@@ -94,24 +100,48 @@ impl<'a, T> From<&'a [T]> for Storage<'a> {
   }
 }
 
+/// A n-dimensional array type which can be converted to/from `tvm::DLTensor` and `ndarray::Array`.
+/// `Tensor` is primarily a holder of data which can be operated on via TVM (via `DLTensor`) or
+/// converted to `ndarray::Array` for non-TVM processing.
+///
+/// # Examples
+///
+/// ```
+/// extern crate ndarray;
+///
+/// let mut a_nd: ndarray::Array = ndarray::Array::from_vec(vec![1f32, 2., 3., 4.]);
+/// let mut a: Tensor = a_nd.into();
+/// let mut a_dl: DLTensor = (&mut t).into();
+/// call_packed!(tvm_fn, &mut a_dl);
+///
+/// // Array -> Tensor is mostly useful when post-processing TVM graph outputs.
+/// let mut a_nd = ndarray::Array::try_from(&a).unwrap();
+/// ```
 #[derive(PartialEq)]
 pub struct Tensor<'a> {
+  /// The bytes which contain the data this `Tensor` represents.
   pub(super) data: Storage<'a>,
   pub(super) ctx: TVMContext,
   pub(super) dtype: DataType,
-  pub(super) shape: Vec<usize>,
+  pub(super) shape: Vec<i64>, // not usize because `typedef int64_t tvm_index_t` in c_runtime_api.h
+  /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
   pub(super) strides: Option<Vec<usize>>,
   pub(super) byte_offset: isize,
   pub(super) numel: usize,
-  pub(super) dshape: Vec<i64>,
 }
 
 impl<'a> Tensor<'a> {
-  pub fn shape(&self) -> Vec<usize> {
+  pub fn shape(&self) -> Vec<i64> {
     self.shape.clone()
   }
 
+  /// Returns the data of this `Tensor` as a `Vec`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the `Tensor` is not contiguous or does not contain elements of type `T`.
   pub fn to_vec<T: 'static>(&self) -> Vec<T> {
+    assert!(self.is_contiguous());
     assert!(self.dtype.is_type::<T>());
     let mut vec: Vec<T> = Vec::with_capacity(self.numel * self.dtype.itemsize());
     unsafe {
@@ -124,10 +154,12 @@ impl<'a> Tensor<'a> {
     vec
   }
 
+  /// Returns `true` iff this `Tensor` is represented by a contiguous region of memory.
   pub fn is_contiguous(&self) -> bool {
     match self.strides {
       None => true,
       Some(ref strides) => {
+        // check that stride for each dimension is the product of all trailing dimensons' shapes
         self
           .shape
           .iter()
@@ -137,7 +169,7 @@ impl<'a> Tensor<'a> {
             |(is_contig, expected_stride), (shape, stride)| {
               (
                 is_contig && *stride == expected_stride,
-                expected_stride * shape,
+                expected_stride * (*shape as usize),
               )
             },
           )
@@ -146,6 +178,11 @@ impl<'a> Tensor<'a> {
     }
   }
 
+  /// Returns a clone of this `Tensor`.
+  ///
+  /// # Panics
+  ///
+  /// Panics if the `Tensor` is not contiguous or does not contain elements of type `T`.
   pub fn copy(&mut self, other: &Tensor) {
     assert!(
       self.dtype == other.dtype && self.numel == other.numel,
@@ -169,6 +206,7 @@ impl<'a> Tensor<'a> {
     }
   }
 
+  /// Returns an owned version of this `Tensor` via cloning.
   pub fn to_owned(&self) -> Tensor<'static> {
     let t = Tensor {
       data: self.data.to_owned(),
@@ -178,7 +216,6 @@ impl<'a> Tensor<'a> {
       shape: self.shape.clone(),
       strides: None,
       byte_offset: 0,
-      dshape: self.dshape.clone(),
     };
     unsafe { mem::transmute::<Tensor<'a>, Tensor<'static>>(t) }
   }
@@ -193,7 +230,7 @@ impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<f32> {
       tensor.dtype
     );
     Ok(ndarray::Array::from_shape_vec(
-      tensor.shape.clone(),
+      tensor.shape.iter().map(|s| *s as usize).collect::<Vec<usize>>(),
       tensor.to_vec::<f32>(),
     )?)
   }
@@ -210,8 +247,7 @@ impl DLTensor {
       shape: if flatten {
         &tensor.numel as *const _ as *mut i64
       } else {
-        // tensor.shape.as_ptr()
-        tensor.dshape.as_ptr() as *mut i64
+        tensor.shape.as_ptr()
       } as *mut i64,
       strides: if flatten || tensor.is_contiguous() {
         ptr::null_mut()
@@ -243,10 +279,12 @@ pub struct DataType {
 }
 
 impl DataType {
+  /// Returns the number of bytes occupied by an element of this `DataType`.
   fn itemsize(&self) -> usize {
     (self.bits * self.lanes) >> 3
   }
 
+  /// Returns whether this `DataType` represents primitive type `T`.
   fn is_type<T: 'static>(&self) -> bool {
     if self.lanes != 1 {
       return false;
@@ -325,13 +363,17 @@ fn tensor_from_array_storage<'a, 's, T, D: ndarray::Dimension>(
       lanes: 1,
     },
     numel: arr.len(),
-    shape: arr.shape().iter().map(|&v| v as usize).collect(),
+    shape: arr.shape().iter().map(|&v| v as i64).collect(),
     strides: Some(arr.strides().into_iter().map(|&v| v as usize).collect()),
     byte_offset: 0,
-    dshape: arr.shape().iter().map(|&v| v as i64).collect(),
   }
 }
 
+/// `From` conversions to `Tensor` for owned or borrowed `ndarray::Array`.
+///
+/// # Panics
+///
+/// Panics if the ndarray is not contiguous.
 macro_rules! impl_tensor_from_ndarray {
   ($type:ty, $typecode:expr) => {
     impl<D: ndarray::Dimension> From<ndarray::Array<$type, D>> for Tensor<'static> {
@@ -356,6 +398,8 @@ macro_rules! impl_tensor_from_ndarray {
   };
 }
 
+/// `From` conversions to `DLTensor` for `ndarray::Array`.
+/// Takes a reference to the `ndarray` since `DLTensor` is not owned.
 macro_rules! impl_dltensor_from_ndarray {
   ($type:ty, $typecode:expr) => {
     impl<'a, D: ndarray::Dimension> From<&'a mut ndarray::Array<$type, D>> for DLTensor {
