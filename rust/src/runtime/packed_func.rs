@@ -200,9 +200,18 @@ macro_rules! impl_boxed_ret_value {
   };
 }
 
+impl_prim_ret_value!(i8, 0);
+impl_prim_ret_value!(u8, 1);
+impl_prim_ret_value!(i16, 0);
+impl_prim_ret_value!(u16, 1);
 impl_prim_ret_value!(i32, 0);
 impl_prim_ret_value!(u32, 1);
 impl_prim_ret_value!(f32, 2);
+impl_prim_ret_value!(i64, 0);
+impl_prim_ret_value!(u64, 1);
+impl_prim_ret_value!(f64, 2);
+impl_prim_ret_value!(isize, 0);
+impl_prim_ret_value!(usize, 1);
 impl_boxed_ret_value!(String, 11);
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.

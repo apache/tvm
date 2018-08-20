@@ -219,22 +219,53 @@ impl<'a> Tensor<'a> {
     };
     unsafe { mem::transmute::<Tensor<'a>, Tensor<'static>>(t) }
   }
-}
 
-impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<f32> {
-  type Error = Error;
-  fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<f32>> {
-    ensure!(
-      tensor.dtype == DTYPE_FLOAT32,
-      "Cannot convert Tensor with dtype {:?} to ndarray",
-      tensor.dtype
-    );
-    Ok(ndarray::Array::from_shape_vec(
-      tensor.shape.iter().map(|s| *s as usize).collect::<Vec<usize>>(),
-      tensor.to_vec::<f32>(),
-    )?)
+  fn from_array_storage<'s, T, D: ndarray::Dimension>(
+    arr: &ndarray::Array<T, D>,
+    storage: Storage<'s>,
+    type_code: usize,
+  ) -> Tensor<'s> {
+    let type_width = mem::size_of::<T>() as usize;
+    Tensor {
+      data: storage,
+      ctx: TVMContext::default(),
+      dtype: DataType {
+        code: type_code,
+        bits: 8 * type_width,
+        lanes: 1,
+      },
+      size: arr.len(),
+      shape: arr.shape().iter().map(|&v| v as i64).collect(),
+      strides: Some(arr.strides().into_iter().map(|&v| v as usize).collect()),
+      byte_offset: 0,
+    }
   }
 }
+
+/// Conversions to `ndarray::Array` from `Tensor`, if the types match.
+macro_rules! impl_ndarray_try_from_tensor {
+  ($type:ty, $dtype:expr) => {
+    impl<'a, 't> TryFrom<&'a Tensor<'t>> for ndarray::ArrayD<$type> {
+      type Error = Error;
+      fn try_from(tensor: &'a Tensor) -> Result<ndarray::ArrayD<$type>> {
+        ensure!(
+          tensor.dtype == $dtype,
+          "Cannot convert Tensor with dtype {:?} to ndarray",
+          tensor.dtype
+        );
+        Ok(ndarray::Array::from_shape_vec(
+          tensor.shape.iter().map(|s| *s as usize).collect::<Vec<usize>>(),
+          tensor.to_vec::<$type>(),
+        )?)
+      }
+    }
+  };
+}
+
+impl_ndarray_try_from_tensor!(i32, DTYPE_INT32);
+impl_ndarray_try_from_tensor!(u32, DTYPE_UINT32);
+impl_ndarray_try_from_tensor!(f32, DTYPE_FLOAT32);
+impl_ndarray_try_from_tensor!(f64, DTYPE_FLOAT64);
 
 impl DLTensor {
   pub(super) fn from_tensor<'a>(tensor: &'a Tensor, flatten: bool) -> Self {
@@ -299,12 +330,6 @@ impl DataType {
   }
 }
 
-const DTYPE_FLOAT32: DataType = DataType {
-  code: DLDataTypeCode_kDLFloat as usize,
-  bits: 32,
-  lanes: 1,
-};
-
 impl<'a> From<&'a DataType> for DLDataType {
   fn from(dtype: &'a DataType) -> Self {
     Self {
@@ -314,6 +339,22 @@ impl<'a> From<&'a DataType> for DLDataType {
     }
   }
 }
+
+macro_rules! make_dtype_const {
+  ($name: ident, $code: ident, $bits: expr, $lanes: expr) => {
+    const $name: DataType = DataType {
+      code: $code as usize,
+      bits: $bits,
+      lanes: $lanes,
+    };
+  }
+}
+
+make_dtype_const!(DTYPE_INT32, DLDataTypeCode_kDLInt, 32, 1);
+make_dtype_const!(DTYPE_UINT32, DLDataTypeCode_kDLUInt, 32, 1);
+make_dtype_const!(DTYPE_FLOAT16, DLDataTypeCode_kDLFloat, 16, 1);
+make_dtype_const!(DTYPE_FLOAT32, DLDataTypeCode_kDLFloat, 32, 1);
+make_dtype_const!(DTYPE_FLOAT64, DLDataTypeCode_kDLFloat, 64, 1);
 
 impl Default for DLContext {
   fn default() -> Self {
@@ -348,27 +389,6 @@ impl Default for TVMContext {
   }
 }
 
-fn tensor_from_array_storage<'a, 's, T, D: ndarray::Dimension>(
-  arr: &ndarray::Array<T, D>,
-  storage: Storage<'s>,
-  type_code: usize,
-) -> Tensor<'s> {
-  let type_width = mem::size_of::<T>() as usize;
-  Tensor {
-    data: storage,
-    ctx: TVMContext::default(),
-    dtype: DataType {
-      code: type_code,
-      bits: 8 * type_width,
-      lanes: 1,
-    },
-    size: arr.len(),
-    shape: arr.shape().iter().map(|&v| v as i64).collect(),
-    strides: Some(arr.strides().into_iter().map(|&v| v as usize).collect()),
-    byte_offset: 0,
-  }
-}
-
 /// `From` conversions to `Tensor` for owned or borrowed `ndarray::Array`.
 ///
 /// # Panics
@@ -382,13 +402,13 @@ macro_rules! impl_tensor_from_ndarray {
         let size = arr.len() * mem::size_of::<$type>() as usize;
         let storage =
           Storage::from(unsafe { slice::from_raw_parts(arr.as_ptr() as *const u8, size) });
-        tensor_from_array_storage(&arr, storage, $typecode as usize)
+        Tensor::from_array_storage(&arr, storage, $typecode as usize)
       }
     }
     impl<'a, D: ndarray::Dimension> From<&'a ndarray::Array<$type, D>> for Tensor<'a> {
       fn from(arr: &'a ndarray::Array<$type, D>) -> Self {
         assert!(arr.is_standard_layout(), "Array must be contiguous.");
-        tensor_from_array_storage(
+        Tensor::from_array_storage(
           arr,
           Storage::from(arr.as_slice().unwrap()),
           $typecode as usize,

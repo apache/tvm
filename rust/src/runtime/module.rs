@@ -9,7 +9,7 @@ pub trait Module {
   fn get_function<S: AsRef<str>>(&self, name: S) -> Option<PackedFunc>;
 }
 
-pub struct SystemLibModule {}
+pub struct SystemLibModule;
 
 lazy_static! {
   static ref SYSTEM_LIB_FUNCTIONS: Mutex<HashMap<String, BackendPackedCFunc>> =
