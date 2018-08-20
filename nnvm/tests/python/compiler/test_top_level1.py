@@ -41,6 +41,8 @@ def test_check_function():
 
     # test just numerical gradients
     # different styles of shape and dtype passing
+    check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)},
+                   numerical_grads=True)
     check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype='float32',
                    numerical_grads=True)
     check_function(x + 2*y, shape={'x': (1, 2), y: (1, 2)}, dtype={x: 'float32', 'y': 'float32'},
@@ -149,13 +151,16 @@ def test_check_function():
     y = sym.dense(data=x, bias=b, weight=w, units=4)
     def _fwd_dense(x, w, b):
         return np.dot(x, w.T) + b
-    _check_function_must_fail(y, _fwd_dense, error=ValueError)
     check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'x': 'float32'}, numerical_grads=False)
     check_function(y, _fwd_dense, shape={'x': (1,2)}, dtype={'w': 'float64'}, numerical_grads=False)
     _check_function_must_fail(y, _fwd_dense, shape={'x': (1,2)},
                               dtype={'w': 'float64', 'b': 'float32'},
                               numerical_grads=False,
                               error=nnvm._base.NNVMError)
+    # fails because no shape
+    _check_function_must_fail(y, _fwd_dense, error=ValueError)
+    # ok because type is float32 by default
+    check_function(y, _fwd_dense, shape={'x': (1,2)})
 
 def test_relu():
     x = sym.Variable("x")

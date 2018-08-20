@@ -10,8 +10,138 @@ from tvm.contrib import graph_runtime
 
 import nnvm
 from nnvm.compiler import graph_util
-from nnvm.compiler.graph_attr import TCODE_TO_DTYPE
+from nnvm.compiler.graph_attr import TCODE_TO_DTYPE, DTYPE_TO_TCODE
 from .config import ctx_list
+
+def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
+    """Runs dtype and shape inference passes on a graph and returns the resulting graph
+    along with the inferred information.
+
+    Parameters
+    ----------
+    graph : nnvm.graph.Graph
+        A graph we want to run inference on.
+
+    shape : Dict[str, Tuple[int]] or Tuple[int], optional
+        A dict mapping input variable names to shapes.
+        By default shapes will be inferred from variables' attributes.
+        Note that this parameter takes precedence over variables' attributes.
+
+    dtype : Dict[str, str] or str, optional
+        A dict mapping input variable names to dtypes, or just a single dtype.
+        By default dtypes will be inferred from variables' attributes.
+        Note that this parameter takes precedence over variables' attributes.
+
+    fallback_dtype : str, optional
+        A dtype that will be used for variables whose dtype can't be inferred from other
+        variables' dtypes.
+
+    Returns
+    -------
+    graph : nnvm.graph.Graph
+        The resulting graph with dtype and shape information on its nodes.
+
+    input_shapes : Dict[str, Tuple[int]]
+        The inferred shapes of input variables merged with the `shape` dictionary.
+
+    input_dtypes : Dict[str, str]
+        The inferred dtypes of input variables merged with the `dtype` dictionary.
+
+    output_shapes : List[Tuple[int]]
+        The inferred shapes of outputs.
+
+    output_dtypes : List[str]
+        The inferred dtypes of outputs.
+    """
+    # Preprocess input parameters
+    if shape is None:
+        shape = {}
+
+    if dtype is None:
+        dtype = {}
+
+    if not isinstance(shape, dict):
+        shape = {x: shape for x in graph.symbol.list_input_variables()}
+
+    if not isinstance(dtype, dict):
+        dtype = {x: dtype for x in graph.symbol.list_input_variables()}
+
+    shape = _dict_var_to_dict_str(shape)
+    dtype = _dict_var_to_dict_str(dtype)
+
+    # The graph may already contain shape and dtype info, so extract it and merge with
+    # the user-specified shapes and dtypes (use the user-specified one on contradiction)
+    all_initial_shapes = graph.json_attr('shape')
+    all_initial_dtypes = graph.json_attr('dtype')
+
+    if all_initial_shapes:
+        for x in graph.index.input_names:
+            if x not in shape:
+                x_shape = tuple(all_initial_shapes[graph.index.entry_id(x)])
+                shape[x] = x_shape
+
+    if all_initial_dtypes:
+        for x in graph.index.input_names:
+            if x not in dtype:
+                x_dtype = TCODE_TO_DTYPE[all_initial_dtypes[graph.index.entry_id(x)]]
+                dtype[x] = x_dtype
+
+    # Perform inference
+    nnvm.compiler.graph_attr.set_shape_inputs(graph, shape)
+    nnvm.compiler.graph_attr.set_dtype_inputs(graph, dtype)
+
+    graph = graph.apply('InferShape').apply('InferType')
+
+    shapes = graph.json_attr('shape')
+    dtypes = graph.json_attr('dtype')
+
+    out_len = len(graph.symbol.list_output_names())
+
+    output_shapes = \
+        [tuple(shapes[graph.index.output_entries[i][0]]) for i in range(out_len)]
+    output_dtypes = \
+        [TCODE_TO_DTYPE[dtypes[graph.index.output_entries[i][0]]] for i in range(out_len)]
+
+    # Postprocess the results
+    input_shapes = shape.copy()
+    input_dtypes = dtype.copy()
+
+    for x in graph.symbol.list_input_variables():
+        x_name = x.attr('name')
+        x_node_id = graph.index.node_id(x_name)
+        input_shapes[x_name] = tuple(shapes[x_node_id])
+        input_dtypes[x_name] = TCODE_TO_DTYPE[dtypes[x_node_id]]
+
+    # Merge the original user-specified shapes in case some of them are specified for non-existing
+    # variables
+    for x_name, x_shape in shape.items():
+        x_shape = tuple(x_shape)
+        if input_shapes.get(x_name, x_shape) != x_shape:
+            raise RuntimeError("Inferred shape differs from the provided shape.\n"
+                               "Provided shapes: {}\nInferred shapes: {}"
+                               .format(shapes, input_shapes))
+        else:
+            input_shapes[x_name] = x_shape
+
+    # Merge the original user-specified dtypes
+    for x_name, x_dtype in dtype.items():
+        if not isinstance(x_dtype, str):
+            x_dtype = TCODE_TO_DTYPE[x_dtype]
+        if input_dtypes.get(x_name, x_dtype) != x_dtype:
+            raise RuntimeError("Inferred dtype differs from the provided dtype.\n"
+                               "Provided dtypes: {}\nInferred dtypes: {}"
+                               .format(dtypes, input_dtypes))
+        else:
+            input_dtypes[x_name] = x_dtype
+
+    # If some dtypes weren't inferred and there is a fallback dtype, assign it to those varibles
+    # and repeat the inference
+    if fallback_dtype is not None and not all(input_dtypes.values()):
+        input_dtypes = {x: input_dtypes[x] if input_dtypes[x] else fallback_dtype
+                        for x in input_dtypes}
+        return infer_shapes_dtypes(graph, input_shapes, input_dtypes, fallback_dtype=None)
+
+    return graph, input_shapes, input_dtypes, output_shapes, output_dtypes
 
 def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     """Convert a graph to a function taking a keyword args and returning a list of results
@@ -47,23 +177,9 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     -------
     function : Callable[..., List[numpy.ndarray]]
     """
-
-    if shape is None or dtype is None:
-        all_shapes = graph.json_attr('shape')
-        all_dtypes = graph.json_attr('dtype')
-
-        if all_shapes is None or all_dtypes is None:
-            graph = graph.apply('InferShape').apply('InferType')
-            all_shapes = graph.json_attr('shape')
-            all_dtypes = graph.json_attr('dtype')
-
-        all_dtypes = [TCODE_TO_DTYPE[t] for t in all_dtypes]
-
-        if shape is None:
-            shape = {x: all_shapes[graph.index.entry_id(x)] for x in graph.index.input_names}
-
-        if dtype is None:
-            dtype = {x: all_dtypes[graph.index.entry_id(x)] for x in graph.index.input_names}
+    # Infer missing shapes and dtypes
+    graph, shape, dtype, output_shapes, output_dtypes = \
+        infer_shapes_dtypes(graph, shape=shape, dtype=dtype)
 
     if None in dtype.values():
         raise ValueError("Input variables with no type: {}".format(dtype))
@@ -77,16 +193,11 @@ def graph_to_function(graph, target, ctx, shape=None, dtype=None):
     if params:
         module.set_inputs(**params)
 
-    all_shapes = compute_graph.json_attr('shape')
-    all_dtypes = [TCODE_TO_DTYPE[dtype] for dtype in compute_graph.json_attr('dtype')]
-
     def run(**kwargs):
         module.run(**kwargs)
         res = []
-        for i, out_entry in enumerate(compute_graph.index.output_entries):
-            res.append(
-                module.get_output(
-                    i, tvm.nd.empty(all_shapes[out_entry[0]], all_dtypes[out_entry[0]])).asnumpy())
+        for i, (o_shape, o_dtype) in enumerate(zip(output_shapes, output_dtypes)):
+            res.append(module.get_output(i, tvm.nd.empty(o_shape, o_dtype)).asnumpy())
         return res
 
     return run
@@ -136,6 +247,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     dtype : Dict[nnvm.Symbol or str, str] or str, optional
         A dict mapping input variable names to dtypes, or just a single dtype.
         By default dtypes will be inferred from variables' attributes (see the Examples).
+        If dtypes cannot be inferred for some variables then float32 will be used as a fallback.
         Note that this parameter takes precedence over variables' attributes.
 
     in_range : Dict[nnvm.Symbol or str, (float, float)] or (float, float), optional
@@ -185,20 +297,22 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         # check the function and its gradients both numerically and using a reference function
         check_function(x + 2*y,
                        lambda x, y: x + 2*y,
-                       lambda x, y, head_grads: {'x': head_grads, 'y': 2*head_grads},
-                       dtype='float32')
+                       lambda x, y, head_grads: {'x': head_grads, 'y': 2*head_grads})
 
         # just check gradients numerically
-        check_function(x + 2*y, dtype='float32', numerical_grads=True)
+        check_function(x + 2*y, numerical_grads=True)
 
         # just check the forward computation
-        check_function(x + 2*y, lambda x, y: x + 2*y,
-                       dtype='float32', numerical_grads=False)
+        check_function(x + 2*y, lambda x, y: x + 2*y, numerical_grads=False)
+
+        # specifying dtype
+        check_function(x + 2*y, lambda x, y: x + 2*y, dtype='float64')
 
         # dtypes can also be specified during variable creation with dtype codes
         x = sym.Variable("x", dtype=0)
         check_function(x + 1, shape=(2, 2), numerical_grads=True)
     """
+    # validate and preprocess the input params
     if numerical_grads is None and forward is None and backward is None:
         raise ValueError("No reference function was passed to check_function. If you only want to "
                          "check gradients numerically, pass numerical_grads=True explicitly.")
@@ -221,37 +335,17 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     else:
         grad_input_vars = [input_dict[x] if isinstance(x, str) else x for x in grad_input_vars]
 
-    if shape is None:
-        shape = {}
-
-    if not isinstance(shape, dict):
-        shape = {x: shape for x in input_dict}
-
-    shape = _dict_var_to_dict_str(shape)
-    dtype = _dict_var_to_dict_str(dtype)
     in_range = _dict_var_to_dict_str(in_range)
     values = _dict_var_to_dict_str(values)
 
-    # Infer the output shape and dtype by creating a graph and running passes
-
-    forward_graph = nnvm.graph.create(symbol)
-
-    if dtype is not None:
-        nnvm.compiler.graph_attr.set_dtype_inputs(forward_graph, dtype)
-
-    if shape is not None:
-        nnvm.compiler.graph_attr.set_shape_inputs(forward_graph, shape)
-
-    forward_graph = forward_graph.apply('InferShape').apply('InferType')
-    shapes = forward_graph.json_attr('shape')
-    dtypes = forward_graph.json_attr('dtype')
-
     out_len = len(symbol.list_output_names())
 
-    out_shapes = [shapes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
-    out_dtypes = [dtypes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
+    # Infer the output shapes and dtypes, and preprocess the shape and dtype params
+    forward_graph, shape, dtype, out_shapes, out_dtypes = \
+        infer_shapes_dtypes(nnvm.graph.create(symbol), shape=shape, dtype=dtype,
+                            fallback_dtype='float32')
 
-    if not all(out_shapes) or -1 in out_dtypes:
+    if not all(out_shapes) or not all(out_dtypes):
         if not quiet:
             print(forward_graph.ir(join_node_attrs=['shape', 'dtype']))
         raise ValueError("Could not infer shapes or dtypes for outputs.\n"
@@ -260,12 +354,13 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     backward_graph = None
 
     # If we want gradients, we have to recreate the graph, but now with gradient computations
-    # Note that here we need out_shape for defining the shape of head grads, so we have to
+    # Note that here we need out_shapes for defining the shape of head grads, so we have to
     # create the graph twice
     if backward is not None or numerical_grads:
         try:
             head_grads_symbols = [nnvm.symbol.Variable("head_grads_" + str(i),
-                                                       shape=out_shapes[i], dtype=out_dtypes[i])
+                                                       shape=out_shapes[i],
+                                                       dtype=DTYPE_TO_TCODE[out_dtypes[i]])
                                   for i in range(out_len)]
             grad_symbols = graph_util.gradients([symbol], grad_input_vars,
                                                 grad_ys=head_grads_symbols)
@@ -274,15 +369,9 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
             backward_graph = \
                 nnvm.graph.create(nnvm.symbol.Group([symbol] + grad_symbols + head_grads_symbols))
 
-            if dtype is not None:
-                nnvm.compiler.graph_attr.set_dtype_inputs(backward_graph, dtype)
-
-            if shape is not None:
-                nnvm.compiler.graph_attr.set_shape_inputs(backward_graph, shape)
-
-            backward_graph = backward_graph.apply('InferShape').apply('InferType')
-            shapes = backward_graph.json_attr('shape')
-            dtypes = backward_graph.json_attr('dtype')
+            backward_graph, shape, dtype, out_shapes, out_dtypes = \
+                infer_shapes_dtypes(backward_graph, shape=shape, dtype=dtype,
+                                    fallback_dtype='float32')
         except nnvm._base.NNVMError as err:
             if backward is None and numerical_grads == "if_possible":
                 logging.warning("Won't check gradients because: %s", str(err).split('\n', 1)[0])
@@ -299,13 +388,8 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
 
     for x in main_graph.symbol.list_input_variables():
         x_name = x.attr('name')
-
-        x_node_id = main_graph.index.node_id(x_name)
-        x_shape = shapes[x_node_id]
-        x_dtype = dtypes[x_node_id]
-
-        if not isinstance(x_dtype, str):
-            x_dtype = TCODE_TO_DTYPE[x_dtype]
+        x_shape = shape[x_name]
+        x_dtype = dtype[x_name]
 
         if values is not None and x_name in values:
             np_inputs[x_name] = values[x_name].astype(x_dtype)
