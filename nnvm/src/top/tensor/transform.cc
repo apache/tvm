@@ -129,15 +129,31 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
                                      std::vector<Layout> *ilayouts,
                                      const std::vector<Layout> *last_ilayouts,
                                      std::vector<Layout> *olayouts) {
+  const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
-  for (size_t i = 0; i < ilayouts->size(); ++i) {
-    const Layout& input = last_ilayouts->at(i).defined() ?
-                          last_ilayouts->at(i) : ilayouts->at(i);
-    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  Layout layout;
+  if (!ilayouts->at(0).defined()) {
+    layout = last_ilayouts->at(0);
+  } else if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
+    CHECK(last_ilayouts->at(0).defined())
+      << "Current input layout " << ilayouts->at(0)
+      << " is invalid but last input layout is not "
+         "defined for the first input.";
+    layout = last_ilayouts->at(0);
+  } else if (last_ilayouts->at(0).defined()
+             && ilayouts->at(0)[param.axis]
+                != last_ilayouts->at(0)[param.axis]) {
+    layout = last_ilayouts->at(0);
+  } else {
+    layout = ilayouts->at(0);
   }
 
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, layout);
+  }
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
   return true;
 }
 
