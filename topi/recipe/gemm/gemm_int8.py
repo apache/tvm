@@ -5,6 +5,8 @@ import numpy as np
 import tvm
 from tvm import autotvm
 
+DO_TUNING = True
+PRETUNED_INDEX = 75333
 
 def intrin_dot():
     n = 4  # dp4a requires operands packed by 4
@@ -38,6 +40,9 @@ def intrin_dot():
         return tvm.decl_tensor_intrin(z.op, intrin_func, binds=binds)
 
 
+dot = intrin_dot()
+
+
 @autotvm.template
 def gemm_int8(n, m, l):
     A = tvm.placeholder((n, l), name='A', dtype='int8')
@@ -57,11 +62,11 @@ def gemm_int8(n, m, l):
     BL = s.cache_read(BB, 'local', [C])
     CC = s.cache_write(C, 'local')
 
-    dot = intrin_dot()
     k = CC.op.reduce_axis[0]
 
     cfg.define_split('tile_k', cfg.axis(k), num_outputs=3,
-                     filter=lambda entity: entity.size[2] == 4 and entity.size[0] * 2 >= entity.size[1])
+                     filter=lambda entity: entity.size[2] == 4 and \
+                     entity.size[0] * 2 >= entity.size[1])
 
     ko, kt, ki = cfg['tile_k'].apply(s, CC, k)
 
@@ -115,7 +120,7 @@ def gemm_int8(n, m, l):
         s[stage].bind(tx, thread_x)
         s[stage].vectorize(xi)
 
-    cfg.define_knob('auto_unroll_max_step', [256, 512, 1500])
+    cfg.define_knob('auto_unroll_max_step', [512, 1500])
     s[C].pragma(by, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[C].pragma(by, 'unroll_explicit', False)
 
@@ -134,14 +139,20 @@ if __name__ == '__main__':
     measure_option = autotvm.measure_option(
         measure_func='local', number=10, n_parallel=8, timeout=20)
     log_name = 'gemm_int8.log'
-    tuner = autotvm.tuner.XGBTuner(task)
-    tuner.tune(n_trial=1000, measure_option=measure_option,
+    if DO_TUNING:
+        tuner = autotvm.tuner.XGBTuner(task)
+        tuner.tune(n_trial=1000, measure_option=measure_option,
                callbacks=[autotvm.callback.log_to_file(log_name)])
 
-    dispatch_context = autotvm.apply_history_best(log_name)
-    best_config = dispatch_context.query(task.target, task.workload)
-    print('\nBest config:')
-    print(best_config)
+        dispatch_context = autotvm.apply_history_best(log_name)
+        best_config = dispatch_context.query(task.target, task.workload)
+        print('\nBest config:')
+        print(best_config)
+    else:
+        config = task.config_space.get(PRETUNED_INDEX)
+        dispatch_context = autotvm.task.ApplyConfig(config)
+        print("Using pretuned config:")
+        print(config)
 
     with dispatch_context:
         with tvm.target.create('cuda'):
