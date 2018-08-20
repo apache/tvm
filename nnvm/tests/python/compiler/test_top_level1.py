@@ -370,22 +370,13 @@ def test_batchnorm():
 
 
 def verify_concatenate(ishape, axis):
-    x = [sym.Variable("x%d" % i) for i in range(len(ishape))]
+    x = [sym.Variable("x%d" % i, shape=ishape[i]) for i in range(len(ishape))]
     y = sym.concatenate(*x, axis=axis) + 1
-    dtype = "float32"
-    for target, ctx in ctx_list():
-        # set input
-        data = []
-        for i, shape in enumerate(ishape):
-            data.append(np.random.uniform(size=shape).astype(dtype))
-        pdict = {"x%d" % i :  v for i, v in enumerate(data)}
-        shape = {"x%d" % i :  v.shape for i, v in enumerate(data)}
-        graph, lib, _ = nnvm.compiler.build(y, target, shape)
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(**pdict)
-        out_np = np.concatenate(data, axis=axis) + 1
-        out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+
+    def forward(**kwargs):
+        return np.concatenate(list(kwargs.values()), axis=axis) + 1
+
+    check_function(y, forward)
 
 
 def test_concatenate():
@@ -394,19 +385,13 @@ def test_concatenate():
 
 
 def verify_split(ishape, indices_or_sections, axis):
-    x = sym.Variable("x")
+    x = sym.Variable("x", shape=ishape)
     y = sym.split(x, indices_or_sections=indices_or_sections, axis=axis)
-    dtype = "float32"
-    x_np = np.random.uniform(size=ishape).astype(dtype)
-    res = np.split(x_np, indices_or_sections, axis=axis)
-    for target, ctx in ctx_list():
-        # set input
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        for i, arr  in enumerate(res):
-            out = m.get_output(i, tvm.nd.empty(arr.shape))
-            np.testing.assert_allclose(out.asnumpy(), arr, atol=1e-5, rtol=1e-5)
+
+    def forward(x):
+        return np.split(x, indices_or_sections, axis=axis)
+
+    check_function(y, forward)
 
 
 def test_split():
@@ -416,28 +401,22 @@ def test_split():
 
 def verify_strided_slice(ishape, begin, end, strideinp=None):
     stride = strideinp if strideinp else [1, 1, 1]
-    x = sym.Variable("x")
+    x = sym.Variable("x", shape=ishape)
     if strideinp:
         y = sym.strided_slice(x, begin = begin, end = end, stride = stride) + 1
     else:
         y = sym.strided_slice(x, begin = begin, end = end) + 1
-    x_np = np.random.uniform(size=ishape).astype("float32")
+
     for i in range(len(begin), 3):
         begin.append(0)
     for i in range(len(end), 3):
         end.append(ishape[i])
-    def test_forward(x, begin, end, stride):
+
+    def test_forward(x):
         return x[begin[0]:end[0]:stride[0],
                     begin[1]:end[1]:stride[1], begin[2]:end[2]:stride[2]] + 1
 
-    for target, ctx in ctx_list():
-        # set input
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        res = test_forward(x_np, begin, end, stride)
-        out = m.get_output(0, tvm.nd.empty(res.shape))
-        np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
+    check_function(y, test_forward)
 
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
@@ -454,24 +433,18 @@ def verify_take(src_shape, indices_src, axis=None):
     src_dtype = "float32"
     indices_dtype = "int32"
     indices_src = np.array(indices_src, dtype=indices_dtype)
-    a = sym.Variable("a")
-    indices = sym.Variable("indices")
+    a = sym.Variable("a", shape=src_shape)
+    indices = sym.Variable("indices", shape=indices_src.shape)
     y = sym.take(a, indices, axis=axis)
-    for target, ctx in ctx_list():
-        # set input
-        shape_dict = {"a":src_shape, "indices":indices_src.shape}
-        type_dict = {"a":src_dtype, "indices":indices_dtype}
-        graph, lib, _ = nnvm.compiler.build(y, target, shape=shape_dict, dtype=type_dict)
-        m = graph_runtime.create(graph, lib, ctx)
 
-        shape_size = 1
-        for i in range(len(src_shape)):
-            shape_size = shape_size * src_shape[i]
-        a_src = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
-        out_np = np.take(a_src, indices_src, axis=axis)
-        m.run(a=a_src, indices=indices_src)
-        out = m.get_output(0, tvm.nd.empty(out_np.shape, dtype=src_dtype))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    def forward(a, indices):
+        return np.take(a, indices=indices, axis=axis)
+
+    a_src = np.arange(np.prod(src_shape), dtype=src_dtype).reshape(src_shape)
+
+    check_function(y, forward,
+                   dtype={'a': src_dtype, 'indices': indices_dtype},
+                   values={'a': a_src, 'indices': indices_src})
 
 def test_take():
     verify_take((4,), [1])
@@ -520,56 +493,36 @@ def test_pad():
     check_function(y, forward, shape=shape)
 
 def verify_lrn(ishape, size, axis, bias, alpha, beta):
-    x = sym.Variable("x")
+    x = sym.Variable("x", shape=ishape)
     y = sym.lrn(x, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
-    dtype = "float32"
-    x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    def forward1(x):
+        return topi.testing.lrn_python(x, size, axis, bias, alpha, beta)
+
+    check_function(y, forward1)
+
+    def forward2(x):
+        y = forward1(x)
+        return (y > 0)*y
 
     #Checking LRN op followed by elementwise op relu
-    z = sym.relu(y)
-    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = topi.testing.lrn_python(x_np, size, axis, bias, alpha, beta)
-        out_np = (out_np > 0) * out_np
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    check_function(sym.relu(y), forward2, in_range={'x': (-10.0, 10.0)})
 
 def verify_l2_normalize(ishape, eps, axis):
-    x = sym.Variable("x")
+    x = sym.Variable("x", shape=ishape)
     y = sym.l2_normalize(x, eps=eps, axis=axis)
-    dtype = "float32"
-    x_np = np.random.uniform(size=ishape).astype(dtype)
 
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(y, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    def forward1(x):
+        return topi.testing.l2_normalize_python(x, eps, axis)
+
+    check_function(y, forward1)
+
+    def forward2(x):
+        y = forward1(x)
+        return (y > 0)*y
 
     #Checking L2 normalization op followed by elementwise op relu
-    z = sym.relu(y)
-    x_np = np.random.uniform(low=-10.0, high=10.0, size=ishape).astype(dtype)
-    for target, ctx in ctx_list():
-        graph, lib, _ = nnvm.compiler.build(z, target, {"x": ishape})
-        m = graph_runtime.create(graph, lib, ctx)
-        m.run(x=x_np)
-        out = m.get_output(0, tvm.nd.empty(ishape))
-        out_np = topi.testing.l2_normalize_python(x_np, eps, axis)
-        out_np = (out_np > 0) * out_np
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+    check_function(sym.relu(y), forward2, in_range={'x': (-10.0, 10.0)})
 
 def test_lrn():
     verify_lrn((1, 3, 20, 20), 3, 1, 1.0, 1.0, 0.5)
