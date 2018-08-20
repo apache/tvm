@@ -282,7 +282,7 @@ def schedule_dense(outs):
 
 
 @tvm.target.override_native_generic_func("schedule_pool")
-def schedule_pool(outs):
+def schedule_pool(outs, layout):
     """Schedule for pool
 
     Parameters
@@ -290,6 +290,9 @@ def schedule_pool(outs):
     outs: Array of Tensor
           The computation graph description of pool
           in the format of an array of tensors.
+
+    layout: str
+        Data layout.
 
     Returns
     -------

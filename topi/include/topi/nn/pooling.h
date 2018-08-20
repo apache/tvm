@@ -112,18 +112,18 @@ inline Tensor pool_impl(const Tensor& x,
     }, "tensor", "pool_max");
   } else if (pool_type == kAvgPool) {
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
-    auto tsum = tvm::compute(out_shape, [&](const Array<Var>& output) {
+    auto tavg = [&](const Array<Var>& output, Expr divide_factor) {
       Array<Expr> indices;
       for (const Var& var : output) indices.push_back(var);
       indices.Set(height_axis, output[height_axis] * stride_height + dheight);
       indices.Set(width_axis, output[width_axis] * stride_width + dwidth);
-      return tvm::sum(temp(indices), { dheight, dwidth });
-    }, "tensor", "pool_avg");
+      return tvm::sum(temp(indices) / divide_factor, { dheight, dwidth });
+    };
 
     return tvm::compute(out_shape,
     [&](const Array<Var>& output) {
       if (count_include_pad) {
-        return tsum(output) / (kernel_height * kernel_width);
+        return tavg(output, kernel_height * kernel_width);
       } else {
         Expr h_start = output[height_axis] * stride_height - pad_top;
         Expr w_start = output[width_axis] * stride_width - pad_left;
@@ -133,9 +133,9 @@ inline Tensor pool_impl(const Tensor& x,
         w_start = ir::Max::make(w_start, make_const(Int(32), 0));
         Expr divide_factor = ir::Max::make((h_end - h_start) * (w_end - w_start),
                                            make_const(Int(32), 1));
-        return tsum(output) / divide_factor;
+        return tavg(output, divide_factor);
       }
-    }, "tensor", kElementWise);
+    }, "tensor", "pool_avg");
   } else {
     LOG(ERROR) << "Unrecognized pool_type: " << pool_type;
     return x;
