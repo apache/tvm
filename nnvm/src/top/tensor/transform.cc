@@ -138,8 +138,9 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
     layout = last_ilayouts->at(0);
   } else if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
     CHECK(last_ilayouts->at(0).defined())
-      << "Current input layout is invalid but last input "
-         "layout is not defined for the first input.";
+      << "Current input layout " << ilayouts->at(0)
+      << " is invalid but last input layout is not "
+         "defined for the first input.";
     layout = last_ilayouts->at(0);
   } else if (last_ilayouts->at(0).defined()
              && ilayouts->at(0)[param.axis]
