@@ -10,9 +10,6 @@ from __future__ import division
 import math
 from collections import namedtuple
 import numpy as np
-from PIL import Image
-from PIL import ImageDraw
-from PIL import ImageFont
 
 def _entry_index(batch, w, h, outputs, classes, coords, location, entry):
     n = int(location/(w*h))
@@ -186,6 +183,10 @@ def _draw_label(im, r, c, label, rgb):
                         _set_pixel(im, i+c, j+r, k, val)#rgb[k] * val)
 
 def _get_label(labelstr, rgb):
+    from PIL import Image
+    from PIL import ImageDraw
+    from PIL import ImageFont
+
     text = labelstr
     colorText = "black"
     testDraw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
