@@ -44,7 +44,7 @@ def _download(url, path, overwrite=False, sizecompare=False):
     except:
         urllib.urlretrieve(url, path)
 
-DARKNET_LIB = 'libdarknet.so'
+DARKNET_LIB = 'libdarknet2.0.so'
 DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
                                     + DARKNET_LIB + '?raw=true'
 _download(DARKNETLIB_URL, DARKNET_LIB)
@@ -239,6 +239,8 @@ def test_forward_shortcut():
     layer_2 = LIB.make_convolutional_layer(1, 111, 111, 32, 32, 1, 1, 1, 0, 1, 0, 0, 0, 0)
     layer_3 = LIB.make_shortcut_layer(1, 0, 111, 111, 32, 111, 111, 32)
     layer_3.activation = 1
+    layer_3.alpha = 1
+    layer_3.beta = 1
     net.layers[0] = layer_1
     net.layers[1] = layer_2
     net.layers[2] = layer_3
@@ -269,6 +271,30 @@ def test_forward_region():
     net.layers[1] = layer_2
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
+    test_forward(net)
+    LIB.free_network(net)
+
+def test_forward_yolo_op():
+    '''test yolo layer'''
+    net = LIB.make_network(2)
+    layer_1 = LIB.make_convolutional_layer(1, 224, 224, 3, 14, 1, 3, 2, 0, 1, 0, 0, 0, 0)
+    a = []
+    layer_2 = LIB.make_yolo_layer(1, 111, 111, 2, 0, a, 2)
+    net.layers[0] = layer_1
+    net.layers[1] = layer_2
+    net.w = net.h = 224
+    LIB.resize_network(net, 224, 224)
+    test_forward(net)
+    LIB.free_network(net)
+
+def test_forward_upsample():
+    '''test upsample layer'''
+    net = LIB.make_network(1)
+    layer = LIB.make_upsample_layer(1, 19, 19, 3, 3)
+    layer.scale = 1
+    net.layers[0] = layer
+    net.w = net.h = 19
+    LIB.resize_network(net, 19, 19)
     test_forward(net)
     LIB.free_network(net)
 
@@ -428,6 +454,8 @@ if __name__ == '__main__':
     test_forward_rnn()
     test_forward_reorg()
     test_forward_region()
+    test_forward_yolo_op()
+    test_forward_upsample()
     test_forward_elu()
     test_forward_rnn()
     test_forward_crnn()
