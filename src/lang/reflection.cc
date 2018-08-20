@@ -5,6 +5,7 @@
  */
 #include <tvm/base.h>
 #include <tvm/expr.h>
+#include <tvm/attrs.h>
 #include <tvm/container.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
@@ -467,22 +468,15 @@ class NodeAttrSetter : public AttrVisitor {
   }
 };
 
-// API function to make node.
-// args format:
-//    type_key, key1, value1, ..., key_n, value_n
-void MakeNode(runtime::TVMArgs args, runtime::TVMRetValue* rv) {
+
+void InitNodeByPackedArgs(Node* n, const TVMArgs& args) {
   NodeAttrSetter setter;
-  setter.type_key = args[0].operator std::string();
-  CHECK_EQ(args.size() % 2, 1);
-  for (int i = 1; i < args.size(); i += 2) {
-    setter.attrs.emplace(
-        args[i].operator std::string(),
-        runtime::TVMArgValue(args.values[i + 1], args.type_codes[i + 1]));
+  setter.type_key = n->type_key();
+  CHECK_EQ(args.size() % 2, 0);
+  for (int i = 0; i < args.size(); i += 2) {
+    setter.attrs.emplace(args[i].operator std::string(),
+                         args[i + 1]);
   }
-  auto* f = dmlc::Registry<NodeFactoryReg>::Find(setter.type_key);
-  CHECK(f != nullptr)
-      << "Node type \'" << setter.type_key << "\' is not registered in TVM";
-  std::shared_ptr<Node> n = f->body();
   n->VisitAttrs(&setter);
   if (setter.attrs.size() != 0) {
     std::ostringstream os;
@@ -492,10 +486,26 @@ void MakeNode(runtime::TVMArgs args, runtime::TVMRetValue* rv) {
     }
     LOG(FATAL) << os.str();
   }
+}
+
+// API function to make node.
+// args format:
+//   key1, value1, ..., key_n, value_n
+void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
+  std::string type_key = args[0];
+  auto* f = dmlc::Registry<NodeFactoryReg>::Find(type_key);
+  CHECK(f != nullptr)
+      << "Node type \'" << type_key << "\' is not registered in TVM";
+  TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
+  std::shared_ptr<Node> n = f->body();
+  if (n->derived_from<BaseAttrsNode>()) {
+    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+  } else {
+    InitNodeByPackedArgs(n.get(), kwargs);
+  }
   *rv = NodeRef(n);
 }
 
 TVM_REGISTER_GLOBAL("make._Node")
 .set_body(MakeNode);
-
 }  // namespace tvm

@@ -223,6 +223,12 @@ class ExtTypeVTable {
 class TVMPODValue_ {
  public:
   operator double() const {
+    // Allow automatic conversion from int to float
+    // This avoids errors when user pass in int from
+    // the frontend while the API expects a float.
+    if (type_code_ == kDLInt) {
+      return static_cast<double>(value_.v_int64);
+    }
     TVM_CHECK_TYPE_CODE(type_code_, kDLFloat);
     return value_.v_float64;
   }
@@ -310,6 +316,8 @@ class TVMPODValue_ {
  */
 class TVMArgValue : public TVMPODValue_ {
  public:
+  /*! \brief default constructor */
+  TVMArgValue() {}
   /*!
    * \brief constructor
    * \param value of the function
