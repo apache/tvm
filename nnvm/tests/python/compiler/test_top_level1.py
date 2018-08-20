@@ -158,9 +158,9 @@ def test_check_function():
                               numerical_grads=False,
                               error=nnvm._base.NNVMError)
     # fails because no shape
-    _check_function_must_fail(y, _fwd_dense, error=ValueError)
+    _check_function_must_fail(y, _fwd_dense, numerical_grads=False, error=ValueError)
     # ok because type is float32 by default
-    check_function(y, _fwd_dense, shape={'x': (1,2)})
+    check_function(y, _fwd_dense, shape={'x': (1,2)}, numerical_grads=False)
 
 def test_relu():
     x = sym.Variable("x")

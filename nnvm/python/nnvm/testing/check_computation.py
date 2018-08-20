@@ -97,10 +97,12 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
 
     out_len = len(graph.symbol.list_output_names())
 
+    index = graph.index
+
     output_shapes = \
-        [tuple(shapes[graph.index.output_entries[i][0]]) for i in range(out_len)]
+        [tuple(shapes[index.entry_id(index.output_entries[i])]) for i in range(out_len)]
     output_dtypes = \
-        [TCODE_TO_DTYPE[dtypes[graph.index.output_entries[i][0]]] for i in range(out_len)]
+        [TCODE_TO_DTYPE[dtypes[index.entry_id(index.output_entries[i])]] for i in range(out_len)]
 
     # Postprocess the results
     input_shapes = shape.copy()
@@ -435,6 +437,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
             main_function = graph_to_function(main_graph, target, ctx)
 
             # nnvm_res contains the output and gradients (if they are needed)
+            debug_stage = "running"
             nnvm_res = main_function(**np_inputs)
 
             if backward_graph is not None:
