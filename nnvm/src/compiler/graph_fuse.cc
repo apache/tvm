@@ -146,6 +146,7 @@ nnvm::Graph GraphFindFusibleGroups(nnvm::Graph g) {
     bool parent_out_ewise = false;
     bool parent_injective = false;
     for (const auto& e : inode.inputs) {
+      if (fuse_vec[e.node_id] != FuseRule::kFuseToMaster) continue;
       TOpPattern pt = pattern_vec[e.node_id];
       if (pt == kOutEWiseFusable) {
         parent_out_ewise = true;
