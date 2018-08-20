@@ -251,6 +251,12 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
     out_shapes = [shapes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
     out_dtypes = [dtypes[forward_graph.index.output_entries[i][0]] for i in range(out_len)]
 
+    if not all(out_shapes) or -1 in out_dtypes:
+        if not quiet:
+            print(forward_graph.ir(join_node_attrs=['shape', 'dtype']))
+        raise ValueError("Could not infer shapes or dtypes for outputs.\n"
+                         "out_shapes = {}\nout_dtypes = {}".format(out_shapes, out_dtypes))
+
     backward_graph = None
 
     # If we want gradients, we have to recreate the graph, but now with gradient computations
