@@ -1,4 +1,4 @@
-{% set version = "0.4.dev" %}
+{% set version = "0.5.dev" %}
 
 package:
   name: tvm-libs
