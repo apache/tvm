@@ -74,7 +74,7 @@ def node(type_key, **kwargs):
     Returns
     -------
     node : Node
-        The corresponding created DSL Node
+        The corresponding DSL Node
 
     Note
     ----

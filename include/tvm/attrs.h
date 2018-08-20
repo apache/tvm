@@ -3,8 +3,8 @@
  * \file tvm/attrs.h
  * \brief TVM attribute module
  *
- *  This module enables declaration named attributes
- *  and support default value setup and bound checking.
+ *  This module enables declaration of named attributes
+ *  which support default value setup and bound checking.
  *
  * \code
  *   struct MyAttrs : public tvm::AttrsNode<MyAttrs> {
@@ -39,7 +39,7 @@ namespace tvm {
 /*!
  * \brief Declare an attribute function.
  * \param ClassName The name of the class.
- * \param TypeKey The type key to be used in the tvm node system.
+ * \param TypeKey The type key to be used by the TVM node system.
  */
 #define TVM_DECLARE_ATTRS(ClassName, TypeKey)                   \
   static constexpr const char* _type_key = TypeKey;             \
@@ -56,7 +56,7 @@ namespace tvm {
   __fvisit__(#FieldName, &FieldName)
 
 
-/*! \brief Error throwed during attribute checking */
+/*! \brief Error thrown during attribute checking. */
 struct AttrError : public dmlc::Error {
   /*!
    * \brief constructor
@@ -72,7 +72,7 @@ struct AttrError : public dmlc::Error {
 struct AttrFieldInfo {
   /*! \brief name of the field */
   std::string name;
-  /*! \brief type of the field in string format */
+  /*! \brief type docstring information in str. */
   std::string type_info;
   /*! \brief detailed description of the type */
   std::string description;
@@ -165,7 +165,7 @@ class DictAttrsNode : public BaseAttrsNode {
   TVM_DECLARE_NODE_TYPE_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
-// Namespace fof detail implementationsx
+// Namespace containing detail implementations
 namespace detail {
 using runtime::TVMArgValue;
 
@@ -229,7 +229,7 @@ struct AttrInitEntry {
     }
   }
   // override fields.
-  // set lower bound checks the lower bound
+  // This function sets the lower bound of the attribute
   TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
     if (this->value_missing_)  return *this;
     const T& val = *value_;
@@ -242,7 +242,7 @@ struct AttrInitEntry {
     }
     return *this;
   }
-  // set upper bound checks the upper bound
+  // This function sets the upper bound of the attribute
   TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
     if (this->value_missing_)  return *this;
     const T& val = *value_;
@@ -339,7 +339,8 @@ inline void SetValue<bool>(bool* ptr, const TVMArgValue& val) {
 template<typename FFind>
 class AttrInitVisitor {
  public:
-  // hit count on visiting
+  // Counter of number of matched attributes during visit.
+  // This is used to decide if there is additional unmatched attributes.
   size_t hit_count_{0};
   // constructor
   AttrInitVisitor(const char* type_key, FFind ffind)
