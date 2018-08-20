@@ -183,17 +183,14 @@ def test_clip():
         mask2 = np.less_equal(x, a_max).astype("float")
         return [head_grads * mask1 * mask2]
 
-
-    dtype = "float32"
     shape = {'x': (3, 4, 5)}
-    check_function(y, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, shape=shape)
 
 
 def test_broadcast():
     a = sym.Variable("a")
     b = sym.Variable("b")
     shape = {'a': (3, 4, 5), 'b': (1, 5)}
-    dtype = "float32"
 
     def _collapse(g):
         return g.reshape(-1, shape['b'][-1]).sum(0, keepdims=True)
@@ -203,21 +200,21 @@ def test_broadcast():
         da = head_grads
         db = _collapse(head_grads)
         return da, db
-    check_function(y, lambda a, b: a + b, _backward_add, dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: a + b, _backward_add, shape=shape)
 
     y = sym.broadcast_sub(a, b)
     def _backward_sub(head_grads, a, b):
         da = head_grads
         db = -_collapse(head_grads)
         return da, db
-    check_function(y, lambda a, b: a - b, _backward_sub, dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: a - b, _backward_sub, shape=shape)
 
     y = sym.broadcast_mul(a, b)
     def _backward_mul(head_grads, a, b):
         da = head_grads * b
         db = _collapse(head_grads * a)
         return da, db
-    check_function(y, lambda a, b: a * b, _backward_mul, dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: a * b, _backward_mul, shape=shape)
 
     y = sym.broadcast_div(a, b)
     def _backward_div(head_grads, a, b):
@@ -225,8 +222,8 @@ def test_broadcast():
         db = _collapse(- head_grads * a / b**2)
         return da, db
     # We avoid computing numerical derivatives too close to zero here
-    check_function(y, lambda a, b: a / b, _backward_div, dtype=dtype, shape=shape, numerical_grads=False)
-    check_function(y, lambda a, b: a / b, _backward_div, dtype=dtype, shape=shape,
+    check_function(y, lambda a, b: a / b, _backward_div, shape=shape, numerical_grads=False)
+    check_function(y, lambda a, b: a / b, _backward_div, shape=shape,
                    in_range={'b': (0.1, 20)})
 
     y = sym.broadcast_mod(a, b)
@@ -235,15 +232,15 @@ def test_broadcast():
                    in_range={'a': (0.001, 100), 'b': (1, 100)}, dtype='int32', shape=shape)
 
     y = sym.broadcast_max(a, b)
-    check_function(y, lambda a, b: np.maximum(a, b), dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: np.maximum(a, b), shape=shape)
 
     y = sym.broadcast_min(a, b)
-    check_function(y, lambda a, b: np.minimum(a, b), dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: np.minimum(a, b), shape=shape)
 
     y = sym.broadcast_pow(a, b)
     check_function(y,
                    lambda a, b: np.power(a, b),
-                   in_range={'a': (0.001, 100), 'b': (0.001, 2)}, dtype=dtype, shape=shape)
+                   in_range={'a': (0.001, 100), 'b': (0.001, 2)}, shape=shape)
 
     y = sym.broadcast_left_shift(a, b)
     check_function(y, lambda a, b: a << b, dtype='int32', shape=shape)
@@ -252,10 +249,10 @@ def test_broadcast():
     check_function(y, lambda a, b: a >> b, dtype='int32', shape=shape)
 
     y = sym.broadcast_greater(a, b)
-    check_function(y, lambda a, b: np.greater(a, b), dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: np.greater(a, b), shape=shape)
 
     y = sym.broadcast_less(a, b)
-    check_function(y, lambda a, b: np.less(a, b), dtype=dtype, shape=shape)
+    check_function(y, lambda a, b: np.less(a, b), shape=shape)
 
     y = sym.broadcast_equal(a, b)
     check_function(y, lambda a, b: np.equal(a, b),
@@ -284,10 +281,8 @@ def test_greater():
     def backward(head_grads, l, r):
         return {'l': np.zeros_like(l)}
 
-
-    dtype = "float32"
     shape = {'l': (3, 4, 5), 'r': (3, 4, 5)}
-    check_function(y, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, shape=shape)
 
 
 def test_less():
@@ -301,10 +296,8 @@ def test_less():
     def backward(head_grads, l, r):
         return {'l': np.zeros_like(l)}
 
-
-    dtype = "float32"
     shape = {'l': (3, 4, 5), 'r': (3, 4, 5)}
-    check_function(y, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, shape=shape)
 
 
 def test_reshape_like():
@@ -319,10 +312,8 @@ def test_reshape_like():
         return [np.reshape(head_grads, x.shape),
                 np.zeros_like(y)]
 
-
-    dtype = "float32"
     shape = {'x': (3, 4, 5), 'y': (5, 4, 3)}
-    check_function(z, forward, backward, dtype=dtype, shape=shape)
+    check_function(z, forward, backward, shape=shape)
 
 
 def verify_expand_like(in_shape, out_shape, axis, exclude):
@@ -366,9 +357,8 @@ def verify_expand_like(in_shape, out_shape, axis, exclude):
                 np.zeros_like(y)]
 
 
-    dtype = "float32"
     shape = {'x': in_shape, 'y': out_shape}
-    check_function(z, forward, backward, dtype=dtype, shape=shape)
+    check_function(z, forward, backward, shape=shape)
 
 
 def test_expand_like():
@@ -393,9 +383,8 @@ def verify_elemwise_sum(num_args):
     def backward(head_grads, **inputs):
         return [head_grads] * num_args
 
-    dtype = "float32"
     shape = {s[i]: (3, 4, 5) for i in range(num_args)}
-    check_function(y, forward, backward, dtype=dtype, shape=shape)
+    check_function(y, forward, backward, shape=shape)
 
 
 def test_elemwise_sum():
@@ -415,10 +404,9 @@ def test_block_grad():
         return [np.zeros_like(head_grads)]
 
 
-    dtype = "float32"
     shape = {'x': (3, 4, 5)}
     # Numerical grad checking would fail for this function
-    check_function(y, forward, backward, dtype=dtype, shape=shape, numerical_grads=False)
+    check_function(y, forward, backward, shape=shape, numerical_grads=False)
 
 
 def test_full():
