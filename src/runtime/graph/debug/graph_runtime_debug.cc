@@ -2,9 +2,12 @@
  *  Copyright (c) 2018 by Contributors
  * \file graph_runtime_debug.cc
  */
-#include <sys/time.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/ndarray.h>
+#include <sys/time.h>
+#include <chrono>
 #include "../graph_runtime.h"
 
 namespace tvm {
@@ -22,38 +25,30 @@ class GraphRuntimeDebug : public GraphRuntime {
      * \brief Run each operation and get the output.
      * \param index The index of op which needs to be run.
      */
-  int DebugRun(int index) {
-    struct timeval tp;
-    int64_t start_time = 0;
-    int64_t end_time = 0;
-    gettimeofday(&tp, NULL);
+  double DebugRun(int index) {
+    auto tbegin = std::chrono::high_resolution_clock::now();
     if (op_execs()[index]) {
       op_execs()[index]();
+      DeviceAPI::Get(GetCtx())->StreamSync(GetCtx(), nullptr);
     }
-    start_time = int64_t(tp.tv_sec * 1000000L + tp.tv_usec);
-    gettimeofday(&tp, NULL);
-    end_time = int64_t(tp.tv_sec * 1000000L + tp.tv_usec);
-    for (size_t j = 0; j < NumOutputs(index); j++) {
-        uint32_t eid = GetEntryId(index, j);
-        TVM_CCALL(TVMArrayCopyFromTo(&data_entry()[eid], debug_buffers_[eid], nullptr));
-    }
-    return end_time - start_time;
+    auto tend = std::chrono::high_resolution_clock::now();
+    double time = std::chrono::duration_cast<std::chrono::duration<double> >(
+        tend - tbegin).count();
+    return time;
   }
 
   /*!
-   * \brief Set the debug buffer to copy the output of each operation.
-   * \param data The data pointer.
+   * \brief Run each operation and get the output.
+   * \param index The index of op which needs to be returned.
+   * \param eid The Entry id of the op.
    */
-  void SetDebugBuffer(DLTensor* data) {
-      debug_buffers_.push_back(data);
+  NDArray GetNDArray(int index, int eid) {
+    DLTensor *dltensor = &data_entry()[GetEntryId(index, eid)];
+    return NDArray::FromDLTensor(dltensor);
   }
 
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self);
-
- private:
-  /*! \brief debug buffer storage pool */
-  std::vector<DLTensor*> debug_buffers_;
 };
 
 
@@ -61,16 +56,16 @@ PackedFunc GraphRuntimeDebug::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
   // return member functions during query.
-  if (name == "set_debug_buffer") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->SetDebugBuffer(args[0]);
-      });
-  } else if (name == "debug_run") {
+  if (name == "debug_run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->DebugRun(args[0]);
       });
+  } else if (name == "get_ndarray") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->GetNDArray(args[0], args[1]);
+      });
   } else {
-     return GraphRuntime::GetFunction(name, sptr_to_self);
+    return GraphRuntime::GetFunction(name, sptr_to_self);
   }
 }
 
@@ -90,7 +85,6 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     *rv = GraphRuntimeDebugCreate(args[0], args[1], args[2], args[3]);
   });
-
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug._save_param_dict")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
     CHECK_EQ(args.size() % 2, 0u);

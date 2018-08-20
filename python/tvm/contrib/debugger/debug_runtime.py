@@ -3,7 +3,6 @@
 import os
 import tempfile
 import shutil
-from tvm import ndarray as nd
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_runtime
 from tvm._ffi.function import get_global_func
@@ -84,11 +83,10 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
     """
     def __init__(self, module, ctx, graph_json_str, dbg_ux, dump_root):
-        self.ui_obj = None
         self._dump_root = dump_root
         self._dump_path = None
-        self._debug_buffer = module["set_debug_buffer"]
         self._debug_run = module["debug_run"]
+        self._get_ndarray = module["get_ndarray"]
         graph_runtime.GraphModule.__init__(self, module, ctx)
         self._prepare_data_and_ui(graph_json_str, ctx, dbg_ux)
 
@@ -115,25 +113,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._create_debug_ui(graph_json, ctx, dbg_ux)
         # init the debug dumping environment
         self.debug_datum = debug_result.DebugResult(graph_json, self._dump_path)
-        # prepare the debug out buffer list
-        self._make_debug_buffer_list()
-
-
-    def _get_debug_buffer_count(self):
-        return len(self.dbg_buff_list)
-
-    def _get_debug_buffer(self, eid):
-        return self.dbg_buff_list[eid]
-
-    def _set_debug_buffer(self):
-        """Set output buffer allocated for each node to copy the node's
-        output after Run completed.
-
-        This function will get called before run performs.
-        GraphRuntime copy the execution out to the allocated memory for each nodes.
-        """
-        for eid in range(self._get_debug_buffer_count()):
-            self._debug_buffer(self._get_debug_buffer(eid))
 
     def _ensure_dir(self, directory):
         """Create a directory if not exists
@@ -218,18 +197,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         #updates the dumping directories
         self._dump_path = self._get_dump_path(ctx)
 
-    def _make_debug_buffer_list(self):
-        """Allocate output buffer for each node to copy the node's
-        output after Run completed.
-        """
-        debug_datum = self.debug_datum
-        shapes_list = debug_datum.get_graph_node_shapes()
-        dtype_list = debug_datum.get_graph_node_dtypes()
-        dbg_out_buffer_list = []
-        for i in range(len(shapes_list[1])):
-            dbg_out_buffer_list.append(nd.empty(shapes_list[1][i], dtype_list[1][i]))
-        self.dbg_buff_list = dbg_out_buffer_list
-
     def _debug_run_op_exec(self, index=None):
         """Execute the node spcified with index will be executed.
 
@@ -246,10 +213,13 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             self.debug_datum.set_time(time_stamp)
             return
 
-        nodes_count = len(self.debug_datum.get_graph_nodes())
-        for i in range(nodes_count):
+        for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             time_stamp = self._debug_run(i)
             self.debug_datum.set_time(time_stamp)
+            num_outputs = self.debug_datum.get_graph_node_output_num(node)
+            for j in range(num_outputs):
+                out_tensor = self._get_ndarray(i, j)
+                self.debug_datum.set_output_tensor(out_tensor)
 
     def _run_debug(self):
         """Invoke cli and when user execute select any operation,
@@ -266,12 +236,12 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         while True:
             action = self._get_run_command()
             if action == common.UxAction.DEBUG_RUN:
-                # Step 1. Set the debug buffer to catch the output
-                self._set_debug_buffer()
-                # Step 2. Execute the graph
+                # Step 1. Execute the graph
                 retvals = self._debug_run_op_exec()
-                # Step 3. Dump the output tensors to the dump folder
-                self.debug_datum.dump_output_tensor(self.dbg_buff_list)
+                # Step 2. Dump the output tensors to the dump folder
+                self.debug_datum.dump_output_tensor()
+                # Step 3. Display the collected information
+                self.debug_datum.display_debug_result()
                 # Step 4. Inform ux execution completion.
                 action = self._run_end(action, retvals)
             elif action == common.UxAction.NON_DEBUG_RUN:
@@ -294,29 +264,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         if input_dict:
             self.set_input(**input_dict)
         self._run_debug()
-
-    def set_input(self, key=None, value=None, **params):
-        """Set inputs to the module
-
-        Along with the value setting to runtime, the same will be notified to
-        UI frontend as well.
-
-        Parameters
-        ----------
-
-        key : int or str
-           The input key
-
-        value : the input value.
-           The input key
-
-        params : dict of str to NDArray
-           Additonal arguments
-        """
-        super(GraphModuleDebug, self).set_input(key, value, **params)
-
-        if key:
-            self.ui_obj.set_input(key, value)
 
     def exit(self):
         """Exits the dump folder and all its contents"""

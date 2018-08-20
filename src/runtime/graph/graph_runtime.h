@@ -165,6 +165,14 @@ class GraphRuntime : public ModuleNode {
     return node_row_ptr_[nid] + index;
   }
 
+  /*!
+   * \brief Get Ctx.
+   * \return Returns the TVMContext
+   */
+  TVMContext GetCtx() {
+    return ctx_;
+  }
+
  private:
   // Node entry
   struct NodeEntry {

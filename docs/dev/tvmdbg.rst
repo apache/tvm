@@ -116,11 +116,11 @@ How to use Debugger?
 3. In frontend script file instead of
    ``from tvm.contrib import graph_runtime`` import the
    ``debug_runtime``
-   ``from tvm.contrib.debugging import debug_runtime as graph_runtime``
+   ``from tvm.contrib.debugger import debug_runtime as graph_runtime``
 
 ::
 
-    from tvm.contrib.debugging import debug_runtime as graph_runtime
+    from tvm.contrib.debugger import debug_runtime as graph_runtime
     m = graph_runtime.create(graph, lib, ctx, dump_root="/tmp/tvmdbg")
     # set inputs
     m.set_input('data', tvm.nd.array(data.astype(dtype)))
@@ -131,3 +131,19 @@ How to use Debugger?
 
 The outputs are dumped to a temporary folder in ``/tmp`` folder or the
 folder specified while creating the runtime.
+
+***************************************
+Sample Output
+***************************************
+
+The below is the output of running  ``tvm/nnvm/tutorials/from_onnnx.py`` with debugger.
+
+::
+
+    Node Name        Ops                                Time(us)             Shape               Inputs       Outputs
+    ---------        ---                                --------             -----               ------       -------
+    relu0            fuse_conv2d_broadcast_add_relu     14840.649            (1, 1, 224, 224)    3            1
+    relu1            fuse_conv2d_broadcast_add_relu_1   224299.577           (64, 1, 5, 5)       3            1
+    relu2            fuse_conv2d_broadcast_add_relu_2   111466.68699999999   (64, 1, 1)          3            1
+    broadcast_add3   fuse_conv2d_broadcast_add          25375.287            (1, 64, 224, 224)   3            1
+    reshape1         fuse_reshape_transpose_reshape     1309.9260000000002   (64, 64, 3, 3)      1            1

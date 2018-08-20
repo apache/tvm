@@ -141,6 +141,14 @@ NDArray NDArray::Empty(std::vector<int64_t> shape,
   return ret;
 }
 
+NDArray NDArray::FromDLTensor(DLTensor* dl_tensor) {
+  std::vector<int64_t> shape(dl_tensor->shape,
+                             dl_tensor->shape + dl_tensor->ndim);
+  NDArray ret = Empty(shape, dl_tensor->dtype, dl_tensor->ctx);
+  ret.CopyFrom(dl_tensor);
+  return ret;
+}
+
 NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   NDArray::Container* data = new NDArray::Container();
   data->deleter = Internal::DLPackDeleter;

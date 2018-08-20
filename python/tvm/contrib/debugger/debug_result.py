@@ -25,6 +25,7 @@ class DebugResult():
 
     def __init__(self, graph_json, dump_path):
         self._dump_path = dump_path
+        self._output_tensor_list = []
         self._time_list = []
         self._parse_graph(graph_json)
         # dump the json information
@@ -75,10 +76,26 @@ class DebugResult():
         """
         return self._shapes_list
 
+    def get_graph_node_output_num(self, node):
+        """Return the number of outputs of a node
+        """
+        return 1 if node['op'] == 'param' else int(node['attrs']['num_outputs'])
+
     def get_graph_node_dtypes(self):
         """Return the nodes dtype list
         """
         return self._dtype_list
+
+    def set_output_tensor(self, out_tensor):
+        """Set the output tensor of a node to the list, the list is appended in the same order as
+        node list
+
+        Parameters
+        ----------
+        out_tensor : ndarray
+            The output tensor in ndarray format
+        """
+        self._output_tensor_list.append(out_tensor)
 
     def set_time(self, time):
         """set the timestamp to the timelist, the list is appended in the same order as node list
@@ -90,13 +107,8 @@ class DebugResult():
         """
         self._time_list.append(time)
 
-    def dump_output_tensor(self, out_stats):
+    def dump_output_tensor(self):
         """Dump the outputs to a temporary folder, the tensors is in numpy format
-
-        Parameters
-        ----------
-        out_stats: list
-            Contains the list of output tensors
         """
         #cleanup existing tensors before dumping
         self._cleanup_tensors()
@@ -104,16 +116,49 @@ class DebugResult():
         order = 0
         output_tensors = {}
         for node, time in zip(self._nodes_list, self._time_list):
-            num_outputs = 1 if node['op'] == 'param' \
-                            else int(node['attrs']['num_outputs'])
+            num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 order += time
                 key = node['name'] + "_" + str(j) + "__" + str(order)
-                output_tensors[key] = out_stats[eid]
+                output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
 
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
             param_f.write(save_tensors(output_tensors))
+
+    def display_debug_result(self):
+        """Displays the debugger result"
+        """
+        header = ["Node Name", "Ops", "Time(us)", "Shape", "Inputs", "Outputs"]
+        lines = ["---------", "---", "--------", "-----", "------", "-------"]
+        eid = 0
+        data = []
+        for node, time in zip(self._nodes_list, self._time_list):
+            num_outputs = self.get_graph_node_output_num(node)
+            for j in range(num_outputs):
+                op = node['op']
+                if node['op'] == 'param':
+                    continue
+                name = node['name']
+                shape = str(self._output_tensor_list[eid].shape)
+                time_us = time * 1000000
+                inputs = str(node['attrs']['num_inputs'])
+                outputs = str(node['attrs']['num_outputs'])
+                node_data = [name, op, time_us, shape, inputs, outputs]
+                data.append(node_data)
+                eid += 1
+        fmt = ""
+        for i, _ in enumerate(header):
+            max_len = 10
+            for j, _ in enumerate(data):
+                item_len = len(str(data[j][i]))
+                if item_len > max_len:
+                    max_len = item_len
+            fmt = fmt + "{:<" + str(max_len + 3) + "}"
+        print(fmt.format(*header))
+        print(fmt.format(*lines))
+        for row in data:
+            print(fmt.format(*row))
 
     def dump_graph_json(self, graph):
         """Dump json formatted graph.
@@ -126,7 +171,7 @@ class DebugResult():
         """
         graph_dump_file_name = GRAPH_DUMP_FILE_NAME
         with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
-            json.dump(graph, outfile, indent=2, sort_keys=False)
+            json.dump(graph, outfile, indent=4, sort_keys=False)
 
     def _cleanup_tensors(self):
         """Remove the tensor dump file (graph wont be removed)
