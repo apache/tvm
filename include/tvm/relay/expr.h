@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/expr.h
- * \brief Relay expression IR Node.
+ * \brief The Relay IR expression nodes.
  */
 #ifndef TVM_RELAY_EXPR_H_
 #define TVM_RELAY_EXPR_H_
