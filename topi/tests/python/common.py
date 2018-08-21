@@ -9,4 +9,4 @@ def get_all_backend():
         A list of all supported targets
     """
     return ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx',
-            'llvm -device=arm_cpu', 'opencl -device=mali']
+            'llvm -device=arm_cpu']
