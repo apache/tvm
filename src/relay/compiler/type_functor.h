@@ -7,7 +7,8 @@
 #define TVM_RELAY_COMPILER_TYPE_FUNCTOR_H_
 
 #include <tvm/ir_functor.h>
-#include "ir.h"
+#include "tvm/relay/ir.h"
+#include "./incomplete_type.h"
 
 namespace tvm {
 namespace relay {
@@ -61,12 +62,10 @@ class TypeFunctor<R(const Type& n, Args...)> {
                        Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeParamNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeConstraintNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-                       Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-                       Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeFunction* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-                       Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TypeFunctionNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
 
   virtual R VisitTypeDefault_(const Node* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->type_key();
@@ -84,6 +83,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     RELAY_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeFunctionNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
     return vtable;
   }
 };

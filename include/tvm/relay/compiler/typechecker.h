@@ -8,7 +8,7 @@
 #define TVM_RELAY_COMPILER_TYPECHECKER_H_
 
 #include "tvm/relay/ir.h"
-#include "tvm/relay/environment.h"
+#include "tvm/relay/compiler/environment.h"
 
 namespace tvm {
 namespace relay {
