@@ -49,3 +49,11 @@ reg.register_schedule("argmax", _fschedule_reduce)
 # argmin
 reg.register_pattern("argmin", OpPattern.COMM_REDUCE)
 reg.register_schedule("argmin", _fschedule_reduce)
+
+# mean
+reg.register_pattern("mean", OpPattern.COMM_REDUCE)
+reg.register_schedule("mean", _fschedule_reduce)
+
+# product
+reg.register_pattern("prod", OpPattern.COMM_REDUCE)
+reg.register_schedule("prod", _fschedule_reduce)

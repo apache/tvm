@@ -230,6 +230,16 @@ TVM_REGISTER_GLOBAL("topi.argmax")
   *rv = topi::argmax(args[0], ArrayOrInt(args[1]), args[2]);
   });
 
+TVM_REGISTER_GLOBAL("topi.mean")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::mean(args[0], ArrayOrInt(args[1]), args[2]);
+  });
+
+TVM_REGISTER_GLOBAL("topi.prod")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi::prod(args[0], ArrayOrInt(args[1]), args[2]);
+  });
+
 /* Ops from transform.h */
 TVM_REGISTER_GLOBAL("topi.expand_dims")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

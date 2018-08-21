@@ -114,6 +114,8 @@ This level enables typical convnet models.
    nnvm.symbol.sum
    nnvm.symbol.min
    nnvm.symbol.max
+   nnvm.symbol.mean
+   nnvm.symbol.prod
    nnvm.symbol.broadcast_add
    nnvm.symbol.broadcast_sub
    nnvm.symbol.broadcast_mul
@@ -228,6 +230,8 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.sum
 .. autofunction:: nnvm.symbol.min
 .. autofunction:: nnvm.symbol.max
+.. autofunction:: nnvm.symbol.mean
+.. autofunction:: nnvm.symbol.prod
 .. autofunction:: nnvm.symbol.broadcast_add
 .. autofunction:: nnvm.symbol.broadcast_sub
 .. autofunction:: nnvm.symbol.broadcast_mul

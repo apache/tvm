@@ -49,6 +49,8 @@ List of operators
    topi.min
    topi.argmax
    topi.argmin
+   topi.mean
+   topi.prod
    topi.broadcast_to
    topi.add
    topi.subtract
@@ -107,6 +109,8 @@ topi
 .. autofunction:: topi.max
 .. autofunction:: topi.sum
 .. autofunction:: topi.min
+.. autofunction:: topi.mean
+.. autofunction:: topi.prod
 .. autofunction:: topi.broadcast_to
 .. autofunction:: topi.add
 .. autofunction:: topi.subtract
