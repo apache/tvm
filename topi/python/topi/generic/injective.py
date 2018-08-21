@@ -29,5 +29,22 @@ def schedule_injective(outs):
     s[x].fuse(s[x].op.axis)
     return s
 
+@tvm.target.generic_func
+def schedule_concatenate(outs):
+    """Schedule for concatenate op.
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of reduce in the format
+          of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return schedule_injective(outs)
+
 schedule_elemwise = schedule_injective
 schedule_broadcast = schedule_injective

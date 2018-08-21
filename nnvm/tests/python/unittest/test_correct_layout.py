@@ -77,14 +77,25 @@ def test_concatenate():
     g, ldict = correct_layout(z, {"x": "HW", "y": "HW"})
     assert(ldict["x"][0] == "HW")
     assert(ldict["y"][0] == "HW")
-    assert(ldict["concat"][0] == "__undef__")
+    assert(ldict["concat"][0] == "HW")
     # second pass will insert layout transform
     _, ldict = correct_layout(g, {"x": "HW16w", "y": "HW16w"})
     assert(ldict["x"][0] == "HW16w")
     assert(ldict["y"][0] == "HW16w")
-    assert(ldict["x_HW"][0] == "HW")
-    assert(ldict["y_HW"][0] == "HW")
-    assert(ldict["concat"][0] == "__undef__")
+    assert(ldict["concat"][0] == "HW16w")
+
+    x1 = sym.Variable("x", shape=(10, 20, 60))
+    x2 = sym.Variable("y", shape=(10, 20, 40))
+    z = sym.concatenate(x1, x2, axis=2, name="concat")
+    g, ldict = correct_layout(z, {"x": "H20wW", "y": "H20wW"})
+    assert(ldict["x"][0] == "H20wW")
+    assert(ldict["y"][0] == "H20wW")
+    assert(ldict["concat"][0] == "H20wW")
+    # second pass will insert layout transform
+    _, ldict = correct_layout(g, {"x": "HW", "y": "HW"})
+    assert(ldict["x_H20wW"][0] == "H20wW")
+    assert(ldict["x_H20wW"][0] == "H20wW")
+    assert(ldict["concat"][0] == "H20wW")
 
 
 def test_expand_dims():
