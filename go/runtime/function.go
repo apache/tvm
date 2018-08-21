@@ -14,6 +14,7 @@ import (
     "encoding/binary"
     "errors"
     "runtime"
+    "reflect"
 )
 
 // Function type in golang hold pointer for the TVMFunction handle.
@@ -23,6 +24,15 @@ type Function uintptr
 func (tvmfunction Function) nativeCPtr() (retVal uintptr) {
     retVal = (uintptr)(tvmfunction)
     return
+}
+
+// Invoke calls the TVM packed function referred by the handle with given arguments.
+func (tvmfunction Function) Invoke(args ...interface{}) (retVal *Value, err error) {
+    funccall := func (args ...interface{}) (*Value, error) {
+        return callNativeFunction(tvmfunction, args)
+    }
+
+    return funccall(args...)
 }
 
 // FuncListGlobalNames is used to query global callable packed function names from TVM.
@@ -208,6 +218,34 @@ func nativeTVMFuncFree(funp Function) (retVal int32) {
     return
 }
 
+// nativeToGoSlice converts native TVMValue array to Golang slice of TVMValue
+//
+//
+func nativeToGoSlice(nargValues C.native_voidp, argValues []Value) {
+    for ii := range argValues {
+        C._TVMValueNativeGet(C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
+                             C.native_voidp(unsafe.Pointer(nargValues)),
+                             C.int(int32(ii)))
+    }
+}
+
+// nativeFromGoSlice converts golang slice of TVMValue to native TVMValue array.
+//
+//
+func nativeFromGoSlice(argValues []Value) (nptr C.native_voidp) {
+    nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
+
+    for ii := range argValues {
+        C._TVMValueNativeSet(C.native_voidp(unsafe.Pointer(nargValues)),
+                             C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
+                             C.int(int32(ii)))
+    }
+
+    nptr = nargValues
+
+    return
+}
+
 // nativeTVMFuncCall executes the function with given arguments
 //
 // `funp` Function handle to the packed function.
@@ -223,46 +261,170 @@ func nativeTVMFuncFree(funp Function) (retVal int32) {
 // Returns err indicating native error if any.
 func nativeTVMFuncCall(funp Function, argValues []Value, typeCodes []int32,
                  retValues []Value, retTypeCode *int32) (err error) {
-    numArgs := int32(len(argValues))
 
-    nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
-
-    for ii := range argValues {
-        C._TVMValueNativeSet(C.native_voidp(unsafe.Pointer(nargValues)),
-                             C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
-                             C.int(int32(ii)))
-    }
-
-    nretValues := C._TVMValueNativeAllocate(C.int(int32(len(retValues))))
-
-    for ii := range retValues {
-        C._TVMValueNativeSet(C.native_voidp(unsafe.Pointer(nretValues)),
-                             C.native_voidp(unsafe.Pointer(retValues[ii].nativeCPtr())),
-                             C.int(int32(ii)))
-    }
+    nargValues := nativeFromGoSlice(argValues)
+    nretValues := nativeFromGoSlice(retValues)
 
 	result := (int32)(C._TVMFuncCall(C.uintptr_t(funp),
                                      C.uintptr_t((uintptr)(unsafe.Pointer(nargValues))),
-                                     C.native_voidp(&(typeCodes[0])), C.int(numArgs),
+                                     C.native_voidp(&(typeCodes[0])), C.int(len(argValues)),
                                      C.uintptr_t((uintptr)(unsafe.Pointer(nretValues))),
                                      C.native_voidp(retTypeCode)))
 
+
+    nativeToGoSlice(nargValues, argValues)
+    nativeToGoSlice(nretValues, retValues)
+
+    C._TVMValueNativeFree(nargValues)
+    C._TVMValueNativeFree(nretValues)
+
+    if result != 0 {
+	    err = errors.New(getTVMLastError())
+    }
+
+    return
+}
+
+// goCallBack is a structure holding the go callback function pointer.
+// This wrapping is necessary as cgo doesn't support
+// passing golang functions type conversion to native.
+type goCallBack struct {
+    cb func (args ...interface{}) (interface{}, error)
+}
+
+//export goTVMCallback
+func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
+                   retArg C.native_voidp, resourceHandle C.native_voidp) (ret int32){
+
+    fcb := (*goCallBack)(resourceHandle)
+
+    // Make Value Sice from native TVMValue pointer.
+    argValues := make([]Value, numArgs)
+
     for ii := range argValues {
-        C._TVMValueNativeGet(C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
-                             C.native_voidp(unsafe.Pointer(nargValues)),
-                             C.int(int32(ii)))
+        argValues[ii] = newTVMValue()
     }
 
-    C._TVMValueNativeFree(C.native_voidp(unsafe.Pointer(nargValues)))
+    defer func() {
+        for ii := range argValues {
+            argValues[ii].clearVStr(argValues[ii])
+            argValues[ii].deleteTVMValue()
+        }
+    }()
 
+    // Prepare arguments for golang callback function
+    cbargs := make([]interface{}, numArgs)
+    typeCodesSlice := (*[1<<31] int32)(unsafe.Pointer(typeCodes))[:numArgs:numArgs]
 
-    for ii := range retValues {
-        C._TVMValueNativeGet(C.native_voidp(unsafe.Pointer(retValues[ii].nativeCPtr())),
-                             C.native_voidp(unsafe.Pointer(nretValues)),
-                             C.int(int32(ii)))
+    nativeToGoSlice(C.native_voidp(unsafe.Pointer(args)), argValues)
+
+    for ii := range argValues {
+        value, err := argValues[ii].getValue(typeCodesSlice[ii])
+        if err != nil {
+            errStr := err.Error()
+            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+            return -1
+        }
+        cbargs[ii] = value
     }
 
-    C._TVMValueNativeFree(C.native_voidp(unsafe.Pointer(nretValues)))
+    // Execute the callback
+    retVal, err := fcb.cb(cbargs...)
+
+    if err != nil {
+        errStr := err.Error()
+        C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+        return -1
+    }
+
+    // Handle return value from callback function
+    if retVal != nil {
+        var retTypeCode int32
+        retValues := []Value{newTVMValue()}
+        defer retValues[0].deleteTVMValue()
+
+        retTypeCode, err = retValues[0].setValue(retVal)
+        if err != nil {
+            errStr := err.Error()
+            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+            return -1
+        }
+
+        nretValues := nativeFromGoSlice(retValues)
+
+        apiRet := (int32) (C._TVMCFuncSetReturn(retArg,
+                                                C.native_voidp(unsafe.Pointer(nretValues)),
+                                                C.native_voidp(unsafe.Pointer(&retTypeCode)), 1))
+        C._TVMValueNativeFree(nretValues)
+
+        if apiRet != 0 {
+            errStr := string("TVMCFuncSetReturn failed ")
+            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+        }
+    }
+
+    return
+}
+
+// ConvertFunction converts given golang function to TVM packed function.
+//
+// `args[0]` function pointer for a type ```func (args ...interface{}) (interface{})```
+//
+// Returns Function handle and err if any.
+func ConvertFunction(args ...interface{}) (fhandle Function, err error) {
+    function := args[0].(func (args ...interface{}) (interface{}, error))
+
+    fcb := &goCallBack{cb:function}
+
+    var funp uintptr
+
+    result := (int32) (C._ConvertFunction((C.native_voidp)(unsafe.Pointer(fcb)),
+                                          C.native_voidp(&funp)))
+
+    if result != 0 {
+	    err = errors.New(getTVMLastError())
+    }
+
+    fhandle = Function(funp)
+
+    handle := new(Function)
+    *handle = Function(funp)
+
+    finalizer := func(fhandle *Function) {
+        nativeTVMFuncFree(*fhandle)
+        fhandle = nil
+    }
+
+    runtime.SetFinalizer(handle, finalizer)
+
+    fhandle = *handle
+
+    return
+}
+
+// RegisterFunction registers the golang func in TVM runtime global space.
+//
+// `args[0]` function pointer for a type ```func (args ...interface{}) (interface{})```
+//
+// `args[1]` Optional argument of function name with which it will be registered.
+//           If not passed we use function name from reflection.
+//
+// Returns err indicating native error if any.
+func RegisterFunction(args ...interface{}) (err error) {
+    fhandle, err := ConvertFunction(args...)
+
+    if err != nil {
+        return
+    }
+
+    funcname := runtime.FuncForPC(reflect.ValueOf(args[0]).Pointer()).Name()
+
+    if len(args) > 1 {
+        funcname = args[1].(string)
+    }
+
+    result := (int32) (C._RegisterFunction(*(*C._gostring_)(unsafe.Pointer(&funcname)),
+                                           C.uintptr_t(fhandle)));
 
     if result != 0 {
 	    err = errors.New(getTVMLastError())

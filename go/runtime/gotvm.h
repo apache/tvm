@@ -54,9 +54,11 @@ extern int _TVMFuncCall(uintptr_t funp, uintptr_t arg_values,
                         uintptr_t ret_values, native_voidp ret_type_codes);
 extern int _TVMArrayCopyFromBytes(native_voidp dltensor, native_voidp data, int size);
 extern int _TVMArrayCopyToBytes(native_voidp dltensor, native_voidp data, int size);
+extern int _TVMCFuncSetReturn(native_voidp ret_handle, native_voidp ret_value, native_voidp type_code, int nu_args);
 
 // Error API
 extern _gostring_ _TVMGetLastError(void);
+extern void _TVMAPISetLastError(_gostring_);
 
 // TVMValue API
 extern uintptr_t _NewTVMValue();
@@ -92,6 +94,10 @@ extern void _TVMByteArraySetSize(uintptr_t tbytearray, native_long_long val);
 extern native_long_long _TVMByteArrayGetSize(uintptr_t tbytearray);
 extern uintptr_t _NewTVMByteArray(void);
 extern void _DeleteTVMByteArray(uintptr_t tbytearray);
+
+// Callbacks
+extern int _ConvertFunction(native_voidp fptr, native_voidp funp);
+extern int _RegisterFunction(_gostring_ fname, uintptr_t funp);
 
 #ifdef __cplusplus
 }

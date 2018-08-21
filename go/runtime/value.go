@@ -289,17 +289,24 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
         case *Array:
             tvmval.setVAHandle(*(val.(*Array)))
             retVal = KArrayHandle
+        case func (args ...interface{}) (interface{}, error):
+            fhandle, apierr := ConvertFunction(val)
+            if apierr != nil {
+                err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
+                return
+            }
+            tvmval.setVFHandle(fhandle)
+            retVal = KFuncHandle
         default:
             err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
     }
     return
 }
 
-/*
 // getFinalizedValue is used to get the given from Value container or union.
 //
 // `tvmtype` is types accepted by Value container or native union.
-func (tvmval Value) getFinalizedValue(tvmtype int32) (retVal interface{}, err error) {
+func (tvmval Value) getValue(tvmtype int32) (retVal interface{}, err error) {
     switch tvmtype {
         case KDLInt:
             retVal = tvmval.getVInt64()
@@ -319,7 +326,6 @@ func (tvmval Value) getFinalizedValue(tvmtype int32) (retVal interface{}, err er
 
     return
 }
-*/
 
 // newTVMValue initialize the TVMValue native object.
 //

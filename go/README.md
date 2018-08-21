@@ -18,7 +18,10 @@ This folder contain golang interface for TVM runtime. It brings TVM runtime to G
   This process build golang package _gotvm.a_
 
 - sample
-  Sample golang reference applications to inference through gotvm package.
+  Sample golang reference application to inference through gotvm package.
+
+- funcdb
+  Sample golang reference application to demonstrate packed function system usage.
 
 ### Build
 
@@ -36,10 +39,7 @@ Compilation process builds go package in runtime module and a sample application
 
 simple : Use the deploy.so build by make.
 complex : Reference application to deploy a realtime module with lib, graph and param.
-
-## TODO
-
-Function registration API are not implemented.
+funccb : Reference application to demonstrate TVM packed function system.
 
 ## Documentation
 gotvm.go is very well documented with sufficient information about gotvm package.

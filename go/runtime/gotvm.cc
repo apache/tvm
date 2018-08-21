@@ -160,6 +160,21 @@ _gostring_ _TVMGetLastError(void) {
 }
 
 /*!
+ * \brief Native interface for TVMAPISetLastError
+ *
+ * \param is of type _gostring_ holding the error string.
+ */
+void _TVMAPISetLastError(_gostring_ err) {
+  char *err_str = _gostring_to_native(err);
+
+  TVMAPISetLastError(err_str);
+
+  _native_free(err_str);
+
+  return;
+}
+
+/*!
  * \brief Native interface for TVMModLoadFromFile
  *
  * \param modpath is _gostring_ object containing module path.
@@ -309,6 +324,20 @@ int _TVMArrayCopyFromBytes(DLTensor *dltensor, void *data, int64_t size) {
  */
 int _TVMArrayCopyToBytes(DLTensor *dltensor, void *data, int64_t size) {
     return TVMArrayCopyToBytes(dltensor, data, size);
+}
+
+/*!
+ * \brief Native interface for TVMCFuncSetReturn
+ *
+ * \param ret_handle is TVMRetValueHandle for this call.
+ * \param ret_value is pointer to TVMValue
+ * \param type_code is the return type code for TVMValue.
+ * \param num_args indicates number of return values. Only support 1 now.
+ *
+ * \return the status of C runtime api call
+ */
+int _TVMCFuncSetReturn(TVMRetValueHandle ret_handle, TVMValue *ret_value, int *type_code, int num_args) {
+    return TVMCFuncSetReturn(ret_handle, ret_value, type_code, num_args);
 }
 
 // Helpers for TVMValue
@@ -612,9 +641,69 @@ void _DeleteTVMByteArray(TVMByteArray *tbytearray) {
   if (tbytearray->data) {
     delete tbytearray->data;
   }
+
   delete tbytearray;
 }
 
+extern int goTVMCallback(void*, void*, int, void*, void*);
+
+/*!
+ * \brief _TVMCallback is the TVM runtime callback function for PackedFunction system.
+ *
+ * \param args is an array of TVMValue
+ * \param type_codes is an array of int
+ * \param num_args is int representing number of in arguments
+ * \param ret is the return value handle to set the packed function return.
+ * \param resource_handle is the golang private data pointer.
+ *
+ * \returns the error status as TVM_DLL
+ */
+int _TVMCallback(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandle ret, void* resource_handle) {
+    return goTVMCallback(args, type_codes, num_args, ret, resource_handle);
+}
+
+/*!
+ * _TVMPackedCFuncFinalizer is finalizer for packed function system.
+ *
+ */
+void _TVMPackedCFuncFinalizer (void* resource_handle) {
+    return;
+}
+
+/*!
+ * /brief _ConvertFunction creates a packed function for with given resource handle.
+ *
+ * /param fptr is the pointer to golang resource handle.
+ * /param *fhandle is the return argument holding packed function.
+ *
+ * /return is an int indicating the return status.
+ */
+int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
+  int ret = TVMFuncCreateFromCFunc(_TVMCallback,
+                                   fptr,
+                                   _TVMPackedCFuncFinalizer,
+                                   fhandle);
+
+  return ret;
+}
+
+/*!
+ * /brief _RegisterFunction is to register the packed function with GlobalFunction.
+ *
+ * /param fname is the name of the function to register.
+ * /param fhandle is the packed function handle.
+ *
+ * /return is an int indicating return status ov TVM call.
+ */
+int _RegisterFunction(_gostring_ fname, TVMFunctionHandle fhandle) {
+  char *func_name = _gostring_to_native(fname);
+
+  int ret = TVMFuncRegisterGlobal(func_name, fhandle, 0); // Override = False
+
+  _native_free(func_name);
+
+  return ret;
+}
 
 #ifdef __cplusplus
 }
