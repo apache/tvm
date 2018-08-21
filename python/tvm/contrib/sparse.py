@@ -2,7 +2,6 @@
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 import numpy as _np
-from .._ffi.node import register_node
 from .. import expr as _expr
 from .. import api as _api
 from .. import tensor as _tensor

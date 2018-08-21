@@ -16,8 +16,8 @@ from __future__ import absolute_import as _abs
 
 import logging
 
-from decorator import decorate
 import numpy as np
+from decorator import decorate
 
 from tvm import target as _target
 
