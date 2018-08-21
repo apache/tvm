@@ -18,3 +18,8 @@ Function = _make.Function
 Call = _make.Call
 Let = _make.Let
 If = _make.If
+IncompleteType = _make.IncompleteType
+
+# Unifier
+UnionFind = _make.UnionFind
+TypeUnifier = _make.TypeUnifier
