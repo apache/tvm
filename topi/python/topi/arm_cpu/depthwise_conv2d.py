@@ -14,16 +14,21 @@ autotvm.task.register_topi_compute(depthwise_conv2d_nchw, 'arm_cpu', 'direct',
 
 # register customized schedule for arm cpu.
 @autotvm.task.register_topi_schedule(schedule_depthwise_conv2d_nchw, 'arm_cpu', 'direct')
-def schedule_depthwise_conv2d_nchw_(cfg, outs):
+def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
     """Schedule depthwise conv2d
 
     Parameters
     ----------
     cfg: ConfigEntity
-        The configuration of this tempalte
+        The configuration of this template
     outs: Array of Tensor
         The computation graph description of depthwise convolution2d
         in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for depthwise_conv2d nchw.
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
@@ -37,6 +42,11 @@ def schedule_depthwise_conv2d_nchw_(cfg, outs):
         cfg.define_split('tile_c', c, num_outputs=2)
         cfg.define_split('tile_h', h, num_outputs=2)
         cfg.define_split('tile_w', w, num_outputs=2)
+
+        if cfg.is_fallback:
+            cfg.fallback_split('tile_c', [-1, 8])
+            cfg.fallback_split('tile_h', [-1, 2])
+            cfg.fallback_split('tile_w', [-1, 8])
 
         # park data to vector form  [n, c, h, w] -> [n, C, h, w, VC]
         A0 = s.cache_read(data_pad, "global", C)

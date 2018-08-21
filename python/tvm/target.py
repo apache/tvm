@@ -263,6 +263,7 @@ def override_native_generic_func(func_name):
                     "Keyword arguments cannot be used when invoking generic_func %s" % func_name)
             return generic_func_node(*args)
         fresult = decorate(fdefault, dispatch_func)
+        fresult.fdefault = fdefault
         fresult.register = register
         return fresult
     return fdecorate

@@ -11,7 +11,6 @@ from ... import tensor, placeholder, target as _target
 
 from ..util import get_const_tuple
 from .task import create, register
-from .dispatcher import ApplyHistoryBest
 
 logger = logging.getLogger('autotvm')
 
@@ -59,34 +58,39 @@ class TaskExtractEnv:
         self.symbol2topi = {
             nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
             nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose],
+            nnvm.sym.dense: [topi.nn.dense],
         }
 
         self.topi_to_task = {
             topi.nn.conv2d: "topi_nn_conv2d",
             topi.nn.depthwise_conv2d_nchw: "topi_nn_depthwise_conv2d_nchw",
             topi.nn.conv2d_transpose_nchw: "topi_nn_conv2d_transpose_nchw",
+            topi.nn.dense: "topi_nn_dense",
         }
 
         self._register_dummy()
         self._register_topi_task()
         self.task_collection = []
+        self.wanted_topi_funcs = list(self.topi_to_task.keys())
 
     def _register_dummy(self):
         """Register dummy function to track the topi function call"""
         for func in self.topi_to_task:
             def _local_scope(local_func):
                 """build a scope to holds the function"""
+
                 @local_func.register("dummy", )
                 def _dummy_func(*args, **kwargs):
                     assert not kwargs, "Do not support extracting tuning tasks when" \
                                        "kwargs is used in TOPI function call." \
                                        "Please modify it to use only positional args."
 
-                    if (self.topi_to_task[local_func], serialize_args(args)) \
-                            not in self.task_collection:
-                        self.task_collection.append((self.topi_to_task[local_func],
-                                                     serialize_args(args)))
-                    with _target.create("opencl"):
+                    if local_func in self.wanted_topi_funcs: # record this call
+                        key = (self.topi_to_task[local_func], serialize_args(args))
+                        if key not in self.task_collection:
+                            self.task_collection.append(key)
+
+                    with _target.create("opencl"): # continue compiling
                         return local_func(*args)
 
             _local_scope(func)
@@ -125,17 +129,47 @@ class TaskExtractEnv:
             s = topi.generic.schedule_conv2d_transpose_nchw([C])
             return s, [A, W, C]
 
-    def reset(self):
-        """Reset task collections"""
+        @register("topi_nn_dense")
+        def _topi_nn_dense(*args, **kwargs):
+            assert not kwargs, "Do not support kwargs in template function call"
+            args = deserialize_args(args)
+            data, weight, bias = args
+            C = topi.nn.dense(*args, **kwargs)
+            s = topi.generic.schedule_dense([C])
+            if bias is not None:
+                return s, [data, weight, bias, C]
+            return s, [data, weight, C]
+
+    def reset(self, wanted_topi_funcs):
+        """Reset task collections
+
+        Parameters
+        ----------
+        wanted_topi_funcs: List of function
+            The topi function to be extracted
+        """
         self.task_collection = []
+        self.wanted_topi_funcs = wanted_topi_funcs
 
     def get_tasks(self):
-        """Get collected tasks"""
+        """Get collected tasks
+
+        Returns
+        -------
+        tasks: List of tuple(name, args)
+            A list of tasks extracted from the nnvm graph
+        """
         return self.task_collection
 
     @staticmethod
     def get():
-        """Get the single instance of TaskExtractEnv"""
+        """Get the single instance of TaskExtractEnv
+
+        Returns
+        -------
+        env: TaskExtractEnv
+            The single instance of TaskExtractEnv
+        """
         if not TaskExtractEnv.current:
             TaskExtractEnv.current = TaskExtractEnv()
         return TaskExtractEnv.current
@@ -179,7 +213,7 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
             warnings.warn("Symbol %s is not tunable, ignored" % sym_name)
 
     # run compiler to collect all TOPI calls during compilation
-    env.reset()
+    env.reset(topi_funcs)
 
     # disable logger temporarily
     old_state = logger.disabled
@@ -187,8 +221,8 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
 
     # use a dummy target to do a fake compile for collecting topi calls
     dummy_target = _target.create("opencl -device=dummy")
-    with ApplyHistoryBest([], allow_fallback=True):
-        nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+    nnvm.compiler.engine.clear_cache()
+    nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
 
     logger.disabled = old_state
 

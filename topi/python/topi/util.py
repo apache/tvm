@@ -2,6 +2,7 @@
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
 import tvm
+from tvm.autotvm.task.space import get_factors
 
 from . import tag
 

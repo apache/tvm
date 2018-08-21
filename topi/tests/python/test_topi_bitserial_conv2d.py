@@ -1,11 +1,8 @@
-import os
 import numpy as np
 import tvm
 import topi
 import topi.testing
-from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from tvm.contrib import util
 from tvm.contrib.pickle_memoize import memoize
 
 def generate_quantized_np(shape, bits, out_dtype):
@@ -16,23 +13,23 @@ def generate_quantized_np(shape, bits, out_dtype):
 def verify_bitserial_conv2d_nchw(batch, in_size, in_channel, num_filter, kernel, stride, padding, 
     activation_bits, weight_bits, dorefa):
     in_height = in_width = in_size
-    input_type='uint32'
-    out_dtype='int32'
+    input_type = 'uint32'
+    out_dtype = 'int32'
 
     with tvm.target.create('llvm'):
         A = tvm.placeholder((batch, in_channel, in_height, in_width), dtype=input_type, name='A')
         W = tvm.placeholder((num_filter, in_channel, kernel, kernel), dtype=input_type, name='W')
         B = topi.nn.bitserial_conv2d(A, W, stride, padding, activation_bits, weight_bits, 
-            out_dtype=out_dtype, layout="NCHW", dorefa=dorefa)
+                                     out_dtype=out_dtype, layout="NCHW", dorefa=dorefa)
         s = topi.generic.schedule_bitserial_conv2d_nchw([B])
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
-    dtype = A.dtype
 
+    @memoize("topi.tests.test_topi_bitseral_conv2d_nchw")
     def get_ref_data():
-        a_np = generate_quantized_np(get_const_tuple(A.shape), activation_bits, input_type)
-        w_np = generate_quantized_np(get_const_tuple(W.shape), weight_bits, input_type)
+        a_np = generate_quantized_np(get_const_tuple(a_shape), activation_bits, input_type)
+        w_np = generate_quantized_np(get_const_tuple(w_shape), weight_bits, input_type)
         if dorefa:
             w_ = np.copy(w_np).astype(out_dtype)
             for x in np.nditer(w_, op_flags=['readwrite']):
@@ -61,16 +58,16 @@ def verify_bitserial_conv2d_nhwc(batch, in_size, in_channel, num_filter, kernel,
         A = tvm.placeholder((batch, in_height, in_width, in_channel), dtype=input_type, name='A')
         W = tvm.placeholder((kernel, kernel, in_channel, num_filter), dtype=input_type, name='W')
         B = topi.nn.bitserial_conv2d(A, W, stride, padding, activation_bits, weight_bits, out_dtype=out_dtype, 
-                            layout="NHWC", dorefa=dorefa)
+                                     layout="NHWC", dorefa=dorefa)
         s = topi.generic.schedule_bitserial_conv2d_nhwc([B])
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
-    dtype = A.dtype
 
+    @memoize("topi.tests.test_topi_bitseral_conv2d_nhwc")
     def get_ref_data():
-        a_np = generate_quantized_np(get_const_tuple(A.shape), activation_bits, input_type)
-        w_np = generate_quantized_np(get_const_tuple(W.shape), weight_bits, input_type)
+        a_np = generate_quantized_np(get_const_tuple(a_shape), activation_bits, input_type)
+        w_np = generate_quantized_np(get_const_tuple(w_shape), weight_bits, input_type)
         if dorefa:
             w_ = np.copy(w_np).astype(out_dtype)
             for x in np.nditer(w_, op_flags=['readwrite']):
