@@ -112,13 +112,17 @@ def create_measure_batch(task, option):
     from ..database import filter_inputs
 
     measure_func = option['measure_func']
-    number, repeat = option['number'], option['repeat']
+    repeat = option['repeat']
+    min_milliseconds = option['min_milliseconds']
     timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
     build_func = option['build_func']
     check_correctness = option['check_correctness']
     replay_db = option['replay_db']
 
     executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
+
+    class nonLocal:
+        number = option['number']
 
     # convert convenient string to function object
     attach_objects = None
@@ -192,7 +196,7 @@ def create_measure_batch(task, option):
                 input_pack,
                 build_func,
                 build_kwargs,
-                number,
+                nonLocal.number,
                 repeat,
                 ref_input,
                 ref_output)
@@ -208,6 +212,25 @@ def create_measure_batch(task, option):
                                               timeout, tstamp)] * pack_size)
             else:
                 results.extend(result)
+
+        while True:
+            remeasure = False
+            for result in results:
+                measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
+                if result.error_no == MeasureErrorNo.NO_ERROR and\
+                   measure_cost < min_milliseconds:
+                    nonLocal.number *= 2
+                    remeasure = True
+                    msg = "increasing number to {0:d} ({1:.3f}ms < {2:d}ms)".format(\
+                    nonLocal.number, measure_cost, min_milliseconds)
+                    logger.info(msg)
+                    break
+            if remeasure:
+                # note that measure_inputs here has already been filtered (if
+                # applicable)
+                results = measure_batch(measure_inputs)
+            else:
+                break
 
         if replay_db is not None:
             result_idx = 0

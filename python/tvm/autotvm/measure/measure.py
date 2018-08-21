@@ -48,6 +48,7 @@ class MeasureErrorNo(object):
 def measure_option(measure_func,
                    number=1,
                    repeat=1,
+                   min_milliseconds=0,
                    timeout=60,
                    n_parallel=1,
                    do_fork=True,
@@ -71,6 +72,14 @@ def measure_option(measure_func,
         In total, the generated code will be run (1 + number x repeat) times,
         where the first one is warm up. The returned result contains `repeat` costs,
         each of which is the average of `number` test run.
+    min_milliseconds : int, optional
+        Minimum measurement time in milliseconds.
+        When the run time of a measurement trial falls below this time, the
+        `number` parameter will be automatically increased.
+        Set this to improve the accuracy of perf measurement, e.g., when timers
+        are not precise enough to capture short-running tasks. This parameter is
+        also critical when devices need a certain minimum running time to "warm
+        up," such as GPUs that need time to reach a performance power state.
     timeout: int, optional
         Timeout for a whole batch. TimeoutError will be returned as the result if a
         task timeouts.
@@ -119,6 +128,7 @@ def measure_option(measure_func,
         'measure_func': measure_func,
         'number': number,
         'repeat': repeat,
+        'min_milliseconds': min_milliseconds,
         'timeout': timeout,
         'n_parallel': n_parallel,
         'do_fork': do_fork,
