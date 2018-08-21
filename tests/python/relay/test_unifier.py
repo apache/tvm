@@ -1,10 +1,10 @@
-"""Tests unification of types."""
-# pylint: disable=invalid-name, missing-docstring, bare-except
+"""
+Test the type unifier, which solves systems of equations
+between incomplete types.
+"""
 import relay.ir
-# pylint: disable=unused-import
-import relay.unifier # TODO (@jroesch) fix me
-# pylint: disable=wildcard-import, unused-wildcard-import
-from relay.make import *
+import relay.unifier
+
 
 def unify_types(t1, t2):
     unifier = TypeUnifier()

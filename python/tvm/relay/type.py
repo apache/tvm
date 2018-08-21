@@ -49,3 +49,8 @@ class FuncType(Type):
     arg_types: List[Type]
     ret_type: Type
     span: Span
+
+@register_relay_node
+class IncompleteType(Type):
+    """An incomplete type."""
+    pass
