@@ -7,7 +7,7 @@ import warnings
 import logging
 
 
-from ... import tensor, placeholder, target as _target
+from ... import tensor, placeholder, create_schedule, target as _target
 
 from ..util import get_const_tuple
 from .task import create, register
@@ -55,12 +55,15 @@ class TaskExtractEnv:
         import topi
         import nnvm
 
+        # NOTE: To add more symbols, you only need to change the following lists
+        # nnvm symbol -> topi compute
         self.symbol2topi = {
             nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw],
-            nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose],
+            nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
             nnvm.sym.dense: [topi.nn.dense],
         }
 
+        # topi compute -> autotvm task name
         self.topi_to_task = {
             topi.nn.conv2d: "topi_nn_conv2d",
             topi.nn.depthwise_conv2d_nchw: "topi_nn_depthwise_conv2d_nchw",
@@ -68,32 +71,52 @@ class TaskExtractEnv:
             topi.nn.dense: "topi_nn_dense",
         }
 
-        self._register_dummy()
+        self.topi_to_schedule = {
+            topi.nn.conv2d: [topi.generic.schedule_conv2d_nchw,
+                             topi.generic.schedule_conv2d_nhwc],
+            topi.nn.depthwise_conv2d_nchw: [topi.generic.schedule_depthwise_conv2d_nchw,
+                                            topi.generic.schedule_depthwise_conv2d_nhwc],
+            topi.nn.conv2d_transpose_nchw: [topi.generic.schedule_conv2d_transpose_nchw],
+            topi.nn.dense: [topi.generic.schedule_dense],
+        }
+
+        self._register_tracing()
         self._register_topi_task()
         self.task_collection = []
         self.wanted_topi_funcs = list(self.topi_to_task.keys())
 
-    def _register_dummy(self):
-        """Register dummy function to track the topi function call"""
-        for func in self.topi_to_task:
-            def _local_scope(local_func):
-                """build a scope to holds the function"""
+    def _register_tracing(self):
+        """Register tracing function to track the topi function call"""
+        # register topi compute for "tracing" target
+        for topi_compute in self.topi_to_task:
+            def _local_scope(compute_func):
+                """start a scope to hold the local function in for loop"""
 
-                @local_func.register("dummy", )
-                def _dummy_func(*args, **kwargs):
+                @compute_func.register("tracing", )
+                def _tracing_topi_compute(*args, **kwargs):
                     assert not kwargs, "Do not support extracting tuning tasks when" \
                                        "kwargs is used in TOPI function call." \
                                        "Please modify it to use only positional args."
 
-                    if local_func in self.wanted_topi_funcs: # record this call
-                        key = (self.topi_to_task[local_func], serialize_args(args))
+                    if compute_func in self.wanted_topi_funcs:  # record this call
+                        key = (self.topi_to_task[compute_func], serialize_args(args))
                         if key not in self.task_collection:
                             self.task_collection.append(key)
 
-                    with _target.create("opencl"): # continue compiling
-                        return local_func(*args)
+                    return compute_func.fdefault(*args)
+            _local_scope(topi_compute)
 
-            _local_scope(func)
+        # register topi schedule for "tracing" target
+        for topi_compute in self.topi_to_task:
+            for topi_schedule in self.topi_to_schedule[topi_compute]:
+                def _local_scope_(schedule_func):
+                    """start a scope to hold the local function in for loop"""
+
+                    @schedule_func.register("tracing", )
+                    def _tracing_topi_compute(outs):
+                        outs = [outs] if isinstance(outs, tensor.Tensor) else outs
+                        return create_schedule([x.op for x in outs])
+                _local_scope_(topi_schedule)
 
     def _register_topi_task(self):
         """register tuning wrapper for topi function"""
@@ -178,8 +201,8 @@ class TaskExtractEnv:
 def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
     """ Extract tuning tasks from a nnvm graph.
 
-    This function collects tunning tasks by building the graph
-    with a "dummy" target and tracing all the calls to topi.
+    This function collects tuning tasks by building the graph
+    with a "tracing" target and tracing all the calls to topi.
 
     Parameters
     ----------
@@ -192,7 +215,7 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
     target: tvm.target.Target
         The compilation target
     symbols : Array of nnvm.symbol
-        Array of nnvm symbols
+        Array of nnvm symbols want to be tuned
     target_host: tvm.target.Target
         The host compilation target
 
@@ -219,10 +242,10 @@ def extract_from_graph(graph, shape, dtype, target, symbols, target_host=None):
     old_state = logger.disabled
     logger.disabled = True
 
-    # use a dummy target to do a fake compile for collecting topi calls
-    dummy_target = _target.create("opencl -device=dummy")
+    # use a "tracing" target to do a fake compile for collecting topi calls
+    tracing_target = _target.create("llvm -device=tracing")
     nnvm.compiler.engine.clear_cache()
-    nnvm.compiler.build(graph, target=dummy_target, shape=shape, dtype=dtype)
+    nnvm.compiler.build(graph, target=tracing_target, shape=shape, dtype=dtype)
 
     logger.disabled = old_state
 

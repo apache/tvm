@@ -941,4 +941,3 @@ class FallbackConfigEntity(ConfigSpace):
 
     def __repr__(self):
         return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)
-
