@@ -113,7 +113,10 @@ class TypeParamNode : public TypeNode {
   /*! \brief possible kinds of TypeParam */
   enum Kind : int {
     /*! \brief template variable in shape expression */
-    kShapeVar = 0
+    kShapeVar = 0,
+    kShape    = 1,
+    kBaseType = 2,
+    kType     = 3,
   };
   /*!
    * \brief The variable

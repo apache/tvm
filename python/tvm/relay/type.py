@@ -21,10 +21,10 @@ class Kind(IntEnum):
     """The kind of a type parameter, represents a variable shape,
        base type, type, or dimension.
     """
-    Shape = 0
+    ShapeVar = 0
+    Shape = 1
     BaseType = 1
     Type = 2
-    Elem = 3
 
 @register_relay_node
 class TypeParam(Type):

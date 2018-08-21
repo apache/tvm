@@ -20,9 +20,13 @@ class IncompleteType;
 /*! \brief IncompleteType container node */
 class IncompleteTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) final {}
+  TypeParamNode::Kind kind;
 
-  TVM_DLL static IncompleteType make();
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("kind", &kind);
+  }
+
+  TVM_DLL static IncompleteType make(TypeParamNode::Kind kind);
 
   static constexpr const char* _type_key = "relay.IncompleteType";
   TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);
