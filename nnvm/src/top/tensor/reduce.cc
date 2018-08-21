@@ -319,7 +319,7 @@ values over a given axis.
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
     return Array<Tensor>{
-       topi::argmax(inputs[0], axis, param.keepdims) };
+      topi::argmin(inputs[0], axis, param.keepdims) };
 });
 
 NNVM_REGISTER_REDUCE_OP(mean)
