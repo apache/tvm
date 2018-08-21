@@ -131,14 +131,14 @@ class TypedPackedFunc;
  *
  * TypedPackedFunc enables compile time type checking.
  * TypedPackedFunc works with the runtime system:
- * - It can be passed as an argument of PackedFunc,
+ * - It can be passed as an argument of PackedFunc.
  * - It can be assigned to TVMRetValue.
  * - It can be directly converted to a type-erased PackedFunc.
  *
- * Please use it when possible in the c++ code to enable more
- * compile time checking.
- * We can construct a TypedPackedFunc from a lambda function with
- * the same signature.
+ * Developers should prefer TypedPackedFunc over PackedFunc in C++ code
+ * as it enables compile time checking.
+ * We can construct a TypedPackedFunc from a lambda function
+ * with the same signature.
  *
  * \code
  *  // user defined lambda function.
