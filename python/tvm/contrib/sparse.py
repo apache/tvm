@@ -12,7 +12,6 @@ float32 = "float32"
 csr = "csr"
 itype = 'int32'
 
-@register_node
 class CSRNDArray(object):
     """Sparse tensor object in CSR format."""
     def __init__(self, arg1, ctx=None, shape=None):
@@ -75,7 +74,6 @@ def array(source_array, ctx=None, shape=None, stype='csr'):
         raise NotImplementedError('stype=%s is not supported yet.' % (stype,))
     return ret
 
-@register_node
 class SparsePlaceholderOp(object):
     """Placeholder class for sparse tensor representations."""
     def __init__(self, shape, nonzeros, dtype, name):
@@ -98,7 +96,6 @@ class SparsePlaceholderOp(object):
         self.name = name
         self.stype = 'unknown'
 
-@register_node
 class CSRPlaceholderOp(SparsePlaceholderOp):
     """Placeholder class for CSR based sparse tensor representation."""
     def __init__(self, shape, nonzeros, dtype, name):
