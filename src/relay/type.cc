@@ -96,5 +96,24 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
       p->stream << "TypeFunctionNode(" << node->name << ", " << node->num_args << ")";
     });
 
+TypeCall TypeCallNode::make(Type func, Array<Type> args) {
+  std::shared_ptr<TypeCallNode> n = std::make_shared<TypeCallNode>();
+  n->func = std::move(func);
+  n->args = std::move(args);
+  return TypeCall(n);
+}
+
+TVM_REGISTER_API("relay._make.TypeCall")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = TypeCallNode::make(args[0], args[1]);
+    });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+    .set_dispatch<TypeCallNode>([](const TypeCallNode *node,
+                                   tvm::IRPrinter *p) {
+      p->stream << "TypeCallNode(" << node->func << ", " << node->args << ")";
+    });
+
+
 }  // namespace relay
 }  // namespace tvm

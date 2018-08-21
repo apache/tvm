@@ -228,7 +228,38 @@ class TypeFunctionNode : public RelayNode {
   TVM_DECLARE_NODE_TYPE_INFO(TypeFunctionNode, RelayNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeFunction, TypeFunctionNode, NodeRef);
+RELAY_DEFINE_NODE_REF(TypeFunction, TypeFunctionNode, Type);
+
+/*!
+ * \brief Call a type function with some number of arguments.
+ */
+class TypeCall;
+/*!
+ * \brief TypeCall container.
+ */
+class TypeCallNode : public TypeNode {
+ public:
+  /*! \brief The type function to be called. */
+  Type func;
+  /*! \brief The type arguments to the type function. */
+  tvm::Array<Type> args;
+
+  TypeCallNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("func", &func);
+    v->Visit("args", &args);
+  }
+
+  Type eval() const;
+
+  TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
+
+  static constexpr const char* _type_key = "relay.TypeCall";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeCallNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);
 
 // The following fields contains advanced typing
 // Only keep the class name and reserved for future usage.
