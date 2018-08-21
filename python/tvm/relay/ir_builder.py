@@ -100,5 +100,16 @@ class IRBuilder():
 
         return _mk_let(bindings, self.ret_value)
 
+# def int_type():
+#     return TensorType(IntType(32), ShapeSeq([]))
+
+# def float_type():
+#     return TensorType(FloatType(32), ShapeSeq([]))
+
+# def bool_type():
+#     return TensorType(BoolType(), ShapeSeq([]))
+
+# def make_shape(dims):
+#     return ShapeSeq([ShapeSingleton(dim) for dim in dims])
 
 

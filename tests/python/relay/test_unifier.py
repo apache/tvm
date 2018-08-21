@@ -2,30 +2,14 @@
 Test the type unifier, which solves systems of equations
 between incomplete types.
 """
-import relay.ir
-import relay.unifier
-
-
-def unify_types(t1, t2):
-    unifier = TypeUnifier()
-    return unifier.unify(t1, t2)
-
-def int_type():
-    return TensorType(IntType(32), ShapeSeq([]))
-
-def float_type():
-    return TensorType(FloatType(32), ShapeSeq([]))
-
-def bool_type():
-    return TensorType(BoolType(), ShapeSeq([]))
-
-def make_shape(dims):
-    return ShapeSeq([ShapeSingleton(dim) for dim in dims])
+import tvm.relay.ir
+from tvm.relay.unifier import UnionFind, TypeUnifier
+import tvm.relay.make as mk
 
 def test_insert_and_find():
     uf = UnionFind()
-    v1 = TypeVar(ir.Kind.Type)
-    v2 = TypeVar(ir.Kind.Type)
+    v1 = mk.TypeVar(ir.Kind.Type)
+    v2 = mk.TypeVar(ir.Kind.Type)
     uf.insert(v1)
     uf.insert(v2)
     assert uf.find(v1) == v1
@@ -33,8 +17,8 @@ def test_insert_and_find():
 
 def test_insert_error():
     uf = UnionFind()
-    v1 = TypeVar(ir.Kind.Type)
-    v2 = TypeVar(ir.Kind.Type)
+    v1 = mk.TypeVar(ir.Kind.Type)
+    v2 = mk.TypeVar(ir.Kind.Type)
     uf.insert(v1)
     try:
         uf.find(v2)
@@ -44,9 +28,9 @@ def test_insert_error():
 
 def test_unify():
     uf = UnionFind()
-    v1 = TypeVar(ir.Kind.Type)
-    v2 = TypeVar(ir.Kind.Type)
-    v3 = TypeVar(ir.Kind.Type)
+    v1 = mk.TypeVar(ir.Kind.Type)
+    v2 = mk.TypeVar(ir.Kind.Type)
+    v3 = mk.TypeVar(ir.Kind.Type)
     uf.insert(v1)
     uf.insert(v2)
     uf.insert(v3)
@@ -96,6 +80,13 @@ def test_unify_multiple_levels():
         assert uf.find(v[i]) == new_rep1
     for i in range(3):
         assert uf.find(v[i + 6]) == new_rep2
+
+# We have checked that the basic machinery in the UnionFind works
+# and now we will test the type unifier which will fill in holes
+# between type equalities by the process of unification.
+def unify_types(t1, t2):
+    unifier = TypeUnifier()
+    return unifier.unify(t1, t2)
 
 # TODO(sslyu, weberlo, joshpoll): put in isinstance asserts once those work
 def test_unify_int():
