@@ -48,6 +48,7 @@ enum class RPCCode : int {
   kModuleFree,
   kModuleGetFunc,
   kModuleGetSource,
+  kNDArrayFree
 };
 
 /*!

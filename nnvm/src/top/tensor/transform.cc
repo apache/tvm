@@ -93,23 +93,24 @@ inline bool ConcatenateInferShape(const NodeAttrs& attrs,
   TShape dshape;
   dim_t size = 0;
   bool has_zero = false;
+  int axis = param.axis >= 0 ? param.axis : in_shape->at(0).ndim() + param.axis;
   for (size_t i = 0; i < in_shape->size(); ++i) {
     TShape tmp = (*in_shape)[i];
     if (tmp.ndim()) {
-      CHECK_LT(static_cast<dim_t>(param.axis), tmp.ndim())
-          << "concat dim " << param.axis << " out of range of input shape " << tmp;
-      has_zero = tmp[param.axis] == 0 || has_zero;
-      size += tmp[param.axis];
-      tmp[param.axis] = 0;
+      CHECK_LT(static_cast<dim_t>(axis), tmp.ndim())
+          << "concat dim " << axis << " out of range of input shape " << tmp;
+      has_zero = tmp[axis] == 0 || has_zero;
+      size += tmp[axis];
+      tmp[axis] = 0;
       shape_assign(&dshape, tmp);
     }
   }
 
   TShape tmp = (*out_shape)[0];
   if (tmp.ndim()) {
-    CHECK_LT(static_cast<dim_t>(param.axis), tmp.ndim())
-        << "concat dim " << param.axis << " out of range of input shape " << tmp;
-    tmp[param.axis] = 0;
+    CHECK_LT(static_cast<dim_t>(axis), tmp.ndim())
+        << "concat dim " << axis << " out of range of input shape " << tmp;
+    tmp[axis] = 0;
     shape_assign(&dshape, tmp);
   }
 
@@ -119,7 +120,7 @@ inline bool ConcatenateInferShape(const NodeAttrs& attrs,
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, i, dshape);
   }
 
-  if (!has_zero) dshape[param.axis] = size;
+  if (!has_zero) dshape[axis] = size;
   NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, dshape);
   return dshape.Size() != 0;
 }
@@ -128,15 +129,31 @@ inline bool ConcatenateCorrectLayout(const NodeAttrs& attrs,
                                      std::vector<Layout> *ilayouts,
                                      const std::vector<Layout> *last_ilayouts,
                                      std::vector<Layout> *olayouts) {
+  const ConcatenateParam& param = nnvm::get<ConcatenateParam>(attrs.parsed);
   CHECK_EQ(ilayouts->size(), last_ilayouts->size());
   CHECK_EQ(olayouts->size(), 1U);
 
-  for (size_t i = 0; i < ilayouts->size(); ++i) {
-    const Layout& input = last_ilayouts->at(i).defined() ?
-                          last_ilayouts->at(i) : ilayouts->at(i);
-    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  Layout layout;
+  if (!ilayouts->at(0).defined()) {
+    layout = last_ilayouts->at(0);
+  } else if (param.axis >= static_cast<int>(ilayouts->at(0).ndim())) {
+    CHECK(last_ilayouts->at(0).defined())
+      << "Current input layout " << ilayouts->at(0)
+      << " is invalid but last input layout is not "
+         "defined for the first input.";
+    layout = last_ilayouts->at(0);
+  } else if (last_ilayouts->at(0).defined()
+             && ilayouts->at(0)[param.axis]
+                != last_ilayouts->at(0)[param.axis]) {
+    layout = last_ilayouts->at(0);
+  } else {
+    layout = ilayouts->at(0);
   }
 
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, layout);
+  }
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
   return true;
 }
 
