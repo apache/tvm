@@ -280,20 +280,22 @@ reg.register_pattern("conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 # max_pool2d
 @reg.register_schedule("max_pool2d")
-def schedule_max_pool2d(_, outs, target):
+def schedule_max_pool2d(attrs, outs, target):
     """Schedule definition of max_pool2d"""
+    layout = attrs["layout"]
     with tvm.target.create(target):
-        return topi.generic.schedule_pool(outs)
+        return topi.generic.schedule_pool(outs, layout)
 
 reg.register_pattern("max_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
 # avg_pool2d
 @reg.register_schedule("avg_pool2d")
-def schedule_avg_pool2d(_, outs, target):
+def schedule_avg_pool2d(attrs, outs, target):
     """Schedule definition of avg_pool2d"""
+    layout = attrs["layout"]
     with tvm.target.create(target):
-        return topi.generic.schedule_pool(outs)
+        return topi.generic.schedule_pool(outs, layout)
 
 reg.register_pattern("avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 

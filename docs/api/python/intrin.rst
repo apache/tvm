@@ -6,7 +6,10 @@ tvm.intrin
 
    tvm.call_packed
    tvm.call_pure_intrin
+   tvm.call_intrin
    tvm.call_pure_extern
+   tvm.call_extern
+   tvm.call_llvm_intrin
    tvm.register_intrin_rule
    tvm.exp
    tvm.log
@@ -18,7 +21,10 @@ tvm.intrin
 
 .. autofunction:: tvm.call_packed
 .. autofunction:: tvm.call_pure_intrin
+.. autofunction:: tvm.call_intrin
 .. autofunction:: tvm.call_pure_extern
+.. autofunction:: tvm.call_extern
+.. autofunction:: tvm.call_llvm_intrin
 .. autofunction:: tvm.register_intrin_rule
 .. autofunction:: tvm.exp
 .. autofunction:: tvm.log
