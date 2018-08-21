@@ -38,7 +38,7 @@ def verify_keras_frontend(keras_model):
         out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
         return out.asnumpy()
 
-    xs = [np.random.uniform(size=shape) for shape in in_shapes]
+    xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
@@ -71,6 +71,18 @@ def test_forward_dense():
     x = keras.layers.Dropout(0.5)(x)
     x = keras.layers.Dense(10, activation='relu', kernel_initializer='uniform')(x)
     keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+
+def test_forward_pool():
+    data = keras.layers.Input(shape=(2,2,1))
+    # maxpool
+    x = keras.layers.MaxPooling2D((3, 3), strides=(1, 1), padding='same')(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+    # avgpool
+    y = keras.layers.AveragePooling2D((3, 3), strides=(1, 1), padding='same')(data)
+    keras_model = keras.models.Model(data, y)
     verify_keras_frontend(keras_model)
 
 
@@ -192,6 +204,7 @@ if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_activations()
     test_forward_dense()
+    test_forward_pool()
     test_forward_transpose_conv()
     test_forward_separable_conv()
     test_forward_upsample()
