@@ -1,5 +1,6 @@
 """Utility for benchmark"""
 
+import sys
 import nnvm
 
 def get_network(name, batch_size):
@@ -39,3 +40,7 @@ def get_network(name, batch_size):
         raise ValueError("Unsupported network: " + name)
 
     return net, params, input_shape, output_shape
+
+def print_progress(msg):
+    sys.stdout.write(msg)
+    sys.stdout.flush()

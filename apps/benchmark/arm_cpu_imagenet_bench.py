@@ -11,7 +11,7 @@ import tvm.contrib.graph_runtime as runtime
 import nnvm.compiler
 import nnvm.testing
 
-from util import get_network
+from util import get_network, print_progress
 
 
 if __name__ == "__main__":
@@ -44,8 +44,10 @@ if __name__ == "__main__":
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))
     print("--------------------------------------------------")
     for network in networks:
+        print_progress(network)
         net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
+        print_progress("%-20s building..." % network)
         with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
             graph, lib, params = nnvm.compiler.build(
                 net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
@@ -60,6 +62,7 @@ if __name__ == "__main__":
             lib.export_library(tmp.relpath(filename))
 
         # upload library and params
+        print_progress("%-20s uploading..." % network)
         ctx = remote.context(str(target), 0)
         remote.upload(tmp.relpath(filename))
         rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
@@ -71,6 +74,7 @@ if __name__ == "__main__":
         module.set_input(**rparams)
 
         # evaluate
+        print_progress("%-20s evaluating..." % network)
         ftimer = module.module.time_evaluator("run", ctx, number=args.number, repeat=3)
         prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
         print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
