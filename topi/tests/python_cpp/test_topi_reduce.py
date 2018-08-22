@@ -101,7 +101,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             elif type == "argmin":
                 np.testing.assert_allclose(out_tvm_val, in_npy_map.min(axis=axis), 1E-3, 1E-3)
         else:
-            np.testing.assert_allclose(out_tvm.asnumpy() + 1, out_npy, 1E-3, 1E-3)
+            np.testing.assert_allclose(out_tvm.asnumpy(), out_npy, 1E-3, 1E-3)
     for device in ["cuda", "opencl", "metal", "llvm", "rocm"]:
         check_device(device)
 
