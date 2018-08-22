@@ -66,6 +66,13 @@ class DebugResult():
             node['attrs'].update({"T": dtype})
             node['shape'] = self._shapes_list[1][i]
 
+    def _cleanup_tensors(self):
+        """Remove the tensor dump file (graph wont be removed)
+        """
+        for filename in os.listdir(self._dump_path):
+            if os.path.isfile(filename) and not filename.endswith(".json"):
+                os.remove(filename)
+
     def get_graph_nodes(self):
         """Return the nodes list
         """
@@ -126,6 +133,19 @@ class DebugResult():
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
             param_f.write(save_tensors(output_tensors))
 
+    def dump_graph_json(self, graph):
+        """Dump json formatted graph.
+
+        Parameters
+        ----------
+        graph : json format
+            json formatted NNVM graph contain list of each node's
+            name, shape and type.
+        """
+        graph_dump_file_name = GRAPH_DUMP_FILE_NAME
+        with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
+            json.dump(graph, outfile, indent=4, sort_keys=False)
+
     def display_debug_result(self):
         """Displays the debugger result"
         """
@@ -159,26 +179,6 @@ class DebugResult():
         print(fmt.format(*lines))
         for row in data:
             print(fmt.format(*row))
-
-    def dump_graph_json(self, graph):
-        """Dump json formatted graph.
-
-        Parameters
-        ----------
-        graph : json format
-            json formatted NNVM graph contain list of each node's
-            name, shape and type.
-        """
-        graph_dump_file_name = GRAPH_DUMP_FILE_NAME
-        with open(os.path.join(self._dump_path, graph_dump_file_name), 'w') as outfile:
-            json.dump(graph, outfile, indent=4, sort_keys=False)
-
-    def _cleanup_tensors(self):
-        """Remove the tensor dump file (graph wont be removed)
-        """
-        for filename in os.listdir(self._dump_path):
-            if os.path.isfile(filename) and not filename.endswith(".json"):
-                os.remove(filename)
 
 def save_tensors(params):
     """Save parameter dictionary to binary bytes.
