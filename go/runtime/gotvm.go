@@ -15,7 +15,7 @@ import "C"
 
 import (
     "unsafe"
-    "fmt"
+//    "fmt"
 )
 
 // GoTVMVersion is gotvm package version information.
@@ -28,7 +28,7 @@ var TVMVersion              = getTVMVersion()
 
 func getTVMVersion() (retStr string) {
     version := C._TVM_VERSION()
-    fmt.Printf("Welcome to gotvm\n")
+//    fmt.Printf("Welcome to gotvm\n")
     retStr = goStringFromNative(*(*string)(unsafe.Pointer(&version)))
     return
 }
