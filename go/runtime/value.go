@@ -265,6 +265,9 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
         case int64:
             tvmval.setVInt64(val.(int64))
             retVal = KDLInt
+        case int:
+            tvmval.setVInt64(int64(val.(int)))
+            retVal = KDLInt
         case float64:
             tvmval.setVFloat64(val.(float64))
             retVal = KDLFloat
@@ -289,7 +292,7 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
         case *Array:
             tvmval.setVAHandle(*(val.(*Array)))
             retVal = KArrayHandle
-        case func (args ...interface{}) (interface{}, error):
+        case func (args ...Value) (interface{}, error):
             fhandle, apierr := ConvertFunction(val)
             if apierr != nil {
                 err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);

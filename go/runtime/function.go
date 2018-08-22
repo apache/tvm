@@ -234,7 +234,7 @@ func nativeTVMFuncCall(funp Function, argValues []Value, typeCodes []int32,
 // This wrapping is necessary as cgo doesn't support
 // passing golang functions type conversion to native.
 type goCallBack struct {
-    cb func (args ...interface{}) (interface{}, error)
+    cb func (args ...Value) (interface{}, error)
 }
 
 //export goTVMCallback
@@ -258,11 +258,10 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
     }()
 
     // Prepare arguments for golang callback function
-    cbargs := make([]interface{}, numArgs)
-    typeCodesSlice := (*[1<<31] int32)(unsafe.Pointer(typeCodes))[:numArgs:numArgs]
-
     nativeToGoSlice(C.native_voidp(unsafe.Pointer(args)), argValues)
 
+    /*typeCodesSlice := (*[1<<31] int32)(unsafe.Pointer(typeCodes))[:numArgs:numArgs]
+    cbargs := make([]interface{}, numArgs)
     for ii := range argValues {
         value, err := argValues[ii].getValue(typeCodesSlice[ii])
         if err != nil {
@@ -271,7 +270,9 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
             return -1
         }
         cbargs[ii] = value
-    }
+    }*/
+
+    cbargs := argValues
 
     // Execute the callback
     retVal, err := fcb.cb(cbargs...)
@@ -317,7 +318,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
 //
 // Returns Function handle and err if any.
 func ConvertFunction(args ...interface{}) (fhandle Function, err error) {
-    function := args[0].(func (args ...interface{}) (interface{}, error))
+    function := args[0].(func (args ...Value) (interface{}, error))
 
     fcb := &goCallBack{cb:function}
 

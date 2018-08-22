@@ -14,13 +14,13 @@ import (
 )
 
 // sampleCb is a simple golang callback function like C = A + B.
-func sampleCb(args ...interface{}) (retVal interface{}, err error) {
+func sampleCb(args ...gotvm.Value) (retVal interface{}, err error) {
     for i, v := range args {
         fmt.Printf("ARGS:%T: %v --- %T : %v\n",i, i, v, v)
     }
 
-    val1 := args[0].(int64)
-    val2 := args[1].(int64)
+    val1 := args[0].AsInt64()
+    val2 := args[1].AsInt64()
 
     retVal = int64(val1+val2)
 
@@ -28,7 +28,7 @@ func sampleCb(args ...interface{}) (retVal interface{}, err error) {
 }
 
 // sampleErrorCb is a callback function which returns a golang error.
-func sampleErrorCb(args ...interface{}) (retVal interface{}, err error) {
+func sampleErrorCb(args ...gotvm.Value) (retVal interface{}, err error) {
 
     err = fmt.Errorf("Callback function returns an error\n")
 
@@ -37,8 +37,8 @@ func sampleErrorCb(args ...interface{}) (retVal interface{}, err error) {
 
 
 // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
-func sampleFunctionCb(args ...interface{}) (retVal interface{}, err error) {
-    funccall := func (cargs ...interface{}) (interface{}, error) {
+func sampleFunctionCb(args ...gotvm.Value) (retVal interface{}, err error) {
+    funccall := func (cargs ...gotvm.Value) (interface{}, error) {
         return sampleCb(cargs...)
     }
 
@@ -54,21 +54,6 @@ func main() {
     fmt.Printf("TVM Go Interface : v%v\n", gotvm.GoTVMVersion)
     fmt.Printf("TVM Version   : v%v\n", gotvm.TVMVersion)
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
-
-
-    // Verify callback function by direct call.
-    fmt.Printf("\n\n ------ Direct call Test ------ \n")
-    retVal, err := sampleCb(int64(10), int64(20))
-    fmt.Printf("simpleCb: %v\n", retVal)
-
-    _, err = sampleErrorCb()
-    if err == nil {
-        fmt.Printf("Expected err but not received\n")
-        return
-    }
-
-    retVal, err = sampleFunctionCb(int64(15), int64(25))
-    fmt.Printf("sampleFunctionCb:%v", retVal)
 
 
     fmt.Printf("\n\n ------ Register Function With TVM ------ \n")
@@ -120,7 +105,7 @@ func main() {
     fmt.Printf("\n\n ------ Convert Function With TVM ------ \n")
     // Simple convert to a packed function
     fhandle, err := gotvm.ConvertFunction(sampleErrorCb)
-    retVal, err = fhandle.Invoke()
+    _, err = fhandle.Invoke()
 
     if err == nil {
         fmt.Printf("Expected err but not received via packed function\n")
