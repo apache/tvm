@@ -79,10 +79,10 @@ def check_backend(backend):
     Parameters
     ----------
     backend: str
-        The name of package
+        The name of backend.
     """
     backend = _alias(backend)
-    assert backend in PACKAGE_VERSION, 'Cannot find packet "%s" in TopHub' % backend
+    assert backend in PACKAGE_VERSION, 'Cannot find backend "%s" in TopHub' % backend
 
     version = PACKAGE_VERSION[backend]
     package_name = "%s_%s.log" % (backend, version)
