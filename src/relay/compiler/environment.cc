@@ -187,10 +187,10 @@ Environment EnvironmentNode::make(
 //   this->shape_exts_.Insert(ext->name, ext);
 // }
 
-// TVM_REGISTER_API("relay._make.Environment")
-//     .set_body([](TVMArgs args, TVMRetValue *ret) {
-//       *ret = EnvironmentNode::make({});
-//     });
+TVM_REGISTER_API("relay._make.Environment")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = EnvironmentNode::make({});
+    });
 
 // TVM_REGISTER_API("relay._env.Environment_add")
 //     .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -282,11 +282,11 @@ Environment EnvironmentNode::make(
 //       *ret = env->get_defns();
 //     });
 
-// TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-//     .set_dispatch<EnvironmentNode>([](const EnvironmentNode *node,
-//                                       tvm::IRPrinter *p) {
-//       p->stream << "EnvironmentNode(todo)";  // << node->items << ")";
-//     });
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+    .set_dispatch<EnvironmentNode>([](const EnvironmentNode *node,
+                                      tvm::IRPrinter *p) {
+      p->stream << "EnvironmentNode(todo)";  // << node->items << ")";
+    });
 
 }  // namespace relay
 }  // namespace tvm

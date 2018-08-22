@@ -4,6 +4,9 @@ from . import ir
 # Base Constructors
 Span = _make.Span
 
+# Environment
+Environment = _make.Environment
+
 # Type Constructors
 TensorType  = _make.TensorType
 TypeParam = _make.TypeParam

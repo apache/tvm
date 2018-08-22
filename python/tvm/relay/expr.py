@@ -6,10 +6,12 @@ from enum import IntEnum
 from .base import Span, NodeBase, register_relay_node
 from .type import Type, TypeParam
 from tvm import expr
+from ._type_infer import _get_checked_type
 
 class Expr(NodeBase):
     """The base type for all Relay exprressions."""
-    pass
+    def checked_type(self):
+        return _get_checked_type(self)
 
 @register_relay_node
 class Constant(Expr):

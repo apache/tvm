@@ -2,7 +2,13 @@
    for expressions.
 """
 import tvm.relay.make as mk
+from tvm.relay.type_infer import check_expr
 from tvm.relay.ir_builder import IRBuilder, float_type
+
+def has_type(expr, typ):
+    env = mk.Environment({})
+    checked_expr = check_expr(env, expr)
+    return checked_expr.checked_type() == typ
 
 def test_monomorphic_let():
     b = IRBuilder()
@@ -11,7 +17,6 @@ def test_monomorphic_let():
     b.ret(x)
 
     prog = b.get()
-    e = check_expr(prog)
-    e.get_type()
+    assert has_type(prog, float_type())
 
 

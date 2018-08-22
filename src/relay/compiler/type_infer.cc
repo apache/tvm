@@ -625,12 +625,13 @@ namespace relay {
 //   }
 // }
 
-// Type check(const Environment &env, const Expr &e) {
-//   Typechecker tc(env);
-//   return tc.Check(e);
-// }
+Expr Infer(const Environment &env, const Expr &e) {
+   //Typechecker tc(env);
+   // return tc.Check(e);
+   return e;
+}
 
-// Item check(const Environment &env, const Item &i) {
+// Item Check(const Environment &env, const Item &i) {
 //   Typechecker tc(env);
 
 //   try {
@@ -728,7 +729,7 @@ TVM_REGISTER_API("relay._type_infer.check_expr")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Environment env = args[0];
       Expr e = args[1];
-      *ret = check(env, e);
+      *ret = Infer(env, e);
     });
 
 // TVM_REGISTER_API("relay._tyck.check_item")

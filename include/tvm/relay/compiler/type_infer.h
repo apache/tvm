@@ -19,8 +19,12 @@ namespace relay {
  * with unambigous type information filled in, as well as it's
  * checked type field populated with the result type.
  */
-Expr check(const Environment & env, const Expr & e);
-Operator check(const Environment & env, const Operator & op);
+Expr Infer(const Environment & env, const Expr & e);
+
+/*! \brief Ensures that an operator is well-formed with respect
+ * to Relay's type system.
+ */
+Operator CheckOperator(const Environment & env, const Operator & op);
 
 }  // namespace relay
 }  // namespace tvm
