@@ -86,10 +86,11 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
                          max_unroll=16,
                          cfg=cfg)
 
-        # mark parallel
+        # fusion
         if C.op not in s.outputs:
             s[C].compute_inline()
 
+        # mark parallel
         last = outs[0]
         n, c, h, w = s[last].op.axis
         s[last].parallel(c)
