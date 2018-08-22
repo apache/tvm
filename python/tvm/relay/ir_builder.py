@@ -64,11 +64,11 @@ class IRBuilder():
         return lv
 
 
-    def let(self, name, value):
+    def let(self, name, value, value_type=None):
         if not isinstance(value, expr.Expr):
             value = into_ast(value)
 
-        return self.bind(name, None, value)
+        return self.bind(name, value_type, value)
 
     def function(self, params):
         def _on_exit():

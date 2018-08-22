@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file typechecker.cc
- * \brief Relay typechecker
+ * \file type_infer.cc
+ * \brief Relay type inference and checking.
  */
 
-#include "tvm/relay/compiler/typechecker.h"
+#include "tvm/relay/compiler/type_infer.h"
 #include "./incomplete_type.h"
 // #include "tvm/relay/alpha_eq.h"
 // #include "tvm/relay/debug.h"
@@ -724,12 +724,12 @@ namespace relay {
 //   }
 // }
 
-// TVM_REGISTER_API("relay._tyck.check_expr")
-//     .set_body([](TVMArgs args, TVMRetValue *ret) {
-//       Environment env = args[0];
-//       Expr e = args[1];
-//       *ret = check(env, e);
-//     });
+TVM_REGISTER_API("relay._type_infer.check_expr")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      Expr e = args[1];
+      *ret = check(env, e);
+    });
 
 // TVM_REGISTER_API("relay._tyck.check_item")
 //     .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -738,11 +738,11 @@ namespace relay {
 //       *ret = check(env, i);
 //     });
 
-// TVM_REGISTER_API("relay._tyck.get_checked_type")
-//     .set_body([](TVMArgs args, TVMRetValue *ret) {
-//       Expr e = args[0];
-//       *ret = e->checked_type();
-//     });
+TVM_REGISTER_API("relay._type_infer._get_checked_type")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Expr e = args[0];
+      *ret = e->checked_type();
+    });
 
 // TVM_REGISTER_API("relay._tyck.generalize")
 //     .set_body([](TVMArgs args, TVMRetValue *ret) {

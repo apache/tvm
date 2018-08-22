@@ -1,8 +1,10 @@
 /*!
- *  Copyright (c) 2017 by Contributors
- * \file tvm/relay/typechecker.h
- * \brief Type check a Relay program producing a type checked program
- *  with its checked_type field populated and incomplete types resolved.
+ *  Copyright (c) 2018 by Contributors
+ * \file tvm/relay/type_infer.h
+ * \brief Perform type inference and checking on Relay programs.
+ *
+ *  The pass produces a new expression with its checked_type
+ *  field populated and incomplete types resolved.
  */
 #ifndef TVM_RELAY_COMPILER_TYPECHECKER_H_
 #define TVM_RELAY_COMPILER_TYPECHECKER_H_
