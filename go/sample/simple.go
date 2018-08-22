@@ -59,7 +59,7 @@ func main() {
     funp, _ := modp.GetFunction("myadd")
 
     // Call function
-    funp(inX, inY, out)
+    funp.Invoke(inX, inY, out)
 
     fmt.Printf("Module function myadd executed\n")
 

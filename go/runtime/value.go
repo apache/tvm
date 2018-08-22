@@ -303,7 +303,7 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
     return
 }
 
-// getFinalizedValue is used to get the given from Value container or union.
+// getValue is used to get the given from Value container or union.
 //
 // `tvmtype` is types accepted by Value container or native union.
 func (tvmval Value) getValue(tvmtype int32) (retVal interface{}, err error) {

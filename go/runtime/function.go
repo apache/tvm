@@ -73,7 +73,7 @@ func FuncListGlobalNames() (retVal []string, err error) {
 // The closure function can be used to call Function with arguments directly.
 //
 // Variadic arguments can be any type which can be embed into Value.
-func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*Value, error), err error) {
+func GetGlobalFunction(funcname string) (retVal *Function, err error) {
     var funp uintptr
 
     ret := (int32)(C._TVMFuncGetGlobal(*(*C._gostring_)(unsafe.Pointer(&funcname)),
@@ -94,11 +94,7 @@ func GetGlobalFunction(funcname string) (retVal func (args ...interface{}) (*Val
 
     runtime.SetFinalizer(handle, finalizer)
 
-    funccall := func (args ...interface{}) (*Value, error) {
-        return callNativeFunction(*handle, args)
-    }
-
-    retVal = funccall
+    retVal = handle
     return
 }
 
@@ -157,57 +153,6 @@ func callNativeFunction(handle Function, args []interface{}) (retVal *Value, err
         }
 
         return
-}
-
-// GetFunction returns the function pointer from the module for given function name.
-//
-// `tvmmodule` is handle for Module
-//
-// `funcname` function name in module.
-//
-// `args` variadic args of `queryImport`
-//
-// returns function closure with signature
-//         func (args ...interface{}) (interface{}, error) and error if any.
-//
-// The closure function can be used to call Function with arguments directly.
-// 
-// Variadic arguments can be any type which can be embed into Value.
-func (tvmmodule *Module) GetFunction (
-      funcname string, args ...interface{}) (
-      retVal func (args ...interface{}) (*Value, error), err error){
-    queryImports := int32(1)
-    if len(args) > 0 {
-        queryImports = int32(args[1].(int))
-    }
-
-    var funp uintptr
-
-    ret := (int32)(C._TVMModGetFunction(C.uintptr_t(*tvmmodule),
-                                        *(*C._gostring_)(unsafe.Pointer(&funcname)),
-                                        C.int(queryImports), C.native_voidp(&funp)))
-
-    if ret != 0 {
-        err = errors.New(getTVMLastError())
-        return
-    }
-
-    handle := new(Function)
-    *handle = Function(funp)
-
-    finalizer := func(fhandle *Function) {
-        nativeTVMFuncFree(*fhandle)
-        fhandle = nil
-    }
-
-    runtime.SetFinalizer(handle, finalizer)
-
-    funccall := func (args ...interface{}) (*Value, error) {
-        return callNativeFunction(*handle, args)
-    }
-
-    retVal = funccall
-    return
 }
 
 // nativeTVMFuncFree free the function handle allocated in TVM runtime.

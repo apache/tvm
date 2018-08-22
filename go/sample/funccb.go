@@ -107,7 +107,7 @@ func main() {
     //      New method Invoke can be used to call.
 
     // Call function
-    result, err := funp((int64)(10), (int64)(20))
+    result, err := funp.Invoke((int64)(10), (int64)(20))
     if err != nil {
         fmt.Print(err)
         return
@@ -143,7 +143,7 @@ func main() {
     }
 
     // Call function
-    result, err = funp()
+    result, err = funp.Invoke()
     if err != nil {
         fmt.Print(err)
         return

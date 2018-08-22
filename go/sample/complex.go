@@ -63,7 +63,7 @@ func main() {
     }
 
     // Call function
-    graphrt, err := funp(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
+    graphrt, err := funp.Invoke(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
     if err != nil {
         fmt.Print(err)
         return
@@ -110,7 +110,7 @@ func main() {
     fmt.Printf("Func load_params:%p\n", funp)
 
     // Call function
-    _, err = funp(paramsByteArray)
+    _, err = funp.Invoke(paramsByteArray)
     if err != nil {
         fmt.Print(err)
         return
@@ -136,7 +136,7 @@ func main() {
     }
 
     // Call function
-    _, err = funp("input", inX)
+    _, err = funp.Invoke("input", inX)
     if err != nil {
         fmt.Print(err)
         return
@@ -152,7 +152,7 @@ func main() {
     }
 
     // Call function
-    _, err = funp()
+    _, err = funp.Invoke()
     if err != nil {
         fmt.Print(err)
         return
@@ -168,7 +168,7 @@ func main() {
     }
 
     // Call function
-    _, err = funp(int64(0), out)
+    _, err = funp.Invoke(int64(0), out)
     if err != nil {
         fmt.Print(err)
         return

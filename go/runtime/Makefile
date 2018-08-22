@@ -27,8 +27,7 @@ all:
 	(cd $(GOPATHDIR) && go clean \
 	&& golint && go build -o $(TARGET).a \
 	&& go install \
-	&& python3 ../../../../sample/deploy.py \
-	&& go test -v)
+	&& python3 ../../../../sample/deploy.py)
 	@mkdir gopath/doc 2>/dev/null || true
 	@godoc -html -goroot gopath/ gotvm | grep -v "for documentation on the gotvm command" > gopath/doc/gotvm.html
 	@echo "Run 'godoc -http=:6060  -goroot=./gopath' for documentation"
