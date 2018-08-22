@@ -532,15 +532,15 @@ def from_keras(model):
                 # they are named uniquely to input_1, input_2, input_3 ... by default.
                 for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
                     if isinstance(pred, keras.engine.InputLayer):
-                        _sym = symtab.get_var(pred.name, must_contain=True)
+                        sym = symtab.get_var(pred.name, must_contain=True)
                     else:
-                        _sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
-                    insym.append(_sym)
+                        sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
+                    insym.append(sym)
 
                 if len(insym) == 1:
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
-    outsym = symtab.get_var(model._output_layers[0].name + ':0')
+    outsym = [symtab.get_var(layer.name + ':0') for layer in model._output_layers]
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
-    return outsym, tvmparams
+    return _sym.Group(outsym), tvmparams
