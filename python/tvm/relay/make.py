@@ -1,6 +1,12 @@
 from . import _make
 from . import ir
 
+This module includes MyPy type signatures for all of the
+exposed modules.
+"""
+from __future__ import absolute_import as _abs
+from .._ffi.function import _init_api
+
 # Base Constructors
 Span = _make.Span
 
