@@ -764,7 +764,7 @@ TVM_REGISTER_API("relay._make.IncompleteType")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<IncompleteTypeNode>([](const IncompleteTypeNode *node,
                                    tvm::IRPrinter *p) {
-      p->stream << "IncompleteTypeNode(" << node->kind << ", " << &node << ")";
+      p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
     });
 
 }  // namespace relay

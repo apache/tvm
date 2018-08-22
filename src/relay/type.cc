@@ -6,6 +6,7 @@
 #include "tvm/relay/type.h"
 #include "tvm/ir_functor.h"
 
+
 namespace tvm {
 namespace relay {
 
@@ -19,10 +20,47 @@ TensorType TensorTypeNode::make(Array<ShapeExpr> shape, DataType dtype) {
   return TensorType(n);
 }
 
+TensorType TensorTypeNode::Int(int bits, int lanes) {
+  return TensorTypeNode::make({}, HalideIR::Int(bits, lanes));
+}
+
+TensorType TensorTypeNode::UInt(int bits, int lanes) {
+  return TensorTypeNode::make({}, HalideIR::UInt(bits, lanes));
+}
+
+TensorType TensorTypeNode::Float(int bits, int lanes) {
+  return TensorTypeNode::make({}, HalideIR::Float(bits, lanes));
+}
+
+TensorType TensorTypeNode::Bool(int lanes) {
+  return TensorTypeNode::make({}, HalideIR::Bool(lanes));
+}
+
 TVM_REGISTER_API("relay._make.TensorType")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Array<ShapeExpr> shape = args[0];
       *ret = TensorTypeNode::make(shape, args[1]);
+    });
+
+
+TVM_REGISTER_API("relay._make.IntType")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = TensorTypeNode::Int(args[0], args[1]);
+    });
+
+TVM_REGISTER_API("relay._make.UIntType")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = TensorTypeNode::UInt(args[0], args[1]);
+    });
+
+TVM_REGISTER_API("relay._make.BoolType")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = TensorTypeNode::Bool(args[0]);
+    });
+
+TVM_REGISTER_API("relay._make.FloatType")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = TensorTypeNode::Float(args[0], args[1]);
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

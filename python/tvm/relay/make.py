@@ -1,4 +1,5 @@
 from . import _make
+from . import ir
 
 # Base Constructors
 Span = _make.Span
@@ -7,6 +8,43 @@ Span = _make.Span
 TensorType  = _make.TensorType
 TypeParam = _make.TypeParam
 FuncType    = _make.FuncType
+
+# Types
+def IntType(bits: int, lanes: int=1) -> ir.Type:
+    """Constructs a integer base type.
+
+       :param bits: The bit width of the integer type.
+       :param lanes: The number of vector elements for this datatype.
+
+    """
+    return _make.IntType(bits, lanes)
+
+
+def UIntType(bits: int, lanes: int=1) -> ir.Type:
+    """Constructs a unsigned integer base type.
+
+       :param bits: The bit width of the unsigned type.
+       :param lanes: The number of vector elements for this datatype.
+    """
+    return _make.UIntType(bits, lanes)
+
+
+def FloatType(bits: int, lanes: int=1) -> ir.Type:
+    """Constructs a floating point base type.
+
+       :param bits: The bit width of the unsigned type.
+       :param lanes: The number of vector elements for this datatype.
+    """
+    return _make.FloatType(bits, lanes)
+
+
+def BoolType(lanes: int =1) -> ir.Type:
+    """Constructs a boolean base type.
+
+       :param bits: The bit width of the unsigned type.
+       :param lanes: The number of vector elements for this datatype.
+    """
+    return _make.BoolType(lanes)
 
 # Expr Constructors
 Constant = _make.Constant
@@ -23,3 +61,6 @@ IncompleteType = _make.IncompleteType
 # Unifier
 UnionFind = _make.UnionFind
 TypeUnifier = _make.TypeUnifier
+
+# Utility Functionality @TODO(jroesch): move to another location
+_type_alpha_eq = _make._type_alpha_eq

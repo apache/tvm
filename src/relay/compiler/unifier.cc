@@ -9,8 +9,8 @@
 #include "tvm/relay/compiler/alpha_eq.h"
 #include "./unifier.h"
 #include "./type_visitor.h"
+#include "./type_subst.h"
 // #include "tvm/relay/typeck/kindchecker.h"
-// #include "tvm/relay/typeck/type_subst.h"
 
 namespace tvm {
 namespace relay {
@@ -60,8 +60,6 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
     if (const IncompleteTypeNode *pvn1 = parent1.as<IncompleteTypeNode>()) {
       auto pv1 = GetRef<IncompleteType>(pvn1);
       this->uf_map.Set(pv1, parent2);
-      // path compression: can also set v1 directly
-      this->uf_map.Set(v1, parent2);
       return;
     }
 
@@ -69,8 +67,6 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
     if (const IncompleteTypeNode *pvn2 = parent2.as<IncompleteTypeNode>()) {
       auto pv2 = GetRef<IncompleteType>(pvn2);
       this->uf_map.Set(pv2, parent1);
-      // path compression: can also set v2 directly
-      this->uf_map.Set(v2, parent1);
       return;
     }
 
@@ -84,8 +80,6 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
   if (const IncompleteTypeNode *pvn1 = parent1.as<IncompleteTypeNode>()) {
     auto pv1 = GetRef<IncompleteType>(pvn1);
     this->uf_map.Set(pv1, t);
-    // path compression: can also set v1 directly
-    this->uf_map.Set(v1, t);
     return;
   }
 
@@ -181,6 +175,24 @@ Type TypeUnifierNode::subst(const Type &t) {
   return ret;
 }
 
+Type TypeUnifierNode::VisitType(const Type & t1, const Type t2) {
+  // When the right hand size is a type variable immediately unify.
+  if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
+    return this->unifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
+  } else {
+    return TypeFunctor<Type(const Type & t1, const Type t2)>::VisitType(t1, t2);
+  }
+}
+
+Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1, const IncompleteType tv2) {
+  RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2 << std::endl;
+  // Fix unify to return new representative
+  this->uf->unify(tv2, t1);
+  auto rep = this->uf->find(tv2);
+  RELAY_LOG(INFO) << "unifyWithIncompleteType: rep =" << rep << std::endl;
+  return rep;
+}
+
 Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
   IncompleteType tv1 = GetRef<IncompleteType>(t1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode t1=" << t1 << " = " << rt2
@@ -193,11 +205,6 @@ Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
 
 Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
   TypeParam ti1 = GetRef<TypeParam>(t1);
-
-  // for typevars, remap and attempt to unify if already defined
-  if (const IncompleteTypeNode *tvn2 = rt2.as<IncompleteTypeNode>()) {
-    return this->unifyWithIncompleteType(ti1, GetRef<IncompleteType>(tvn2));
-  }
 
   // for other type ids, only check equality
   if (const TypeParamNode *tin2 = rt2.as<TypeParamNode>()) {
@@ -215,74 +222,54 @@ Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
 }
 
 Type TypeUnifierNode::VisitType_(const FuncTypeNode *t1, const Type rt2) {
-    return rt2;
-//   TypeArrow ta1 = GetRef<TypeArrow>(t1);
+  FuncType ft1 = GetRef<FuncType>(t1);
 
-//   // for typevar, remap if necessary
-//   if (const IncompleteTypeNode *tvn2 = rt2.as<IncompleteTypeNode>()) {
-//     return this->unifyWithIncompleteType(ta1, GetRef<IncompleteType>(tvn2));
-//   }
+  if (const FuncTypeNode *tan2 = rt2.as<FuncTypeNode>()) {
+    FuncType ft2 = GetRef<FuncType>(tan2);
 
-//   // for other arrow, unify arg and ret types
-//   if (const TypeArrowNode *tan2 = rt2.as<TypeArrowNode>()) {
-//     TypeArrow ta2 = GetRef<TypeArrow>(tan2);
+    if (ft1->type_params.size() != ft2->type_params.size()) {
+      throw UnificationError("unable to unify functions with differing number of type parameters");
+    }
 
-//     if (ta1->arg_types.size() != ta2->arg_types.size()) {
-//       throw UnificationError("unable to unify functions of different arities");
-//     }
+    if (ft1->type_params.size() != 0) {
+      throw dmlc::Error("NYI");
+    }
 
-//     tvm::Array<Type> unified_args;
-//     for (size_t i = 0; i < ta1->arg_types.size(); i++) {
-//       unified_args.push_back(
-//           this->VisitType(ta1->arg_types[i], ta2->arg_types[i]));
-//     }
+    // TypeParam id1 = tq1->id;
+    // TypeParam id2 = tq2->id;
 
-//     Type unified_ret_type = this->VisitType(ta1->ret_type, ta2->ret_type);
-//     return TypeArrowNode::make(unified_args, unified_ret_type);
-//   }
+    // if (id1->kind != id2->kind) {
+    //   throw UnificationError(
+    //       "Cannot unify quantifiers over ids of different kinds");
+    // }
 
-//   throw UnificationError("Unable to unify TypeArrowNode");
-// }
+    // TypeParam fresh = TypeParamNode::make(id1->name, id1->kind);
 
-// Type TypeUnifierNode::VisitType_(const TypeQuantifierNode *t1, const Type rt2) {
-//   TypeQuantifier tq1 = GetRef<TypeQuantifier>(t1);
+    // auto bt1 = type_subst(tq1->boundType, id1, fresh);
+    // auto bt2 = type_subst(tq2->boundType, id2, fresh);
 
-//   // for typevars, remap and attempt to unify if already defined
-//   if (const IncompleteTypeNode *tvn2 = rt2.as<IncompleteTypeNode>()) {
-//     return this->unifyWithIncompleteType(tq1, GetRef<IncompleteType>(tvn2));
-//   }
+    // Type unified_bound_type = this->VisitType(bt1, bt2);
 
-//   // for other quantifiers, attempt to unify bound types after normalizing
-//   if (const TypeQuantifierNode *tqn2 = rt2.as<TypeQuantifierNode>()) {
-//     TypeQuantifier tq2 = GetRef<TypeQuantifier>(tqn2);
-//     TypeParam id1 = tq1->id;
-//     TypeParam id2 = tq2->id;
+    if (ft1->arg_types.size() != ft2->arg_types.size()) {
+      throw UnificationError("unable to unify functions of different arities");
+    }
 
-//     if (id1->kind != id2->kind) {
-//       throw UnificationError(
-//           "Cannot unify quantifiers over ids of different kinds");
-//     }
+    tvm::Array<Type> unified_args;
+    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+      unified_args.push_back(
+          this->VisitType(ft1->arg_types[i], ft2->arg_types[i]));
+    }
 
-//     TypeParam fresh = TypeParamNode::make(id1->name, id1->kind);
+    Type unified_ret_type = this->VisitType(ft1->ret_type, ft2->ret_type);
 
-//     auto bt1 = type_subst(tq1->boundType, id1, fresh);
-//     auto bt2 = type_subst(tq2->boundType, id2, fresh);
+    return FuncTypeNode::make(unified_args, unified_ret_type, {}, {});
+  }
 
-//     Type unified_bound_type = this->VisitType(bt1, bt2);
-//     return TypeQuantifierNode::make(fresh, unified_bound_type);
-//   }
-
-//   // anything else cannot be unified
-//   throw UnificationError("Cannot unify TypeQuantifierNode");
+  throw UnificationError("unable to unify function types");
 }
 
 Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
   TensorType tt1 = GetRef<TensorType>(t1);
-
-  // for typevars, remap and attempt to unify if already defined
-  if (const IncompleteTypeNode *tvn2 = rt2.as<IncompleteTypeNode>()) {
-    return this->unifyWithIncompleteType(tt1, GetRef<IncompleteType>(tvn2));
-  }
 
   if (const TensorTypeNode *ttn2 = rt2.as<TensorTypeNode>()) {
     TensorType tt2 = GetRef<TensorType>(ttn2);
@@ -360,10 +347,6 @@ Type TypeUnifierNode::VisitType_(const TypeFunctionNode *sen1, const Type t2) {
 Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
   TypeCall ty_call1 = GetRef<TypeCall>(tcn1);
 
-  if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
-    return this->unifyWithIncompleteType(ty_call1, GetRef<IncompleteType>(tvn2));
-  }
-
   if (const TypeCallNode *tcn2 = t2.as<TypeCallNode>()) {
     Type unified_func = this->VisitType(ty_call1->func, tcn2->func);
 
@@ -385,14 +368,7 @@ Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
   }
 }
 
-Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1, const IncompleteType tv2) {
-  RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2 << std::endl;
-  // Fix unify to return new representative
-  this->uf->unify(tv2, t1);
-  auto rep = this->uf->find(tv2);
-  RELAY_LOG(INFO) << "unifyWithIncompleteType: rep =" << rep << std::endl;
-  return rep;
-}
+
 
 TVM_REGISTER_API("relay._make.TypeUnifier")
     .set_body([](TVMArgs args, TVMRetValue *ret) {

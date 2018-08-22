@@ -33,14 +33,14 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-//   void VisitType_(const TypeVarNode *bt1, const Type &t2) override {
-//     if (const TypeVarNode *bt2 = t2.as<TypeVarNode>()) {
-//       equal = equal && bt1 == bt2;
-//       return;
-//     } else {
-//       equal = false;
-//     }
-//   }
+  void VisitType_(const IncompleteTypeNode *bt1, const Type &t2) override {
+    if (const IncompleteTypeNode *bt2 = t2.as<IncompleteTypeNode>()) {
+      equal = equal && bt1 == bt2;
+      return;
+    } else {
+      equal = false;
+    }
+  }
 
   void VisitType_(const TypeParamNode *ti1, const Type &t2) override {
     if (const TypeParamNode *ti2 = t2.as<TypeParamNode>()) {

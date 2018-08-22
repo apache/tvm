@@ -7,13 +7,13 @@
 #ifndef TVM_RELAY_EXPR_VISITOR_H_
 #define TVM_RELAY_EXPR_VISITOR_H_
 
-#include "expr_functor.h"
+#include "tvm/relay/expr_functor.h"
 
 namespace tvm {
 namespace relay {
 
 template <typename... Args>
-class ExprVisitor : public ExprFunctor<void(const Expr& n, Args...)> {
+class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n, Args...)> {
  public:
   void VisitExpr_(const LocalVarNode* op, Args... args) override { return; }
 
@@ -62,7 +62,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr& n, Args...)> {
 };
 
 template <typename... Args>
-class ExprFVisitor : public ExprFunctor<Expr(const Expr& n, Args...)> {
+class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args...)> {
  public:
   Expr VisitExpr_(const LocalVarNode* op, Args... args) override {
     return GetRef<LocalVar>(op);

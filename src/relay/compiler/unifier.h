@@ -101,7 +101,7 @@ class TypeUnifierNode : public Node,
  private:
   // unify non-typevar with typevar
   Type unifyWithIncompleteType(const Type& t1, const IncompleteType tvn2);
-
+  Type VisitType(const Type & t1, const Type t2) override;
   Type VisitType_(const IncompleteTypeNode* t1, const Type t2) override;
   Type VisitType_(const TensorTypeNode* t1, const Type t2) override;
   Type VisitType_(const TypeParamNode* t1, const Type t2) override;

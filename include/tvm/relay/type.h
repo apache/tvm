@@ -83,6 +83,18 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
   TVM_DLL static TensorType make(Array<ShapeExpr> shape, DataType dtype);
 
+  /*! \brief Constructing an unsigned integer type */
+  TVM_DLL static TensorType Int(int bits, int lanes = 1);
+
+  /*! \brief Constructing an unsigned integer type */
+  TVM_DLL static TensorType UInt(int bits, int lanes = 1);
+
+  /*! \brief Construct a floating-point type */
+  TVM_DLL static TensorType Float(int bits, int lanes = 1);
+
+  /*1 \brief Construct a boolean type */
+  TVM_DLL static TensorType Bool(int lanes = 1);
+
   static constexpr const char* _type_key = "relay.TensorType";
   TVM_DECLARE_NODE_TYPE_INFO(TensorTypeNode, BaseTensorTypeNode);
 };

@@ -18,35 +18,34 @@ namespace relay {
  * We recursively visit each type contained inside the visitor.
  */
 template <typename... Args>
-struct TypeVisitor : TypeFunctor<void(const Type& n, Args...)> {
-  // void VisitType_(const TypeVarNode* op, Args... args) override {}
+struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
   void VisitType_(const TypeParamNode* op, Args... args) override {}
 
   void VisitType_(const FuncTypeNode* op, Args... args) override {
-    // this->VisitType(op->id, args...);
+    // fix me handle poly
+    // this->VisitType(op->var, args...);
     // this->VisitType(op->boundType, args...);
-    // for (auto arg_type : op->arg_types) {
-    //   this->VisitType(arg_type, args...);
-    // }
-    // this->VisitType(op->ret_type, args...);
+    for (auto arg_type : op->arg_types) {
+      this->VisitType(arg_type, args...);
+    }
+    this->VisitType(op->ret_type, args...);
   }
 
-  void VisitType_(const TensorTypeNode* op, Args... args) override {
-    // this->VisitType(op->dtype, args...);
-    // this->VisitType(op->shape, args...);
+  void VisitType_(const TensorTypeNode* op, Args... args) override {}
+
+  //   void VisitType_(const TupleTypeNode* op, Args... args) override {
+  //     for (const Type& t : op->fields) {
+  //       this->VisitType(t, args...);
+  //     }
+  //   }
+
+  void VisitType_(const TypeCallNode* op, Args... args) override {
+    this->VisitType(op->func, args...);
+
+    for (const Type& t : op->args) {
+      this->VisitType(t, args...);
+    }
   }
-
-//   void VisitType_(const TupleTypeNode* op, Args... args) override {
-//     for (const Type& t : op->fields) {
-//       this->VisitType(t, args...);
-//     }
-//   }
-
-//   void VisitType_(const TypeCallNode* op, Args... args) override {
-//     for (const Type& t : op->args) {
-//       this->VisitType(t, args...);
-//     }
-//   }
 
   void VisitType_(const TypeFunctionNode* op, Args... args) override {}
   void VisitType_(const IncompleteTypeNode* op, Args... args) override {}
@@ -60,48 +59,46 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
   }
 
   Type VisitType_(const TypeParamNode* op) override {
-      return GetRef<TypeParam>(op);
+    return GetRef<TypeParam>(op);
   }
 
-//   Type VisitType_(const TypeArrowNode* op) override {
-//     std::vector<Type> args;
-//     for (auto arg_type : op->arg_types) {
-//       args.push_back(VisitType(arg_type));
-//     }
-//     return TypeArrowNode::make(tvm::Array<Type>(args), VisitType(op->ret_type));
-//   }
+  Type VisitType_(const FuncTypeNode* op) override {
+    // auto new_id = this->VisitType(op->var);
+    // if (const TypeParamNode* tin = new_id.as<TypeParamNode>()) {
+    // return TypeQuantifierNode::make(GetRef<TypeParam>(tin),
+    //                                this->VisitType(op->boundType));
 
-//   Type VisitType_(const TypeQuantifierNode* op) override {
-//     auto new_id = this->VisitType(op->id);
-//     if (const TypeParamNode* tin = new_id.as<TypeParamNode>()) {
-//       return TypeQuantifierNode::make(GetRef<TypeParam>(tin),
-//                                       this->VisitType(op->boundType));
-//     } else {
-//       throw dmlc::Error("Cannot quantify something that is not a type ID");
-//     }
-//   }
+      std::vector<Type> args;
+      for (auto arg_type : op->arg_types) {
+        args.push_back(VisitType(arg_type));
+      }
 
-//   Type VisitType_(const TupleTypeNode* op) override {
-//     std::vector<Type> new_fields;
-//     for (const Type& t : op->fields) {
-//       new_fields.push_back(this->VisitType(t));
-//     }
-//     return TupleTypeNode::make(new_fields);
-//   }
-
-//   Type VisitType_(const TypeCallNode* op) override {
-//     auto func = this->VisitType(op->func);
-//     std::vector<Type> new_args;
-//     for (const Type& t : op->args) {
-//       new_args.push_back(this->VisitType(t));
-//     }
-//     return TypeCallNode::make(func, new_args);
-//   }
-    Type VisitType_(const IncompleteTypeNode* op) override {
-        return GetRef<IncompleteType>(op);
+      return FuncTypeNode::make(tvm::Array<Type>(args),
+                                 VisitType(op->ret_type), {}, {}); // fix me
     }
-};
+
+    //   Type VisitType_(const TupleTypeNode* op) override {
+    //     std::vector<Type> new_fields;
+    //     for (const Type& t : op->fields) {
+    //       new_fields.push_back(this->VisitType(t));
+    //     }
+    //     return TupleTypeNode::make(new_fields);
+    //   }
+
+    Type VisitType_(const TypeCallNode* op) override {
+      auto func = this->VisitType(op->func);
+      std::vector<Type> new_args;
+      for (const Type& t : op->args) {
+        new_args.push_back(this->VisitType(t));
+      }
+      return TypeCallNode::make(func, new_args);
+    }
+
+    Type VisitType_(const IncompleteTypeNode* op) override {
+      return GetRef<IncompleteType>(op);
+    }
+  };
 
 }  // namespace relay
-}  // namespace tvm
+}  // namespace relay
 #endif  // TVM_RELAY_TYPE_VISITOR_H_
