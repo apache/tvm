@@ -25,7 +25,7 @@ void DictAttrsNode::InitByPackedArgs(
   }
 }
 
-std::vector<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
+Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
   return {};
 }
 
