@@ -269,14 +269,12 @@ def _convert_pooling(insym, keras_layer, symtab):
                   'padding': [0, 0]}
         if keras_layer.padding == 'valid':
             pass
-        # we insert a separate pad operator
         elif keras_layer.padding == 'same':
             in_h = keras_layer.input_shape[1]
             in_w = keras_layer.input_shape[2]
             pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
             pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            insym = _sym.pad(data=insym, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
         else:
             raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
         if pool_type == 'MaxPooling2D':
