@@ -462,7 +462,7 @@ inline Tensor prod(const Tensor& data, Array<Expr> axis, bool keepdims = false) 
 */
 inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
   Expr count = make_one(data->dtype);
-  for (auto &i: axis) {
+  for (auto &i : axis) {
     count *= data->shape[topi::detail::GetConstInt(i)];
   }
   return topi::divide(sum(data, axis, keepdims), count);
