@@ -105,7 +105,9 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
 
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
+
     if (inode.source->is_variable()) continue;
+    if (inode.source->op()->name == "_tensorrt_subgraph_op") continue;
     int root_id = group_vec[nid];
     if (static_cast<int>(nid) != root_id) continue;
     int master = master_vec[root_id];
@@ -159,39 +161,60 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       old_new[nid] = np;
       continue;
     }
+
     int root_id = group_vec[nid];
     if (static_cast<int>(nid) != root_id) continue;
 
-    // Handle normal op
-    FuseEntry& fe = fuse_entries[root_id];
-    const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     nnvm::NodePtr np = nnvm::Node::Create();
-    np->attrs.op = tvm_op;
-    np->attrs.name = inode.source->attrs.name;
-    np->attrs.device_type = inode.source->attrs.device_type;
-    TVMOpParam param;
-    if (inode.source->attrs.name.rfind("__copy", 0) == 0) {
-      param.func_name = "__copy";
+    if (inode.source->op()->name == "_tensorrt_subgraph_op") {
+      // create a copy of the current node for the new graph with fused operators
+      np->attrs.op = inode.source->op();
+      np->attrs.name = inode.source->attrs.name;
+      np->attrs.subgraphs = inode.source->attrs.subgraphs;
+      TVMOpParam param;
+      param.func_name = "_tensorrt_forward";
+      param.num_inputs = inode.source->op()->get_num_inputs(inode.source->attrs);
+      param.num_outputs = inode.source->op()->get_num_outputs(inode.source->attrs);
+      param.flatten_data = 0U;
+      param.UpdateDict(&(np->attrs.dict));
+      np->attrs.parsed = std::move(param);
+      for (auto& e : inode.source->inputs) {
+        const auto in_nid = idx.node_id(e.node.get());
+        auto it = old_new.find(in_nid);
+        CHECK(it != old_new.end()) << "cannot find node_id=" << in_nid;
+        np->inputs.emplace_back(nnvm::NodeEntry{it->second, e.index, e.version});
+      }
     } else {
-      param.func_name = fe.compiled_func->func_name;
-    }
-    param.num_inputs = static_cast<uint32_t>(fe.imap.size());
-    param.num_outputs = static_cast<uint32_t>(fe.subgraph.outputs.size());
-    param.flatten_data = fe.flatten_data;
-    param.UpdateDict(&(np->attrs.dict));
-    np->attrs.parsed = std::move(param);
+      // Handle normal op
+      FuseEntry &fe = fuse_entries[root_id];
+      const IndexedGraph &subidx = fe.subgraph.indexed_graph();
+      np->attrs.op = tvm_op;
+      np->attrs.name = inode.source->attrs.name;
+      np->attrs.device_type = inode.source->attrs.device_type;
+      TVMOpParam param;
+      if (inode.source->attrs.name.rfind("__copy", 0) == 0) {
+        param.func_name = "__copy";
+      } else {
+        param.func_name = fe.compiled_func->func_name;
+      }
+      param.num_inputs = static_cast<uint32_t>(fe.imap.size());
+      param.num_outputs = static_cast<uint32_t>(fe.subgraph.outputs.size());
+      param.flatten_data = fe.flatten_data;
+      param.UpdateDict(&(np->attrs.dict));
+      np->attrs.parsed = std::move(param);
 
-    for (uint32_t sub_input_id : subidx.input_nodes()) {
-      // Need to make sure subgraph input order is consistent to the order of
-      // the graph input.
-      auto rit = fe.reverse_imap.find(subidx[sub_input_id].source);
-      CHECK(rit != fe.reverse_imap.end());
-      const IndexedGraph::NodeEntry& e = rit->second;
-      auto it = old_new.find(e.node_id);
-      CHECK(it != old_new.end())
-          << "cannot find node_id=" << e.node_id;
-      np->inputs.emplace_back(
-          nnvm::NodeEntry{it->second, e.index, e.version});
+      for (uint32_t sub_input_id : subidx.input_nodes()) {
+        // Need to make sure subgraph input order is consistent to the order of
+        // the graph input.
+        auto rit = fe.reverse_imap.find(subidx[sub_input_id].source);
+        CHECK(rit != fe.reverse_imap.end());
+        const IndexedGraph::NodeEntry& e = rit->second;
+        auto it = old_new.find(e.node_id);
+        CHECK(it != old_new.end())
+            << "cannot find node_id=" << e.node_id;
+        np->inputs.emplace_back(
+            nnvm::NodeEntry{it->second, e.index, e.version});
+      }
     }
     for (const uint32_t node_id : inode.control_deps) {
       auto it = old_new.find(node_id);
@@ -200,7 +223,6 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     }
     old_new[nid] = np;
   }
-
   nnvm::Graph ret;
   for (const auto& e : idx.outputs()) {
     auto it = old_new.find(group_vec[e.node_id]);
@@ -265,27 +287,28 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   ret.attrs["dtype"] = std::make_shared<any>(std::move(new_dtype_vec));
   ret.attrs["dltype"] = std::make_shared<any>(std::move(new_dltype_vec));
 
-  // Setup device assignment for heterogeneous execution.
-  if (tar_func_map.size() > 1) {
-    DeviceVector device_vec(new_idx.num_node_entries(), 0);
-    for (size_t i = 0; i < new_idx.num_nodes(); i++) {
-      device_vec[new_idx.entry_id(i, 0)] = new_idx[i].source->attrs.device_type;
-    }
-    for (uint32_t nid = 0; nid < new_idx.num_nodes(); nid++) {
-      const auto& inode = new_idx[nid];
-      for (const auto& e : inode.inputs) {
-        device_vec[new_idx.entry_id(e)] =
-            new_idx[e.node_id].source->attrs.device_type;
+  tvm::runtime::Module module;
+  if (tar_func_map.size() >= 1) {
+    // Setup device assignment for heterogeneous execution.
+    if (tar_func_map.size() > 1) {
+      DeviceVector device_vec(new_idx.num_node_entries(), 0);
+      for (size_t i = 0; i < new_idx.num_nodes(); i++) {
+        device_vec[new_idx.entry_id(i, 0)] = new_idx[i].source->attrs.device_type;
       }
+      for (uint32_t nid = 0; nid < new_idx.num_nodes(); nid++) {
+        const auto& inode = new_idx[nid];
+        for (const auto& e : inode.inputs) {
+          device_vec[new_idx.entry_id(e)] =
+              new_idx[e.node_id].source->attrs.device_type;
+        }
+      }
+      ret.attrs["device_index"] = std::make_shared<any>(std::move(device_vec));
     }
-    ret.attrs["device_index"] = std::make_shared<any>(std::move(device_vec));
+    // Setup module.
+    static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_module");
+    module = fbuild(tvm::Map<std::string, Array<tvm::LoweredFunc>>(
+          tar_func_map.begin(), tar_func_map.end()), target_host);
   }
-  // Setup module.
-  static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_module");
-  tvm::runtime::Module module =
-      fbuild(tvm::Map<std::string, Array<tvm::LoweredFunc>>(
-                 tar_func_map.begin(), tar_func_map.end()),
-             target_host);
   ret.attrs["module"] = std::make_shared<any>(std::move(module));
   ret = nnvm::ApplyPass(ret, "PlanMemory");
   ret = DecorateMemoryPlan(ret, assign_flag);

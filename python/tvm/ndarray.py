@@ -198,4 +198,12 @@ def array(arr, ctx=cpu(0)):
         arr = _np.array(arr)
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 
+
+from ._ffi.function import register_func
+@register_func("tvm.nd.random_uniform")
+def random_uniform(size, dtype, target):
+    size = [int(x) for x in size.split()]
+    return array(_np.random.uniform(size=size).astype(dtype), context(target))
+
+
 _set_class_ndarray(NDArray)

@@ -243,9 +243,20 @@ void GraphRuntime::SetupOpExecs() {
       uint32_t eid = this->entry_id(nid, index);
       args.push_back(*(data_entry_[eid].operator->()));
     }
-    CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
-
-    op_execs_[nid] = CreateTVMOp(inode.param, args, inode.inputs.size());
+    if (inode.op_type == "tvm_op") {
+      op_execs_[nid] = CreateTVMOp(inode.param, args, inode.inputs.size());
+    } else if (inode.op_type == "_tensorrt_subgraph_op") {
+#ifdef TVM_GRAPH_RUNTIME_TENSORRT
+      CHECK_EQ(inode.subgraphs.size(), 1U) << "Only supports one subgraph per node";
+      CHECK_EQ(inode.subgraphs[0].arg_nodes.size(), inode.inputs.size());
+      op_execs_[nid] = tensorrt_exec_manager_.CreateExec(
+          inode.name, inode.subgraphs[0], args);
+#else
+      LOG(FATAL) << "TensorRT NOT enabled for operator " << inode.op_type;
+#endif  // TVM_GRAPH_RUNTIME_TENSORRT
+    } else {
+      LOG(FATAL) << "Unknown op type " << inode.op_type << " in graph runtime";
+    }
   }
 }
 
@@ -291,6 +302,8 @@ std::function<void()> GraphRuntime::CreateTVMOp(
     };
     return fexec;
   }
+  CHECK(!module_.IsEmpty())
+    << "Module cannot be empty in order to get functions from the lib";
 
   // Get compiled function from the module that contains both host and device
   // code.

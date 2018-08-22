@@ -63,6 +63,14 @@ class Module {
    */
   TVM_DLL static Module LoadFromFile(const std::string& file_name,
                                      const std::string& format = "");
+  /*!
+   * \brief Return whether the Module::node_ is a nullptr.
+   * This is necessary to check after compiling a model using TVM with
+   * an external accelerator, e.g. TensorRT. When all the operators are
+   * supported in TensorRT, there is no code generation for any operators
+   * in the network and thus, the Module is empty.
+   */
+  TVM_DLL bool IsEmpty() const;
 
  private:
   std::shared_ptr<ModuleNode> node_;

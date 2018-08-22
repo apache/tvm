@@ -65,6 +65,10 @@ Module Module::LoadFromFile(const std::string& file_name,
 #endif
 }
 
+bool Module::IsEmpty() const {
+  return node_.get() == nullptr;
+}
+
 void ModuleNode::SaveToFile(const std::string& file_name,
                             const std::string& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support SaveToFile";
@@ -171,5 +175,17 @@ TVM_REGISTER_GLOBAL("module._SaveToFile")
     args[0].operator Module()->
         SaveToFile(args[1], args[2]);
     });
+
+TVM_REGISTER_GLOBAL("module._IsEmpty")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = args[0].operator Module().IsEmpty();
+    });
+
+TVM_REGISTER_GLOBAL("module._CreateEmptyModule")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Module m;
+    *ret = m;
+    });
+
 }  // namespace runtime
 }  // namespace tvm

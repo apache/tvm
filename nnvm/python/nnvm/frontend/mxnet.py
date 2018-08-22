@@ -244,17 +244,17 @@ def _elemwise_sum(inputs, _):
 
 def _crop_like(inputs, attrs):
     new_attrs = {}
-    offsets = \
-        tuple([float(x.strip()) for x in attrs.get('offsets').strip('()').split(',')]) \
-            if attrs.get('offsets') is not None else (0, 0)
-    if offsets != (0, 0):
-        raise RuntimeError("Currently only supports offsets to be zero.")
+    offset = tuple([int(x.strip()) for x in attrs.get('offset').strip('()').split(',')])\
+        if attrs.get('offset') is not None else (0, 0)
+    if len(offset) != 2:
+        raise RuntimeError("offset must be a tuple of two integers, while provided %s" % offset)
     center_crop = _parse_bool_str(attrs, 'center_crop', default="False")
     if center_crop:
         raise RuntimeError("center crop is not supported.")
     if len(inputs) < 2:
         raise RuntimeError("Only support crop_like pattern.")
     new_attrs["axis"] = [2, 3]
+    new_attrs["offset"] = offset
     return _get_nnvm_op('slice_like')(inputs[0], inputs[1], **new_attrs)
 
 
@@ -272,6 +272,19 @@ def _lrn(inputs, attrs):
     new_attrs['axis'] = 1
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
+def _symbol_ring_buffer(inputs, attrs):
+  output = _get_nnvm_op('ring_buffer')(*inputs, **attrs)
+  return _sym._assign(inputs[1], output)
+
+
+def _copy(inputs, _):
+    return _get_nnvm_op('copy')(inputs[0], **{})
+
+
+def _argmax(inputs, attrs):
+    return _get_nnvm_op('argmax')(*inputs, **attrs)
+
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -324,7 +337,10 @@ _convert_map = {
     'UpSampling'    : _upsampling,
     'clip'          : _clip,
     'expand_dims'   : _expand_dims,
-    'LRN'           : _lrn
+    'LRN'           : _lrn,
+    'ring_buffer'   : _symbol_ring_buffer,
+    'LinearRegressionOutput' : _copy,
+    'argmax'                 : _argmax
 }
 
 def _convert_symbol(op_name, inputs, attrs,

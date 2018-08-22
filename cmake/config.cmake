@@ -29,7 +29,7 @@
 # - ON: enable CUDA with cmake's auto search
 # - OFF: disbale CUDA
 # - /path/to/cuda: use specific path to cuda toolkit
-set(USE_CUDA OFF)
+set(USE_CUDA ON)
 
 # Whether enable ROCM runtime
 #
@@ -112,10 +112,10 @@ set(USE_RANDOM OFF)
 set(USE_NNPACK OFF)
 
 # Whether use CuDNN
-set(USE_CUDNN OFF)
+set(USE_CUDNN ON)
 
 # Whether use cuBLAS
-set(USE_CUBLAS OFF)
+set(USE_CUBLAS ON)
 
 # Whether use MIOpen
 set(USE_MIOPEN OFF)
@@ -128,3 +128,7 @@ set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
 set(USE_SORT OFF)
+
+# Whether use TensorRT
+# /path/to/tensorrt that contains include and lib dirs
+set(USE_TENSORRT OFF)

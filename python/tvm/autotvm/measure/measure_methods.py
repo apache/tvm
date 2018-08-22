@@ -460,7 +460,9 @@ def run_through_rpc(measure_input, build_result,
         if ref_input:
             args = [nd.array(x, ctx=ctx) for x in ref_input]
         else:
-            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
+            random_uniform = remote.get_function('tvm.nd.random_uniform')
+            args = [random_uniform(" ".join([str(d) for d in x[0]]), x[1], str(measure_input.target))
+                    for x in build_result.arg_info]
 
         costs = time_f(*args).results
         if len(costs) > 2:  # remove largest and smallest value to reduce variance

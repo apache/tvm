@@ -56,7 +56,7 @@ macro(find_cuda use_cuda)
     else(MSVC)
       find_library(_CUDA_CUDA_LIBRARY cuda
         PATHS ${CUDA_TOOLKIT_ROOT_DIR}
-        PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs
+        PATH_SUFFIXES lib lib64 targets/x86_64-linux/lib targets/x86_64-linux/lib/stubs lib64/stubs lib/stubs
         NO_DEFAULT_PATH)
       if(_CUDA_CUDA_LIBRARY)
         set(CUDA_CUDA_LIBRARY ${_CUDA_CUDA_LIBRARY})

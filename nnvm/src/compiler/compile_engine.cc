@@ -163,7 +163,9 @@ class CompileEngine {
       idtype.emplace_back(GetTypeFlag(t->dtype));
     }
     graph = pass::InferShape(graph, ishape);
+    CHECK_EQ(graph.GetAttr<size_t>("shape_num_unknown_nodes"), 0U);
     graph = pass::InferType(graph, idtype);
+    CHECK_EQ(graph.GetAttr<size_t>("dtype_num_unknown_nodes"), 0U);
 
     const ShapeVector& shape_vec = graph.GetAttr<ShapeVector>("shape");
     const DTypeVector& dtype_vec = graph.GetAttr<DTypeVector>("dtype");
@@ -200,6 +202,8 @@ class CompileEngine {
             placeholder(shape,
                         GetTVMType(dtype_vec[idx.entry_id(nid, i)])));
       }
+      // skip subgraph node
+      if (!fcompute.count(inode.source->op())) continue;
       // get default
       Array<Tensor> out = fcompute[inode.source->op()](
           inode.source->attrs, op_inputs, out_info);

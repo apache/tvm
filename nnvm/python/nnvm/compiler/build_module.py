@@ -13,6 +13,7 @@ from . import graph_attr, graph_util
 from .. import graph as _graph
 from .. import symbol as sym
 from .._base import _all_var_init
+from .. import subgraph as _subgraph
 
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
@@ -42,6 +43,7 @@ class BuildConfig(object):
     defaults = {
         "opt_level": 2,
         "add_pass": None,
+        "ext_accel": None,
     }
     def __init__(self, **kwargs):
         self._old_scope = None
@@ -99,6 +101,9 @@ def build_config(**kwargs):
 
     add_pass: set of str
         Optimization pass to be added regardless of optimization level.
+
+    ext_accel: str
+        External accelerator for optimizing the operators it supports in the whole graph.
 
     Returns
     -------
@@ -280,6 +285,11 @@ def build(graph, target=None, shape=None, dtype="float32",
 
         cfg = BuildConfig.current
         graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
+        if cfg.ext_accel is not None:
+            if cfg.ext_accel != 'tensorrt':
+                raise ValueError("only supports tensorrt as an external accelerator, while"
+                                 " received %s" % cfg.ext_accel)
+            graph = _subgraph._partition(graph, cfg.ext_accel)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
 
         # correct layout if necessary

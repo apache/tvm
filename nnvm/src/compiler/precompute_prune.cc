@@ -75,11 +75,6 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
     }
   });
 
-  // nothing being pruned.
-  if (non_var_edge == 0) {
-    return src;
-  }
-
   for (auto& e : src.outputs) {
     if (pruned.count(e.node.get())) {
       e = replace_pruned_entry(e);

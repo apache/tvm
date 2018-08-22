@@ -26,6 +26,7 @@ if(USE_CUDA)
     file(GLOB CONTRIB_CUDNN_SRCS src/contrib/cudnn/*.cc)
     list(APPEND RUNTIME_SRCS ${CONTRIB_CUDNN_SRCS})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDNN_LIBRARY})
+	  include_directories(${USE_CUDNN}/include)
   endif(USE_CUDNN)
 
   if(USE_CUBLAS)

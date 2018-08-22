@@ -1,0 +1,15 @@
+# TensorRT Module
+
+if(IS_DIRECTORY ${USE_TENSORRT})
+    set(TENSORRT_ROOT_DIR ${USE_TENSORRT})
+    message(STATUS "Custom TensorRT path: " ${TENSORRT_ROOT_DIR})
+    set(TENSORRT_INCLUDE_DIR ${TENSORRT_ROOT_DIR}/include)
+    set(TENSORRT_LIB_DIR ${TENSORRT_ROOT_DIR}/lib)
+    file(GLOB TENSORRT_SRCS src/contrib/subgraph/*.cc)
+    include_directories(${TENSORRT_INCLUDE_DIR})
+    list(APPEND RUNTIME_SRCS ${TENSORRT_SRCS})
+    find_library(TENSORRT_NVINFER_LIBRARY nvinfer ${TENSORRT_LIB_DIR})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${TENSORRT_NVINFER_LIBRARY})
+    set_source_files_properties(${RUNTIME_GRAPH_SRCS}
+            PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_RUNTIME_TENSORRT")
+endif()
