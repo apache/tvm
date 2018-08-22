@@ -135,7 +135,7 @@ def create_measure_batch(task, option):
                         tracker_addr=(tracker.host, tracker.port))
 
         measure_func = rpc(device_key, tracker.host, tracker.port)
-        attach_objects = (tracker, server)
+        attach_objects = (server, tracker)
 
     build_kwargs = {}
     if build_func == 'default':
