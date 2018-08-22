@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief gotvm package
- * \file gotvm_test.go
+ * \file error_test.go
  */
 
 

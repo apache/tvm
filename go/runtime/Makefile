@@ -16,10 +16,10 @@ all:
 	@mkdir gopath 2>/dev/null || true
 	@mkdir gopath/src 2>/dev/null || true
 	@mkdir gopath/src/$(TARGET) 2>/dev/null || true
-	@cp $(TARGET).cc gopath/src/$(TARGET)
-	@cp $(TARGET).h gopath/src/$(TARGET)
-	@cp $(NATIVE_SRC) gopath/src/$(TARGET)
-	@cp *.go gopath/src/$(TARGET)
+	@cp src/$(TARGET).cc gopath/src/$(TARGET)
+	@cp src/$(TARGET).h gopath/src/$(TARGET)
+	@cp src/$(NATIVE_SRC) gopath/src/$(TARGET)
+	@cp src/*.go gopath/src/$(TARGET)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
@@ -39,16 +39,17 @@ clean:
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) && go clean -cache); fi
-	rm -rf gopath
-	rm -f *.a *.o
+	@rm -rf gopath
+	@rm -f *.a *.o
 
 lint:
 	@golint
 	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.cc
 	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.h
 
-test:
-	@cp *_test.go gopath/src/$(TARGET)
+testcases:
+	@mkdir gopath/test 2>/dev/null || true
+	@cp test/*_test.go gopath/src/$(TARGET)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
