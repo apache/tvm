@@ -11,8 +11,8 @@ def has_type(expr, typ):
     return checked_expr.checked_type() == typ
 
 def test_monomorphic_let():
+    "Program: let x = 1; x"
     b = IRBuilder()
-    # Program: let x = 1; x
     x = b.let('x', 1, value_type=float_type())
     b.ret(x)
 
@@ -20,3 +20,12 @@ def test_monomorphic_let():
     assert has_type(prog, float_type())
 
 
+def test_single_op():
+    "Program: fn (x : int32) { let t1 = f(x); t1 }"
+    b = IRBuilder()
+    f = b.op('f')
+    with b.function(('x', float_type())) as func:
+        x, = func.param_ids()
+        t1 = b.let('t1', f(x))
+        b.ret(t1)
+    import pdb; pdb.set_trace()

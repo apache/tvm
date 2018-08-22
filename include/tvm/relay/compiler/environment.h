@@ -42,9 +42,9 @@ class EnvironmentNode : public RelayNode {
   /*! A map from string names to GlobalIds, ensures global uniqueness. */
   InternTable<GlobalVar> global_map_;
   /*! A map from string names to Operators, ensures global uniqueness. */
-  InternTable<Operator> operator_map_;
+  InternTable<Operator> operators;
   // /*! \brief A map from file names to source fragments. */
-  // SourceMap source_map_;
+  // SourceMap source_map_
   // /*! \brief A list of the errors reported during the current run. */
   // std::vector<Error> errors_;
 
@@ -64,8 +64,8 @@ class EnvironmentNode : public RelayNode {
   TVM_DLL static Environment make(
       std::unordered_map<GlobalVar, Function, NodeHash> global_funcs);
 
-  // Add an item to the Enviroment.
-  // void add(const Operator& op, bool update = false);
+  /*! Add an operator to the Enviroment. */
+  void register_op(const Operator& op);
   // void add(const Operator& op, bool update = false);
 
   // void try_add(const Item& item, bool update=false);
@@ -73,13 +73,10 @@ class EnvironmentNode : public RelayNode {
   // void remove(const GlobalId& id);
 
   // GlobalId global_id(const std::string& str);
-  // OperatorId operator_id(const std::string& str);
+  Operator op(const std::string& str);
 
   // We can lookup a GlobalId, OperatorId.
   // Defn lookup(const GlobalId& id);
-  // Operator lookup(const OperatorId& id);
-  // Defn lookup_global(const std::string& str);
-  // Item lookup_operator(const std::string& str);
   // FileId add_source(std::string file_name, std::string source);
 
   // tvm::Array<Operator> get_operators();

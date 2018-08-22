@@ -24,6 +24,10 @@ Environment EnvironmentNode::make(
   return Environment(n);
 }
 
+void EnvironmentNode::register_op(const Operator& op) {
+    this->operators.Insert(op->name, op);
+}
+
 // tvm::PackedFunc EnvironmentNode::jit_for(OperatorId id) {
 //   return this->lookup(id)->compiler;
 // }
@@ -111,18 +115,10 @@ Environment EnvironmentNode::make(
 //   }
 // }
 
-// Operator EnvironmentNode::lookup(const OperatorId &id) {
-//   if (operators.find(id) != operators.end()) {
-//     return operators.at(id);
-//   } else {
-//     throw EnvError(std::string("there is no definition of ") + id->name);
-//   }
-// }
-
-// Item EnvironmentNode::lookup_operator(const std::string &str) {
-//   OperatorId id = this->operator_id(str);
-//   return lookup(id);
-// }
+Operator EnvironmentNode::op(const std::string & op_name) {
+  // FIX ME
+  return operators.Lookup(op_name);
+}
 
 // Defn EnvironmentNode::lookup_global(const std::string &str) {
 //   GlobalId id = this->global_id(str);

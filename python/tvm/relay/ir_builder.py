@@ -5,6 +5,12 @@ from . import type as ty
 from . import expr
 from . import make as mk
 
+class ExprBuilder():
+    def __init__(self, expr):
+        self.expr = expr
+
+    def __call__(self, *args):
+        return ExprBuilder(mk.Call(self.expr, list(args), None, None))
 
 def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
     """Convert Python values into the appropriate types
@@ -29,7 +35,7 @@ def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> expr.Expr:
         raise Exception("..")
     else:
         value = convert(arg, ctxt)
-        return mk.Constant(value)
+        return ExprBuilder(mk.Constant(value))
 
 class WithScope(object):
     """Auxiliary scope  with"""
@@ -44,6 +50,18 @@ class WithScope(object):
     def __exit__(self, ptype, value, trace):
         self._exit_cb()
 
+
+class PartialFunc():
+    def __init__(self, params, ret_type, body, type_params):
+        self.params = params
+        self.ret_type = ret_type
+        self.body = body
+        self.type_params = type_params
+
+    def param_ids(self):
+        return [p.var for p in self.params]
+
+
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
     for var, value in reversed(list(bindings.items())):
@@ -51,11 +69,14 @@ def _mk_let(bindings, ret_value):
 
     return let_expr
 
+
 class IRBuilder():
     def __init__(self):
         self.bindings = [{}]
         self.scopes = [{}]
+        self.params = []
         self.ret_value = None
+
 
     def bind(self, name, type, value):
         lv = mk.LocalVar(name)
@@ -65,18 +86,33 @@ class IRBuilder():
 
 
     def let(self, name, value, value_type=None):
-        if not isinstance(value, expr.Expr):
+        if not (isinstance(value, expr.Expr) or isinstance(value, ExprBuilder)):
             value = into_ast(value)
+
+        if isinstance(value, ExprBuilder):
+            value = value.expr
 
         return self.bind(name, value_type, value)
 
-    def function(self, params):
+    def function(self, *params):
+        relay_params = []
+        for name, ty in params:
+            lv = mk.LocalVar(name)
+            self.scopes[-1][name] = lv
+            relay_params.append(mk.Param(lv, ty))
+
+        # self.params.append(relay_params)
+
+        pfunc = PartialFunc(relay_params, None, None, [])
+
         def _on_exit():
             bindings = self.bindings.pop()
             scope = self.scopes.pop()
-            import pdb
-            pdb.set_trace()
-        return WithScope(None, _on_exit)
+            # params = self.params.pop()
+
+
+        return WithScope(pfunc, _on_exit)
+
 
     def ret(self, x):
         if not self.ret_value:
@@ -84,6 +120,12 @@ class IRBuilder():
         else:
             raise Exception(
                 "return value already set, a function can only have one return value")
+
+    def fn_params(self):
+        pass
+
+    def op(self, name):
+        pass
 
     def get(self):
         """Get the full program"""

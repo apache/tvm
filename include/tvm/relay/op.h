@@ -25,6 +25,7 @@ class Operator;
 /*! \brief Container for Operator */
 class OperatorNode : public ExprNode {
  public:
+  std::string name;
   /*! \brief A type which specifies the relationship between the inputs and outputs
    *  of the operator.
    */
