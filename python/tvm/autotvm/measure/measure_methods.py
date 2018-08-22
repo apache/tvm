@@ -113,7 +113,7 @@ def create_measure_batch(task, option):
 
     measure_func = option['measure_func']
     repeat = option['repeat']
-    min_milliseconds = option['min_milliseconds']
+    min_repeat_ms = option['min_repeat_ms']
     timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
     build_func = option['build_func']
     check_correctness = option['check_correctness']
@@ -218,11 +218,11 @@ def create_measure_batch(task, option):
             for result in results:
                 measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
                 if result.error_no == MeasureErrorNo.NO_ERROR and\
-                   measure_cost < min_milliseconds:
+                   measure_cost < min_repeat_ms:
                     nonLocal.number *= 2
                     remeasure = True
-                    msg = "increasing number to {0:d} ({1:.3f}ms < {2:d}ms)".format(\
-                    nonLocal.number, measure_cost, min_milliseconds)
+                    msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
+                    nonLocal.number, measure_cost, min_repeat_ms)
                     logger.info(msg)
                     break
             if remeasure:

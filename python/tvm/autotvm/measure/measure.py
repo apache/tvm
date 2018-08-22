@@ -48,7 +48,7 @@ class MeasureErrorNo(object):
 def measure_option(measure_func,
                    number=1,
                    repeat=1,
-                   min_milliseconds=0,
+                   min_repeat_ms=0,
                    timeout=60,
                    n_parallel=1,
                    do_fork=True,
@@ -72,8 +72,8 @@ def measure_option(measure_func,
         In total, the generated code will be run (1 + number x repeat) times,
         where the first one is warm up. The returned result contains `repeat` costs,
         each of which is the average of `number` test run.
-    min_milliseconds : int, optional
-        Minimum measurement time in milliseconds.
+    min_repeat_ms : float, optional
+        Minimum duration of a timer measurement in milliseconds.
         When the run time of a measurement trial falls below this time, the
         `number` parameter will be automatically increased.
         Set this to improve the accuracy of perf measurement, e.g., when timers
@@ -128,7 +128,7 @@ def measure_option(measure_func,
         'measure_func': measure_func,
         'number': number,
         'repeat': repeat,
-        'min_milliseconds': min_milliseconds,
+        'min_repeat_ms': min_repeat_ms,
         'timeout': timeout,
         'n_parallel': n_parallel,
         'do_fork': do_fork,
