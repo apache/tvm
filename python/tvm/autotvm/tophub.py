@@ -36,7 +36,8 @@ def _alias(name):
 
 def context(target, extra_files=None):
     """Return the dispatch context with pre-tuned parameters.
-    The corresponding downloaded *.log files under tophub root path will be loaded.
+    This function will load the corresponding *.log files in AUTOTVM_TOPHUB_ROOT_PATH.
+    If cannot find them, it will download them from TopHub github repo.
     Users can also add their own files in argument `extra_files`.
 
     Parameters
