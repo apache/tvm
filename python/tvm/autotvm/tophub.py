@@ -8,12 +8,10 @@ TVM will download these parameters for you when you create the target for the fi
 
 import logging
 import os
-import json
 import sys
 
 from .task import ApplyHistoryBest
 from .. import target as _target
-from ..contrib.util import tempdir
 from ..contrib.download import download
 
 # root path to store TopHub files
