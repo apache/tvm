@@ -6,13 +6,12 @@ import topi.testing
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
+from common import get_all_backend
 
 def verify_dense(batch, in_dim, out_dim, use_bias=True):
     A = tvm.placeholder((batch, in_dim), name='A')
     B = tvm.placeholder((out_dim, in_dim), name='B')
     C = tvm.placeholder((out_dim,), name='C')
-    D = topi.nn.dense(A, B, C if use_bias else None)
-    D = topi.nn.relu(D)
     dtype = A.dtype
 
     # use memoize to pickle the test data for next time use
@@ -36,6 +35,8 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            D = topi.nn.dense(A, B, C if use_bias else None)
+            D = topi.nn.relu(D)
             s = topi.generic.schedule_dense(D)
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(b_np, ctx)
@@ -45,12 +46,14 @@ def verify_dense(batch, in_dim, out_dim, use_bias=True):
         f(a, b, c, d)
         np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_dense():
     verify_dense(1, 1024, 1000, use_bias=True)
     verify_dense(1, 1024, 1000, use_bias=False)
+
+    verify_dense(2, 1024, 1000, use_bias=True)
 
 
 if __name__ == "__main__":

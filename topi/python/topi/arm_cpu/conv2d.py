@@ -27,7 +27,14 @@ def _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype):
 @autotvm.task.dispatcher
 def conv2d_arm_cpu(data, kernel, strides, padding, layout, out_dtype):
     """TOPI compute callback. Mark this function as a dispatcher, so
-    this template can assign config according to workload"""
+    this template can assign config according to workload
+
+    Returns
+    -------
+    workload: Tuple
+        Dispatcher will use this workload to query corresponding config.
+        Then use cfg.template_key to call a registered template.
+    """
     return _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
 
 @conv2d_arm_cpu.register(['direct'])
@@ -70,8 +77,10 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
 
 def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile):
     assert layout == "NCHW", "Only support NCHW"
-    out_dtype = out_dtype or data.dtype
+    # create workload according to raw arguments
+    wkl = _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
 
+    out_dtype = out_dtype or data.dtype
     N, CI, IH, IW = get_const_tuple(data.shape)
     if len(kernel.shape) == 4:
         pre_packed = False
@@ -113,6 +122,18 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
     cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
     # ====================================================================
 
+    if cfg.is_fallback:
+        if num_tile == 2:
+            cfg.fallback_split('tile_co', [-1, 8])
+            cfg.fallback_split('tile_oh', [-1, 2])
+            cfg.fallback_split('tile_ow', [-1, 8])
+        else:
+            cfg.fallback_split('tile_co', [-1, 16, 4])
+            cfg.fallback_split('tile_oh', [-1, 1, 1])
+            cfg.fallback_split('tile_ow', [-1, 1, 4])
+        cfg['ann_reduce'].anns = ['unroll', 'unroll']
+        cfg['ann_spatial'].anns = ['none', 'unroll', 'vec']
+
     VC = cfg["tile_co"].size[-1]
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
@@ -145,8 +166,7 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
     output = tvm.compute(oshape, lambda n, co, h, w:
                          conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
                          name='output_unpack', tag='spatial_conv2d_output',
-                         attrs={'workload': _conv_arg_to_workload(data, kernel, strides, padding,
-                                                                  layout, out_dtype)})
+                         attrs={'workload': wkl})
     return output
 
 def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
@@ -212,6 +232,10 @@ def decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
     return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
 
 def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+    # create workload according to raw arguments
+    wkl = _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout,
+                                         out_dtype, tile_size)
+
     N, CI, IH, IW = get_const_tuple(data.shape)
     if len(kernel.shape) == 4:
         pre_computed = False
@@ -333,10 +357,9 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
     output = tvm.compute((N, K, H, W), lambda n, k, h, w:
                          Y[k][n * nH * nW + (h//m) * nW + w//m][h % m][w % m],
                          name='output', tag='winograd_conv2d_output',
-                         attrs={'workload': _winograd_conv_arg_to_workload(
-                             data, kernel, strides, padding, layout, out_dtype, tile_size)})
+                         attrs={'workload': wkl})
 
-    # we have to manually assign effective GFLOP for winogard
+    # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * K * H * W * KH * KW * C)
     return output
 
@@ -358,19 +381,20 @@ def _schedule_winograd(cfg, s, output, last):
         kernel, G = U.op.input_tensors
         s[G].compute_inline()
         eps, nu, k, c, kk, = s[U].op.axis
-        r_kh, r_kw = s[U].op.reduce_axis
-        s[U].reorder(k, c, eps, nu, r_kh, r_kw, kk)
-        s[U].unroll(eps)
-        s[U].unroll(nu)
-        s[U].unroll(r_kh)
-        s[U].unroll(r_kw)
-        s[U].vectorize(kk)
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # kernel transformation will be pre-computed during compilation, so we skip
             # this part to make tuning records correct
-            s[U].pragma(k, 'debug_skip_region')
+            s[U].pragma(eps, 'debug_skip_region')
         else:
+            r_kh, r_kw = s[U].op.reduce_axis
+            s[U].reorder(k, c, eps, nu, r_kh, r_kw, kk)
+            for axis in [eps, nu, r_kh, r_kw]:
+                s[U].unroll(axis)
+            s[U].vectorize(kk)
             s[U].parallel(k)
+
+        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            s[kernel].compute_inline()
 
     # transform image
     DD = s.cache_read(d, 'global', [V])
@@ -378,10 +402,8 @@ def _schedule_winograd(cfg, s, output, last):
     eps, nu, b, c, bb = s[V].op.axis
     r_eps, r_nu = s[V].op.reduce_axis
     s[V].reorder(b, c, eps, nu, r_eps, r_nu, bb)
-    s[V].unroll(eps)
-    s[V].unroll(nu)
-    s[V].unroll(r_eps)
-    s[V].unroll(r_nu)
+    for axis in [eps, nu, r_eps, r_nu]:
+        s[V].unroll(axis)
     s[DD].compute_at(s[V], c)
     s[V].vectorize(bb)
     s[V].parallel(b)
@@ -405,10 +427,8 @@ def _schedule_winograd(cfg, s, output, last):
     s[A].compute_inline()
     k, b, vh, vw = s[Y].op.axis
     r_eps, r_nu = s[Y].op.reduce_axis
-    s[Y].unroll(vh)
-    s[Y].unroll(vw)
-    s[Y].unroll(r_eps)
-    s[Y].unroll(r_nu)
+    for axis in [vh, vw, r_eps, r_nu]:
+        s[Y].unroll(axis)
 
     # output
     n, co, h, w = s[last].op.axis
@@ -444,6 +464,7 @@ def _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout, out_d
         [data, raw_kernel, strides, padding, layout, out_dtype])
 
 
+##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @conv2d_winograd_without_weight_transform.register(['arm_cpu'])
 @autotvm.task.dispatcher
 def winograd_ww_config_dispatcher_(data, kernel, strides, padding, layout, out_dtype, tile_size):
@@ -472,6 +493,7 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
     return s
 
 
+##### REGISTER ALTER OP LAYOUT #####
 @conv2d_alter_layout.register(["arm_cpu", "mali"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
     """Alter op layout for pre-computing kernel transformation"""
@@ -493,18 +515,30 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         # query config of this workload
         workload = _conv_arg_to_workload(tinfos[0], tinfos[1], strides, padding,
                                          layout, out_dtype)
-        cfg = autotvm.task.DispatchContext.current.query(tvm.target.current_target(), workload)
+        cfg = autotvm.DispatchContext.current.query(tvm.target.current_target(), workload)
+
+        if cfg.is_fallback: # if is fallback, clear query cache and return None
+            context = autotvm.DispatchContext.current
+            while not isinstance(context, autotvm.FallbackContext):
+                context = context._old_ctx
+            context.clear_cache(tvm.target.current_target(), workload)
+            return None
 
         if cfg.template_key == 'direct':  # packing weight tensor
             new_attrs['kernel_layout'] = 'OIHW%do' % (cfg['tile_co'].size[-1])
             return sym.conv2d(*copy_inputs, **new_attrs)
         else:  # pre-compute weight transformation in winograd
-            tile_size = 4
+            if "-device=arm_cpu" in tvm.target.current_target().options:
+                tile_size = 4
+                VC = cfg['tile_k'].size[-1]
+            else:
+                from ..mali.conv2d import _pick_tile_size
+                tile_size = _pick_tile_size(tinfos[0], tinfos[1])
+                VC = cfg['tile_bna'].val
 
             weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1],
                                                                   tile_size=tile_size)
             CO, CI, KH, KW = get_const_tuple(tinfos[1].shape)
-            VC = cfg['tile_k'].size[-1]
             weight = sym.reshape(weight,
                                  shape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
             weight = sym.transpose(weight, axes=[0, 1, 2, 4, 3])

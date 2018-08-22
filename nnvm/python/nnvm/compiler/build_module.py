@@ -239,8 +239,9 @@ def build(graph, target=None, shape=None, dtype="float32",
         raise ValueError("Target is not set in env or passed as argument.")
     target = tvm.target.create(target)
 
-    # if not inside an autotvm config dispatch context, load pre-tuned parameters from TopHub
-    if autotvm.task.DispatchContext.current is None:
+    # If current dispatch context is fallback context (the default root context),
+    # then load pre-tuned parameters from TopHub
+    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
         tophub_context = autotvm.tophub.context(target)
     else:
         tophub_context = autotvm.util.EmptyContext()

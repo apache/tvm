@@ -28,7 +28,7 @@ def _alias(name):
     return table.get(name, name)
 
 
-def context(target, extra_files=None, allow_fallback=False):
+def context(target, extra_files=None):
     """Return the dispatch context with pre-tuned parameters.
     The corresponding downloaded *.log files under tophub root path will be loaded.
     Users can also add their own files in argument `extra_files`.
@@ -39,12 +39,9 @@ def context(target, extra_files=None, allow_fallback=False):
         The compilation target
     extra_files: list of str, optional
         Extra log files to load
-    allow_fallback: bool
-        Whether allow to use a fallback configuration if cannot find
-        tuned result.
     """
     rootpath = AUTOTVM_TOPHUB_ROOT_PATH
-    best_context = ApplyHistoryBest([], allow_fallback=allow_fallback)
+    best_context = ApplyHistoryBest([])
 
     if isinstance(target, str):
         target = _target.create(target)
