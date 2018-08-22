@@ -108,6 +108,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     private:
      CheckedExpr VisitExpr_(const LocalVarNode* op) override;
      CheckedExpr VisitExpr_(const GlobalVarNode* op) override;
+     CheckedExpr VisitExpr_(const ConstantNode* op) override;
      CheckedExpr VisitExpr_(const TupleNode* op) override;
      CheckedExpr VisitExpr_(const ParamNode* op) override;
      CheckedExpr VisitExpr_(const FunctionNode* op) override;
@@ -155,6 +156,15 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
     // this->fatal_error("Unhandled case in GlobalId", op->span);
     throw Error("hereeee");
+  }
+
+  CheckedExpr TypeInferencer::VisitExpr_(const ConstantNode *const_node) {
+    auto array = const_node->data;
+    // array->t
+    // first pass
+    return {
+      GetRef<Constant>(const_node),
+      TensorTypeNode::make({}, HalideIR::Float(32, 1)) };
   }
 
   // Type TypeInferencer::VisitExpr_(const OperatorIdNode *op) {
@@ -423,16 +433,16 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     Type checked_ty;
     Type annotated_ty = resolve(let->value_type);
 
-    // // if we are let-defining a function, treat it as a let-rec and insert
-    // // the id with the annotated type in case there is recursion;
-    // // no such recursion permitted with anything that's not a function!
+    // if we are let-defining a function, treat it as a let-rec and insert
+    // the id with the annotated type in case there is recursion;
+    // no such recursion permitted with anything that's not a function!
     // if (let->value.as<FunctionNode>()) {
-    //   with_frame<void>([&]() {
-    //     local_stack.insert(let->id, annotated_ty);
-    //     checked_ty = Check(let->value);
-    //   });
+    //  with_frame<void>([&]() {
+    //    local_stack.insert(let->id, annotated_ty);
+    //    checked_ty = Check(let->value);
+    //  });
     // } else {
-    //   checked_ty = Check(let->value);
+      checked_ty = Infer(let->value).type;
     // }
 
     // ensure annotated type and checked type are compatible
