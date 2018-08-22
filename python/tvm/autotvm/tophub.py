@@ -16,7 +16,15 @@ from .. import target as _target
 from ..contrib.util import tempdir
 from ..contrib.download import download
 
+# root path to store TopHub files
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
+
+# the version of each package
+PACKAGE_VERSION = {
+    'vta':     "v0.01",
+    'arm_cpu': "v0.01",
+    'cuda':    "v0.01",
+}
 
 logger = logging.getLogger('autotvm')
 
@@ -40,21 +48,24 @@ def context(target, extra_files=None):
     extra_files: list of str, optional
         Extra log files to load
     """
-    rootpath = AUTOTVM_TOPHUB_ROOT_PATH
     best_context = ApplyHistoryBest([])
 
     if isinstance(target, str):
         target = _target.create(target)
 
-    big_target = str(target).split()[0]
-    if os.path.isfile(os.path.join(rootpath, big_target + ".log")):
-        best_context.load(os.path.join(rootpath, big_target + ".log"))
-
+    possible_names = [str(target).split()[0]]
     for opt in target.options:
         if opt.startswith("-device"):
-            model = _alias(opt[8:])
-            if os.path.isfile(os.path.join(rootpath, model) + ".log"):
-                best_context.load(os.path.join(rootpath, model) + ".log")
+            device = _alias(opt[8:])
+            possible_names.append(device)
+
+    all_packages = list(PACKAGE_VERSION.keys())
+    for name in possible_names:
+        if name in all_packages:
+            check_backend(name)
+
+            filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
+            best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
 
     if extra_files:
         for filename in extra_files:
@@ -63,12 +74,39 @@ def context(target, extra_files=None):
     return best_context
 
 
-def download_package(backend):
-    """Download pre-tuned parameters of operators for a backend
+def check_backend(backend):
+    """Check whether have pre-tuned parameters of the certain target.
+    If not, will download it.
 
     Parameters
     ----------
     backend: str
+        The name of package
+    """
+    backend = _alias(backend)
+    assert backend in PACKAGE_VERSION, 'Cannot find packet "%s" in TopHub' % backend
+
+    version = PACKAGE_VERSION[backend]
+    package_name = "%s_%s.log" % (backend, version)
+    if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
+        return
+
+    if sys.version_info >= (3,):
+        import urllib.request as urllib2
+    else:
+        import urllib2
+    try:
+        download_package(package_name)
+    except urllib2.URLError as e:
+        logging.warning("Failed to download tophub package for %s: %s", backend, e)
+
+
+def download_package(package_name):
+    """Download pre-tuned parameters of operators for a backend
+
+    Parameters
+    ----------
+    package_name: str
         The name of package
     """
     rootpath = AUTOTVM_TOPHUB_ROOT_PATH
@@ -81,54 +119,6 @@ def download_package(backend):
             if not os.path.isdir(path):
                 os.mkdir(path)
 
-    backend = _alias(backend)
-    logger.info("Download pre-tuned parameters for %s", backend)
-    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s.log" % backend,
-             os.path.join(rootpath, backend + ".log"), True, verbose=0)
-
-
-def check_package(backend):
-    """Check whether have pre-tuned parameters of the certain target.
-    If not, will download it.
-
-    Parameters
-    ----------
-    backend: str
-        The name of package
-    """
-    backend = _alias(backend)
-
-    if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, backend + ".log")):
-        return
-
-    if sys.version_info >= (3,):
-        import urllib.request as urllib2
-    else:
-        import urllib2
-    try:
-        download_package(backend)
-    except urllib2.URLError:
-        logging.warning("Failed to download tophub package for %s", backend)
-
-
-def list_packages():
-    """List all available pre-tuned op parameters for targets
-
-    Returns
-    -------
-    ret: List
-        All available packets
-    """
-    path = tempdir()
-    filename = path.relpath("info.json")
-    logger.info("Download meta info for pre-tuned parameters")
-    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/info.json",
-             filename, True, verbose=0)
-
-    with open(filename, "r") as fin:
-        text = "".join(fin.readlines())
-    info = json.loads(text)
-    keys = list(info.keys())
-    keys.sort()
-
-    return [(k, info[k]) for k in keys]
+    logger.info("Download pre-tuned parameters package %s", package_name)
+    download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s"
+             % package_name, os.path.join(rootpath, package_name), True, verbose=0)

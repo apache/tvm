@@ -1,45 +1,26 @@
-"""Benchmark script for performance on ARM CPU.
+"""Benchmark script for ARM CPU.
 see README.md for the usage and results of this script.
 """
-
 import argparse
-import time
 
 import numpy as np
 
-import nnvm.testing
-import nnvm.compiler
 import tvm
-from tvm import autotvm
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
+import nnvm.compiler
+import nnvm.testing
 
-def get_network(name, batch_size):
-    """Get the symbol definition and random weight of a network"""
-    input_shape = (batch_size, 3, 224, 224)
-    output_shape = (batch_size, 1000)
-
-    if name == 'resnet-18':
-        net, params = nnvm.testing.resnet.get_workload(num_layers=18,
-                                                       batch_size=batch_size, image_shape=(3, 224, 224))
-    elif name == 'mobilenet':
-        net, params = nnvm.testing.mobilenet.get_workload(batch_size=batch_size)
-    elif name == 'squeezenet v1.1':
-        net, params = nnvm.testing.squeezenet.get_workload(batch_size=batch_size,
-                                                           version='1.1')
-    elif name == 'vgg-16':
-        net, params = nnvm.testing.vgg.get_workload(batch_size=batch_size, num_layers=16)
-    else:
-        raise RuntimeError("Unsupported network: " + name)
-
-    return net, params, input_shape, output_shape
+from util import get_network
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--network", type=str, choices=['resnet-18', 'mobilenet', 'squeezenet v1.1', 'vgg-16'])
-    parser.add_argument("--device", type=str, required=True, choices=['rk3399', 'mate10', 'mate10pro', 'p20', 'p20pro', 
-                                                                      'pixel2', 'rasp3b', 'pynq'])
+    parser.add_argument("--network", type=str, choices=
+                        ['resnet-18', 'resnet-34', 'vgg-16', 'mobilenet', 'squeezenet v1.1', ])
+    parser.add_argument("--device", type=str, required=True, choices=
+                        ['rk3399', 'mate10', 'mate10pro', 'p20', 'p20pro',
+                         'pixel2', 'rasp3b', 'pynq'])
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
@@ -49,7 +30,7 @@ if __name__ == "__main__":
     dtype = 'float32'
 
     if args.network is None:
-        networks = ['squeezenet v1.1', 'mobilenet', 'resnet-18', 'vgg-16']
+        networks = ['squeezenet_v1.1', 'mobilenet', 'resnet-18', 'vgg-16']
     else:
         networks = [args.network]
 
@@ -93,4 +74,3 @@ if __name__ == "__main__":
         ftimer = module.module.time_evaluator("run", ctx, number=args.number, repeat=3)
         prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
         print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
-
