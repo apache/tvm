@@ -311,6 +311,21 @@ def _convert_upsample(insym, keras_layer, _):
     return _sym.upsampling(insym, **params)
 
 
+def _convert_cropping(insym, keras_layer, _):
+    _check_data_format(keras_layer)
+    crop_type = type(keras_layer).__name__
+    if crop_type == "Cropping1D":
+        raise NotImplementedError("Cropping1D not implemented")
+    elif crop_type == "Cropping2D":
+        (_, in_h, in_w, _) = keras_layer.input_shape
+        ((crop_t, crop_b), (crop_l, crop_r)) = keras_layer.cropping
+    else:
+        raise TypeError("Unrecognized cropping type : {}".format(crop_type))
+    int32_max = np.iinfo(np.int32).max
+    return _sym.strided_slice(insym, begin=[0, 0, crop_t, crop_l],
+                              end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
+
+
 def _convert_batchnorm(insym, keras_layer, symtab):
     params = {'scale': False,
               'center': False,
@@ -409,6 +424,7 @@ _convert_map = {
     'Multiply'                 : _convert_merge,
     'ZeroPadding2D'            : _convert_padding,
     'UpSampling2D'             : _convert_upsample,
+    'Cropping2D'               : _convert_cropping,
 
     # 'ZeroPadding1D'          : _convert_padding,
     # 'AveragePooling1D'       : _convert_pooling,
@@ -416,7 +432,6 @@ _convert_map = {
     # 'GlobalAveragePooling1D' : _convert_pooling,
     # 'GlobalMaxPooling1D'     : _convert_pooling,
     # 'Cropping1D'             : _convert_cropping,
-    # 'Cropping2D'             : _convert_cropping,
     # 'UpSampling1D'           : _convert_upsample,
     # 'UpSampling3D'           : _convert_upsample,
     # 'Conv1D'                 : _convert_convolution1d,
