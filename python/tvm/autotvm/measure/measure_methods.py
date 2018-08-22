@@ -219,7 +219,8 @@ def create_measure_batch(task, option):
                 if result.error_no == MeasureErrorNo.NO_ERROR:
                     measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
                     if measure_cost < min_repeat_ms:
-                        nonLocal.number *= 2
+                        nonLocal.number = int(np.ceil(nonLocal.number *\
+                                                  min_repeat_ms/measure_cost))
                         remeasure = True
                         msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
                         nonLocal.number, measure_cost, min_repeat_ms)
