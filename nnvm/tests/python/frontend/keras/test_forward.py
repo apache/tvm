@@ -110,6 +110,20 @@ def test_forward_reshape():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_crop():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Cropping2D(cropping=((1, 1), (1, 1)))(data)
+    x = keras.layers.Cropping2D(cropping=(1, 1))(x)
+    x = keras.layers.Cropping2D(cropping=1)(x)
+    x = keras.layers.Cropping2D(cropping=((0, 1), (1, 0)))(x)
+    x = keras.layers.Cropping2D(cropping=(1, 0))(x)
+    x = keras.layers.Cropping2D(cropping=0)(x)
+    x = keras.layers.Add()([x, x])
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_vgg16():
     keras_model = keras.applications.vgg16.VGG16(include_top=True, weights=None,
         input_shape=(224,224,3), classes=1000)
@@ -196,6 +210,7 @@ if __name__ == '__main__':
     test_forward_separable_conv()
     test_forward_upsample()
     test_forward_reshape()
+    test_forward_crop()
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
