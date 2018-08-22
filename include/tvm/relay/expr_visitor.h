@@ -97,9 +97,16 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args..
   }
 
   Expr VisitExpr_(const FunctionNode* op, Args... args) override {
-    tvm::Array<Type> ty_params;
+    tvm::Array<TypeParam> ty_params;
+
     for (auto ty : op->type_params) {
-      ty_params.push_back(this->VisitType(ty, args...));
+      Type ty_param_type = VisitType(ty, args...);
+      if (auto ty_param = ty_param_type.as<TypeParamNode>()) {
+        auto ty_param_ref = GetRef<TypeParam>(ty_param);
+        ty_params.push_back(ty_param_ref);
+      } else {
+        throw dmlc::Error("the default func visitor has bug");
+      }
     }
 
     tvm::Array<Param> params;
@@ -115,7 +122,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args..
 
     auto ret_type = this->VisitType(op->ret_type, args...);
     auto body = this->VisitExpr(op->body, args...);
-    return FunctionNode::make(ty_params, params, ret_type, body);
+    return FunctionNode::make(params, ret_type, body, ty_params);
   }
 
   Expr VisitExpr_(const CallNode* call_node, Args... args) override {
@@ -132,8 +139,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args..
       call_args.push_back(this->VisitExpr(arg, args...));
     }
 
-    auto call = CallNode::make(fn, call_args, call_node->attrs);
-    call->ty_args = ty_args;
+    auto call = CallNode::make(fn, call_args, call_node->attrs, ty_args);
 
     return call;
   }
@@ -145,7 +151,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args..
       auto type = this->VisitType(op->value_type, args...);
       auto value = this->VisitExpr(op->value, args...);
       auto body = this->VisitExpr(op->body, args...);
-      return LetNode::make(var, type, value, body);
+      return LetNode::make(var, value, body, type);
     } else {
       throw dmlc::Error("the default let visitor has error");
     }

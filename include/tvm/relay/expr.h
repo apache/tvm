@@ -15,6 +15,10 @@
 
 namespace tvm {
 namespace relay {
+
+// TOD0(@jroesch): best way to define?
+class TypeInferencer;
+
 /*!
  * \brief Relay expression.
  */
@@ -24,13 +28,14 @@ class Expr;
  */
 class ExprNode : public RelayNode {
  public:
+ // private:
   /*!
    * \brief Stores the result of type inference(type checking).
    *
    * \note This can be undefined before type inference.
    *       this value is discarded during serialization.
    */
-  Type checked_type_ = Type(nullptr);
+  mutable Type checked_type_ = Type(nullptr);
   /*!
    * \return The checked_type
    */
@@ -43,6 +48,7 @@ class ExprNode : public RelayNode {
 
   static constexpr const char* _type_key = "relay.Expr";
   TVM_DECLARE_BASE_NODE_INFO(ExprNode, RelayNode);
+  friend class TypeInferencer;
 };
 
 RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
