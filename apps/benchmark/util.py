@@ -4,7 +4,26 @@ import sys
 import nnvm
 
 def get_network(name, batch_size):
-    """Get the symbol definition and random weight of a network"""
+    """Get the symbol definition and random weight of a network
+    
+    Parameters
+    ----------
+    name: str
+        The name of the network, can be 'resnet-18', 'resnet-50', 'vgg-16', 'inception_v3', 'mobilenet', ...
+    batch_size:
+        batch size
+
+    Returns
+    -------
+    net: nnvm.symbol
+        The NNVM symbol of network definition
+    params: dict
+        The random parameters for benchmark
+    input_shape: tuple
+        The shape of input tensor
+    output_shape: tuple
+        The shape of output tensor
+    """
     input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
 
@@ -42,5 +61,12 @@ def get_network(name, batch_size):
     return net, params, input_shape, output_shape
 
 def print_progress(msg):
-    sys.stdout.write(msg)
+    """print progress message
+    
+    Parameters
+    ----------
+    msg: str
+        The message to print
+    """
+    sys.stdout.write(msg + "\r")
     sys.stdout.flush()
