@@ -216,15 +216,15 @@ def create_measure_batch(task, option):
         while True:
             remeasure = False
             for result in results:
-                measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
-                if result.error_no == MeasureErrorNo.NO_ERROR and\
-                   measure_cost < min_repeat_ms:
-                    nonLocal.number *= 2
-                    remeasure = True
-                    msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
-                    nonLocal.number, measure_cost, min_repeat_ms)
-                    logger.info(msg)
-                    break
+                if result.error_no == MeasureErrorNo.NO_ERROR:
+                    measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
+                    if measure_cost < min_repeat_ms:
+                        nonLocal.number *= 2
+                        remeasure = True
+                        msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
+                        nonLocal.number, measure_cost, min_repeat_ms)
+                        logger.info(msg)
+                        break
             if remeasure:
                 # note that measure_inputs here has already been filtered (if
                 # applicable)
