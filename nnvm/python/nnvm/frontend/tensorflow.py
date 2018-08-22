@@ -430,7 +430,6 @@ def _fill():
 
 def _lrn():
     def _impl(inputs, attr, params):
-        new_inputs = []
         attr_new = {}
         depth_radius = attr.get('depth_radius', 5)
         size = (depth_radius * 2) + 1
@@ -439,7 +438,7 @@ def _lrn():
         attr_new['bias'] = attr.get('bias', 1)
         attr_new['alpha'] = attr.get('alpha', 1) * size
         attr_new['beta'] = attr.get('beta', 0.5)
-        return AttrCvt(op_name='lrn')(new_inputs, attr_new)
+        return AttrCvt(op_name='lrn')(inputs, attr_new)
     return _impl
 
 def _sum():
@@ -613,7 +612,7 @@ def _LSTMBlockCell():
         ixh = _sym.concatenate(*[in_data, in_state_h], axis=1)
         in_weight = _sym.transpose(in_weight)
         gates = _sym.dense(ixh, in_weight, in_bias, use_bias=True,
-                           units=num_hidden_layers, name="dense")
+                           units=num_hidden_layers)
         gate_list = _sym.split(gates, indices_or_sections=4, axis=1)
         in_gate = _sym.sigmoid(gate_list[0])
         in_transform = _sym.tanh(gate_list[1])
