@@ -76,7 +76,6 @@ func (tvmval Value)  AsFloat64() (retVal float64) {
 // AsModule returns the Module inside the Value.
 func (tvmval Value)  AsModule() (retVal *Module) {
     finalizerModule := func(mhandle *Module) {
-        fmt.Printf("finalizerModule called \n")
         nativeTVMModFree(*mhandle)
         mhandle = nil
     }
@@ -92,7 +91,6 @@ func (tvmval Value)  AsModule() (retVal *Module) {
 // AsFunction returns the Function inside the Value.
 func (tvmval Value)  AsFunction() (retVal *Function) {
     finalizerFunction := func(fhandle *Function) {
-        fmt.Printf("finalizerFunction called \n")
         nativeTVMFuncFree(*fhandle)
         fhandle = nil
     }
@@ -120,6 +118,12 @@ func (tvmval Value) AsStr() (retVal string) {
 // nativeCPtr return the unitptr corresponding to Value type.
 func (tvmval Value) nativeCPtr() (ret uintptr) {
     ret = (uintptr)(tvmval)
+    return
+}
+
+// copyFrom copies the tvmval from other Value object.
+func (tvmval Value) copyFrom(fromval *Value) () {
+    C._TVMValueCopyFrom(C.uintptr_t(tvmval), C.uintptr_t(*fromval))
     return
 }
 
@@ -300,6 +304,15 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
             }
             tvmval.setVFHandle(fhandle)
             retVal = KFuncHandle
+        case *Value:
+            tvmval.copyFrom(val.(*Value))
+            // TODO: Hope to see dtype emneding into TVMValue for proper casting.
+            retVal = KDLInt
+        case Value:
+            fromval := val.(Value)
+            tvmval.copyFrom(&fromval)
+            // TODO: Hope to see dtype emneding into TVMValue for proper casting.
+            retVal = KDLInt
         default:
             err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
     }

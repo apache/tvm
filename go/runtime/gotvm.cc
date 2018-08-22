@@ -362,6 +362,16 @@ void _DeleteTVMValue(TVMValue *tvmval) {
 }
 
 /*!
+ * \brief Native helper to copy TVMValue object
+ *
+ * \param tvmval pointer to a valid TVMValue
+ * \param fromval is pointer to valid TVMValue
+ */
+void _TVMValueCopyFrom(TVMValue *tvmval, TVMValue *fromval) {
+    memcpy(tvmval, fromval, sizeof(TVMValue));
+}
+
+/*!
  * \brief Native helper to int64 setter
  *
  * \param tvmval is a valid TVMValue pointer.

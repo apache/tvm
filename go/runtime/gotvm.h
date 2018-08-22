@@ -72,6 +72,7 @@ extern void * _TVMValueGetHandle(uintptr_t tvmval);
 extern void _TVMValueSetStr(uintptr_t tvmval, _gostring_ val);
 extern _gostring_ _TVMValueGetStr(uintptr_t tvmval);
 extern void _TVMValueUnSetStr(uintptr_t tvmval);
+extern void _TVMValueCopyFrom(uintptr_t tvmval, uintptr_t fromval);
 
 extern native_voidp _TVMValueNativeAllocate(int len);
 extern void _TVMValueNativeSet(native_voidp to, native_voidp from, int index);
