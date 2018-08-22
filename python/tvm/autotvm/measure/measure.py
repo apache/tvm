@@ -89,8 +89,9 @@ def measure_option(measure_func,
 
         callable: customized build function for other backends (e.g. VTA).
                   See measure/measure_methods.py::default_build_func for example.
-    check_correctness: bool
-        Whether check correctness after measurement. This will use llvm cpu as reference.
+    check_correctness: bool, optional
+        Whether check correctness after measurement. This will use llvm cpu target to generate
+        reference output.
     replay_db : Database, optional
         The database that we retrieve saved MeasureResult from.
 

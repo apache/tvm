@@ -43,14 +43,12 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
         w = tvm.nd.array(w_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
-        with tvm.build_config(auto_unroll_max_step=128,
-                              unroll_explicit=(device != "cuda")):
-            func1 = tvm.build(s1, [A, W, B], device)
-            func2 = tvm.build(s2, [A, W, C], device)
-            func1(a, w, b)
-            func2(a, w, c)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-            np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        func1 = tvm.build(s1, [A, W, B], device)
+        func2 = tvm.build(s2, [A, W, C], device)
+        func1(a, w, b)
+        func2(a, w, c)
+        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
         check_device(device)

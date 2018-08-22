@@ -1,7 +1,7 @@
 """Test space definition primitives"""
 
 import tvm
-from tvm.autotvm.task.space import ConfigSpace
+from tvm.autotvm.task.space import ConfigSpace, FallbackConfigEntity
 
 def gemm_func(cfg, N):
     A = tvm.placeholder((N, N), name='A')
@@ -25,6 +25,19 @@ def test_split():
     gemm_func(cfg, 128)
     assert len(cfg) == 64
     assert len(cfg.space_map['tile_y']) == 8
+
+    # test fallback
+    cfg = FallbackConfigEntity()
+    cfg.define_split('tile_n', cfg.axis(128), num_outputs=3)
+    cfg.fallback_split('tile_n', [-1, 8, 4])
+
+    assert cfg['tile_n'].size == [4, 8, 4]
+
+    cfg = FallbackConfigEntity()
+    cfg.define_split('tile_n', cfg.axis(49), num_outputs=3)
+    cfg.fallback_split('tile_n', [-1, 8, 4])
+
+    assert cfg['tile_n'].size == [7, 7, 1]
 
 if __name__ == '__main__':
     test_split()

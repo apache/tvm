@@ -2,11 +2,10 @@ import tvm
 import topi
 import topi.testing
 import numpy as np
-from scipy import signal
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
-from topi.cuda.depthwise_conv2d import schedule_depthwise_conv2d_nhwc
 
+from common import get_all_backend
 
 def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
     in_width = in_height
@@ -18,10 +17,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     DilatedFilter = topi.nn.dilate(Filter, (1, 1, dilation, dilation), name='DilatedFilter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
-    # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, DilatedFilter, stride=stride, padding=padding)
-    ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
-    Relu = topi.nn.relu(ScaleShift)
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -30,6 +25,10 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
+            # declare
+            DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, DilatedFilter, stride=stride, padding=padding)
+            ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
+            Relu = topi.nn.relu(ScaleShift)
             # schedule
             s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
             s2 = topi.generic.schedule_depthwise_conv2d_nchw(ScaleShift)
@@ -88,12 +87,8 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    check_device("opencl")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
-    check_device("vulkan")
-    check_device("nvptx")
+    for device in get_all_backend():
+        check_device(device)
 
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding, dilation=1):
@@ -107,11 +102,6 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
     DilatedFilter = topi.nn.dilate(Filter, (1, 1, dilation, dilation), name='DilatedFilter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
-    # declare
-    DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, DilatedFilter, stride=[stride_h, stride_w], padding=padding)
-    ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
-    Relu = topi.nn.relu(ScaleShift)
-    # schedule
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -121,6 +111,11 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         print("Running on target: %s" % device)
 
         with tvm.target.create(device):
+            # declare
+            DepthwiseConv2d = topi.nn.depthwise_conv2d_nhwc(Input, DilatedFilter, stride=[stride_h, stride_w], padding=padding)
+            ScaleShift = topi.nn.scale_shift_nhwc(DepthwiseConv2d, Scale, Shift)
+            Relu = topi.nn.relu(ScaleShift)
+            # schedule
             s1 = topi.generic.schedule_depthwise_conv2d_nhwc(DepthwiseConv2d)
             s2 = topi.generic.schedule_depthwise_conv2d_nhwc(ScaleShift)
             s3 = topi.generic.schedule_depthwise_conv2d_nhwc(Relu)
@@ -180,12 +175,9 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
-    check_device("opencl")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
-    check_device("vulkan")
-    check_device("nvptx")
+    for device in get_all_backend():
+        check_device(device)
+
 
 def test_depthwise_conv2d():
     print("testing nchw")

@@ -83,7 +83,7 @@ def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=10):
         The priority of this request, larger is more prior
     timeout: float, optional
         The timeout of this check (units: seconds).
-        If time is out, a RuntimerError will be raised.
+        If time is out, a RuntimeError will be raised.
     """
     def _check():
         remote = request_remote(device_key, tracker_addr, priority)
@@ -281,11 +281,11 @@ def rpc(key,
         results: List of MeasureResult
             The results for input_pack
         """
-        remote = request_remote(key, (host, port), priority, session_timeout)
+        remote_args = (key, (host, port), priority, session_timeout)
 
         res = _measure_common(input_pack, build_func, build_kwargs, number, repeat,
                               ref_input, ref_output,
-                              remote)
+                              remote_args)
         return res
 
     fmeasure.pack_size = pack_size
@@ -294,7 +294,7 @@ def rpc(key,
 
 
 def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
-                    ref_input=None, ref_output=None, remote=None):
+                    ref_input=None, ref_output=None, remote_args=None):
     """Measure the time cost for a pack of inputs.
 
     (Note: A pack is a list of inputs which will be measured inside a same RPC session)
@@ -318,8 +318,8 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
         Reference input for checking correctness
     ref_output: Array of np.ndarray, optional
         Reference output for checking correctness
-    remote: RPCSession, optional
-        The remote RPC session
+    remote_args: Tuple, optional
+        The arguments to request_remote. If is not None, will use remote rpc devices.
 
     Returns
     -------
@@ -327,7 +327,8 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
         The list of results of measurement.
     """
     res_pack = []
-    tmp_dir = util.tempdir() if remote else None
+    tmp_dir = util.tempdir() if remote_args else None
+    assert len(input_pack) == 1, "Only supports input_pack == 1 for now"
 
     for inp in input_pack:
         tic = time.time()
@@ -360,31 +361,36 @@ def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
                                           tstamp - tic, tstamp))
             continue
 
-        # upload built module
-        if remote:
-            remote.upload(tmp_dir.relpath(filename))
-            func = remote.load_module(filename)
-            ctx = remote.context(str(inp.target), 0)
-            time_f = func.time_evaluator(
-                func.entry_name, ctx, number=number, repeat=repeat)
-        else:
-            ctx = context(str(inp.target), 0)
-            time_f = func.time_evaluator(
-                func.entry_name, ctx, number=number, repeat=repeat)
-
         # measure time
         errno = MeasureErrorNo.NO_ERROR
         try:
+            # upload built module
+            if remote_args:
+                remote = request_remote(*remote_args)
+                remote.upload(tmp_dir.relpath(filename))
+                func = remote.load_module(filename)
+                ctx = remote.context(str(inp.target), 0)
+                time_f = func.time_evaluator(
+                    func.entry_name, ctx, number=number, repeat=repeat)
+            else:
+                ctx = context(str(inp.target), 0)
+                time_f = func.time_evaluator(
+                    func.entry_name, ctx, number=number, repeat=repeat)
+
+            # set input
             if ref_input:
                 args = [nd.array(x, ctx=ctx) for x in ref_input]
             else:
                 args = [nd.empty(get_const_tuple(x.shape), dtype=x.dtype, ctx=ctx)
                         for x in arg_bufs]
+
             costs = time_f(*args).results
             if len(costs) > 2:  # remove largest and smallest value to reduce variance
                 costs = list(costs)
                 costs.sort()
                 costs = tuple(costs[1:-1])
+
+            # check correctness of output
             if ref_output:
                 for expected, real in zip(ref_output, args):
                     if not np.allclose(expected, real.asnumpy(), rtol=1e-4):

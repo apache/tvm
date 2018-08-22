@@ -86,13 +86,9 @@ class GATuner(Tuner):
 
             # cross over
             indices = np.arange(len(genes))
-            max_score = np.max(scores)
-            if max_score < 1e-8:
-                probs = np.empty_like(scores)
-                probs[:] = 1.0 / len(scores)
-            else:
-                scores /= max_score
-                probs = scores / np.sum(scores)
+            scores += 1e-8
+            scores /= np.max(scores)
+            probs = scores / np.sum(scores)
             tmp_genes = []
             for _ in range(self.pop_size):
                 p1, p2 = np.random.choice(indices, size=2, replace=False, p=probs)

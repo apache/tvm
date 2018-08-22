@@ -21,7 +21,7 @@ import numpy as np
 
 from tvm import target as _target
 
-from .space import ConfigSpace
+from .space import FallbackConfigEntity
 
 logger = logging.getLogger('autotvm')
 
@@ -34,9 +34,36 @@ class DispatchContext(object):
     """
     current = None
 
+    def __init__(self):
+        self._old_ctx = DispatchContext.current
+
     def query(self, target, workload):
         """
-        Query the context to get the specific implementation.
+        Query the context to get the specific config for a template.
+        If cannot find the result inside this context, this function will query it
+        from the upper contexts.
+
+        Parameters
+        ----------
+        target: Target
+            The current target
+        workload : Workload
+            The current workload.
+
+        Returns
+        -------
+        cfg : ConfigSpace
+            The specific configuration.
+        """
+        ret = self._query_inside(target, workload)
+        if ret is None:
+            ret = self._old_ctx.query(target, workload)
+        return ret
+
+    def _query_inside(self, target, workload):
+        """
+        Query the context to get the specific config for a template.
+        This function only query config inside this context.
 
         Parameters
         ----------
@@ -117,17 +144,17 @@ def dispatcher(fworkload):
     def dispatch_func(func, *args, **kwargs):
         """The wrapped dispatch function"""
         tgt = _target.current_target()
-        context = DispatchContext.current
-        if context is None:
-            raise RuntimeError("DispatchContext is not initialized")
         workload = func(*args, **kwargs)
-        cfg = context.query(tgt, workload)
-        if cfg.template_key:
-            return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
-        else:
-            assert dispatch_dict, "No func registered for this dispatcher"
+        cfg = DispatchContext.current.query(tgt, workload)
+        if cfg.is_fallback and not cfg.template_key:
+            # first try 'direct' template
+            if 'direct' in dispatch_dict:
+                return dispatch_dict['direct'](cfg, *args, **kwargs)
+            # otherwise pick a random template
             for v in dispatch_dict.values():
                 return v(cfg, *args, **kwargs)
+        else:
+            return dispatch_dict[cfg.template_key](cfg, *args, **kwargs)
 
     fdecorate = decorate(fworkload, dispatch_func)
     fdecorate.register = register
@@ -135,7 +162,7 @@ def dispatcher(fworkload):
 
 
 class ApplyConfig(DispatchContext):
-    """Apply a specific config entity during query.
+    """Apply a deterministic config entity for all queries.
 
     Parameters
     ----------
@@ -147,7 +174,7 @@ class ApplyConfig(DispatchContext):
         self._config = config
         self.workload = None
 
-    def query(self, target, workload):
+    def _query_inside(self, target, workload):
         """Override query"""
         self.workload = workload
         return self._config
@@ -164,20 +191,12 @@ class ApplyHistoryBest(DispatchContext):
         If is str, then it should be the filename of a records log file.
                    Each row of this file is an encoded record pair.
         Otherwise, it is an iterator.
-    default: ConfigEntity, optional
-        The default config to return when no history records
-    allow_fallback: bool
-        Whether allow to use a fallback configuration if cannot find
-        tuned result.
     """
-    def __init__(self, records, default=None, allow_fallback=False):
+    def __init__(self, records):
         super(ApplyHistoryBest, self).__init__()
 
         self.best_by_targetkey = {}
         self.best_by_model = {}
-        self._default = default
-        self._allow_fallback = allow_fallback
-        self.fallback = {}
 
         if records:
             self.load(records)
@@ -234,7 +253,7 @@ class ApplyHistoryBest(DispatchContext):
 
         logger.debug("Finish loading %d records", counter)
 
-    def query(self, target, workload):
+    def _query_inside(self, target, workload):
         if target is None:
             raise RuntimeError("Need a target context to find the history best. "
                                "Hint: If your target is llvm, use `with tvm.target.create('llvm'):`"
@@ -254,20 +273,50 @@ class ApplyHistoryBest(DispatchContext):
             if key in self.best_by_targetkey:
                 return self.best_by_targetkey[key][0].config
 
-        if self._default:
-            return self._default
+        return None
 
-        if self._allow_fallback:
-            key = (target, workload)
-            if key in self.fallback:
-                return self.fallback[key]
+
+class FallbackContext(DispatchContext):
+    """
+    A fallback dispatch context.
+
+    Any tunable template can be called under this context.
+    This is the root context.
+    """
+
+    def __init__(self):
+        super(FallbackContext, self).__init__()
+        self.memory = {}
+        self.silent = False
+
+    def _query_inside(self, target, workload):
+        key = (str(target), workload)
+        if key in self.memory:
+            return self.memory[key]
+
+        if not self.silent:
             logger.warning(
                 "Cannot find config for target=%s, workload=%s. A fallback configuration "
                 "is used, which may bring great performance regression.", target, workload)
-            cfg = ConfigSpace()
-            self.fallback[key] = cfg
-            return cfg
+        cfg = FallbackConfigEntity()
 
-        raise RuntimeError(
-            "Cannot find config for target=%s, workload=%s. You need to do tuning "
-            "for this workload to get the config." % (target, workload))
+        # cache this config
+        self.memory[key] = cfg
+        return cfg
+
+    def clear_cache(self, target, workload):
+        """Clear fallback cache. Pass the same argument as _query_inside to this function
+        to clean the cache.
+
+        Parameters
+        ----------
+        target: Target
+            The current target
+        workload : Workload
+            The current workload.
+        """
+        key = (str(target), workload)
+        if key in self.memory:
+            del self.memory[key]
+
+DispatchContext.current = FallbackContext()

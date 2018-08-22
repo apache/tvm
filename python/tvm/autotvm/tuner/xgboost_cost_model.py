@@ -31,8 +31,12 @@ class XGBoostCostModel(CostModel):
         If is 'curve', use sampled curve feature (relation feature).
 
         Note on choosing feature type:
-        For single task tuning, 'itervar' and 'knob' is good.
+        For single task tuning, 'itervar' and 'knob' are good.
                                 'itervar' is more accurate but 'knob' is much faster.
+                                There are some constraints on 'itervar', if you meet
+                                problems with feature extraction when using 'itervar',
+                                you can swith to 'knob'.
+
         For cross-shape tuning (e.g. many convolutions with different shapes),
                                'itervar' and 'curve' has better transferability,
                                'knob' is faster.
@@ -46,8 +50,11 @@ class XGBoostCostModel(CostModel):
         The number of threads.
     log_interval: int, optional
         If is not none, the cost model will print training log every `log_interval` iterations.
+    upper_model: XGBoostCostModel, optional
+        The upper model used in transfer learning
     """
-    def __init__(self, task, feature_type, loss_type, num_threads=None, log_interval=25):
+    def __init__(self, task, feature_type, loss_type, num_threads=4, log_interval=25,
+                 upper_model=None):
         super(XGBoostCostModel, self).__init__()
 
         if xgb is None:
@@ -109,35 +116,51 @@ class XGBoostCostModel(CostModel):
         else:
             raise RuntimeError("Invalid feature type " + feature_type)
 
-        self.feature_cache = FeatureCache()
+        if upper_model:  # share a same feature cache with upper model
+            self.feature_cache = upper_model.feature_cache
+        else:
+            self.feature_cache = FeatureCache()
+        self.upper_model = upper_model
         self.feature_extra_ct = 0
         self.pool = None
         self.base_model = None
-        self.upper_model = None
 
         self._sample_size = 0
+        self._reset_pool(self.space, self.target, self.task)
 
-        self._reset_pool()
+    def _reset_pool(self, space, target, task):
+        """reset processing pool for feature extraction"""
 
-    def _reset_pool(self):
-        # reset processing pool for feature extraction
+        if self.upper_model:  # base model will reuse upper model's pool,
+            self.upper_model._reset_pool(space, target, task)
+            return
+
+        self._close_pool()
+
+        # use global variable to pass common arguments
+        global _extract_space, _extract_target, _extract_task
+        _extract_space = space
+        _extract_target = target
+        _extract_task = task
+        self.pool = multiprocessing.Pool(self.num_threads)
+
+    def _close_pool(self):
         if self.pool:
             self.pool.terminate()
             self.pool.join()
-            del self.pool
-        # use global variable to pass common arguments
-        global _extract_space, _extract_target, _extract_task
-        _extract_space = self.space
-        _extract_target = self.target
-        _extract_task = self.task
-        self.pool = multiprocessing.Pool(self.num_threads)
+            self.pool = None
+
+    def _get_pool(self):
+        if self.upper_model:
+            return self.upper_model._get_pool()
+        return self.pool
 
     def _base_model_discount(self):
-        return 1.0 / (2 ** (self._sample_size / 50.0))
+        return 1.0 / (2 ** (self._sample_size / 64.0))
 
     def fit(self, xs, ys, plan_size):
         tic = time.time()
-        self._reset_pool()
+        self._reset_pool(self.space, self.target, self.task)
 
         x_train = self._get_feature(xs)
         y_train = np.array(ys)
@@ -150,8 +173,12 @@ class XGBoostCostModel(CostModel):
         self._sample_size = len(x_train)
 
         if self.base_model:
-            dtrain.set_base_margin(self._base_model_discount() *
-                                   self.base_model.predict(xs, output_margin=True))
+            discount = self._base_model_discount()
+            if discount < 0.05:  # discard base model
+                self.base_model.upper_model = None
+                self.base_model = None
+            else:
+                dtrain.set_base_margin(discount * self.base_model.predict(xs, output_margin=True))
 
         self.bst = xgb.train(self.xgb_params, dtrain,
                              num_boost_round=8000,
@@ -172,11 +199,19 @@ class XGBoostCostModel(CostModel):
 
     def fit_log(self, records, plan_size):
         tic = time.time()
-        self._reset_pool()
 
-        args = list(records)
-        logger.debug("XGB load %d entries from history log file", len(args))
+        # filter data, only pick the data with a same task
+        data = []
+        for inp, res in records:
+            if inp.task.name == self.task.name and \
+                            inp.config.template_key == self.task.config_space.template_key:
+                data.append((inp, res))
 
+        logger.debug("XGB load %d entries from history log file", len(data))
+
+        # extract feature
+        self._reset_pool(self.space, self.target, self.task)
+        pool = self._get_pool()
         if self.fea_type == 'itervar':
             feature_extract_func = _extract_itervar_feature_log
         elif self.fea_type == 'knob':
@@ -185,10 +220,21 @@ class XGBoostCostModel(CostModel):
             feature_extract_func = _extract_curve_feature_log
         else:
             raise RuntimeError("Invalid feature type: " + self.fea_type)
-        res = self.pool.map(feature_extract_func, args)
-        xs, ys = zip(*res)
-        xs, ys = np.array(xs), np.array(ys)
+        res = pool.map(feature_extract_func, data)
 
+        # filter out feature with different shapes
+        fea_len = len(self._get_feature([0])[0])
+
+        xs, ys = [], []
+        for x, y in res:
+            if len(x) == fea_len:
+                xs.append(x)
+                ys.append(y)
+
+        if len(xs) < 500:  # no enough samples
+            return False
+
+        xs, ys = np.array(xs), np.array(ys)
         x_train = xs
         y_train = ys
         y_max = np.max(y_train)
@@ -212,6 +258,8 @@ class XGBoostCostModel(CostModel):
 
         logger.debug("XGB train: %.2f\tobs: %d", time.time() - tic, len(xs))
 
+        return True
+
     def predict(self, xs, output_margin=False):
         feas = self._get_feature(xs)
         dtest = xgb.DMatrix(feas)
@@ -224,20 +272,12 @@ class XGBoostCostModel(CostModel):
 
     def load_basemodel(self, base_model):
         self.base_model = base_model
-        if isinstance(base_model, XGBoostCostModel):
-            # share feature cache
-            base_model.feature_cache = self.feature_cache
+        self.base_model._close_pool()
+        self.base_model.upper_model = self
 
-            # close thread pool
-            if base_model.pool:
-                base_model.pool.terminate()
-                base_model.pool.join()
-                del base_model.pool
-            self.base_model.upper_model = self
-
-    def clone_new(self):
+    def spawn_base_model(self):
         return XGBoostCostModel(self.task, self.fea_type, self.loss_type,
-                                self.num_threads, self.log_interval)
+                                self.num_threads, self.log_interval, self)
 
     def _get_feature(self, indexes):
         """get features for indexes, run extraction if we do not have cache for them"""
@@ -251,7 +291,7 @@ class XGBoostCostModel(CostModel):
         need_extract = [x for x in indexes if x not in fea_cache]
 
         if need_extract:
-            pool = self.pool if self.upper_model is None else self.upper_model.pool
+            pool = self._get_pool()
             feas = pool.map(self.feature_extract_func, need_extract)
             for i, fea in zip(need_extract, feas):
                 fea_cache[i] = fea
@@ -260,6 +300,9 @@ class XGBoostCostModel(CostModel):
         for i, ii in enumerate(indexes):
             ret[i, :] = fea_cache[ii]
         return ret
+
+    def __del__(self):
+        self._close_pool()
 
 
 _extract_space = None

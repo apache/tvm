@@ -8,8 +8,8 @@ from ..autotvm.tophub import list_packages, download_package
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--download", type=str, nargs='+',
-                        help="Target to download. Use 'all' to download for all targets")
+    parser.add_argument("-d", "--download", type=str, nargs='+',
+                        help="The targets to download. Use 'all' to download for all targets")
     parser.add_argument("-l", "--list", action='store_true', help="List available packages")
     args = parser.parse_args()
 
@@ -21,8 +21,7 @@ if __name__ == '__main__':
         print("-" * 41)
         for target, info in info:
             print("%-20s %-20s" % (target, "%.2f MB" % (info['size']/1000000)))
-
-    if args.download:
+    elif args.download:
         info = list_packages()
         all_targets = [x[0] for x in info]
         if 'all' in args.download:
@@ -34,3 +33,5 @@ if __name__ == '__main__':
             if t not in all_targets:
                 print("Warning : cannot find tuned parameters of " + t + ". (ignored)")
             download_package(t)
+    else:
+        parser.print_help()

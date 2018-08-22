@@ -567,15 +567,16 @@ class ConfigSpace(object):
     """
     def __init__(self):
         # private dict to provide sugar
-        self.space_map = OrderedDict()  # name -> space
+        self.space_map = OrderedDict()    # name -> space
         self._collect = True
         self._length = None
-        self._entity_map = OrderedDict()
+        self._entity_map = OrderedDict()  # name -> entity
         self._constraints = []
         self.errors = []
         self.template_key = None
         self.code_hash = None
         self.flop = 0
+        self.is_fallback = False
 
     @staticmethod
     def axis(var):
@@ -607,6 +608,15 @@ class ConfigSpace(object):
             If is 'candidate', try listed candidate.
         kwargs: dict
             extra arguments for policy
+            see examples below for how to use filter
+
+        Examples
+        --------
+        >>> # use custom candidates
+        >>> cfg.define_split('tile_x', x, policy='candidate', candidate=[[1, 4, 4], [4, 1, 4]])
+
+        >>> # use a filter that only accepts the split scheme whose inner most tile is less then 4
+        >>> cfg.define_split('tile_y', y, policy='all', filter=lambda x: x.size[-1] <= 4)
         """
         axes = [axis]
         return self._add_new_transform(SplitSpace, name, axes, policy, **kwargs)
@@ -889,3 +899,45 @@ class ConfigEntity(ConfigSpace):
     def __repr__(self):
         return "%s,%s,%s,%d" % (str(self._entity_map)[12:-1], self.template_key,
                                 self.code_hash, self.index)
+
+class FallbackConfigEntity(ConfigSpace):
+    """The config entity created to support fallback"""
+
+    def __init__(self):
+        super(FallbackConfigEntity, self).__init__()
+        self.is_fallback = True
+
+    def fallback_split(self, name, constraints):
+        """Fallback a split knob
+
+        Parameters
+        ----------
+        name: str
+            name of the knob
+        constraints: List of int
+            The maximum tile size for every dimension. Value `-1` means no constraint.
+
+        Examples
+        --------
+        If you use cfg.define_split('tile_0', 128, num_outputs=3),
+        Then cfg.fallback_split('tile_0', [-1, 8, 4]) will give you cfg['tile_0'].size = [4, 8, 4]
+
+        If you use cfg.define_split('tile_0', 49, num_outputs=3),
+        Then cfg.fallback_split('tile_0', [-1, 8, 4]) will give you cfg['tile_0'].size = [7, 7, 1]
+        """
+        space = self.space_map[name]
+        assert len(constraints) == space.num_outputs
+        indices = np.arange(space.num_outputs)
+
+        # '-1' means no constraint
+        constraints = [x if x != -1 else 1e10 for x in constraints]
+
+        for entity in reversed(space.entities):
+            if all([entity.size[i] <= constraints[i] for i in indices]):
+                self._entity_map[name] = entity
+                return
+
+        raise RuntimeError("Cannot find feasible fallback split entity for node: " + name)
+
+    def __repr__(self):
+        return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)
