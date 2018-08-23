@@ -425,8 +425,6 @@ def arm_cpu(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    from . import autotvm
-
     trans_table = {
         "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
         "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
@@ -438,9 +436,6 @@ def arm_cpu(model='unknown', options=None):
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
-
-    # download pre-tuned parameters for arm_cpu if there is not any.
-    autotvm.tophub.check_package('arm_cpu')
 
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)

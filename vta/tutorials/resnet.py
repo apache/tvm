@@ -154,7 +154,7 @@ for file in [categ_fn, graph_fn, params_fn]:
 synset = eval(open(os.path.join(data_dir, categ_fn)).read())
 
 # Download pre-tuned op parameters of conv2d for ARM CPU used in VTA
-autotvm.tophub.check_package('vta')
+autotvm.tophub.check_backend('vta')
 
 
 ######################################################################
