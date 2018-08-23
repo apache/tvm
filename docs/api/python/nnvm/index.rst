@@ -11,3 +11,4 @@ This document contains the python API to NNVM compiler toolchain.
    symbol
    graph
    top
+   testing
