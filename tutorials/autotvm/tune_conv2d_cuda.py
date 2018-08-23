@@ -64,7 +64,7 @@ from tvm import autotvm
 #
 
 @autotvm.template
-def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
+def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
     data = tvm.placeholder((N, CI, H, W), name='data')
@@ -206,8 +206,8 @@ func(a_tvm, w_tvm, c_tvm)
 
 np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
-# Evaluate running time. Here we choose a large repeat number (200) to reduce the noise
+# Evaluate running time. Here we choose a large repeat number (400) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.
-evaluator = func.time_evaluator(func.entry_name, ctx, number=200)
+evaluator = func.time_evaluator(func.entry_name, ctx, number=400)
 print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)
 
