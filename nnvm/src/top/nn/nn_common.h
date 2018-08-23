@@ -57,13 +57,13 @@ inline TShape ConvertLayout(TShape src, const Layout& src_layout, const Layout& 
   for (size_t i = 0; i < src_layout.ndim(); ++i) {
     Layout::LayoutDim src_dim = src_layout[i];
     if (Layout::is_superdim(src_dim)) {
-      int dst_major_pos = dst_layout.indexof(Layout::to_superdim(src_dim));
-      int dst_minor_pos = dst_layout.indexof(Layout::to_subdim(src_dim));
-      int src_minor_pos = src_layout.indexof(Layout::to_subdim(src_dim));
-      int src_factor = src_layout.subsizeof(src_dim);
-      int dst_factor = dst_layout.subsizeof(src_dim);
+      auto dst_major_pos = dst_layout.indexof(Layout::to_superdim(src_dim));
+      auto dst_minor_pos = dst_layout.indexof(Layout::to_subdim(src_dim));
+      auto src_minor_pos = src_layout.indexof(Layout::to_subdim(src_dim));
+      auto src_factor = src_layout.subsizeof(src_dim);
+      auto dst_factor = dst_layout.subsizeof(src_dim);
 
-      uint32_t src_dim_size = src[i];
+      auto src_dim_size = src[i];
       if (src_minor_pos >= 0) {
         CHECK_EQ(src_factor, src[src_minor_pos]) << "src shape " << src
                                                  << " does not agree with layout " << src_layout;
