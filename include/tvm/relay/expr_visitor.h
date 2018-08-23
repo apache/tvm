@@ -58,7 +58,7 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n, Args...
     this->VisitExpr(op->false_value, args...);
   }
 
-  void VisitExpr_(const OperatorNode* op, Args... args) override { return; }
+  void VisitExpr_(const OpNode* op, Args... args) override { return; }
 };
 
 template <typename... Args>
@@ -72,8 +72,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n, Args..
     return GetRef<GlobalVar>(op);
   }
 
-  Expr VisitExpr_(const OperatorNode* op, Args... args) override {
-    return GetRef<Operator>(op);
+  Expr VisitExpr_(const OpNode* op, Args... args) override {
+    return GetRef<Op>(op);
   }
 
   Expr VisitExpr_(const TupleNode* op, Args... args) override {

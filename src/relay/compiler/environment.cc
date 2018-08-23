@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file  environment.cc
- * \brief Relay global environment.
+ * \brief The global environment in Relay.
  */
 #include <sstream>
 #include "tvm/relay/compiler/environment.h"
@@ -24,33 +24,16 @@ Environment EnvironmentNode::make(
   return Environment(n);
 }
 
-void EnvironmentNode::register_op(const Operator& op) {
-    this->operators.Insert(op->name, op);
+GlobalVar EnvironmentNode::GetGlobalVar(const std::string &str) {
+  auto global_id = global_map_.find(str);
+  if (global_id != global_map_.end()) {
+      return (*global_id).second;
+  } else {
+      auto id = GlobalVarNode::make(str);
+      this->global_map_.Set(str, id);
+      return id;
+  }
 }
-
-// tvm::PackedFunc EnvironmentNode::jit_for(OperatorId id) {
-//   return this->lookup(id)->compiler;
-// }
-
-// GlobalId EnvironmentNode::global_id(const std::string &str) {
-//   try {
-//     return global_map_.Lookup(str);
-//   } catch (const KeyNotFound &err) {
-//     GlobalId id = GlobalIdNode::make(str);
-//     global_map_.Insert(str, id);
-//     return id;
-//   }
-// }
-
-// OperatorId EnvironmentNode::operator_id(const std::string &str) {
-//   try {
-//     return operator_map_.Lookup(str);
-//   } catch (const KeyNotFound &err) {
-//     OperatorId id = OperatorIdNode::make(str);
-//     operator_map_.Insert(str, id);
-//     return id;
-//   }
-// }
 
 // // Add a new item to the global environment
 // // throws an exception if the item already
@@ -79,15 +62,15 @@ void EnvironmentNode::register_op(const Operator& op) {
 //     } else {
 //       operators.insert({op->id, op});
 //     }
-//   } else if (const DefnNode *d = item.as<DefnNode>()) {
-//     auto def = GetRef<Defn>(d);
+//   } else if (const FunctionNode *d = item.as<FunctionNode>()) {
+//     auto def = GetRef<Function>(d);
 //     auto type = def->type;
 //     if (items.find(def->id) != items.end()) {
 //       if (!update) {
 //         throw dmlc::Error("already have definition for XXXX.");
 //       }
 
-//       auto old_type = items[def->id].as<DefnNode>()->type;
+//       auto old_type = items[def->id].as<FunctionNode>()->type;
 
 //       if (!alpha_eq(type, old_type)) {
 //         throw dmlc::Error(
@@ -107,23 +90,18 @@ void EnvironmentNode::register_op(const Operator& op) {
 
 // void EnvironmentNode::remove(const GlobalId &id) { this->items.erase(id); }
 
-// Defn EnvironmentNode::lookup(const GlobalId &id) {
-//   if (items.find(id) != items.end()) {
-//     return items.at(id);
-//   } else {
-//     throw EnvError(std::string("there is no definition of ") + id->name);
-//   }
-// }
-
-Operator EnvironmentNode::op(const std::string & op_name) {
-  // FIX ME
-  return operators.Lookup(op_name);
+Function EnvironmentNode::Lookup(const GlobalVar &var) {
+  if (items.find(var) != items.end()) {
+    return items.at(var);
+  } else {
+    throw Error(std::string("there is no definition of ") + var->name_hint);
+  }
 }
 
-// Defn EnvironmentNode::lookup_global(const std::string &str) {
-//   GlobalId id = this->global_id(str);
-//   return this->lookup(id);
-// }
+Function EnvironmentNode::Lookup(const std::string &str) {
+  GlobalVar id = this->GetGlobalVar(str);
+  return this->Lookup(id);
+}
 
 // inline FileId EnvironmentNode::add_source(std::string file_name,
 //                                           std::string source) {
@@ -161,26 +139,6 @@ Operator EnvironmentNode::op(const std::string & op_name) {
 //     std::cout << rang::fg::red << cursor << " " << err.msg << rang::style::reset
 //               << std::endl;
 //   }
-// }
-
-// Array<Operator> EnvironmentNode::get_operators() {
-//   std::vector<Operator> ops;
-//   for (auto pair : this->operators) {
-//     ops.push_back(pair.second);
-//   }
-//   return Array<Operator>(ops);
-// }
-
-// Array<Defn> EnvironmentNode::get_defns() {
-//   std::vector<Defn> defns;
-//   for (auto pair : this->items) {
-//     defns.push_back(pair.second);
-//   }
-//   return Array<Defn>(defns);
-// }
-
-// void EnvironmentNode::register_shape_ext(ShapeExtension ext) {
-//   this->shape_exts_.Insert(ext->name, ext);
 // }
 
 TVM_REGISTER_API("relay._make.Environment")

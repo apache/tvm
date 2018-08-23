@@ -24,7 +24,7 @@ Expr Infer(const Environment & env, const Expr & e);
 /*! \brief Ensures that an operator is well-formed with respect
  * to Relay's type system.
  */
-Operator CheckOperator(const Environment & env, const Operator & op);
+Op CheckOp(const Environment & env, const Op & op);
 
 }  // namespace relay
 }  // namespace tvm

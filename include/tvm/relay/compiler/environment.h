@@ -8,7 +8,6 @@
 
 #include <string>
 #include <vector>
-#include "tvm/relay/compiler/intern_table.h"
 #include "../expr.h"
 #include "../type.h"
 #include "../op.h"
@@ -40,7 +39,7 @@ struct Environment;
 class EnvironmentNode : public RelayNode {
  private:
   /*! A map from string names to GlobalIds, ensures global uniqueness. */
-  InternTable<GlobalVar> global_map_;
+  tvm::Map<std::string, GlobalVar> global_map_;
 
   // /*! \brief A map from file names to source fragments. */
   // SourceMap source_map_
@@ -61,18 +60,17 @@ class EnvironmentNode : public RelayNode {
       std::unordered_map<GlobalVar, Function, NodeHash> global_funcs);
 
   /*! Add an operator to the Enviroment. */
-  void register_op(const Operator& op);
-  // void add(const Operator& op, bool update = false);
+  void register_op(const Op& op);
+  void add(const GlobalVar& var, const Function & func, bool update = false);
+  void try_add(const GlobalVar& var, const Function & func, bool update=false);
+  void update(const GlobalVar& var, const Function & func);
+  void remove(const GlobalVar& var);
 
-  // void try_add(const Item& item, bool update=false);
-  // void update(const Item& item);
-  // void remove(const GlobalId& id);
-
-  // GlobalId global_id(const std::string& str);
-  Operator op(const std::string& str);
+  GlobalVar GetGlobalVar(const std::string& str);
 
   /*! \brief Lookup a global function by its name. */
-  Function lookup(const GlobalVar& id);
+  Function Lookup(const GlobalVar& id);
+  Function Lookup(const std::string & s);
 
   /*! \brief Add a source fragment to the environment. */
   // FileId add_source(std::string file_name, std::string source);

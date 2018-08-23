@@ -113,7 +113,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const LetNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const IfNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const OperatorNode* op,
+  virtual R VisitExpr_(const OpNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
     throw dmlc::Error(std::string("Do not have a default for ") + op->type_key());
@@ -133,7 +133,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(CallNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(LetNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(IfNode);
-    RELAY_EXPR_FUNCTOR_DISPATCH(OperatorNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(OpNode);
     return vtable;
   }
 };
