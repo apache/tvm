@@ -23,6 +23,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 ## Reviewers
 - [Masahiro Masuda](https://github.com/masahi)
 - [Kazutaka Morita](https://github.com/kazum)
+- [Tatsuya Nishiyama](https://github.com/nishi-t)
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Siva](https://github.com/srkreddy1238)
 - [Alex Weaver](https://github.com/alex-weaver)
@@ -35,9 +36,6 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
   - To contributors: please add your name to the list.
 - [Qiao Zhang](https://github.com/zhangqiaorjc)
 - [Jian Weng](https://github.com/were)
-- [Masahiro Masuda](https://github.com/masahi)
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
-- [Tatsuya Nishiyama](https://github.com/nishi-t)
-- [Kazutaka Morita](https://github.com/kazum)
