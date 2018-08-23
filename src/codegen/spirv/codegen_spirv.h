@@ -12,7 +12,7 @@
 
 #include <vector>
 
-#include "./ir_builder.h"
+#include "ir_builder.h"
 #include "../../runtime/thread_storage_scope.h"
 
 namespace tvm {

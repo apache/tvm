@@ -6,7 +6,7 @@
 #include <nnvm/c_api.h>
 #include <nnvm/op.h>
 #include <nnvm/symbolic.h>
-#include "./c_api_common.h"
+#include "c_api_common.h"
 
 using namespace nnvm;
 

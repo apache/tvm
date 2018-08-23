@@ -4,7 +4,7 @@
  * \brief IPC session call to verilog simulator via VPI.
  */
 #include <tvm/api_registry.h>
-#include "./vpi_session.h"
+#include "vpi_session.h"
 
 namespace tvm {
 namespace codegen {

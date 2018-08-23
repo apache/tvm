@@ -7,7 +7,7 @@
 #include <tvm/runtime/serializer.h>
 #include <fstream>
 
-#include "./file_util.h"
+#include "file_util.h"
 
 namespace tvm {
 namespace runtime {

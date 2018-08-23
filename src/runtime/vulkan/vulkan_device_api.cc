@@ -5,7 +5,7 @@
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
 #include <cstring>
-#include "./vulkan_common.h"
+#include "vulkan_common.h"
 
 namespace tvm {
 namespace runtime {

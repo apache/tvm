@@ -3,7 +3,7 @@
  * \file intrin_rule_opencl.cc
  * \brief OpenCL intrinsic rules.
  */
-#include "./intrin_rule.h"
+#include "intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

@@ -8,7 +8,7 @@
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
 #include <numeric>
-#include "./graph_runtime.h"
+#include "graph_runtime.h"
 
 namespace tvm {
 namespace runtime {

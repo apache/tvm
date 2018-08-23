@@ -7,8 +7,8 @@
 
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include "./codegen_llvm.h"
-#include "./codegen_cpu.h"
+#include "codegen_llvm.h"
+#include "codegen_cpu.h"
 #include "../codegen_common.h"
 #include "../../pass/ir_util.h"
 #include "../../arithmetic/compute_expr.h"

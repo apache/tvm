@@ -10,7 +10,7 @@
 #include <unordered_map>
 #include <map>
 #include <queue>
-#include "./vpi_session.h"
+#include "vpi_session.h"
 
 namespace tvm {
 namespace codegen {

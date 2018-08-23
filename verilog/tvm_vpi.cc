@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <memory>
 #include <queue>
-#include "./tvm_vpi.h"
+#include "tvm_vpi.h"
 #include "../src/common/pipe.h"
 
 namespace tvm {

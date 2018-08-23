@@ -11,7 +11,7 @@
 extern "C" {
 #endif
 
-#include "./driver.h"
+#include "driver.h"
 
 #define VTA_MEMCPY_H2D 1
 #define VTA_MEMCPY_D2H 2

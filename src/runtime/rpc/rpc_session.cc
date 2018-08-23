@@ -11,7 +11,7 @@
 #include <array>
 #include <string>
 #include <chrono>
-#include "./rpc_session.h"
+#include "rpc_session.h"
 #include "../../common/ring_buffer.h"
 
 namespace tvm {

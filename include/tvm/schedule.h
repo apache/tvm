@@ -7,10 +7,10 @@
 #define TVM_SCHEDULE_H_
 
 #include <string>
-#include "./base.h"
-#include "./expr.h"
-#include "./tensor.h"
-#include "./tensor_intrin.h"
+#include "base.h"
+#include "expr.h"
+#include "tensor.h"
+#include "tensor_intrin.h"
 
 namespace tvm {
 

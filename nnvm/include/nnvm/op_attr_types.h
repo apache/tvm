@@ -10,10 +10,10 @@
 #include <string>
 #include <utility>
 #include <functional>
-#include "./base.h"
-#include "./node.h"
-#include "./tuple.h"
-#include "./layout.h"
+#include "base.h"
+#include "node.h"
+#include "tuple.h"
+#include "layout.h"
 
 namespace nnvm {
 

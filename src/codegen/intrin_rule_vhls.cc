@@ -3,7 +3,7 @@
  * \file intrin_rule_vhls.cc
  * \brief VHLS intrinsic rules.
  */
-#include "./intrin_rule.h"
+#include "intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

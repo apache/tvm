@@ -9,12 +9,12 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "./expr.h"
-#include "./ir_operator.h"
-#include "./tensor.h"
-#include "./schedule.h"
-#include "./arithmetic.h"
-#include "./buffer.h"
+#include "expr.h"
+#include "ir_operator.h"
+#include "tensor.h"
+#include "schedule.h"
+#include "arithmetic.h"
+#include "buffer.h"
 
 namespace tvm {
 

@@ -11,8 +11,8 @@
 #include <nnvm/pass_functions.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include <mutex>
-#include "./graph_hash.h"
-#include "./compile_engine.h"
+#include "graph_hash.h"
+#include "compile_engine.h"
 
 namespace nnvm {
 namespace compiler {

@@ -12,9 +12,9 @@
 #include <vector>
 #include <type_traits>
 
-#include "./base.h"
-#include "./expr.h"
-#include "./arithmetic.h"
+#include "base.h"
+#include "expr.h"
+#include "arithmetic.h"
 
 namespace tvm {
 
