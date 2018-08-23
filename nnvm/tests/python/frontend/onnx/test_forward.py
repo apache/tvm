@@ -387,7 +387,7 @@ def _test_upsample_nearest():
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
     y = helper.make_node("Upsample", ['in'], ['out'], mode='nearest', scales=[1.0, 1.0, 2.0, 2.0])
-    
+
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.upsampling_python(in_array, scale, "NCHW")
 
@@ -407,7 +407,7 @@ def _test_upsample_bilinear():
     in_shape = (1, 1, 3, 3)
     out_shape = (1, 1, 3*scale, 3*scale)
     y = helper.make_node("Upsample", ['in'], ['out'], mode='linear', scales=[1.0, 1.0, 2.0, 2.0])
-    
+
     in_array = np.random.uniform(size=in_shape).astype(np.float32)
     out_array = topi.testing.bilinear_resize_python(in_array, (3*scale, 3*scale), "NCHW")
 
@@ -425,6 +425,33 @@ def _test_upsample_bilinear():
 def test_upsample():
     _test_upsample_nearest()
     _test_upsample_bilinear()
+
+def _test_softmax(inshape, axis):
+    opname = 'Softmax'
+    indata = np.random.uniform(size=inshape).astype(np.float32)
+    outshape = inshape
+    outdata = topi.testing.softmax_python(indata)
+    if isinstance(axis, int):
+        y = helper.make_node(opname, ['in'], ['out'], axis = axis)
+    elif axis is None:
+        y = helper.make_node(opname, ['in'], ['out'])
+
+    graph = helper.make_graph([y],
+                              opname+'_test',
+                              inputs = [helper.make_tensor_value_info("in",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.FLOAT, list(outdata.shape))])
+
+    model = helper.make_model(graph, producer_name=opname+'_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outshape, 'float32')
+        np.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_softmax():
+    _test_softmax((1, 10), None)
+    _test_softmax((1, 10), 1)
 
 def verify_min(input_dim):
     dtype = 'float32'
@@ -676,3 +703,4 @@ if __name__ == '__main__':
     test_forward_mean()
     test_forward_hardsigmoid()
     test_forward_arg_min_max()
+    test_softmax()
