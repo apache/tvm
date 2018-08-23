@@ -22,13 +22,16 @@ type pTVMType struct {
 
 // data type to pTVMType mapping
 var dtypeMap = map[string] pTVMType {
+    "int8": pTVMType{0, 8, 1},
+    "int16": pTVMType{0, 16, 1},
     "int32": pTVMType{0, 32, 1},
     "int64": pTVMType{0, 64, 1},
+    "uint8": pTVMType{1, 8, 1},
+    "uint16": pTVMType{1, 16, 1},
     "uint32": pTVMType{1, 32, 1},
     "uint64": pTVMType{1, 64, 1},
     "float32": pTVMType{2, 32, 1},
     "float64": pTVMType{2, 64, 1},
-    "handle": pTVMType{3, 64, 1},
 }
 
 // dtypeFromTVMType return the pTVMType corresponding to given dtype

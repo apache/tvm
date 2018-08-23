@@ -52,6 +52,16 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
     dtype := C._DLTensorGetDType(C.uintptr_t(parray))
 
     switch val.(type) {
+        case []int8:
+            sliceVal := val.([]int8)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            return parray.nativeCopyFrom(data, datalen)
+        case []int16:
+            sliceVal := val.([]int16)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            return parray.nativeCopyFrom(data, datalen)
         case []int32:
             sliceVal := val.([]int32)
             data = C.native_voidp(&sliceVal[0])
@@ -59,6 +69,16 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
             return parray.nativeCopyFrom(data, datalen)
         case []int64:
             sliceVal := val.([]int64)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            return parray.nativeCopyFrom(data, datalen)
+        case []uint8:
+            sliceVal := val.([]uint8)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            return parray.nativeCopyFrom(data, datalen)
+         case []uint16:
+            sliceVal := val.([]uint16)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
             return parray.nativeCopyFrom(data, datalen)
@@ -118,6 +138,18 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
     dtype := C._DLTensorGetDType(C.uintptr_t(parray))
 
     switch parray.GetDType() {
+        case "int8":
+            sliceVal := make([]int8, size)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            err = parray.nativeCopyTo(data, datalen)
+            retVal = sliceVal
+        case "int16":
+            sliceVal := make([]int16, size)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            err = parray.nativeCopyTo(data, datalen)
+            retVal = sliceVal
         case "int32":
             sliceVal := make([]int32, size)
             data = C.native_voidp(&sliceVal[0])
@@ -126,6 +158,18 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
             retVal = sliceVal
         case "int64":
             sliceVal := make([]int64, size)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            err = parray.nativeCopyTo(data, datalen)
+            retVal = sliceVal
+        case "uint8":
+            sliceVal := make([]uint8, size)
+            data = C.native_voidp(&sliceVal[0])
+            datalen = len(sliceVal) * int(dtype.bits / 8)
+            err = parray.nativeCopyTo(data, datalen)
+            retVal = sliceVal
+        case "uint16":
+            sliceVal := make([]uint16, size)
             data = C.native_voidp(&sliceVal[0])
             datalen = len(sliceVal) * int(dtype.bits / 8)
             err = parray.nativeCopyTo(data, datalen)
@@ -237,18 +281,27 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
     typeName := "float32"
     ctx := Context{KDLCPU, 0}
 
-    if len(args) > 0 {
-        typeName = args[0].(string)
+    if len(shape) < 1 {
+        err = fmt.Errorf("Invalid shape for Array creation: %v\n", len(shape))
+        return
+    }
+
+    for i, val := range args {
+        switch val.(type) {
+            case string:
+                typeName = args[i].(string)
+            case Context:
+                ctx = args[i].(Context)
+            default:
+                err = fmt.Errorf("Invalid Optional Argument Type: %T\n", val)
+                return
+        }
     }
 
     tvmType, err := dtypeToTVMType(typeName)
 
     if err != nil {
         return
-    }
-
-    if len(args) > 1 {
-        ctx = args[1].(Context)
     }
 
     ndim := int32(len(shape))
