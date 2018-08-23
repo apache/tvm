@@ -50,7 +50,6 @@ def _get_schedule_conv(wkl):
         # workloads of resnet34_v2 on imagenet, no extra workload required
         
         ## Following are for INT8 kernels
-        Workload('uint8', 'int32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
         Workload('uint8', 'int32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
         Workload('uint8', 'int32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
         Workload('uint8', 'int32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
@@ -124,7 +123,6 @@ def _get_schedule_conv(wkl):
     
         # Following are for INT8 operations
         # workloads of resnet18_v1 on imagenet
-        AVXConvCommonFwd(3, fp32_vec_len, 28, False),   #TODO
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
         AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
