@@ -196,37 +196,50 @@ cdef inline object make_ret(TVMValue value, int tcode):
     raise ValueError("Unhandled type code %d" % tcode)
 
 
-cdef inline object FuncCall3(void* chandle, tuple args, int nargs):
+cdef inline void FuncCall3(void* chandle,
+                           tuple args,
+                           int nargs,
+                           TVMValue* ret_val,
+                           int* ret_tcode):
     cdef TVMValue[3] values
     cdef int[3] tcodes
-    cdef TVMValue ret_val
-    cdef int ret_code
     nargs = len(args)
     temp_args = []
     for i in range(nargs):
         make_arg(args[i], &values[i], &tcodes[i], temp_args)
     CALL(TVMFuncCall(chandle, &values[0], &tcodes[0],
-                     nargs, &ret_val, &ret_code))
-    return make_ret(ret_val, ret_code)
+                     nargs, ret_val, ret_tcode))
 
-cdef inline object FuncCall(void* chandle, tuple args):
+cdef inline void FuncCall(void* chandle,
+                          tuple args,
+                          TVMValue* ret_val,
+                          int* ret_tcode):
     cdef int nargs
     nargs = len(args)
     if nargs <= 3:
-        return FuncCall3(chandle, args, nargs)
+        FuncCall3(chandle, args, nargs, ret_val, ret_tcode)
+        return
 
     cdef vector[TVMValue] values
     cdef vector[int] tcodes
-    cdef TVMValue ret_val
-    cdef int ret_code
     values.resize(max(nargs, 1))
     tcodes.resize(max(nargs, 1))
     temp_args = []
     for i in range(nargs):
         make_arg(args[i], &values[i], &tcodes[i], temp_args)
     CALL(TVMFuncCall(chandle, &values[0], &tcodes[0],
-                     nargs, &ret_val, &ret_code))
-    return make_ret(ret_val, ret_code)
+                     nargs, ret_val, ret_tcode))
+
+
+cdef inline void* ConstructorCall(void* constructor_handle,
+                                  int type_code,
+                                  tuple args):
+    """Call contructor of a handle function"""
+    cdef TVMValue ret_val
+    cdef int ret_tcode
+    FuncCall(constructor_handle, args, &ret_val, &ret_tcode)
+    assert ret_tcode == type_code
+    return ret_val.v_handle
 
 
 cdef class FunctionBase:
@@ -264,7 +277,10 @@ cdef class FunctionBase:
             CALL(TVMFuncFree(self.chandle))
 
     def __call__(self, *args):
-        return FuncCall(self.chandle, args)
+        cdef TVMValue ret_val
+        cdef int ret_tcode
+        FuncCall(self.chandle, args, &ret_val, &ret_tcode)
+        return make_ret(ret_val, ret_tcode)
 
 _CLASS_FUNCTION = None
 _CLASS_MODULE = None

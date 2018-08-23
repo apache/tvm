@@ -65,4 +65,26 @@ cdef class NodeBase:
                 "'%s' object has no attribute '%s'" % (type(self), name))
         return make_ret(ret_val, ret_type_code)
 
+    def __init_handle_by_constructor__(self, fconstructor, *args):
+        """Initialize the handle by calling constructor function.
+
+        Parameters
+        ----------
+        fconstructor : Function
+            Constructor function.
+
+        args: list of objects
+            The arguments to the constructor
+
+        Note
+        ----
+        We have a special calling convention to call constructor functions.
+        So the return handle is directly set into the Node object
+        instead of creating a new Node.
+        """
+        self.chandle = ConstructorCall(
+            (<FunctionBase>fconstructor).chandle,
+            kNodeHandle, args)
+
+
 _set_class_node_base(NodeBase)
