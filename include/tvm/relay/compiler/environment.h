@@ -41,21 +41,17 @@ class EnvironmentNode : public RelayNode {
  private:
   /*! A map from string names to GlobalIds, ensures global uniqueness. */
   InternTable<GlobalVar> global_map_;
-  /*! A map from string names to Operators, ensures global uniqueness. */
-  InternTable<Operator> operators;
+
   // /*! \brief A map from file names to source fragments. */
   // SourceMap source_map_
   // /*! \brief A list of the errors reported during the current run. */
   // std::vector<Error> errors_;
 
  public:
-  // This map contains all items *except* operators.
-  std::unordered_map<GlobalVar, Function, NodeHash> items;
+  /*! \brief A map from ids to all global functions. */
+  tvm::Map<GlobalVar, Function> items;
 
   // Options options;
-
-  tvm::PackedFunc jit_for(Operator op);
-  tvm::PackedFunc reverse(Operator op);
 
   EnvironmentNode() {}
 
@@ -75,16 +71,14 @@ class EnvironmentNode : public RelayNode {
   // GlobalId global_id(const std::string& str);
   Operator op(const std::string& str);
 
-  // We can lookup a GlobalId, OperatorId.
-  // Defn lookup(const GlobalId& id);
+  /*! \brief Lookup a global function by its name. */
+  Function lookup(const GlobalVar& id);
+
+  /*! \brief Add a source fragment to the environment. */
   // FileId add_source(std::string file_name, std::string source);
 
-  // tvm::Array<Operator> get_operators();
-  // tvm::Array<Defn> get_defns();
-
-  // void report_error(std::string msg, Span sp);
-  // void display_errors();
-  // void register_shape_ext(ShapeExtension ext);
+  void report_error(std::string msg, Span sp);
+  void display_errors();
 
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
