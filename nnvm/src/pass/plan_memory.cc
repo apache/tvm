@@ -198,8 +198,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
             sid_in >= 0 &&
             ((storage_ref_count[sid_in] == 1 && !ignore_all_inputs) || identity[ipair]) &&
             entry_ref_count[eid_out] > 0 &&
-            shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
-            dtype_vec[eid_out] == dtype_vec[eid_in]) {
+            shape_vec[eid_out].Size() == shape_vec[eid_in].Size()) {
           // inplace optimization
           taken[kv.first] = true;
           storage[eid_out] = sid_in;
