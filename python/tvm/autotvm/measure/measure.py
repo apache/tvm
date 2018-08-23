@@ -23,8 +23,8 @@ class MeasureResult(namedtuple("MeasureResult", ["costs", "error_no", "all_cost"
     Parameters
     ----------
     costs: Array of float or Array of Exception
-        If no error occurs for this measurement, it is an array of measured running times.
-        If some error occurs during the measurement, it is an array of the exception objections.
+        If no error occurs during measurement, it is an array of measured running times.
+        If an error occurs during measurement, it is an array of the exception objections.
     error_no: int
         Denote error type, defined by MeasureErrorNo
     all_cost: float
