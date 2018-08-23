@@ -4,7 +4,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
-#include "./metal_common.h"
+#include "metal_common.h"
 
 namespace tvm {
 namespace runtime {

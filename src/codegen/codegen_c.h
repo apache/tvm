@@ -14,7 +14,7 @@
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include "./codegen_source_base.h"
+#include "codegen_source_base.h"
 
 namespace tvm {
 namespace codegen {

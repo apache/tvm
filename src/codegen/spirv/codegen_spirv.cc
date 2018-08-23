@@ -5,8 +5,9 @@
  */
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
+#include <string>
 #include "../codegen_common.h"
-#include "./codegen_spirv.h"
+#include "codegen_spirv.h"
 
 namespace tvm {
 namespace codegen {

@@ -4,7 +4,7 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include "./intrin_rule_llvm.h"
+#include "intrin_rule_llvm.h"
 
 namespace tvm {
 namespace codegen {

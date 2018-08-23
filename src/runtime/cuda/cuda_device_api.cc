@@ -8,7 +8,7 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/registry.h>
 #include <cuda_runtime.h>
-#include "./cuda_common.h"
+#include "cuda_common.h"
 
 namespace tvm {
 namespace runtime {

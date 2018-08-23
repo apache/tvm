@@ -10,9 +10,9 @@
 #include <ir/IR.h>
 #include <type_traits>
 #include <string>
-#include "./base.h"
-#include "./expr.h"
-#include "./runtime/util.h"
+#include "base.h"
+#include "expr.h"
+#include "runtime/util.h"
 
 namespace tvm {
 namespace ir {

@@ -7,7 +7,7 @@
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
-#include "./codegen_cuda.h"
+#include "codegen_cuda.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {

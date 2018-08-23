@@ -8,7 +8,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
 #include <unordered_set>
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {

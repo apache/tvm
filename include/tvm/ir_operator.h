@@ -7,8 +7,8 @@
 #define TVM_IR_OPERATOR_H_
 
 #include <algorithm>
-#include "./expr.h"
-#include "./ir.h"
+#include "expr.h"
+#include "ir.h"
 
 namespace tvm {
 

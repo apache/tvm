@@ -3,7 +3,7 @@
  * \file intrin_rule_default.cc
  * \brief Default intrinsic rules.
  */
-#include "./intrin_rule.h"
+#include "intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

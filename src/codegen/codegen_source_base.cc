@@ -2,7 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file codegen_source_base.cc
  */
-#include "./codegen_source_base.h"
+#include "codegen_source_base.h"
 
 namespace tvm {
 namespace codegen {

@@ -9,8 +9,8 @@
 #include <tvm/ir_functor_ext.h>
 #include <arithmetic/Interval.h>
 #include <unordered_map>
-#include "./compute_expr.h"
-#include "./int_set_internal.h"
+#include "compute_expr.h"
+#include "int_set_internal.h"
 
 namespace tvm {
 namespace arith {

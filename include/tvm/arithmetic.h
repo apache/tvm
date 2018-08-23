@@ -9,7 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
-#include "./expr.h"
+#include "expr.h"
 
 namespace tvm {
 

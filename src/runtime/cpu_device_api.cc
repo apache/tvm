@@ -8,7 +8,7 @@
 #include <tvm/runtime/device_api.h>
 #include <cstdlib>
 #include <cstring>
-#include "./workspace_pool.h"
+#include "workspace_pool.h"
 
 namespace tvm {
 namespace runtime {

@@ -8,7 +8,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_functor_ext.h>
 #include <tvm/arithmetic.h>
-#include "./compute_expr.h"
+#include "compute_expr.h"
 
 namespace tvm {
 namespace arith {

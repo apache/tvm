@@ -12,7 +12,7 @@
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
-#include "./ir_util.h"
+#include "ir_util.h"
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 

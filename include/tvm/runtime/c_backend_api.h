@@ -10,7 +10,7 @@
 #ifndef TVM_RUNTIME_C_BACKEND_API_H_
 #define TVM_RUNTIME_C_BACKEND_API_H_
 
-#include "./c_runtime_api.h"
+#include "c_runtime_api.h"
 
 #ifdef __cplusplus
 extern "C" {
