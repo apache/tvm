@@ -8,8 +8,8 @@
 
 #include <vector>
 #include <string>
-#include "./tuple.h"
-#include "./layout.h"
+#include "tuple.h"
+#include "layout.h"
 
 namespace nnvm {
 

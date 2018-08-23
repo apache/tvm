@@ -10,7 +10,7 @@
 #include <nnvm/compiler/op_attr_types.h>
 #include <nnvm/compiler/util.h>
 #include <nnvm/top/nn.h>
-#include "./nn_common.h"
+#include "nn_common.h"
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/nn/pooling.h"

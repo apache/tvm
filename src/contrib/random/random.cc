@@ -8,9 +8,9 @@
 #include <dmlc/thread_local.h>
 #include <algorithm>
 #ifndef _LIBCPP_SGX_CONFIG
-#include "./mt_random_engine.cc"
+#include "mt_random_engine.cc"
 #else
-#include "./sgx_random_engine.cc"
+#include "sgx_random_engine.cc"
 #endif
 
 #define DLPACK_INTEGER_TYPE_SWITCH(type, DType, ...)    \

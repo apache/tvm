@@ -4,7 +4,7 @@
  * \brief ARM specific code generator
  */
 #ifdef TVM_LLVM_VERSION
-#include "./codegen_cpu.h"
+#include "codegen_cpu.h"
 
 namespace tvm {
 namespace codegen {

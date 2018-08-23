@@ -7,7 +7,7 @@
 #define TVM_RUNTIME_FILE_UTIL_H_
 
 #include <string>
-#include "./meta_data.h"
+#include "meta_data.h"
 
 namespace tvm {
 namespace runtime {

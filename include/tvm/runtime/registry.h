@@ -27,7 +27,7 @@
 
 #include <string>
 #include <vector>
-#include "./packed_func.h"
+#include "packed_func.h"
 
 namespace tvm {
 namespace runtime {

@@ -5,7 +5,7 @@
 #include <dmlc/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
-#include "./rpc_session.h"
+#include "rpc_session.h"
 
 namespace tvm {
 namespace runtime {

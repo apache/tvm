@@ -6,7 +6,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <tvm/ir_pass.h>
-#include "./message_passing.h"
+#include "message_passing.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {

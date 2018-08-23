@@ -4,7 +4,7 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include "./intrin_rule_llvm.h"
+#include "intrin_rule_llvm.h"
 #include <tvm/ir.h>
 #include <tvm/expr.h>
 #include <tvm/api_registry.h>

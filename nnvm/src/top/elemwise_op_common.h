@@ -12,7 +12,7 @@
 #include <vector>
 #include <utility>
 #include <functional>
-#include "./op_common.h"
+#include "op_common.h"
 
 namespace nnvm {
 namespace top {

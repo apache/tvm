@@ -8,8 +8,8 @@
 
 #include <tvm/ir_functor.h>
 #include <unordered_map>
-#include "./expr.h"
-#include "./ir.h"
+#include "expr.h"
+#include "ir.h"
 
 namespace tvm {
 namespace ir {

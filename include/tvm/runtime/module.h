@@ -13,7 +13,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "./c_runtime_api.h"
+#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {
@@ -173,5 +173,5 @@ inline const ModuleNode* Module::operator->() const {
 }  // namespace runtime
 }  // namespace tvm
 
-#include "./packed_func.h"
+#include "packed_func.h"
 #endif  // TVM_RUNTIME_MODULE_H_

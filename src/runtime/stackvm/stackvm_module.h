@@ -8,7 +8,7 @@
 
 #include <tvm/runtime/packed_func.h>
 #include <string>
-#include "./stackvm.h"
+#include "stackvm.h"
 
 namespace tvm {
 namespace runtime {

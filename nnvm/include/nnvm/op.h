@@ -13,8 +13,8 @@
 #include <typeinfo>
 #include <limits>
 #include <functional>
-#include "./base.h"
-#include "./c_api.h"
+#include "base.h"
+#include "c_api.h"
 
 namespace nnvm {
 

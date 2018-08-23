@@ -7,8 +7,8 @@
 #define TVM_TENSOR_INTRIN_H_
 
 #include <string>
-#include "./tensor.h"
-#include "./buffer.h"
+#include "tensor.h"
+#include "buffer.h"
 
 namespace tvm {
 

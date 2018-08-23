@@ -12,8 +12,8 @@
 #include <tvm/tvm.h>
 #include <algorithm>
 #include <functional>
-#include "./compile_engine.h"
-#include "./graph_transform.h"
+#include "compile_engine.h"
+#include "graph_transform.h"
 
 namespace nnvm {
 namespace compiler {

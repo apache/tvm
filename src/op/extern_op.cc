@@ -7,7 +7,7 @@
 #include <tvm/arithmetic.h>
 #include <tvm/ir.h>
 #include <unordered_set>
-#include "./op_util.h"
+#include "op_util.h"
 
 namespace tvm {
 using namespace ir;

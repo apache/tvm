@@ -5,7 +5,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/packed_func_ext.h>
 #include <limits>
-#include "./codegen_stackvm.h"
+#include "codegen_stackvm.h"
 #include "../../runtime/stackvm/stackvm_module.h"
 
 namespace tvm {

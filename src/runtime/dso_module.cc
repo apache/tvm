@@ -6,7 +6,7 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/packed_func.h>
-#include "./module_util.h"
+#include "module_util.h"
 
 #if defined(_WIN32)
 #include <windows.h>

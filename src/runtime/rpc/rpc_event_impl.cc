@@ -5,7 +5,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <memory>
-#include "./rpc_session.h"
+#include "rpc_session.h"
 
 namespace tvm {
 namespace runtime {

@@ -4,7 +4,7 @@
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
-#include "./test_lib.h"
+#include "test_lib.h"
 
 #ifdef NO_SIM
 #ifdef VTA_TARGET_PYNQ

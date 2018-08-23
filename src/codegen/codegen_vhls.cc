@@ -5,8 +5,8 @@
 #include <tvm/build_module.h>
 #include <vector>
 #include <string>
-#include "./codegen_vhls.h"
-#include "./build_common.h"
+#include "codegen_vhls.h"
+#include "build_common.h"
 #include "../runtime/opencl/sdaccel/sdaccel_module.h"
 
 namespace tvm {
