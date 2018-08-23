@@ -66,12 +66,12 @@ def measure_option(measure_func,
         callable: It is a callable function for measurement.
                   See the return value of measure/measure_methods.py::rpc for example.
     number : int, optional
-        Number of times to do the measurement for average
+        Number of times to do measurement for average
     repeat : int, optional
         Number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
         where the first one is warm up. The returned result contains `repeat` costs,
-        each of which is the average of `number` test run.
+        each of which is the average of `number` tests run.
     min_repeat_ms : float, optional
         Minimum duration of a timer measurement in milliseconds.
         When the run time of a measurement trial falls below this time, the
@@ -84,12 +84,12 @@ def measure_option(measure_func,
         Timeout for a whole batch. TimeoutError will be returned as the result if a
         task timeouts.
     n_parallel: int, optional
-        The number of measurement task that can run in parallel.
+        The number of measurement tasks that can run in parallel.
         Set this according to the number of cpu cores (for compilation) and
         the number of devices you have (for measuring generate code).
     do_fork: bool, optional
-        Whether use multiprocessing (based on fork) for running measure jobs in parallel.
-        Set this to False if you want to debug (see trackback) or using fork is not suitable.
+        Whether to use multiprocessing (based on fork) for running measure jobs in parallel.
+        Set this to False if you want to debug (see traceback) or using fork is not suitable.
         NOTE: If this is False, parallel and timeout do not work.
     build_func: str or callable, optional
         'default': call default builder. This works for normal target (llvm, cuda)
@@ -102,7 +102,7 @@ def measure_option(measure_func,
         Whether check correctness after measurement. This will use llvm cpu target to generate
         reference output.
     replay_db : Database, optional
-        The database that we retrieve saved MeasureResult from.
+        The database that we retrieve the saved MeasureResult from.
 
     Returns
     -------
