@@ -4,8 +4,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <utility>
-#include "./opengl_common.h"
-#include "./opengl_module.h"
+#include "opengl_common.h"
+#include "opengl_module.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../file_util.h"

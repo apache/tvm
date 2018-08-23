@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 #include <string>
-#include "./codegen_llvm.h"
+#include "codegen_llvm.h"
 
 namespace tvm {
 namespace codegen {

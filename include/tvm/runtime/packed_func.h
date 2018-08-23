@@ -14,9 +14,9 @@
 #include <limits>
 #include <memory>
 #include <type_traits>
-#include "./c_runtime_api.h"
-#include "./module.h"
-#include "./ndarray.h"
+#include "c_runtime_api.h"
+#include "module.h"
+#include "ndarray.h"
 
 namespace HalideIR {
 // Forward declare type for extensions

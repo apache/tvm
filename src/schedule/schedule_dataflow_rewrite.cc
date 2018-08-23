@@ -7,7 +7,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
-#include "./message_passing.h"
+#include "message_passing.h"
 #include "../pass/ir_util.h"
 #include "../arithmetic/compute_expr.h"
 

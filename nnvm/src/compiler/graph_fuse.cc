@@ -14,10 +14,11 @@
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
+#include <limits>
 
-#include "./graph_fuse.h"
-#include "./graph_runtime.h"
-#include "./pattern_util.h"
+#include "graph_fuse.h"
+#include "graph_runtime.h"
+#include "pattern_util.h"
 
 namespace nnvm {
 namespace compiler {

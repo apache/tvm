@@ -11,7 +11,7 @@
 #include <tvm/api_registry.h>
 #include <tvm/codegen.h>
 #include <string>
-#include "./llvm_common.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {

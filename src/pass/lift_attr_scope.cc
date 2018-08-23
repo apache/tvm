@@ -7,7 +7,7 @@
  */
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {

@@ -15,8 +15,8 @@
 #include <tuple>
 #include <utility>
 
-#include "./base.h"
-#include "./node.h"
+#include "base.h"
+#include "node.h"
 
 namespace nnvm {
 /*!

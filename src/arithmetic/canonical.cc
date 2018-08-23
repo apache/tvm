@@ -6,8 +6,12 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/arithmetic.h>
 #include <tvm/ir_pass.h>
-#include "./canonical.h"
-#include "./compute_expr.h"
+#include <algorithm>
+#include <map>
+#include <limits>
+#include <vector>
+#include "canonical.h"
+#include "compute_expr.h"
 #include "arithmetic/Simplify.h"
 
 namespace tvm {

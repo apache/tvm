@@ -14,8 +14,8 @@
 #include <tvm/target_info.h>
 #include <tvm/runtime/device_api.h>
 #include <unordered_map>
-#include "./ir_util.h"
-#include "./arg_binder.h"
+#include "ir_util.h"
+#include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
 #include "../runtime/thread_storage_scope.h"
 

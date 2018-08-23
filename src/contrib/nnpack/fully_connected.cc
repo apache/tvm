@@ -6,7 +6,7 @@
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
 #include <nnpack.h>
-#include "./nnpack_utils.h"
+#include "nnpack_utils.h"
 
 namespace tvm {
 namespace contrib {

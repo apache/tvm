@@ -7,8 +7,8 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "./sdaccel_common.h"
-#include "./sdaccel_module.h"
+#include "sdaccel_common.h"
+#include "sdaccel_module.h"
 
 namespace tvm {
 namespace runtime {

@@ -9,8 +9,8 @@
 #include <tvm/ir_pass.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "./graph.h"
-#include "./message_passing.h"
+#include "graph.h"
+#include "message_passing.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

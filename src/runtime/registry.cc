@@ -10,7 +10,7 @@
 #include <mutex>
 #include <memory>
 #include <array>
-#include "./runtime_base.h"
+#include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {

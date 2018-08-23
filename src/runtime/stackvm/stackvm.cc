@@ -7,7 +7,7 @@
 #include <tvm/runtime/util.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <algorithm>
-#include "./stackvm.h"
+#include "stackvm.h"
 
 namespace tvm {
 namespace runtime {

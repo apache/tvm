@@ -5,7 +5,7 @@
 #include <tvm/ir.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/packed_func_ext.h>
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {
