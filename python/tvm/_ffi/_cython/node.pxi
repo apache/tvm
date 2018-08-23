@@ -1,3 +1,4 @@
+from ... import _api_internal
 from ..base import string_types
 from ..node_generic import _set_class_node_base
 
@@ -10,6 +11,7 @@ def _register_node(int index, object cls):
         NODE_TYPE.append(None)
     NODE_TYPE[index] = cls
 
+
 cdef inline object make_ret_node(void* chandle):
     global NODE_TYPE
     cdef int tindex
@@ -20,13 +22,14 @@ cdef inline object make_ret_node(void* chandle):
     if tindex < len(node_type):
         cls = node_type[tindex]
         if cls is not None:
-            obj = cls(None)
+            obj = cls.__new__(cls)
         else:
-            obj = NodeBase(None)
+            obj = NodeBase.__new__(NodeBase)
     else:
-        obj = NodeBase(None)
+        obj = NodeBase.__new__(NodeBase)
     (<NodeBase>obj).chandle = chandle
     return obj
+
 
 cdef class NodeBase:
     cdef void* chandle
@@ -48,9 +51,6 @@ cdef class NodeBase:
 
         def __set__(self, value):
             self._set_handle(value)
-
-    def __init__(self, handle):
-        self._set_handle(handle)
 
     def __dealloc__(self):
         CALL(TVMNodeFree(self.chandle))

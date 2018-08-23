@@ -79,11 +79,13 @@ class Target(NodeBase):
     - :any:`tvm.target.mali` create Mali target
     - :any:`tvm.target.intel_graphics` create Intel Graphics target
     """
-    def __init__(self, handle):
-        super(Target, self).__init__(handle)
-        self._keys = None
-        self._options = None
-        self._libs = None
+    def __new__(cls):
+        # Always override new to enable class
+        obj = NodeBase.__new__(cls)
+        obj._keys = None
+        obj._options = None
+        obj._libs = None
+        return obj
 
     @property
     def keys(self):

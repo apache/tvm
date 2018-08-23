@@ -24,7 +24,13 @@ def _return_node(x):
         handle = NodeHandle(handle)
     tindex = ctypes.c_int()
     check_call(_LIB.TVMNodeGetTypeIndex(handle, ctypes.byref(tindex)))
-    return NODE_TYPE.get(tindex.value, NodeBase)(handle)
+    cls = NODE_TYPE.get(tindex.value, NodeBase)
+    # Avoid calling __init__ of cls, instead directly call __new__
+    # This allows child class to implement their own __init__
+    node = cls.__new__(cls)
+    node.handle = handle
+    return node
+
 
 RETURN_SWITCH[TypeCode.NODE_HANDLE] = _return_node
 C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
@@ -34,16 +40,6 @@ C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
 class NodeBase(object):
     __slots__ = ["handle"]
     # pylint: disable=no-member
-    def __init__(self, handle):
-        """Initialize the function with handle
-
-        Parameters
-        ----------
-        handle : SymbolHandle
-            the handle to the underlying C++ Symbol
-        """
-        self.handle = handle
-
     def __del__(self):
         if _LIB is not None:
             check_call(_LIB.TVMNodeFree(self.handle))
