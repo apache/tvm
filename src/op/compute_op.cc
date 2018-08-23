@@ -9,6 +9,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_pass.h>
 #include <unordered_set>
+#include <string>
 #include "compute_op.h"
 #include "op_util.h"
 #include "../schedule/message_passing.h"

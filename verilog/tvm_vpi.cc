@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <memory>
 #include <queue>
+#include <string>
+#include <vector>
 #include "tvm_vpi.h"
 #include "../src/common/pipe.h"
 

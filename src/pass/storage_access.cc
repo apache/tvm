@@ -5,6 +5,7 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir_mutator.h>
 #include <tvm/target_info.h>
+#include <string>
 #include "ir_util.h"
 #include "storage_access.h"
 #include "../arithmetic/compute_expr.h"

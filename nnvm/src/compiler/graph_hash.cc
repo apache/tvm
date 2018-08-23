@@ -10,6 +10,8 @@
 #include <tvm/ir.h>
 #include <tvm/runtime/packed_func.h>
 #include <functional>
+#include <vector>
+#include <algorithm>
 #include "node_attr.h"
 #include "graph_hash.h"
 

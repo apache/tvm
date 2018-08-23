@@ -11,6 +11,9 @@
 #include <nnvm/pass_functions.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include <mutex>
+#include <tuple>
+#include <vector>
+#include <limits>
 #include "graph_hash.h"
 #include "compile_engine.h"
 

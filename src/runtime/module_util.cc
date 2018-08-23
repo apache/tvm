@@ -8,6 +8,7 @@
 #endif
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
+#include <string>
 #include "module_util.h"
 
 namespace tvm {

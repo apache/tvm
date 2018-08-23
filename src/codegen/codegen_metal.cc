@@ -5,6 +5,7 @@
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
+#include <algorithm>
 #include "codegen_metal.h"
 #include "build_common.h"
 #include "../runtime/metal/metal_module.h"

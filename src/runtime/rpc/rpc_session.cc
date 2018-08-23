@@ -11,6 +11,8 @@
 #include <array>
 #include <string>
 #include <chrono>
+#include <vector>
+#include <utility>
 #include "rpc_session.h"
 #include "../../common/ring_buffer.h"
 
