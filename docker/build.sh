@@ -127,5 +127,5 @@ ${DOCKER_BINARY} run --rm --pid=host \
     -e "CI_BUILD_GID=$(id -g)" \
     ${CI_DOCKER_EXTRA_PARAMS[@]} \
     ${DOCKER_IMG_NAME} \
-    bash docker/with_the_same_user \
+    bash --login docker/with_the_same_user \
     ${COMMAND[@]}
