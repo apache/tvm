@@ -11,7 +11,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <string>
 #include <vector>
-#include "./runtime_base.h"
+#include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {

@@ -8,7 +8,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/ir_pass.h>
 
-#include "./codegen_spirv.h"
+#include "codegen_spirv.h"
 #include "../build_common.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 

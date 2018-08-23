@@ -8,8 +8,8 @@
 #include <array>
 #include <string>
 #include <mutex>
-#include "./rocm_module.h"
-#include "./rocm_common.h"
+#include "rocm_module.h"
+#include "rocm_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"

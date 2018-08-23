@@ -7,8 +7,8 @@
 #define TVM_RUNTIME_DEVICE_API_H_
 
 #include <string>
-#include "./packed_func.h"
-#include "./c_runtime_api.h"
+#include "packed_func.h"
+#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {

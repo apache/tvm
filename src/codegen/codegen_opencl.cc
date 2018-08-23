@@ -5,8 +5,8 @@
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
-#include "./codegen_opencl.h"
-#include "./build_common.h"
+#include "codegen_opencl.h"
+#include "build_common.h"
 #include "../runtime/thread_storage_scope.h"
 #include "../runtime/opencl/opencl_module.h"
 

@@ -7,8 +7,8 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "./opencl_common.h"
-#include "./opencl_module.h"
+#include "opencl_common.h"
+#include "opencl_module.h"
 
 namespace tvm {
 namespace runtime {

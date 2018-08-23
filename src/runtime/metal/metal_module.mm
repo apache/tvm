@@ -8,8 +8,8 @@
 #include <array>
 #include <string>
 #include <mutex>
-#include "./metal_module.h"
-#include "./metal_common.h"
+#include "metal_module.h"
+#include "metal_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"

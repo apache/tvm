@@ -12,8 +12,8 @@
 #include <utility>
 #include <unordered_set>
 
-#include "./ir_util.h"
-#include "./arg_binder.h"
+#include "ir_util.h"
+#include "arg_binder.h"
 #include "../arithmetic/compute_expr.h"
 
 namespace tvm {
