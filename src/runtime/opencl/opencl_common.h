@@ -234,7 +234,7 @@ class OpenCLModuleNode : public ModuleNode {
                             std::string fmt,
                             std::unordered_map<std::string, FunctionInfo> fmap,
                             std::string source)
-      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
+    : fmt_(fmt), fmap_(fmap), source_(source),data_(data) {}
   // destructor
   ~OpenCLModuleNode();
 
