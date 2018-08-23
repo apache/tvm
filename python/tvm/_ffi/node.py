@@ -21,6 +21,12 @@ except IMPORT_EXCEPT:
     # pylint: disable=wrong-import-position
     from ._ctypes.node import _register_node, NodeBase as _NodeBase
 
+
+def _new_object(cls):
+    """Helper function for pickle"""
+    return cls.__new__(cls)
+
+
 class NodeBase(_NodeBase):
     """NodeBase is the base class of all TVM language AST object."""
     def __repr__(self):
@@ -46,7 +52,8 @@ class NodeBase(_NodeBase):
         return not self.__eq__(other)
 
     def __reduce__(self):
-        return (type(self), (None,), self.__getstate__())
+        cls = type(self)
+        return (_new_object, (cls, ), self.__getstate__())
 
     def __getstate__(self):
         handle = self.handle
