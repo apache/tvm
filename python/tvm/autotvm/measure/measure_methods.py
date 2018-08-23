@@ -1,8 +1,8 @@
 # pylint: disable=consider-using-enumerate,invalid-name,too-many-function-args
 """
 Functions that run on executor for measurement.
-These functions are responsible for building tvm module, uploading it to
-remote devices, recording the running time costs and checking the correctness of output
+These functions are responsible for building the tvm module, uploading it to
+remote devices, recording the running time costs, and checking the correctness of the output.
 """
 
 import logging
