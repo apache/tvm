@@ -234,7 +234,7 @@ class OpenCLModuleNode : public ModuleNode {
                             std::string fmt,
                             std::unordered_map<std::string, FunctionInfo> fmap,
                             std::string source)
-      : fmt_(fmt), fmap_(fmap), source_(source), data_(data) {}
+      : data_(data), fmt_(fmt), fmap_(fmap), source_(source) {}
   // destructor
   ~OpenCLModuleNode();
 
@@ -261,6 +261,11 @@ class OpenCLModuleNode : public ModuleNode {
                           const KTRefEntry& e);
 
  private:
+  // The workspace, need to keep reference to use it in destructor.
+  // In case of static destruction order problem.
+  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
+  // the binary data
+  std::string data_;
   // The format
   std::string fmt_;
   // function information table.
@@ -277,11 +282,6 @@ class OpenCLModuleNode : public ModuleNode {
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
-  // The workspace, need to keep reference to use it in destructor.
-  // In case of static destruction order problem.
-  std::shared_ptr<cl::OpenCLWorkspace> workspace_;
-  // the binary data
-  std::string data_;
 };
 
 }  // namespace runtime
