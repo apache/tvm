@@ -53,6 +53,7 @@ struct ResolveTypeExpr : ExprFVisitor<> {
     // term, then resolve e's old type and write
     // it back into the new node.
     auto new_e = ExprFVisitor::VisitExpr(e);
+    CHECK(e->checked_type_.defined());
     auto resolved_cty = VisitType(e->checked_type_);
     new_e->checked_type_ = resolved_cty;
     return new_e;
@@ -64,6 +65,7 @@ struct ResolveTypeExpr : ExprFVisitor<> {
 };
 
 Type resolve(const TypeUnifier &unifier, const Type &ty) {
+  CHECK(ty.defined());
   return ResolveTypeType(unifier).VisitType(ty);
 }
 

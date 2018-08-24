@@ -2,8 +2,9 @@
    for expressions.
 """
 from tvm.relay.type_infer import check_expr
-from tvm.relay.ir_builder import IRBuilder, float_type, op, func_type
+from tvm.relay.ir_builder import IRBuilder, float_type, func_type
 from tvm.relay.env import Environment
+from tvm.relay.op import log
 
 def has_type(expr, typ):
     env = Environment({})
@@ -23,9 +24,12 @@ def test_monomorphic_let():
 def test_single_op():
     "Program: fn (x : float32) { let t1 = f(x); t1 }"
     b = IRBuilder()
-    f = op('log')
     with b.function(('x', float_type())) as func:
         x, = func.param_ids()
-        t1 = b.let('t1', f(x))
+        t1 = b.let('t1', log(x))
         b.ret(t1)
     assert has_type(func.to_func(), func_type([float_type()], float_type()))
+
+if __name__ == "__main__":
+    test_monomorphic_let()
+    test_single_op()

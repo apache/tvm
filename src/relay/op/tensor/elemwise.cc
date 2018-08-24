@@ -35,9 +35,7 @@ RELAY_REGISTER_UNARY_OP("log")
    log(x)
 
 )code" TVM_ADD_FILELINE)
-.set_support_level(1);
-.set_num_inputs(1)
-.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(1)
 .add_type_func("Broadcast");
 
 

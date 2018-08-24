@@ -149,9 +149,6 @@ class IRBuilder():
 
         return _mk_let(bindings, self.ret_value)
 
-def op(name):
-    return _op._create_op(name)
-
 def bool_dtype():
     return 'uint1'
 

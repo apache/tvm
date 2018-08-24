@@ -27,6 +27,7 @@
 #include "./incomplete_type.h"
 #include "./unifier.h"
 #include "./resolve.h"
+#include "./type_subst.h"
 // #include "tvm/relay/alpha_eq.h"
 // #include "tvm/relay/debug.h"
 // #include "tvm/relay/first_order_reverse_ad.h"
@@ -71,6 +72,7 @@ struct CheckedExpr {
   Expr expr;
   Type type;
   CheckedExpr(Expr e, Type t) : expr(e), type(t) {}
+  CheckedExpr() {}
 };
 
 class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
@@ -94,7 +96,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
     CheckedExpr Infer(const Expr & expr);
 
-    Type instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
+    FuncType instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
 
     void report_error(const std::string & msg, Span sp);
     [[ noreturn ]] void fatal_error(const std::string & msg, Span sp);
@@ -103,7 +105,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
      Type resolve(const Type &t);
      Expr resolve(const Expr &e);
      CheckedExpr VisitFunction(const Function & f, bool generalize);
-     // Operator CheckOp(Operator op);
+     void CheckOp(Op op);
      // Defn CheckDefn(Defn def);
     private:
      CheckedExpr VisitExpr_(const LocalVarNode* op) override;
@@ -115,6 +117,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
      CheckedExpr VisitExpr_(const CallNode* op) override;
      CheckedExpr VisitExpr_(const LetNode* op) override;
      CheckedExpr VisitExpr_(const IfNode* op) override;
+     CheckedExpr VisitExpr_(const OpNode* op) override;
 };
 
   TypeInferencer::TypeInferencer() {
@@ -145,7 +148,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     // GlobalVar id = GetRef<GlobalVar>(op);
     // Item item = this->env->lookup(id);
 
-    // if (const OperatorNode *op = item.as<OperatorNode>()) {
+    // if (const OpNode *op = item.as<OpNode>()) {
     //   return op->type;
     // }
 
@@ -167,12 +170,12 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
       TensorTypeNode::make({}, HalideIR::Float(32, 1)) };
   }
 
-  // Type TypeInferencer::VisitExpr_(const OperatorIdNode *op) {
-  //   OperatorId id = GetRef<OperatorId>(op);
+  // Type TypeInferencer::VisitExpr_(const OpIdNode *op) {
+  //   OpId id = GetRef<OpId>(op);
   //   Item item = this->env->lookup(id);
 
-  //   if (const OperatorNode *pn = item.as<OperatorNode>()) {
-  //     Operator prim = GetRef<Operator>(pn);
+  //   if (const OpNode *pn = item.as<OpNode>()) {
+  //     Op prim = GetRef<Op>(pn);
   //     return prim->type;
   //   } else {
   //     this->fatal_error("internal error in InstrinsicId case", op->span);
@@ -344,15 +347,20 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     return this->VisitFunction(GetRef<Function>(op), false);
   }
 
-  Type TypeInferencer::instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args) {
-    // const TypeQuantifierNode *ty_quant;
-    // while ((ty_quant = t.as<TypeQuantifierNode>())) {
-    //   TypeParam id = ty_quant->id;
-    //   TypeVar fresh = TypeVarNode::make(id->kind);
-    //   this->unifier->insert(fresh);
-    //   ty_args.push_back(fresh);
-    //   t = type_subst(ty_quant->boundType, id, fresh);
-    // }
+  FuncType TypeInferencer::instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args) {
+    tvm::Map<TypeParam, Type> subst_map;
+
+    // Build a subsitituion map up from the function type and type arguments.
+    // Eventually allow the type vars to be passed in.
+    for (auto ty_param : fn_ty->type_params) {
+      IncompleteType fresh = IncompleteTypeNode::make(ty_param->kind);
+      this->unifier->insert(fresh);
+      ty_args.push_back(fresh);
+      subst_map.Set(ty_param, fresh);
+    }
+
+    Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, {});
+    inst_ty = type_subst(fn_ty, subst_map);
 
     // if (!check_kind(t)) {
     //   this->fatal_error("Kind rules broken when instantiating type
@@ -360,7 +368,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     //                     t->span);
     // }
 
-    // return t;
+    return GetRef<FuncType>(inst_ty.as<FuncTypeNode>());
   }
 
   CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
@@ -369,13 +377,13 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     auto checked_op = this->Infer(c->op);
 
     RELAY_LOG(INFO) << "TypeInferencer::VisitExpr_ op=" << c << std::endl
-                    << "fn_ty=" << fn_ty << std::endl;
+                    << "fn_ty=" << checked_op.type << std::endl;
 
 
-    auto fn_ty_node = checked_op.expr.as<FuncType>();
+    auto fn_ty_node = checked_op.type.as<FuncTypeNode>();
 
     if (!fn_ty_node) {
-      this->fatal_error("only expressions with function types can be called", c->fn->span);
+      this->fatal_error("only expressions with function types can be called", c->op->span);
     }
 
     // We now have a function type.
@@ -389,13 +397,12 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     fn_ty = instantiate(fn_ty, ty_args);
 
     std::vector<Type> arg_types;
+    std::vector<Expr> checked_args;
 
-
-    // TODO(sslyu): figure out how to handle type ids
-    //  fn_ty = instantiate(fn_ty, ty_args);
     for (auto arg : c->args) {
       auto checked_arg = this->Infer(arg);
       arg_types.push_back(checked_arg.type);
+      checked_args.push_back(checked_arg.expr);
     }
 
     auto type_arity = fn_ty->arg_types.size();
@@ -423,164 +430,100 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
       ty_args.Set(i, this->unifier->subst(ty_args[i]));
     }
 
-    // Write the type arguments into the call node, recording what inference
-    // solves. This solution might need some work.
-    c->ty_args = ty_args;
+    auto new_call = CallNode::make(checked_op.expr, checked_args, c->attrs, ty_args);
 
-    return { new_call, call_type }
+    return { new_call, fn_ty->ret_type };
   }
-
-  // Type TypeInferencer::VisitExpr_(const DebugNode *op) {
-  //   return this->Check(op->node);
-  // }
 
   CheckedExpr TypeInferencer::VisitExpr_(const LetNode *op) {
     Let let = GetRef<Let>(op);
 
-    Type checked_ty;
+    CheckedExpr checked_value;
     Type annotated_ty = resolve(let->value_type);
 
-    // if we are let-defining a function, treat it as a let-rec and insert
-    // the id with the annotated type in case there is recursion;
-    // no such recursion permitted with anything that's not a function!
-    // if (let->value.as<FunctionNode>()) {
-    //  with_frame<void>([&]() {
-    //    local_stack.insert(let->id, annotated_ty);
-    //    checked_ty = Check(let->value);
-    //  });
-    // } else {
-      checked_ty = Infer(let->value).type;
-    // }
 
-    // ensure annotated type and checked type are compatible
-    // TODO(sslyu): should the annotated type override the unified one?
+    // If we are let-defining a function, we want to be able to
+    // recursively name the function in order to support recursive
+    // local definitions.
+    if (let->value.as<FunctionNode>()) {
+      with_frame<void>([&]() {
+        local_stack.insert(let->var, annotated_ty);
+        checked_value = Infer(let->value);
+      });
+    } else {
+      checked_value = Infer(let->value);
+    }
+
     Type unified_ty =
-        this->unify(checked_ty, annotated_ty, let->span);
+        this->unify(checked_value.type, annotated_ty, let->span);
 
-    return with_frame<CheckedExpr>([&]() {
+    // Update type context with unified type now that we have
+    // solved this equation.
+    local_stack.insert(let->var, unified_ty);
+
+    auto checked_body = with_frame<CheckedExpr>([&]() {
       local_stack.insert(let->var, unified_ty);
       return Infer(let->body);
     });
+
+    auto checked_let = LetNode::make(
+      let->var,
+      checked_value.expr,
+      checked_body.expr,
+      let->value_type);
+
+    return { checked_let, checked_body.type };
   }
-
-  // Type TypeInferencer::VisitExpr_(const ReverseNode *op) {
-  //   // apply reverse mode to node and typecheck that instead
-  //   std::shared_ptr<GenFresh> gf = std::make_shared<GenFresh>();
-  //   return this->Check(ReverseExpr(env, op->node, gf));
-  // }
-
-  // Type TypeInferencer::VisitExpr_(const GradientNode *op) {
-  //   auto node = op->node;
-  //   this->Check(node);
-  //   auto gf = std::make_shared<GenFresh>();
-  //   return FOWithGradientType(node->checked_type());
-  // }
-
-  // Type TypeInferencer::VisitExpr_(const ProjectionNode *op) {
-  //   Projection proj = GetRef<Projection>(op);
-
-  //   Type tup_type = this->Check(proj->tuple);
-
-  //   const TupleTypeNode *ptn = tup_type.as<TupleTypeNode>();
-  //   if (!ptn) {
-  //     this->fatal_error("Cannot project into non-product type", op->span);
-  //   }
-
-  //   TupleType pt = GetRef<TupleType>(ptn);
-  //   size_t field = (size_t)proj->field;
-  //   if (field >= pt->fields.size()) {
-  //     this->fatal_error("Projecting past bounds of product", op->span);
-  //   }
-
-  //   return pt->fields[field];
-  // }
 
   CheckedExpr TypeInferencer::VisitExpr_(const IfNode *op) {
-    // If ifn = GetRef<If>(op);
+    If ifn = GetRef<If>(op);
 
-    // // Ensure the type of the guard is of Tensor[Bool, ()],
-    // // that is a rank-0 boolean tensor.
-    // Type guardType = this->Check(ifn->guard);
-    // bool is_bool = false;
-    // bool zero_rank = false;
-    // if (const TensorTypeNode *ttn = guardType.as<TensorTypeNode>()) {
-    //   TensorType tt = GetRef<TensorType>(ttn);
+    // Ensure the type of the guard is of Tensor[Bool, ()],
+    // that is a rank-0 boolean tensor.
+    auto checked_cond = this->Infer(ifn->cond);
+    auto cond_type = checked_cond.type;
 
-    //   if (const BaseTypeNode *btn = tt->dtype.as<BaseTypeNode>()) {
-    //     is_bool = btn->type.is_bool();
-    //   }
+    if (const TensorTypeNode *tt_node = cond_type.as<TensorTypeNode>()) {
+      TensorType tt = GetRef<TensorType>(tt_node);
+      if (tt->dtype.is_bool() && tt->shape.size() == 0) {
+        auto checked_true = this->Infer(ifn->true_value);
+        auto checked_false = this->Infer(ifn->false_value);
+        auto unified_type = this->unify(checked_true.type, checked_false.type, ifn->span);
+        auto checked_if = IfNode::make(checked_cond.expr, checked_true.expr, checked_false.expr);
+        return { checked_if, unified_type };
+      }
+    }
 
-    //   Type shape = simple_eval_shape(tt->shape);
-
-    //   if (const ShapeSeqNode *sn = shape.as<ShapeSeqNode>()) {
-    //     zero_rank = (sn->shapes.size() == 0);
-    //   }
-    // }
-
-    // if (!(is_bool && zero_rank)) {
-    //   this->fatal_error("IfNode guard must be a rank 0 bool tensor",
-    //                     ifn->guard->span);
-    // }
-
-    // // unify types of different branches
-    // Type left = this->Check(ifn->true_b);
-    // Type right = this->Check(ifn->false_b);
-    // return this->unify(left, right, ifn->span);
+    this->fatal_error("if-then-else guard must be a rank-0 boolean tensor",
+                         ifn->cond->span);
   }
 
-  // Type TypeInferencer::VisitExpr_(const RefNode *op) {
-  //   Ref r = GetRef<Ref>(op);
-  //   Type inner = this->Check(r->expr);
-  //   return RefTypeNode::make(inner);
-  // }
-
-  // Type TypeInferencer::VisitExpr_(const ReadRefNode *op) {
-  //   ReadRef vr = GetRef<ReadRef>(op);
-  //   Type ref_type = this->Check(vr->ref);
-
-  //   // reject if not a ref type
-  //   const RefTypeNode *rtn = ref_type.as<RefTypeNode>();
-  //   if (!rtn) {
-  //     this->fatal_error(
-  //         "the de-reference operation can only be used with references",
-  //         op->span);
-  //   }
-
-  //   RefType rt = GetRef<RefType>(rtn);
-  //   return rt->data_type;
-  // }
-
-  // Type TypeInferencer::VisitExpr_(const WriteRefNode *op) {
-  //   WriteRef sr = GetRef<WriteRef>(op);
-  //   Type ref_type = this->Check(sr->ref);
-
-  //   const RefTypeNode *rtn = ref_type.as<RefTypeNode>();
-  //   if (!rtn) {
-  //     this->fatal_error("Cannot mutate non-ref", op->span);
-  //   }
-  //   RefType rt = GetRef<RefType>(rtn);
-
-  //   // ensure ref type's inner type and expr's type are compatible; return
-  //   unit Type expr_type = this->Check(sr->val); this->unify(rt->data_type,
-  //   expr_type, sr->span); return UnitType();
-  // }
+  CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op) {
+    return { GetRef<Op>(op), FuncTypeNode::make({}, TensorTypeNode::Int(32), {}, {} )};
+  }
 
   Type TypeInferencer::resolve(const Type &t) {
-    return ::tvm::relay::resolve(this->unifier, t);
+    if (t.defined()) {
+      return ::tvm::relay::resolve(this->unifier, t);
+    } else {
+      return IncompleteTypeNode::make(TypeParamNode::Kind::kType);
+    }
   }
 
   Expr TypeInferencer::resolve(const Expr &e) {
+    CHECK(e.defined());
     return ::tvm::relay::resolve(this->unifier, e);
   }
 
-  // Operator TypeInferencer::CheckOp(Operator op) {
-  //   if (!check_kind(op->type)) {
-  //     report_error("the type of the operator is ill formed", op->type->span);
-  //   }
+  void TypeInferencer::CheckOp(Op op) {
+    throw Error("NYI");
+    // if (!check_kind(op->type)) {
+    //   report_error("the type of the operator is ill formed", op->type->span);
+    // }
 
-  //   // Fix me
-  //   return op;
-  // }
+    // // Fix me
+    // return op;
+  }
 
   // Defn TypeInferencer::CheckDefn(Defn defn) {
   //   // This is to handle recursion, but we need to speculatively
@@ -620,8 +563,8 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   //   try {
   //     if (const DefnNode *defn = i.as<DefnNode>()) {
   //       return tc.CheckDefn(GetRef<Defn>(defn));
-  //     } else if (const OperatorNode *op_node = i.as<OperatorNode>()) {
-  //       return tc.CheckOp(GetRef<Operator>(op_node));
+  //     } else if (const OpNode *op_node = i.as<OpNode>()) {
+  //       return tc.CheckOp(GetRef<Op>(op_node));
   //     } else {
   //       throw dmlc::Error("internal error: unknown Item type");
   //     }
@@ -716,13 +659,6 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
         Expr e = args[1];
         *ret = Infer(env, e);
       });
-
-  // TVM_REGISTER_API("relay._tyck.check_item")
-  //     .set_body([](TVMArgs args, TVMRetValue *ret) {
-  //       Environment env = args[0];
-  //       Item i = args[1];
-  //       *ret = check(env, i);
-  //     });
 
   TVM_REGISTER_API("relay._type_infer._get_checked_type")
       .set_body([](TVMArgs args, TVMRetValue *ret) {

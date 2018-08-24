@@ -71,6 +71,7 @@ class Function(Expr):
     def __init__(self, params: List[Param], ret_type: Type, body: Expr, type_params: List[TypeParam]=[]) -> None:
         self.__init_handle_by_constructor__(_make.Function, params, ret_type, body, type_params)
 
+@register_relay_node
 class Call(Expr):
   op: Expr
   args: List[Expr]
