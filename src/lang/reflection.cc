@@ -20,6 +20,10 @@ DMLC_REGISTRY_ENABLE(::tvm::NodeFactoryReg);
 
 namespace tvm {
 
+::dmlc::Registry<NodeFactoryReg>* NodeFactoryReg::Registry() {
+  return ::dmlc::Registry<NodeFactoryReg>::Get();
+}
+
 inline std::string Type2String(const Type& t) {
   if (t.code()  ==Type::Handle) return "handle";
   std::ostringstream os;
@@ -115,6 +119,8 @@ using AttrMap = std::map<std::string, std::string>;
 struct JSONNode {
   // The type key of the data
   std::string type_key;
+  // The global key for global object
+  std::string global_key;
   // the attributes
   AttrMap attrs;
   // container keys
@@ -125,6 +131,9 @@ struct JSONNode {
   void Save(dmlc::JSONWriter *writer) const {
     writer->BeginObject();
     writer->WriteObjectKeyValue("type_key", type_key);
+    if (global_key.size() != 0) {
+      writer->WriteObjectKeyValue("global_key", global_key);
+    }
     if (attrs.size() != 0) {
       writer->WriteObjectKeyValue("attrs", attrs);
     }
@@ -140,9 +149,11 @@ struct JSONNode {
   void Load(dmlc::JSONReader *reader) {
     attrs.clear();
     data.clear();
+    global_key.clear();
     type_key.clear();
     dmlc::JSONObjectReadHelper helper;
     helper.DeclareOptionalField("type_key", &type_key);
+    helper.DeclareOptionalField("global_key", &global_key);
     helper.DeclareOptionalField("attrs", &attrs);
     helper.DeclareOptionalField("keys", &keys);
     helper.DeclareOptionalField("data", &data);
@@ -195,6 +206,12 @@ class JSONAttrGetter : public AttrVisitor {
       return;
     }
     node_->type_key = node->type_key();
+    // sepcially handle global object
+    auto* f = dmlc::Registry<NodeFactoryReg>::Find(node_->type_key);
+    if (f->fglobal_key != nullptr) {
+      node_->global_key = f->fglobal_key(node);
+      return;
+    }
     node_->attrs.clear();
     node_->data.clear();
     if (node->is_type<ArrayNode>()) {
@@ -403,7 +420,7 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
       auto* f = dmlc::Registry<NodeFactoryReg>::Find(jnode.type_key);
       CHECK(f != nullptr)
           << "Node type \'" << jnode.type_key << "\' is not registered in TVM";
-      nodes.emplace_back(f->body());
+      nodes.emplace_back(f->fcreator(jnode.global_key));
     } else {
       nodes.emplace_back(std::shared_ptr<Node>());
     }
@@ -415,7 +432,11 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
 
   for (size_t i = 0; i < nodes.size(); ++i) {
     setter.node_ = &jgraph.nodes[i];
-    setter.Set(nodes[i].get());
+    // do not need to recover content of global singleton object
+    // they are registered via the environment
+    if (setter.node_->global_key.length() == 0) {
+      setter.Set(nodes[i].get());
+    }
   }
   return nodes.at(jgraph.root);
 }
@@ -493,11 +514,14 @@ void InitNodeByPackedArgs(Node* n, const TVMArgs& args) {
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   std::string type_key = args[0];
+  std::string empty_str;
   auto* f = dmlc::Registry<NodeFactoryReg>::Find(type_key);
   CHECK(f != nullptr)
       << "Node type \'" << type_key << "\' is not registered in TVM";
   TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
-  std::shared_ptr<Node> n = f->body();
+  CHECK(f->fglobal_key == nullptr)
+      << "Cannot make node type \'" << type_key << "\' with global_key.";
+  std::shared_ptr<Node> n = f->fcreator(empty_str);
   if (n->derived_from<BaseAttrsNode>()) {
     static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
   } else {
