@@ -44,7 +44,7 @@ def test_exp():
     if "AWS_PLATFORM" in os.environ:
         check_device("sdaccel -device=" + os.environ.get("AWS_PLATFORM"))
 
-    check_device("aocl_emu")
+    check_device("aocl_sw_emu")
 
 def test_multi_kernel():
     # graph
@@ -82,7 +82,7 @@ def test_multi_kernel():
             d.asnumpy(), a.asnumpy() * 2 + b.asnumpy(), rtol=1e-5)
 
     check_device("sdaccel")
-    check_device("aocl_emu")
+    check_device("aocl_sw_emu")
 
 
 if __name__ == "__main__":

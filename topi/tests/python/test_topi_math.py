@@ -40,7 +40,7 @@ def test_ewise():
             np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
         for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'llvm', 'nvptx', 'sdaccel',
-                       'aocl_emu']:
+                       'aocl_sw_emu']:
             check_device(device)
 
 

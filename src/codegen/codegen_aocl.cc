@@ -56,7 +56,7 @@ TVM_REGISTER_API("codegen.build_aocl")
     *rv = BuildAOCL(args[0], args[1], false);
   });
 
-TVM_REGISTER_API("codegen.build_aocl_emu")
+TVM_REGISTER_API("codegen.build_aocl_sw_emu")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     *rv = BuildAOCL(args[0], args[1], true);
   });

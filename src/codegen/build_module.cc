@@ -92,7 +92,7 @@ Target CreateTarget(const std::string& target_name,
     t->device_type = kDLOpenCL;
     t->keys_array.push_back(ir::StringImm::make("sdaccel"));
     t->keys_array.push_back(ir::StringImm::make("hls"));
-  } else if (target_name == "aocl" || target_name == "aocl_emu") {
+  } else if (target_name == "aocl" || target_name == "aocl_sw_emu") {
     t->device_type = kDLAOCL;
     t->keys_array.push_back(ir::StringImm::make("aocl"));
     t->keys_array.push_back(ir::StringImm::make("hls"));

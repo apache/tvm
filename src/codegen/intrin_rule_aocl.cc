@@ -43,37 +43,37 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl.popcount")
 .set_body(DispatchExtern<Direct>);
 
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.floor")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.floor")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.ceil")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.ceil")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.trunc")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.trunc")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.fabs")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.fabs")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.round")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.round")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.exp")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.exp")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.log")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.log")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.tanh")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.tanh")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.sqrt")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.sqrt")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.pow")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.pow")
 .set_body(DispatchExtern<Direct>);
 
-TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.popcount")
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_sw_emu.popcount")
 .set_body(DispatchExtern<Direct>);
 
 
