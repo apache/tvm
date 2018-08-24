@@ -40,14 +40,14 @@ python3 -m tvm.exec.rpc_tracker
   For our test environment, one sample output can be 
   ```bash
   Queue Status                
-  ------------------------------
-  key            free    pending    
-  ------------------------------
-  mate10pro      1       0   
-  p20pro         2       0  
-  pixel2         2       0 
-  rk3399         2       0
-  rasp3b         8       0
+  ----------------------------------
+  key          total  free  pending    
+  ----------------------------------
+  mate10pro    1      1     0
+  p20pro       2      2     0 
+  pixel2       2      2     0
+  rk3399       2      2     0
+  rasp3b       8      8     0
   ```
 
  4. Run benchmark  
