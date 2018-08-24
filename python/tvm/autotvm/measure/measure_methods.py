@@ -230,13 +230,13 @@ def create_measure_batch(task, option):
                         # applicable)
                         input_pack = measure_inputs[i*pack_size:(i+1)*pack_size]
                         new_future = executor.submit(measure_func,
-                                                    input_pack,
-                                                    build_func,
-                                                    build_kwargs,
-                                                    nonLocal.number,
-                                                    repeat,
-                                                    ref_input,
-                                                    ref_output)
+                                                     input_pack,
+                                                     build_func,
+                                                     build_kwargs,
+                                                     nonLocal.number,
+                                                     repeat,
+                                                     ref_input,
+                                                     ref_output)
                         result = new_future.get()
                     else:
                         break
