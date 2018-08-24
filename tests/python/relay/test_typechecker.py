@@ -3,7 +3,7 @@
 """
 import tvm.relay.make as mk
 from tvm.relay.type_infer import check_expr
-from tvm.relay.ir_builder import IRBuilder, float_type
+from tvm.relay.ir_builder import IRBuilder, float_type, op
 
 def has_type(expr, typ):
     env = mk.Environment({})
@@ -23,7 +23,7 @@ def test_monomorphic_let():
 def test_single_op():
     "Program: fn (x : int32) { let t1 = f(x); t1 }"
     b = IRBuilder()
-    f = b.op('f')
+    f = op('log')
     with b.function(('x', float_type())) as func:
         x, = func.param_ids()
         t1 = b.let('t1', f(x))

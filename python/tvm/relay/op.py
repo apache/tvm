@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 import sys
 from .._ffi.function import _init_api
 from .._ffi.node import convert_to_node
-from . import make as _make
+from . import _make
 from ..make import node as _make_node
 
 def _create_op(op_name):
