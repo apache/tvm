@@ -9,7 +9,6 @@ from .. import tensor as _tensor
 from .. import ndarray as _nd
 
 float32 = "float32"
-csr = "csr"
 itype = 'int32'
 
 @register_node
@@ -31,7 +30,8 @@ class CSRNDArray(object):
             The shape of the array
         """
         if isinstance(arg1, tuple):
-            self.data, self.indices, self.indptr = arg1[0], arg1[1], arg1[2]
+            assert len(arg1) == 3
+            self.data, self.indices, self.indptr = arg1
             self.shape = shape
         elif isinstance(arg1, _np.ndarray):
             source_array = arg1
@@ -87,6 +87,9 @@ class SparsePlaceholderOp(object):
         shape: Tuple of Expr
             The shape of the tensor
 
+        nonzeros: int
+            The number of non-zero values
+
         dtype: str, optional
             The data type of the tensor
 
@@ -108,6 +111,9 @@ class CSRPlaceholderOp(SparsePlaceholderOp):
         ----------
         shape: Tuple of Expr
             The shape of the tensor
+
+        nonzeros: int
+            The number of non-zero values
 
         dtype: str, optional
             The data type of the tensor
@@ -132,6 +138,9 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     shape: Tuple of Expr
         The shape of the tensor
 
+    nonzeros: int
+        The number of non-zero values
+
     dtype: str, optional
         The data type of the tensor
 
@@ -146,7 +155,7 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     nonzeros = 0 if nonzeros is None else nonzeros
     dtype = float32 if dtype is None else dtype
-    stype = csr if stype is None else stype
+    stype = 'csr' if stype is None else stype
     ret = None
     if stype == 'csr':
         ret = CSRPlaceholderOp(shape=shape, nonzeros=nonzeros, dtype=dtype, name=name)
