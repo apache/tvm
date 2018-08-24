@@ -10,6 +10,7 @@ import (
     "fmt"
     "runtime"
     "./gotvm"
+    "math/rand"
 )
 
 // NNVM compiled model paths.
@@ -45,8 +46,14 @@ func main() {
     fmt.Printf("Input and Output Arrays allocated\n")
 
     // Fill Input Data : inX , inY
-    inXSlice := []float32 {1, 2, 3, 4}
-    inYSlice := []float32 {5, 6, 7, 8}
+    inXSlice := make([]float32, 4)
+    inYSlice := make([]float32, 4)
+
+    for i := range inXSlice {
+        inXSlice[i] = rand.Float32()
+        inYSlice[i] = rand.Float32()
+    }
+
 
     // Copy the data on target memory through runtime CopyFrom api.
     inX.CopyFrom(inXSlice)

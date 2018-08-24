@@ -15,6 +15,7 @@ import (
     "errors"
     "runtime"
     "reflect"
+    "fmt"
 )
 
 // Function type in golang hold pointer for the TVMFunction handle.
@@ -28,11 +29,41 @@ func (tvmfunction Function) nativeCPtr() (retVal uintptr) {
 
 // Invoke calls the TVM packed function referred by the handle with given arguments.
 func (tvmfunction Function) Invoke(args ...interface{}) (retVal *Value, err error) {
-    funccall := func (args ...interface{}) (*Value, error) {
-        return callNativeFunction(tvmfunction, args)
+    funccall := func (fargs ...interface{}) (*Value, error) {
+        return callNativeFunction(tvmfunction, fargs)
     }
 
-    return funccall(args...)
+    // Check is any args are contain any ValueArray
+    // Possible is it's a args forward from one packed function to another.
+    valueArrayFound := false
+
+    for ii := range args {
+        switch args[ii].(type) {
+            case []Value:
+                valueArrayFound = true
+        }
+    }
+
+    if !valueArrayFound {
+        return funccall(args...)
+    }
+
+    if len(args) != 1 {
+        err = fmt.Errorf("Not supported if packed function args are a mix of []Value and other types")
+        return
+    }
+
+    valArray := args[0].([]Value)
+    if len(valArray) > 0 {
+        newArgs := make([]interface{}, len(valArray))
+        for ii := range valArray {
+            newArgs[ii] = valArray[ii]
+        }
+
+        return funccall(newArgs...)
+    }
+
+    return funccall()
 }
 
 // FuncListGlobalNames is used to query global callable packed function names from TVM.
@@ -260,18 +291,6 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
     // Prepare arguments for golang callback function
     nativeToGoSlice(C.native_voidp(unsafe.Pointer(args)), argValues)
 
-    /*typeCodesSlice := (*[1<<31] int32)(unsafe.Pointer(typeCodes))[:numArgs:numArgs]
-    cbargs := make([]interface{}, numArgs)
-    for ii := range argValues {
-        value, err := argValues[ii].getValue(typeCodesSlice[ii])
-        if err != nil {
-            errStr := err.Error()
-            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
-            return -1
-        }
-        cbargs[ii] = value
-    }*/
-
     cbargs := argValues
 
     // Execute the callback
@@ -283,8 +302,24 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         return -1
     }
 
+
+    // It's possible a packed function directly return the return value of another packed function.
+    // Inside a packed func :
+    //      ```return pfunc.Invoke(args)```
+    // In this case pfunc returns nil which is returned as an interface hilding nil *Value.
+    // Which becomes a valid retVal holding nil *Value.
+    isRetNull := false
+    switch retVal.(type) {
+        case *Value:
+            pRet := retVal.(*Value)
+            if pRet == nil {
+                isRetNull = true
+            }
+    }
+
+
     // Handle return value from callback function
-    if retVal != nil {
+    if retVal != nil && !isRetNull {
         var retTypeCode int32
         retValues := []Value{newTVMValue()}
         defer retValues[0].deleteTVMValue()

@@ -103,13 +103,20 @@ func (tvmval Value)  AsFunction() (retVal *Function) {
     return
 }
 
+// AsBytes returns the byte slice value inside the Value.
+func (tvmval Value)  AsBytes() (retVal []byte) {
+    retVal = tvmval.getVBHandle().GetData()
+    return
+}
+
 // AsStr returns the golang string slice in the Value.
 //
 // Note: Calling this function automativally release the underlaying native memory.
 // Hence repeated calls to this may lead to segmentation faults.
 func (tvmval Value) AsStr() (retVal string) {
     str := tvmval.getVStr()
-    tvmval.unSetVStr()
+    // TODO: Need to handle a clean way to free the native memory.
+    // tvmval.unSetVStr()
     retVal = str
 
     return
@@ -266,12 +273,36 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
         case string:
             tvmval.setVStr(val.(string))
             retVal = KStr
-        case int64:
-            tvmval.setVInt64(val.(int64))
+        case uint8:
+            tvmval.setVInt64(int64(val.(uint8)))
+            retVal = KDLInt
+        case uint16:
+            tvmval.setVInt64(int64(val.(uint16)))
+            retVal = KDLInt
+        case uint32:
+            tvmval.setVInt64(int64(val.(uint32)))
+            retVal = KDLInt
+        case uint64:
+            tvmval.setVInt64(int64(val.(uint64)))
             retVal = KDLInt
         case int:
             tvmval.setVInt64(int64(val.(int)))
             retVal = KDLInt
+        case int8:
+            tvmval.setVInt64(int64(val.(int8)))
+            retVal = KDLInt
+        case int16:
+            tvmval.setVInt64(int64(val.(int16)))
+            retVal = KDLInt
+        case int32:
+            tvmval.setVInt64(int64(val.(int32)))
+            retVal = KDLInt
+        case int64:
+            tvmval.setVInt64(val.(int64))
+            retVal = KDLInt
+        case float32:
+            tvmval.setVFloat64(float64(val.(float32)))
+            retVal = KDLFloat
         case float64:
             tvmval.setVFloat64(val.(float64))
             retVal = KDLFloat
@@ -290,6 +321,10 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
         case *ByteArray:
             tvmval.setVBHandle(*(val.(*ByteArray)))
             retVal = KBytes
+        case []byte:
+            barray := NewByteArray(val.([]byte))
+            tvmval.setVBHandle(*barray)
+            retVal = KBytes
         case Array:
             tvmval.setVAHandle(val.(Array))
             retVal = KArrayHandle
@@ -306,12 +341,12 @@ func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
             retVal = KFuncHandle
         case *Value:
             tvmval.copyFrom(val.(*Value))
-            // TODO: Hope to see dtype emneding into TVMValue for proper casting.
+            // TODO: Hope to see dtype embedding into TVMValue for proper casting.
             retVal = KDLInt
         case Value:
             fromval := val.(Value)
             tvmval.copyFrom(&fromval)
-            // TODO: Hope to see dtype emneding into TVMValue for proper casting.
+            // TODO: Hope to see dtype embedding into TVMValue for proper casting.
             retVal = KDLInt
         default:
             err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
@@ -336,6 +371,8 @@ func (tvmval Value) getValue(tvmtype int32) (retVal interface{}, err error) {
             retVal = tvmval.getVMHandle()
         case KFuncHandle:
             retVal = tvmval.getVFHandle()
+        case KBytes:
+            retVal = tvmval.getVBHandle()
         default:
             err = fmt.Errorf("Cannot get requested value type from given Value: %v\n", tvmtype);
     }

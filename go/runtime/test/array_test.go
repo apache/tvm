@@ -13,117 +13,141 @@ import (
     "math/rand"
 )
 
+// Create an array and check size.
 func TestArrayCreateSize(t *testing.T) {
     _, err := Empty([]int64{4})
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     _, err = Empty([]int64{4, 5, 6})
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     _, err = Empty([]int64{})
 
     if err == nil {
         t.Error("Expected err for empty Array created, but didn't got !!")
+        return
     }
 }
 
+// Check array creation via various different arguments.
 func TestArrayCreateArgs(t *testing.T) {
     _, err := Empty([]int64{4, 2}, "float32", CPU(0))
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     _, err = Empty([]int64{4, 2}, "float32")
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     _, err = Empty([]int64{4, 2}, CPU(0))
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     _, err = Empty([]int64{4, 2}, CPU(0), "float32")
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 }
 
+// Create an array and check the NDim.
 func TestArrayNDim(t *testing.T) {
     arr, err := Empty([]int64{4, 5, 6})
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     if 3 != arr.GetNdim() {
         t.Errorf("GetNdim failed Expected: 3 Got :%v\n", arr.GetNdim())
+        return
     }
 }
 
+// Create an array and check Shape.
 func TestArrayShape(t *testing.T) {
     arr, err := Empty([]int64{4, 5, 6})
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     shape := arr.GetShape()
 
     if len(shape) != 3 {
         t.Errorf("Shape slice expected: 3 Got :%v\n", len(shape))
+        return
     }
 
     if shape[0] != 4 || shape[1] != 5 || shape[2] != 6 {
         t.Errorf("Shape values expected {4, 5, 6} Got : %v\n", shape);
+        return
     }
 }
 
+// Create an array and check created Context.
 func TestArrayCtx(t *testing.T) {
     // TODO: Could some test cases for other targets
     arr, err := Empty([]int64{4}, CPU(0))
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ctx := arr.GetCtx()
 
     if ctx.DeviceType != KDLCPU {
         t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
+        return
     }
 
     if ctx.DeviceID != 0 {
         t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
+        return
     }
 
     arr, err = Empty([]int64{4}, CPU(2))
 
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ctx = arr.GetCtx()
 
     if ctx.DeviceType != KDLCPU {
         t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
+        return
     }
 
     if ctx.DeviceID != 2 {
         t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
+        return
     }
 }
 
+// Create array of different dtypes and check dtypes.
 func TestArrayDType(t *testing.T) {
 
     for _, dtype := range  []string{"int8", "int16", "int32", "int64",
@@ -134,19 +158,23 @@ func TestArrayDType(t *testing.T) {
 
         if err != nil {
             t.Error(err.Error())
+            return
         }
 
         if dtype != arr.GetDType() {
             t.Errorf("Dtype expected: %v Got :%v\n", dtype, arr.GetDType())
+            return
         }
     }
 }
 
+// Copy Int8 data to created Array and verify.
 func TestArrayCopySliceInt8(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "int8")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen)
@@ -156,17 +184,20 @@ func TestArrayCopySliceInt8(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []int8:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]int8)
@@ -184,11 +215,13 @@ func TestArrayCopySliceInt8(t *testing.T) {
     }
 }
 
+// Copy Int16 data to created Array and verify.
 func TestArrayCopySliceInt16(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "int16")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*2)
@@ -198,17 +231,20 @@ func TestArrayCopySliceInt16(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []int16:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]int16)
@@ -226,11 +262,13 @@ func TestArrayCopySliceInt16(t *testing.T) {
     }
 }
 
+// Copy Int32 data to created Array and verify.
 func TestArrayCopySliceInt32(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "int32")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*4)
@@ -240,17 +278,20 @@ func TestArrayCopySliceInt32(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []int32:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]int32)
@@ -268,11 +309,13 @@ func TestArrayCopySliceInt32(t *testing.T) {
     }
 }
 
+// Copy Int64 data to created Array and verify.
 func TestArrayCopySliceInt64(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "int64")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*8)
@@ -282,17 +325,20 @@ func TestArrayCopySliceInt64(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []int64:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]int64)
@@ -310,11 +356,13 @@ func TestArrayCopySliceInt64(t *testing.T) {
     }
 }
 
+// Copy UInt8 data to created Array and verify.
 func TestArrayCopySliceUInt8(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "uint8")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen)
@@ -324,17 +372,20 @@ func TestArrayCopySliceUInt8(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []uint8:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]uint8)
@@ -352,11 +403,13 @@ func TestArrayCopySliceUInt8(t *testing.T) {
     }
 }
 
+// Copy UInt16 data to created Array and verify.
 func TestArrayCopySliceUInt16(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "uint16")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*2)
@@ -366,17 +419,20 @@ func TestArrayCopySliceUInt16(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []uint16:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]uint16)
@@ -394,11 +450,13 @@ func TestArrayCopySliceUInt16(t *testing.T) {
     }
 }
 
+// Copy UInt32 data to created Array and verify.
 func TestArrayCopySliceUInt32(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "uint32")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*4)
@@ -408,17 +466,20 @@ func TestArrayCopySliceUInt32(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []uint32:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]uint32)
@@ -436,11 +497,13 @@ func TestArrayCopySliceUInt32(t *testing.T) {
     }
 }
 
+// Copy UInt64 data to created Array and verify.
 func TestArrayCopySliceUInt64(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "uint64")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     bdata := make([]byte, dlen*8)
@@ -450,17 +513,20 @@ func TestArrayCopySliceUInt64(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []uint64:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]uint64)
@@ -478,11 +544,13 @@ func TestArrayCopySliceUInt64(t *testing.T) {
     }
 }
 
+// Copy Float32 data to created Array and verify.
 func TestArrayCopySliceFloat32(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "float32")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     data := make([]float32, dlen)
@@ -494,17 +562,20 @@ func TestArrayCopySliceFloat32(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []float32:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]float32)
@@ -517,15 +588,18 @@ func TestArrayCopySliceFloat32(t *testing.T) {
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v \nGot :%v \n", data, dataRet)
+            return
         }
     }
 }
 
+// Copy Float64 data to created Array and verify.
 func TestArrayCopySliceFloat64(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "float64")
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     data := make([]float64, dlen)
@@ -537,17 +611,20 @@ func TestArrayCopySliceFloat64(t *testing.T) {
     err = arr.CopyFrom(data)
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     ret, err := arr.AsSlice()
     if err != nil {
         t.Error(err.Error())
+        return
     }
 
     switch ret.(type) {
         case []float64:
         default:
             t.Errorf("Expected : %T but got :%T\n", data, ret)
+            return
     }
 
     dataRet := ret.([]float64)

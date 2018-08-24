@@ -1,0 +1,326 @@
+/*!
+ *  Copyright (c) 2018 by Contributors
+ * \brief gotvm package
+ * \file value_test.go
+ */
+
+package gotvm
+
+import (
+    "testing"
+    "math/rand"
+    "strings"
+)
+
+// Check Int64 Value looping via packed function calling another packed function.
+func TestValueLoopInt64(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    result := rand.Int63()
+    retVal, err := fhandle.Invoke(funccall, result)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    if retVal.AsInt64() != result {
+        t.Errorf("Expected : %v got:%v\n", result, retVal.AsInt64())
+        return
+    }
+}
+
+// Check Int32 Value looping via packed function calling another packed function.
+func TestValueLoopInt32(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    result := rand.Int31()
+    retVal, err := fhandle.Invoke(funccall, result)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    if retVal.AsInt64() != int64(result) {
+        t.Errorf("Expected : %v got:%v\n", result, retVal.AsInt64())
+        return
+    }
+}
+
+// Check Float32 Value looping via packed function calling another packed function.
+func TestValueLoopFloat32(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    result := rand.Float32()
+    retVal, err := fhandle.Invoke(funccall, result)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    if retVal.AsFloat64() != float64(result) {
+        t.Errorf("Expected : %v got:%v\n", result, retVal.AsInt64())
+        return
+    }
+}
+
+// Check Float64 Value looping via packed function calling another packed function.
+func TestValueLoopFloat64(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    result := rand.Float64()
+    retVal, err := fhandle.Invoke(funccall, result)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    if retVal.AsFloat64() != result {
+        t.Errorf("Expected : %v got:%v\n", result, retVal.AsInt64())
+        return
+    }
+}
+
+func TestValueLoopString(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+        // TODO: Why not directly returning args[0]
+        retVal =  args[0].AsStr()
+
+        return
+    }
+
+    retVal, err := fhandle.Invoke(funccall, "TestString")
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    vStr := retVal.AsStr()
+
+    if strings.Compare(vStr, string("TestString")) != 0  {
+        t.Errorf("Expected : %v got:%v\n", string("TestString"), vStr)
+        return
+    }
+}
+
+// Check ByteArray Value looping via packed function calling another packed function.
+func TestValueLoopBytes(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    data := make([]byte, 1024)
+    rand.Read(data)
+
+    barray := NewByteArray(data)
+
+    result := barray.GetData()
+
+    retVal, err := fhandle.Invoke(funccall, barray)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    received := retVal.AsBytes()
+
+    if len(result) != len(received) {
+            t.Errorf("Data expected Len: %v Got :%v\n", len(result), len(received))
+            return
+    }
+
+    for i := range result {
+        if result[i] != received[i] {
+            t.Errorf("Data expected: %v Got :%v at index %v\n", result[i], received[i], i)
+            return
+        }
+    }
+}
+
+// Check []byte Value looping via packed function calling another packed function.
+func TestValueLoopByteSlice(t *testing.T) {
+
+    // Receive a function Handle and argument and echo the Value on the handle.
+    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+        // Reveive Packed Function Handle
+        pfunc := args[0].AsFunction()
+
+        newArgs := args[1:]
+
+        // Call Packed Function by Value
+        return pfunc.Invoke(newArgs)
+    }
+
+    fhandle, err := ConvertFunction(sampleFunctionLoop)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    // funccall is a simple golang callback function like C = A + B.
+    funccall := func (args ...Value) (retVal interface{}, err error) {
+
+        retVal = args[0]
+
+        return
+    }
+
+    result := make([]byte, 1024)
+    rand.Read(result)
+
+    retVal, err := fhandle.Invoke(funccall, result)
+    if err != nil {
+        t.Error(err.Error())
+        return
+    }
+
+    received := retVal.AsBytes()
+
+    if len(result) != len(received) {
+            t.Errorf("Data expected Len: %v Got :%v\n", len(result), len(received))
+            return
+    }
+
+    for i := range result {
+        if result[i] != received[i] {
+            t.Errorf("Data expected: %v Got :%v at index %v\n", result[i], received[i], i)
+            return
+        }
+    }
+}

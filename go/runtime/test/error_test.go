@@ -12,6 +12,7 @@ import (
     "strings"
 )
 
+// Check err receiving from TVM global function.
 func TestErrorTest(t *testing.T) {
     _, err := LoadModuleFromFile("dummy.so")
     if err == nil {

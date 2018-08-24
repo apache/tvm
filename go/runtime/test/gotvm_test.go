@@ -12,6 +12,7 @@ import (
     "reflect"
 )
 
+// Check TVMVersion API
 func TestTVMVersion(t *testing.T) {
     if len(TVMVersion) == 0 {
         t.Error("TVMVersion not set\n")
@@ -21,12 +22,14 @@ func TestTVMVersion(t *testing.T) {
     }
 }
 
+// Check DLPackVersion API
 func TestDLPackVersion(t *testing.T) {
     if reflect.TypeOf(DLPackVersion).Kind() != reflect.Int {
         t.Error("TVMVersion type mismatch\n")
     }
 }
 
+// Check GoTVMVersion API
 func TestGoTVMVersion(t *testing.T) {
     if len(GoTVMVersion) == 0 {
         t.Error("GoTVMVersion not set\n")

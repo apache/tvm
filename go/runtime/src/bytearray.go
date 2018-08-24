@@ -35,10 +35,10 @@ func (tbytearray ByteArray) setData(val string) {
 	C._TVMByteArraySetData(C.uintptr_t(tbytearray), *(*C._gostring_)(unsafe.Pointer(&val)))
 }
 
-// GetData returns the golang string corresponding to the ByteArray.
-func (tbytearray ByteArray) GetData() (retVal string) {
+// GetData returns the golang byte slice corresponding to the ByteArray.
+func (tbytearray ByteArray) GetData() (retVal []byte) {
 	val := C._TVMByteArrayGetData(C.uintptr_t(tbytearray))
-	retVal = goStringFromNative(*(*string)(unsafe.Pointer(&val)))
+	retVal = []byte(goStringFromNative(*(*string)(unsafe.Pointer(&val))))
     return
 }
 
@@ -47,7 +47,7 @@ func (tbytearray ByteArray) GetData() (retVal string) {
 //`val` is the golang byte array used to initialize.
 //
 // returns pointer to newly created ByteArray.
-func NewByteArray(val []uint8) (retVal *ByteArray) {
+func NewByteArray(val []byte) (retVal *ByteArray) {
 
     handle := new(ByteArray)
     *handle = ByteArray(C._NewTVMByteArray())

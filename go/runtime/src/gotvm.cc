@@ -78,8 +78,8 @@ char * _gostring_to_native(_gostring_ gostr) {
  */
 static _gostring_ _native_to_gostring(const char *p, size_t l) {
   _gostring_ ret;
-  ret.p = reinterpret_cast<char*>(_native_malloc(l+1));
-  memcpy(ret.p, p, l+1);
+  ret.p = reinterpret_cast<char*>(_native_malloc(l));
+  memcpy(ret.p, p, l);
   ret.n = l;
   return ret;
 }
@@ -626,8 +626,7 @@ void _TVMByteArraySetData(TVMByteArray *tbytearray, _gostring_ val) {
  * \return byte array content as _gostring_ object.
  */
 _gostring_ _TVMByteArrayGetData(TVMByteArray *tbytearray) {
-  // (size - 1) : _native_to_gostring assume null char at end.
-  return _native_to_gostring(tbytearray->data, (tbytearray->size - 1));
+  return _native_to_gostring(tbytearray->data, tbytearray->size);
 }
 
 /*!
