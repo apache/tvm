@@ -2,7 +2,6 @@
 # pylint: disable=invalid-name
 from __future__ import absolute_import as _abs
 import numpy as _np
-from .._ffi.node import register_node
 from .. import expr as _expr
 from .. import api as _api
 from .. import tensor as _tensor
@@ -11,7 +10,6 @@ from .. import ndarray as _nd
 float32 = "float32"
 itype = 'int32'
 
-@register_node
 class CSRNDArray(object):
     """Sparse tensor object in CSR format."""
     def __init__(self, arg1, ctx=None, shape=None):
@@ -75,7 +73,6 @@ def array(source_array, ctx=None, shape=None, stype='csr'):
         raise NotImplementedError('stype=%s is not supported yet.' % (stype,))
     return ret
 
-@register_node
 class SparsePlaceholderOp(object):
     """Placeholder class for sparse tensor representations."""
     def __init__(self, shape, nonzeros, dtype, name):
@@ -101,7 +98,6 @@ class SparsePlaceholderOp(object):
         self.name = name
         self.stype = 'unknown'
 
-@register_node
 class CSRPlaceholderOp(SparsePlaceholderOp):
     """Placeholder class for CSR based sparse tensor representation."""
     def __init__(self, shape, nonzeros, dtype, name):
@@ -147,10 +143,13 @@ def placeholder(shape, nonzeros=None, dtype=None, name="placeholder", stype=None
     name: str, optional
         The name hint of the tensor
 
+    stype: str, optional
+        The name storage type of the sparse tensor (e.g. csr, coo, ell)
+
     Returns
     -------
-    tensor: CSRNDArray
-        The created tensor
+    tensor: SparsePlaceholderOp
+        The created sparse tensor placeholder
     """
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     nonzeros = 0 if nonzeros is None else nonzeros

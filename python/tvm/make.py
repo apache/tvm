@@ -71,6 +71,17 @@ def node(type_key, **kwargs):
     **kwargs : dict
         The fields of the node.
 
+    Returns
+    -------
+    node : Node
+        The corresponding DSL Node
+
+    Note
+    ----
+    If the created node is instance of AttrsNode, then
+    the creator function will also run bound checks and
+    default value setup as supported by Attrs.
+
     Example
     -------
     The following code constructs a IntImm object

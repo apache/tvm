@@ -36,6 +36,31 @@ def test_make_node():
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
+
+def test_make_attrs():
+    try:
+        x = tvm.make.node("attrs.TestAttrs", unknown_key=1, name="xx")
+        assert False
+    except tvm.TVMError as e:
+        assert str(e).find("unknown_key") != -1
+
+    try:
+        x = tvm.make.node("attrs.TestAttrs", axis=100, name="xx")
+        assert False
+    except tvm.TVMError as e:
+        assert str(e).find("upper bound") != -1
+
+    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4))
+    assert x.name == "xx"
+    assert x.padding[0].value == 3
+    assert x.padding[1].value == 4
+    assert x.axis == 10
+
+    dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
+    assert dattr.x.value == 1
+
+
+
 def test_make_sum():
     A = tvm.placeholder((2, 10), name='A')
     k = tvm.reduce_axis((0,10), "k")
@@ -46,6 +71,7 @@ def test_make_sum():
     assert BB.op.body[0].combiner is not None
 
 if __name__ == "__main__":
+    test_make_attrs()
     test_make_node()
     test_make_smap()
     test_const_saveload_json()

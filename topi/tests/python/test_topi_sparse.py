@@ -1,9 +1,4 @@
 """Test code for sparse operator"""
-import os, sys
-thisdir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(thisdir, '../../../python'))
-sys.path.insert(0, os.path.join(thisdir, '../../python'))
-
 import numpy as np
 import tvm
 import topi

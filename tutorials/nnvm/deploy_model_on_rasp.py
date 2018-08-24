@@ -154,7 +154,7 @@ if local_demo:
 else:
     target = tvm.target.arm_cpu('rasp3b')
     # The above line is a simple form of
-    # target = tvm.target.create('llvm -devcie=arm_cpu -target=armv7l-linux-gnueabihf')
+    # target = tvm.target.create('llvm -devcie=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
 
 with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
     graph, lib, params = nnvm.compiler.build(

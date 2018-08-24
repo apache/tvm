@@ -7,6 +7,7 @@
 #include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/api_registry.h>
+#include <tvm/attrs.h>
 #include <vector>
 #include <string>
 #include <exception>
@@ -124,22 +125,35 @@ class DSLAPIImpl : public DSLAPI {
         (*static_cast<TVMAPINode*>(handle))->type_index());
   }
   void NodeGetAttr(NodeHandle handle,
-                  const char* key,
-                  TVMValue* ret_val,
-                  int* ret_type_code,
-                  int* ret_success) const final {
+                   const char* key,
+                   TVMValue* ret_val,
+                   int* ret_type_code,
+                   int* ret_success) const final {
     TVMRetValue rv;
     APIAttrGetter getter;
+    TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
     getter.skey = key;
     getter.ret = &rv;
-    TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
     if (getter.skey == "type_key") {
       ret_val->v_str = (*tnode)->type_key();
       *ret_type_code = kStr;
       *ret_success = 1;
-    } else {
+      return;
+    } else if (!(*tnode)->is_type<DictAttrsNode>()) {
       (*tnode)->VisitAttrs(&getter);
       *ret_success = getter.found_ref_object || rv.type_code() != kNull;
+    } else {
+      // specially handle dict attr
+      DictAttrsNode* dnode = static_cast<DictAttrsNode*>(tnode->get());
+      auto it = dnode->dict.find(key);
+      if (it != dnode->dict.end()) {
+        *ret_success = 1;
+        rv = (*it).second;
+      } else {
+        *ret_success = 0;
+      }
+    }
+    if (*ret_success) {
       if (rv.type_code() == kStr ||
           rv.type_code() == kTVMType) {
         TVMAPIThreadLocalEntry *e = TVMAPIThreadLocalStore::Get();
@@ -159,7 +173,16 @@ class DSLAPIImpl : public DSLAPI {
     TVMAPINode* tnode = static_cast<TVMAPINode*>(handle);
     APIAttrDir dir;
     dir.names = &(ret->ret_vec_str);
-    (*tnode)->VisitAttrs(&dir);
+
+    if (!(*tnode)->is_type<DictAttrsNode>()) {
+      (*tnode)->VisitAttrs(&dir);
+    } else {
+      // specially handle dict attr
+      DictAttrsNode* dnode = static_cast<DictAttrsNode*>(tnode->get());
+      for (const auto& kv : dnode->dict) {
+        ret->ret_vec_str.push_back(kv.first);
+      }
+    }
     ret->ret_vec_charp.clear();
     for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
       ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());

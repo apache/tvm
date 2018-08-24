@@ -43,7 +43,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.4.0"
+#define TVM_VERSION "0.5.dev"
 
 
 // TVM Runtime is DLPack compatible.

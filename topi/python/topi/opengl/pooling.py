@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-variable
+# pylint: disable=invalid-name, unused-variable, unused-argument
 """Schedule for pooling operators"""
 import tvm
 from .. import tag
@@ -54,7 +54,7 @@ def schedule_global_pool(outs):
 
 
 @generic.schedule_pool.register(["opengl"])
-def schedule_pool(outs):
+def schedule_pool(outs, layout):
     """Schedule for pool.
 
     Parameters
@@ -62,6 +62,9 @@ def schedule_pool(outs):
     outs: Array of Tensor
         The computation graph description of pool
         in the format of an array of tensors.
+
+    layout: str
+        Data layout.
 
     Returns
     -------

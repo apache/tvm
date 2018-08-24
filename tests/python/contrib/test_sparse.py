@@ -1,7 +1,3 @@
-import os, sys
-thisdir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(thisdir, '../../../python'))
-
 import tvm
 import tvm.contrib.sparse as tvmsp
 import tvm.ndarray as _nd
