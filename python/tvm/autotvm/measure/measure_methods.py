@@ -204,34 +204,43 @@ def create_measure_batch(task, option):
 
         # transform results
         results = []
-        for future in futures:
+        for i,future in enumerate(futures):
             result = future.get()
             if isinstance(result, Exception):
                 tstamp = time.time()
                 results.extend([MeasureResult((result,), MeasureErrorNo.FLEET_ERROR,
                                               timeout, tstamp)] * pack_size)
             else:
-                results.extend(result)
-
-        while True:
-            remeasure = False
-            for result in results:
-                if result.error_no == MeasureErrorNo.NO_ERROR:
-                    measure_cost = np.mean(result.costs) * nonLocal.number * 1e3
-                    if measure_cost < min_repeat_ms:
-                        nonLocal.number = int(np.ceil(nonLocal.number *\
-                                                  min_repeat_ms/measure_cost))
-                        remeasure = True
-                        msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
-                        nonLocal.number, measure_cost, min_repeat_ms)
-                        logger.info(msg)
+                while True:
+                    remeasure = False
+                    # each result is an entire pack
+                    for res in result:
+                        if res.error_no == MeasureErrorNo.NO_ERROR:
+                            measure_cost = np.mean(res.costs) * nonLocal.number * 1e3
+                            if measure_cost < min_repeat_ms:
+                                nonLocal.number = int(np.ceil(nonLocal.number *\
+                                                          min_repeat_ms/measure_cost))
+                                remeasure = True
+                                msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
+                                nonLocal.number, measure_cost, min_repeat_ms)
+                                logger.info(msg)
+                                break
+                    if remeasure:
+                        # note that measure_inputs here has already been filtered (if
+                        # applicable)
+                        input_pack = measure_inputs[i*pack_size:(i+1)*pack_size]
+                        new_future = executor.submit(measure_func,
+                                                    input_pack,
+                                                    build_func,
+                                                    build_kwargs,
+                                                    nonLocal.number,
+                                                    repeat,
+                                                    ref_input,
+                                                    ref_output)
+                        result = new_future.get()
+                    else:
                         break
-            if remeasure:
-                # note that measure_inputs here has already been filtered (if
-                # applicable)
-                results = measure_batch(measure_inputs)
-            else:
-                break
+                results.extend(result)
 
         if replay_db is not None:
             result_idx = 0
