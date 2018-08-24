@@ -115,6 +115,7 @@ class TVMContext(ctypes.Structure):
         'cl': 4,
         'opencl': 4,
         'aocl' : 5,
+        'aocl_emu' : 5,
         'sdaccel': 6,
         'vulkan': 7,
         'metal': 8,

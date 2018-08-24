@@ -43,6 +43,40 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl.popcount")
 .set_body(DispatchExtern<Direct>);
 
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.floor")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.ceil")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.trunc")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.fabs")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.round")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.exp")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.log")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.tanh")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.sqrt")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.pow")
+.set_body(DispatchExtern<Direct>);
+
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.aocl_emu.popcount")
+.set_body(DispatchExtern<Direct>);
+
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm

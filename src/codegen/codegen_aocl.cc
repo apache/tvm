@@ -13,7 +13,8 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
+runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
+                          bool emulation) {
   // Get code.
   using tvm::runtime::Registry;
   bool output_ssa = false;
@@ -36,10 +37,8 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
   if (target->device_name != "") {
     cmd += " -board=" + target->device_name;
   }
-  for (std::string option : target->options()) {
-    if (option == "-mattr=emulator") {
-      cmd += " -march=emulator";
-    }
+  if (emulation) {
+    cmd += " -march=emulator";
   }
   if (system(cmd.c_str()) != 0) {
     LOG(FATAL) << "OpenCL offline compilation error.";
@@ -54,7 +53,12 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
 
 TVM_REGISTER_API("codegen.build_aocl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildAOCL(args[0], args[1]);
+    *rv = BuildAOCL(args[0], args[1], false);
+  });
+
+TVM_REGISTER_API("codegen.build_aocl_emu")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildAOCL(args[0], args[1], true);
   });
 
 }  // namespace codegen
