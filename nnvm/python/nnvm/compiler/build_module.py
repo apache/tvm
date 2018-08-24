@@ -181,6 +181,179 @@ def optimize(graph, shape, dtype="float32", layout=None):
     return graph
 
 
+def pre_annotate_optimizations(graph, target, shape=None, dtype="float32",
+                               params=None, layout=None, op_names=None):
+    """Perform target a series of optimizations on the given graph after
+    the first annotation. These annotations are compilation targets that
+    attached to the graph. The are used to help target dependent
+    optimizations, such as layout altering.
+    These optimizations include layout correction, operation layout altering,
+    inference simplification, scale axis folding, and pre-compute pruning.
+
+    When params is provided, the compiler might split the graph to
+    pre-compute certain values, so the final execution graph can
+    be different from the original one.
+
+    Parameters
+    ----------
+    graph : Graph
+        The graph to be used in lowering
+
+    shape : dict of str to tuple, optional
+        The input shape to the graph
+
+    dtype : str or dict of str to str, default is "float32"
+        The input types to the graph
+
+    params : dict of str to NDArray, optional
+        Input parameters to the graph that do not change
+        during inference time. Used for pre-compute
+        folding optimization.
+
+    layout : dict of str to str or str optional
+        The input layout
+
+    Returns
+    -------
+    graph : Graph
+        The final execution graph.
+
+    target: str, tvm.target.Target, or dict of str to str or tvm.target.Target
+        Compilation target or, device and compilation target pairs.
+
+    shape : dict of str to tuple, optional
+        The updated shape of the input graph.
+
+    dtype : str or dict of str to str
+        The updated type of the input graph.
+
+    params : dict of str to NDArray
+        The updated parameters of graph if params is passed.
+        This can be different from the params passed in.
+
+    init_var: dict of str to tvm.ndarray
+    """
+    if not isinstance(target, str) and not isinstance(target,
+                                                      tvm.target.Target) and \
+            not isinstance(target, dict):
+        raise ValueError("target has to be a string, a tvm.target.Target, "
+                         "or a dict and cannot be none.")
+
+    shape = shape if shape else {}
+    if not isinstance(shape, dict):
+        raise TypeError("require shape to be dict")
+    for value in shape.values():
+        if not all(isinstance(x, int) for x in value):
+            raise TypeError("shape value must be int iterator")
+
+    cfg = BuildConfig.current
+    shape, dtype = _update_shape_dtype(shape, dtype, params)
+
+    # correct layout if necessary
+    layout = layout if layout else {}
+    graph = graph_attr.set_layout_inputs(graph, layout)
+    graph = graph.apply("CorrectLayout")
+    index = graph.index
+    layouts = graph.json_attr("layout")
+    layout = {x: layouts[index.entry_id(x)] for x in index.input_names}
+
+    # Initial pass do shape type inference
+    ishape, _ = graph_util.infer_shape(graph, **shape)
+    shape.update(zip(graph.index.input_names, ishape))
+    if not isinstance(dtype, str):
+        idtype, _ = graph_util.infer_dtype(graph, **dtype)
+        dtype.update(zip(graph.index.input_names, idtype))
+    # Initialize all variables specified in _all_var_init
+    init_var = {}
+    if _all_var_init:
+        init_var = initialize_variables(shape, dtype)
+
+    graph = graph_util.annotate_graph(graph, target, op_names)
+    graph = optimize(graph, shape, dtype, layout)
+    graph = graph_util.annotate_graph(graph, target, op_names)
+
+    # Clear extra params without nodes.
+    _remove_noref_params(params, graph)
+
+    # Precompute prune
+    if params and cfg.pass_enabled("PrecomputePrune"):
+        graph, params = precompute_prune(graph, params)
+        shape, dtype = _update_shape_dtype(shape, dtype, params)
+
+    return graph, shape, dtype, params, init_var
+
+
+def post_annotation_optimizations(graph, shape, dtype, params, init_var,
+                                  target_host=None):
+    """Perform  target dependent optimizations on the input graph.
+    These annotations are compilation targets that attached to the graph to
+    help compute and schedule in the late stages.
+    These optimizations currently only include operator fusion and they are
+    performed after final annotation of the graph.
+
+    Before applying target dependent optimizations, target(s) information
+    should have attached the input graph.
+
+    Parameters
+    ----------
+    graph : Graph
+        The graph to be used in lowering
+
+    shape : dict of str to tuple, optional
+        The input shape to the graph
+
+    dtype : str or dict of str to str
+        The input types to the graph
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for pre-compute
+        folding optimization.
+
+    target_host : str or :any:`tvm.target.Target` optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    Returns
+    -------
+    graph : Graph
+        The final execution graph.
+
+    params : dict of str to NDArray
+        The updated parameters of graph if params is passed.
+        This can be different from the params passed in.
+    """
+    graph = graph_attr.set_shape_inputs(graph, shape)
+    graph = graph.apply("InferShape")
+    graph = graph_attr.set_dtype_inputs(graph, dtype)
+    if target_host is not None:
+        graph._set_json_attr("target_host", str(target_host), "str")
+
+    cfg = BuildConfig.current
+    if cfg.pass_enabled("OpFusion"):
+        graph._set_json_attr("opt_level", 1, "int")
+    else:
+        graph._set_json_attr("opt_level", 0, "int")
+
+    graph = graph.apply("InferShape").apply("InferType")
+    graph = graph.apply("GraphFindFusibleGroups")
+    graph = graph.apply("GraphFuse")
+    graph = graph.apply("GraphCompile")
+
+    # Write variable initial values into params
+    if init_var:
+        if params is None:
+            params = {}
+        params.update(init_var)
+
+    return graph, params
+
+
 def build(graph, target=None, shape=None, dtype="float32",
           params=None, target_host=None, layout=None):
     """Build graph into runtime library.
@@ -238,6 +411,7 @@ def build(graph, target=None, shape=None, dtype="float32",
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
     target = tvm.target.create(target)
+    graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
@@ -247,69 +421,142 @@ def build(graph, target=None, shape=None, dtype="float32",
         tophub_context = autotvm.util.EmptyContext()
 
     with tophub_context:
-        shape = shape if shape else {}
-        if not isinstance(shape, dict):
-            raise TypeError("require shape to be dict")
-        for value in shape.values():
-            if not all(isinstance(x, int) for x in value):
-                raise TypeError("shape value must be int iterator")
+        # Perform graph level optimizations that are mostly
+        # target-independent. Annotation is used to help the optimization
+        # passes that need target information, such as layout altering.
+        graph, shape, dtype, params, init_var = pre_annotate_optimizations(
+            graph, target, shape, dtype, params,layout)
 
-        cfg = BuildConfig.current
-        graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
-        shape, dtype = _update_shape_dtype(shape, dtype, params)
-
-        # correct layout if necessary
-        layout = layout if layout else {}
-        graph = graph_attr.set_layout_inputs(graph, layout)
-        graph = graph.apply("CorrectLayout")
-        index = graph.index
-        layouts = graph.json_attr("layout")
-        layout = {x: layouts[index.entry_id(x)] for x in index.input_names}
-
-        # Initial pass do shape type inference
-        ishape, _ = graph_util.infer_shape(graph, **shape)
-        shape.update(zip(graph.index.input_names, ishape))
-        if not isinstance(dtype, str):
-            idtype, _ = graph_util.infer_dtype(graph, **dtype)
-            dtype.update(zip(graph.index.input_names, idtype))
-        # Initialize all variables specified in _all_var_init
-        init_var = {}
-        if _all_var_init:
-            init_var = initialize_variables(shape, dtype)
-        # Apply optimization
-        with target:
-            graph = optimize(graph, shape, dtype, layout)
-
-        # Clear extra params without nodes.
-        _remove_noref_params(params, graph)
-
-        # Precompute prune
-        if params and cfg.pass_enabled("PrecomputePrune"):
-            graph, params = precompute_prune(graph, params)
-            shape, dtype = _update_shape_dtype(shape, dtype, params)
         # Operator Fusion and generation
-        graph = graph_attr.set_shape_inputs(graph, shape)
-        graph = graph.apply("InferShape")
-        graph = graph_attr.set_dtype_inputs(graph, dtype)
+        graph = graph_util.annotate_graph(graph, target)
         graph._set_json_attr("target", str(target), "str")
-        if target_host is not None:
-            graph._set_json_attr("target_host", str(target_host), "str")
-        if cfg.pass_enabled("OpFusion"):
-            graph._set_json_attr("opt_level", 1, "int")
-        else:
-            graph._set_json_attr("opt_level", 0, "int")
-        graph = graph.apply("InferShape").apply("InferType")
-        graph = graph.apply("GraphFindFusibleGroups")
-        graph = graph.apply("GraphFuse")
-        with target:
-            graph = graph.apply("GraphCompile")
+        # Perform graph level target-dependent optimizations.
+        graph, params = post_annotation_optimizations(graph, shape, dtype,
+                                                      params, init_var,
+                                                      target_host)
+
         libmod = graph_attr._move_out_module(graph, "module")
-        # Write variable initial values into params
-        if init_var:
-            if params is None:
-                params = {}
-            params.update(init_var)
         return graph, libmod, params
+
+
+# TODO(chzhi) Combine build_heterogeneous and build. One interface should be
+# sufficient, but need to understand autotvm and remove the with tophub_context
+# first.
+def build_heterogeneous(graph, targets, shape=None, dtype="float32",
+                        params=None, target_host=None, layout=None,
+                        op_names=None):
+    """Build graph into runtime library.
+
+    The build function will optimize the graph and do the compilation.
+
+    When params is provided, the compiler might split the graph to
+    pre-compute certain values, so the final execution graph can
+    be different from the original one.
+
+    Parameters
+    ----------
+    graph : Graph
+        The graph to be used in lowering
+
+    targets : dict of str to str
+        The device to target dictionary, e.g. {"cpu" : "llvm", "gpu" : "cuda"}.
+
+    shape : dict of str to tuple, optional
+        The input shape to the graph.
+
+    dtype : str or dict of str to str
+        The input types to the graph.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for pre-compute
+        folding optimization.
+
+    target_host : str or :any:`tvm.target.Target` optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    layout : dict of str to str or str optional
+        The input layout
+
+    Returns
+    -------
+    graph : Graph
+        The final execution graph.
+
+    lib_dev_dict: dict of tvm.Module to device
+        The tvm.Module to device pairs. The modules are obtained from
+        compilation. Each device will have one module.
+
+    params : dict of str to NDArray
+        The updated parameters of graph if params is passed.
+        This can be different from the params passed in.
+    """
+    if not isinstance(targets, dict) or not targets:
+        raise ValueError(
+            "targets must be a dictionary that contains device and target "
+            "pairs.")
+
+    graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
+    op_names = op_names if op_names else []
+
+    if not isinstance(op_names, str) and not isinstance(op_names, list):
+        raise ValueError("op_names must be a string or a list of strings.")
+
+    # TODO(chzhi) load all names from op_device_config.json and pass the json
+    #  file to graph_annotate. graph_annotate will then pass it to c++
+    # backend NNAnnotateGraph1 to construct the op_device_config_map in property
+    # filename = "op_device_config.json"
+    # if not op_names:
+    #     with open(filename, 'r') as json_f:
+    #         op_dev_config = json.load(json_f)
+    #         for names in op_dev_config.values():
+    #             op_names = list(set(op_names + names))
+
+    graph, shape, dtype, params, init_var = pre_annotate_optimizations(
+        graph, targets, shape, dtype, params, layout, op_names)
+
+    # Annotate the graph with given operators. A selector will choose these
+    # operators and annotate the corresponding node to a certain device.
+    #
+    # "annotate_device" attribute will tell the annotation pass to also
+    # annotate the device information for each node. When this hint is not
+    # given, the annotation pass will only save the compilation target
+    # information. For example, this hint is not provided before
+    # pre-computing pruning because all nodes should be precomputed on one
+    # device.
+
+    # Attach the target information to the graph.
+    graph._set_json_attr("annotate_device", "annotate_device", "str")
+    graph = graph_util.annotate_graph(graph, targets, op_names)
+
+    for dev, target in targets.items():
+        graph._set_json_attr("target" + dev, str(target), "str")
+    graph, params = post_annotation_optimizations(graph, shape, dtype,
+                                                  params, init_var, target_host)
+
+    # Move the compiled modules out of the graph.
+    lib_dev_dict = {}
+    for dev in targets.keys():
+        module_dev = "module" + dev
+        if graph.has_json_attr(module_dev):
+            module = graph_attr._move_out_module(graph, module_dev)
+            lib_dev_dict[module] = tvm.context(dev)
+        elif graph.has_json_attr("module"):
+            module = graph_attr._move_out_module(graph, "module")
+            compiled_dev = graph_attr._move_out_context(graph, "context")
+            lib_dev_dict[module] = tvm.context(compiled_dev)
+
+    if len(lib_dev_dict) > 1 and graph.has_json_attr("module"):
+        raise ValueError("Graph has unattached context!")
+
+    return graph, lib_dev_dict, params
+
 
 def _remove_noref_params(params, graph):
     """ Helper to clear non referenced params

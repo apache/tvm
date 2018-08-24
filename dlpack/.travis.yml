@@ -1,0 +1,46 @@
+sudo: false
+
+dist: trusty
+
+language: cpp
+
+os:
+  - linux
+  - osx
+
+osx_image: xcode8
+
+env:
+  # code analysis
+  - TASK=all_test
+
+branches:
+  only:
+    - master
+
+matrix:
+  exclude:
+    - os: osx
+      env: TASK=lint
+
+# dependent apt packages
+addons:
+  apt:
+    sources:
+      - ubuntu-toolchain-r-test
+    packages:
+      - doxygen
+      - wget
+      - graphviz
+      - unzip
+
+install:
+  - source tests/travis/setup.sh
+
+script:
+  - tests/travis/run_test.sh
+
+cache:
+  directories:
+    - ${HOME}/.cache/usr
+

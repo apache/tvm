@@ -8,10 +8,12 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/parameter.h>
+#include <nnvm/compiler/op_attr_types.h>
+#include <nnvm/node.h>
 #include <nnvm/top/tensor.h>
 #include <string>
-#include <vector>
 #include <unordered_set>
+#include <vector>
 
 namespace nnvm {
 namespace top {

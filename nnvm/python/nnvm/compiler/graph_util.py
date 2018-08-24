@@ -5,7 +5,8 @@ from __future__ import absolute_import as _abs
 import tvm
 from . import graph_attr
 
-from ..graph import create
+from .._base import GraphHandle, c_array, ctypes, c_str, check_call, _LIB, nn_uint
+from ..graph import create, Graph
 from ..symbol import Group, ones_like
 
 def infer_shape(graph, **shape):
@@ -64,6 +65,50 @@ def infer_dtype(graph, **dtype):
     output_dtype = [graph_attr.TCODE_TO_DTYPE[dtype[index.entry_id(x)]]
                     for x in index.output_entries]
     return input_dtype, output_dtype
+
+
+def annotate_graph(graph, target, op_names=None):
+    """ Annotate the nodes in a graph.
+    The anntation indicates which device an operator will be scheduled to.
+
+    Parameters
+    ----------
+    graph : Graph
+        The input graph for annotation.
+
+    target: str, tvm.target.Target, or dict of str to str or tvm.target.Target
+        Device and compilation target pairs.
+
+    op_names : list of str, optional
+        The operators that want to annotated.
+
+    Returns
+    -------
+    graph : Graph
+        The Annotated graph.
+    """
+    if isinstance(target, str):
+        graph._set_json_attr("target", target, "str")
+    elif isinstance(target, tvm.target.Target):
+        graph._set_json_attr("target", str(target), "str")
+    elif isinstance(target, dict):
+        if len(target) == 1:
+            graph._set_json_attr("target", next(iter(d.values())), "str")
+        else:
+            for dev, tar in target.items():
+                graph._set_json_attr("target" + dev, str(tar), "tar")
+    else:
+        raise ValueError(
+            "target has to be a string, a tvm.target.Target, or a dict and cannot be none.")
+    op_names = op_names if op_names else []
+    names = c_array(ctypes.c_char_p, [c_str(name) for name in op_names])
+    # Save the symbol that represents the updated graph with subgraphs
+    out = GraphHandle()
+
+    check_call(_LIB.NNAnnotateGraph(graph.handle, nn_uint(len(op_names)),
+                                    names,
+                                    ctypes.byref(out)))
+    return Graph(out)
 
 
 _deep_compare = tvm.get_global_func("nnvm.graph.DeepCompare")

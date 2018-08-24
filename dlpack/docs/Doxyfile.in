@@ -1,0 +1,14 @@
+PROJECT_NAME           = @PROJECT_NAME@
+PROJECT_NUMBER         = @PROJECT_VERSION@
+PROJECT_BRIEF          = "RFC for common tensor and operator guideline in deep learning system"
+STRIP_FROM_PATH        = @PROJECT_SOURCE_DIR@ \
+                         @PROJECT_BINARY_DIR@
+OUTPUT_LANGUAGE        = English
+FILE_PATTERNS          = *.h *.md
+RECURSIVE              = YES
+IMAGE_PATH             = @CMAKE_SOURCE_DIR@/docs
+USE_MDFILE_AS_MAINPAGE = @CMAKE_SOURCE_DIR@/docs/readme.md
+JAVADOC_AUTOBRIEF      = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+OUTPUT_DIRECTORY       = @CMAKE_BINARY_DIR@/docs/doxygen

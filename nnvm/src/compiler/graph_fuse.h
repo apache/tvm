@@ -6,6 +6,7 @@
 #ifndef NNVM_COMPILER_GRAPH_FUSE_H_
 #define NNVM_COMPILER_GRAPH_FUSE_H_
 
+#include <dlpack/dlpack.h>
 #include <nnvm/graph.h>
 #include <vector>
 
@@ -60,6 +61,8 @@ struct FuseEntry {
   bool flatten_data;
   // The corresponding function.
   GraphFunc compiled_func;
+  // Device info for the fused nodes
+  DLDeviceType device;
 };
 
 // GroupVec stores the root node ids of the fused nodes.

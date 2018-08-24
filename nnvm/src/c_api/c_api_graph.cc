@@ -3,13 +3,15 @@
  * \file c_api_graph.cc
  * \brief C API related to Graph IR.
  */
-#include <nnvm/c_api.h>
-#include <nnvm/op.h>
-#include <nnvm/symbolic.h>
-#include <nnvm/graph.h>
-#include <nnvm/pass.h>
-#include <dmlc/json.h>
 #include "c_api_common.h"
+
+#include <dmlc/json.h>
+#include <nnvm/c_api.h>
+#include <nnvm/graph.h>
+#include <nnvm/graph_annotate.h>
+#include <nnvm/op.h>
+#include <nnvm/pass.h>
+#include <nnvm/symbolic.h>
 
 using namespace nnvm;
 
@@ -80,6 +82,31 @@ int NNGraphGetJSONAttr(GraphHandle handle,
     *success = 0;
   }
   API_END();
+}
+
+int NNGraphHasJSONAttr(GraphHandle handle, const char* key, int* has) {
+  API_BEGIN();
+  Graph* g = static_cast<Graph*>(handle);
+  std::string skey(key);
+  *has = g->attrs.find(skey) != g->attrs.end();
+  API_END();
+}
+
+int NNAnnotateGraph(GraphHandle src, nn_uint num_ops, const char** op_names,
+                    GraphHandle* out) {
+  nnvm::Graph* g = new nnvm::Graph();
+  API_BEGIN();
+  nnvm::Graph* src_graph = static_cast<Graph*>(src);
+  std::unordered_set<std::string> op_name_set(op_names, op_names + num_ops);
+  if (!op_name_set.empty()) {
+    nnvm::op::AnnotationOpPropertyPtr property =
+        std::make_shared<nnvm::op::DefaultAnnotationOpProperty>(op_name_set);
+    src_graph->attrs["annotation_property"] =
+        std::make_shared<nnvm::any>(std::move(property));
+  }
+  *g = ApplyPass(std::move(*src_graph), "AnnotateGraph");
+  *out = g;
+  API_END_HANDLE_ERROR(delete g);
 }
 
 int NNGraphApplyPasses(GraphHandle src,

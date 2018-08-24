@@ -381,6 +381,24 @@ NNVM_DLL int NNGraphApplyPasses(GraphHandle src,
                                 const char** pass_names,
                                 GraphHandle *dst);
 
+/*!
+ * \brief Apply graph annotation pass to the graph.
+ * \param src The source graph handle.
+ * \param num_ops The number of operators.
+ * \param op_names The name of each operator.
+ * \param out Graph handle of the updated graph.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNAnnotateGraph(GraphHandle src, nn_uint num_ops,
+                              const char** op_names, GraphHandle* out);
+/*!
+ * \brief Check if a graph has a certain attribute.
+ * \param handle The source graph handle.
+ * \param key The name of the attribute to check.
+ * \param out Symbol handle of the updated graph.
+ * \return 0 when success, -1 when failure happens
+ */
+NNVM_DLL int NNGraphHasJSONAttr(GraphHandle handle, const char *key, int *has);
 #ifdef __cplusplus
 } /* end extern "C" */
 #endif

@@ -36,6 +36,39 @@ constexpr int kTempAllocaAlignment = 64;
 /*! \brief Maximum size that can be allocated on stack */
 constexpr int kMaxStackAlloca = 1024;
 
+/*! \brief The default device allocated to an operator */
+constexpr DLDeviceType kDLDefaultDevice = kDLOpenCL;
+
+struct DLDeviceTypeHash {
+  template <typename T> int operator()(T dev) const {
+    return static_cast<int>(dev);
+  }
+};
+
+/*!
+ * \brief The name of Device API factory.
+ * \param type The device type.
+ */
+inline std::string DeviceName(int type) {
+  switch (type) {
+    case kDLCPU: return "cpu";
+    case kDLGPU: return "gpu";
+    case kDLOpenCL: return "opencl";
+    case kDLSDAccel: return "sdaccel";
+    case kDLAOCL: return "aocl";
+    case kDLVulkan: return "vulkan";
+    case kDLMetal: return "metal";
+    case kDLVPI: return "vpi";
+    case kDLROCM: return "rocm";
+    case kOpenGL: return "opengl";
+    case kExtDev: return "ext_dev";
+    default: {
+      LOG(FATAL) << "unknown type =" << type;
+      return "Unknown";
+    }
+  }
+}
+
 /*!
  * \brief TVM Runtime Device API, abstracts the device
  *  specific interface for memory management.

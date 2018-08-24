@@ -80,7 +80,6 @@ class GraphIndex(object):
         return self.entry_ptr[idx] + value_index
 
 
-
 class Graph(object):
     """Graph is the graph object that can be used to apply optimization pass.
 
@@ -124,6 +123,12 @@ class Graph(object):
             json_str = py_str(ret.value)
             return json.loads(json_str)[1]
         return None
+
+    def has_json_attr(self, key):
+        has = ctypes.c_int(0)
+        check_call(_LIB.NNGraphHasJSONAttr(
+            self.handle, c_str(key), ctypes.byref(has)))
+        return has.value == 1
 
     def _set_symbol_list_attr(self, key, value):
         """Set the attribute of the graph.

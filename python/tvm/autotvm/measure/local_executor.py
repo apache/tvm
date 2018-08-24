@@ -130,7 +130,7 @@ class LocalExecutor(executor.Executor):
             return LocalFutureNoFork(func(*args, **kwargs))
 
         queue = Queue(2)
-        process = Process(target=call_with_timeout,
+        process = Process(target=timeout_monitor,
                           args=(queue, self.timeout, func, args, kwargs))
         process.start()
         return LocalFuture(process, queue)
