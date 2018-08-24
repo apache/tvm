@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, protected-access
-# pylint: disable=no-member, missing-docstring
+# pylint: disable=no-member, missing-docstring, not-callable
 from __future__ import absolute_import
 
 import ctypes
@@ -9,6 +9,7 @@ from .types import TVMValue, TypeCode
 from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
 
 NodeHandle = ctypes.c_void_p
+__init_by_constructor__ = None
 
 """Maps node type to its constructor"""
 NODE_TYPE = {}
@@ -24,7 +25,13 @@ def _return_node(x):
         handle = NodeHandle(handle)
     tindex = ctypes.c_int()
     check_call(_LIB.TVMNodeGetTypeIndex(handle, ctypes.byref(tindex)))
-    return NODE_TYPE.get(tindex.value, NodeBase)(handle)
+    cls = NODE_TYPE.get(tindex.value, NodeBase)
+    # Avoid calling __init__ of cls, instead directly call __new__
+    # This allows child class to implement their own __init__
+    node = cls.__new__(cls)
+    node.handle = handle
+    return node
+
 
 RETURN_SWITCH[TypeCode.NODE_HANDLE] = _return_node
 C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
@@ -34,16 +41,6 @@ C_TO_PY_ARG_SWITCH[TypeCode.NODE_HANDLE] = _wrap_arg_func(
 class NodeBase(object):
     __slots__ = ["handle"]
     # pylint: disable=no-member
-    def __init__(self, handle):
-        """Initialize the function with handle
-
-        Parameters
-        ----------
-        handle : SymbolHandle
-            the handle to the underlying C++ Symbol
-        """
-        self.handle = handle
-
     def __del__(self):
         if _LIB is not None:
             check_call(_LIB.TVMNodeFree(self.handle))
@@ -61,5 +58,27 @@ class NodeBase(object):
             raise AttributeError(
                 "'%s' object has no attribute '%s'" % (str(type(self)), name))
         return RETURN_SWITCH[ret_type_code.value](ret_val)
+
+    def __init_handle_by_constructor__(self, fconstructor, *args):
+        """Initialize the handle by calling constructor function.
+
+        Parameters
+        ----------
+        fconstructor : Function
+            Constructor function.
+
+        args: list of objects
+            The arguments to the constructor
+
+        Note
+        ----
+        We have a special calling convention to call constructor functions.
+        So the return handle is directly set into the Node object
+        instead of creating a new Node.
+        """
+        handle = __init_by_constructor__(fconstructor, args)
+        if not isinstance(handle, NodeHandle):
+            handle = NodeHandle(handle)
+        self.handle = handle
 
 _set_class_node_base(NodeBase)

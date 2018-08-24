@@ -4,7 +4,7 @@
  */
 #include <tvm/runtime/registry.h>
 #include <dmlc/thread_local.h>
-#include "./aocl_common.h"
+#include "aocl_common.h"
 
 namespace tvm {
 namespace runtime {

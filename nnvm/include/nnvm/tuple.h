@@ -12,7 +12,7 @@
 #include <utility>
 #include <iostream>
 #include <string>
-#include "./base.h"
+#include "base.h"
 
 namespace nnvm {
 

@@ -5,8 +5,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <tvm/c_dsl_api.h>
-#include "./dsl_api.h"
-#include "./runtime_base.h"
+#include "dsl_api.h"
+#include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {

@@ -6,7 +6,7 @@
 #ifndef TVM_RUNTIME_UTIL_H_
 #define TVM_RUNTIME_UTIL_H_
 
-#include "./c_runtime_api.h"
+#include "c_runtime_api.h"
 
 namespace tvm {
 namespace runtime {

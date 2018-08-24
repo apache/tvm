@@ -5,7 +5,8 @@
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
-#include "./verilog_ir.h"
+#include <utility>
+#include "verilog_ir.h"
 #include "../../arithmetic/compute_expr.h"
 
 namespace tvm {

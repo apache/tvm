@@ -7,8 +7,8 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
-#include "./aocl_common.h"
-#include "./aocl_module.h"
+#include "aocl_common.h"
+#include "aocl_module.h"
 
 namespace tvm {
 namespace runtime {

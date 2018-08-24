@@ -106,8 +106,8 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
 
 cdef extern from "tvm/c_dsl_api.h":
     int TVMNodeFree(NodeHandle handle)
-    TVMNodeTypeKey2Index(const char* type_key,
-                         int* out_index)
+    int TVMNodeTypeKey2Index(const char* type_key,
+                             int* out_index)
     int TVMNodeGetTypeIndex(NodeHandle handle,
                             int* out_index)
     int TVMNodeGetAttr(NodeHandle handle,

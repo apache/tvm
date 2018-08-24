@@ -3,7 +3,7 @@
  * \file ir_util.cc
  * \brief Helper functions to construct and compose IR nodes.
  */
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {

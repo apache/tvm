@@ -18,7 +18,7 @@
 #include <tvm/lowered_func.h>
 #include <string>
 #include <utility>
-#include "./graph_hash.h"
+#include "graph_hash.h"
 
 namespace nnvm {
 namespace compiler {

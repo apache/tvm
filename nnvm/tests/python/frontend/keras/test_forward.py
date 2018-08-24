@@ -20,7 +20,9 @@ def verify_keras_frontend(keras_model):
     in_shapes = []
     for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
-    out_shape = [dim.value if dim.value is not None else 1 for dim in keras_model._output_layers[0].output.shape]
+    out_shapes = []
+    for layer in keras_model._output_layers:
+        out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.output.shape))
 
     def get_keras_output(xs, dtype='float32'):
         return keras_model.predict(xs)
@@ -35,10 +37,12 @@ def verify_keras_frontend(keras_model):
             m.set_input(name, tvm.nd.array(x.astype(dtype)))
         m.set_input(**params)
         m.run()
-        out = m.get_output(0, tvm.nd.empty(out_shape, dtype))
-        return out.asnumpy()
 
-    xs = [np.random.uniform(size=shape) for shape in in_shapes]
+        out = [m.get_output(i, tvm.nd.empty(shape, dtype)).asnumpy()
+                   for i, shape in enumerate(out_shapes)]
+        return out if len(out) > 1 else out[0]
+
+    xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
@@ -74,6 +78,18 @@ def test_forward_dense():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_pool():
+    data = keras.layers.Input(shape=(2,2,1))
+    # maxpool
+    x = keras.layers.MaxPooling2D((3, 3), strides=(1, 1), padding='same')(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+    # avgpool
+    y = keras.layers.AveragePooling2D((3, 3), strides=(1, 1), padding='same')(data)
+    keras_model = keras.models.Model(data, y)
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_transpose_conv():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
@@ -105,6 +121,20 @@ def test_forward_upsample():
 def test_forward_reshape():
     data = keras.layers.Input(shape=(32,32,3))
     x = keras.layers.Reshape(target_shape=(32,32,3))(data)
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
+
+def test_forward_crop():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Cropping2D(cropping=((1, 1), (1, 1)))(data)
+    x = keras.layers.Cropping2D(cropping=(1, 1))(x)
+    x = keras.layers.Cropping2D(cropping=1)(x)
+    x = keras.layers.Cropping2D(cropping=((0, 1), (1, 0)))(x)
+    x = keras.layers.Cropping2D(cropping=(1, 0))(x)
+    x = keras.layers.Cropping2D(cropping=0)(x)
+    x = keras.layers.Add()([x, x])
     x = keras.layers.GlobalAveragePooling2D()(x)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
@@ -166,6 +196,16 @@ def test_forward_multi_inputs():
     verify_keras_frontend(keras_model)
 
 
+def test_forward_multi_outputs():
+    data = keras.layers.Input(shape=(32,32,3))
+    x = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
+    x = keras.layers.GlobalAveragePooling2D()(x)
+    y = keras.layers.Conv2D(8, (3, 3), padding="same")(data)
+    y = keras.layers.GlobalAveragePooling2D()(y)
+    keras_model = keras.models.Model(data, [x, y])
+    verify_keras_frontend(keras_model)
+
+
 def test_forward_reuse_layers():
     # reuse conv2d
     data = keras.layers.Input(shape=(32,32,3))
@@ -192,14 +232,17 @@ if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_activations()
     test_forward_dense()
+    test_forward_pool()
     test_forward_transpose_conv()
     test_forward_separable_conv()
     test_forward_upsample()
     test_forward_reshape()
+    test_forward_crop()
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
     test_forward_mobilenet()
 
     test_forward_multi_inputs()
+    test_forward_multi_outputs()
     test_forward_reuse_layers()

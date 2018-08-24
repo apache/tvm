@@ -11,7 +11,7 @@
 #include <nnvm/tuple.h>
 #include <nnvm/layout.h>
 #include <string>
-#include "./tensor.h"
+#include "tensor.h"
 
 namespace nnvm {
 namespace top {

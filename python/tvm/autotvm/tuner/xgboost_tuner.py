@@ -20,8 +20,12 @@ class XGBTuner(ModelBasedTuner):
         If is 'curve', use sampled curve feature (relation feature).
 
         Note on choosing feature type:
-        For single task tuning, 'itervar' and 'knob' is good.
+        For single task tuning, 'itervar' and 'knob' are good.
                                 'itervar' is more accurate but 'knob' is much faster.
+                                There are some constraints on 'itervar', if you meet
+                                problems with feature extraction when using 'itervar',
+                                you can swith to 'knob'.
+
         For cross-shape tuning (e.g. many convolutions with different shapes),
                                'itervar' and 'curve' has better transferability,
                                'knob' is faster.
@@ -32,8 +36,7 @@ class XGBTuner(ModelBasedTuner):
         If is 'rank', use pairwise rank loss to train cost model.
                      The cost model predicts relative rank score.
     num_threads: int, optional
-        The number of threads.
-    optimizer: str or ModelOptimizer, optional
+        The number of threads.  optimizer: str or ModelOptimizer, optional
         If is 'sa', use a default simulated annealing optimizer.
         Otherwise it should be a ModelOptimizer object.
     diversity_filter_ratio: int or float, optional
@@ -45,7 +48,7 @@ class XGBTuner(ModelBasedTuner):
         If is 0, output nothing.
         Otherwise, output debug information every `verbose` iterations.
     """
-    def __init__(self, task, plan_size=32,
+    def __init__(self, task, plan_size=64,
                  feature_type='itervar', loss_type='rank', num_threads=None,
                  optimizer='sa', diversity_filter_ratio=None, log_interval=50):
         cost_model = XGBoostCostModel(task,
@@ -62,3 +65,9 @@ class XGBTuner(ModelBasedTuner):
 
         super(XGBTuner, self).__init__(task, cost_model, optimizer,
                                        plan_size, diversity_filter_ratio)
+
+    def tune(self, *args, **kwargs):  # pylint: disable=arguments-differ
+        super(XGBTuner, self).tune(*args, **kwargs)
+
+        # manually close pool to avoid multiprocessing issues
+        self.cost_model._close_pool()

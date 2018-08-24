@@ -9,11 +9,10 @@
     <string name="label_address">Address</string>
     <string name="label_port">Port</string>
     <string name="label_key">Key</string>
-    <string name="label_persistent">Keep RPC Alive</string>
+    <string name="label_persistent">Enable RPC</string>
 
     <string name="switch_on">Enabled</string>
     <string name="switch_off">Disabled</string>
 
-    <string name="start_rpc">Start RPC</string>
     <string name="stop_rpc">Stop RPC</string>
 </resources>

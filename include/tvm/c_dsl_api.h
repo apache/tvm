@@ -14,7 +14,7 @@
 #ifndef TVM_C_DSL_API_H_
 #define TVM_C_DSL_API_H_
 
-#include "./runtime/c_runtime_api.h"
+#include "runtime/c_runtime_api.h"
 
 #ifdef __cplusplus
 extern "C" {

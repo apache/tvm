@@ -29,7 +29,7 @@ def schedule_injective(outs):
     elif len(s[x].op.axis) >= 3:
         fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
         s[x].parallel(fused)
-    else:
+    elif len(s[x].op.axis) >= 1:
         s[x].parallel(s[x].op.axis[0])
     return s
 

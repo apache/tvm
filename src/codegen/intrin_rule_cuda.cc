@@ -3,7 +3,7 @@
  * \file intrin_rule_cuda.cc
  * \brief CUDA intrinsic rules.
  */
-#include "./intrin_rule.h"
+#include "intrin_rule.h"
 
 namespace tvm {
 namespace codegen {

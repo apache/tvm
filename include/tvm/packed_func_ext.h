@@ -12,10 +12,10 @@
 #include <memory>
 #include <type_traits>
 
-#include "./base.h"
-#include "./expr.h"
-#include "./tensor.h"
-#include "./runtime/packed_func.h"
+#include "base.h"
+#include "expr.h"
+#include "tensor.h"
+#include "runtime/packed_func.h"
 
 namespace tvm {
 using runtime::TVMArgs;

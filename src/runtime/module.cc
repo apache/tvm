@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <cstring>
 #ifndef _LIBCPP_SGX_CONFIG
-#include "./file_util.h"
+#include "file_util.h"
 #endif
 
 namespace tvm {

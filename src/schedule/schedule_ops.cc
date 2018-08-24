@@ -11,7 +11,7 @@
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
-#include "./graph.h"
+#include "graph.h"
 #include "../op/op_util.h"
 #include "../pass/ir_util.h"
 

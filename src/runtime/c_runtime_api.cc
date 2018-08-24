@@ -17,7 +17,7 @@
 #include <algorithm>
 #include <string>
 #include <cstdlib>
-#include "./runtime_base.h"
+#include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {

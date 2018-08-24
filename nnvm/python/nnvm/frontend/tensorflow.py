@@ -444,12 +444,15 @@ def _split():
 
 def _lrn():
     def _impl(inputs, attr, params):
+        attr_new = {}
         depth_radius = attr.get('depth_radius', 2)
-        depth_radius = depth_radius * 2 + 1
-        axis = 3 #fix axis, default NHWC
-        return AttrCvt(op_name="lrn",
-                       ignores=['depth_radius'],
-                       extras={'size': depth_radius, 'axis': axis})(inputs, attr)
+        size = (depth_radius * 2) + 1
+        attr_new['axis'] = 3 # Fix axis, NHWC format
+        attr_new['size'] = size
+        attr_new['bias'] = attr.get('bias', 1)
+        attr_new['alpha'] = attr.get('alpha', 1) * size
+        attr_new['beta'] = attr.get('beta', 0.5)
+        return AttrCvt(op_name='lrn')(inputs, attr_new)
     return _impl
 
 def _sum():
@@ -623,7 +626,7 @@ def _LSTMBlockCell():
         ixh = _sym.concatenate(*[in_data, in_state_h], axis=1)
         in_weight = _sym.transpose(in_weight)
         gates = _sym.dense(ixh, in_weight, in_bias, use_bias=True,
-                           units=num_hidden_layers, name="dense")
+                           units=num_hidden_layers)
         gate_list = _sym.split(gates, indices_or_sections=4, axis=1)
         in_gate = _sym.sigmoid(gate_list[0])
         in_transform = _sym.tanh(gate_list[1])

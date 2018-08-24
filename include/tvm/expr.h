@@ -11,8 +11,8 @@
 #include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
-#include "./base.h"
-#include "./runtime/c_runtime_api.h"
+#include "base.h"
+#include "runtime/c_runtime_api.h"
 
 namespace tvm {
 

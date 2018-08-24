@@ -4,8 +4,8 @@
  */
 #include <tvm/runtime/registry.h>
 #include <cstring>
-#include "./opengl_common.h"
-#include "./opengl_module.h"
+#include "opengl_common.h"
+#include "opengl_module.h"
 
 namespace tvm {
 namespace runtime {

@@ -4,8 +4,8 @@
  * \file cross_thread_reduction.cc
  */
 #include <tvm/ir_pass.h>
-#include "./compute_op.h"
-#include "./op_util.h"
+#include "compute_op.h"
+#include "op_util.h"
 
 namespace tvm {
 using namespace ir;

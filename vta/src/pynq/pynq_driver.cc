@@ -6,7 +6,7 @@
 
 #include <vta/driver.h>
 #include <thread>
-#include "./pynq_driver.h"
+#include "pynq_driver.h"
 
 
 void* VTAMemAlloc(size_t size, int cached) {

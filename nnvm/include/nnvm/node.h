@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "./base.h"
-#include "./op.h"
-#include "./c_api.h"
+#include "base.h"
+#include "op.h"
+#include "c_api.h"
 
 namespace nnvm {
 

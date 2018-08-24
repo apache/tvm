@@ -2,7 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file cuda_module.cc
  */
-#include "./cuda_module.h"
+#include "cuda_module.h"
 
 #include <tvm/runtime/registry.h>
 #include <cuda.h>
@@ -11,7 +11,7 @@
 #include <array>
 #include <string>
 #include <mutex>
-#include "./cuda_common.h"
+#include "cuda_common.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"

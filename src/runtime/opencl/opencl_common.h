@@ -260,14 +260,12 @@ class OpenCLModuleNode : public ModuleNode {
                           const std::string& func_name,
                           const KTRefEntry& e);
 
- protected:
+ private:
   // The workspace, need to keep reference to use it in destructor.
   // In case of static destruction order problem.
   std::shared_ptr<cl::OpenCLWorkspace> workspace_;
   // the binary data
   std::string data_;
-
- private:
   // The format
   std::string fmt_;
   // function information table.

@@ -8,8 +8,8 @@
 #include <tvm/ir_visitor.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "./ir_util.h"
-#include "./storage_access.h"
+#include "ir_util.h"
+#include "storage_access.h"
 
 namespace tvm {
 namespace ir {

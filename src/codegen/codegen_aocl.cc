@@ -5,8 +5,8 @@
 #include <tvm/build_module.h>
 #include <vector>
 #include <string>
-#include "./codegen_opencl.h"
-#include "./build_common.h"
+#include "codegen_opencl.h"
+#include "build_common.h"
 #include "../runtime/opencl/aocl/aocl_module.h"
 #include "../runtime/file_util.h"
 

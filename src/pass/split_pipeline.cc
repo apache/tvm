@@ -11,7 +11,7 @@
 #include <tvm/channel.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {

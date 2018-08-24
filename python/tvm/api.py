@@ -134,9 +134,9 @@ def any(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _make.Or(args[0], args[1])
+    ret = _expr.Or(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _make.Or(ret, args[i])
+        ret = _expr.Or(ret, args[i])
     return ret
 
 
@@ -158,9 +158,9 @@ def all(*args):
         raise ValueError("Any must take at least 1 argument")
     if len(args) == 1:
         return args[0]
-    ret = _make.And(args[0], args[1])
+    ret = _expr.And(args[0], args[1])
     for i in range(2, len(args)):
-        ret = _make.And(ret, args[i])
+        ret = _expr.And(ret, args[i])
     return ret
 
 
@@ -616,7 +616,7 @@ def select(cond, t, f):
     node : Node
         The tvm.expr.Select node
     """
-    return _make.Select(convert(cond), convert(t), convert(f))
+    return _expr.Select(convert(cond), convert(t), convert(f))
 
 
 def comm_reducer(fcombine, fidentity, name="reduce"):
@@ -699,7 +699,7 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         axis = convert(axis if isinstance(axis, (list, tuple)) else [axis])
         if where is None:
             where = convert(True)
-        outputs = tuple(_make.Reduce(combiner, expr, axis, where, i)
+        outputs = tuple(_expr.Reduce(combiner, expr, axis, where, i)
                         for i in range(size))
         return outputs[0] if size == 1 else outputs
 
@@ -751,5 +751,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 _init_api("tvm.api")
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _make.Min(x, y), max_value, name='min')
-max = comm_reducer(lambda x, y: _make.Max(x, y), min_value, name='max')
+min = comm_reducer(lambda x, y: _expr.Min(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: _expr.Max(x, y), min_value, name='max')

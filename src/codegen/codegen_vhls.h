@@ -9,7 +9,7 @@
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
 #include <string>
-#include "./codegen_c.h"
+#include "codegen_c.h"
 
 namespace tvm {
 namespace codegen {

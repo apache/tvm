@@ -8,7 +8,7 @@
 #include <tvm/ir_visitor.h>
 #include <tvm/arithmetic.h>
 #include <limits>
-#include "./int_set_internal.h"
+#include "int_set_internal.h"
 
 namespace tvm {
 namespace arith {
