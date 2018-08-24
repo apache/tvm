@@ -36,6 +36,9 @@ RELAY_REGISTER_UNARY_OP("log")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1);
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_type_func("Broadcast");
 
 
 RELAY_REGISTER_UNARY_OP("exp")
@@ -57,5 +60,5 @@ RELAY_REGISTER_UNARY_OP("sqrt")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1);
 
-}  // namespace relay
+}  // namespace relayv
 }  // namespace tvm

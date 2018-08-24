@@ -114,7 +114,11 @@ TVM_REGISTER_API("relay._make.Function")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<FunctionNode>([](const FunctionNode *node,
                                    tvm::IRPrinter *p) {
-      p->stream << "FunctionNode(TODO)";
+      p->stream << "FunctionNode(" <<
+        node->params << ", " <<
+        node->ret_type << ", " <<
+        node->body << ", " <<
+        node->type_params << ")";
     });
 
 Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,

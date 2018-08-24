@@ -40,6 +40,7 @@ class EnvironmentNode : public RelayNode {
  private:
   /*! A map from string names to GlobalIds, ensures global uniqueness. */
   tvm::Map<std::string, GlobalVar> global_map_;
+  tvm::Map<std::string, TypeFunction> type_func_map_;
 
   // /*! \brief A map from file names to source fragments. */
   // SourceMap source_map_
@@ -57,14 +58,12 @@ class EnvironmentNode : public RelayNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {}
 
   TVM_DLL static Environment make(
-      std::unordered_map<GlobalVar, Function, NodeHash> global_funcs);
+      tvm::Map<GlobalVar, Function> global_funcs);
 
-  /*! Add an operator to the Enviroment. */
-  void register_op(const Op& op);
-  void add(const GlobalVar& var, const Function & func, bool update = false);
-  void try_add(const GlobalVar& var, const Function & func, bool update=false);
-  void update(const GlobalVar& var, const Function & func);
-  void remove(const GlobalVar& var);
+  void Add(const GlobalVar& var, const Function & func, bool update = false);
+  void TryAdd(const GlobalVar& var, const Function & func, bool update=false);
+  void Update(const GlobalVar& var, const Function & func);
+  void Remove(const GlobalVar& var);
 
   GlobalVar GetGlobalVar(const std::string& str);
 

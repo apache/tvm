@@ -364,6 +364,11 @@ class IfNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
 
+// template<typename T, typename U>
+// T Downcast(U u) {
+
+// }
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

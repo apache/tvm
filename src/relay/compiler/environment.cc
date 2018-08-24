@@ -18,7 +18,7 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 Environment EnvironmentNode::make(
-      std::unordered_map<GlobalVar, Function, NodeHash> global_funcs) {
+      tvm::Map<GlobalVar, Function> global_funcs) {
   std::shared_ptr<EnvironmentNode> n = std::make_shared<EnvironmentNode>();
   n->items = std::move(global_funcs);
   return Environment(n);

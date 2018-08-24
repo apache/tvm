@@ -94,7 +94,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
     CheckedExpr Infer(const Expr & expr);
 
-    Type instantiate(Type t, tvm::Array<Type> &ty_args);
+    Type instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
 
     void report_error(const std::string & msg, Span sp);
     [[ noreturn ]] void fatal_error(const std::string & msg, Span sp);
@@ -192,10 +192,9 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     throw Error("TupleNode NYI");
   }
 
-  CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *op) {
-    // Param param = GetRef<Param>(op);
-    // return { resolve(param->type);
-    throw Error("ParamNode NYI");
+  CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
+    auto rtype = resolve(param->type);
+    return { ParamNode::make(param->var, rtype), rtype };
   }
 
   // // We should probably generalize the subst code.
@@ -236,25 +235,32 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   // };
 
   CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
-    throw Error("FunctionNode NYI");
-    // // enter params into context
-    // auto fn_type = this->with_frame<Type>([&]() {
-    //   std::vector<Type> arg_types;
-    //   for (auto arg : f->params) {
-    //     this->Check(arg);
-    //     Type arg_type;
-    //     // if arg type can be simply evaluated, try it
-    //     // should be replaced with symbolic evaluation once it exists,
-    //     // you will not have attr information at this point
-    //     try {
-    //       arg_type = simple_eval_shape(arg->type);
-    //     } catch (const dmlc::Error &e) {
-    //       this->report_error(e.what(), arg->span);
-    //       arg_type = arg->type;
-    //     }
-    //     arg_types.push_back(arg_type);
-    //     this->local_stack.insert(arg->id, arg_type);
-    //   }
+    // First we add the parameters to the context allowing us to check their
+    // types.
+
+    // TODO(@jroesch): support polymorphism
+
+    std::vector<Type> param_types;
+    std::vector<Param> params;
+
+    return this->with_frame<CheckedExpr>([&]() -> CheckedExpr {
+      for (auto param : f->params) {
+        CheckedExpr checked_param = this->Infer(param);
+        Type arg_type;
+        param_types.push_back(checked_param.type);
+        params.push_back(GetRef<Param>(checked_param.expr.as<ParamNode>()));
+        this->local_stack.insert(param->var, checked_param.type);
+      }
+
+      auto checked_body = this->Infer(f->body);
+      auto inferred_rtype = checked_body.type;
+      auto annotated_rtype = resolve(f->ret_type);
+
+      auto unified_rtype = this->unify(inferred_rtype, annotated_rtype, f->span);
+
+      return { FunctionNode::make(params, unified_rtype, checked_body.expr, {}),
+               FuncTypeNode::make(param_types, unified_rtype, {}, {}) };
+    });
 
     //   // typecheck body and ensure that it matches stated return type
     //   // TODO(sslyu): should the unified return type override the annotated
@@ -332,95 +338,96 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     // }
 
     // return fn_type;
-
   }
 
   CheckedExpr TypeInferencer::VisitExpr_(const FunctionNode *op) {
     return this->VisitFunction(GetRef<Function>(op), false);
   }
 
-  // Type TypeInferencer::instantiate(Type t, tvm::Array<Type> &ty_args) {
-  //   const TypeQuantifierNode *ty_quant;
-  //   while ((ty_quant = t.as<TypeQuantifierNode>())) {
-  //     TypeParam id = ty_quant->id;
-  //     TypeVar fresh = TypeVarNode::make(id->kind);
-  //     this->unifier->insert(fresh);
-  //     ty_args.push_back(fresh);
-  //     t = type_subst(ty_quant->boundType, id, fresh);
-  //   }
+  Type TypeInferencer::instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args) {
+    // const TypeQuantifierNode *ty_quant;
+    // while ((ty_quant = t.as<TypeQuantifierNode>())) {
+    //   TypeParam id = ty_quant->id;
+    //   TypeVar fresh = TypeVarNode::make(id->kind);
+    //   this->unifier->insert(fresh);
+    //   ty_args.push_back(fresh);
+    //   t = type_subst(ty_quant->boundType, id, fresh);
+    // }
 
-  //   if (!check_kind(t)) {
-  //     this->fatal_error("Kind rules broken when instantiating type
-  //     variables",
-  //                       t->span);
-  //   }
+    // if (!check_kind(t)) {
+    //   this->fatal_error("Kind rules broken when instantiating type
+    //   variables",
+    //                     t->span);
+    // }
 
-  //   return t;
-  // }
+    // return t;
+  }
 
   CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
-    throw Error("CallNode");
-    // Call c = GetRef<Call>(op);
-    // Type fn_ty = this->Check(c->fn);
+    Call c = GetRef<Call>(op);
 
-    // RELAY_LOG(INFO) << "TypeInferencer::VisitExpr_ op=" << c << std::endl
-    //                 << "fn_ty=" << fn_ty << std::endl;
+    auto checked_op = this->Infer(c->op);
 
-    // // for each type id, insert a type variable and unify with the argument
-    // types
-    // // in order
-    // // to obtain the concrete instantiation
-    // tvm::Array<Type> ty_args;
-    // if (const TypeQuantifierNode *ty_quant = fn_ty.as<TypeQuantifierNode>())
-    // {
-    //   fn_ty = instantiate(GetRef<TypeQuantifier>(ty_quant), ty_args);
-    // }
+    RELAY_LOG(INFO) << "TypeInferencer::VisitExpr_ op=" << c << std::endl
+                    << "fn_ty=" << fn_ty << std::endl;
 
-    // if (!fn_ty.as<TypeArrowNode>()) {
-    //   this->fatal_error("only expressions with function types can be called",
-    //                     c->fn->span);
-    // }
 
-    // // evaluate all shapes up front (require that types be fully concrete)
-    // Type evaluated = evaluate_concrete_shape(fn_ty, op->attrs);
-    // std::vector<Type> arg_types;
+    auto fn_ty_node = checked_op.expr.as<FuncType>();
 
-    // TypeArrow arrow = GetRef<TypeArrow>(evaluated.as<TypeArrowNode>());
+    if (!fn_ty_node) {
+      this->fatal_error("only expressions with function types can be called", c->fn->span);
+    }
 
-    // // TODO(sslyu): figure out how to handle type ids
-    // //  fn_ty = instantiate(fn_ty, ty_args);
-    // for (auto arg : c->args) {
-    //   auto ty = this->Check(arg);
-    //   arg_types.push_back(ty);
-    // }
+    // We now have a function type.
+    FuncType fn_ty = GetRef<FuncType>(fn_ty_node);
 
-    // auto type_arity = arrow->arg_types.size();
-    // auto number_of_args = arg_types.size();
-    // if (type_arity != number_of_args) {
-    //   if (type_arity < number_of_args) {
-    //     this->fatal_error("the function is provided too many arguments",
-    //     c->span);
-    //   } else {
-    //     this->fatal_error("the function is provided too few arguments",
-    //     c->span);
-    //   }
-    // }
+    tvm::Array<Type> ty_args;
+    if (ty_args.size() != 0) {
+      throw Error("found manually suplied type args, not supported");
+    }
 
-    // for (size_t i = 0; i < arrow->arg_types.size(); i++) {
-    //   this->unify(arrow->arg_types[i], arg_types[i], c->args[i]->span);
-    // }
+    fn_ty = instantiate(fn_ty, ty_args);
 
-    // // After we unify the arguments we should know more about the type
-    // // arguments, let's run a quick pass over them to find new
-    // representatives. for (size_t i = 0; i < ty_args.size(); i++) {
-    //   ty_args.Set(i, this->unifier->subst(ty_args[i]));
-    // }
+    std::vector<Type> arg_types;
 
-    // // Write the type arguments into the call node, recording what inference
-    // // solves. This solution might need some work.
-    // c->ty_args = ty_args;
 
-    // return arrow->ret_type;
+    // TODO(sslyu): figure out how to handle type ids
+    //  fn_ty = instantiate(fn_ty, ty_args);
+    for (auto arg : c->args) {
+      auto checked_arg = this->Infer(arg);
+      arg_types.push_back(checked_arg.type);
+    }
+
+    auto type_arity = fn_ty->arg_types.size();
+    auto number_of_args = arg_types.size();
+
+    if (type_arity != number_of_args) {
+      if (type_arity < number_of_args) {
+        this->fatal_error("the function is provided too many arguments",
+        c->span);
+      } else {
+        this->fatal_error("the function is provided too few arguments",
+        c->span);
+      }
+    }
+
+    for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
+      this->unify(fn_ty->arg_types[i], arg_types[i], c->args[i]->span);
+    }
+
+    // After we unify the arguments we should know more about the type
+    // arguments, let's run a quick pass over them to find new
+    // representatives.
+
+    for (size_t i = 0; i < ty_args.size(); i++) {
+      ty_args.Set(i, this->unifier->subst(ty_args[i]));
+    }
+
+    // Write the type arguments into the call node, recording what inference
+    // solves. This solution might need some work.
+    c->ty_args = ty_args;
+
+    return { new_call, call_type }
   }
 
   // Type TypeInferencer::VisitExpr_(const DebugNode *op) {

@@ -14,6 +14,7 @@
 #include <functional>
 
 #include "./base.h"
+#include "./type.h"
 #include "./expr.h"
 #include "../attrs.h"
 
@@ -33,6 +34,8 @@ class OpNode : public relay::ExprNode {
  public:
   /*! \brief name of the operator */
   std::string name;
+
+  Type op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.
@@ -67,7 +70,7 @@ class OpNode : public relay::ExprNode {
   }
 
   static constexpr const char* _type_key = "relay.Op";
-  TVM_DECLARE_NODE_TYPE_INFO(OpNode, Node);
+  TVM_DECLARE_NODE_TYPE_INFO(OpNode, ExprNode);
 
  private:
   // friend class
@@ -145,6 +148,13 @@ class OpRegistry {
   inline OpRegistry& add_argument(const std::string &name,
                                   const std::string &type,
                                   const std::string &description);
+   /*!
+   * \brief Attach the type function corresponding to the return type.
+   * \param ty_func The type function to register for the return type.
+   * \return reference to self.
+   */
+  inline OpRegistry& add_type_func(const std::string & type_func_name);
+
   /*!
    * \brief Set the type key of attributes.
    * \param type_key The type of of the attrs field.x
@@ -328,6 +338,14 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
   get()->arguments.push_back(AttrFieldInfo(n));
   return *this;
 }
+
+ inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name) {
+   auto type_func = TypeFunctionNode::make(type_func_name, 0);
+   for (auto arg : get()->arguments) {
+     std::cout << arg << std::endl;
+   }
+   return *this;
+ }
 
 inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   get()->num_inputs = n;

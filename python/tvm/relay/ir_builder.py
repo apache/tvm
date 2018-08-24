@@ -1,8 +1,8 @@
 from typing import Any
 import numpy as np
 import tvm
-from . import type as ty
-from . import expr
+from .type import FloatType, IntType, BoolType, UIntType, FuncType
+from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function
 from . import op as _op
 
 class ExprBuilder():
@@ -10,7 +10,7 @@ class ExprBuilder():
         self.expr = expr
 
     def __call__(self, *args):
-        return ExprBuilder(mk.Call(self.expr, list(args), None, None))
+        return ExprBuilder(Call(self.expr, list(args), None, None))
 
 def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
     """Convert Python values into the appropriate types
@@ -30,12 +30,12 @@ def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
         # raise Exception(f"can't convert {type(arg)} to a Relay AST")
         raise Exception(f"unsupported argument type {type(arg)}")
 
-def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> expr.Expr:
+def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     if isinstance(arg, tuple):
         raise Exception("..")
     else:
         value = convert(arg, ctxt)
-        return ExprBuilder(mk.Constant(value))
+        return ExprBuilder(Constant(value))
 
 class WithScope(object):
     """Auxiliary scope  with"""
@@ -61,11 +61,18 @@ class PartialFunc():
     def param_ids(self):
         return [p.var for p in self.params]
 
+    def to_func(self):
+        return Function(
+            self.params,
+            self.ret_type,
+            self.body,
+            self.type_params)
+
 
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
     for var, value in reversed(list(bindings.items())):
-        let_expr = mk.Let(var, value, let_expr, None)
+        let_expr = Let(var, value, let_expr, None)
 
     return let_expr
 
@@ -79,14 +86,14 @@ class IRBuilder():
 
 
     def bind(self, name, type, value):
-        lv = mk.LocalVar(name)
+        lv = LocalVar(name)
         self.scopes[-1][name] = lv
         self.bindings[-1][lv] = value
         return lv
 
 
     def let(self, name, value, value_type=None):
-        if not (isinstance(value, expr.Expr) or isinstance(value, ExprBuilder)):
+        if not (isinstance(value, Expr) or isinstance(value, ExprBuilder)):
             value = into_ast(value)
 
         if isinstance(value, ExprBuilder):
@@ -97,9 +104,9 @@ class IRBuilder():
     def function(self, *params):
         relay_params = []
         for name, ty in params:
-            lv = mk.LocalVar(name)
+            lv = LocalVar(name)
             self.scopes[-1][name] = lv
-            relay_params.append(mk.Param(lv, ty))
+            relay_params.append(Param(lv, ty))
 
         # self.params.append(relay_params)
 
@@ -108,7 +115,10 @@ class IRBuilder():
         def _on_exit():
             bindings = self.bindings.pop()
             scope = self.scopes.pop()
-            # params = self.params.pop()
+            ret_value = self.ret_value
+            body = _mk_let(bindings, ret_value)
+            self.ret_value = None
+            pfunc.body = body
 
 
         return WithScope(pfunc, _on_exit)
@@ -122,9 +132,6 @@ class IRBuilder():
                 "return value already set, a function can only have one return value")
 
     def fn_params(self):
-        pass
-
-    def op(self, name):
         pass
 
     def get(self):
@@ -152,16 +159,16 @@ def int_dtype():
     return 'uint1'
 
 def int_type(bits=32, lanes=1):
-    return mk.IntType(bits, lanes)
+    return IntType(bits, lanes)
 
 def uint_type(bits=32, lanes=1):
-    return mk.UIntType(bits, lanes)
+    return UIntType(bits, lanes)
 
 def float_type(bits=32, lanes=1):
-    return mk.FloatType(bits, lanes)
+    return FloatType(bits, lanes)
 
 def bool_type(lanes=1):
-    return mk.BoolType(lanes)
+    return BoolType(lanes)
 
 def func_type(args, ret_type, type_params=[], type_constraints=[]):
-    return mk.FuncType(args, ret_type, type_params, type_constraints)
+    return FuncType(args, ret_type, type_params, type_constraints)
