@@ -9,7 +9,7 @@
 #include "tvm/relay/compiler/alpha_eq.h"
 #include "./unifier.h"
 #include "./type_visitor.h"
-#include "./type_subst.h"
+//#include "./type_subst.h"
 // #include "tvm/relay/typeck/kindchecker.h"
 
 namespace tvm {

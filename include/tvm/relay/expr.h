@@ -282,8 +282,10 @@ class CallNode : public ExprNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static Call make(Expr op, Array<Expr> args, Attrs attrs,
-                           Array<Type> ty_args);
+  TVM_DLL static Call make(Expr op,
+                           Array<Expr> args,
+                           Attrs attrs = Attrs(),
+                           Array<Type> ty_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_NODE_TYPE_INFO(CallNode, ExprNode);

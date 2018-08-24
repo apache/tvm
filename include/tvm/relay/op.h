@@ -276,7 +276,6 @@ class OpMap {
   const GenericOpMap& map_;
 };
 
-
 // internal macros to make
 #define RELAY_REGISTER_VAR_DEF                                          \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::relay::OpRegistry & __make_ ## RelayOp

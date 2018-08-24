@@ -4,6 +4,10 @@ from . import type as tpe
 from . import expr
 from . import op
 
+# import all operators in the loop namespace
+from .op import *
+
+
 # Span
 Span = base.Span
 
@@ -18,6 +22,7 @@ FuncType = tpe.FuncType
 # Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
+# TODO: GlobalVar, LocalVar-> var
 LocalVar = expr.LocalVar
 GlobalVar = expr.GlobalVar
 Param = expr.Param
@@ -25,3 +30,4 @@ Function = expr.Function
 Call = expr.Call
 Let = expr.Let
 If = expr.If
+Var = LocalVar

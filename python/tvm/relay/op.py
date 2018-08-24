@@ -2,7 +2,7 @@
 from __future__ import absolute_import as _abs
 
 import sys
-from .._ffi.function import _init_api
+
 from .._ffi.node import convert_to_node
 from . import _make
 from ..make import node as _make_node
@@ -33,5 +33,5 @@ def _init_ops():
         f = _create_op(name.value)
         setattr(module, f.__name__, f)
 
-_init_api("relay.op", __name__)
+
 _init_ops()

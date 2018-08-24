@@ -134,11 +134,5 @@ struct NodeFactoryReg {
  */
 #define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
 
-#define TVM_REGISTER_NODE_TYPE(TypeName)                                \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::NodeFactoryReg & __make_Node ## _ ## TypeName ## __ = \
-      ::dmlc::Registry<::tvm::NodeFactoryReg>::Get()->__REGISTER__(TypeName::_type_key) \
-      .set_body([]() { return std::make_shared<TypeName>(); })
-
-
 }  // namespace tvm
 #endif  // TVM_BASE_H_
