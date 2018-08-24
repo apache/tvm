@@ -325,7 +325,7 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
 //   throw UnificationError("Cannot unify TupleTypeNode");
 // }
 
-Type TypeUnifierNode::VisitType_(const TypeFunctionNode *sen1, const Type t2) {
+Type TypeUnifierNode::VisitType_(const TypeRelationNode *sen1, const Type t2) {
 //   ShapeExtension sh_ext1 = GetRef<ShapeExtension>(sen1);
 
 //   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {

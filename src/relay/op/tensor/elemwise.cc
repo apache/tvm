@@ -36,7 +36,9 @@ RELAY_REGISTER_UNARY_OP("log")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.add_type_func("Broadcast");
+.add_type_func("Log", [](const Array<Type> & t, int num_args) {
+    return t;
+});
 
 
 RELAY_REGISTER_UNARY_OP("exp")

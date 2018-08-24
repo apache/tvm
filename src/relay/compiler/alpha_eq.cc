@@ -92,7 +92,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TypeFunctionNode *op, const Type &t2) override {
+  void VisitType_(const TypeRelationNode *op, const Type &t2) override {
   }
 //   void VisitType_(const TupleTypeNode *op, const Type &t2) override {
 //     if (const TupleTypeNode *pt = t2.as<TupleTypeNode>()) {

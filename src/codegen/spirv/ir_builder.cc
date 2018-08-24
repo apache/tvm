@@ -41,7 +41,7 @@ void IRBuilder::InitPreDefs() {
   t_void_.id = id_counter_++;
   ib_.Begin(spv::OpTypeVoid).Add(t_void_).Commit(&global_);
   t_void_func_.id = id_counter_++;
-  ib_.Begin(spv::OpTypeFunction)
+  ib_.Begin(spv::OpTypeRelation)
       .AddSeq(t_void_func_, t_void_).Commit(&global_);
 }
 

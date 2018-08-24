@@ -40,7 +40,7 @@ class EnvironmentNode : public RelayNode {
  private:
   /*! A map from string names to GlobalIds, ensures global uniqueness. */
   tvm::Map<std::string, GlobalVar> global_map_;
-  tvm::Map<std::string, TypeFunction> type_func_map_;
+  tvm::Map<std::string, TypeRelation> type_func_map_;
 
   // /*! \brief A map from file names to source fragments. */
   // SourceMap source_map_

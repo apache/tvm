@@ -153,7 +153,7 @@ class OpRegistry {
    * \param ty_func The type function to register for the return type.
    * \return reference to self.
    */
-  inline OpRegistry& add_type_func(const std::string & type_func_name);
+  inline OpRegistry& add_type_func(const std::string & type_func_name, TypeRelationFn type_fn);
 
   /*!
    * \brief Set the type key of attributes.
@@ -343,8 +343,8 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
   return *this;
 }
 
- inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name) {
-   auto type_func = TypeFunctionNode::make(type_func_name, 0);
+ inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name, TypeRelationFn type_fn) {
+   auto type_func = TypeRelationNode::make(type_func_name, 0);
    for (auto arg : get()->arguments) {
      std::cout << arg << std::endl;
    }

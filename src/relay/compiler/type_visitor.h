@@ -47,7 +47,7 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
     }
   }
 
-  void VisitType_(const TypeFunctionNode* op, Args... args) override {}
+  void VisitType_(const TypeRelationNode* op, Args... args) override {}
   void VisitType_(const IncompleteTypeNode* op, Args... args) override {}
 };
 

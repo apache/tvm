@@ -210,40 +210,42 @@ class FuncTypeNode : public TypeNode {
 
 RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
 
+using TypeRelationFn = std::function<Array<Type>(const Array<Type>&, int)>;
+
 /*!
- * \brief Opaque type inference function.
+ * \brief Opaque type relation, is an input-output relation on types.
  */
-class TypeFunction;
+class TypeRelation;
 /*!
- * \brief TypeFunction container.
+ * \brief TypeRelation container.
  * \note This node is not directly serializable.
  * The type function need to be lookedup in the environment.
  */
-class TypeFunctionNode : public RelayNode {
+class TypeRelationNode : public RelayNode {
  public:
   /*! \brief The name of the function */
   std::string name;
   /*! \brief Number of input type arguments, can be -1, which means VarArgs */
   int num_args;
   /*!
-   * \brief The type function,
+   * \brief The function on input and output variables which
    *  this is not directly serializable,
    *  need to be looked-up in the environment.
    */
-  mutable std::function<Type(const Array<Type>& arg_types)> func_;
+  TypeRelationFn func_;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name", &name);
     v->Visit("num_args", &num_args);
   }
 
-  TVM_DLL static TypeFunction make(std::string name, int num_args);
+  TVM_DLL static TypeRelation make(std::string name, int num_args);
 
-  static constexpr const char* _type_key = "relay.TypeFunction";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeFunctionNode, RelayNode);
+  static constexpr const char* _type_key = "relay.TypeRelation";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, RelayNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeFunction, TypeFunctionNode, Type);
+RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, Type);
 
 /*!
  * \brief Call a type function with some number of arguments.

@@ -116,22 +116,22 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << node->type_constraints << ")";
     });
 
-TypeFunction TypeFunctionNode::make(std::string name, int num_args) {
-  std::shared_ptr<TypeFunctionNode> n = std::make_shared<TypeFunctionNode>();
+TypeRelation TypeRelationNode::make(std::string name, int num_args) {
+  std::shared_ptr<TypeRelationNode> n = std::make_shared<TypeRelationNode>();
   n->name = std::move(name);
   n->num_args = std::move(num_args);
-  return TypeFunction(n);
+  return TypeRelation(n);
 }
 
-TVM_REGISTER_API("relay._make.TypeFunction")
+TVM_REGISTER_API("relay._make.TypeRelation")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TypeFunctionNode::make(args[0], args[1]);
+      *ret = TypeRelationNode::make(args[0], args[1]);
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TypeFunctionNode>([](const TypeFunctionNode *node,
+    .set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
                                    tvm::IRPrinter *p) {
-      p->stream << "TypeFunctionNode(" << node->name << ", " << node->num_args << ")";
+      p->stream << "TypeRelationNode(" << node->name << ", " << node->num_args << ")";
     });
 
 TypeCall TypeCallNode::make(Type func, Array<Type> args) {
