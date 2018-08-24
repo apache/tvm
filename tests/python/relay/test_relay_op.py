@@ -1,5 +1,16 @@
 from tvm import relay
 
+def test_op_attr():
+    log_op = relay.op.get("log")
+
+    @relay.op.register("exp", "ftest")
+    def test(x):
+        return x + 1
+
+    assert log_op.num_inputs  == 1
+    assert log_op.get_attr("ftest") is None
+    assert relay.op.get("exp").get_attr("ftest")(1) == 2
+
 def test_op_level1():
     x = relay.Var("x")
 
@@ -11,4 +22,6 @@ def test_op_level1():
 
 
 if __name__ == "__main__":
+    test_op_attr()
     test_op_level1()
+

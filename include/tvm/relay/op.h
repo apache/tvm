@@ -103,7 +103,7 @@ class Op : public relay::Expr {
    * \tparam ValueType The type of the attribute.
    */
   template<typename ValueType>
-  inline static const OpMap<ValueType>& GetAttr(const std::string& attr_name);
+  inline static OpMap<ValueType> GetAttr(const std::string& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
    *  Will raise an error if the op has not been registered.
@@ -193,9 +193,13 @@ class OpRegistry {
 
   // set the name of the op to be the same as registry
   inline OpRegistry& set_name() {  // NOLINT(*)
-    get()->name = name;
+    if (get()->name.length() == 0) {
+      get()->name = name;
+    }
     return *this;
   }
+  /*! \return The global single retistry */
+  TVM_DLL static ::dmlc::Registry<OpRegistry>* Registry();
 
  private:
   friend class ::dmlc::Registry<OpRegistry>;
@@ -307,7 +311,7 @@ class OpMap {
  */
 #define RELAY_REGISTER_OP(OpName)                                       \
   DMLC_STR_CONCAT(RELAY_REGISTER_VAR_DEF, __COUNTER__) =        \
-      ::dmlc::Registry<::tvm::relay::OpRegistry>::Get()->__REGISTER_OR_GET__(OpName).set_name()
+      ::tvm::relay::OpRegistry::Registry()->__REGISTER_OR_GET__(OpName).set_name()
 
 // implementations
 inline const OpNode* Op::operator->() const {
@@ -315,7 +319,7 @@ inline const OpNode* Op::operator->() const {
 }
 
 template<typename ValueType>
-inline const OpMap<ValueType>& Op::GetAttr(const std::string& key) {
+inline OpMap<ValueType> Op::GetAttr(const std::string& key) {
   return OpMap<ValueType>(Op::GetGenericAttr(key));
 }
 
@@ -349,6 +353,12 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
 
 inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   get()->num_inputs = n;
+  return *this;
+}
+
+inline OpRegistry& OpRegistry::set_attrs_type_key(   // NOLINT(*)
+    const std::string& type_key) {
+  get()->attrs_type_key = type_key;
   return *this;
 }
 

@@ -4,10 +4,6 @@ from . import type as tpe
 from . import expr
 from . import op
 
-# import all operators in the loop namespace
-from .op import *
-
-
 # Span
 Span = base.Span
 
@@ -31,3 +27,7 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 Var = LocalVar
+
+# Operators
+from .op import Op
+from .op.tensor import *

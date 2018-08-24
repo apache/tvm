@@ -1,5 +1,8 @@
 """Relay core operators."""
 # operator defs
+from .op import get, register, Op
+
+# Operators
 from .tensor import *
 
 # operator registry

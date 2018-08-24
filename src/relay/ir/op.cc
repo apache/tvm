@@ -10,6 +10,10 @@ DMLC_REGISTRY_ENABLE(::tvm::relay::OpRegistry);
 namespace tvm {
 namespace relay {
 
+::dmlc::Registry<OpRegistry>* OpRegistry::Registry() {
+  return ::dmlc::Registry<OpRegistry>::Get();
+}
+
 // single manager of operator information.
 struct OpManager {
   // mutex to avoid registration from multiple threads.
@@ -18,6 +22,8 @@ struct OpManager {
   std::atomic<int> op_counter{0};
   // storage of additional attribute table.
   std::unordered_map<std::string, std::unique_ptr<GenericOpMap> > attr;
+  // frontend functions
+  std::vector<PackedFunc*> frontend_funcs;
   // get singleton of the
   static OpManager* Global() {
     static OpManager inst;
@@ -75,22 +81,56 @@ void OpRegistry::UpdateAttr(
 }
 
 // Frontend APIs
-using runtime::TypedPackedFunc;
-
 TVM_REGISTER_API("relay.op._ListOpNames")
-.set_body(TypedPackedFunc<Array<tvm::Expr>()>([]() {
-      Array<tvm::Expr> ret;
-      for (const std::string& name :
-               dmlc::Registry<OpRegistry>::ListAllNames()) {
-        ret.push_back(tvm::Expr(name));
-      }
-      return ret;
-    }));
+.set_body_typed<Array<tvm::Expr>()>([]() {
+    Array<tvm::Expr> ret;
+    for (const std::string& name :
+             dmlc::Registry<OpRegistry>::ListAllNames()) {
+      ret.push_back(tvm::Expr(name));
+    }
+    return ret;
+  });
 
 TVM_REGISTER_API("relay.op._GetOp")
-.set_body(TypedPackedFunc<Op(std::string)>(Op::Get));
+.set_body_typed<Op(std::string)>(Op::Get);
 
 
+TVM_REGISTER_API("relay.op._OpGetAttr")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    Op op = args[0];
+    std::string attr_name = args[1];
+    auto op_map = Op::GetAttr<TVMRetValue>(attr_name);
+    if (op_map.count(op)) {
+      *rv = op_map[op];
+    }
+  });
+
+
+TVM_REGISTER_API("relay.op._Register")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::string op_name = args[0];
+    std::string attr_key = args[1];
+    runtime::TVMArgValue value = args[2];
+    int plevel = args[3];
+    auto& reg = OpRegistry::Registry()->__REGISTER_OR_GET__(op_name).set_name();
+    // enable resgiteration and override of certain properties
+    if (attr_key == "num_inputs" && plevel > 128) {
+      reg.set_num_inputs(value);
+    } else if (attr_key == "attrs_type_key" && plevel > 128) {
+      reg.set_attrs_type_key(value);
+    } else {
+      // normal attr table override.
+      if (args[2].type_code() == kFuncHandle) {
+        // do an eager copy of the PackedFunc
+        PackedFunc f = args[2];
+        // If we get a function from frontend, avoid deleting it.
+        OpManager::Global()->frontend_funcs.push_back(new PackedFunc(f));
+        reg.set_attr(attr_key, f, plevel);
+      } else {
+        reg.set_attr(attr_key, args[2], plevel);
+      }
+    }
+  });
 
 }  // namespace relay
 }  // namespace tvm
