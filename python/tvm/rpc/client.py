@@ -218,6 +218,9 @@ class TrackerSession(object):
     def text_summary(self):
         """Get a text summary of the tracker."""
         data = self.summary()
+
+        total_ct = {}
+
         res = ""
         res += "Server List\n"
         res += "----------------------------\n"
@@ -225,8 +228,12 @@ class TrackerSession(object):
         res += "----------------------------\n"
         for item in data["server_info"]:
             addr = item["addr"]
-            res += addr[0] + ":" + str(addr[1])+ "\t"
+            res += addr[0] + ":" + str(addr[1]) + "\t"
             res += item["key"] + "\n"
+            key = item['key'].split(':')[1]   # 'server:rasp3b` -> 'rasp3b'
+            if key not in total_ct:
+                total_ct[key] = 0
+            total_ct[key] += 1
         res += "----------------------------\n"
         res += "\n"
 
@@ -240,14 +247,16 @@ class TrackerSession(object):
             max_key_len = 0
 
         res += "Queue Status\n"
-        res += "----------------------------\n"
-        res += ("%%-%ds" % max_key_len + "\tfree\tpending\n") % 'key'
-        res += "----------------------------\n"
+        title = ("%%-%ds" % max_key_len + "   total  free  pending\n") % 'key'
+        separate_line = '-' * len(title) + '\n'
+        res += separate_line + title + separate_line
         for k in keys:
-            res += ("%%-%ds" % max_key_len + "\t%d\t%g\n") % \
-                   (k, queue_info[k]["free"], queue_info[k]["pending"])
-
-        res += "----------------------------\n"
+            total = total_ct.get(k, 0)
+            free, pending = queue_info[k]["free"], queue_info[k]["pending"]
+            if total or pending:
+                res += ("%%-%ds" % max_key_len + "   %-5d  %-4d  %-7d\n") % \
+                       (k, total, free, pending)
+        res += separate_line
         return res
 
     def request(self, key, priority=1, session_timeout=0, max_retry=5):

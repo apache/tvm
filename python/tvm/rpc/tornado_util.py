@@ -66,6 +66,8 @@ class TCPHandler(object):
         while self._pending_write:
             try:
                 msg = self._pending_write[0]
+                if self._sock is None:
+                    return
                 nsend = self._sock.send(msg)
                 if nsend != len(msg):
                     self._pending_write[0] = msg[nsend:]
