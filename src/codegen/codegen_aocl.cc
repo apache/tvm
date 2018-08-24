@@ -31,17 +31,16 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
   runtime::SaveBinaryToFile("aocl.cl", code.c_str());
 
   // Compile the .cl file.
-  Target target = Target::create(target_str);
-  if (target->device_name == "") {
-    LOG(FATAL) << "AOCL device name not specified in build target.";
-  }
   std::string cmd = "aoc aocl.cl";
+  Target target = Target::create(target_str);
+  if (target->device_name != "") {
+    cmd += " -board=" + target->device_name;
+  }
   for (std::string option : target->options()) {
     if (option == "-mattr=emulator") {
       cmd += " -march=emulator";
     }
   }
-  cmd += " -board=" + target->device_name;
   if (system(cmd.c_str()) != 0) {
     LOG(FATAL) << "OpenCL offline compilation error.";
   }
