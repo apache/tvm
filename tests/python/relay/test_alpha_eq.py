@@ -1,5 +1,4 @@
 """Test alpha-equivalence of expressions and types."""
-from tvm.relay import make as mk
 # from relay.ir import alpha_eq, ShapeOp, Kind
 # from relay.typing import TYPE_DEFAULTS
 # from relay import ir

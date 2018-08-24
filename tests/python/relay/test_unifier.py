@@ -3,17 +3,16 @@ Test the type unifier, which solves systems of equations
 between incomplete types.
 """
 import tvm
-from tvm.relay import ir
+from tvm import relay
 from tvm.relay.unifier import UnionFind, TypeUnifier
 from tvm.relay.ir_builder import bool_type, uint_type, int_type, float_type, func_type
 from tvm.relay import ir_builder as build
-import tvm.relay.make as mk
 
 
 def test_insert_and_find():
-    uf = mk.UnionFind()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    uf = relay.UnionFind()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     uf.insert(v1)
     uf.insert(v2)
     assert uf.find(v1) == v1
@@ -21,9 +20,9 @@ def test_insert_and_find():
 
 
 def test_insert_error():
-    uf = mk.UnionFind()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    uf = relay.UnionFind()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     uf.insert(v1)
     try:
         uf.find(v2)
@@ -33,10 +32,10 @@ def test_insert_error():
 
 
 def test_unify():
-    uf = mk.UnionFind()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
-    v3 = mk.IncompleteType(ir.Kind.Type)
+    uf = relay.UnionFind()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
+    v3 = relay.IncompleteType(ir.Kind.Type)
     uf.insert(v1)
     uf.insert(v2)
     uf.insert(v3)
@@ -56,8 +55,8 @@ def test_unify():
 
 
 def test_unify_multiple_levels():
-    uf = mk.UnionFind()
-    v = [mk.IncompleteType(ir.Kind.Type) for _ in range(9)]
+    uf = relay.UnionFind()
+    v = [relay.IncompleteType(ir.Kind.Type) for _ in range(9)]
     for var in v:
         uf.insert(var)
     uf.unify(v[0], v[1])
@@ -94,7 +93,7 @@ def test_unify_multiple_levels():
 
 
 def unify_types(t1, t2):
-    unifier = mk.TypeUnifier()
+    unifier = relay.TypeUnifier()
     return unifier.unify(t1, t2)
 
 # TODO(sslyu, weberlo, joshpoll): put in isinstance asserts once those work
@@ -136,8 +135,8 @@ def test_unify_concrete_func_type():
 
 
 def test_unify_func_type_with_holes():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.BaseType)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.BaseType)
     unifier.insert(v1)
     unifier.unify(v1, bool_type())
     arr1 = func_type([int_type()], bool_type())
@@ -145,7 +144,7 @@ def test_unify_func_type_with_holes():
     unified = unifier.unify(arr1, arr2)
     assert unified == arr1
 
-    v2 = mk.IncompleteType(ir.Kind.BaseType)
+    v2 = relay.IncompleteType(ir.Kind.BaseType)
     unifier.insert(v2)
     unifier.unify(v2, int_type())
     arr3 = func_type([v2], bool_type())
@@ -179,10 +178,10 @@ def test_reject_incompatible_func_types():
 
 
 def test_unify_typevars_with_each_other():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
-    v3 = mk.IncompleteType(ir.Kind.Type)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
+    v3 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
     unifier.insert(v2)
     unifier.insert(v3)
@@ -194,10 +193,10 @@ def test_unify_typevars_with_each_other():
 
 
 def test_unify_typevars_with_basetype():
-    unifier = mk.TypeUnifier()
+    unifier = relay.TypeUnifier()
     bt = bool_type()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
     unifier.insert(v2)
     unified1 = unifier.unify(v1, bt)
@@ -207,10 +206,10 @@ def test_unify_typevars_with_basetype():
 
 
 def test_unify_compatible_typevars():
-    unifier = mk.TypeUnifier()
+    unifier = relay.TypeUnifier()
     bt = bool_type()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
     unifier.insert(v2)
     unifier.unify(v1, bt)
@@ -221,9 +220,9 @@ def test_unify_compatible_typevars():
     assert unified == bt
 
 # def test_unify_incompatible_typevars():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.Type)
-#     v2 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.Type)
+#     v2 = relay.IncompleteType(ir.Kind.Type)
 #     bt = bool_type()
 #     tq = TypeQuantifier(TypeParam("id1", ir.Kind.Type), bt)
 #     unifier.insert(v1)
@@ -238,16 +237,16 @@ def test_unify_compatible_typevars():
 #         return
 
 # def test_unify_typevar_with_quantifier():
-#     unifier = mk.TypeUnifier()
+#     unifier = relay.TypeUnifier()
 #     tq = TypeQuantifier(TypeParam("id1", ir.Kind.Type), bool_type())
-#     v1 = mk.IncompleteType(ir.Kind.BaseType)
+#     v1 = relay.IncompleteType(ir.Kind.BaseType)
 #     unifier.insert(v1)
 #     unified = unifier.unify(v1, tq)
 #     assert unified == tq
 
 # def test_unify_typevars_inside_concrete_quantifier():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.BaseType)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.BaseType)
 #     unifier.insert(v1)
 #     tq1 = TypeQuantifier(TypeParam("id1", ir.Kind.Type), v1)
 #     tq2 = TypeQuantifier(TypeParam("id2", ir.Kind.Type), bool_type())
@@ -258,8 +257,8 @@ def test_unify_compatible_typevars():
 def test_unify_concrete_tensors():
     bt = build.bool_dtype()
     shape = tvm.convert([1, 2, 3])
-    tt1 = mk.TensorType(shape, bt)
-    tt2 = mk.TensorType(shape, bt)
+    tt1 = relay.TensorType(shape, bt)
+    tt2 = relay.TensorType(shape, bt)
     unified = unify_types(tt1, tt2)
     assert unified == tt1
 
@@ -268,8 +267,8 @@ def test_unify_tensor_shape_reject():
     bt = build.bool_dtype()
     shape1 = tvm.convert([1, 2, 3])
     shape2 = tvm.convert([2, 3, 4])
-    tt1 = mk.TensorType(shape1, bt)
-    tt2 = mk.TensorType(shape2, bt)
+    tt1 = relay.TensorType(shape1, bt)
+    tt2 = relay.TensorType(shape2, bt)
     try:
         unify_types(tt1, tt2)
         assert False
@@ -281,8 +280,8 @@ def test_unify_tensor_dtype_reject():
     bt1 = build.bool_dtype()
     bt2 = build.int_dtype()
     shape = tvm.convert([1, 2, 3])
-    tt1 = mk.TensorType(shape, bt1)
-    tt2 = mk.TensorType(shape, bt2)
+    tt1 = relay.TensorType(shape, bt1)
+    tt2 = relay.TensorType(shape, bt2)
     try:
         unify_types(tt1, tt2)
         assert False
@@ -292,15 +291,15 @@ def test_unify_tensor_dtype_reject():
 # def test_unify_quantified_tensors():
 #     x = TypeParam("x", ir.type.Kind.Shape)
 #     y = TypeParam("y", ir.type.Kind.Shape)
-#     tq1 = TypeQuantifier(x, mk.TensorType(bool_type(), x))
-#     tq2 = TypeQuantifier(y, mk.TensorType(bool_type(), y))
+#     tq1 = TypeQuantifier(x, relay.TensorType(bool_type(), x))
+#     tq2 = TypeQuantifier(y, relay.TensorType(bool_type(), y))
 #     unified = unify_types(tq1, tq2)
 #     assert unified == tq1
 
 #     a = TypeParam("a", ir.type.Kind.BaseType)
 #     b = TypeParam("b", ir.type.Kind.BaseType)
-#     tq3 = TypeQuantifier(a, mk.TensorType(a, make_shape([1, 2, 3])))
-#     tq4 = TypeQuantifier(b, mk.TensorType(b, make_shape([1, 2, 3])))
+#     tq3 = TypeQuantifier(a, relay.TensorType(a, make_shape([1, 2, 3])))
+#     tq4 = TypeQuantifier(b, relay.TensorType(b, make_shape([1, 2, 3])))
 #     unified = unify_types(tq3, tq4)
 #     assert unified == tq3
 
@@ -335,8 +334,8 @@ def test_unify_tensor_dtype_reject():
 #         return
 
 # def test_unify_products_typevar():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.BaseType)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.BaseType)
 #     bt = bool_type()
 #     pt1 = TupleType([bt, bt])
 #     pt2 = TupleType([v1, bt])
@@ -354,14 +353,14 @@ def test_unify_tensor_dtype_reject():
 
 
 def test_subst_basetype():
-    unifier = mk.TypeUnifier()
+    unifier = relay.TypeUnifier()
     bt = bool_type()
     assert bt == unifier.subst(bt)
 
 
 def test_subst_simple_hole():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.BaseType)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.BaseType)
     bt = bool_type()
     unifier.insert(v1)
     unifier.unify(v1, bt)
@@ -369,9 +368,9 @@ def test_subst_simple_hole():
 
 
 def test_subst_typevar_for_typevar():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
     unifier.insert(v2)
 
@@ -380,9 +379,9 @@ def test_subst_typevar_for_typevar():
 
 
 def test_subst_typevar_for_typevar_comm():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.Type)
-    v2 = mk.IncompleteType(ir.Kind.Type)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.Type)
+    v2 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
     unifier.insert(v2)
 
@@ -391,15 +390,15 @@ def test_subst_typevar_for_typevar_comm():
 
 
 def test_subst_concrete_arrow():
-    unifier = mk.TypeUnifier()
+    unifier = relay.TypeUnifier()
     arr1 = func_type([int_type()], int_type())
     assert unifier.subst(arr1) == arr1
 
 
 def test_subst_arrow_with_holes():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.BaseType)
-    v2 = mk.IncompleteType(ir.Kind.BaseType)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.BaseType)
+    v2 = relay.IncompleteType(ir.Kind.BaseType)
     unifier.insert(v1)
     unifier.insert(v2)
     unifier.unify(v1, int_type())
@@ -409,17 +408,17 @@ def test_subst_arrow_with_holes():
     assert unifier.subst(arr1) == arr2
 
 # def test_subst_concrete_quantifier():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.BaseType)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.BaseType)
 #     tq = TypeQuantifier(TypeParam("id1", ir.Kind.Type), int_type())
 #     unifier.insert(v1)
 #     unifier.unify(v1, tq)
 #     assert unifier.subst(v1) == tq
 
 # def test_subst_quantifier_with_holes():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.Type)
-#     v2 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.Type)
+#     v2 = relay.IncompleteType(ir.Kind.Type)
 #     tq1 = TypeQuantifier(TypeParam("id1", ir.Kind.Type), v2)
 #     intty = int_type()
 #     tq2 = TypeQuantifier(TypeParam("id2", ir.Kind.Type), intty)
@@ -431,16 +430,16 @@ def test_subst_arrow_with_holes():
 
 
 def test_subst_concrete_tensor():
-    unifier = mk.TypeUnifier()
-    v1 = mk.IncompleteType(ir.Kind.Type)
+    unifier = relay.TypeUnifier()
+    v1 = relay.IncompleteType(ir.Kind.Type)
     unifier.insert(v1)
-    tt = mk.TensorType(tvm.convert([1, 2, 3]), 'uint1')
+    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'uint1')
     unifier.unify(v1, tt)
     assert unifier.subst(v1) == tt
 
 # def test_subst_concrete_product():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.Type)
 #     unifier.insert(v1)
 #     bt = bool_type()
 #     pt = TupleType([bt, bt])
@@ -448,16 +447,16 @@ def test_subst_concrete_tensor():
 #     assert unifier.subst(v1) == pt
 
 # def test_subst_product_with_holes():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.Type)
-#     v2 = mk.IncompleteType(ir.Kind.Type)
-#     v3 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.Type)
+#     v2 = relay.IncompleteType(ir.Kind.Type)
+#     v3 = relay.IncompleteType(ir.Kind.Type)
 #     unifier.insert(v1)
 #     unifier.insert(v2)
 #     unifier.insert(v3)
 
-#     tt1 = mk.TensorType(int_type(), tvm.convert([]))
-#     tt2 = mk.TensorType(FloatType(32), tvm.convert([]))
+#     tt1 = relay.TensorType(int_type(), tvm.convert([]))
+#     tt2 = relay.TensorType(FloatType(32), tvm.convert([]))
 #     pt1 = TupleType([tt1, v2, v3])
 #     unifier.unify(v2, tt2)
 #     unifier.unify(v3, v2)
@@ -466,13 +465,13 @@ def test_subst_concrete_tensor():
 #     assert unifier.subst(v1) == pt2
 
 # def test_subst_concrete_ref():
-#     unifier = mk.TypeUnifier()
+#     unifier = relay.TypeUnifier()
 #     rt = RefType(bool_type())
 #     assert unifier.subst(rt) == rt
 
 # def test_subst_ref_with_hole():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.Type)
 #     unifier.insert(v1)
 
 #     unifier.unify(v1, bool_type())
@@ -481,9 +480,9 @@ def test_subst_concrete_tensor():
 #     assert unifier.subst(rt1) == rt2
 
 # def test_typevar_on_lhs():
-#     unifier = mk.TypeUnifier()
-#     v1 = mk.IncompleteType(ir.Kind.BaseType)
-#     v2 = mk.IncompleteType(ir.Kind.Type)
+#     unifier = relay.TypeUnifier()
+#     v1 = relay.IncompleteType(ir.Kind.BaseType)
+#     v2 = relay.IncompleteType(ir.Kind.Type)
 #     bt = bool_type()
 #     tq = TypeQuantifier(TypeParam("id1", ir.Kind.Type), bt, bt)
 #     unifier.insert(v1)

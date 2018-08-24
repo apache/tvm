@@ -3,8 +3,7 @@ import numpy as np
 import tvm
 from . import type as ty
 from . import expr
-from . import make as mk
-from . import op
+from . import op as _op
 
 class ExprBuilder():
     def __init__(self, expr):
@@ -144,7 +143,7 @@ class IRBuilder():
         return _mk_let(bindings, self.ret_value)
 
 def op(name):
-    return op._create_op(name)
+    return _op._create_op(name)
 
 def bool_dtype():
     return 'uint1'
