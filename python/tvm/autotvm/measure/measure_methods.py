@@ -1,8 +1,8 @@
 # pylint: disable=consider-using-enumerate,invalid-name,too-many-function-args
 """
 Functions that run on executor for measurement.
-These functions are responsible for building tvm module, uploading it to
-remote devices, recording the running time costs and checking the correctness of output
+These functions are responsible for building the tvm module, uploading it to
+remote devices, recording the running time costs, and checking the correctness of the output.
 """
 
 import logging
@@ -112,13 +112,17 @@ def create_measure_batch(task, option):
     from ..database import filter_inputs
 
     measure_func = option['measure_func']
-    number, repeat = option['number'], option['repeat']
+    repeat = option['repeat']
+    min_repeat_ms = option['min_repeat_ms']
     timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
     build_func = option['build_func']
     check_correctness = option['check_correctness']
     replay_db = option['replay_db']
 
     executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
+
+    class nonLocal:
+        number = option['number']
 
     # convert convenient string to function object
     attach_objects = None
@@ -192,7 +196,7 @@ def create_measure_batch(task, option):
                 input_pack,
                 build_func,
                 build_kwargs,
-                number,
+                nonLocal.number,
                 repeat,
                 ref_input,
                 ref_output)
@@ -200,13 +204,42 @@ def create_measure_batch(task, option):
 
         # transform results
         results = []
-        for future in futures:
+        for i,future in enumerate(futures):
             result = future.get()
             if isinstance(result, Exception):
                 tstamp = time.time()
                 results.extend([MeasureResult((result,), MeasureErrorNo.FLEET_ERROR,
                                               timeout, tstamp)] * pack_size)
             else:
+                while True:
+                    remeasure = False
+                    # each result is an entire pack
+                    for res in result:
+                        if res.error_no == MeasureErrorNo.NO_ERROR:
+                            measure_cost = np.mean(res.costs) * nonLocal.number * 1e3
+                            if measure_cost < min_repeat_ms:
+                                nonLocal.number = int(np.ceil(nonLocal.number *\
+                                                          min_repeat_ms/measure_cost))
+                                remeasure = True
+                                msg = "increasing number to {0:d} ({1:.3f}ms < {2:.3f}ms)".format(\
+                                nonLocal.number, measure_cost, min_repeat_ms)
+                                logger.info(msg)
+                                break
+                    if remeasure:
+                        # note that measure_inputs here has already been filtered (if
+                        # applicable)
+                        input_pack = measure_inputs[i*pack_size:(i+1)*pack_size]
+                        new_future = executor.submit(measure_func,
+                                                     input_pack,
+                                                     build_func,
+                                                     build_kwargs,
+                                                     nonLocal.number,
+                                                     repeat,
+                                                     ref_input,
+                                                     ref_output)
+                        result = new_future.get()
+                    else:
+                        break
                 results.extend(result)
 
         if replay_db is not None:
