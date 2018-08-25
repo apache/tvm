@@ -331,26 +331,42 @@ def test_forward_sigmoid():
     _test_sigmoid(np.random.uniform(size=(3, 4, 4, 3)).astype('float32'))
 
 #######################################################################
+# Argmin/Argmax
+# -------------
+
+def _test_argx(func, data, **kwargs):
+
+    with tf.Graph().as_default():
+        inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
+        func(inp, name="argx0", **kwargs, output_type=tf.int32)
+
+        compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
+
+def test_forward_argminmax():
+    for axis in [None,0,1,2]:
+        data = np.random.uniform(size=(8,4,9)).astype('float32')
+        _test_argx(tf.argmax, data=data, axis=axis)
+        _test_argx(tf.argmin, data=data, axis=axis)
+
+#######################################################################
 # Reduce
 # ------
 
-def _test_reduce(func, data, output_type=None, **kwargs):
+def _test_reduce(func, data, **kwargs):
+    """ One iteration of a reduce operation"""
+
     with tf.Graph().as_default():
         inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
-        if output_type is None:
-            func(inp, name="reducex0", **kwargs)
-        else:
-            func(inp, name="reducex0", output_type=output_type, **kwargs)
-
+        func(inp, name="reducex0", **kwargs)
 
         compare_tf_with_tvm(data, 'c0:0', 'reducex0:0')
 
 def test_forward_reduce():
-    for axis in [None,0,1,2]:
-        data = np.random.uniform(size=(8,4,9)).astype('float32')
-        _test_reduce(tf.argmax, data=data, output_type="int32", axis=axis)
-        _test_reduce(tf.argmin, data=data, output_type="int32", axis=axis)
-        _test_reduce(tf.reduce_sum, data=data, axis=axis)
+    data = np.random.uniform(size=(8,4,9)).astype('float32')
+    _test_reduce(tf.reduce_sum, data=data)
+    _test_reduce(tf.reduce_sum, data=data, axis=0)
+    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))    
+
 
 #######################################################################
 # Variable
@@ -829,7 +845,8 @@ def _test_l2_normalize(ishape, eps, axis):
         nn.l2_normalize(in1,
                         axis=axis,
                         epsilon=eps,
-                        name=None)
+                        name=None,
+                        dim=None)
 
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'l2_normalize:0')
 
@@ -846,6 +863,7 @@ if __name__ == '__main__':
     test_forward_reshape()
     test_forward_squeeze()
     test_forward_sigmoid()
+    test_forward_argminmax()
     test_forward_reduce()
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()
