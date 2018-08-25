@@ -108,10 +108,10 @@ python run.py
 Synthesis
 ---------
 
-- Run synthesis with the following script. `XCL_EMULATION_MODE` must be set to 1 at this stage.
+- Run synthesis with the following script.
 
 ```bash
-export XCL_EMULATION_MODE=1
+unset XCL_EMULATION_MODE
 export XCL_TARGET=hw
 
 python build.py
