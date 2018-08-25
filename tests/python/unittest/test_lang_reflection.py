@@ -58,7 +58,8 @@ def test_make_attrs():
 
     dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert dattr.x.value == 1
-
+    datrr = tvm.load_json(tvm.save_json(dattr))
+    assert dattr.name.value == "xyz"
 
 
 def test_make_sum():
