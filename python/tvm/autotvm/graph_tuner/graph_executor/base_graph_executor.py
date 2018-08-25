@@ -4,12 +4,17 @@ import logging
 import json
 
 from abc import abstractmethod
+
+import tvm
+import topi
+
 from nnvm.compiler import graph_attr
+from tvm import autotvm
+from tvm.autotvm.task import get_config
+from tvm.autotvm.task.nnvm_integration import deserialize_args
 from ..utils import get_wkl_map, get_real_node, is_input_node, shape2layout, \
     get_in_nodes, get_out_nodes, is_elemlike_op
 from ..tensor_executor.base_tensor_executor import RPCMode
-from ..tensor_executor import LayoutTransformExecutor
-from ..utils import log_msg
 
 class BaseGraphExecutor(object):
     """Class to search schedules considering both kernel execution time and
@@ -164,8 +169,8 @@ class BaseGraphExecutor(object):
         }
 
     def benchmark_layout_transform(self, target="llvm", dtype="float32", min_exec_num=100,
-                                   rpc_mode=RPCMode.local.value, rpc_hosts=None, rpc_ports=None,
-                                   random_low=0, random_high=1, export_lib_format=".o"):
+                                   use_rpc=False, device_key=None, host="localhost", port=9190,
+                                   n_parallel=1, do_fork=True, build_func='default'):
         """Benchmark all possible layout transformation in the graph,
         given a set of schedule candidates for each workload of target operator.
 
@@ -181,34 +186,40 @@ class BaseGraphExecutor(object):
             Minimum number of execution. Final execution time is the average of
             all execution time.
 
-        rpc_mode : int, optional
-            RPC mode. 0 represents local mode. 1 represents rpc host mode.
-            2 represents rpc tracker mode. Currently only 0 and 1 are supported.
+        use_rpc : boolean, optional
+            Whether to use rpc mode for benchmarking.
 
-        rpc_hosts : list of str, optional
-            List of rpc hosts for rpc host mode.
+        device_key : str, optional
+            Remote device key which can be queried by
+            python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
 
-        rpc_ports : list of int, optional
-            List of rpc ports for rpc host mode.
+        host : str, optional
+            IP address used to create RPC tracker on host machine.
 
-        random_low : int, optional
-            Lower limit for random generated input data.
+        port : int, optional
+            Port number used to create RPC tracker on host machine.
+        n_parallel: int, optional
+            The number of measurement task that can run in parallel.
+            Set this according to the number of cpu cores (for compilation) and
+            the number of devices you have (for measuring generate code).
+        do_fork: bool, optional
+            Whether use multiprocessing (based on fork) for running measure jobs in parallel.
+            Set this to False if you want to debug (see trackback) or using fork is not suitable.
+            NOTE: If this is False, parallel and timeout do not work.
+        build_func: str or callable, optional
+            'default': call default builder. This works for normal target (llvm, cuda)
 
-        random_high : int, optional
-            Higher limit for random generated input data.
+            'ndk': use Android NDK to create shared library. Use this for android target.
 
-        export_lib_format : str, optional
-            Remote lib format. Currently ".o", ".so"
-            and ".tar" are supported.
+            callable: customized build function for other backends (e.g. VTA).
+                      See autotvm/measure/measure_methods.py::default_build_func for example.
         """
         node_anc_dict = get_in_nodes(self._graph, self._target_op, self._input_shapes.keys())
         g_dict = json.loads(self._graph.json())
         node_list = g_dict["nodes"]
         batch_size = list(self._input_shapes.values())[0][0]
 
-        layout_transform_key_set = set()
-        layout_transform_key_list = []
-        param_list, input_shape_list = [], []
+        args_list = []
         for key, val in node_anc_dict.items():
             node = node_list[key]
             for i, item in enumerate(val):
@@ -254,38 +265,54 @@ class BaseGraphExecutor(object):
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
                                 wkl_t, sch_c, sch_t, batch_size)
                         layout_transform_key = str((in_shape, out_shape))
-                        if is_valid and layout_transform_key not in layout_transform_key_set:
-                            layout_transform_key_set.add(layout_transform_key)
+                        if is_valid:
                             if in_shape == out_shape:
                                 self._layout_transform_dict[layout_transform_key] = 0.0
                             else:
-                                layout_transform_key_list.append(layout_transform_key)
                                 in_layout = shape2layout(in_shape, self._data_layout)
                                 out_layout = shape2layout(out_shape, self._data_layout)
-                                params = {"src_layout": in_layout, "dst_layout": out_layout}
-                                input_shapes = {"data": in_shape}
-                                param_list.append(params)
-                                input_shape_list.append(input_shapes)
+                                data_placeholder = tvm.placeholder(in_shape, name="data",
+                                                                   dtype=dtype)
+                                args = [data_placeholder, in_layout, out_layout, out_shape,
+                                        "layout_transform", "injective"]
+                                args_list.append(args)
 
+        @autotvm.template
+        def layout_transform(*args):
+            args = deserialize_args(args)
+            cfg = get_config()
+            cfg.add_flop(-1)
+            A = args[0]
+            C = topi.cpp.nn.layout_transform(*args)
+            s = topi.generic.schedule_injective([C])
+            return s, [A, C]
 
-        layout_transform_executor = LayoutTransformExecutor(
-            schedule_dict={}, target=target, input_dtype=dtype,
-            min_exec_num=min_exec_num, verbose=self._verbose,
-            rpc_mode=rpc_mode, rpc_hosts=rpc_hosts,
-            rpc_ports=rpc_ports, export_lib_format=export_lib_format,
-            file_logger=self._file_logger,
-            console_logger=self._console_logger,
-            log_file=self._log_file, log_level=self._log_level)
-        start_msg = "Start to benchmark layout transformation..."
-        log_msg(start_msg, self._file_logger, self._console_logger, verbose=self._verbose)
-        layout_transform_time_list = layout_transform_executor.parameter_execute(
-            param_list, input_shape_list, random_low=random_low, random_high=random_high)
-        end_msg = "Finished benchmarking layout transformation. " \
-                  "%d possible layout transformation tested." % (len(layout_transform_time_list))
-        log_msg(end_msg, self._file_logger, self._console_logger, verbose=self._verbose)
-        for layout_transform_key, layout_transform_time in zip(layout_transform_key_list,
-                                                               layout_transform_time_list):
-            self._layout_transform_dict[layout_transform_key] = layout_transform_time
+        def log_to_list(record_list):
+            def _callback(_, inputs, results):
+                """Callback implementation"""
+                record_list.append(results)
+            return _callback
+
+        measure_func = "local"
+        if use_rpc:
+            if device_key is None:
+                raise RuntimeError("device_key need to be set to use rpc tracker mode.")
+            measure_func = autotvm.measure.rpc(device_key, host=host, port=port)
+        measure_option = autotvm.measure_option(measure_func, number=min_exec_num,
+                                                n_parallel=n_parallel, do_fork=do_fork,
+                                                build_func=build_func)
+        for args in args_list:
+            layout_transform_key = str((args[1], args[2]))
+            if layout_transform_key in self._layout_transform_dict:
+                continue
+            records = []
+            task = autotvm.task.create(layout_transform, args=args, target=target)
+            tuner = tvm.autotvm.tuner(task)
+            tuner.tune(n_trial=1, measure_option=measure_option,
+                       callbacks=[log_to_list(records)])
+            exec_time = records[0][0].costs * 1000
+            self._layout_transform_dict[layout_transform_key] = exec_time
+
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
 
 

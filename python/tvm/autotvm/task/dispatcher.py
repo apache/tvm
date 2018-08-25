@@ -320,3 +320,25 @@ class FallbackContext(DispatchContext):
             del self.memory[key]
 
 DispatchContext.current = FallbackContext()
+
+class ApplyGraphBest(DispatchContext):
+    """Load the graph level tuning optimal schedules.
+
+    The input records should be in the ascending order of
+    node index for target operator. Usually this can be obtained
+    with graph tuner.
+
+    This context maintains an internal counter to indicate the current
+    node index.
+    """
+    def __init__(self, records):
+        super(ApplyGraphBest, self).__init__()
+        self._records = records
+        self._counter = 0
+
+    def query(self, target, workload):
+        cfg = self._records[self._counter][0].cfg
+        self._counter += 1
+        if self.counter == len(self._records):
+            self._counter = 0
+        return cfg

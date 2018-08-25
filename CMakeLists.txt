@@ -187,6 +187,7 @@ target_include_directories(
   PUBLIC "topi/include")
 target_include_directories(
   tvm_topi
+  PUBLIC "nnvm/include"
   PUBLIC "topi/include")
 target_include_directories(
   nnvm_compiler

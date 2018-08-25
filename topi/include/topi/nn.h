@@ -14,6 +14,7 @@
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
 #include "tvm/tvm.h"
+#include "nnvm/layout.h"
 
 namespace topi {
 using namespace tvm;
@@ -498,6 +499,44 @@ inline Tensor layout_transform(const Tensor& src,
   dst_shape, [&](const Array<Var>& dst_indices) {
     return src(to_src_indices(dst_indices));
   }, name, tag);
+}
+
+inline Array<Expr> convert(const nnvm::Layout& src_layout,
+                           const nnvm::Layout& dst_layout,
+                           const Array<Var>& dst_indices) {
+  std::vector<Expr> dst_to_src_indices;
+  for (nnvm::Layout::LayoutDim src_axis : src_layout) {
+    int dst_major_pos = dst_layout.indexof(nnvm::Layout::to_superdim(src_axis));
+    int dst_minor_pos = dst_layout.indexof(nnvm::Layout::to_subdim(src_axis));
+    int32_t src_factor = static_cast<int32_t>(src_layout.subsizeof(src_axis));
+    int32_t dst_factor = static_cast<int32_t>(dst_layout.subsizeof(src_axis));
+
+    Expr src_index(dst_indices[dst_major_pos]);
+    if (dst_minor_pos >= 0) {
+      CHECK_GT(dst_factor, 0);
+      src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
+    }
+    if (nnvm::Layout::is_superdim(src_axis) && src_factor > 0) {
+      src_index = src_index / src_factor;
+    } else if (nnvm::Layout::is_subdim(src_axis) && src_factor > 0) {
+      src_index = src_index % src_factor;
+    }
+      dst_to_src_indices.push_back(src_index);
+  }
+  return Array<Expr>(dst_to_src_indices);
+}
+
+inline Tensor topi_layout_transform(const Tensor& src,
+                                    const std::string& src_layout,
+                                    const std::string& dst_layout,
+                                    const Array<Expr>& dst_shape,
+                                    const std::string name = "layout_transform",
+                                    const std::string tag = kInjective) {
+  auto src_shape = src->shape;
+  return compute(
+    dst_shape, [&](const Array<Var>& dst_indices) {
+      return src(convert(nnvm::Layout(src_layout), nnvm::Layout(dst_layout), dst_indices));
+    }, name, tag);
 }
 
 }  // namespace topi

@@ -1,51 +1,19 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
-from collections import namedtuple
 import tvm
+import topi
 
 from ..util import get_const_tuple
-from ..nn.conv2d import _get_schedule, _get_workload
-from ..nn.util import infer_pad, infer_stride
+from ..nn.util import infer_pad
 from ..nn.pad import pad
 
-AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
 
-
-def _get_default_schedule(wkl, simd_width):
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
-
-    oc_bn = 1
-    for bn in range(simd_width, 0, -1):
-        if wkl.out_filter % bn == 0:
-            oc_bn = bn
-            break
-
-    ic_bn = 1
-    for bn in range(oc_bn, 0, -1):
-        if wkl.in_filter % bn == 0:
-            ic_bn = bn
-            break
-
-    for ow_factor in range(out_width, 0, -1):
-        if out_width % ow_factor == 0:
-            for oh_factor in range(out_height, 0, -1):
-                if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
-                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor)
-
-    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
-
-
-def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
+def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
-    wkl = _get_workload(data, kernel, stride, padding, out_dtype)
-    sch = _get_schedule(wkl)
 
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
+    HPAD, WPAD = padding
+    HSTR, WSTR = strides
 
     batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
     num_filter, _, kernel_height, kernel_width = get_const_tuple(kernel.shape)
@@ -61,40 +29,44 @@ def _declaration_conv(data, kernel, stride, padding, layout, out_dtype):
         data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
         data_pad = data
-    shape = (batch_size, in_channel // sch.ic_bn, pad_height, pad_width, sch.ic_bn)
-    data_vec = tvm.compute(shape, lambda n, C, h, w, c: data_pad[n, C * sch.ic_bn + c, h, w])
 
-    shape = (num_filter // sch.oc_bn, in_channel // sch.ic_bn, sch.ic_bn, sch.oc_bn, 1, 1)
+    # fetch schedule
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+
+    shape = (batch_size, in_channel // ic_bn, pad_height, pad_width, ic_bn)
+    data_vec = tvm.compute(shape, lambda n, C, h, w, c: data_pad[n, C * ic_bn + c, h, w])
+
+    shape = (num_filter // oc_bn, in_channel // ic_bn, ic_bn, oc_bn, 1, 1)
     kernel_vec = tvm.compute(shape, lambda CO, CI, ci, co, h, w:
-                             kernel[CO * sch.oc_bn + co, CI * sch.ic_bn + ci, h, w],
+                             kernel[CO * oc_bn + co, CI * ic_bn + ci, h, w],
                              name='kernel_vec')
 
-    oshape = (batch_size, num_filter // sch.oc_bn, out_height, out_width, sch.oc_bn)
+    oshape = (batch_size, num_filter // oc_bn, out_height, out_width, oc_bn)
     ic = tvm.reduce_axis((0, in_channel), name='ic')
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_vec[n, ic//sch.ic_bn, oh*HSTR, ow*WSTR, ic%sch.ic_bn] *
-                               kernel_vec[oc_chunk, ic//sch.ic_bn, ic%sch.ic_bn, oc_block, 0, 0],
+                       tvm.sum(data_vec[n, ic//ic_bn, oh*HSTR, ow*WSTR, ic%ic_bn] *
+                               kernel_vec[oc_chunk, ic//ic_bn, ic%ic_bn, oc_block, 0, 0],
                                axis=[ic]), name='conv')
 
     oshape = (batch_size, num_filter, out_height, out_width)
     unpack = tvm.compute(oshape, lambda n, oc, oh, ow:
-                         conv[n, oc // sch.oc_bn, oh, ow, oc % sch.oc_bn],
-                         tag='conv2d_nchw')
+                         conv[n, oc // oc_bn, oh, ow, oc % oc_bn],
+                         tag='conv2d_nchw',
+                         attrs={'workload':
+                                    topi.x86.conv2d.conv_arg_to_workload(data, kernel,
+                                                                         strides, padding,
+                                                                         layout, out_dtype)})
     return unpack
 
 
-def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, output, last):
+def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):
+    # fetch schedule
+    ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                                          cfg["tile_oh"].val, cfg["tile_ow"].size[-1])
+
     # no stride and padding info here
     padding = infer_pad(data, data_pad)
-    if data_pad is None:
-        stride = infer_stride(data, kernel, output)
-    else:
-        stride = infer_stride(data_pad, kernel, output)
-
-    wkl = _get_workload(data, kernel, stride, padding, output.dtype)
-    sch = _get_schedule(wkl)
-
-    HPAD, WPAD = wkl.hpad, wkl.wpad
+    HPAD, WPAD = padding
     DOPAD = (HPAD != 0 or WPAD != 0)
 
     A, W = data, kernel_vec
@@ -109,7 +81,7 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     # schedule kernel pack
     oc_chunk, ic_chunk, oh, ow, ic_block, oc_block = s[W].op.axis
     s[W].reorder(oc_chunk, oh, ic_chunk, ow, ic_block, oc_block)
-    if sch.oc_bn > 1:
+    if oc_bn > 1:
         s[W].vectorize(oc_block)
     parallel_axis = s[W].fuse(oc_chunk, oh)
     s[W].parallel(parallel_axis)
@@ -118,17 +90,17 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     CC = s.cache_write(C, 'global')
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    oh_outer, oh_inner = s[C].split(oh, factor=sch.oh_factor)
+    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
     s[C].vectorize(oc_block)
 
     s[CC].compute_at(s[C], oh_outer)
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     ic, = s[CC].op.reduce_axis
 
-    ic_chunk, ic_block = s[CC].split(ic, factor=sch.ic_bn)
+    ic_chunk, ic_block = s[CC].split(ic, factor=ic_bn)
 
-    oh_outer, oh_inner = s[CC].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=sch.ow_factor)
+    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
 
     s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_chunk, ic_block, oh_inner, ow_inner, oc_block)
     s[CC].vectorize(oc_block)
@@ -140,9 +112,9 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
         s[O0].compute_inline()
     batch, oc, oh, ow = s[O].op.axis
 
-    oc_chunk, oc_block = s[O].split(oc, factor=sch.oc_bn)
-    oh_outer, oh_inner = s[O].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[O].split(ow, factor=sch.ow_factor)
+    oc_chunk, oc_block = s[O].split(oc, factor=oc_bn)
+    oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
     s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
     parallel_axis = s[O].fuse(oc_chunk, oh_outer)
@@ -154,14 +126,18 @@ def _schedule_conv(s, data, data_pad, data_vec, kernel, kernel_vec, conv_out, ou
     return s
 
 
-def _declaration_conv_NCHWc(wkl, sch, data, kernel):
-    out_dtype = wkl.out_dtype
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
+def _declaration_conv_NCHWc(cfg, data, kernel, kernel_size, strides, padding, layout,
+                            out_dtype):
+    HPAD, WPAD = padding
+    HSTR, WSTR = strides
 
-    batch_size = data.shape[0]
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
+    n ,ic_chunk, ih, iw, ic_block = get_const_tuple(data.shape)
+    ic = ic_chunk * ic_block
+    kh, kw = kernel_size
+    oc_chunk, _, _, oc_block, _, _ = get_const_tuple(kernel.shape)
+    oc = oc_chunk * oc_block
+    oh = (ih + 2 * HPAD - kh) // HSTR + 1
+    ow = (iw + 2 * WPAD - kw) // WSTR + 1
 
     DOPAD = (HPAD != 0 or WPAD != 0)
     if DOPAD:
@@ -169,18 +145,36 @@ def _declaration_conv_NCHWc(wkl, sch, data, kernel):
     else:
         data_pad = data
 
-    oshape = (batch_size, wkl.out_filter//sch.oc_bn, out_height, out_width, sch.oc_bn)
-    ic = tvm.reduce_axis((0, wkl.in_filter), name='ic')
+    # fetch schedule
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    if ic_bn != ic_block:
+        raise RuntimeError("ic_bn in config is not equal to actual data ic_block: %d vs %d."
+                           % (ic_bn, ic_block))
+    if oc_bn != oc_block:
+        raise RuntimeError("oc_bn in config is not equal to actual kernel oc_block: %d vs %d."
+                           % (oc_bn, oc_block))
+
+    # convolution
+    oshape = (n, oc//oc_bn, oh, ow, oc_bn)
+    ic = tvm.reduce_axis((0, ic), name='ic')
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n, ic//sch.ic_bn, oh*HSTR, ow*WSTR, ic%sch.ic_bn]
+                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR, ow*WSTR, ic%ic_bn]
                                .astype(out_dtype) *
-                               kernel[oc_chunk, ic // sch.ic_bn, ic % sch.ic_bn, oc_block, 0, 0],
-                               axis=[ic]), name='conv2d_NCHWc', tag='conv2d_NCHWc')
+                       kernel[oc_chunk, ic // ic_bn, ic % ic_bn, oc_block, 0, 0],
+                       axis=[ic]), name='conv2d_NCHWc', tag='conv2d_NCHWc',
+                       attrs={'workload':
+                                  topi.x86.conv2d.conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
+                                                             strides, padding, layout,
+                                                             out_dtype)})
 
     return conv
 
 
-def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
+def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
+    # fetch schedule
+    ic_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oh"].val,
+                                   cfg["tile_ow"].size[-1])
+
     # schedule data
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
@@ -192,8 +186,8 @@ def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
     CC = s.cache_write(C, 'global')
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    oh_outer, oh_inner = s[C].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[C].split(ow, factor=sch.ow_factor)
+    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[C].split(ow, factor=ow_factor)
     s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
     s[C].vectorize(oc_block)
 
@@ -205,10 +199,10 @@ def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     ic, = s[CC].op.reduce_axis
 
-    ic_chunk, ic_block = s[CC].split(ic, factor=sch.ic_bn)
+    ic_chunk, ic_block = s[CC].split(ic, factor=ic_bn)
 
-    oh_outer, oh_inner = s[CC].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=sch.ow_factor)
+    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
 
     s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_chunk, ic_block, oh_inner, ow_inner, oc_block)
     s[CC].fuse(oc_chunk, oh_outer)
@@ -219,8 +213,8 @@ def _schedule_conv_NCHWc(s, wkl, sch, data, kernel, conv_out, last):
 
     if C != O:
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        oh_outer, oh_inner = s[O].split(oh, factor=sch.oh_factor)
-        ow_outer, ow_inner = s[O].split(ow, factor=sch.ow_factor)
+        oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
+        ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
         s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
         parallel_axis = s[O].fuse(oc_chunk, oh_outer)

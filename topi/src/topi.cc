@@ -387,6 +387,11 @@ TVM_REGISTER_GLOBAL("topi.nn.lrn")
                 static_cast<double>(args[5]));
   });
 
+TVM_REGISTER_GLOBAL("topi.nn.layout_transform")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = topi_layout_transform(args[0], args[1], args[2], args[3], args[4], args[5]);
+});
+
 TVM_REGISTER_GLOBAL("topi.vision.reorg")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = vision::reorg(args[0], args[1]);
