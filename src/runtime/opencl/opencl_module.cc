@@ -34,6 +34,7 @@ class OpenCLWrappedFunc {
   void operator()(TVMArgs args,
                   TVMRetValue* rv,
                   void** void_args) const {
+    CHECK(w_->context != nullptr) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
     if (entry_.kernel_id >= t->kernel_table.size()) {
@@ -157,7 +158,6 @@ std::string OpenCLModuleNode::GetSource(const std::string& format) {
 void OpenCLModuleNode::Init() {
   workspace_ = GetGlobalWorkspace();
   workspace_->Init();
-  CHECK(workspace_->context != nullptr) << "No OpenCL device";
   device_built_flag_.resize(workspace_->devices.size(), false);
   // initialize the kernel id, need to lock global table.
   std::lock_guard<std::mutex> lock(workspace_->mu);
