@@ -236,6 +236,11 @@ class JSONAttrGetter : public AttrVisitor {
             node_index_->at(kv.second.get()));
       }
     } else {
+      // do not need to recover content of global singleton object
+      // they are registered via the environment
+      auto* f = dmlc::Registry<NodeFactoryReg>::Find(node->type_key());
+      if (f != nullptr && f->fglobal_key != nullptr) return;
+      // recursively index normal object.
       node->VisitAttrs(this);
     }
   }
