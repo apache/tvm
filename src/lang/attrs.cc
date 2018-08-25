@@ -42,4 +42,6 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 
+TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
+
 }  // namespace tvm
