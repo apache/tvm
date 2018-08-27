@@ -206,7 +206,7 @@ def verify_flip(in_shape, axis):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in get_all_backend():
+    for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
 def verify_take(src_shape, indices_src, axis=None):
@@ -245,7 +245,7 @@ def verify_take(src_shape, indices_src, axis=None):
         foo(data_nd, indices_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
 
-    for device in get_all_backend():
+    for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
 def verify_strided_slice(in_shape, begin, end, stride=None):
@@ -272,7 +272,7 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
         foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    for device in get_all_backend():
+    for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
 def test_strided_slice():
