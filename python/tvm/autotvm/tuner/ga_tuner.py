@@ -22,7 +22,7 @@ class GATuner(Tuner):
     mutation_prob: float
         probability of mutation of a knob in a gene
     """
-    def __init__(self, task, pop_size, elite_num=3, mutation_prob=0.1):
+    def __init__(self, task, pop_size=100, elite_num=3, mutation_prob=0.1):
         super(GATuner, self).__init__(task)
 
         # algorithm configurations
