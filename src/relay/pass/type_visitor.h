@@ -85,6 +85,10 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
     //     return TupleTypeNode::make(new_fields);
     //   }
 
+    Type VisitType_(const TypeRelationNode* op) override {
+      return GetRef<TypeRelation>(op);
+    }
+
     Type VisitType_(const TypeCallNode* op) override {
       auto func = this->VisitType(op->func);
       std::vector<Type> new_args;

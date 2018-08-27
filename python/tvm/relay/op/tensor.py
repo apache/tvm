@@ -58,3 +58,20 @@ def sqrt(data):
         The computed result.
     """
     return _make.sqrt(data)
+
+def add(lhs, rhs):
+    """Take sqrt of data.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.add(lhs, rhs)

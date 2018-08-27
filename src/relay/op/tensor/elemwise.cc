@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include "../type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -36,9 +37,7 @@ RELAY_REGISTER_UNARY_OP("log")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.add_type_func("Log", [](const Array<Type> & t, int num_args) {
-    return t;
-});
+.add_type_func("Log", IdentityRel);
 
 
 RELAY_REGISTER_UNARY_OP("exp")
@@ -48,7 +47,8 @@ RELAY_REGISTER_UNARY_OP("exp")
    \exp(x)
 
 )code" TVM_ADD_FILELINE)
-.set_support_level(1);
+.set_support_level(1)
+.add_type_func("Exp", IdentityRel);
 
 
 RELAY_REGISTER_UNARY_OP("sqrt")
@@ -58,7 +58,22 @@ RELAY_REGISTER_UNARY_OP("sqrt")
    sqrt(x)
 
 )code" TVM_ADD_FILELINE)
-.set_support_level(1);
+.set_support_level(1)
+.add_type_func("Sqrt", IdentityRel);
+
+// Addition
+TVM_REGISTER_API("relay.op._make.add")
+  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
+      static const Op& op = Op::Get("add");
+    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  });
+
+RELAY_REGISTER_OP("add")
+  .set_num_inputs(2)
+  .add_argument("lhs", "Tensor", "The left hand side tensor.")
+  .add_argument("rhs", "Tensor", "The right hand side tensor.")
+  .set_support_level(1)
+  .add_type_func("Broadcast", BroadcastRel);
 
 }  // namespace relayv
 }  // namespace tvm

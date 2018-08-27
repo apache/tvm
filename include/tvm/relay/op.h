@@ -345,9 +345,26 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
 
  inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name, TypeRelationFn type_fn) {
    auto type_func = TypeRelationNode::make(type_func_name, 0);
+
+   std::vector<TypeParam> type_params;
+   std::vector<Type> arg_types;
+   // TODO (@jroesch: revise type generation strategy
+   int i = 0;
    for (auto arg : get()->arguments) {
-     std::cout << arg << std::endl;
+     std::string name = "t";
+     name += std::to_string(i++);
+     auto param = TypeParamNode::make(name, TypeParamNode::Kind::kType);
+     type_params.push_back(param);
+     arg_types.push_back(param);
    }
+
+
+   auto type_result = TypeCallNode::make(type_func, arg_types);
+
+   auto func_type = FuncTypeNode::make(arg_types, type_result, type_params, {});
+
+   get()->op_type = func_type;
+
    return *this;
  }
 

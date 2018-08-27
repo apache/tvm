@@ -28,17 +28,8 @@
 #include "./unifier.h"
 #include "./resolve.h"
 #include "./type_subst.h"
-// #include "tvm/relay/alpha_eq.h"
-// #include "tvm/relay/debug.h"
-// #include "tvm/relay/first_order_reverse_ad.h"
-// #include "tvm/relay/free_type_vars.h"
-// #include "tvm/relay/gen_fresh.h"
-// #include "tvm/relay/ir.h"
-// #include "tvm/relay/pretty_printer.h"
-// #include "tvm/relay/reverse_ad.h"
-// #include "tvm/relay/type_visitor.h"
+#include "./type_visitor.h"
 // #include "tvm/relay/typeck/kindchecker.h"
-// #include "tvm/relay/typeck/shape_evaluator.h"
 
 namespace tvm {
 namespace relay {
@@ -66,6 +57,12 @@ struct TypeContext {
     explicit LocalFrame(TypeContext &tc) : tc(tc) { tc.stack.push_back({}); }
     ~LocalFrame() { tc.stack.pop_back(); }
   };
+};
+
+struct TypeNormalizer : TypeFVisitor {
+  TypeUnifier unifier;
+  TypeNormalizer(const TypeUnifier & unifier) : unifier(unifier) {}
+  // Type VisitType_(
 };
 
 struct CheckedExpr {
@@ -98,6 +95,8 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
     FuncType instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
 
+    Type Normalize(const Type & t);
+
     void report_error(const std::string & msg, Span sp);
     [[ noreturn ]] void fatal_error(const std::string & msg, Span sp);
 
@@ -129,11 +128,17 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     this->unifier = TypeUnifierNode::make(UnionFindNode::make({}));
   }
 
+  Type TypeInferencer::Normalize(const Type & t) {
+    auto nt = this->resolve(t);
+    auto normalizer = TypeNormalizer(this->unifier);
+    return normalizer.VisitType(nt);
+  }
+
   CheckedExpr TypeInferencer::Infer(const Expr &expr) {
      RELAY_LOG(INFO) << "TypeInferencer::Check expr=" << expr << std::endl;
      CheckedExpr checked_expr = this->VisitExpr(expr);
      RELAY_LOG(INFO) << "TypeInferencer::Check type=" << checked_expr.type << std::endl;
-     Type final_type = this->unifier->subst(checked_expr.type);
+     Type final_type = Normalize(checked_expr.type);
      RELAY_LOG(INFO) << "TypeInferencer::Check type_after_subst=" << final_type << std::endl;
      checked_expr.expr->checked_type_ = final_type;
      return checked_expr;
@@ -498,8 +503,9 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
                          ifn->cond->span);
   }
 
-  CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op) {
-    return { GetRef<Op>(op), FuncTypeNode::make({}, TensorTypeNode::Int(32), {}, {} )};
+  CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op_node) {
+    auto op = GetRef<Op>(op_node);
+    return { op, op->op_type };
   }
 
   Type TypeInferencer::resolve(const Type &t) {
