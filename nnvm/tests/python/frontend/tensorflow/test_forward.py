@@ -835,7 +835,7 @@ def test_forward_l2_normalize():
 
 #######################################################################
 # transpose
-# ------------
+# ---------
 def _test_forward_transpose(ishape, axes):
     input = np.random.uniform(size=ishape).astype(np.float32)
 

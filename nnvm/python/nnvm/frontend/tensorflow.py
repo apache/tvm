@@ -650,9 +650,8 @@ def _pad(name):
 
 def _transpose():
     def _impl(inputs, attr, params):
-        node_name = attr['_node_name']
         # Get its param which is a Const op
-        param_name = node_name + '/perm'
+        param_name = inputs[1].list_output_names()[0]
         axes = params.pop(param_name).asnumpy()
         return _sym.transpose(inputs[0], axes=tuple(axes))
     return _impl
