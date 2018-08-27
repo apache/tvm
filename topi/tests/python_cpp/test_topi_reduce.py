@@ -61,7 +61,7 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
         else:
             s = topi.cpp.cuda.schedule_reduce(target, [B])
 
-        foo = tvm.build(s, [A, B], device, name="sum")
+        foo = tvm.build(s, [A, B], device, name=type)
         # Test
         in_npy = np.random.uniform(size=in_shape).astype(np.float32)
         in_npy_map = np.sqrt(np.exp(in_npy)).astype(np.float32)
@@ -132,8 +132,32 @@ def test_reduce_map():
                           keepdims=False,
                           type="prod")
     verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
+                          axis=(0, 1),
+                          keepdims=False,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
                           axis=(0, 2),
                           keepdims=False,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128),
+                          axis=None,
+                          keepdims=True,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128),
+                          axis=None,
+                          keepdims=False,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128),
+                          axis=(0, 1, 2),
+                          keepdims=True,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
+                          axis=(0, 1),
+                          keepdims=True,
+                          type="mean")
+    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
+                          axis=(0, 2),
+                          keepdims=True,
                           type="mean")
     verify_reduce_map_ele(in_shape=(32, 128),
                           axis=1,

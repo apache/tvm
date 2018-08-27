@@ -331,7 +331,7 @@ Example::
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
 
-  mean(data, axis=1)
+  mean(data)
   [3.22]
 
   mean(data, axis=[1,2])
