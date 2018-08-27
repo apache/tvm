@@ -444,6 +444,8 @@ def _lrn():
 def _sum():
     def _impl(inputs, attr, params):
         axis = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+        # convert to tuple for preventing invalid parameter format error
+        axis = tuple(axis)
         return AttrCvt(
             op_name='sum',
             extras={'axis': axis},
