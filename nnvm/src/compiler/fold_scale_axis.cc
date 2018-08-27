@@ -503,7 +503,7 @@ bool Conv2DScaleAxisForward(
     auto dshape = in_shape.at(0);
     CHECK_EQ(dshape.ndim(), 4U) << "Input data shape should be 4D";
 
-    // TODO (FrozenGene): Currently, we don't support conv2d's groups != in channels.
+    // TODO(FrozenGene): Currently, we don't support conv2d's groups != in channels.
     if (param.groups > 1 && dshape[1] != param.groups) {
       LOG(WARNING) << "FoldScaleAxis optimization doesn't support conv2d "
                    << "with groups != in channels. We will skip FoldScaleAxis "
