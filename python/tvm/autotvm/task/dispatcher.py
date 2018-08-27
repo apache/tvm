@@ -337,8 +337,8 @@ class ApplyGraphBest(DispatchContext):
         self._counter = 0
 
     def query(self, target, workload):
-        cfg = self._records[self._counter][0].cfg
+        cfg = self._records[self._counter][0].config
         self._counter += 1
-        if self.counter == len(self._records):
+        if self._counter == len(self._records):
             self._counter = 0
         return cfg

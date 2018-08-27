@@ -8,7 +8,7 @@ from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout
 
 from . import conv2d_avx_1x1, conv2d_avx_common
-from tvm.autotvm.task import register, get_config
+from tvm.autotvm.task import register, get_config, ConfigEntity
 from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.task.dispatcher import ApplyGraphBest
 
@@ -217,8 +217,8 @@ def topi_nn_conv2d_NCHWc(*args, **kwargs):
     args[6] = data_layout
     args[7] = out_layout
 
-    C = conv2d_NCHWc_cpu(*args, **kwargs)
-    s = schedule_conv2d_NCHWc(args[2], args[3], args[4], args[5],
+    C = _declaration_conv_NCHWc(cfg, *args, **kwargs)
+    s = _schedule_conv2d_NCHWc(cfg, args[2], args[3], args[4], args[5],
                               args[6], args[7], [C])
     return s, [args[0], args[1], C]
 
@@ -271,7 +271,6 @@ def _alter_conv2d_layout(attrs, inputs, _):
     dispatch_ctx = autotvm.task.DispatchContext.current
     cfg = dispatch_ctx.query(None, None)
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    dispatch_ctx.alter_layout_counter += 1
 
     new_attrs['layout'] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
@@ -286,23 +285,15 @@ def _alter_conv2d_layout(attrs, inputs, _):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register("cpu")
+@autotvm.task.dispatcher
 def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
                      padding, layout, out_layout, out_dtype):
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                          padding, layout, out_dtype)
-    cfg = dispatch_ctx.query(tvm.target.current_target(), workload)
-    return _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
-                                   padding, layout, out_layout, out_dtype)
+    """TOPI compute callback. Mark this function as a dispatcher, so
+    this template can assign config according to workload"""
+    return conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
+                                      padding, layout, out_dtype)
 
-"""
-@conv2d_NCHWc_cpu.register(["direct"])
-def decl_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
-                    padding, layout, out_layout, out_dtype):
-    _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
-                            padding, layout, out_layout, out_dtype)
-"""
-
+@conv2d_NCHWc_cpu.register(['direct'])
 def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
                             padding, layout, out_layout, out_dtype):
     kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)
@@ -316,9 +307,13 @@ def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
     else:
         return conv2d_avx_common._declaration_conv_NCHWc(*args)
 
-
-@generic.schedule_conv2d_NCHWc.register(["cpu"])
+@generic.schedule_conv2d_NCHWc.register("cpu")
 def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding,
+                          layout, out_layout, outs):
+    return _schedule_conv2d_NCHWc(None, num_filter, kernel_size, strides, padding,
+                                  layout, out_layout, outs)
+
+def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
                           layout, out_layout, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -336,13 +331,22 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding,
 
         if 'conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
-            print(op.attrs)
-            cfg = conv_out.attrs['cfg']
+            if cfg is None:
+                if "cfg" not in op.attrs:
+                    raise RuntimeError("cfg not found for conv2d_NCHWc schedule.")
+                serialized_cfg = []
+                for item in op.attrs['cfg']['e']:
+                    val = item[2]
+                    if isinstance(val, tvm.container.Array):
+                        serialized_cfg.append(val[1].value)
+                    else:
+                        serialized_cfg.append(val.value > 0)
             data_vec = conv_out.op.input_tensors[0]
             kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)
                                                ) else (kernel_size, kernel_size)
             is_kernel_1x1 = kh == 1 and kw == 1
-            args = [s, cfg, data_vec, conv_out, outs[0]]
+            args = [s, cfg if cfg else tuple(serialized_cfg),
+                    data_vec, conv_out, outs[0]]
             if is_kernel_1x1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)
             else:

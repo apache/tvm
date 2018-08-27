@@ -7,6 +7,7 @@ import topi
 from ..util import get_const_tuple
 from ..nn.util import infer_pad
 from ..nn.pad import pad
+from tvm.autotvm.task import ConfigEntity
 
 
 def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
@@ -182,23 +183,34 @@ def _declaration_conv_NCHWc(cfg, data, kernel, kernel_size, strides, padding, la
     kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
     kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
 
+    workload = topi.x86.conv2d.conv_NCHWc_arg_to_workload(data, kernel,
+                                                          kernel_size,
+                                                          strides, padding,
+                                                          layout, out_dtype),
+    if isinstance(cfg, ConfigEntity):
+        serialized_cfg = cfg.to_json_dict()
+        for k, v in serialized_cfg.items():
+            if v is None:
+                serialized_cfg[k] = str(v)
+        attrs = {'workload': workload, 'cfg': serialized_cfg}
+    else:
+        attrs = {'workload': workload}
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw, ic%ic_bn]
                                .astype(out_dtype) *
                                kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
                        axis=[ic, kh, kw]), name='conv2d_NCHWc', tag="conv2d_NCHWc",
-                       attrs={'workload':
-                                  topi.x86.conv2d.conv_NCHWc_arg_to_workload(data, kernel,
-                                                                             kernel_size,
-                                                                             strides, padding,
-                                                                             layout, out_dtype)})
+                       attrs=attrs)
     return conv
 
 
 def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     # fetch schedule
-    ic_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_ow"].size[-1],
-                               cfg["unroll_kw"].val)
+    if isinstance(cfg, tuple):
+        ic_bn, reg_n, unroll_kw = cfg[0], cfg[2], cfg[3]
+    else:
+        ic_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_ow"].size[-1],
+                                   cfg["unroll_kw"].val)
 
     # schedule data
     A = data
