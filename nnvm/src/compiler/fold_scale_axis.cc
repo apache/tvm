@@ -536,7 +536,7 @@ bool Conv2DScaleAxisForward(
     //      %1 = __add_scalar__(%x, scalar='1')
     //      %3 = expand_dims(%in_scale, num_newaxis='2', axis='1')
     //      %4 = broadcast_mul(%1, %3)
-    //      %7 = conv2d(%4, %weight, %bias, groups='54', padding='(1, 1)', kernel_size='(3, 3)', channels='54')
+    //      %7 = conv2d(%4, %weight, %bias, padding='(1, 1)', kernel_size='(3, 3)', channels='2')
     //      %8 = relu(%7)
     //      %10 = expand_dims(%out_scale, num_newaxis='2', axis='1')
     //      %11 = broadcast_mul(%8, %10)
