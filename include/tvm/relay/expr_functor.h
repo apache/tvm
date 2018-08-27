@@ -9,7 +9,8 @@
 
 #include <tvm/ir_functor.h>
 #include <string>
-#include "ir.h"
+#include "./expr.h"
+#include "./op.h"
 
 namespace tvm {
 namespace relay {

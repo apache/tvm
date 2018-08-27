@@ -9,10 +9,10 @@
 namespace tvm {
 namespace relay {
 
-struct TypeSubst : TypeFVisitor {
+struct TypeSubstV : TypeFVisitor {
   tvm::Map<TypeParam, Type> subst_map;
 
-  explicit TypeSubst(tvm::Map<TypeParam, Type> subst_map)
+  explicit TypeSubstV(tvm::Map<TypeParam, Type> subst_map)
     : subst_map(subst_map) {}
 
   Type VisitType_(const TypeParamNode *op) override {
@@ -25,13 +25,13 @@ struct TypeSubst : TypeFVisitor {
   }
 };
 
-Type type_subst(const Type &type, const TypeParam &target, const Type &subst) {
-  TypeSubst ty_sub({ {target, subst} });
+Type TypeSubst(const Type &type, const TypeParam &target, const Type &subst) {
+  TypeSubstV ty_sub({ {target, subst} });
   return ty_sub.VisitType(type);
 }
 
-Type type_subst(const Type &type, tvm::Map<TypeParam, Type> subst_map) {
-  TypeSubst ty_sub(subst_map);
+Type TypeSubst(const Type &type, tvm::Map<TypeParam, Type> subst_map) {
+  TypeSubstV ty_sub(subst_map);
   return ty_sub.VisitType(type);
 }
 

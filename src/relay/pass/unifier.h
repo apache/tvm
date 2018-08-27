@@ -1,15 +1,15 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file unifier.h
+ * \file include/tvm/relay/pass/unifier.h
  * \brief The type unifier which solves a system of equations between
  * incomplete types.
  */
-#ifndef TVM_RELAY_COMPILER_UNIFIER_H_
-#define TVM_RELAY_COMPILER_UNIFIER_H_
+#ifndef TVM_RELAY_PASS_UNIFIER_H_
+#define TVM_RELAY_PASS_UNIFIER_H_
 
 #include <string>
+#include <tvm/relay/expr.h>
 #include "./type_functor.h"
-#include "tvm/relay/ir.h"
 
 namespace tvm {
 namespace relay {
@@ -50,7 +50,7 @@ class UnionFindNode : public Node {
 
   void debug();
 
-  void assertAlphaEq(const Type& l, const Type& r);
+  void AssertAlphaEqual(const Type& l, const Type& r);
 
   static constexpr const char* _type_key = "relay.UnionFind";
   TVM_DECLARE_NODE_TYPE_INFO(UnionFindNode, Node);

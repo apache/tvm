@@ -1,12 +1,14 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file unifier.cc
- * \brief Data structures for type unification
+ * \file tvm/src/relay/pass/unifier.cc
+ * \brief The type unifier which solves a system of equations between
+ * incomplete types.
  */
 
-#include "tvm/relay/ir.h"
-#include "tvm/relay/logging.h"
-#include "tvm/relay/compiler/alpha_eq.h"
+#include <tvm/relay/type.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/logging.h>
+#include <tvm/relay/pass/alpha_eq.h>
 #include "./unifier.h"
 #include "./type_visitor.h"
 //#include "./type_subst.h"
@@ -32,8 +34,8 @@ void UnionFindNode::debug() {
   }
 }
 
-void UnionFindNode::assertAlphaEq(const Type & l, const Type & r) {
-  if (!alpha_eq(l, r)) {
+void UnionFindNode::AssertAlphaEqual(const Type & l, const Type & r) {
+  if (!AlphaEqual(l, r)) {
     std::stringstream ss;
     ss << "Incompatible parent types in UF:" << l << " and " << r;
     throw UnionFindError(ss.str());
@@ -71,7 +73,7 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
     }
 
     // if both parents are not type vars themselves, check alpha-equality
-    assertAlphaEq(parent1, parent2);
+    AssertAlphaEqual(parent1, parent2);
     return;
   }
 
@@ -83,7 +85,7 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
     return;
   }
 
-  assertAlphaEq(parent1, t);
+  AssertAlphaEqual(parent1, t);
 }
 
 Type UnionFindNode::find(const IncompleteType &v) {
@@ -274,7 +276,7 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
   if (const TensorTypeNode *ttn2 = rt2.as<TensorTypeNode>()) {
     TensorType tt2 = GetRef<TensorType>(ttn2);
 
-    if (!alpha_eq(tt1, tt2)) {
+    if (!AlphaEqual(tt1, tt2)) {
         throw UnificationError("dtypes do not match");
     }
 

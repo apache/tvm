@@ -1,18 +1,18 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file unifier.cc
- * \brief Data structures for type unification
+ * \file resolve.cc
+ * \brief Resolve incomplete types to complete types.
  */
 
+#include <tvm/relay/expr.h>
+#include <tvm/relay/expr_visitor.h>
 #include "./resolve.h"
 #include "./type_visitor.h"
-#include "tvm/relay/expr_visitor.h"
-#include "tvm/relay/ir.h"
 
 namespace tvm {
 namespace relay {
 
-// We should probably generalize the subst code.
+// TODO(@jroesch): We should probably generalize the subst code.
 struct ResolveTypeType : TypeFVisitor {
   const TypeUnifier &unifier;
 

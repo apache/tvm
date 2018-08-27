@@ -4,10 +4,10 @@
  * \brief A way to defined arbitrary function signature with dispatch on types.
  */
 
-#ifndef TVM_RELAY_COMPILER_INCOMPLETE_TYPE_H
-#define TVM_RELAY_COMPILER_INCOMPLETE_TYPE_H
+#ifndef TVM_RELAY_PASS_INCOMPLETE_TYPE_H
+#define TVM_RELAY_PASS_INCOMPLETE_TYPE_H
 
-#include "tvm/relay/ir.h"
+#include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace relay {
@@ -37,4 +37,4 @@ RELAY_DEFINE_NODE_REF(IncompleteType, IncompleteTypeNode, Type);
 } // namespace relay
 } // namespace tvm
 
-#endif  // TVM_RELAY_COMPILER_INCOMPLETE_TYPE_H
+#endif  // TVM_RELAY_PASS_INCOMPLETE_TYPE_H

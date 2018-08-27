@@ -20,10 +20,10 @@
  * constraints we will trigger an error.
  */
 
-#include "tvm/relay/logging.h"
-#include "tvm/relay/compiler/type_infer.h"
-#include "tvm/relay/error.h"
-#include "tvm/relay/expr_functor.h"
+#include <tvm/relay/error.h>
+#include <tvm/relay/logging.h>
+#include <tvm/relay/pass/type_infer.h>
+#include <tvm/relay/expr_functor.h>
 #include "./incomplete_type.h"
 #include "./unifier.h"
 #include "./resolve.h"
@@ -335,7 +335,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     //     auto fresh_tid =
     //         TypeParamNode::make(ty_param_node->name, ty_param_node->kind);
     //     fn_type =
-    //         type_subst(fn_type, GetRef<TypeParam>(ty_param_node), fresh_tid);
+    //         TypeSubst(fn_type, GetRef<TypeParam>(ty_param_node), fresh_tid);
     //     fn_type = TypeQuantifierNode::make(fresh_tid, fn_type);
     //   }
     // }
@@ -360,7 +360,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     }
 
     Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, {});
-    inst_ty = type_subst(fn_ty, subst_map);
+    inst_ty = TypeSubst(fn_ty, subst_map);
 
     // if (!check_kind(t)) {
     //   this->fatal_error("Kind rules broken when instantiating type

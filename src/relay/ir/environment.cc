@@ -4,7 +4,7 @@
  * \brief The global environment in Relay.
  */
 #include <sstream>
-#include "tvm/relay/compiler/environment.h"
+#include "tvm/relay/environment.h"
 // #include "tvm/relay/alpha_eq.h"
 // #include "tvm/relay/debug.h"
 // #include "tvm/relay/typeck/typechecker.h"

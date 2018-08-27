@@ -3,11 +3,11 @@
  * \file type_functor.h
  * \brief A way to defined arbitrary function signature with dispatch on types.
  */
-#ifndef TVM_RELAY_COMPILER_TYPE_FUNCTOR_H_
-#define TVM_RELAY_COMPILER_TYPE_FUNCTOR_H_
+#ifndef TVM_RELAY_PASS_TYPE_FUNCTOR_H_
+#define TVM_RELAY_PASS_TYPE_FUNCTOR_H_
 
 #include <tvm/ir_functor.h>
-#include "tvm/relay/ir.h"
+#include <tvm/relay/expr.h>
 #include "./incomplete_type.h"
 
 namespace tvm {
@@ -90,4 +90,4 @@ class TypeFunctor<R(const Type& n, Args...)> {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_COMPILER_TYPE_FUNCTOR_H_
+#endif  // TVM_RELAY_PASS_TYPE_FUNCTOR_H_

@@ -1,9 +1,9 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file alpha_eq.cc
+ * \file src/tvm/relay/pass/alpha_eq.cc
  * \brief Compute the set of variables not bound in the expression.
  */
-#include "tvm/relay/compiler/alpha_eq.h"
+#include "tvm/relay/pass/alpha_eq.h"
 #include "tvm/relay/expr_visitor.h"
 #include "./type_visitor.h"
 
@@ -134,7 +134,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
 //   }
 };
 
-bool alpha_eq(const Type &t1, const Type &t2) {
+bool AlphaEqual(const Type &t1, const Type &t2) {
   TypeAlphaEq aeq;
   aeq.VisitType(t1, t2);
   return aeq.equal;
@@ -277,7 +277,7 @@ TVM_REGISTER_API("relay._make._type_alpha_eq")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Type t1 = args[0];
       Type t2 = args[1];
-      *ret = alpha_eq(t1, t2);
+      *ret = AlphaEqual(t1, t2);
     });
 
 }  // namespace relay

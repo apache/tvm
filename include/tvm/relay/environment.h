@@ -1,18 +1,17 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file environment.h
- * \brief The global environment containing
+ * \file tvm/relay/environment.h
+ * \brief The global environment, contains global state of Relay program.
  */
 #ifndef TVM_RELAY_ENVIRONMENT_H_
 #define TVM_RELAY_ENVIRONMENT_H_
 
 #include <string>
 #include <vector>
-#include "../expr.h"
-#include "../type.h"
-#include "../op.h"
-#include "../error.h"
-// #include "tvm/relay/options.h"
+#include "./expr.h"
+#include "./type.h"
+#include "./op.h"
+#include "./error.h"
 // #include "tvm/relay/source_map.h"
 
 namespace tvm {
@@ -38,10 +37,8 @@ struct Environment;
 
 class EnvironmentNode : public RelayNode {
  private:
-  /*! A map from string names to GlobalIds, ensures global uniqueness. */
+  /*! \brief A map from string names to global variables ensures global uniqueness. */
   tvm::Map<std::string, GlobalVar> global_map_;
-  tvm::Map<std::string, TypeRelation> type_func_map_;
-
   // /*! \brief A map from file names to source fragments. */
   // SourceMap source_map_
   // /*! \brief A list of the errors reported during the current run. */
@@ -50,8 +47,6 @@ class EnvironmentNode : public RelayNode {
  public:
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> items;
-
-  // Options options;
 
   EnvironmentNode() {}
 
@@ -67,15 +62,17 @@ class EnvironmentNode : public RelayNode {
 
   GlobalVar GetGlobalVar(const std::string& str);
 
-  /*! \brief Lookup a global function by its name. */
+  /*! \brief Lookup a global function by its variable. */
   Function Lookup(const GlobalVar& id);
+
+  /*! \brief Lookup a global function by its string name */
   Function Lookup(const std::string & s);
 
   /*! \brief Add a source fragment to the environment. */
   // FileId add_source(std::string file_name, std::string source);
 
-  void report_error(std::string msg, Span sp);
-  void display_errors();
+  void ReportError(std::string msg, Span sp);
+  void DisplayErrors();
 
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
