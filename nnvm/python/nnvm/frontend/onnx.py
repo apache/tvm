@@ -673,8 +673,8 @@ def _get_convert_map(opset):
         # 'ReduceMean'
         # 'ReduceProd'
         # 'ReduceLogSumExp'
-        # 'ArgMax'
-        # 'ArgMin'
+        'ArgMax': AttrCvt('argmax'),
+        'ArgMin': AttrCvt('argmin'),
 
         # defs/tensor
         'Cast': Cast.get_converter(opset),

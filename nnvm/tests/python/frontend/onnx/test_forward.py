@@ -548,6 +548,68 @@ def test_forward_hardsigmoid():
     verify_hardsigmoid((1, 3, 20, 20), 0.5, 0.6)
     verify_hardsigmoid((20, 20), 0.3, 0.4)
 
+def verify_argmin(input_dim, axis, keepdims):
+    def _argmin_numpy(data, axis, keepdims):
+        result = np.argmin(data, axis=axis)
+        if (keepdims == 1):
+            result = np.expand_dims(result, axis)
+        return result.astype(data.dtype)
+
+    a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
+    b_np = _argmin_numpy(a_np1, axis=axis, keepdims=keepdims)
+
+    node = onnx.helper.make_node('ArgMin',
+                                 inputs=['a_np1'],
+                                 outputs=['out'],
+                                 axis=axis,
+                                 keepdims=keepdims)
+    graph = helper.make_graph([node],
+                              "argmin_test",
+                              inputs = [helper.make_tensor_value_info("a_np1",
+                                            TensorProto.INT32, list(a_np1.shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.INT32, list(b_np.shape))])
+
+    model = helper.make_model(graph, producer_name='argmin_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
+        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+def verify_argmax(input_dim, axis, keepdims):
+    def _argmax_numpy(data, axis, keepdims):
+        result = np.argmax(data, axis=axis)
+        if (keepdims == 1):
+            result = np.expand_dims(result, axis)
+        return result.astype(data.dtype)
+
+    a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
+    b_np = _argmax_numpy(a_np1, axis=axis, keepdims=keepdims)
+
+    node = onnx.helper.make_node('ArgMax',
+                                 inputs=['a_np1'],
+                                 outputs=['out'],
+                                 axis=axis,
+                                 keepdims=keepdims)
+    graph = helper.make_graph([node],
+                              "argmax_test",
+                              inputs = [helper.make_tensor_value_info("a_np1",
+                                            TensorProto.INT32, list(a_np1.shape))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.INT32, list(b_np.shape))])
+
+    model = helper.make_model(graph, producer_name='argmax_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
+        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_forward_arg_min_max():
+    for axis in [0,1,2]:
+        for keepdims in [True,False]:
+            verify_argmin([3,4,4], axis, keepdims)
+            verify_argmax([3,4,4], axis, keepdims)
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -570,3 +632,4 @@ if __name__ == '__main__':
     test_forward_max()
     test_forward_mean()
     test_forward_hardsigmoid()
+    test_forward_arg_min_max()'''

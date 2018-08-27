@@ -876,6 +876,63 @@ def test_forward_transpose():
     _test_forward_transpose((2, 3, 4), (0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
 
+
+def test_forward_ceil():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.ceil(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Ceil:0')
+
+def test_forward_floor():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.floor(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Floor:0')
+
+def test_forward_relu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.nn.relu(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Relu:0')
+
+def test_forward_leaky_relu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.nn.leaky_relu(in1, alpha=0.4)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
+
+def test_forward_elu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.nn.elu(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Elu:0')
+
+def test_forward_selu():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.nn.selu(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Selu:0')
+
+def test_forward_tanh():
+    ishape = (1, 3, 10, 10)
+    inp_array = np.random.uniform(-5, 5, size=ishape).astype(np.float32)
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+        tf.nn.tanh(in1)
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
+
 #######################################################################
 # Main
 # ----
@@ -904,3 +961,10 @@ if __name__ == '__main__':
     test_forward_ptb()
     test_forward_lrn()
     test_forward_l2_normalize()
+    test_forward_ceil()
+    test_forward_floor()
+    test_forward_relu()
+    test_forward_leaky_relu()
+    test_forward_elu()
+    test_forward_selu()
+    test_forward_tanh()
