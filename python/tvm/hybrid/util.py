@@ -1,8 +1,8 @@
 """Internal utilities for parsing Python subset to HalideIR"""
 
+import ast
 import inspect
 import numpy
-import ast
 from .intrin import HYBRID_GLOBALS
 from .._ffi.base import numeric_types
 from .. import api as _api
