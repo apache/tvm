@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-argument
+# pylint: disable=invalid-name,unused-variable,unused-argument
 """HLS nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
