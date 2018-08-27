@@ -833,11 +833,28 @@ def _test_l2_normalize(ishape, eps, axis):
 def test_forward_l2_normalize():
     _test_l2_normalize((1, 3, 20, 20), 0.001, (0,))
 
+#######################################################################
+# transpose
+# ------------
+def _test_forward_transpose(ishape, axes):
+    input = np.random.uniform(size=ishape).astype(np.float32)
+
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=input.shape, dtype=input.dtype, name="transpose_data")
+        tf.transpose(in1, perm=axes)
+
+        compare_tf_with_tvm(input, 'transpose_data:0', 'transpose:0')
+
+def test_forward_transpose():
+    _test_forward_transpose((2, 3, 4), (1, 2, 0))
+    _test_forward_transpose((2, 3, 4), (0, 1, 2))
+    _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+    test_forward_transpose()
     test_forward_convolution()
     test_forward_pooling()
     test_forward_reshape()

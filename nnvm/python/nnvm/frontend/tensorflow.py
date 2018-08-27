@@ -648,6 +648,14 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
+def _transpose():
+    def _impl(inputs, attr, params):
+        node_name = attr['_node_name']
+        # Get its param which is a Const op
+        param_name = node_name + '/perm'
+        axes = params.pop(param_name).asnumpy()
+        return _sym.transpose(inputs[0], axes=tuple(axes))
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -698,6 +706,7 @@ _convert_map = {
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
+    'Transpose'                         : _transpose(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
