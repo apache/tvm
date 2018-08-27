@@ -632,4 +632,4 @@ if __name__ == '__main__':
     test_forward_max()
     test_forward_mean()
     test_forward_hardsigmoid()
-    test_forward_arg_min_max()'''
+    test_forward_arg_min_max()
