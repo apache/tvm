@@ -349,6 +349,26 @@ def test_forward_argminmax():
         _test_argx(tf.argmin, data=data, axis=axis)
 
 #######################################################################
+# Reduce
+# ------
+
+def _test_reduce(func, data, **kwargs):
+    """ One iteration of a reduce operation"""
+
+    with tf.Graph().as_default():
+        inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
+        func(inp, name="reducex0", **kwargs)
+
+        compare_tf_with_tvm(data, 'c0:0', 'reducex0:0')
+
+def test_forward_reduce():
+    data = np.random.uniform(size=(8,4,9)).astype('float32')
+    _test_reduce(tf.reduce_sum, data=data)
+    _test_reduce(tf.reduce_sum, data=data, axis=0)
+    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))    
+
+
+#######################################################################
 # Variable
 # --------
 
@@ -844,6 +864,7 @@ if __name__ == '__main__':
     test_forward_squeeze()
     test_forward_sigmoid()
     test_forward_argminmax()
+    test_forward_reduce()
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()
     test_forward_multi_input()

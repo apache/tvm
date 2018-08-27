@@ -313,7 +313,7 @@ class Server(object):
         self.use_popen = use_popen
 
         if silent:
-            logger.setLevel(logging.WARN)
+            logger.setLevel(logging.ERROR)
 
         if use_popen:
             cmd = [sys.executable,

@@ -6,7 +6,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <mutex>
-#include "./module_util.h"
+#include "module_util.h"
 
 namespace tvm {
 namespace runtime {

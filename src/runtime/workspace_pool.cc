@@ -3,7 +3,7 @@
  * \file workspace_pool.h
  * \brief Workspace pool utility.
  */
-#include "./workspace_pool.h"
+#include "workspace_pool.h"
 
 namespace tvm {
 namespace runtime {

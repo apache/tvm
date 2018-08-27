@@ -4,7 +4,7 @@
  * \brief Interface code with TVM graph runtime.
 */
 #include <dmlc/memory_io.h>
-#include "./graph_runtime.h"
+#include "graph_runtime.h"
 
 namespace nnvm {
 namespace compiler {
@@ -100,6 +100,6 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._load_param_dict")
     *rv = ret;
   });
 
-TVM_EXTERNAL_REGISTER_NODE_TYPE(NDArrayWrapperNode);
+TVM_REGISTER_NODE_TYPE(NDArrayWrapperNode);
 }  // namespace compiler
 }  // namespace nnvm

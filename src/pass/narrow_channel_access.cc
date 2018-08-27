@@ -11,7 +11,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/arithmetic.h>
 #include <tvm/channel.h>
-#include "./ir_util.h"
+#include "ir_util.h"
 
 namespace tvm {
 namespace ir {

@@ -79,11 +79,13 @@ class Target(NodeBase):
     - :any:`tvm.target.mali` create Mali target
     - :any:`tvm.target.intel_graphics` create Intel Graphics target
     """
-    def __init__(self, handle):
-        super(Target, self).__init__(handle)
-        self._keys = None
-        self._options = None
-        self._libs = None
+    def __new__(cls):
+        # Always override new to enable class
+        obj = NodeBase.__new__(cls)
+        obj._keys = None
+        obj._options = None
+        obj._libs = None
+        return obj
 
     @property
     def keys(self):
@@ -425,8 +427,6 @@ def arm_cpu(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    from . import autotvm
-
     trans_table = {
         "pixel2":    ["-model=snapdragon835", "-target=arm64-linux-android -mattr=+neon"],
         "mate10":    ["-model=kirin970", "-target=arm64-linux-android -mattr=+neon"],
@@ -438,9 +438,6 @@ def arm_cpu(model='unknown', options=None):
         "pynq":      ["-model=pynq", "-target=armv7a-linux-eabi -mattr=+neon"],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
-
-    # download pre-tuned parameters for arm_cpu if there is not any.
-    autotvm.tophub.check_package('arm_cpu')
 
     opts = ["-device=arm_cpu"] + pre_defined_opt
     opts = _merge_opts(opts, options)

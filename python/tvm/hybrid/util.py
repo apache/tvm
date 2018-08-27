@@ -1,5 +1,6 @@
 """Internal utilities for parsing Python subset to HalideIR"""
 
+import ast
 import inspect
 import numpy
 from .intrin import HYBRID_GLOBALS
@@ -20,6 +21,11 @@ halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
 def make_nop():
     """Returns a 'no operation' node in HalideIR."""
     return _make.Evaluate(_api.const(0, dtype='int32'))
+
+
+def is_docstring(node):
+    """Checks if a Python AST node is a docstring"""
+    return isinstance(node, ast.Expr) and isinstance(node.value, ast.Str)
 
 
 def _pruned_source(func):

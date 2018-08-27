@@ -9,8 +9,8 @@
 #include <atomic>
 #include <vector>
 #include <utility>
-#include "./c_runtime_api.h"
-#include "./serializer.h"
+#include "c_runtime_api.h"
+#include "serializer.h"
 
 namespace tvm {
 namespace runtime {

@@ -269,6 +269,40 @@ def UpsampleLayerParams(op, insym, symtab):
 def L2NormalizeLayerParams(op, insym, symtab):
     return _sym.l2_normalize(insym, eps=op.epsilon, axis=1)
 
+def LRNLayerParams(op, insym, symtab):
+    par = {}
+    par['size'] = op.localSize
+    par['bias'] = op.k
+    par['alpha'] = op.alpha
+    par['beta'] = op.beta
+    par['axis'] = 1 #default layout is nchw
+    return _sym.lrn(data=insym, **par)
+
+def AverageLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    count = len(insyms)
+    _sum = insyms[0]
+    for i in range(1, count):
+        _sum = _sym.broadcast_add(_sum, insyms[i])
+    return _sum / count
+
+def MaxLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    _max = insyms[0]
+    for i in range(1, len(insyms)):
+        _max = _sym.broadcast_max(_max, insyms[i])
+    return _max
+
+def MinLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    _min = insyms[0]
+    for i in range(1, len(insyms)):
+        _min = _sym.broadcast_min(_min, insyms[i])
+    return _min
+
 _convert_map = {
     'NeuralNetworkMeanImage': NeuralNetworkMeanImage,
     'NeuralNetworkImageScaler': NeuralNetworkImageScaler,
@@ -286,7 +320,11 @@ _convert_map = {
     'PaddingLayerParams':PaddingLayerParams,
     'PermuteLayerParams':PermuteLayerParams,
     'UpsampleLayerParams':UpsampleLayerParams,
-    'L2NormalizeLayerParams':L2NormalizeLayerParams
+    'L2NormalizeLayerParams':L2NormalizeLayerParams,
+    'LRNLayerParams':LRNLayerParams,
+    'AverageLayerParams':AverageLayerParams,
+    'MaxLayerParams':MaxLayerParams,
+    'MinLayerParams':MinLayerParams,
 }
 
 def coreml_op_to_nnvm(op, inname, outname, symtab):

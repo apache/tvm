@@ -14,9 +14,9 @@
 #include <limits>
 #include <memory>
 #include <type_traits>
-#include "./c_runtime_api.h"
-#include "./module.h"
-#include "./ndarray.h"
+#include "c_runtime_api.h"
+#include "module.h"
+#include "ndarray.h"
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -180,9 +180,7 @@ class TypedPackedFunc<R(Args...)> {
    *
    * \param packed The packed function
    */
-  explicit TypedPackedFunc(PackedFunc packed)
-      : packed_(packed) {
-  }
+  inline explicit TypedPackedFunc(PackedFunc packed);
   /*!
    * \brief construct from a lambda function with the same signature.
    *
@@ -925,6 +923,8 @@ inline PackedFunc::FType PackedFunc::body() const {
   return body_;
 }
 
+
+
 // internal namespace
 namespace detail {
 
@@ -1130,6 +1130,10 @@ struct typed_packed_call_dispatcher<void> {
   }
 };
 }  // namespace detail
+
+template<typename R, typename ...Args>
+TypedPackedFunc<R(Args...)>::TypedPackedFunc(PackedFunc packed)
+  : packed_(packed) {}
 
 template<typename R, typename ...Args>
 template<typename FType>

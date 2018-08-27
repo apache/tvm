@@ -6,7 +6,7 @@
 #include <cctype>
 #include <sstream>
 #include <iostream>
-#include "./codegen_verilog.h"
+#include "codegen_verilog.h"
 #include "../../arithmetic/compute_expr.h"
 
 namespace tvm {

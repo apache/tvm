@@ -128,7 +128,7 @@ def test_cpu_conv2d():
                 run_cpu_conv2d(env, remote, key, batch_size, wl)
 
     # load pre-tuned operator parameters for ARM CPU
-    autotvm.tophub.check_package('vta')
+    autotvm.tophub.check_backend('vta')
     with autotvm.tophub.context('llvm -device=vtacpu'):
         vta.testing.run(_run)
 

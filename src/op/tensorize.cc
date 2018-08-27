@@ -7,8 +7,8 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_pass.h>
 #include <tvm/api_registry.h>
-#include "./op_util.h"
-#include "./compute_op.h"
+#include "op_util.h"
+#include "compute_op.h"
 #include "../schedule/message_passing.h"
 #include "../arithmetic/compute_expr.h"
 

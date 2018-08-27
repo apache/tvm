@@ -12,7 +12,7 @@
 #include <tvm/packed_func_ext.h>
 #include <nnvm/compiler/op_attr_types.h>
 #include <tvm/tvm.h>
-#include "./nn_common.h"
+#include "nn_common.h"
 #include "../op_common.h"
 #include "../elemwise_op_common.h"
 #include "topi/nn.h"

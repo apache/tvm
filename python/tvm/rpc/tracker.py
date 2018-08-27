@@ -78,6 +78,16 @@ class Scheduler(object):
         """
         raise NotImplementedError()
 
+    def remove(self, value):
+        """Remove a resource in the scheduler
+
+        Parameters
+        ----------
+        value: object
+            The resource to remove
+        """
+        pass
+
     def summary(self):
         """Get summary information of the scheduler."""
         raise NotImplementedError()
@@ -108,6 +118,11 @@ class PriorityScheduler(Scheduler):
         heapq.heappush(self._requests, (-priority, time.time(), callback))
         self._schedule()
 
+    def remove(self, value):
+        if value in self._values:
+            self._values.remove(value)
+            self._schedule()
+
     def summary(self):
         """Get summary information of the scheduler."""
         return {"free": len(self._values),
@@ -132,6 +147,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
         # list of pending match keys that has not been used.
         self.pending_matchkeys = set()
         self._tracker._connections.add(self)
+        self.put_values = []
 
     def name(self):
         """name of connection"""
@@ -199,9 +215,11 @@ class TCPEventHandler(tornado_util.TCPHandler):
             self.pending_matchkeys.add(matchkey)
             # got custom address (from rpc server)
             if args[3] is not None:
-                self._tracker.put(key, (self, args[3], port, matchkey))
+                value = (self, args[3], port, matchkey)
             else:
-                self._tracker.put(key, (self, self._addr[0], port, matchkey))
+                value = (self, self._addr[0], port, matchkey)
+            self._tracker.put(key, value)
+            self.put_values.append(value)
             self.ret_value(TrackerCode.SUCCESS)
         elif code == TrackerCode.REQUEST:
             key = args[1]
@@ -239,7 +257,7 @@ class TCPEventHandler(tornado_util.TCPHandler):
             self.close()
 
     def on_close(self):
-        self._tracker._connections.remove(self)
+        self._tracker.close(self)
 
     def on_error(self, err):
         logger.warning("%s: Error in RPC Tracker: %s", self.name(), err)
@@ -284,6 +302,13 @@ class TrackerServerHandler(object):
         if key not in self._scheduler_map:
             self._scheduler_map[key] = self.create_scheduler(key)
         self._scheduler_map[key].request(user, priority, callback)
+
+    def close(self, conn):
+        self._connections.remove(conn)
+        if 'key' in conn._info:
+            key = conn._info['key'].split(':')[1]  # 'server:rasp3b' -> 'rasp3b'
+            for value in conn.put_values:
+                self._scheduler_map[key].remove(value)
 
     def stop(self):
         """Safely stop tracker."""

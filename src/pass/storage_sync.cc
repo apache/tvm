@@ -8,8 +8,8 @@
 #include <tvm/ir_visitor.h>
 #include <unordered_map>
 #include <unordered_set>
-#include "./ir_util.h"
-#include "./storage_access.h"
+#include "ir_util.h"
+#include "storage_access.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

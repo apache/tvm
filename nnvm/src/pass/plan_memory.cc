@@ -8,7 +8,7 @@
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/op_attr_types.h>
 #include <memory>
-#include "./graph_algorithm.h"
+#include "graph_algorithm.h"
 
 namespace nnvm {
 namespace pass {

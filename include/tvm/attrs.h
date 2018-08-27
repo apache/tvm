@@ -31,9 +31,9 @@
 #include <vector>
 #include <type_traits>
 #include <string>
-#include "./ir.h"
-#include "./base.h"
-#include "./packed_func_ext.h"
+#include "ir.h"
+#include "base.h"
+#include "packed_func_ext.h"
 
 namespace tvm {
 /*!

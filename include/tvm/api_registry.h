@@ -7,9 +7,9 @@
 #ifndef TVM_API_REGISTRY_H_
 #define TVM_API_REGISTRY_H_
 
-#include "./base.h"
-#include "./packed_func_ext.h"
-#include "./runtime/registry.h"
+#include "base.h"
+#include "packed_func_ext.h"
+#include "runtime/registry.h"
 
 /*!
  * \brief Register an API function globally.
