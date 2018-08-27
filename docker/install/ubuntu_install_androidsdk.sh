@@ -56,6 +56,7 @@ tools
 ndk-bundle
 EOF
 
+mkdir /root/.android 2>/dev/null || true
 touch /root/.android/repositories.cfg
 yes | sdkmanager --licenses --sdk_root="$ANDROID_HOME"
 sdkmanager --verbose --package_file=/install/package-list-minimal.txt --sdk_root="$ANDROID_HOME"
