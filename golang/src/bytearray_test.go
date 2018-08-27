@@ -28,7 +28,7 @@ func TestByteArrayGet(t *testing.T) {
 
     for i := range data {
         if data[i] != dataRet[i] {
-            t.Errorf("Data expected: %v Got :%v at : \n", data[i], dataRet[i], i)
+            t.Errorf("Data expected: %v Got :%v at : %v\n", data[i], dataRet[i], i)
             return
         }
     }

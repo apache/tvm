@@ -7,8 +7,8 @@
  * across golang and native C boundaries.
  */
 
-#ifndef GO_RUNTIME_GOTVM_H_
-#define GO_RUNTIME_GOTVM_H_
+#ifndef GOTVM_GOTVM_H_
+#define GOTVM_GOTVM_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,7 +54,10 @@ extern int _TVMFuncCall(uintptr_t funp, uintptr_t arg_values,
                         uintptr_t ret_values, native_voidp ret_type_codes);
 extern int _TVMArrayCopyFromBytes(native_voidp dltensor, native_voidp data, int size);
 extern int _TVMArrayCopyToBytes(native_voidp dltensor, native_voidp data, int size);
-extern int _TVMCFuncSetReturn(native_voidp ret_handle, native_voidp ret_value, native_voidp type_code, int nu_args);
+extern int _TVMCFuncSetReturn(native_voidp ret_handle,
+                              native_voidp ret_value,
+                              native_voidp type_code,
+                              int nu_args);
 
 // Error API
 extern _gostring_ _TVMGetLastError(void);
@@ -103,4 +106,4 @@ extern int _RegisterFunction(_gostring_ fname, uintptr_t funp);
 #ifdef __cplusplus
 }
 #endif
-#endif  // GO_RUNTIME_GOTVM_H_
+#endif  // GOTVM_GOTVM_H_

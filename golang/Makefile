@@ -1,6 +1,6 @@
 .PHONY: clean all
 
-TVM_BASE   = $(PWD)/../../
+TVM_BASE   = $(PWD)/../
 TARGET     = gotvm
 LIBS       = -lm -ldl
 NATIVE_SRC = tvm.cc
@@ -10,7 +10,6 @@ GOPATHDIR=${GOPATH}/src/${TARGET}/
 CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/dlpack/include/"
 CGO_CFLAGS="-I${TVM_BASE}"
 CGO_LDFLAGS="-ldl -lm"
-
 
 all:
 	@mkdir gopath 2>/dev/null || true
@@ -27,10 +26,22 @@ all:
 	(cd $(GOPATHDIR) && go clean \
 	&& golint && go build -o $(TARGET).a \
 	&& go install \
-	&& python3 ../../../../sample/deploy.py)
+	&& python3 ../../../sample/deploy.py)
 	@mkdir gopath/doc 2>/dev/null || true
 	@godoc -html -goroot gopath/ gotvm | grep -v "for documentation on the gotvm command" > gopath/doc/gotvm.html
 	@echo "Run 'godoc -http=:6060  -goroot=./gopath' for documentation"
+
+samples: all
+	cp gopath/pkg/linux_amd64/gotvm.a sample/ -rfa
+	make -C sample
+
+tests: all
+	@export GOPATH=$(GOPATH); \
+	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
+	export CGO_CFLAGS=$(CGO_CFLAGS); \
+	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
+	(cd $(GOPATHDIR) \
+	&& go test -v)
 
 clean:
 	@if [ -d $(GOPATHDIR) ] ; then \
@@ -41,18 +52,10 @@ clean:
 	(cd $(GOPATHDIR) && go clean -cache); fi
 	@rm -rf gopath
 	@rm -f *.a *.o
+	@rm sample/gotvm.a
+	@make -C sample clean
 
 lint:
-	@golint
-	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.cc
-	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp *.h
-
-testcases:
-	@mkdir gopath/test 2>/dev/null || true
-	@cp test/*_test.go gopath/src/$(TARGET)
-	@export GOPATH=$(GOPATH); \
-	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
-	export CGO_CFLAGS=$(CGO_CFLAGS); \
-	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
-	(cd $(GOPATHDIR) \
-	&& go test -v)
+	@(cd src; golint)
+	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp src/*.cc
+	@python3 ${TVM_BASE}/dmlc-core/scripts/lint.py gotvm cpp src/*.h

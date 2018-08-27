@@ -336,7 +336,10 @@ int _TVMArrayCopyToBytes(DLTensor *dltensor, void *data, int64_t size) {
  *
  * \return the status of C runtime api call
  */
-int _TVMCFuncSetReturn(TVMRetValueHandle ret_handle, TVMValue *ret_value, int *type_code, int num_args) {
+int _TVMCFuncSetReturn(TVMRetValueHandle ret_handle,
+                       TVMValue *ret_value,
+                       int *type_code,
+                       int num_args) {
     return TVMCFuncSetReturn(ret_handle, ret_value, type_code, num_args);
 }
 
@@ -667,7 +670,11 @@ extern int goTVMCallback(void*, void*, int, void*, void*);
  *
  * \returns the error status as TVM_DLL
  */
-int _TVMCallback(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandle ret, void* resource_handle) {
+int _TVMCallback(TVMValue* args,
+                 int* type_codes,
+                 int num_args,
+                 TVMRetValueHandle ret,
+                 void* resource_handle) {
     return goTVMCallback(args, type_codes, num_args, ret, resource_handle);
 }
 
@@ -675,7 +682,7 @@ int _TVMCallback(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandl
  * _TVMPackedCFuncFinalizer is finalizer for packed function system.
  *
  */
-void _TVMPackedCFuncFinalizer (void* resource_handle) {
+void _TVMPackedCFuncFinalizer(void* resource_handle) {
     return;
 }
 
@@ -707,7 +714,7 @@ int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
 int _RegisterFunction(_gostring_ fname, TVMFunctionHandle fhandle) {
   char *func_name = _gostring_to_native(fname);
 
-  int ret = TVMFuncRegisterGlobal(func_name, fhandle, 0); // Override = False
+  int ret = TVMFuncRegisterGlobal(func_name, fhandle, 0);  // Override = False
 
   _native_free(func_name);
 
