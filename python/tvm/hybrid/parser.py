@@ -3,7 +3,7 @@
 import ast
 import operator
 import sys
-from .util import make_nop, halide_imm_types
+from .util import make_nop, halide_imm_types, is_docstring
 from .intrin import LOOP_INTRIN, MATH_INTRIN
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
@@ -15,7 +15,7 @@ from .. import ir_pass as _ir_pass
 
 def list_to_block(visit, lst):
     """Convert a list of Python IR nodes to HalideIR Block"""
-    lst = list(map(visit, lst))
+    lst = [visit(stmt) for stmt in lst if not is_docstring(stmt)]
     lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, make_nop())]
     if not lst:
         return make_nop()
