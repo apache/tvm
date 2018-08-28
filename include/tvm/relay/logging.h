@@ -8,10 +8,10 @@
 #ifndef TVM_RELAY_LOGGING_H_
 #define TVM_RELAY_LOGGING_H_
 
+#include <dmlc/logging.h>
 #include <string>
 #include <cstdlib>
 #include <iostream>
-#include "dmlc/logging.h"
 
 namespace tvm {
 namespace relay {

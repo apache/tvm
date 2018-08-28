@@ -1,8 +1,11 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file expr_visitor.h
- * \brief A simple visitor wrapper around ExprFunctor designed for visitors which
- * maintain mutable state.
+ * \file tvm/relay/expr_visitor.h
+ * \brief A simple visitor wrapper around ExprFunctor. 
+ * 
+ * Exposes two visitors with default traversal strategies, one
+ * which doesn't compute a result but can mutate internal state,
+ * and another which functionally builds a new Expr.
  */
 #ifndef TVM_RELAY_EXPR_VISITOR_H_
 #define TVM_RELAY_EXPR_VISITOR_H_

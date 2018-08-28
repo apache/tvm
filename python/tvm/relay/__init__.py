@@ -18,7 +18,6 @@ FuncType = tpe.FuncType
 # Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
-# TODO: GlobalVar, LocalVar-> var
 LocalVar = expr.LocalVar
 GlobalVar = expr.GlobalVar
 Param = expr.Param
