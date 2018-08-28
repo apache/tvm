@@ -269,12 +269,36 @@ class TypeCallNode : public TypeNode {
     v->Visit("args", &args);
   }
 
-  Type eval() const;
-
   TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
 
   static constexpr const char* _type_key = "relay.TypeCall";
   TVM_DECLARE_NODE_TYPE_INFO(TypeCallNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);
+
+/*!
+ * \brief The type of tuple values.
+ */
+class TupleType;
+/*!
+ * \brief TupleType container.
+ */
+class TupleTypeNode : public TypeNode {
+ public:
+  /*! \brief The type of each field in the tuple. */
+  tvm::Array<Type> fields;
+
+  TupleTypeNode() {}
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("fields", &fields);
+  }
+
+  TVM_DLL static TupleType make(tvm::Array<Type> fields);
+
+  static constexpr const char* _type_key = "relay.TypeTuple";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeTupleNode, TypeNode);
 };
 
 RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);

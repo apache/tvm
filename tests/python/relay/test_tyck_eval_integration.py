@@ -2,7 +2,7 @@
    for expressions.
 """
 from tvm.relay.type_infer import check_expr
-from tvm.relay.ir_builder import IRBuilder, float_type, func_type
+from tvm.relay.ir_builder import IRBuilder, float_type, func_type, tensor_type
 from tvm.relay.env import Environment
 from tvm.relay.op import log, add
 
@@ -15,12 +15,11 @@ def has_type(expr, typ):
 def test_monomorphic_let():
     "Program: let x = 1; return x"
     b = IRBuilder()
-    x = b.let('x', 1, value_type=float_type())
+    x = b.let('x', 1.0, value_type=float_type(64))
     b.ret(x)
 
     prog = b.get()
-    assert has_type(prog, float_type())
-
+    assert has_type(prog, float_type(64))
 
 def test_single_op():
     "Program: fn (x : float32) { let t1 = f(x); t1 }"
@@ -32,9 +31,15 @@ def test_single_op():
     assert has_type(func.to_func(), func_type([float_type()], float_type()))
 
 def test_dual_op():
-    "Program: fn (x : float32) { let t1 = f(x); let t2 = g(t1, x); t1 }"
+    """Program: 
+       fn (x : Tensor[f32, (10, 10)]) { 
+         let t1 = log(x); 
+         let t2 = add(t1, x); 
+         return t1;
+       }
+    """
     b = IRBuilder()
-    with b.function(('x', float_type())) as func:
+    with b.function(('x', tensor_type(10, 10))) as func:
         x, = func.param_ids()
         t1 = b.let('t1', log(x))
         t2 = b.let('t2', add(t1, x))
@@ -43,5 +48,5 @@ def test_dual_op():
 
 if __name__ == "__main__":
     # test_monomorphic_let()
-    test_single_op()
+    # test_single_op()
     test_dual_op()

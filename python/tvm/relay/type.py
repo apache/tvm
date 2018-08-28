@@ -27,12 +27,12 @@ class Type(NodeBase):
 class TensorType(Type):
     """A concrete TensorType in Relay, see tvm/relay/type.h for more details.
     """
-    dtype: str
     shape: List[expr.Expr]
+    dtype: str
     span: Span
 
-    def __init__(self, dtype: str, shape: List[expr.Expr]) -> None:
-        self.__init_handle_by_constructor__(_make.TensorType,dtype, shape)
+    def __init__(self, shape: List[expr.Expr], dtype: str) -> None:
+        self.__init_handle_by_constructor__(_make.TensorType, shape, dtype)
 
 class Kind(IntEnum):
     """The kind of a type parameter, represents a variable shape,

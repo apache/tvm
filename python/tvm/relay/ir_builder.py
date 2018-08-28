@@ -1,7 +1,7 @@
 from typing import Any
 import numpy as np
 import tvm
-from .type import FloatType, IntType, BoolType, UIntType, FuncType
+from .type import FloatType, IntType, BoolType, UIntType, FuncType, TensorType
 from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function
 from . import op as _op
 
@@ -166,6 +166,9 @@ def float_type(bits=32, lanes=1):
 
 def bool_type(lanes=1):
     return BoolType(lanes)
+
+def tensor_type(*shape, dtype='float32'):
+    return TensorType(tvm.convert(shape), dtype)
 
 def func_type(args, ret_type, type_params=[], type_constraints=[]):
     return FuncType(args, ret_type, type_params, type_constraints)

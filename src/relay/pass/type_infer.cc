@@ -66,22 +66,28 @@ struct TypeNormalizer : TypeFVisitor {
   Type VisitType_(const TypeCallNode * ty_call_node) {
     auto ty_call = GetRef<TypeCall>(ty_call_node);
 
-    auto all_concrete = true;
+    Array<Type> normalized_args;
+
     for (auto arg : ty_call->args) {
+      normalized_args.push_back(VisitType(arg));
+    }
+    
+    auto all_concrete = true;
+    for (auto arg : normalized_args) {
       all_concrete = all_concrete && !arg.as<IncompleteTypeNode>();
     }
 
     if (all_concrete) {
-      return ty_call->args[ty_call->args.size() - 1];
+      return normalized_args[normalized_args.size() - 1];
     } else {
       if (auto ty_rel_node = ty_call->func.as<TypeRelationNode>()) {
         // NB: we substract 1 for the output argument.
         auto new_args = ty_rel_node->func_(ty_call->args, ty_call->args.size() - 1);
-        CHECK(new_args.size() == ty_call->args.size());
+        CHECK(new_args.size() == normalized_args.size());
         tvm::Array<Type> final_args;
 
         for (int i = 0; i < new_args.size(); i++) {
-          final_args.push_back(unifier->unify(ty_call->args[i], new_args[i]));
+          final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
         }
 
         return TypeCallNode::make(ty_call->func, final_args);
@@ -606,7 +612,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
   Type TypeInferencer::unify(const Type &t1, const Type &t2, Span sp) {
     try {
-      return this->unifier->unify(t1, t2);
+      return Normalize(this->unifier->unify(t1, t2));
     } catch (const dmlc::Error &e) {
       std::stringstream ss;
       ss << "Error unifying `";
