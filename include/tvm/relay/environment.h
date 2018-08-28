@@ -13,7 +13,7 @@
 #include "./type.h"
 #include "./op.h"
 #include "./error.h"
-// #include "tvm/relay/source_map.h"
+#include "tvm/relay/source_map.h"
 
 namespace tvm {
 namespace relay {
@@ -43,10 +43,10 @@ class EnvironmentNode : public RelayNode {
  private:
   /*! \brief A map from string names to global variables ensures global uniqueness. */
   tvm::Map<std::string, GlobalVar> global_map_;
-  // /*! \brief A map from file names to source fragments. */
-  // SourceMap source_map_
-  // /*! \brief A list of the errors reported during the current run. */
-  // std::vector<Error> errors_;
+  /*! \brief A map from file names to source fragments. */
+  SourceMap source_map_;
+  /*! \brief A list of the errors reported during the current run. */
+  std::vector<SpannedError> errors_;
 
  public:
   /*! \brief A map from ids to all global functions. */
@@ -73,7 +73,7 @@ class EnvironmentNode : public RelayNode {
   Function Lookup(const std::string & s);
 
   /*! \brief Add a source fragment to the environment. */
-  // FileId add_source(std::string file_name, std::string source);
+  SourceName AddSource(std::string file_name, std::string source);
 
   void ReportError(std::string msg, Span sp);
   void DisplayErrors();
