@@ -4,7 +4,6 @@ from typing import Tuple, List
 from enum import IntEnum
 from .base import Span, NodeBase, register_relay_node
 from tvm import expr
-# TODO(@jroesch): move me
 from . import _make
 
 class Type(NodeBase):
@@ -85,39 +84,3 @@ class IncompleteType(Type):
 
     def __init__(self, kind: Kind) -> None:
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)
-
-def IntType(bits: int, lanes: int=1) -> Type:
-    """Constructs a integer base type.
-
-       :param bits: The bit width of the integer type.
-       :param lanes: The number of vector elements for this datatype.
-
-    """
-    return _make.IntType(bits, lanes)
-
-
-def UIntType(bits: int, lanes: int=1) -> Type:
-    """Constructs a unsigned integer base type.
-
-       :param bits: The bit width of the unsigned type.
-       :param lanes: The number of vector elements for this datatype.
-    """
-    return _make.UIntType(bits, lanes)
-
-
-def FloatType(bits: int, lanes: int=1) -> Type:
-    """Constructs a floating point base type.
-
-       :param bits: The bit width of the unsigned type.
-       :param lanes: The number of vector elements for this datatype.
-    """
-    return _make.FloatType(bits, lanes)
-
-
-def BoolType(lanes: int =1) -> Type:
-    """Constructs a boolean base type.
-
-       :param bits: The bit width of the unsigned type.
-       :param lanes: The number of vector elements for this datatype.
-    """
-    return _make.BoolType(lanes)
