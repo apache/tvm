@@ -5,6 +5,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/device_api.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
 #include <numeric>
@@ -33,9 +34,8 @@ namespace runtime {
 class GraphRuntime : public ModuleNode {
  public:
   ~GraphRuntime() {
-    for (DLTensor* t : storage_pool_) {
-      TVM_CCALL(TVMArrayFree(t));
-    }
+    storage_pool_.clear();
+    data_entry_.clear();
   }
   /*!
    * \brief Get member function to front-end
@@ -103,27 +103,82 @@ class GraphRuntime : public ModuleNode {
   void SetInput(int index, DLTensor* data_in) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
-    TVM_CCALL(TVMArrayCopyFromTo(data_in, &data_entry_[eid], nullptr));
+    data_entry_[eid].CopyFrom(data_in);
+  }
+  /*!
+   * \brief Get the number of inputs
+   *
+   * \return The number of inputs to the graph.
+   */
+  int GetInputCount(void) {
+    return input_nodes_.size();
+  }
+  /*!
+   * \brief Get the number of outputs
+   *
+   * \return The number of outputs from graph.
+   */
+  int GetOutputCount(void) {
+    return outputs_.size();
+  }
+  /*!
+   * \brief Return NDArray for given input index.
+   * \param index The input index.
+   *
+   * \return NDArray corresponding to given input node index.
+   */
+  NDArray GetInputAsNDArray(int index) {
+    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+    uint32_t eid = this->entry_id(input_nodes_[index], 0);
+    return NDArray(data_entry_[eid]);
+  }
+  /*!
+   * \brief Return NDArray for given output index.
+   * \param index The output index.
+   *
+   * \return NDArray corresponding to given output node index.
+   */
+  NDArray GetOutputAsNDArray(int index) {
+    CHECK_LT(static_cast<size_t>(index), outputs_.size());
+    uint32_t eid = this->entry_id(outputs_[index]);
+    tvm::runtime::DeviceAPI::Get(ctx_)->StreamSync(ctx_, nullptr);
+    return NDArray(data_entry_[eid]);
   }
   /*!
    * \brief Copy index-th input to data_out
    * \param index The input index.
    * \param data_out The output
    */
-  void GetInput(int index, DLTensor* data_out) {
+  void GetInputAsDLTensor(int index, DLTensor* data_out) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
-    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+
+    // Check the shapes to avoid receiving in different dimension but same size.
+    const DLTensor* data = data_entry_[eid].operator->();
+    CHECK_EQ(data->ndim, data_out->ndim);
+    for (int32_t j = 0; j < data->ndim; ++j) {
+        CHECK_EQ(data->shape[j], data_out->shape[j]);
+    }
+
+    data_entry_[eid].CopyTo(data_out);
   }
   /*!
    * \brief Copy index-th output to data_out.
    * \param index The output index.
    * \param data_out the output data.
    */
-  void GetOutput(int index, DLTensor* data_out) {
+  void GetOutputAsDLTensor(int index, DLTensor* data_out) {
     CHECK_LT(static_cast<size_t>(index), outputs_.size());
     uint32_t eid = this->entry_id(outputs_[index]);
-    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+
+    // Check the shapes to avoid receiving in different dimension but same size.
+    const DLTensor* data = data_entry_[eid].operator->();
+    CHECK_EQ(data->ndim, data_out->ndim);
+    for (int32_t j = 0; j < data->ndim; ++j) {
+        CHECK_EQ(data->shape[j], data_out->shape[j]);
+    }
+
+    data_entry_[eid].CopyTo(data_out);
   }
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   /*!
@@ -160,7 +215,7 @@ class GraphRuntime : public ModuleNode {
       if (static_cast<int>(i) == index) break;
     }
 
-    TVM_CCALL(TVMArrayCopyFromTo(&data_entry_[eid], data_out, nullptr));
+    data_entry_[eid].CopyTo(data_out);
   }
 #endif
   /*!
@@ -346,7 +401,7 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
-  void LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor);
+  void LoadDLTensor(dmlc::Stream* strm, NDArray tensor);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors */
@@ -392,19 +447,19 @@ class GraphRuntime : public ModuleNode {
   /*! \brief execution context */
   TVMContext ctx_;
   /*! \brief common storage pool */
-  std::vector<DLTensor*> storage_pool_;
+  std::vector<NDArray> storage_pool_;
   /*! \brief data entry of each node */
-  std::vector<DLTensor> data_entry_;
+  std::vector<NDArray> data_entry_;
   /*! \brief operator on each node */
   std::vector<std::function<void()> > op_execs_;
 };
 
 
-void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, DLTensor* dst) {
+void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, NDArray dst) {
   // always use strm->Read to maintain endianness conversion
   NDArray temp;
   temp.Load(strm);
-  temp.CopyTo(dst);
+  dst.CopyFrom(temp);
 }
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
@@ -429,7 +484,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
-    LoadDLTensor(strm, &data_entry_[eid]);
+    LoadDLTensor(strm, data_entry_[eid]);
   }
 }
 
@@ -463,20 +518,15 @@ void GraphRuntime::SetupStorage() {
   }
   // Allocate the space.
   for (size_t i = 0; i < pool_entry_bytes.size(); ++i) {
-    int64_t shape[] = {static_cast<int64_t>(pool_entry_bytes[i] + 3) / 4};
-    DLTensor* tensor;
-    TVM_CCALL(TVMArrayAlloc(
-        shape, 1, kDLFloat, 32, 1, ctx_.device_type, ctx_.device_id, &tensor));
-    storage_pool_.push_back(tensor);
+    std::vector<int64_t> shape;
+    shape.push_back(static_cast<int64_t>(pool_entry_bytes[i] + 3) / 4);
+    storage_pool_.push_back(NDArray::Empty(shape, DLDataType {kDLFloat, 32, 1}, ctx_));
   }
   // Assign the pooled entries.
   for (size_t i = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    data_entry_[i] = *storage_pool_[storage_id];
-    data_entry_[i].shape = const_cast<int64_t*>(attrs_.shape[i].data());
-    data_entry_[i].ndim = static_cast<int>(attrs_.shape[i].size());
-    data_entry_[i].dtype = vtype[i];
+    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
   }
 }
 
@@ -488,11 +538,11 @@ void GraphRuntime::SetupOpExecs() {
     if (inode.op_type == "null") continue;
     std::vector<DLTensor> args;
     for (const auto& e : inode.inputs) {
-      args.push_back(data_entry_[this->entry_id(e)]);
+      args.push_back(*(data_entry_[this->entry_id(e)].operator->()));
     }
     for (uint32_t index = 0; index < inode.param.num_outputs; ++index) {
       uint32_t eid = this->entry_id(nid, index);
-      args.push_back(data_entry_[eid]);
+      args.push_back(*(data_entry_[eid].operator->()));
     }
     CHECK_EQ(inode.op_type, "tvm_op")
         << "Can only take tvm_op as op";
@@ -560,17 +610,34 @@ PackedFunc GraphRuntime::GetFunction(
       });
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        this->GetOutput(args[0], args[1]);
+        if (args.num_args == 2) {
+            this->GetOutputAsDLTensor(args[0], args[1]);
+        } else {
+            *rv = this->GetOutputAsNDArray(args[0]);
+        }
       });
   } else if (name == "get_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        int in_idx = 0;
         if (args[0].type_code() == kStr) {
-          int in_idx = this->GetInputIndex(args[0]);
+          in_idx = this->GetInputIndex(args[0]);
           CHECK_GE(in_idx, 0);
-          this->GetInput(in_idx, args[1]);
         } else {
-          this->GetInput(args[0], args[1]);
+          in_idx = args[0];
         }
+        if (args.num_args == 2) {
+            this->GetInputAsDLTensor(in_idx, args[1]);
+        } else {
+            *rv = this->GetInputAsNDArray(in_idx);
+        }
+      });
+  } else if (name == "get_input_count") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->GetInputCount();
+      });
+  } else if (name == "get_output_count") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+          *rv = this->GetOutputCount();
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {

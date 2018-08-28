@@ -73,6 +73,8 @@ class GraphModule(object):
         self._run = module["run"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
+        self._get_output_count = module["get_output_count"]
+        self._get_input_count = module["get_input_count"]
         try:
             self._debug_get_output = module["debug_get_output"]
         except AttributeError:
@@ -112,7 +114,27 @@ class GraphModule(object):
             self.set_input(**input_dict)
         self._run()
 
-    def get_input(self, index, out):
+    def get_input_count(self):
+        """Get the number of inputs to the graph
+
+        Returns
+        -------
+        count : int
+            count of graph inputs
+        """
+        return self._get_input_count()
+
+    def get_output_count(self):
+        """Get the number of outputs from the graph
+
+        Returns
+        -------
+        count : int
+            count of graph outputs
+        """
+        return self._get_output_count()
+
+    def get_input(self, index, out=None):
         """Get index-th input to out
 
         Parameters
@@ -123,10 +145,13 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        self._get_input(index, out)
-        return out
+        if out:
+            self._get_input(index, out)
+            return out
 
-    def get_output(self, index, out):
+        return self._get_input(index)
+
+    def get_output(self, index, out=None):
         """Get index-th output to out
 
         Parameters
@@ -137,8 +162,11 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        self._get_output(index, out)
-        return out
+        if out:
+            self._get_output(index, out)
+            return out
+
+        return self._get_output(index)
 
     def debug_get_output(self, node, out):
         """Run graph upto node and get the output to out
