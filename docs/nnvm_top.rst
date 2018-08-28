@@ -136,10 +136,8 @@ This level enables typical convnet models.
    nnvm.symbol.collapse_sum
    nnvm.symbol.broadcast_equal
    nnvm.symbol.broadcast_greater_equal
-   nnvm.symbol.broadcast_greater_equal
    nnvm.symbol.broadcast_greater
    nnvm.symbol.broadcast_left_shift
-   nnvm.symbol.broadcast_less_equal
    nnvm.symbol.broadcast_less_equal
    nnvm.symbol.broadcast_less
    nnvm.symbol.broadcast_max
@@ -252,10 +250,8 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.collapse_sum
 .. autofunction:: nnvm.symbol.broadcast_equal
 .. autofunction:: nnvm.symbol.broadcast_greater_equal
-.. autofunction:: nnvm.symbol.broadcast_greater_equal
 .. autofunction:: nnvm.symbol.broadcast_greater
 .. autofunction:: nnvm.symbol.broadcast_left_shift
-.. autofunction:: nnvm.symbol.broadcast_less_equal
 .. autofunction:: nnvm.symbol.broadcast_less_equal
 .. autofunction:: nnvm.symbol.broadcast_less
 .. autofunction:: nnvm.symbol.broadcast_max
