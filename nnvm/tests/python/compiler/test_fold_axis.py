@@ -6,6 +6,7 @@ from nnvm import symbol as sym
 from nnvm.compiler import graph_util, graph_attr
 
 def test_fold_axis_conv():
+    # Before simplify
     def before(x, conv_weight, conv_bias, in_scale, out_scale, channels):
         x = x * sym.expand_dims(in_scale, axis=1, num_newaxis=2)
         y = sym.conv2d(x, conv_weight, conv_bias,
@@ -31,7 +32,6 @@ def test_fold_axis_conv():
         y = sym.relu(y)
         return y
 
-    # Before simplify
     def check(shape, channels):
         x = sym.Variable("x") + 1
         weight = sym.Variable("weight")
@@ -51,6 +51,7 @@ def test_fold_axis_conv():
     check((2, 4, 10, 10), 2)
 
 def test_fold_axis_depthwise_conv():
+    # Before simplify
     def before(x, conv_weight, conv_bias, in_scale, out_scale, channels):
         x = x * sym.expand_dims(in_scale, axis=1, num_newaxis=2)
         y = sym.conv2d(x, conv_weight, conv_bias,
@@ -78,7 +79,6 @@ def test_fold_axis_depthwise_conv():
         y = sym.relu(y)
         return y
 
-    # Before simplify
     def check(shape, channels):
         x = sym.Variable("x") + 1
         weight = sym.Variable("weight")
@@ -98,6 +98,7 @@ def test_fold_axis_depthwise_conv():
     check((1, 54, 63, 127), 54)
 
 def test_fold_fail():
+    # Before simplify
     def before(x, scale, channels):
         y = sym.conv2d(x,
                        channels=channels,
@@ -107,7 +108,6 @@ def test_fold_fail():
         y = y * sym.expand_dims(scale, axis=1, num_newaxis=1)
         return y
 
-    # Before simplify
     def check(shape, channels):
         x = sym.Variable("x")
         bias = sym.Variable("bias")
