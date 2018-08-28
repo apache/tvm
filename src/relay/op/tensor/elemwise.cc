@@ -39,6 +39,9 @@ RELAY_REGISTER_UNARY_OP("log")
 .set_support_level(1)
 .add_type_func("Log", IdentityRel);
 
+// data : Tensor[shape, dtype]
+// result: Tensor[shape, dtype]
+
 
 RELAY_REGISTER_UNARY_OP("exp")
 .describe(R"code(Returns the exp input array, computed element-wise.
@@ -74,6 +77,13 @@ RELAY_REGISTER_OP("add")
   .add_argument("rhs", "Tensor", "The right hand side tensor.")
   .set_support_level(1)
   .add_type_func("Broadcast", BroadcastRel);
+
+  // def broadcast(s1, s2):
+  // ...
+  //
+  // input1: Tensor[dtype, s1]
+  // input2: Tensor[dtype, s2]
+  // output: Tensor[dtype, broadcast(s1, s2)]
 
 }  // namespace relayv
 }  // namespace tvm

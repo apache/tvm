@@ -20,7 +20,7 @@ TensorType as_ttype(const Type & t) {
 }
 
 Array<Type> IdentityRel(const Array<Type> & types, int num_args) {
-    CHECK(types.size() == 1);
+    CHECK(types.size() == 2);
     auto t1 = as_ttype(types[0]);
     if (t1 && types[1].as<IncompleteTypeNode>()) {
         return {t1, t1};

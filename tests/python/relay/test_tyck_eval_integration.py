@@ -13,7 +13,7 @@ def has_type(expr, typ):
     return checked_expr.checked_type() == typ
 
 def test_monomorphic_let():
-    "Program: let x = 1; x"
+    "Program: let x = 1; return x"
     b = IRBuilder()
     x = b.let('x', 1, value_type=float_type())
     b.ret(x)

@@ -62,7 +62,34 @@ struct TypeContext {
 struct TypeNormalizer : TypeFVisitor {
   TypeUnifier unifier;
   TypeNormalizer(const TypeUnifier & unifier) : unifier(unifier) {}
-  // Type VisitType_(
+
+  Type VisitType_(const TypeCallNode * ty_call_node) {
+    auto ty_call = GetRef<TypeCall>(ty_call_node);
+
+    auto all_concrete = true;
+    for (auto arg : ty_call->args) {
+      all_concrete = all_concrete && !arg.as<IncompleteTypeNode>();
+    }
+
+    if (all_concrete) {
+      return ty_call->args[ty_call->args.size() - 1];
+    } else {
+      if (auto ty_rel_node = ty_call->func.as<TypeRelationNode>()) {
+        // NB: we substract 1 for the output argument.
+        auto new_args = ty_rel_node->func_(ty_call->args, ty_call->args.size() - 1);
+        CHECK(new_args.size() == ty_call->args.size());
+        tvm::Array<Type> final_args;
+
+        for (int i = 0; i < new_args.size(); i++) {
+          final_args.push_back(unifier->unify(ty_call->args[i], new_args[i]));
+        }
+
+        return TypeCallNode::make(ty_call->func, final_args);
+      } else {
+        CHECK(false);
+      }
+    }
+  }
 };
 
 struct CheckedExpr {
@@ -167,25 +194,8 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   }
 
   CheckedExpr TypeInferencer::VisitExpr_(const ConstantNode *const_node) {
-    auto array = const_node->data;
-    // array->t
-    // first pass
-    return {
-      GetRef<Constant>(const_node),
-      TensorTypeNode::make({}, HalideIR::Float(32, 1)) };
+    return { GetRef<Constant>(const_node), const_node->tensor_type() };
   }
-
-  // Type TypeInferencer::VisitExpr_(const OpIdNode *op) {
-  //   OpId id = GetRef<OpId>(op);
-  //   Item item = this->env->lookup(id);
-
-  //   if (const OpNode *pn = item.as<OpNode>()) {
-  //     Op prim = GetRef<Op>(pn);
-  //     return prim->type;
-  //   } else {
-  //     this->fatal_error("internal error in InstrinsicId case", op->span);
-  //   }
-  // }
 
   CheckedExpr TypeInferencer::VisitExpr_(const TupleNode *op) {
     // Tuple pl = GetRef<Tuple>(op);

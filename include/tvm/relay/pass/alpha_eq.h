@@ -6,8 +6,8 @@
 #ifndef TVM_RELAY_ALPHA_EQ_H_
 #define TVM_RELAY_ALPHA_EQ_H_
 
-#include "tvm/relay/type.h"
-#include "tvm/relay/expr.h"
+#include "../type.h"
+#include "../expr.h"
 
 namespace tvm {
 namespace relay {

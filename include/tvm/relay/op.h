@@ -155,6 +155,15 @@ class OpRegistry {
    */
   inline OpRegistry& add_type_func(const std::string & type_func_name, TypeRelationFn type_fn);
 
+   /*!
+   * \brief Attach the type function corresponding to the return type.
+   * \param ty_func The type function to register for the return type.
+   * \return reference to self.
+   */
+  inline OpRegistry& add_type_func(
+    const std::string & type_func_name, 
+    std::function<Array<Type>(const Array<Type> &, int)> type_fn);
+
   /*!
    * \brief Set the type key of attributes.
    * \param type_key The type of of the attrs field.x
@@ -343,30 +352,44 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
   return *this;
 }
 
- inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name, TypeRelationFn type_fn) {
-   auto type_func = TypeRelationNode::make(type_func_name, 0);
+inline OpRegistry& OpRegistry::add_type_func(
+  const std::string & type_func_name, 
+  std::function<Array<Type>(const Array<Type> &, int)> type_fn) {
+  auto pfunc = runtime::TypedPackedFunc<Array<Type>(const Array<Type> &, int)>(type_fn);
+  return add_type_func(type_func_name, pfunc);
+}
 
-   std::vector<TypeParam> type_params;
-   std::vector<Type> arg_types;
-   // TODO (@jroesch: revise type generation strategy
-   int i = 0;
-   for (auto arg : get()->arguments) {
-     std::string name = "t";
-     name += std::to_string(i++);
-     auto param = TypeParamNode::make(name, TypeParamNode::Kind::kType);
-     type_params.push_back(param);
-     arg_types.push_back(param);
-   }
+inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name, TypeRelationFn type_fn) {
+  auto type_func = TypeRelationNode::make(type_func_name, 0, type_fn);
 
+  std::vector<TypeParam> type_params;
+  std::vector<Type> arg_types;
 
-   auto type_result = TypeCallNode::make(type_func, arg_types);
+  // Add inputs.
+  int i = 0;
+  for (auto arg : get()->arguments) {
+    std::string name = "in";
+    name += std::to_string(i++);
+    auto param = TypeParamNode::make(name, TypeParamNode::Kind::kType);
+    type_params.push_back(param);
+    arg_types.push_back(param);
+  }
 
-   auto func_type = FuncTypeNode::make(arg_types, type_result, type_params, {});
+  auto ty_call_args = Array<Type>(arg_types);
 
-   get()->op_type = func_type;
+  // Add output type.
+  auto out_param = TypeParamNode::make("out", TypeParamNode::Kind::kType);
+  type_params.push_back(out_param);
+  ty_call_args.push_back(out_param);
 
-   return *this;
- }
+  auto type_result = TypeCallNode::make(type_func, ty_call_args);
+
+  auto func_type = FuncTypeNode::make(arg_types, type_result, type_params, {});
+
+  get()->op_type = func_type;
+
+  return *this;
+}
 
 inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   get()->num_inputs = n;

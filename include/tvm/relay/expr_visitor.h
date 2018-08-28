@@ -7,7 +7,7 @@
 #ifndef TVM_RELAY_EXPR_VISITOR_H_
 #define TVM_RELAY_EXPR_VISITOR_H_
 
-#include "tvm/relay/expr_functor.h"
+#include <tvm/relay/expr_functor.h>
 
 namespace tvm {
 namespace relay {

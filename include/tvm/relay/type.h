@@ -210,7 +210,7 @@ class FuncTypeNode : public TypeNode {
 
 RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
 
-using TypeRelationFn = std::function<Array<Type>(const Array<Type>&, int)>;
+using TypeRelationFn = runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>;
 
 /*!
  * \brief Opaque type relation, is an input-output relation on types.
@@ -239,7 +239,7 @@ class TypeRelationNode : public RelayNode {
     v->Visit("num_args", &num_args);
   }
 
-  TVM_DLL static TypeRelation make(std::string name, int num_args);
+  TVM_DLL static TypeRelation make(std::string name, int num_args, TypeRelationFn func_);
 
   static constexpr const char* _type_key = "relay.TypeRelation";
   TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, RelayNode);
@@ -258,6 +258,7 @@ class TypeCallNode : public TypeNode {
  public:
   /*! \brief The type function to be called. */
   Type func;
+  
   /*! \brief The type arguments to the type function. */
   tvm::Array<Type> args;
 

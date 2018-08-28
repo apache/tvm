@@ -49,15 +49,16 @@ using NodeEqual = ::tvm::NodeEqual;
  * \param NodeName The internal contrainer name.
  * \param NodeRefBase The base type.
  */
-#define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)          \
-  class TypeName : public NodeRefBase {                                 \
-   public:                                                              \
-    TypeName() {}                                                        \
+#define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)            \
+  class TypeName : public NodeRefBase {                                   \
+   public:                                                                \
+    TypeName() {}                                                         \
     explicit TypeName(std::shared_ptr<::tvm::Node> n) : NodeRefBase(n) {} \
-    const NodeName* operator->() const {                                 \
-      return static_cast<const NodeName*>(node_.get());                  \
-    }                                                                    \
-    using ContainerType = NodeName;                                      \
+    const NodeName* operator->() const {                                  \
+      return static_cast<const NodeName*>(node_.get());                   \
+    }                                                                     \
+    operator bool() { return this->defined(); }                           \
+    using ContainerType = NodeName;                                       \
   };
 
 

@@ -1,11 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file type.cc
+ * \file src/tvm/ir/type.cc
  * \brief The type system AST nodes of Relay.
  */
-#include "tvm/relay/type.h"
-#include "tvm/ir_functor.h"
-
+#include <tvm/ir_functor.h>
+#include <tvm/relay/type.h>
 
 namespace tvm {
 namespace relay {
@@ -41,7 +40,6 @@ TVM_REGISTER_API("relay._make.TensorType")
       Array<ShapeExpr> shape = args[0];
       *ret = TensorTypeNode::make(shape, args[1]);
     });
-
 
 TVM_REGISTER_API("relay._make.IntType")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -91,10 +89,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << node->kind << ")";
     });
 
-
 FuncType FuncTypeNode::make(tvm::Array<Type> arg_types, Type ret_type,
-                             tvm::Array<TypeParam> type_params,
-                             tvm::Array<TypeConstraint> type_constraints) {
+                            tvm::Array<TypeParam> type_params,
+                            tvm::Array<TypeConstraint> type_constraints) {
   std::shared_ptr<FuncTypeNode> n = std::make_shared<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
@@ -116,22 +113,24 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << node->type_constraints << ")";
     });
 
-TypeRelation TypeRelationNode::make(std::string name, int num_args) {
+TypeRelation TypeRelationNode::make(std::string name, int num_args, TypeRelationFn func) {
   std::shared_ptr<TypeRelationNode> n = std::make_shared<TypeRelationNode>();
   n->name = std::move(name);
   n->num_args = std::move(num_args);
+  n->func_ = std::move(func);
   return TypeRelation(n);
 }
 
 TVM_REGISTER_API("relay._make.TypeRelation")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TypeRelationNode::make(args[0], args[1]);
+      *ret = TypeRelationNode::make(args[0], args[1], args[2]);
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
-                                   tvm::IRPrinter *p) {
-      p->stream << "TypeRelationNode(" << node->name << ", " << node->num_args << ")";
+                                       tvm::IRPrinter *p) {
+      p->stream << "TypeRelationNode(" << node->name << ", " << node->num_args
+                << ")";
     });
 
 TypeCall TypeCallNode::make(Type func, Array<Type> args) {
@@ -151,7 +150,6 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                                    tvm::IRPrinter *p) {
       p->stream << "TypeCallNode(" << node->func << ", " << node->args << ")";
     });
-
 
 }  // namespace relay
 }  // namespace tvm
