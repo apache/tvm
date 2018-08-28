@@ -526,7 +526,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
   Type TypeInferencer::resolve(const Type &t) {
     if (t.defined()) {
-      return ::tvm::relay::resolve(this->unifier, t);
+      return ::tvm::relay::Resolve(this->unifier, t);
     } else {
       return IncompleteTypeNode::make(TypeParamNode::Kind::kType);
     }
@@ -534,7 +534,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
   Expr TypeInferencer::resolve(const Expr &e) {
     CHECK(e.defined());
-    return ::tvm::relay::resolve(this->unifier, e);
+    return ::tvm::relay::Resolve(this->unifier, e);
   }
 
   void TypeInferencer::CheckOp(Op op) {

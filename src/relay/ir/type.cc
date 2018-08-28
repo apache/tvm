@@ -151,7 +151,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
       p->stream << "TypeCallNode(" << node->func << ", " << node->args << ")";
     });
 
-TypeCall TupleTypeNode::make(Array<Type> fields) {
+TupleType TupleTypeNode::make(Array<Type> fields) {
   std::shared_ptr<TupleTypeNode> n = std::make_shared<TupleTypeNode>();
   n->fields = std::move(fields);
   return TupleType(n);

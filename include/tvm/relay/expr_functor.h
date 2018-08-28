@@ -1,8 +1,8 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file expr_functor.h
- * \brief A more powerful Visitor that enables defining arbitrary function
- * signatures with dispatch on first argument.
+ * \file tvm/relay/expr_functor.h
+ * \brief A more powerful visitor which enables defining arbitrary function
+ * signatures with type based dispatch on first argument.
  */
 #ifndef TVM_RELAY_EXPR_FUNCTOR_H_
 #define TVM_RELAY_EXPR_FUNCTOR_H_
@@ -19,36 +19,8 @@ namespace relay {
  * \brief A dynamical functor that dispatches on in the first Expr argument.
  *  You can use this as a more powerful Visitor, since it allows you to
  *  define function signatures of Visit Function.
- *
- *  This helps you to avoid to book-keep return value of Visitor via state,
- *  which can cause bugs easily when state is incorrectly maintained.
- *
- * \code
- *  // A functor that set variable to b. and calculate results.
- *  class MyExprFunctor
- *    : public ir::ExprFunctor<int(const Expr&, int)> {
- *   public:
- *    int VisitExpr_(const Variable* op, int b) final {
- *     return b;
- *    }
- *    int VisitExpr_(const IntImm* op, int b) final {
- *      return op->value;
- *    }
- *    int VisitExpr_(const Add* op, int b) final {
- *     return Visit(op->a, b) + Visit(op->b, b);
- *    }
- *  };
- *  MyExprFunctor f;
- *  Var x("x");
- *  CHECK_EQ(f(x + 1, 2), 3);
- * \endcode
- *
- * \note Why do we need this more powerful Functor:
- *
- *  We often need to implement a transformer tasks.
- *  Say we want to take Expr and transform it to some analysis result,
- *  This easily be done incorrectly using plain Visitor. See IRVisitor's
- *  document for possible error cases.
+ * 
+ * \sa tvm/ir_functor.h
  *
  * \tparam FType function signiture
  *  This type if only defined for FType with function signiture R(const Expr&,

@@ -64,12 +64,12 @@ struct ResolveTypeExpr : ExprFVisitor<> {
   }
 };
 
-Type resolve(const TypeUnifier &unifier, const Type &ty) {
+Type Resolve(const TypeUnifier &unifier, const Type &ty) {
   CHECK(ty.defined());
   return ResolveTypeType(unifier).VisitType(ty);
 }
 
-Expr resolve(const TypeUnifier &unifier, const Expr &expr) {
+Expr Resolve(const TypeUnifier &unifier, const Expr &expr) {
   return ResolveTypeExpr(unifier).VisitExpr(expr);
 }
 
@@ -91,7 +91,7 @@ struct FullyResolved : TypeVisitor<> {
   }
 };
 
-bool is_fully_resolved(const Type &t) {
+bool IsFullyResolved(const Type &t) {
   auto fr = FullyResolved();
   fr.VisitType(t);
   return fr.incomplete;

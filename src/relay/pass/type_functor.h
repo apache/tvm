@@ -65,6 +65,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
 
   virtual R VisitTypeDefault_(const Node* op, Args...) {
@@ -83,6 +84,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     RELAY_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
     return vtable;
   }

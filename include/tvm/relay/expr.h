@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/expr.h
- * \brief The Relay IR expression nodes.
+ * \brief Relay expression language.
  */
 #ifndef TVM_RELAY_EXPR_H_
 #define TVM_RELAY_EXPR_H_
@@ -16,11 +16,8 @@
 namespace tvm {
 namespace relay {
 
-// TOD0(@jroesch): best way to define?
-class TypeInferencer;
-
 /*!
- * \brief Relay expression.
+ * \brief A Relay expression.
  */
 class Expr;
 /*!
@@ -28,7 +25,6 @@ class Expr;
  */
 class ExprNode : public RelayNode {
  public:
- // private:
   /*!
    * \brief Stores the result of type inference(type checking).
    *
@@ -48,7 +44,6 @@ class ExprNode : public RelayNode {
 
   static constexpr const char* _type_key = "relay.Expr";
   TVM_DECLARE_BASE_NODE_INFO(ExprNode, RelayNode);
-  friend class TypeInferencer;
 };
 
 RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
@@ -68,8 +63,6 @@ class ConstantNode : public ExprNode {
   /*! \brief The data of the tensor */
   runtime::NDArray data;
 
-  // TODO(tqchen) add the function after we get TensorType constructor
-  // TODO(tqchen) create simple TensorType constructor for concrete types.
   /*! \return The corresponding tensor type of the data */
   TensorType tensor_type() const;
 
@@ -335,6 +328,12 @@ RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
 
 /*!
  * \brief Condition expression
+ * 
+ * Unlike traditional statement `if`s, the if evalutes
+ * to the result of the branch taken.
+ * 
+ * let x = if (true) { 1 } else { 0 }; // x is 1
+ * let y = if (false) { 1 } else { 0 }; // y is 0
  */
 class If;
 /*! \brief container of If */
@@ -342,9 +341,9 @@ class IfNode : public ExprNode {
  public:
   /*! \brief The condition */
   Expr cond;
-  /*! \brief The value to take when condition is true */
+  /*! \brief The expression evaluated when condition is true. */
   Expr true_value;
-  /*! \brief The value to take when condition is false */
+  /*! \brief The expression evaluated when condition is false */
   Expr false_value;
 
   IfNode() {}

@@ -64,7 +64,7 @@ static Type ConcreteBroadcast(const TensorType & t1, const TensorType & t2) {
   Array<tvm::Expr> smaller;
 
   for (int i = 0; i < (full_len - suffix_len); i++) {
-    smaller.push_back(tvm::ir::IntImm::make(1));
+    // smaller.push_back(tvm::ir::IntImm::make(1));
   }
 
   if (sh1.size() < sh2.size()) {

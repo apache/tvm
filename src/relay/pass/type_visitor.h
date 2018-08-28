@@ -22,7 +22,7 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
   void VisitType_(const TypeParamNode* op, Args... args) override {}
 
   void VisitType_(const FuncTypeNode* op, Args... args) override {
-    // fix me handle poly
+    // TODO(@jroesch): handle poly
     // this->VisitType(op->var, args...);
     // this->VisitType(op->boundType, args...);
     for (auto arg_type : op->arg_types) {
@@ -33,11 +33,11 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
 
   void VisitType_(const TensorTypeNode* op, Args... args) override {}
 
-  //   void VisitType_(const TupleTypeNode* op, Args... args) override {
-  //     for (const Type& t : op->fields) {
-  //       this->VisitType(t, args...);
-  //     }
-  //   }
+  void VisitType_(const TupleTypeNode* op, Args... args) override {
+    for (const Type& t : op->fields) {
+      this->VisitType(t, args...);
+    }
+  }
 
   void VisitType_(const TypeCallNode* op, Args... args) override {
     this->VisitType(op->func, args...);
@@ -63,46 +63,48 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
   }
 
   Type VisitType_(const FuncTypeNode* op) override {
+    // TODO (@jroesch): handle poly
+
     // auto new_id = this->VisitType(op->var);
     // if (const TypeParamNode* tin = new_id.as<TypeParamNode>()) {
     // return TypeQuantifierNode::make(GetRef<TypeParam>(tin),
     //                                this->VisitType(op->boundType));
 
-      std::vector<Type> args;
-      for (auto arg_type : op->arg_types) {
-        args.push_back(VisitType(arg_type));
+    std::vector<Type> args;
+    for (auto arg_type : op->arg_types) {
+      args.push_back(VisitType(arg_type));
+    }
+
+    return FuncTypeNode::make(tvm::Array<Type>(args), VisitType(op->ret_type),
+                              {}, {});  // fix me
+  }
+
+    Type VisitType_(const TupleTypeNode* op) override {
+      std::vector<Type> new_fields;
+      for (const Type& t : op->fields) {
+        new_fields.push_back(this->VisitType(t));
       }
-
-      return FuncTypeNode::make(tvm::Array<Type>(args),
-                                 VisitType(op->ret_type), {}, {}); // fix me
+      return TupleTypeNode::make(new_fields);
     }
 
-    //   Type VisitType_(const TupleTypeNode* op) override {
-    //     std::vector<Type> new_fields;
-    //     for (const Type& t : op->fields) {
-    //       new_fields.push_back(this->VisitType(t));
-    //     }
-    //     return TupleTypeNode::make(new_fields);
-    //   }
+  Type VisitType_(const TypeRelationNode* op) override {
+    return GetRef<TypeRelation>(op);
+  }
 
-    Type VisitType_(const TypeRelationNode* op) override {
-      return GetRef<TypeRelation>(op);
+  Type VisitType_(const TypeCallNode* op) override {
+    auto func = this->VisitType(op->func);
+    std::vector<Type> new_args;
+    for (const Type& t : op->args) {
+      new_args.push_back(this->VisitType(t));
     }
+    return TypeCallNode::make(func, new_args);
+  }
 
-    Type VisitType_(const TypeCallNode* op) override {
-      auto func = this->VisitType(op->func);
-      std::vector<Type> new_args;
-      for (const Type& t : op->args) {
-        new_args.push_back(this->VisitType(t));
-      }
-      return TypeCallNode::make(func, new_args);
-    }
-
-    Type VisitType_(const IncompleteTypeNode* op) override {
-      return GetRef<IncompleteType>(op);
-    }
-  };
+  Type VisitType_(const IncompleteTypeNode* op) override {
+    return GetRef<IncompleteType>(op);
+  }
+};
 
 }  // namespace relay
-}  // namespace relay
+}  // namespace tvm
 #endif  // TVM_RELAY_TYPE_VISITOR_H_

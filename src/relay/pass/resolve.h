@@ -13,9 +13,9 @@
 namespace tvm {
 namespace relay {
 
-Type resolve(const TypeUnifier & unifier, const Type & ty);
-Expr resolve(const TypeUnifier & unifier, const Expr & expr);
-bool is_fully_resolved(const Type & t);
+Type Resolve(const TypeUnifier & unifier, const Type & ty);
+Expr Resolve(const TypeUnifier & unifier, const Expr & expr);
+bool IsFullyResolved(const Type & t);
 
 }  // namespace relay
 }  // namespace tvm

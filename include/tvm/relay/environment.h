@@ -1,7 +1,8 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/environment.h
- * \brief The global environment, contains global state of Relay program.
+ * \brief The global environment: contains information needed to
+ * compile & optimize Relay programs.
  */
 #ifndef TVM_RELAY_ENVIRONMENT_H_
 #define TVM_RELAY_ENVIRONMENT_H_
@@ -21,18 +22,21 @@ struct Environment;
 
 /*! \brief The global environment of Relay programs.
  *
- *  The global environment contains all the global
- *  information needed to compile a Relay program,
- *  including the set of operators, the set of
- *  global functions, and configuration options.
+ *  The global environment contains the global
+ *  information needed to compile a Relay program.
+ * 
+ *  It contains all global functions, and configuration 
+ *  options.
  *
  *  Many operations require acess to the global
- *  Environment. We mostly pass the argument by value
- *  in a functional style as an explicit argument.
+ *  Environment. We pass the Environment by value
+ *  in a functional style as an explicit argument,
+ *  but we will mutate the Environment while optimizing
+ *  Relay programs.
  *
- *  This means users can construct custom environments
- *  easily, for example a fresh environment for each
- *  thread while auto-tuning.
+ *  The functional style allows users to construct custom 
+ *  environments easily, for example each thread can store
+ *  an Environment while auto-tuning.
  * */
 
 class EnvironmentNode : public RelayNode {

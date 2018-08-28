@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/base.h
- * \brief Base data structure for relay.
+ * \brief Base classes for the Relay IR.
  */
 #ifndef TVM_RELAY_BASE_H_
 #define TVM_RELAY_BASE_H_
@@ -13,7 +13,12 @@
 
 namespace tvm {
 /*!
- * \brief Relay: high level functional IR
+ * \brief Relay: a high level functional IR for TVM.
+ * 
+ * This namespace contains the abstract syntax tree, and other
+ * essential data structures for the Relay IR.
+ * 
+ * You can find more about Relay by reading the language reference.
  */
 namespace relay {
 /*!
