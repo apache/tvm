@@ -650,10 +650,23 @@ def _pad(name):
 
 def _transpose():
     def _impl(inputs, attr, params):
-        # Get its param which is a Const op
+        # If perm is not specified, axes is left empty,
+        # otherwise its value is get from params
         param_name = inputs[1].list_output_names()[0]
-        axes = params.pop(param_name).asnumpy()
+        axes = params.get(param_name, tvm.nd.array([])).asnumpy()
         return _sym.transpose(inputs[0], axes=tuple(axes))
+    return _impl
+
+def _range():
+    def _impl(inputs, attr, params):
+        print("Range: It's a pass through, it is introduced by tf.transpose() but can be ignored")
+        return inputs[0]
+    return _impl
+
+def _rank():
+    def _impl(inputs, attr, params):
+        print("Rank: It's a pass through, it is introduced by tf.transpose() but can be ignored")
+        return inputs[0]
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -706,6 +719,8 @@ _convert_map = {
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
     'Transpose'                         : _transpose(),
+    'Range'                             : _range(),
+    'Rank'                              : _rank(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to

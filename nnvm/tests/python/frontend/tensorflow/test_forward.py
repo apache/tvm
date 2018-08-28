@@ -836,16 +836,22 @@ def test_forward_l2_normalize():
 #######################################################################
 # transpose
 # ---------
-def _test_forward_transpose(ishape, axes):
+def _test_forward_transpose(ishape, axes=None):
     input = np.random.uniform(size=ishape).astype(np.float32)
 
     with tf.Graph().as_default():
         in1 = tf.placeholder(shape=input.shape, dtype=input.dtype, name="transpose_data")
-        tf.transpose(in1, perm=axes)
+
+        if axes is None:
+            tf.transpose(in1)
+        else:
+            tf.transpose(in1, perm=axes)
 
         compare_tf_with_tvm(input, 'transpose_data:0', 'transpose:0')
 
 def test_forward_transpose():
+    _test_forward_transpose((2, 3, 4))
+    _test_forward_transpose((7, 8, 8, 10))
     _test_forward_transpose((2, 3, 4), (1, 2, 0))
     _test_forward_transpose((2, 3, 4), (0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
