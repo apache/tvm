@@ -57,32 +57,14 @@ SourceName SourceMap::AddSource(std::string file_name, std::string source) {
   return new_id;
 }
 
-SourceName SourceNameNode::make(std::string name) {
-  std::shared_ptr<SourceNameNode> n = std::make_shared<SourceNameNode>();
-  n->name = std::move(name);
-  return SourceName(n);
-}
-
-static SourceFragment DUMMY_SOURCE = SourceFragment("DUMMY_FILE", "DUMMY_SOURCE");
-
-SourceFragment const &SourceMap::GetSource(SourceName id) const {
+const SourceFragment& SourceMap::GetSource(SourceName id) const {
   auto item = map_.find(id);
   if (item != map_.end()) {
     return (*item).second;
   } else {
-    return DUMMY_SOURCE;
+      throw dmlc::Error("could not find requested source fragment");
   }
 }
-
-TVM_REGISTER_API("relay._make.SourceName")
-    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue *ret) {
-      *ret = SourceNameNode::make(args[0]);
-    });
-
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<SourceNameNode>([](const SourceNameNode *node, tvm::IRPrinter *p) {
-      p->stream << "SourceNameNode(" << node->name << ", " << node << ")";
-    });
 
 }  // namespace relay
 }  // namespace tvm

@@ -9,6 +9,7 @@
 #include <tvm/api_registry.h>
 #include <tvm/ir.h>
 #include <tvm/node.h>
+#include <tvm/attrs.h>
 #include <string>
 #include "./base.h"
 #include "./type.h"
@@ -223,8 +224,7 @@ class FunctionNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
 
-// TODO(tqchen) change Expr to Attr after we introduce Attr system.
-using Attrs = tvm::Map<std::string, Expr>;
+using Attrs = tvm::Attrs;
 
 /*!
  * \brief Call corresponds to operator invocation.

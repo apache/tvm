@@ -12,6 +12,24 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
+SourceName SourceNameNode::make(std::string name) {
+  std::shared_ptr<SourceNameNode> n = std::make_shared<SourceNameNode>();
+  n->name = std::move(name);
+  return SourceName(n);
+}
+
+// TVM_REGISTER_API("relay._make.SourceName")
+//     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue *ret) {
+//       *ret = SourceNameNode::make(args[0]);
+//     });
+
+// This causes a crash?
+
+// TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+//     .set_dispatch<SourceNameNode>([](const SourceNameNode *node, tvm::IRPrinter *p) {
+//       p->stream << "SourceNameNode(" << node->name << ", " << node << ")";
+//     });
+
 Span SpanNode::make(SourceName source, int lineno, int col_offset) {
   std::shared_ptr<SpanNode> n = std::make_shared<SpanNode>();
   n->source = std::move(source);
