@@ -626,72 +626,19 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     }
   }
 
-  // // template<typename T, typename U>
-
-  // // Add safe dynamic Array downcast.
-  // // Add static upcast?
-
-  // // Add to type utils.
-  // Array<Type> type_parameters(const Type &t) {
-  //   Array<Type> params;
-  //   auto type = t;
-  //   const TypeQuantifierNode *ty_quant;
-  //   while ((ty_quant = type.as<TypeQuantifierNode>())) {
-  //     params.push_back(ty_quant->id);
-  //     type = ty_quant->boundType;
-  //   }
-
-  //   return params;
-  // }
-
-  // template <typename I, typename F>
-  // Array<Param> ArrayMap(const Array<I> &data, F f) {
-  //   // probably a way to use std::transform.
-  //   Array<Param> output;
-  //   for (const I &el : data) {
-  //     output.push_back(f(el));
-  //   }
-  //   return output;
-  // }
-
-  // // There are some important questions around generalization
-  // // that we need to answer.
-  // Expr generalize(const Environment &env, const Expr &e) {
-  //   if (auto fn_node = e.as<FunctionNode>()) {
-  //     TypeInferencer tc(env);
-  //     auto ty = tc.VisitFunction(GetRef<Function>(fn_node), true);
-  //     auto ty_params = type_parameters(ty);
-  //     auto params = ArrayMap(fn_node->params, [&](const Param &p) {
-  //       return ParamNode::make(p->id, tc.resolve(p->type));
-  //     });
-  //     auto body = tc.resolve(fn_node->body);
-  //     auto ret_type = tc.resolve(fn_node->ret_type);
-  //     auto fn = FunctionNode::make(ty_params, params, ret_type, body);
-  //     // we should check in empty context to ensure typing is preserved.
-  //     // check(env, fn);
-  //     return fn;
-  //   } else {
-  //     throw dmlc::Error("can only apply generalize to a function.");
-  //   }
-  // }
-
-  TVM_REGISTER_API("relay._type_infer.check_expr")
+  TVM_REGISTER_API("relay._pass.check_expr")
       .set_body([](TVMArgs args, TVMRetValue *ret) {
         Environment env = args[0];
         Expr e = args[1];
         *ret = Infer(env, e);
       });
 
-  TVM_REGISTER_API("relay._type_infer._get_checked_type")
+  // TODO(@jroesch): put in a better namespace.
+  TVM_REGISTER_API("relay._pass._get_checked_type")
       .set_body([](TVMArgs args, TVMRetValue *ret) {
         Expr e = args[0];
         *ret = e->checked_type();
       });
-
-  // TVM_REGISTER_API("relay._tyck.generalize")
-  //     .set_body([](TVMArgs args, TVMRetValue *ret) {
-  //       *ret = generalize(args[0], args[1]);
-  //     });
 
   IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
     std::shared_ptr<IncompleteTypeNode> n =

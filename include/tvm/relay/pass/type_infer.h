@@ -6,20 +6,14 @@
  *  The pass produces a new expression with its checked_type
  *  field populated and incomplete types resolved.
  */
-#ifndef TVM_RELAY_PASS__TYPECHECKER_H_
-#define TVM_RELAY_PASS__TYPECHECKER_H_
+#ifndef TVM_RELAY_PASS_TYPECHECKER_H_
+#define TVM_RELAY_PASS_TYPECHECKER_H_
 
 #include "tvm/relay/expr.h"
 #include "tvm/relay/environment.h"
 
 namespace tvm {
 namespace relay {
-
-/*! The result of type checking an expression is a new expression
- * with unambigous type information filled in, as well as it's
- * checked type field populated with the result type.
- */
-Expr InferType(const Environment & env, const Expr & e);
 
 /*! \brief Ensures that an operator is well-formed with respect
  * to Relay's type system.

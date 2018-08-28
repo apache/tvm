@@ -2,4 +2,4 @@
 
 from tvm._ffi.function import _init_api
 
-_init_api("relay._type_infer", __name__)
+_init_api("relay._pass", __name__)
