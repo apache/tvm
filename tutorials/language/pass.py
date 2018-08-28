@@ -2,7 +2,6 @@
 Writing a Customized Pass
 =========================
 **Author**: `Jian Weng <https://were.github.io>`_
-
 TVM is a framework to abstract the heterogenity of those various machine learning
 accelerators. Sometimes users may want to customized some analysis and IR transformation
 to adopt TVM to their own specialized hardware. This tutorial helps users write
