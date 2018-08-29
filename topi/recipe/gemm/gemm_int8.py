@@ -137,12 +137,15 @@ if __name__ == '__main__':
     print(task.config_space)
 
     measure_option = autotvm.measure_option(
-        measure_func='local', number=10, n_parallel=8, timeout=20)
+        builder=autotvm.LocalBuilder(),
+        runner=autotvm.LocalRunner(repeat=3, min_repeat_ms=100, timeout=4)
+    )
+
     log_name = 'gemm_int8.log'
     if DO_TUNING:
         tuner = autotvm.tuner.XGBTuner(task)
         tuner.tune(n_trial=1000, measure_option=measure_option,
-               callbacks=[autotvm.callback.log_to_file(log_name)])
+                   callbacks=[autotvm.callback.log_to_file(log_name)])
 
         dispatch_context = autotvm.apply_history_best(log_name)
         best_config = dispatch_context.query(task.target, task.workload)

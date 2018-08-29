@@ -32,6 +32,25 @@ def matmul(N, L, M, dtype):
 
     return s, [A, B, C]
 
+@autotvm.template
+def bad_matmul(N, L, M, dtype):
+    if 'bad_device' in tvm.target.current_target().keys:
+        A = tvm.placeholder((N, L), name='A', dtype=dtype)
+        B = tvm.placeholder((L, M), name='B', dtype=dtype)
+
+        k = tvm.reduce_axis((0, L-1), name='k')
+        C = tvm.compute((N, M), lambda i, j: tvm.sum(A[i, k] * B[k, j], axis=k), name='C')
+        s = tvm.create_schedule(C.op)
+
+        # schedule
+        y, x = s[C].op.axis
+        cfg = autotvm.get_config()
+        cfg.define_split("tile_y", y, num_outputs=2)
+        cfg.define_split("tile_x", x, num_outputs=2)
+        return s, [A, B, C]
+
+    return matmul(N, L, M, dtype)
+
 def get_sample_task(n=128):
     """return a sample task for testing"""
     target = tvm.target.create("llvm")

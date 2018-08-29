@@ -16,6 +16,11 @@ tvm.autotvm.measure
 
 .. autofunction:: tvm.autotvm.measure.create_measure_batch
 
+.. autoclass:: tvm.autotvm.measure.measure_methods.LocalBuilder
+
+.. autoclass:: tvm.autotvm.measure.measure_methods.RPCRunner
+
+.. autoclass:: tvm.autotvm.measure.measure_methods.LocalRunner
 
 tvm.autotvm.tuner
 ~~~~~~~~~~~~~~~~~

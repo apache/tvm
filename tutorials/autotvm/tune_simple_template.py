@@ -271,9 +271,12 @@ print(task.config_space)
 logging.getLogger('autotvm').setLevel(logging.DEBUG)
 logging.getLogger('autotvm').addHandler(logging.StreamHandler(sys.stdout))
 
-# use local cpu, measure 5 times for every config to reduce variance
-measure_option = autotvm.measure_option('local',
-                                        number=5)
+# There are two steps for measuring a config: build and run.
+# By default, we use all cpu cores to compile program. Then measure them sequentially.
+# We measure 5 times and take average to reduce variance.
+measure_option = autotvm.measure_option(
+    builder='local',
+    runner=autotvm.LocalRunner(number=5))
 
 # begin tuning, log records to file `matmul.log`
 tuner = autotvm.tuner.RandomTuner(task)
