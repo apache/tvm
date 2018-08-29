@@ -1,7 +1,7 @@
 from typing import Any
 import numpy as np
 import tvm
-from .type import FloatType, IntType, BoolType, UIntType, FuncType, TensorType
+from .type import FuncType, TensorType
 from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function
 from . import op as _op
 
@@ -152,20 +152,27 @@ class IRBuilder():
 def bool_dtype():
     return 'uint1'
 
-def int_dtype():
-    return 'uint1'
+def int_dtype(bits=32):
+    return f'int1{bits}'
 
+def float_dtype(bits=32):
+    return f'float{bits}'
+
+def uint_dtype(bits=32):
+    return f'fuint{bits}'
+    
 def int_type(bits=32, lanes=1):
-    return IntType(bits, lanes)
+    # TODO(@jroesch, @tqchen) How do we set lanes?
+    return TensorType(tvm.convert([]), int_dtype(bits))
 
 def uint_type(bits=32, lanes=1):
-    return UIntType(bits, lanes)
+    return TensorType(tvm.convert([]), uint_dtype(bits))
 
 def float_type(bits=32, lanes=1):
-    return FloatType(bits, lanes)
+    return TensorType(tvm.convert([]), float_dtype(bits))
 
 def bool_type(lanes=1):
-    return BoolType(lanes)
+    return TensorType(tvm.convert([]), bool_dtype(bits))
 
 def tensor_type(*shape, dtype='float32'):
     return TensorType(tvm.convert(shape), dtype)

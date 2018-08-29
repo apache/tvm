@@ -151,6 +151,11 @@ void EnvironmentNode::DisplayErrors() {
   // }
 }
 
+TVM_REGISTER_API("relay._make.Environment")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      *ret = EnvironmentNode::make(args[0]);
+    });
+
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<EnvironmentNode>([](const EnvironmentNode *node,
                                       tvm::IRPrinter *p) {

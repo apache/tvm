@@ -1,7 +1,7 @@
 """Test that type checker correcly computes types
    for expressions.
 """
-from tvm.relay.type_infer import check_expr
+from tvm.relay.ir_pass import check_expr
 from tvm.relay.ir_builder import IRBuilder, float_type, func_type, tensor_type
 from tvm.relay.env import Environment
 from tvm.relay.op import log, add

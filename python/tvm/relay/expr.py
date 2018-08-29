@@ -6,7 +6,7 @@ from enum import IntEnum
 from .base import Span, NodeBase, register_relay_node
 from .type import Type, TypeParam
 from tvm import expr
-from ._type_infer import _get_checked_type
+from ._ir_pass import _get_checked_type
 from . import _make
 
 class Expr(NodeBase):

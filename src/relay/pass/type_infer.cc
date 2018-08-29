@@ -626,7 +626,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
     }
   }
 
-  TVM_REGISTER_API("relay._pass.check_expr")
+  TVM_REGISTER_API("relay._ir_pass.check_expr")
       .set_body([](TVMArgs args, TVMRetValue *ret) {
         Environment env = args[0];
         Expr e = args[1];
@@ -634,7 +634,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
       });
 
   // TODO(@jroesch): put in a better namespace.
-  TVM_REGISTER_API("relay._pass._get_checked_type")
+  TVM_REGISTER_API("relay._ir_pass._get_checked_type")
       .set_body([](TVMArgs args, TVMRetValue *ret) {
         Expr e = args[0];
         *ret = e->checked_type();
