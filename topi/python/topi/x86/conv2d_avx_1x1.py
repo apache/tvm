@@ -160,14 +160,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, kernel_size, strides, padding, la
                                                           kernel_size,
                                                           strides, padding,
                                                           layout, out_dtype),
-    if isinstance(cfg, ConfigEntity):
-        serialized_cfg = cfg.to_json_dict()
-        for k, v in serialized_cfg.items():
-            if v is None:
-                serialized_cfg[k] = str(v)
-        attrs = {'workload': workload, 'cfg': serialized_cfg}
-    else:
-        attrs = {'workload': workload}
+    attrs = {'workload': workload}
     oshape = (n, oc//oc_bn, oh, ow, oc_bn)
     ic = tvm.reduce_axis((0, ic), name='ic')
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
@@ -181,11 +174,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, kernel_size, strides, padding, la
 
 def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     # fetch schedule
-    if isinstance(cfg, tuple):
-        ic_bn, oh_factor, ow_factor = cfg[0], cfg[2], cfg[3]
-    else:
-        ic_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oh"].val,
-                                       cfg["tile_ow"].size[-1])
+    ic_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oh"].val,
+                                   cfg["tile_ow"].size[-1])
 
     # schedule data
     A = data

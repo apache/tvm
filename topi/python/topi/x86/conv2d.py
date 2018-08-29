@@ -339,22 +339,30 @@ def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
 
         if 'conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
-            if cfg is None:
-                if "cfg" not in op.attrs:
-                    raise RuntimeError("cfg not found for conv2d_NCHWc schedule.")
-                serialized_cfg = []
-                for item in op.attrs['cfg']['e']:
-                    val = item[2]
-                    if isinstance(val, tvm.container.Array):
-                        serialized_cfg.append(val[1].value)
-                    else:
-                        serialized_cfg.append(val.value > 0)
+            kernel = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
+            data = data_vec.op.input_tensors[0] \
+                if isinstance(data_vec.op, tvm.tensor.ComputeOp) and "pad" not in data_vec.op.tag \
+                else data_vec
+            if isinstance(data.op, tvm.tensor.ComputeOp) and "pad" in data.op.tag:
+                data_pad = data
+                data = data_pad.op.input_tensors[0]
+
+            current_cfg = cfg
+            if current_cfg is None:
+                dispatch_ctx = autotvm.task.DispatchContext.current
+                if not isinstance(dispatch_ctx, ApplyGraphBest):
+                    raise RuntimeError("Intel AVX conv2d requires ApplyGraphBest to be dispatch "
+                                       "context. Add 'with ApplyGraphBest(records):' before building "
+                                       "function.")
+                workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
+                                          padding, layout, '')
+                current_cfg = dispatch_ctx.query_global_dict((workload, out_layout))
+
             kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)
                                                ) else (kernel_size, kernel_size)
             is_kernel_1x1 = kh == 1 and kw == 1
-            args = [s, cfg if cfg else tuple(serialized_cfg),
-                    data_vec, conv_out, outs[0]]
+            args = [s, current_cfg, data_vec, conv_out, outs[0]]
             if is_kernel_1x1:
                 conv2d_avx_1x1._schedule_conv_NCHWc(*args)
             else:
