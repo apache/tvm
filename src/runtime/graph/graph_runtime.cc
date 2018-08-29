@@ -621,10 +621,12 @@ PackedFunc GraphRuntime::GetFunction(
         int in_idx = 0;
         if (args[0].type_code() == kStr) {
           in_idx = this->GetInputIndex(args[0]);
-          CHECK_GE(in_idx, 0);
         } else {
           in_idx = args[0];
         }
+
+        CHECK_GE(in_idx, 0);
+
         if (args.num_args == 2) {
             this->GetInputAsDLTensor(in_idx, args[1]);
         } else {
