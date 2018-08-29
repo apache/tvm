@@ -59,10 +59,11 @@ def compile_cuda(code,
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
     cmd += ["-arch", arch]
-    cmd += ["-o", file_target]
 
     if options:
-        cmd += options
+        cmd += [options]
+
+    cmd += ["-o", file_target]
     cmd += [temp_code]
 
     proc = subprocess.Popen(
