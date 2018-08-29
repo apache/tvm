@@ -50,7 +50,7 @@ class EnvironmentNode : public RelayNode {
 
  public:
   /*! \brief A map from ids to all global functions. */
-  tvm::Map<GlobalVar, Function> items;
+  tvm::Map<GlobalVar, Function> functions;
 
   EnvironmentNode() {}
 
@@ -60,7 +60,6 @@ class EnvironmentNode : public RelayNode {
       tvm::Map<GlobalVar, Function> global_funcs);
 
   void Add(const GlobalVar& var, const Function & func, bool update = false);
-  void TryAdd(const GlobalVar& var, const Function & func, bool update=false);
   void Update(const GlobalVar& var, const Function & func);
   void Remove(const GlobalVar& var);
 
