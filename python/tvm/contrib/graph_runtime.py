@@ -73,8 +73,8 @@ class GraphModule(object):
         self._run = module["run"]
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
-        self._get_output_count = module["get_output_count"]
-        self._get_input_count = module["get_input_count"]
+        self._get_num_outputs = module["get_num_outputs"]
+        self._get_num_inputs = module["get_num_inputs"]
         try:
             self._debug_get_output = module["debug_get_output"]
         except AttributeError:
@@ -114,25 +114,25 @@ class GraphModule(object):
             self.set_input(**input_dict)
         self._run()
 
-    def get_input_count(self):
+    def get_num_inputs(self):
         """Get the number of inputs to the graph
 
         Returns
         -------
         count : int
-            count of graph inputs
+            The number of inputs.
         """
-        return self._get_input_count()
+        return self._get_num_inputs()
 
-    def get_output_count(self):
+    def get_num_outputs(self):
         """Get the number of outputs from the graph
 
         Returns
         -------
         count : int
-            count of graph outputs
+            The number of outputs.
         """
-        return self._get_output_count()
+        return self._get_num_outputs()
 
     def get_input(self, index, out=None):
         """Get index-th input to out

@@ -110,7 +110,7 @@ class GraphRuntime : public ModuleNode {
    *
    * \return The number of inputs to the graph.
    */
-  int GetInputCount(void) {
+  int GetNumInputs(void) {
     return input_nodes_.size();
   }
   /*!
@@ -118,7 +118,7 @@ class GraphRuntime : public ModuleNode {
    *
    * \return The number of outputs from graph.
    */
-  int GetOutputCount(void) {
+  int GetNumOutputs(void) {
     return outputs_.size();
   }
   /*!
@@ -631,13 +631,13 @@ PackedFunc GraphRuntime::GetFunction(
             *rv = this->GetInputAsNDArray(in_idx);
         }
       });
-  } else if (name == "get_input_count") {
+  } else if (name == "get_num_inputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->GetInputCount();
+          *rv = this->GetNumInputs();
       });
-  } else if (name == "get_output_count") {
+  } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->GetOutputCount();
+          *rv = this->GetNumOutputs();
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {
