@@ -106,14 +106,6 @@ class GraphRuntime : public ModuleNode {
     data_entry_[eid].CopyFrom(data_in);
   }
   /*!
-   * \brief Get the number of inputs
-   *
-   * \return The number of inputs to the graph.
-   */
-  int GetNumInputs(void) {
-    return input_nodes_.size();
-  }
-  /*!
    * \brief Get the number of outputs
    *
    * \return The number of outputs from graph.
@@ -624,18 +616,12 @@ PackedFunc GraphRuntime::GetFunction(
         } else {
           in_idx = args[0];
         }
-
         CHECK_GE(in_idx, 0);
-
         if (args.num_args == 2) {
             this->GetInputAsDLTensor(in_idx, args[1]);
         } else {
             *rv = this->GetInputAsNDArray(in_idx);
         }
-      });
-  } else if (name == "get_num_inputs") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->GetNumInputs();
       });
   } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
