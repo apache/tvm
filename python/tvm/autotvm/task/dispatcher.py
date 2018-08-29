@@ -332,13 +332,31 @@ class ApplyGraphBest(DispatchContext):
     node index.
     """
     def __init__(self, records):
+        """
+        Parameters
+        ----------
+        records : str or iterator of (MeasureInput, MeasureResult)
+            Collection of tuning records.
+            If is str, then it should be the filename of a records log file.
+                   Each row of this file is an encoded record pair.
+            Otherwise, it is an iterator.
+        """
+        from ..record import load_from_file
+
         super(ApplyGraphBest, self).__init__()
-        self._records = records
+        if isinstance(records, str):
+            records = load_from_file(records)
+        self._records = list(records)
         self._counter = 0
+        self._global_cfg_dict = {}
 
     def query(self, target, workload):
         cfg = self._records[self._counter][0].config
         self._counter += 1
-        if self._counter == len(self._records):
-            self._counter = 0
         return cfg
+
+    def query_global_dict(self, key):
+        return self._global_cfg_dict[key]
+
+    def update_global_dict(self, key, val):
+        self._global_cfg_dict[key] = val

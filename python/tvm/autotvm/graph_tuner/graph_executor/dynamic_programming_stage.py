@@ -99,12 +99,10 @@ class DPStage(object):
             elemlike_shape = self._global_elemlike_shape_dict[self._idx]
             in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
                                                                           target_sch,
-                                                                          self._batch_size,
-                                                                          True, elemlike_shape)
+                                                                          elemlike_shape)
         else:
             in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
-                                                                          target_sch,
-                                                                          self._batch_size)
+                                                                          target_sch)
         return in_shape, out_shape, is_valid
 
     def _create_states(self):

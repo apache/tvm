@@ -4,9 +4,10 @@ import json
 from functools import wraps
 
 import nnvm
+import tvm
+import topi
 
 from nnvm.compiler import graph_attr
-from topi.nn.conv2d import Workload
 
 
 def get_workload(op_name):
@@ -60,7 +61,7 @@ def get_workload(op_name):
 
 
 @get_workload("conv2d")
-def get_conv2d_workload(in_dtype='float32', out_dtype='float32', **kwargs):
+def get_conv2d_NCHWc_AVX_workload(**kwargs):
     """Get workload for conv2d.
 
     Parameters
@@ -74,31 +75,27 @@ def get_conv2d_workload(in_dtype='float32', out_dtype='float32', **kwargs):
     unique_wkl : bool, optional
         Whether to ignore duplicated workloads.
 
-    in_dtype : str, optional
-        Input data type for convolution operator.
-
-    out_dtype : str, optional
-        Output data type for convolution operator.
-
     Returns
     -------
     out : list of namedtuple
         List of workloads for all convolution operator in graph
     """
     data_shape = kwargs["op_input_shapes"][0]
+    kernel_shape = kwargs["op_input_shapes"][1]
+    data = tvm.placeholder(data_shape, name="data")
+    kernel = tvm.placeholder(kernel_shape, name="kernel")
     attrs = kwargs["attrs"]
     if "groups" in attrs and int(attrs["groups"]) != 1:
         raise RuntimeError("Currenly depthwise convolution is not supported")
-    if "layout" not in attrs or attrs["layout"] == "NCHW":
-        height, width, in_filter = data_shape[2], data_shape[3], data_shape[1]
-    else:
-        height, width, in_filter = data_shape[1], data_shape[2], data_shape[3]
-    out_filter = attrs["channels"]
-    hkernel, wkernel = (attrs["kernel_size"])[1:-1].split(',')
-    hpad, wpad = (attrs["padding"])[1:-1].split(',') if "padding" in attrs else (0, 0)
-    hstride, wstride = (attrs["strides"])[1:-1].split(',') if "strides" in attrs else (1, 1)
-
-    workload = Workload(*[in_dtype, out_dtype, height, width, in_filter,
-                          int(out_filter), int(hkernel), int(wkernel),
-                          int(hpad), int(wpad), int(hstride), int(wstride)])
+    kh, kw = (attrs["kernel_size"])[1:-1].split(',')
+    ph, pw = (attrs["padding"])[1:-1].split(',') if "padding" in attrs else (0, 0)
+    sh, sw = (attrs["strides"])[1:-1].split(',') if "strides" in attrs else (1, 1)
+    kernel_size = (int(kh), int(kw))
+    padding = (int(ph), int(pw))
+    strides = (int(sh), int(sw))
+    layout = str(attrs["layout"]) if "layout" in attrs else "NCHW"
+    out_dtype = str(attrs["out_dtype "]) if "out_dtype" in attrs else "float32"
+    workload = topi.x86.conv2d.conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
+                                                          strides, padding, layout,
+                                                          out_dtype)
     return workload

@@ -12,9 +12,9 @@ from nnvm.compiler import graph_attr
 from tvm import autotvm
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.nnvm_integration import deserialize_args
-from ..utils import get_wkl_map, get_real_node, is_input_node, shape2layout, \
-    get_in_nodes, get_out_nodes, is_elemlike_op
-from ..tensor_executor.base_tensor_executor import RPCMode
+from tvm.autotvm.record import encode, load_from_file
+from ..utils import get_real_node, is_input_node, shape2layout, \
+    get_in_nodes, get_out_nodes, is_elemlike_op, get_wkl_map
 
 class BaseGraphExecutor(object):
     """Class to search schedules considering both kernel execution time and
@@ -25,10 +25,10 @@ class BaseGraphExecutor(object):
 
     TODO Develop more effective approximation/learning algorithm.
     """
-    def __init__(self, graph, input_shapes, sch_dict, target_op, data_layout,
-                 get_wkl_func, infer_layout_shape_func, max_sch_num=20, verbose=True,
-                 log_file="graph_tuner.log", log_level=logging.DEBUG,
-                 name="graph_tuner"):
+    def __init__(self, graph, input_shapes, records, graph_workload_list, target_op,
+                 data_layout, layout_related_fields, infer_layout_shape_func,
+                 max_sch_num=20, verbose=True, log_file="graph_tuner.log",
+                 log_level=logging.DEBUG, name="graph_tuner"):
         """Create a GlobalTuner instance. Local schedule searching for all nodes with
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
@@ -39,20 +39,27 @@ class BaseGraphExecutor(object):
         input_shapes : dict of str to tuple.
             Input shapes of graph
 
-        sch_dict : dict of namedtuple to list of dict
-            Schedule candidates for all workloads. Key is workload and value is a
-            list of dictionary, which in format {"schedule": sch, "time": execution_time}.
-            Time value is in millisecond.
+        records : str or iterator of (MeasureInput, MeasureResult)
+            Collection of kernel level tuning records.
+            If it is str, then it should be the filename of a records log file.
+                       Each row of this file is an encoded record pair.
+            Otherwise, it is an iterator.
 
-            This dictionary can be created through search_schedule module.
+        graph_workload_list : list of tuple
+            List contains all workloads of target_op in the input graph. The order
+            of workloads should be the ascending order of node index. For conv2d_NCHWc,
+            conversion from conv2d workload is required and get_conv2d_NCHWc_AVX_workload
+            is provided as built-in function to deal with this. Make sure the workload
+            format is consistent with the workload format in records.
 
         layout_time_dict : dict of string to float:
             Dictionary for layout transformation time. Key should be of format
             "(input_shape, output_shape)".
 
-        get_wkl_func : function
-             Function to convert target_op nodes in a graph to workloads.
-             Check get_workload.get_conv2d_workload for reference implementation.
+        layout_related_fields : tuple of str
+             Fields name in schedule configuration which are related to data I/O layout.
+             For example, the data layout for conv2d of intel avx is NCWHc. "tile_ic" and
+             "tile_oc" are related to data layout.
 
         infer_layout_shape_func : function
             Function to infer actual input and output shapes for layout
@@ -94,8 +101,9 @@ class BaseGraphExecutor(object):
         self._max_sch_num = max_sch_num
         self._optimal_sch_dict = {}
         self._data_layout = data_layout
-        self._get_wkl_func = get_wkl_func
+        self._records = records
         self._infer_layout_shape_func = infer_layout_shape_func
+        self._graph_workload_list = graph_workload_list
 
         self._verbose = verbose
         self._log_level = log_level
@@ -125,9 +133,10 @@ class BaseGraphExecutor(object):
         self._node_list = g_dict["nodes"]
 
         # Generate workload and schedule dictionaries.
+        sch_dict = self._records2dict(layout_related_fields)
         workload_list = list(sch_dict.keys())
-        self._node_map = get_wkl_map(self._graph, input_shapes, workload_list, target_op,
-                                     self._get_wkl_func)
+        self._node_map = get_wkl_map(graph, workload_list, target_op, graph_workload_list)
+
         for key, _ in self._in_nodes_dict.items():
             node_name = self._node_list[key]["name"]
             if node_name in self._input_shapes.keys():
@@ -167,6 +176,43 @@ class BaseGraphExecutor(object):
             "node_list": self._node_list, "input_shapes": self._input_shapes,
             "infer_layout_shape_func": self._infer_layout_shape_func
         }
+
+    def _records2dict(self, layout_related_fields):
+        sch_dict = {}
+        sch_record_dict = {}
+        if isinstance(self._records, str):
+            records = load_from_file(self._records)
+        else:
+            records = self._records
+
+
+        # Remove unnecessary schedules w.r.t layout_related_fields
+        # For a set of schedules which generate the same layout, only
+        # the fastest one needs to be preserved.
+        for in_measure, out_measure in records:
+            workload = in_measure.task.workload
+            schedule = in_measure.config
+            exec_time = out_measure.costs[0]
+            if workload not in sch_record_dict:
+                sch_record_dict[workload] = {}
+            sch_record = []
+            for field_name in schedule:
+                field_value = schedule[field_name]
+                if field_name in layout_related_fields:
+                    sch_record.append(field_value)
+            sch_record = tuple(sch_record)
+            if sch_record not in sch_record_dict[workload] or \
+                    exec_time < sch_record_dict[workload][sch_record][1]:
+                sch_record_dict[workload][sch_record] = (schedule, exec_time)
+
+        # Generate final schedule dictionary.
+        for wkl, sch_dict_val in sch_record_dict.items():
+            sch_dict[wkl] = []
+            for sch, exec_time in sch_dict_val.values():
+                sch_dict[wkl].append({"schedule": sch, "time": exec_time})
+            sch_dict[wkl] = sorted(sch_dict[wkl], key=lambda item: item["time"])
+
+        return sch_dict
 
     def benchmark_layout_transform(self, target="llvm", dtype="float32", min_exec_num=100,
                                    use_rpc=False, device_key=None, host="localhost", port=9190,
@@ -220,6 +266,7 @@ class BaseGraphExecutor(object):
         batch_size = list(self._input_shapes.values())[0][0]
 
         args_list = []
+        layout_transform_key_list = []
         for key, val in node_anc_dict.items():
             node = node_list[key]
             for i, item in enumerate(val):
@@ -259,11 +306,10 @@ class BaseGraphExecutor(object):
                     for sch_t in sch_target:
                         if is_elemlike_op(node):
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_c, sch_c, sch_t, batch_size, True,
-                                self._elemlike_shape_dict[key])
+                                wkl_c, sch_c, sch_t, self._elemlike_shape_dict[key])
                         else:
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_t, sch_c, sch_t, batch_size)
+                                wkl_t, sch_c, sch_t)
                         layout_transform_key = str((in_shape, out_shape))
                         if is_valid:
                             if in_shape == out_shape:
@@ -276,6 +322,7 @@ class BaseGraphExecutor(object):
                                 args = [data_placeholder, in_layout, out_layout, out_shape,
                                         "layout_transform", "injective"]
                                 args_list.append(args)
+                                layout_transform_key_list.append(layout_transform_key)
 
         @autotvm.template
         def layout_transform(*args):
@@ -301,16 +348,15 @@ class BaseGraphExecutor(object):
         measure_option = autotvm.measure_option(measure_func, number=min_exec_num,
                                                 n_parallel=n_parallel, do_fork=do_fork,
                                                 build_func=build_func)
-        for args in args_list:
-            layout_transform_key = str((args[1], args[2]))
+        for args, layout_transform_key in zip(args_list, layout_transform_key_list):
             if layout_transform_key in self._layout_transform_dict:
                 continue
             records = []
             task = autotvm.task.create(layout_transform, args=args, target=target)
-            tuner = tvm.autotvm.tuner(task)
+            tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[log_to_list(records)])
-            exec_time = records[0][0].costs * 1000
+            exec_time = records[0][0].costs[0] * 1000
             self._layout_transform_dict[layout_transform_key] = exec_time
 
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
@@ -337,6 +383,26 @@ class BaseGraphExecutor(object):
             sch = self._sch_dict[node_idx][sch_idx]["schedule"]
             ret.append(sch)
         return ret
+
+    def write_opt_sch2record_file(self, record_file="graph_opt_schedule.log"):
+        if isinstance(self._records, str):
+            records = load_from_file(self._records)
+        else:
+            records = self._records
+
+        # Create dict from (workload, schedule) to record
+        record_dict = {}
+        for record in records:
+            in_measure = record[0]
+            workload = in_measure.task.workload
+            schedule = in_measure.config
+            record_dict[str((workload, schedule))] = record
+
+        with open(record_file, "a") as of:
+            for workload, schedule in zip(self._graph_workload_list,
+                                          self.get_optimal_schedules()):
+                record = record_dict[str((workload, schedule))]
+                of.write(encode(record[0], record[1]) + "\n")
 
     @abstractmethod
     def run(self, **kwargs):

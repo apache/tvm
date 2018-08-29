@@ -250,7 +250,7 @@ def conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
 
 
 @conv2d_alter_layout.register("cpu")
-def _alter_conv2d_layout(attrs, inputs, _):
+def _alter_conv2d_layout(attrs, inputs, tinfo):
     dispatch_ctx = autotvm.task.DispatchContext.current
     if not isinstance(dispatch_ctx, ApplyGraphBest):
         raise RuntimeError("Intel AVX conv2d requires ApplyGraphBest to be dispatch context."
@@ -259,21 +259,26 @@ def _alter_conv2d_layout(attrs, inputs, _):
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
+    data, kernel = tinfo[0], tinfo[1]
     # only optimize for NCHW, groups=1 conv
     if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
         return None
 
     import ast
     kernel_size = ast.literal_eval(attrs["kernel_size"])
+    padding = ast.literal_eval(attrs["padding"])
+    strides = ast.literal_eval(attrs["strides"])
     kh, kw = kernel_size
     is_kernel_1x1 = kh == 1 and kw == 1
-
-    dispatch_ctx = autotvm.task.DispatchContext.current
     cfg = dispatch_ctx.query(None, None)
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
 
     new_attrs['layout'] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
+    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
+                                          padding, new_attrs['layout'], '')
+    global_dict_key = (workload, new_attrs['out_layout'])
+    dispatch_ctx.update_global_dict(global_dict_key, cfg)
 
     if is_kernel_1x1:
         # (oc, ic, h, w) -> (OC, IC, ic, oc, h, w)
@@ -285,15 +290,18 @@ def _alter_conv2d_layout(attrs, inputs, _):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register("cpu")
-@autotvm.task.dispatcher
 def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
                      padding, layout, out_layout, out_dtype):
-    """TOPI compute callback. Mark this function as a dispatcher, so
-    this template can assign config according to workload"""
-    return conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                      padding, layout, out_dtype)
+    dispatch_ctx = autotvm.task.DispatchContext.current
+    if not isinstance(dispatch_ctx, ApplyGraphBest):
+        raise RuntimeError("Intel AVX conv2d requires ApplyGraphBest to be dispatch context."
+                           "Add 'with ApplyGraphBest(records):' before building function.")
+    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
+                                          padding, layout, '')
+    cfg = dispatch_ctx.query_global_dict((workload, out_layout))
+    return _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
+                                   padding, layout, out_layout, out_dtype)
 
-@conv2d_NCHWc_cpu.register(['direct'])
 def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
                             padding, layout, out_layout, out_dtype):
     kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)

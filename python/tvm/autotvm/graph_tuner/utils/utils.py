@@ -244,8 +244,8 @@ def shape2layout(shape, layout_template):
     return layout
 
 
-def get_wkl_map(graph, input_shapes, workload_list, target_op,
-                get_wkl_func):
+def get_wkl_map(graph, workload_list, target_op,
+                graph_wkl_list):
     """Get a dictionary maps node index of a graph to workload
     index in a workload list.
 
@@ -254,17 +254,18 @@ def get_wkl_map(graph, input_shapes, workload_list, target_op,
     graph : nnvm Graph
         Input graph.
 
-    input_shapes : dict of str to tuple of int
-        Input shapes.
-
     workload_list : list of namedtuple
         Workload list.
 
     target_op : str
         Target operator name.
 
-    get_wkl_func : function
-        Function to convert nodes in a graph to workloads.
+    graph_wkl_list : list of tuple
+        List contains all workloads of target_op in the input graph. The order
+        of workloads should be the ascending order of node index. For conv2d_NCHWc,
+        conversion from conv2d workload is required and get_conv2d_NCHWc_AVX_workload
+        is provided as built-in function to deal with this. Make sure the workload
+        format is consistent with the workload format in records.
 
     Returns
     -------
@@ -276,7 +277,6 @@ def get_wkl_map(graph, input_shapes, workload_list, target_op,
     workload_map = {}
     for i, wkl in enumerate(workload_list):
         workload_map[wkl] = i
-    graph_wkl_list = get_wkl_func(graph, input_shapes, unique_wkl=False)
     node_map = {}
     graph_wkl_idx = 0
     for idx, node in enumerate(node_list):
@@ -320,8 +320,7 @@ def get_real_node(in_node_dict, node_list, idx, target_op):
     return anc_node_idx
 
 
-def infer_layout_shape_avx(wkl, current_sch, target_sch, batch_size=1,
-                           is_elemlike=False, elemlike_shape=None):
+def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
     """Infer actual input and output shapes for layout transformation
     given a workload, input schedule and output schedule.
 
@@ -339,19 +338,15 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, batch_size=1,
 
     Parameters
     ----------
-    wkl : namedtuple
+    wkl : tuple
         Input workload. If this is an element-wise like node, workload
         should come from the leftmost input node.
 
-    current_sch : namedtuple
+    current_sch : ConfigEntity
         Schedule before the layout transformation.
 
-    target_sch : namedtuple
+    target_sch : ConfigEntity
         Schedule after the layout transformation.
-
-    is_elemlike : bool, optional
-        Whether layout transformation happens before an element-wise
-        like node.
 
     elemlike_shape : tuple of int, optional
         Shape of node data if layout transformation happens before
@@ -370,27 +365,24 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, batch_size=1,
         Whether this is a valid layout transformation.
         An invalid transformation usually happens for concatenate operator.
     """
-    if is_elemlike:
-        if elemlike_shape is None:
-            raise RuntimeError("elemlike_shape is required "
-                               "if is_elemlike is True.")
+    batch_size, in_channel, height, width, _ = wkl[1]
+    out_channel = wkl[2][0]
+    if elemlike_shape:
         height = elemlike_shape[2]
         width = elemlike_shape[3]
-    else:
-        height = wkl.height
-        width = wkl.width
-    oc_bn_c = current_sch.oc_bn
-    ic_bn_t = target_sch.ic_bn
-    oc_bn_t = target_sch.oc_bn
+
+    oc_bn_c = current_sch["tile_oc"].size[-1]
+    ic_bn_t = target_sch["tile_ic"].size[-1]
+    oc_bn_t = target_sch["tile_oc"].size[-1]
     is_valid = True
-    if is_elemlike:
-        if wkl.out_filter % oc_bn_t != 0:
+    if elemlike_shape:
+        if out_channel % oc_bn_t != 0:
             is_valid = False
-        in_shape = (batch_size, wkl.out_filter // oc_bn_c, height, width, oc_bn_c)
-        out_shape = (batch_size, wkl.out_filter // oc_bn_t, height, width, oc_bn_t)
+        in_shape = (batch_size, out_channel // oc_bn_c, height, width, oc_bn_c)
+        out_shape = (batch_size, out_channel // oc_bn_t, height, width, oc_bn_t)
     else:
-        if wkl.in_filter % oc_bn_c != 0:
+        if in_channel % oc_bn_c != 0:
             is_valid = False
-        in_shape = (batch_size, wkl.in_filter // oc_bn_c, height, width, oc_bn_c)
-        out_shape = (batch_size, wkl.in_filter // ic_bn_t, height, width, ic_bn_t)
+        in_shape = (batch_size, in_channel // oc_bn_c, height, width, oc_bn_c)
+        out_shape = (batch_size, in_channel // ic_bn_t, height, width, ic_bn_t)
     return in_shape, out_shape, is_valid
