@@ -11,7 +11,6 @@
 #include <tvm/relay/pass/alpha_eq.h>
 #include "./unifier.h"
 #include "./type_visitor.h"
-//#include "./type_subst.h"
 // #include "tvm/relay/typeck/kindchecker.h"
 
 namespace tvm {
@@ -298,52 +297,40 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
   throw UnificationError("Cannot unify TensorTypeNode");
 }
 
-// Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
-//   TupleType pt1 = GetRef<TupleType>(t1);
+Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
+  TupleType pt1 = GetRef<TupleType>(t1);
 
-//   // for typevar, remap and attempt to unify if already defined
-//   if (const IncompleteTypeNode *tvn2 = rt2.as<IncompleteTypeNode>()) {
-//     return this->unifyWithIncompleteType(pt1, GetRef<IncompleteType>(tvn2));
-//   }
+  // When unifying tuple types we just solve each field in order.
+  if (const TupleTypeNode *ptn2 = rt2.as<TupleTypeNode>()) {
+    TupleType pt2 = GetRef<TupleType>(ptn2);
 
-//   // for other product types, unify item by item
-//   if (const TupleTypeNode *ptn2 = rt2.as<TupleTypeNode>()) {
-//     TupleType pt2 = GetRef<TupleType>(ptn2);
+    std::vector<Type> unified_fields;
+    if (pt1->fields.size() != pt2->fields.size()) {
+      throw UnificationError("Product types are of different dimensions");
+    }
 
-//     std::vector<Type> unified_fields;
-//     if (pt1->fields.size() != pt2->fields.size()) {
-//       throw UnificationError("Product types are of different dimensions");
-//     }
+    for (size_t i = 0U; i < pt1->fields.size(); i++) {
+      Type unified = this->VisitType(pt1->fields[i], pt2->fields[i]);
+      unified_fields.push_back(unified);
+    }
 
-//     for (size_t i = 0U; i < pt1->fields.size(); i++) {
-//       Type unified = this->VisitType(pt1->fields[i], pt2->fields[i]);
-//       unified_fields.push_back(unified);
-//     }
+    return TupleTypeNode::make(unified_fields);
+  }
 
-//     return TupleTypeNode::make(unified_fields);
-//   }
+  // otherwise cannot unify
+  throw UnificationError("Cannot unify TupleTypeNode");
+}
 
-//   // otherwise cannot unify
-//   throw UnificationError("Cannot unify TupleTypeNode");
-// }
-
-Type TypeUnifierNode::VisitType_(const TypeRelationNode *sen1, const Type t2) {
-//   ShapeExtension sh_ext1 = GetRef<ShapeExtension>(sen1);
-
-//   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
-//     return this->unifyWithIncompleteType(sh_ext1, GetRef<IncompleteType>(tvn2));
-//   }
-
-//   // will only attempt to unify with binary op with same op
-//   if (const ShapeExtensionNode *sen2 = t2.as<ShapeExtensionNode>()) {
-//     if (sh_ext1->name != sen2->name) {
-//       throw UnificationError(
-//           "Cannot unify shape projections of different index");
-//     }
-//   }
-
-//   return sh_ext1;
-    return t2;
+Type TypeUnifierNode::VisitType_(const TypeRelationNode *tr1, const Type t2) {
+   if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
+     if (tr1 == tr2) {
+       return GetRef<TypeRelation>(tr1);
+     } else {
+       throw UnificationError("Cannot unify different type relations");
+     }
+   } else {
+       throw UnificationError("Cannot unify type relation with another type of type");
+   }
 }
 
 Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
