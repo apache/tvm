@@ -5,6 +5,8 @@ import topi
 import math
 from topi.util import get_const_tuple
 
+from common import get_all_backend
+
 def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     iw = ih
     kw = kh
@@ -64,7 +66,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_pool():
@@ -109,7 +111,7 @@ def verify_global_pool(n, c, h, w, pool_type):
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_global_pool():

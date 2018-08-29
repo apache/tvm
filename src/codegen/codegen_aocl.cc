@@ -33,6 +33,8 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
 
   // Compile the .cl file.
   std::string cmd = "aoc aocl.cl";
+  // AOCL supports fp64.
+  cmd += " -Dcl_khr_fp64";
   Target target = Target::create(target_str);
   if (target->device_name != "") {
     cmd += " -board=" + target->device_name;
