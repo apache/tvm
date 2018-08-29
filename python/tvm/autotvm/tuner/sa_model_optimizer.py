@@ -87,7 +87,7 @@ class SimulatedAnnealingOptimizer(ModelOptimizer):
 
             new_scores = model.predict(new_points)
 
-            ac_prob = np.exp((new_scores - scores) / (t + 1e-2))
+            ac_prob = np.exp(np.minimum((new_scores - scores) / (t + 1e-5), 1))
             ac_index = np.random.random(len(ac_prob)) < ac_prob
 
             points[ac_index] = new_points[ac_index]

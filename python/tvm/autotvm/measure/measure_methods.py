@@ -1,129 +1,339 @@
-# pylint: disable=consider-using-enumerate,invalid-name,too-many-function-args
+# pylint: disable=invalid-name,too-many-function-args,too-many-nested-blocks
 """
 Functions that run on executor for measurement.
-These functions are responsible for building tvm module, uploading it to
-remote devices, recording the running time costs and checking the correctness of output
+
+These functions are responsible for building the tvm module, uploading it to
+remote devices, recording the running time costs, and checking the correctness of the output.
 """
 
 import logging
+import shutil
 import os
+import threading
 import time
 from random import getrandbits
-import threading
+from collections import namedtuple
+import tempfile
 
 import numpy as np
 
-from ... import ir_pass, build, build_config, nd, context, TVMError, register_func, \
-    target as _target, rpc as _rpc
-from ...contrib import nvcc, util, ndk
+from ... import ir_pass, build, build_config, nd, TVMError, register_func, \
+    rpc as _rpc, target as _target
+from ...contrib import nvcc, ndk
 
 from ..util import get_const_tuple
 from ..env import AutotvmGlobalScope
 from ..task.space import InstantiationError
 
-from .measure import MeasureResult, MeasureErrorNo
+from .measure import MeasureResult, MeasureErrorNo, Builder, Runner
 from .local_executor import LocalExecutor
 
 logger = logging.getLogger('autotvm')
 
-class HashMismatchError(ValueError):
-    """Raised when the code hash of a submitted config doesn't match that on the
-       measure side """
-    pass
-
-
-def request_remote(device_key, tracker_addr=None, priority=1, timeout=60):
-    """request a remote session
+class BuildResult(namedtuple("BuildResult", ('filename', 'arg_info', 'error', 'time_cost'))):
+    """
+    Stores all the necessary inputs for a measurement.
 
     Parameters
     ----------
-    device_key: string
-        device key of registered device in tracker
-    tracker_addr: Tuple(string, int), optional
-        The address of rpc tracker in (host, port) format.
-        If is none, will use environment variable "TVM_TRACKER_HOST"
-        and "TVM_TRACKER_PORT"
-    priority: int, optional
-        The priority of this request, larger is more prior
-    timeout: float, optional
-        The timeout of this session (units: seconds)
-
-    Returns
-    ------
-    session: RPCSession
+    filename : str
+        The filename of generated library
+    arg_info : Tuple
+        The shape and dtype information of tvm tensor arguments
+    error : Exception
+        The error happens during compilation.
+    time_cost : float
+        The time cost of building
     """
-    # connect to the tracker
-    if tracker_addr:
-        host = tracker_addr[0] or os.environ['TVM_TRACKER_HOST']
-        port = tracker_addr[1] or int(os.environ['TVM_TRACKER_PORT'])
-    else:
-        host = os.environ['TVM_TRACKER_HOST']
-        port = int(os.environ['TVM_TRACKER_PORT'])
 
-    tracker = _rpc.connect_tracker(host, port)
-    remote = tracker.request(device_key, priority=priority,
-                             session_timeout=timeout)
-    return remote
-
-def check_remote(target, device_key, tracker_addr=None, priority=2, timeout=10):
-    """
-    Check the availability of a remote device
+class LocalBuilder(Builder):
+    """Run compilation on local machine
 
     Parameters
     ----------
-    target: Target
-        The wanted compilation target
-    device_key: string
-        device key of registered device in tracker
-    tracker_addr: Tuple(string, int), optional
-        The address of rpc tracker in (host, port) format.
-        If is none, will use environment variable "TVM_TRACKER_HOST"
-        and "TVM_TRACKER_PORT"
-    priority: int, optional
-        The priority of this request, larger is more prior
-    timeout: float, optional
-        The timeout of this check (units: seconds).
-        If time is out, a RuntimeError will be raised.
+    timeout: float
+        The timeout of a compilation
+    n_parallel: int
+        The number of tasks run in parallel. "None" will use all cpu cores
+    build_func: callable or str
+        If is 'default', use default build function
+        If is 'ndk', use function for android ndk
+        If is callable, use it as custom build function
     """
-    def _check():
-        remote = request_remote(device_key, tracker_addr, priority)
-        remote.context(str(target))
-    t = threading.Thread(target=_check,)
-    t.start()
-    t.join(timeout)
-    return not t.is_alive()
+    def __init__(self, timeout=10, n_parallel=None, build_func='default'):
+        super(LocalBuilder, self).__init__(timeout, n_parallel)
 
-def create_measure_batch(task, option):
-    """Get a standard measure_batch function.
+        if isinstance(build_func, str):
+            if build_func == 'default':
+                build_func = default_build_func
+            elif build_func == 'ndk':
+                build_func = android_ndk_build_func
+            else:
+                raise ValueError("Invalid build_func" + build_func)
+
+        self.build_func = build_func
+        self.tmp_dir = tempfile.mkdtemp()
+        self.executor = LocalExecutor(timeout=timeout)
+
+    def build(self, measure_inputs):
+        results = []
+
+        for i in range(0, len(measure_inputs), self.n_parallel):
+            futures = []
+            for inp in measure_inputs[i:i + self.n_parallel]:
+                ret = self.executor.submit(self.build_func,
+                                           inp,
+                                           self.tmp_dir,
+                                           **self.build_kwargs)
+                futures.append(ret)
+
+            for future in futures:
+                res = future.get()
+
+                if isinstance(res, Exception):
+                    # timeout or fleet error, return MeasureResult directly
+                    results.append(MeasureResult((res,), MeasureErrorNo.BUILD_TIMEOUT,
+                                                 self.timeout, time.time()))
+                elif res.error is not None:
+                    # instantiation errorD
+                    if isinstance(res.error, InstantiationError):
+                        results.append(MeasureResult((res.error,),
+                                                     MeasureErrorNo.INSTANTIATION_ERROR,
+                                                     res.time_cost, time.time()))
+                    else:
+                        if "InstantiationError" in str(res.error):
+                            msg = str(res.error)
+                            try:
+                                msg = msg.split('\n')[-2].split(": ")[1]
+                            except Exception:  # pylint: disable=broad-except
+                                pass
+                            results.append(MeasureResult((InstantiationError(msg),),
+                                                         MeasureErrorNo.INSTANTIATION_ERROR,
+                                                         res.time_cost, time.time()))
+                        else:  # tvm error
+                            results.append(MeasureResult((res.error,),
+                                                         MeasureErrorNo.COMPILE_HOST,
+                                                         res.time_cost, time.time()))
+                else:
+                    # return BuildResult
+                    results.append(res)
+
+        return results
+
+    def __del__(self):
+        shutil.rmtree(self.tmp_dir)
+
+
+class RPCRunner(Runner):
+    """Run generated code on remove devices.
+    This function will ask a RPC Tracker to get device for measurement.
 
     Parameters
     ----------
-    task: tvm.autotvm.task.Task
-        The tuning task
-    option: dict
-        The option for measuring generated code.
-        You should use the return value of function :any:`measure_option` for this argument.
-
-    Returns
-    -------
-    measure_batch: callable
-        a callback function to measure a batch of configs
+    timeout: float
+        The timeout of a compilation
+    n_parallel: int
+        The number of tasks run in parallel. "None" will use all cpu cores
+    key: str
+        The key of the device registered in the tracker
+    host: str
+        The host address of RPC Tracker
+    port: int
+        The port of RPC Tracker
+    number : int, optional
+        Number of times to do measurement for tasking average
+    repeat : int, optional
+        Number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first one is warm up. The returned result contains `repeat` costs,
+    min_repeat_ms : float, optional
+        Minimum duration of a timer measurement in milliseconds.
+        When the run time of a measurement trial falls below this time, the
+        `number` parameter will be automatically increased.
+        Set this to improve the accuracy of perf measurement, e.g., when timers
+        are not precise enough to capture short-running tasks. This parameter is
+        also critical when devices need a certain minimum running time to "warm
+        up," such as GPUs that need time to reach a performance power state.
+    cooldown_interval: float, optional
+        The cool down interval between two measurements.
+    check_correctness: bool, optional
+        Whether check correctness after measurement. This will use llvm cpu target to
+        call your template and get the reference output.
+        This can work for TOPI templates, but may not work for your custom template.
     """
-    from ..database import filter_inputs
+    def __init__(self,
+                 key, host, port, priority=1,
+                 timeout=10, n_parallel=None,
+                 number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
+                 check_correctness=False):
+        super(RPCRunner, self).__init__(timeout, n_parallel)
 
-    measure_func = option['measure_func']
-    number, repeat = option['number'], option['repeat']
-    timeout, n_parallel, do_fork = option['timeout'], option['n_parallel'], option['do_fork']
-    build_func = option['build_func']
-    check_correctness = option['check_correctness']
-    replay_db = option['replay_db']
+        self.key = key
+        self.host = host
+        self.port = port
+        self.priority = priority
+        self.timeout = timeout
 
-    executor = LocalExecutor(timeout=timeout, do_fork=do_fork)
+        self.number = number
+        self.repeat = repeat
+        self.min_repeat_ms = min_repeat_ms
+        self.cur_number = number
 
-    # convert convenient string to function object
-    attach_objects = None
-    if measure_func == 'local':
-        # start temporary rpc tracker and rpc server for the user
+        self.ref_input = None
+        self.ref_output = None
+        self.check_correctness = check_correctness
+        self.cooldown_interval = cooldown_interval
+
+        self.executor = LocalExecutor()
+
+    def set_task(self, task):
+        self.task = task
+        self.cur_number = self.number
+
+        if check_remote(task.target, self.key, self.host, self.port):
+            logger.info("Get devices for measurement successfully!")
+        else:
+            raise RuntimeError("Cannot get remote devices from the tracker. "
+                               "Please check the status of tracker by "
+                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
+                               "and make sure you have free devices on the queue status.")
+
+        if self.check_correctness:
+            # use llvm cpu to generate a reference input/output
+            # this option works for tuning topi, but might not work for you custom op
+            with _target.create("llvm"):
+                s, arg_bufs = task.instantiate(task.config_space.get(0))
+            self.ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
+                              for x in arg_bufs]
+            func = build(s, arg_bufs, "llvm")
+            tvm_buf = [nd.array(x) for x in self.ref_input]
+            func(*tvm_buf)
+            self.ref_output = [x.asnumpy() for x in tvm_buf]
+
+    def get_build_kwargs(self):
+        kwargs = {}
+        if 'cuda' in self.task.target.keys or 'opencl' in self.task.target.keys:
+            remote = request_remote(self.key, self.host, self.port)
+            ctx = remote.context(str(self.task.target), 0)
+            max_dims = ctx.max_thread_dimensions
+            kwargs['check_gpu'] = {
+                'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
+                'max_threads_per_block': ctx.max_threads_per_block,
+                'max_thread_x': max_dims[0],
+                'max_thread_y': max_dims[1],
+                'max_thread_z': max_dims[2],
+            }
+
+            if 'cuda' in self.task.target.keys:
+                kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
+
+        return kwargs
+
+    def run(self, measure_inputs, build_results):
+        results = []
+        remote_args = (self.key, self.host, self.port, self.priority, self.timeout)
+
+        for i in range(0, len(measure_inputs), self.n_parallel):
+            futures = []
+            for measure_inp, build_res in zip(measure_inputs[i:i+self.n_parallel],
+                                              build_results[i:i+self.n_parallel]):
+                ret = self.executor.submit(run_through_rpc,
+                                           measure_inp,
+                                           build_res,
+                                           self.cur_number,
+                                           self.repeat,
+                                           self.cooldown_interval,
+                                           remote_args,
+                                           self.ref_input,
+                                           self.ref_output)
+                futures.append(ret)
+
+            for future in futures:
+                res = future.get()
+                if isinstance(res, Exception):   # executor error or timeout
+                    results.append(MeasureResult((str(res),), MeasureErrorNo.RUN_TIMEOUT,
+                                                 self.timeout, time.time()))
+                else:
+                    results.append(res)
+
+        # If some runs were too fast, do remeasure for them
+        # to meet the requirement of `min_repeat_ms`
+        remeasure = np.zeros((len(measure_inputs),), dtype=np.bool)
+        pre_number = next_number = self.cur_number
+        min_repeat_duration = self.min_repeat_ms / 1000.0
+        for i, res in enumerate(results):
+            if res.error_no == MeasureErrorNo.NO_ERROR:
+                if np.mean(res.costs) * pre_number <= min_repeat_duration:
+                    next_number = max(next_number,
+                                      int(np.ceil(min_repeat_duration / np.mean(res.costs))))
+                    remeasure[i] = True
+
+        if pre_number != next_number:
+            self.cur_number = next_number
+            msg = "increasing number to %d" % self.cur_number
+            logger.info(msg)
+
+            re_measure_inputs = [x for i, x in enumerate(measure_inputs) if remeasure[i]]
+            re_build_results = [x for i, x in enumerate(build_results) if remeasure[i]]
+            re_res = self.run(re_measure_inputs, re_build_results)
+            ct = 0
+            for i, rerun in enumerate(remeasure):
+                if rerun:
+                    results[i] = re_res[ct]
+                    ct += 1
+
+        return results
+
+class LocalRunner(RPCRunner):
+    """Run generated code on local devices.
+
+    Parameters
+    ----------
+    timeout: float
+        The timeout of a compilation
+    number : int, optional
+        Number of times to do measurement for tasking average
+    repeat : int, optional
+        Number of times to repeat the measurement.
+        In total, the generated code will be run (1 + number x repeat) times,
+        where the first one is warm up. The returned result contains `repeat` costs,
+        each of which is the average of `number` test run.
+    min_repeat_ms : float, optional
+        Minimum duration of a timer measurement in milliseconds.
+        When the run time of a measurement trial falls below this time, the
+        `number` parameter will be automatically increased.
+        Set this to improve the accuracy of perf measurement, e.g., when timers
+        are not precise enough to capture short-running tasks. This parameter is
+        also critical when devices need a certain minimum running time to "warm
+        up," such as GPUs that need time to reach a performance power state.
+    cooldown_interval: float, optional
+        The cool down interval between two measurements.
+    check_correctness: bool, optional
+        Whether check correctness after measurement. This will use llvm cpu target to
+        call your template and get the reference output.
+        This can work for TOPI templates, but may not work for your custom template.
+
+    Note
+    ----
+    This is a "fake" local mode. We start a silent rpc tracker and rpc server
+    for the user. In this way we reuse timeout/isolation mechanism in RPC infrastructure.
+    """
+    def __init__(self,
+                 timeout=10,
+                 number=4, repeat=3, min_repeat_ms=0, cooldown_interval=0.1,
+                 check_correctness=False):
+        super(LocalRunner, self).__init__('', None, None, 0,
+                                          timeout=timeout, n_parallel=1,
+                                          number=number, repeat=repeat,
+                                          min_repeat_ms=min_repeat_ms,
+                                          cooldown_interval=cooldown_interval,
+                                          check_correctness=check_correctness)
+        self.tracker = None
+        self.server = None
+
+    def set_task(self, task):
+        self.task = task
+
         from ...rpc.tracker import Tracker
         from ...rpc.server import Server
 
@@ -133,360 +343,215 @@ def create_measure_batch(task, option):
                         key=device_key,
                         use_popen=True, silent=True,
                         tracker_addr=(tracker.host, tracker.port))
+        self.key = device_key
+        self.host = tracker.host
+        self.port = tracker.port
 
-        measure_func = rpc(device_key, tracker.host, tracker.port)
-        attach_objects = (server, tracker)
-
-    build_kwargs = {}
-    if build_func == 'default':
-        build_func = default_build_func
-    if build_func == 'ndk':
-        build_func = default_build_func
-        build_kwargs['use_ndk'] = True
-
-    # check the availability of remote devices
-    if hasattr(measure_func, 'rpc_info'):
-        rpc_info = measure_func.rpc_info
-        if check_remote(task.target, rpc_info['key'], (rpc_info['host'], rpc_info['port'])):
-            logger.info("Get devices for measurement successfully!")
-        else:
-            raise RuntimeError("Cannot get remote devices from the tracker. "
-                               "Please check the status of tracker by "
-                               "'python -m tvm.exec.query_rpc_tracker --port [THE PORT YOU USE]' "
-                               "and make sure you have free devices on the queue status.")
-
-    # add device info of cuda and opencl target
-    if ('cuda' in task.target.keys or 'opencl' in task.target.keys) \
-            and hasattr(measure_func, 'rpc_info'):
-        rpc_info = measure_func.rpc_info
-        add_gpu_target_info(task.target, rpc_info["key"], (rpc_info["host"], rpc_info["port"]),
-                            build_kwargs)
-
-    if check_correctness:
-        # use llvm cpu to generate a reference input/output
-        # this option works for tuning topi, but might not work for you custom op
-        with _target.create("llvm"):
-            s, arg_bufs = task.instantiate(task.config_space.get(0))
-        ref_input = [np.random.uniform(size=get_const_tuple(x.shape)).astype(x.dtype)
-                     for x in arg_bufs]
-        func = build(s, arg_bufs, "llvm")
-        tvm_buf = [nd.array(x) for x in ref_input]
-        func(*tvm_buf)
-        ref_output = [x.asnumpy() for x in tvm_buf]
-    else:
-        ref_input = ref_output = None
-
-    def measure_batch(measure_inputs):
-        """measure the time cost for a batch of configs in real machines"""
-        if replay_db is not None:
-            partial_results, measure_inputs = \
-                filter_inputs(replay_db, measure_inputs, retry=False)
-
-        # launch measure jobs in parallel
-        pack_size = getattr(measure_func, "pack_size", 1)  # measure `pack_size` inputs in one job
-        futures = []
-        for i in range(0, len(measure_inputs), pack_size):
-            input_pack = measure_inputs[i:i + pack_size]
-            ret = executor.submit(
-                measure_func,
-                input_pack,
-                build_func,
-                build_kwargs,
-                number,
-                repeat,
-                ref_input,
-                ref_output)
-            futures.append(ret)
-
-        # transform results
-        results = []
-        for future in futures:
-            result = future.get()
-            if isinstance(result, Exception):
-                tstamp = time.time()
-                results.extend([MeasureResult((result,), MeasureErrorNo.FLEET_ERROR,
-                                              timeout, tstamp)] * pack_size)
-            else:
-                results.extend(result)
-
-        if replay_db is not None:
-            result_idx = 0
-            for i in range(len(partial_results)):
-                if partial_results[i] is None:
-                    partial_results[i] = results[result_idx]
-                    result_idx += 1
-            return partial_results
-        return results
-
-    measure_batch.n_parallel = n_parallel
-    # attach server and tracker object to avoid them of being garbage-collected
-    measure_batch.attach_objects = attach_objects
-    return measure_batch
+        super(LocalRunner, self).set_task(task)
+        return server, tracker
 
 
-def rpc(key,
-        host=None,
-        port=None,
-        priority=1,
-        session_timeout=60,
-        pack_size=1):
+def _build_func_common(measure_input, check_gpu=None, cuda_arch=None, build_option=None):
+    """Common part for building a configuration"""
+    target, task, config = measure_input
+
+    with target:
+        s, args = task.instantiate(config)
+
+        # check invalidity of template and code hash consistency
+        if not config.valid():
+            raise InstantiationError(config.errors)
+
+        opts = build_option or {}
+        if check_gpu:  # Add verify pass to filter out invalid configs in advance.
+            opts["add_lower_pass"] = [(2, gpu_verify_pass(**check_gpu))]
+        if cuda_arch:
+            set_cuda_target_arch(cuda_arch)
+
+        with build_config(**opts):
+            func = build(s, args, target_host=task.target_host)
+    return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
+
+
+def default_build_func(measure_input, tmp_dir, **kwargs):
     """
-    Create a standard measure_func which uses RPC Tracker for measurement.
-    This measure_func will request a device from the RPC Tracker and
-    upload the built binary library to that device for measurement.
+    Default build func. This can work for cuda, opencl, llvm backend
 
     Parameters
     ----------
-    key: str
-        The registered key of the device in tracker. The tuner will request devices for
-        measurement by this key.
-    host: str, optional
-        The hostname of RPC Tracker. If not set, will use environment variable "TVM_TRACKER_HOST"
-    port: int, optional
-        The port of RPC Tracker. If not set, will use environment variable "TVM_TRACKER_PORT"
-    priority: int, optional
-        Priority of this task, used by scheduler in tracker
-    session_timeout: int, optional
-        Timeout of rpc session
-    pack_size: int, optional
-        The number of configs measure in one RPC session.
-        Usually this can be set to 1. If your device has high overhead to establish a
-        rpc connection, set this higher.
+    measure_input: MeasureInput
+        The input of measurement
+    tmp_dir: str
+        The path of temporary directory to export generated library
     """
-    def fmeasure(input_pack, build_func, build_kwargs, number, repeat, ref_input, ref_output):
-        """Do measurement for a list of inputs inside a same RPC session.
-
-        Parameters
-        ----------
-        input_pack: List of MeasureInput
-            The inputs of measurement
-        build_func: callable
-            Function for building the code. see :any:`default_build_func` for example
-        build_kwargs: dict
-            Extra arguments for build_func
-        number : int, optional
-            Number of times to do the measurement for average
-        repeat : int, optional
-            Number of times to repeat the measurement.
-            In total, the generated code will be run (1 + number x repeat) times,
-            where the first one is warm up. The returned result contains `repeat` costs,
-            each of which is the average of `number` test run.
-        ref_input: List of numpy array
-            Reference input for correctness check
-        ref_output: List of numpy array
-            Reference output for correctness check
-
-        Returns
-        -------
-        results: List of MeasureResult
-            The results for input_pack
-        """
-        remote_args = (key, (host, port), priority, session_timeout)
-
-        res = _measure_common(input_pack, build_func, build_kwargs, number, repeat,
-                              ref_input, ref_output,
-                              remote_args)
-        return res
-
-    fmeasure.pack_size = pack_size
-    fmeasure.rpc_info = {"key": key, "host": host, "port": port}
-    return fmeasure
+    tic = time.time()
+    try:
+        filename = os.path.join(tmp_dir, "tmp_func_%0x.tar" % getrandbits(64))
+        func, arg_info = _build_func_common(measure_input, **kwargs)
+        func.export_library(filename)
+    except Exception as e:  # pylint: disable=broad-except
+        return BuildResult(None, None, e, time.time() - tic)
+    return BuildResult(filename, arg_info, None, time.time() - tic)
 
 
-def _measure_common(input_pack, build_func, build_kwargs, number, repeat,
-                    ref_input=None, ref_output=None, remote_args=None):
-    """Measure the time cost for a pack of inputs.
-
-    (Note: A pack is a list of inputs which will be measured inside a same RPC session)
+def android_ndk_build_func(measure_input, tmp_dir, **kwargs):
+    """
+    Build function for android device using ndk.
 
     Parameters
     ----------
-    input_pack : list of MeasureInput
-        The inputs we need to evaluate
-    build_func : function takes MeasureInput returns tuple of (time_func, ctx, args)
-        The build function used to build each input.
-    build_kwargs: Dict
-        The extra keyword arguments to build_func
+    measure_input: MeasureInput
+        The input of measurement
+    tmp_dir: str
+        The path of temporary directory to export generated library
+    """
+    tic = time.time()
+    try:
+        filename = os.path.join(tmp_dir, "tmp_func_%0x.so" % getrandbits(64))
+        func, arg_info = _build_func_common(measure_input, **kwargs)
+        func.export_library(filename, ndk.create_shared)
+    except Exception as e:  # pylint: disable=broad-except
+        return BuildResult(None, None, e, time.time() - tic)
+    return BuildResult(filename, arg_info, None, time.time() - tic)
+
+
+def run_through_rpc(measure_input, build_result,
+                    number, repeat, cooldown_interval,
+                    remote_args, ref_input=None, ref_output=None):
+    """Run a generated library through rpc
+
+    Parameters
+    ----------
+    measure_input: MeasureInput
+        The raw measure input
+    build_result: BuildResult
+        The result returned from Builder. This contains the path to the generated library.
     number : int, optional
-        Number of times to do the measurement for average
+        Number of times to do measurement for tasking average
     repeat : int, optional
         Number of times to repeat the measurement.
         In total, the generated code will be run (1 + number x repeat) times,
         where the first one is warm up. The returned result contains `repeat` costs,
         each of which is the average of `number` test run.
-    ref_input: Array of np.ndarray, optional
-        Reference input for checking correctness
-    ref_output: Array of np.ndarray, optional
-        Reference output for checking correctness
-    remote_args: Tuple, optional
-        The arguments to request_remote. If is not None, will use remote rpc devices.
-
-    Returns
-    -------
-    res_pack : Array of MeasureResult
-        The list of results of measurement.
+    cooldown_interval: float
+        The cool down interval between two measurements
+    remote_args: Tuple
+        The argument for request_remote
+    ref_input: List of np.ndarray
+        The reference input used for checking correctness
+    ref_output: List of np.ndarray
+        The reference output used for checking correctness
     """
-    res_pack = []
-    tmp_dir = util.tempdir() if remote_args else None
-    assert len(input_pack) == 1, "Only supports input_pack == 1 for now"
+    if isinstance(build_result, MeasureResult):
+        return build_result
 
-    for inp in input_pack:
-        tic = time.time()
+    tic = time.time()
+    errno = MeasureErrorNo.NO_ERROR
+    try:
+        # upload built module
+        remote = request_remote(*remote_args)
+        remote.upload(build_result.filename)
+        func = remote.load_module(os.path.split(build_result.filename)[1])
+        ctx = remote.context(str(measure_input.target), 0)
+        time_f = func.time_evaluator(
+            func.entry_name, ctx, number=number, repeat=repeat)
 
-        # build function
-        try:
-            func, arg_bufs, filename = build_func(inp, tmp_dir, **build_kwargs)
-        except TVMError as exc:
-            tstamp = time.time()
-            msg = str(exc)
-            if "Stack trace returned" in msg:
-                msg = msg[:msg.index("Stack trace returned")]
-            if "InstantiationError" in msg:
-                try:
-                    msg = msg.split('\n')[-2].split(": ")[1]
-                except Exception:  # pylint: disable=broad-except
-                    pass
-                res_pack.append(MeasureResult((InstantiationError(msg),),
-                                              MeasureErrorNo.INSTANTIATION_ERROR,
-                                              tstamp - tic, tstamp))
-            else:
-                res_pack.append(MeasureResult((RuntimeError(msg),),
-                                              MeasureErrorNo.COMPILE_HOST,
-                                              tstamp - tic, tstamp))
-            continue
-        except InstantiationError as e:
-            tstamp = time.time()
-            res_pack.append(MeasureResult((InstantiationError(str(e)),),
-                                          MeasureErrorNo.INSTANTIATION_ERROR,
-                                          tstamp - tic, tstamp))
-            continue
+        # set input
+        if ref_input:
+            args = [nd.array(x, ctx=ctx) for x in ref_input]
+        else:
+            args = [nd.empty(x[0], dtype=x[1], ctx=ctx) for x in build_result.arg_info]
 
-        # measure time
-        errno = MeasureErrorNo.NO_ERROR
-        try:
-            # upload built module
-            if remote_args:
-                remote = request_remote(*remote_args)
-                remote.upload(tmp_dir.relpath(filename))
-                func = remote.load_module(filename)
-                ctx = remote.context(str(inp.target), 0)
-                time_f = func.time_evaluator(
-                    func.entry_name, ctx, number=number, repeat=repeat)
-            else:
-                ctx = context(str(inp.target), 0)
-                time_f = func.time_evaluator(
-                    func.entry_name, ctx, number=number, repeat=repeat)
+        costs = time_f(*args).results
+        if len(costs) > 2:  # remove largest and smallest value to reduce variance
+            costs = list(costs)
+            costs.sort()
+            costs = tuple(costs[1:-1])
 
-            # set input
-            if ref_input:
-                args = [nd.array(x, ctx=ctx) for x in ref_input]
-            else:
-                args = [nd.empty(get_const_tuple(x.shape), dtype=x.dtype, ctx=ctx)
-                        for x in arg_bufs]
-
-            costs = time_f(*args).results
-            if len(costs) > 2:  # remove largest and smallest value to reduce variance
-                costs = list(costs)
-                costs.sort()
-                costs = tuple(costs[1:-1])
-
-            # check correctness of output
-            if ref_output:
-                for expected, real in zip(ref_output, args):
-                    if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
-                        logger.warning("Wrong Answer!")
-                        errno = MeasureErrorNo.WRONG_ANSWER
-        except TVMError as exc:
-            msg = str(exc)
-            if "Stack trace returned" in msg:
-                msg = msg[:msg.index("Stack trace returned")]
-            if "CUDA Source" in msg:
-                msg = msg[:msg.index("CUDA Source")]
-            costs = (RuntimeError(msg),)
-            errno = MeasureErrorNo.RUNTIME_DEVICE
-        tstamp = time.time()
-        res_pack.append(MeasureResult(costs, errno, tstamp - tic, tstamp))
-    return res_pack
+        # check correctness of output
+        if ref_output:
+            for expected, real in zip(ref_output, args):
+                if not np.allclose(expected, real.asnumpy(), rtol=1e-4):
+                    logger.warning("Wrong Answer!")
+                    errno = MeasureErrorNo.WRONG_ANSWER
+    except TVMError as exc:
+        msg = str(exc)
+        if "Stack trace returned" in msg:
+            msg = msg[:msg.index("Stack trace returned")]
+        if "CUDA Source" in msg:
+            msg = msg[:msg.index("CUDA Source")]
+        costs = (RuntimeError(msg[:1024]),)
+        errno = MeasureErrorNo.RUNTIME_DEVICE
+    tstamp = time.time()
+    time.sleep(cooldown_interval)
+    return MeasureResult(costs, errno, tstamp - tic + build_result.time_cost, tstamp)
 
 
-def default_build_func(inp, tmp_dir=None, **kwargs):
-    """Build function module. Exception will be raised when any error occurs
+def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
+    """Request a remote session
 
     Parameters
     ----------
-    inp: MeasureInput
-       The input of this measurement
-    tmp_dir: tvm.contrib.util.TempDirectory, optional
-       The temporary directory for exporting built binary library.
-       If is not None (in RPC mode), the library in this directory will be uploaded to
-       remote devices.
-    kwargs: Dict, optional
-        Other extra arguments
+    device_key: string
+        The device key of registered device in tracker
+    host: host, optional
+        The host address of rpc tracker.
+        If is none, will use environment variable "TVM_TRACKER_HOST"
+    port: int, optional
+        The port of rpc tracker.
+        If is none, will use environment variable "TVM_TRACKER_PORT"
+    priority: int, optional
+        The priority of this request, larger is more prior
+    timeout: float, optional
+        The timeout of this session (units: second)
+
+    Returns
+    ------
+    session: RPCSession
+    """
+    # connect to the tracker
+    host = host or os.environ['TVM_TRACKER_HOST']
+    port = port or int(os.environ['TVM_TRACKER_PORT'])
+
+    tracker = _rpc.connect_tracker(host, port)
+    remote = tracker.request(device_key, priority=priority,
+                             session_timeout=timeout)
+    return remote
+
+
+def check_remote(target, device_key, host=None, port=None, priority=2, timeout=10):
+    """
+    Check the availability of a remote device
+
+    Parameters
+    ----------
+    target: Target
+        The wanted compilation target
+    device_key: string
+        device key of registered device in tracker
+    host: host, optional
+        The host address of rpc tracker.
+        If is none, will use environment variable "TVM_TRACKER_HOST"
+    port: int, optional
+        The port address of rpc tracker.
+        If is none, will use environment variable "TVM_TRACKER_PORT"
+    priority: int, optional
+        The priority of this request, larger is more prior
+    timeout: float, optional
+        The timeout of this check (units: seconds).
 
     Returns
     -------
-    func: Function
-        TVM built function. Typically this is the return value of tvm.build.
-    args: Array of Buffer or Tensor
-        The argument list for the function. Typically this is the second argument of tvm.build.
-    filename: str
-        The filename of the output build library
+    available: bool
+        True if can find available device
     """
-    # build function
-    with inp.target:
-        s, args = inp.task.instantiate(inp.config)
-
-        # check invalidity of template and code hash consistency
-        if not inp.config.valid():
-            raise InstantiationError(inp.config.errors)
-        code_hash = getattr(s, 'code_hash', None)
-        if inp.config.code_hash != code_hash:
-            raise HashMismatchError('got {0:s}, expected {1:s}'
-                                    .format(str(inp.config.code_hash), str(code_hash)))
-
-        opts = {}
-        if "check_gpu" in kwargs:  # Add verify pass to filter out invalid configs in advance.
-            opts["add_lower_pass"] = [(2, gpu_verify_pass(**kwargs['check_gpu']))]
-        if 'cuda_arch' in kwargs:
-            set_cuda_target_arch(kwargs['cuda_arch'])
-
-        with build_config(**opts):
-            func = build(s, args, target_host=inp.task.target_host)
-
-    # export library to temp directory
-    if tmp_dir:
-        if kwargs.get('use_ndk', False):  # for Android NDK
-            filename = "tmp_func_%0x.so" % getrandbits(64)
-            func.export_library(tmp_dir.relpath(filename), ndk.create_shared)
-        else:
-            filename = "tmp_func_%0x.tar" % getrandbits(64)
-            func.export_library(tmp_dir.relpath(filename))
-    else:
-        filename = None
-
-    return func, args, filename
-
-
-def add_gpu_target_info(target, device_key, rpc_tracker_addr, kwargs):
-    """Add device info for gpu target.
-    The info will be used to check the validity of generated code."""
-    remote = request_remote(device_key, rpc_tracker_addr)
-    ctx = remote.context(str(target), 0)
-    max_dims = ctx.max_thread_dimensions
-    kwargs['check_gpu'] = {
-        'max_shared_memory_per_block': ctx.max_shared_memory_per_block,
-        'max_threads_per_block': ctx.max_threads_per_block,
-        'max_thread_x': max_dims[0],
-        'max_thread_y': max_dims[1],
-        'max_thread_z': max_dims[2],
-    }
-
-    if 'cuda' in target.keys:
-        kwargs["cuda_arch"] = "sm_" + "".join(ctx.compute_version.split('.'))
-
-def set_cuda_target_arch(arch):
-    """set target architecture of nvcc compiler"""
-    AutotvmGlobalScope.current.cuda_target_arch = arch
+    def _check():
+        remote = request_remote(device_key, host, port, priority)
+        remote.context(str(target))
+    t = threading.Thread(target=_check,)
+    t.start()
+    t.join(timeout)
+    return not t.is_alive()
 
 
 @register_func
@@ -494,6 +559,17 @@ def tvm_callback_cuda_compile(code):
     """use nvcc to generate ptx code for better optimization"""
     ptx = nvcc.compile_cuda(code, target="ptx", arch=AutotvmGlobalScope.current.cuda_target_arch)
     return ptx
+
+
+def set_cuda_target_arch(arch):
+    """set target architecture of nvcc compiler
+
+    Parameters
+    ----------
+    arch: str
+        The argument of nvcc -arch. (e.g. "sm_51", "sm_62")
+    """
+    AutotvmGlobalScope.current.cuda_target_arch = arch
 
 
 def gpu_verify_pass(**kwargs):
