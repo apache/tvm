@@ -988,7 +988,7 @@ class GraphProto(object):
                 self._num_param += 1
 
                 input_shapes = [self._output_shapes[i] for i in node.input]
-                assert (len(input_shapes) == 1)
+                assert len(input_shapes) == 1
 
                 self._params[node.name] = tvm.nd.array([len(input_shapes[0][0])])
                 self._nodes[node.name] = _sym.Variable(name=node.name,
