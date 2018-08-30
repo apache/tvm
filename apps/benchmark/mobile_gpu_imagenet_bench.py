@@ -60,7 +60,8 @@ def evaluate_network(network, target, target_host, number):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--network", type=str, choices=
-                        ['resnet-18', 'resnet-34', 'vgg-16', 'mobilenet', 'squeezenet v1.1', ])
+                        ['resnet-18', 'resnet-34', 'vgg-16',
+                         'mobilenet', 'mobilenet_v2', 'squeezenet v1.1'])
     parser.add_argument("--model", type=str, choices=
                         ['rk3399'], default='rk3399',
                        help="The model of the test device. If your device is not listed in "

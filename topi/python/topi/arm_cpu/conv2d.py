@@ -135,19 +135,16 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
 
     cfg.define_annotate("ann_reduce", [kh, kw], policy='try_unroll')
     cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
-    # ====================================================================
 
+    # fallback support
     if cfg.is_fallback:
-        if num_tile == 2:
-            cfg.fallback_split('tile_co', [-1, 8])
-            cfg.fallback_split('tile_oh', [-1, 2])
-            cfg.fallback_split('tile_ow', [-1, 8])
-        else:
-            cfg.fallback_split('tile_co', [-1, 16, 4])
-            cfg.fallback_split('tile_oh', [-1, 1, 1])
-            cfg.fallback_split('tile_ow', [-1, 1, 4])
-        cfg['ann_reduce'].anns = ['unroll', 'unroll']
-        cfg['ann_spatial'].anns = ['none', 'unroll', 'vec']
+        if num_tile == 2:     # arm cpu
+            ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'conv2d', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+        elif num_tile == 3:  # mali gpu
+            ref_log = autotvm.tophub.load_reference_log('mali', 'rk3399', 'conv2d', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+    # ====================================================================
 
     VC = cfg["tile_co"].size[-1]
     VH = cfg["tile_oh"].size[-1]

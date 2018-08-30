@@ -7,13 +7,10 @@ from .. import tag
 from .. import generic, nn
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.task.register_topi_compute(nn.depthwise_conv2d_nchw,
-                                   ['cuda', 'gpu'],
-                                   'direct',
-                                   nn.depthwise_conv2d_nchw.fdefault)
+autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct',
+                              nn.depthwise_conv2d_nchw.fdefault)
 
-@autotvm.task.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw,
-                                     ['cuda', 'gpu'], 'direct')
+@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct')
 def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
 
@@ -37,6 +34,24 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
             kernel = op.input_tensors[1]
             conv = op.output(0)
 
+            ##### space definition begin #####
+            n, f, y, x = s[conv].op.axis
+            cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
+            cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
+            cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
+            cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
+            cfg.define_knob("unroll_explicit", [0, 1])
+
+            # fallback support
+            if cfg.is_fallback:
+                ref_log = autotvm.tophub.load_reference_log(
+                    'cuda', '1080ti', 'depthwise_conv2d_nchw', 'direct')
+                cfg.fallback_with_reference_log(ref_log)
+                # TODO(lmzheng): A bug here, set unroll_explicit to False as workaround
+                cfg['unroll_explicit'].val = False
+
+            ##### space definition end #####
+
             s[pad_data].compute_inline()
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
@@ -57,10 +72,6 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
 
             # tile and bind spatial axes
             n, f, y, x = s[output].op.axis
-            cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
-            cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-            cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
-
             bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
             by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
@@ -78,7 +89,7 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
             s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
             s[OL].compute_at(s[output], tx)
 
-            # tile and bind reduction axes
+            # cooperative fetching
             s[AA].compute_at(s[output], bx)
             s[WW].compute_at(s[output], bx)
             s[AL].compute_at(s[output], tx)
@@ -93,8 +104,6 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
                 s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
                 s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-            cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
-            cfg.define_knob("unroll_explicit", [0, 1])
             s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
             s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 

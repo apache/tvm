@@ -316,8 +316,8 @@ def decl_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, til
     return winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype, pre_computed=True)
 
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
-                                     ['cuda', 'gpu'], ['winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
+                                ['cuda', 'gpu'], ['winograd'])
 def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -352,7 +352,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         # query config of this workload
         workload = ('conv2d',) + autotvm.task.args_to_workload(
             [tinfos[0], tinfos[1], strides, padding, layout, out_dtype])
-        cfg = autotvm.task.DispatchContext.current.query(tvm.target.current_target(), workload)
+
+        cfg = autotvm.DispatchContext.current.query(tvm.target.current_target(), workload)
 
         if cfg.is_fallback:  # if is fallback, clear query cache and return None
             autotvm.task.clear_fallback_cache(tvm.target.current_target(), workload)

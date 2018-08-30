@@ -40,7 +40,7 @@ def get_workload(batch_size, num_classes=1000, multiplier=1.0, dtype="float32"):
 
     image_shape = (1, 3, 224, 224)
 
-    block = MobileNetV2(multiplier=multiplier, classes=num_classes, pretrained=False)
+    block = MobileNetV2(multiplier=multiplier, classes=num_classes)
 
     data = mx.sym.Variable('data')
     sym = block(data)

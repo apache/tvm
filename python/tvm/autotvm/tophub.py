@@ -13,6 +13,7 @@ import sys
 from .task import ApplyHistoryBest
 from .. import target as _target
 from ..contrib.download import download
+from .record import load_from_file
 
 # root path to store TopHub files
 AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub")
@@ -128,3 +129,42 @@ def download_package(package_name):
     logger.info("Download pre-tuned parameters package %s", package_name)
     download("https://raw.githubusercontent.com/uwsaml/tvm-distro/master/tophub/%s"
              % package_name, os.path.join(rootpath, package_name), True, verbose=0)
+
+
+# global cache for load_reference_log
+REFERENCE_LOG_CACHE = {}
+
+def load_reference_log(backend, model, workload_name, template_key):
+    """ Load reference log from TopHub to support fallback in tempalte.
+    Template will use these reference logs to choose fallback config.
+
+    Parameters
+    ----------
+    backend: str
+        The backend name
+    model: str
+        The name of the model
+    workload_name: str
+        The name of the workload. (The first item in the workload tuple)
+    template_key: str
+        The template key
+    """
+
+    backend = _alias(backend)
+    version = PACKAGE_VERSION[backend]
+    package_name = "%s_%s.log" % (backend, version)
+    filename = os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)
+
+    global REFERENCE_LOG_CACHE
+    key = (backend, model, workload_name, template_key)
+
+    if key not in REFERENCE_LOG_CACHE:
+        tmp = []
+        if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
+            for inp, res in load_from_file(filename):
+                if (model in str(inp.target) and inp.task.workload[0] == workload_name and
+                        inp.config.template_key == template_key):
+                    tmp.append((inp, res))
+        REFERENCE_LOG_CACHE[key] = tmp
+
+    return REFERENCE_LOG_CACHE[key]

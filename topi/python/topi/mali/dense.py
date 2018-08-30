@@ -42,17 +42,20 @@ def schedule_dense(cfg, outs):
             y, x = s[output].op.axis
             c = s[dense].op.reduce_axis[0]
 
-            if dense.op in s.outputs:
-                dense = s.cache_write(output, 'local')
-
+            ##### space definition begin #####
             cfg.define_split('tile_y', y, num_outputs=3)
             cfg.define_split('tile_x', x, num_outputs=3)
             cfg.define_split('c_unroll', c, num_outputs=2, max_factor=64)
 
+            # fallback support
             if cfg.is_fallback:
-                cfg.fallback_split('tile_y', [-1, 1, 1])
-                cfg.fallback_split('tile_x', [-1, 4, 4])
-                cfg.fallback_split('c_unroll', [-1, 32])
+                ref_log = autotvm.tophub.load_reference_log(
+                    'mali', 'rk3399', 'dense', 'direct')
+                cfg.fallback_with_reference_log(ref_log)
+            ##### space definition end #####
+
+            if dense.op in s.outputs:
+                dense = s.cache_write(output, 'local')
 
             by, ty, yi = cfg['tile_y'].apply(s, output, y)
             bx, tx, xi = cfg['tile_x'].apply(s, output, x)

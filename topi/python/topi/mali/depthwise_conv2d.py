@@ -38,16 +38,20 @@ def schedule_depthwise_conv2d_nchw_mali(cfg, outs):
         max_unroll = 16
         vec_size = [1, 2, 4, 8, 16]
 
+        ##### space definition begin #####
         n, c, y, x = s[conv].op.axis
         bc, tc, ci = cfg.define_split("tile_c", c, num_outputs=3)
         by, ty, yi = cfg.define_split('tile_y', y, num_outputs=3)
         bx, tx, xi = cfg.define_split("tile_x", x, num_outputs=3)
         cfg.define_annotate('ann_spatial', [ci, yi, xi], policy='try_unroll_vec')
 
+        # fallback support
         if cfg.is_fallback:
-            cfg.fallback_split('tile_c', [-1, 64, 4])
-            cfg.fallback_split('tile_y', [-1, 1, 1])
-            cfg.fallback_split('tile_x', [-1, 1, 4])
+            ref_log = autotvm.tophub.load_reference_log(
+                'mali', 'rk3399', 'depthwise_conv2d_nchw', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+        ###### space definition end ######
+
 
         # schedule padding
         n, c, y, x = s[pad_data].op.axis

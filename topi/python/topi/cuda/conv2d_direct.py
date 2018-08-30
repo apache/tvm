@@ -1,9 +1,30 @@
 # pylint: disable=invalid-name
 """The templates for cuda conv2d operators"""
 import tvm
+from tvm import autotvm
 
 def schedule_direct_cuda(cfg, s, conv):
-    """schedule for batch size = 1"""
+    """schedule optimized for batch size = 1"""
+
+    ##### space definition begin #####
+    n, f, y, x = s[conv].op.axis
+    rc, ry, rx = s[conv].op.reduce_axis
+    cfg.define_split("tile_f", f, num_outputs=4)
+    cfg.define_split("tile_y", y, num_outputs=4)
+    cfg.define_split("tile_x", x, num_outputs=4)
+    cfg.define_split("tile_rc", rc, num_outputs=2)
+    cfg.define_split("tile_ry", ry, num_outputs=2)
+    cfg.define_split("tile_rx", rx, num_outputs=2)
+    cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
+    cfg.define_knob("unroll_explicit", [0, 1])
+
+    # fallback support
+    if cfg.is_fallback:
+        ref_log = autotvm.tophub.load_reference_log(
+            'cuda', '1080ti', 'conv2d', 'direct')
+        cfg.fallback_with_reference_log(ref_log)
+    ##### space definition end #####
+
     pad_data, kernel = s[conv].op.input_tensors
 
     s[pad_data].compute_inline()
@@ -24,14 +45,13 @@ def schedule_direct_cuda(cfg, s, conv):
 
     # tile and bind spatial axes
     n, f, y, x = s[output].op.axis
-    cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
-    cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-    cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
+    kernel_scope, n = s[output].split(n, nparts=1)
+
     bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
     by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
-    kernel_scope = n  # this is the scope to attach global config inside this kernel
 
+    bf = s[output].fuse(n, bf)
     s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
     s[output].bind(by, tvm.thread_axis("blockIdx.y"))
     s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
@@ -41,15 +61,12 @@ def schedule_direct_cuda(cfg, s, conv):
     s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
     s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
     s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+    s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
     s[OL].compute_at(s[output], tx)
 
-    # tile and bind reduction axes
+    # tile reduction axes
     n, f, y, x = s[OL].op.axis
     rc, ry, rx = s[OL].op.reduce_axis
-    cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=2)
-    cfg.define_split("tile_ry", cfg.axis(ry), num_outputs=2)
-    cfg.define_split("tile_rx", cfg.axis(rx), num_outputs=2)
     rco, rci = cfg['tile_rc'].apply(s, OL, rc)
     ryo, ryi = cfg['tile_rx'].apply(s, OL, ry)
     rxo, rxi = cfg['tile_ry'].apply(s, OL, rx)
@@ -58,6 +75,7 @@ def schedule_direct_cuda(cfg, s, conv):
     s[AA].compute_at(s[OL], rxo)
     s[WW].compute_at(s[OL], rxo)
 
+    # cooperative fetching
     for load in [AA, WW]:
         n, f, y, x = s[load].op.axis
         fused = s[load].fuse(n, f, y, x)
@@ -68,7 +86,6 @@ def schedule_direct_cuda(cfg, s, conv):
         s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
         s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-    cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
-    cfg.define_knob("unroll_explicit", [0, 1])
+    # unroll
     s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)

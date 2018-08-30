@@ -289,15 +289,20 @@ class FallbackContext(DispatchContext):
         self.memory = {}
         self.silent = False
 
+        # a set to prevent print duplicated message
+        self.messages = set()
+
     def _query_inside(self, target, workload):
         key = (str(target), workload)
         if key in self.memory:
             return self.memory[key]
 
         if not self.silent:
-            logger.warning(
-                "Cannot find config for target=%s, workload=%s. A fallback configuration "
-                "is used, which may bring great performance regression.", target, workload)
+            msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
+                  "is used, which may bring great performance regression." % (target, workload)
+            if msg not in self.messages:
+                self.messages.add(msg)
+                logger.warning(msg)
         cfg = FallbackConfigEntity()
 
         # cache this config

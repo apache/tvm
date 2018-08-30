@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--network", type=str, choices=
         ['resnet-18', 'resnet-34', 'resnet-50', 'vgg-16', 'vgg-19',
-         'inception_v3', 'mobilenet', 'densenet-121'])
+         'inception_v3', 'mobilenet', 'mobilenet_v2', 'densenet-121'])
     parser.add_argument("--model", type=str, required=True,
                         choices=['1080ti', 'titanx'], default='1080ti',
                         help="The model of the test device. If your device is not listed in "

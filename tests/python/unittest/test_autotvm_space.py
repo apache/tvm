@@ -30,14 +30,21 @@ def test_split():
     cfg = FallbackConfigEntity()
     cfg.define_split('tile_n', cfg.axis(128), num_outputs=3)
     cfg.fallback_split('tile_n', [-1, 8, 4])
-
     assert cfg['tile_n'].size == [4, 8, 4]
 
     cfg = FallbackConfigEntity()
     cfg.define_split('tile_n', cfg.axis(49), num_outputs=3)
     cfg.fallback_split('tile_n', [-1, 8, 4])
-
     assert cfg['tile_n'].size == [7, 7, 1]
+
+    cfg = FallbackConfigEntity()
+    cfg.define_split('tile_n', cfg.axis(49), num_outputs=3)
+    try:
+        cfg.fallback_split('tile_n', [-1, 1, 0])
+        assert False
+    except RuntimeError:
+        pass
+
 
 if __name__ == '__main__':
     test_split()
