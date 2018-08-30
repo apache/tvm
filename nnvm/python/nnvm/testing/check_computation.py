@@ -110,7 +110,7 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
 
     for x in graph.symbol.list_input_variables():
         x_name = x.attr('name')
-        x_node_id = graph.index.node_id(x_name)
+        x_node_id = graph.index.entry_id(x_name)
         input_shapes[x_name] = tuple(shapes[x_node_id])
         input_dtypes[x_name] = TCODE_TO_DTYPE[dtypes[x_node_id]]
 
@@ -121,7 +121,7 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
         if input_shapes.get(x_name, x_shape) != x_shape:
             raise RuntimeError("Inferred shape differs from the provided shape.\n"
                                "Provided shapes: {}\nInferred shapes: {}"
-                               .format(shapes, input_shapes))
+                               .format(shape, input_shapes))
         else:
             input_shapes[x_name] = x_shape
 
@@ -132,7 +132,7 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
         if input_dtypes.get(x_name, x_dtype) != x_dtype:
             raise RuntimeError("Inferred dtype differs from the provided dtype.\n"
                                "Provided dtypes: {}\nInferred dtypes: {}"
-                               .format(dtypes, input_dtypes))
+                               .format(dtype, input_dtypes))
         else:
             input_dtypes[x_name] = x_dtype
 
