@@ -162,8 +162,32 @@ def test_multiple_kernels():
             tvm.build(s, [A, C], target)
         assert valid[0]
 
+def test_wrong_bind():
+    N = 1024
+
+    A = tvm.placeholder((N, N-1), name='A')
+    B = tvm.compute((N, N-1), lambda i, j: A[i, j])
+
+    s = tvm.create_schedule([B.op])
+
+    # bind a thread axis to two loop axes with different lengths
+    s[B].bind(s[B].op.axis[0], tvm.thread_axis("threadIdx.x"))
+    s[B].bind(s[B].op.axis[1], tvm.thread_axis("threadIdx.x"))
+
+    for target in ['opencl', 'cuda']:
+        if not tvm.context(target).exist:
+            continue
+
+        valid = [None]
+        with tvm.build_config(**{"add_lower_pass": [
+                (2, get_verify_pass(valid, max_threads_per_block=N*N))]}):
+            tvm.build(s, [A, B], target)
+        assert not valid[0]
+
+
 if __name__ == "__main__":
     test_local_memory()
     test_shared_memory()
     test_num_thread()
     test_multiple_kernels()
+    test_wrong_bind()
