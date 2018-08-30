@@ -16,7 +16,7 @@ import (
 func TestValueLoopInt64(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
@@ -33,7 +33,7 @@ func TestValueLoopInt64(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
         retVal = args[0]
 
@@ -57,7 +57,7 @@ func TestValueLoopInt64(t *testing.T) {
 func TestValueLoopInt32(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
@@ -74,7 +74,7 @@ func TestValueLoopInt32(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
         retVal = args[0]
 
@@ -98,7 +98,7 @@ func TestValueLoopInt32(t *testing.T) {
 func TestValueLoopFloat32(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
@@ -115,7 +115,7 @@ func TestValueLoopFloat32(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
         retVal = args[0]
 
@@ -139,7 +139,7 @@ func TestValueLoopFloat32(t *testing.T) {
 func TestValueLoopFloat64(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
@@ -156,7 +156,7 @@ func TestValueLoopFloat64(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
         retVal = args[0]
 
@@ -179,14 +179,14 @@ func TestValueLoopFloat64(t *testing.T) {
 func TestValueLoopString(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
-        newArgs := args[1:]
+        argStr := args[1].AsStr()
 
         // Call Packed Function by Value
-        return pfunc.Invoke(newArgs)
+        return pfunc.Invoke(argStr)
     }
 
     fhandle, err := ConvertFunction(sampleFunctionLoop)
@@ -196,8 +196,7 @@ func TestValueLoopString(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
-        // TODO: Why not directly returning args[0]
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
         retVal =  args[0].AsStr()
 
         return
@@ -217,74 +216,18 @@ func TestValueLoopString(t *testing.T) {
     }
 }
 
-// Check ByteArray Value looping via packed function calling another packed function.
-func TestValueLoopBytes(t *testing.T) {
-
-    // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
-        // Reveive Packed Function Handle
-        pfunc := args[0].AsFunction()
-
-        newArgs := args[1:]
-
-        // Call Packed Function by Value
-        return pfunc.Invoke(newArgs)
-    }
-
-    fhandle, err := ConvertFunction(sampleFunctionLoop)
-    if err != nil {
-        t.Error(err.Error())
-        return
-    }
-
-    // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
-
-        retVal = args[0]
-
-        return
-    }
-
-    data := make([]byte, 1024)
-    rand.Read(data)
-
-    barray := NewByteArray(data)
-
-    result := barray.GetData()
-
-    retVal, err := fhandle.Invoke(funccall, barray)
-    if err != nil {
-        t.Error(err.Error())
-        return
-    }
-
-    received := retVal.AsBytes()
-
-    if len(result) != len(received) {
-            t.Errorf("Data expected Len: %v Got :%v\n", len(result), len(received))
-            return
-    }
-
-    for i := range result {
-        if result[i] != received[i] {
-            t.Errorf("Data expected: %v Got :%v at index %v\n", result[i], received[i], i)
-            return
-        }
-    }
-}
-
 // Check []byte Value looping via packed function calling another packed function.
 func TestValueLoopByteSlice(t *testing.T) {
 
     // Receive a function Handle and argument and echo the Value on the handle.
-    sampleFunctionLoop := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionLoop := func (args ...*Value) (retVal interface{}, err error) {
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
-        newArgs := args[1:]
+        argBytes := args[1].AsBytes()
 
         // Call Packed Function by Value
-        return pfunc.Invoke(newArgs)
+        return pfunc.Invoke(argBytes)
     }
 
     fhandle, err := ConvertFunction(sampleFunctionLoop)
@@ -294,9 +237,9 @@ func TestValueLoopByteSlice(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
-        retVal = args[0]
+        retVal = args[0].AsBytes()
 
         return
     }

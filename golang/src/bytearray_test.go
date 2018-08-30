@@ -17,7 +17,7 @@ func TestByteArrayGet(t *testing.T) {
     data := make([]byte, 1024)
     rand.Read(data)
 
-    barr := NewByteArray(data)
+    barr := newByteArray(data)
 
     dataRet := barr.GetData()
 

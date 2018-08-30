@@ -57,107 +57,99 @@ var KDLFloat int32          = int32(C.kDLFloat)
 // Value Typemap for union exposed by TVM runtime API.
 //
 // gotvm maps it to a uintptr and then dynamically allocates memory by newTVMValue method.
-type Value uintptr
+type Value struct {
+    nptr  uintptr
+    dtype int32
+    isLocal bool
+}
 
 // AsInt64 returns the int64 value inside the Value.
-func (tvmval Value)  AsInt64() (retVal int64) {
+func (tvmval *Value)  AsInt64() (retVal int64) {
     retVal = tvmval.getVInt64()
 
     return
 }
 
 // AsFloat64 returns the Float64 value inside the Value.
-func (tvmval Value)  AsFloat64() (retVal float64) {
+func (tvmval *Value)  AsFloat64() (retVal float64) {
     retVal = tvmval.getVFloat64()
 
     return
 }
 
 // AsModule returns the Module inside the Value.
-func (tvmval Value)  AsModule() (retVal *Module) {
-    finalizerModule := func(mhandle *Module) {
-        nativeTVMModFree(*mhandle)
-        mhandle = nil
-    }
-
-    mhandle := new(Module)
-    *mhandle = tvmval.getVMHandle()
-    runtime.SetFinalizer(mhandle, finalizerModule)
-    retVal = mhandle
+func (tvmval *Value)  AsModule() (retVal *Module) {
+    mhandle := tvmval.getVMHandle()
+    retVal = &mhandle
 
     return
 }
 
 // AsFunction returns the Function inside the Value.
-func (tvmval Value)  AsFunction() (retVal *Function) {
-    finalizerFunction := func(fhandle *Function) {
-        nativeTVMFuncFree(*fhandle)
-        fhandle = nil
-    }
-
-    fhandle := new(Function)
-    *fhandle = tvmval.getVFHandle()
-    runtime.SetFinalizer(fhandle, finalizerFunction)
-    retVal = fhandle
+func (tvmval *Value)  AsFunction() (retVal *Function) {
+    fhandle := tvmval.getVFHandle()
+    retVal = &fhandle
 
     return
 }
 
 // AsBytes returns the byte slice value inside the Value.
-func (tvmval Value)  AsBytes() (retVal []byte) {
-    retVal = tvmval.getVBHandle().GetData()
+func (tvmval *Value)  AsBytes() (retVal []byte) {
+    retVal = tvmval.getVBHandle().getData()
     return
 }
 
-// AsStr returns the golang string slice in the Value.
-//
-// Note: Calling this function automativally release the underlaying native memory.
-// Hence repeated calls to this may lead to segmentation faults.
-func (tvmval Value) AsStr() (retVal string) {
+// AsStr returns the golang string in the Value.
+func (tvmval *Value) AsStr() (retVal string) {
     str := tvmval.getVStr()
-    // TODO: Need to handle a clean way to free the native memory.
-    // tvmval.unSetVStr()
     retVal = str
 
     return
 }
 
 // nativeCPtr return the unitptr corresponding to Value type.
-func (tvmval Value) nativeCPtr() (ret uintptr) {
-    ret = (uintptr)(tvmval)
+func (tvmval *Value) nativeCPtr() (ret uintptr) {
+    ret = (uintptr)(tvmval.nptr)
     return
 }
 
-// copyFrom copies the tvmval from other Value object.
-func (tvmval Value) copyFrom(fromval *Value) () {
-    C._TVMValueCopyFrom(C.uintptr_t(tvmval), C.uintptr_t(*fromval))
+// moveFrom copies the tvmval from other Value object.
+func (tvmval *Value) moveFrom(fromval *Value) () {
+    C._TVMValueCopyFrom(C.uintptr_t(tvmval.nativeCPtr()), C.uintptr_t(fromval.nativeCPtr()))
+    // Move the dtype too.
+    tvmval.dtype = fromval.dtype
+    fromval.dtype = KNull
     return
 }
 
 // setVInt64 initializes the Value object with given int64 value.
 //
 // `val` is the int64 value to initialize the Value
-func (tvmval Value) setVInt64(val int64) {
-	C._TVMValueSetInt64(C.uintptr_t(tvmval), C.native_long_long(val))
+func (tvmval *Value) setVInt64(val int64) {
+	C._TVMValueSetInt64(C.uintptr_t(tvmval.nativeCPtr()), C.native_long_long(val))
+    tvmval.dtype = KDLInt
+    return
 }
 
 
 // getVInt64 returns the int64 value inside the Value.
-func (tvmval Value) getVInt64() (retVal int64) {
-	retVal = (int64)(C._TVMValueGetInt64(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVInt64() (retVal int64) {
+	retVal = (int64)(C._TVMValueGetInt64(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
 // setVFloat64 initializes the Value object with given float64 value.
 //
 // `val` is the float64 value to initialize the Value.
-func (tvmval Value) setVFloat64(val float64) {
-	C._TVMValueSetFloat64(C.uintptr_t(tvmval), C.double(val))
+func (tvmval *Value) setVFloat64(val float64) {
+	C._TVMValueSetFloat64(C.uintptr_t(tvmval.nativeCPtr()), C.double(val))
+    tvmval.dtype = KDLFloat
+    return
 }
 
 // getVFloat64 returns the float64 value inside Value.
-func (tvmval Value) getVFloat64() (retVal float64) {
-	retVal = (float64)(C._TVMValueGetFloat64(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVFloat64() (retVal float64) {
+	retVal = (float64)(C._TVMValueGetFloat64(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
@@ -167,58 +159,51 @@ func (tvmval Value) getVFloat64() (retVal float64) {
 // module handle, function handle and any object's nativeCPtr.
 //
 // `val` is the uintptr type of given handle.
-func (tvmval Value) setVHandle(val uintptr) {
-	C._TVMValueSetHandle(C.uintptr_t(tvmval), C.uintptr_t(val))
+func (tvmval *Value) setVHandle(val uintptr) {
+	C._TVMValueSetHandle(C.uintptr_t(tvmval.nativeCPtr()), C.uintptr_t(val))
 }
 
 // getVHandle returns the uintptr handle
-func (tvmval Value) getVHandle() (retVal uintptr) {
-	retVal = (uintptr)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVHandle() (retVal uintptr) {
+	retVal = (uintptr)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
 // setVStr intializes the Value with given golang string object.
 //
-// Native wrapper allocate memory to store the golang string which need to be cleaned
-// by callint unSetVStr.
-//
 // `val` is the golang string object used to initialize the Value.
-func (tvmval Value) setVStr(val string) {
-	C._TVMValueSetStr(C.uintptr_t(tvmval), *(*C._gostring_)(unsafe.Pointer(&val)))
+func (tvmval *Value) setVStr(val string) {
+	C._TVMValueSetStr(C.uintptr_t(tvmval.nativeCPtr()), *(*C._gostring_)(unsafe.Pointer(&val)))
+    tvmval.dtype = KStr
+    return
 }
 
 
 // getVStr returns the golang string for the native string inside Value.
-func (tvmval Value) getVStr() (retVal string) {
-	str := C._TVMValueGetStr(C.uintptr_t(tvmval))
+func (tvmval *Value) getVStr() (retVal string) {
+	str := C._TVMValueGetStr(C.uintptr_t(tvmval.nativeCPtr()))
     retVal = goStringFromNative(*(*string)(unsafe.Pointer(&str)))
     return
 }
 
 // unSetVStr release the memory allocated in setVStr
-func (tvmval Value) unSetVStr() {
-	C._TVMValueUnSetStr(C.uintptr_t(tvmval))
-}
-
-// clearStr clars native allocated memory for string
-func (tvmval Value)clearVStr(val interface{}) {
-    switch val.(type) {
-        case string:
-            tvmval.unSetVStr()
-    }
+func (tvmval *Value) unSetVStr() {
+	C._TVMValueUnSetStr(C.uintptr_t(tvmval.nativeCPtr()))
 }
 
 // setVAHandle is used to set Array handle in Value.
 //
 // Application can call the setVHandle with nativeCPtr instead too.
 // This is a wrapper to accept Array directly.
-func (tvmval Value) setVAHandle(ptvmarray Array) {
+func (tvmval *Value) setVAHandle(ptvmarray Array) {
     tvmval.setVHandle(ptvmarray.nativeCPtr())
+    tvmval.dtype = KArrayHandle
+    return
 }
 
 // getVAHandle is used to get Array handle in Value.
-func (tvmval Value) getVAHandle() (retVal Array) {
-	retVal = (Array)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVAHandle() (retVal Array) {
+	retVal = (Array)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
@@ -226,13 +211,15 @@ func (tvmval Value) getVAHandle() (retVal Array) {
 //
 // Application can call the setVHandle with nativeCPtr instead too.
 // This is a wrapper to accept Module directly.
-func (tvmval Value) setVMHandle(tvmmodule Module) {
+func (tvmval *Value) setVMHandle(tvmmodule Module) {
     tvmval.setVHandle(tvmmodule.nativeCPtr())
+    tvmval.dtype = KModuleHandle
+    return
 }
 
 // getVMHandle is used to get Module handle in Value.
-func (tvmval Value) getVMHandle() (retVal Module) {
-	retVal = (Module)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVMHandle() (retVal Module) {
+	retVal = (Module)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
@@ -240,13 +227,15 @@ func (tvmval Value) getVMHandle() (retVal Module) {
 //
 // Application can call the setVHandle with nativeCPtr instead.
 // This is a wrapper to accept Function directly.
-func (tvmval Value) setVFHandle(tvmfunction Function) {
+func (tvmval *Value) setVFHandle(tvmfunction Function) {
     tvmval.setVHandle(tvmfunction.nativeCPtr())
+    tvmval.dtype = KFuncHandle
+    return
 }
 
 // getVFHandle is used to get Function handle in Value.
-func (tvmval Value) getVFHandle() (retVal Function) {
-	retVal = (Function)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVFHandle() (retVal Function) {
+	retVal = (Function)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
@@ -254,142 +243,114 @@ func (tvmval Value) getVFHandle() (retVal Function) {
 //
 // Application can call the setVHandle with nativeCPtr instead.
 // This is a wrapper to accept ByteArray directly.
-func (tvmval Value) setVBHandle(tbytearray ByteArray) {
+func (tvmval *Value) setVBHandle(tbytearray ByteArray) {
     tvmval.setVHandle(tbytearray.nativeCPtr())
+    tvmval.dtype = KBytes
+    return
 }
 
 // getVBHandle is used to get ByteArray handle in Value.
-func (tvmval Value) getVBHandle() (retVal ByteArray) {
-	retVal = (ByteArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval)))
+func (tvmval *Value) getVBHandle() (retVal ByteArray) {
+	retVal = (ByteArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
     return
 }
 
 // setValue is used to set the given value in Value.
 //
 // `val` is value of types accepted by Value container or native union.
-func (tvmval Value) setValue(val interface{}) (retVal int32, err error) {
+func (tvmval *Value) setValue(val interface{}) (retVal int32, err error) {
     retVal = KNull
     switch val.(type) {
         case string:
             tvmval.setVStr(val.(string))
-            retVal = KStr
         case uint8:
             tvmval.setVInt64(int64(val.(uint8)))
-            retVal = KDLInt
         case uint16:
             tvmval.setVInt64(int64(val.(uint16)))
-            retVal = KDLInt
         case uint32:
             tvmval.setVInt64(int64(val.(uint32)))
-            retVal = KDLInt
         case uint64:
             tvmval.setVInt64(int64(val.(uint64)))
-            retVal = KDLInt
         case int:
             tvmval.setVInt64(int64(val.(int)))
-            retVal = KDLInt
         case int8:
             tvmval.setVInt64(int64(val.(int8)))
-            retVal = KDLInt
         case int16:
             tvmval.setVInt64(int64(val.(int16)))
-            retVal = KDLInt
         case int32:
             tvmval.setVInt64(int64(val.(int32)))
-            retVal = KDLInt
         case int64:
             tvmval.setVInt64(val.(int64))
-            retVal = KDLInt
         case float32:
             tvmval.setVFloat64(float64(val.(float32)))
-            retVal = KDLFloat
         case float64:
             tvmval.setVFloat64(val.(float64))
-            retVal = KDLFloat
-        case Module:
-            tvmval.setVMHandle(val.(Module))
-            retVal = KModuleHandle
         case *Module:
             tvmval.setVMHandle(*(val.(*Module)))
-            retVal = KModuleHandle
-        case Function:
-            tvmval.setVFHandle(val.(Function))
-            retVal = KFuncHandle
-        case ByteArray:
-            tvmval.setVBHandle(val.(ByteArray))
-            retVal = KBytes
+        case *Function:
+            tvmval.setVFHandle(*(val.(*Function)))
         case *ByteArray:
             tvmval.setVBHandle(*(val.(*ByteArray)))
-            retVal = KBytes
         case []byte:
-            barray := NewByteArray(val.([]byte))
-            tvmval.setVBHandle(*barray)
-            retVal = KBytes
-        case Array:
-            tvmval.setVAHandle(val.(Array))
-            retVal = KArrayHandle
+            barray := newByteArray(val.([]byte))
+            tvmval.setVBHandle(barray)
         case *Array:
             tvmval.setVAHandle(*(val.(*Array)))
-            retVal = KArrayHandle
-        case func (args ...Value) (interface{}, error):
+        case func (args ...*Value) (interface{}, error):
             fhandle, apierr := ConvertFunction(val)
             if apierr != nil {
                 err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
                 return
             }
-            tvmval.setVFHandle(fhandle)
-            retVal = KFuncHandle
+            tvmval.setVFHandle(*fhandle)
+
+            // Clear the finalizer as we don't need to control it anymore.
+            runtime.SetFinalizer(fhandle, nil)
         case *Value:
-            tvmval.copyFrom(val.(*Value))
-            // TODO: Hope to see dtype embedding into TVMValue for proper casting.
-            retVal = KDLInt
+            tvmval.moveFrom(val.(*Value))
         case Value:
             fromval := val.(Value)
-            tvmval.copyFrom(&fromval)
-            // TODO: Hope to see dtype embedding into TVMValue for proper casting.
-            retVal = KDLInt
+            tvmval.moveFrom(&fromval)
         default:
             err = fmt.Errorf("Given value Type not defined for Value: %v : %T\n", val, val);
     }
-    return
-}
-
-// getValue is used to get the given from Value container or union.
-//
-// `tvmtype` is types accepted by Value container or native union.
-func (tvmval Value) getValue(tvmtype int32) (retVal interface{}, err error) {
-    switch tvmtype {
-        case KDLInt:
-            retVal = tvmval.getVInt64()
-        case KDLFloat:
-            retVal = tvmval.getVFloat64()
-        case KStr:
-            str := tvmval.getVStr()
-            tvmval.unSetVStr()
-            retVal = str
-        case KModuleHandle:
-            retVal = tvmval.getVMHandle()
-        case KFuncHandle:
-            retVal = tvmval.getVFHandle()
-        case KBytes:
-            retVal = tvmval.getVBHandle()
-        default:
-            err = fmt.Errorf("Cannot get requested value type from given Value: %v\n", tvmtype);
-    }
-
+    retVal = tvmval.dtype
     return
 }
 
 // newTVMValue initialize the TVMValue native object.
 //
-// Before calling any setter or getter on any uderlaying objects of Value
-// it should be initialized by thi API.
-func newTVMValue() (retVal Value) {
-	retVal = (Value(C._NewTVMValue()))
+// This is intended to use as intermediate type between native and golang types.
+// Allocated from FuncCall or Callback to handle conversions.
+func newTVMValue() (retVal *Value) {
+    handle := new(Value)
+
+    handle.nptr = (uintptr(C._NewTVMValue()))
+    handle.dtype = KNull
+    handle.isLocal = true
+
+    finalizer := func(vhandle *Value) {
+        vhandle.deleteTVMValue()
+        vhandle = nil
+    }
+    runtime.SetFinalizer(handle, finalizer)
+
+    retVal = handle
     return
 }
 
 // deleteTVMValue free the native Value object which is allocated in newTVMValue.
 func (tvmval Value) deleteTVMValue() {
+
+    if tvmval.isLocal == true {
+        if tvmval.dtype == KStr {
+            tvmval.unSetVStr()
+        }
+
+        if tvmval.dtype == KBytes {
+            tvmval.getVBHandle().deleteTVMByteArray()
+        }
+    }
+
 	C._DeleteTVMValue(C.uintptr_t(tvmval.nativeCPtr()))
 }

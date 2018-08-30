@@ -13,36 +13,79 @@ This folder contain golang interface for TVM runtime. It brings TVM runtime to G
 
 ### Modules
 
-- runtime
+- src
   Module that generates golang package corresponding to the c runtime api exposed from tvm source tree.
   This process build golang package _gotvm.a_
 
-- sample
+- samples
   Sample golang reference application to inference through gotvm package.
-
-- funcdb
-  Sample golang reference application to demonstrate packed function system usage.
 
 ### Build
 
 Once the Requirements are installed
 
+To build _gotvm_ package
+
 ```bash
 make
 ```
 
-Compilation process builds go package in runtime module and a sample applications.
-  simple : golang application for a module build by sample/deploy.py _(C = A + B)_
-  complex : golang application to load module library, graph and params on graph runtime and run.
+To build and run internal tests
+
+```bash
+make tests
+```
+
+To build sample apps.
+
+```bash
+make samples
+```
 
 ## Run
 
-simple : Use the deploy.so build by make.
-complex : Reference application to deploy a realtime module with lib, graph and param.
-funccb : Reference application to demonstrate TVM packed function system.
+To Demonstrates sample TVM module compilation using python and deploy via golang.
+```bash
+./simple
+``` 
+
+To deploy a realtime module with lib, graph and param.
+```bash
+./complex
+```
+
+To demonstrate go function closure conversion to packed function handle.
+
+```bash
+./pack_func_convert
+```
+
+To demonstrate a packed function handle given as an argument.
+
+```bash
+pack_func_handle_arg
+```
+
+To register go function with runtime as a global function.
+
+```bash
+pack_func_register
+```
+
+To demonstrate function closure passed as argument to a function call.
+
+```bash
+./pack_func_closure_arg
+```
+
+To demonstrate function closure returned from a packed function.
+
+```bash
+./pack_func_closure_return
+```
 
 ## Documentation
-gotvm.go is very well documented with sufficient information about gotvm package.
+gotvm.go is documented with sufficient information about gotvm package.
 A html version documentation can be accessed by running below command after building runtime.
 
 ```bash

@@ -13,7 +13,7 @@ import (
 )
 
 // sampleCb is a simple golang callback function like C = A + B.
-func sampleCb(args ...gotvm.Value) (retVal interface{}, err error) {
+func sampleCb(args ...*gotvm.Value) (retVal interface{}, err error) {
     for _, v := range args {
         fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
     }

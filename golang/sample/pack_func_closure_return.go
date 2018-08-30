@@ -12,9 +12,9 @@ import (
 )
 
 // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
-func sampleFunctionCb(args ...gotvm.Value) (retVal interface{}, err error) {
+func sampleFunctionCb(args ...*gotvm.Value) (retVal interface{}, err error) {
 
-    funccall := func (cargs ...gotvm.Value) (fret interface{}, ferr error) {
+    funccall := func (cargs ...*gotvm.Value) (fret interface{}, ferr error) {
         for _, v := range cargs {
             fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
         }

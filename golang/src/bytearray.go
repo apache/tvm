@@ -11,7 +11,6 @@ import "C"
 
 import (
     "unsafe"
-    "runtime"
 )
 
 // ByteArray type wraps the TVMByteArray of C runtime API.
@@ -35,31 +34,22 @@ func (tbytearray ByteArray) setData(val string) {
 	C._TVMByteArraySetData(C.uintptr_t(tbytearray), *(*C._gostring_)(unsafe.Pointer(&val)))
 }
 
-// GetData returns the golang byte slice corresponding to the ByteArray.
-func (tbytearray ByteArray) GetData() (retVal []byte) {
+// getData returns the golang byte slice corresponding to the ByteArray.
+func (tbytearray ByteArray) getData() (retVal []byte) {
 	val := C._TVMByteArrayGetData(C.uintptr_t(tbytearray))
 	retVal = []byte(goStringFromNative(*(*string)(unsafe.Pointer(&val))))
     return
 }
 
-// NewByteArray initilizes the native TVMByteArray object with given byte slice
+// newByteArray initilizes the native TVMByteArray object with given byte slice
 //
 //`val` is the golang byte array used to initialize.
 //
-// returns pointer to newly created ByteArray.
-func NewByteArray(val []byte) (retVal *ByteArray) {
+// returns newly created ByteArray.
+func newByteArray(val []byte) (retVal ByteArray) {
 
-    handle := new(ByteArray)
-    *handle = ByteArray(C._NewTVMByteArray())
-
-    finalizer := func(ahandle *ByteArray) {
-        ahandle.deleteTVMByteArray()
-        ahandle = nil
-    }
-
-    runtime.SetFinalizer(handle, finalizer)
-
-    (*handle).setData(string(val))
+    handle := ByteArray(C._NewTVMByteArray())
+    handle.setData(string(val))
 
     retVal = handle
     return

@@ -21,8 +21,8 @@ import (
 type Module uintptr
 
 // nativeCPtr returns type freed uintptr for the Module.
-func (tvmmodule Module) nativeCPtr() (retVal uintptr) {
-    retVal = (uintptr)(tvmmodule)
+func (tvmmodule *Module) nativeCPtr() (retVal uintptr) {
+    retVal = (uintptr)(*tvmmodule)
     return
 }
 
@@ -54,7 +54,7 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, er
     *handle = Module(modp)
 
     finalizer := func(mhandle *Module) {
-        nativeTVMModFree(*mhandle)
+        nativeTVMModFree(mhandle)
         mhandle = nil
     }
 
@@ -67,7 +67,7 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, er
 // nativeTVMModFree free the module handle allocated in TVM runtime.
 //
 // `modp` is the Module handle to be freed.
-func nativeTVMModFree(modp Module) (retVal int32) {
+func nativeTVMModFree(modp *Module) (retVal int32) {
     retVal = (int32) (C.TVMModFree(C.TVMModuleHandle(modp.nativeCPtr())))
     return
 }
@@ -109,7 +109,7 @@ func (tvmmodule *Module) GetFunction (
     *handle = Function(funp)
 
     finalizer := func(fhandle *Function) {
-        nativeTVMFuncFree(*fhandle)
+        nativeTVMFuncFree(fhandle)
         fhandle = nil
     }
 

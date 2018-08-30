@@ -13,7 +13,7 @@ import (
 
 
 // sampleFunctionArg receives a Packed Function handle and calls it.
-func sampleFunctionArg(args ...gotvm.Value) (retVal interface{}, err error) {
+func sampleFunctionArg(args ...*gotvm.Value) (retVal interface{}, err error) {
 
     // Reveive Packed Function Handle
     pfunc := args[0].AsFunction()
@@ -41,7 +41,7 @@ func main() {
     fmt.Printf("GetGlobalFunction: main.sampleFunctionArg - Success\n")
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...gotvm.Value) (retVal interface{}, err error) {
+    funccall := func (args ...*gotvm.Value) (retVal interface{}, err error) {
         for _, v := range args {
             fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
         }

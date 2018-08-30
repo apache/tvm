@@ -62,12 +62,14 @@ func main() {
         return
     }
 
+    fmt.Printf("Calling tvm.graph_runtime.create\n")
     // Call function
     graphrt, err := funp.Invoke(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
     if err != nil {
         fmt.Print(err)
         return
     }
+
 
     graphmod := graphrt.AsModule()
 
@@ -98,7 +100,6 @@ func main() {
     if err != nil {
         fmt.Print(err)
     }
-    paramsByteArray := gotvm.NewByteArray(bytes)
 
     // Load Params
     funp, err = graphmod.GetFunction("load_params")
@@ -110,7 +111,7 @@ func main() {
     fmt.Printf("Func load_params:%p\n", funp)
 
     // Call function
-    _, err = funp.Invoke(paramsByteArray)
+    _, err = funp.Invoke(bytes)
     if err != nil {
         fmt.Print(err)
         return

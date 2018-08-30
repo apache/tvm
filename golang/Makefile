@@ -52,7 +52,6 @@ clean:
 	(cd $(GOPATHDIR) && go clean -cache); fi
 	@rm -rf gopath
 	@rm -f *.a *.o
-	@rm sample/gotvm.a
 	@make -C sample clean
 
 lint:

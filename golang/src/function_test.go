@@ -102,7 +102,7 @@ func TestFunctionModuleGet(t *testing.T) {
 
 // Check FunctionConvert API
 func TestFunctionConvert(t *testing.T) {
-    sampleCb := func (args ...Value) (retVal interface{}, err error) {
+    sampleCb := func (args ...*Value) (retVal interface{}, err error) {
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
 
@@ -130,7 +130,7 @@ func TestFunctionConvert(t *testing.T) {
 }
 
 func TestFunctionError(t *testing.T) {
-    sampleCb := func (args ...Value) (retVal interface{}, err error) {
+    sampleCb := func (args ...*Value) (retVal interface{}, err error) {
         err = fmt.Errorf("Sample Error XYZABC");
         return
     }
@@ -154,7 +154,7 @@ func TestFunctionError(t *testing.T) {
 
 // Check FunctionRegister
 func TestFunctionRegister(t *testing.T) {
-    sampleCb := func (args ...Value) (retVal interface{}, err error) {
+    sampleCb := func (args ...*Value) (retVal interface{}, err error) {
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
 
@@ -208,7 +208,7 @@ func TestFunctionRegister(t *testing.T) {
 // Check packed function receiving go-closure as argument.
 func TestFunctionClosureArg(t *testing.T) {
     // sampleFunctionArg receives a Packed Function handle and calls it.
-    sampleFunctionArg := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionArg := func (args ...*Value) (retVal interface{}, err error) {
 
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
@@ -244,7 +244,7 @@ func TestFunctionClosureArg(t *testing.T) {
     }
 
     // funccall is a simple golang callback function like C = A + B.
-    funccall := func (args ...Value) (retVal interface{}, err error) {
+    funccall := func (args ...*Value) (retVal interface{}, err error) {
 
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
@@ -270,9 +270,9 @@ func TestFunctionClosureArg(t *testing.T) {
 // Check packed function returning a go-closure.
 func TestFunctionClosureReturn(t *testing.T) {
     // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
-    sampleFunctionCb := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionCb := func (args ...*Value) (retVal interface{}, err error) {
 
-        funccall := func (cargs ...Value) (fret interface{}, ferr error) {
+        funccall := func (cargs ...*Value) (fret interface{}, ferr error) {
 
             val1 := cargs[0].AsInt64()
             val2 := cargs[1].AsInt64()
@@ -318,7 +318,7 @@ func TestFunctionClosureReturn(t *testing.T) {
 
 // Check packed function with no arguments and no return values.
 func TestFunctionNoArgsReturns(t *testing.T) {
-    sampleFunction := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunction := func (args ...*Value) (retVal interface{}, err error) {
         return
     }
 
@@ -338,9 +338,9 @@ func TestFunctionNoArgsReturns(t *testing.T) {
 // Check packed function returning a go-closure with no arg and returns.
 func TestFunctionNoArgsReturns2(t *testing.T) {
     // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
-    sampleFunctionCb := func (args ...Value) (retVal interface{}, err error) {
+    sampleFunctionCb := func (args ...*Value) (retVal interface{}, err error) {
 
-        funccall := func (cargs ...Value) (fret interface{}, ferr error) {
+        funccall := func (cargs ...*Value) (fret interface{}, ferr error) {
             return
         }
 
