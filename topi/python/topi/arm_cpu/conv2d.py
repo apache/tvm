@@ -42,7 +42,7 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
     """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=2)
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
     """TOPI schedule callback for conv2d
 
@@ -490,8 +490,8 @@ def decl_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, til
                           tile_size)
 
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
-                                     'arm_cpu', ['winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
+                                'arm_cpu', ['winograd'])
 def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])

@@ -9,9 +9,9 @@ from tvm import autotvm
 from .. import generic, nn
 from ..util import traverse_inline
 
-autotvm.task.register_topi_compute(nn.dense, 'mali', 'direct', nn.dense.fdefault)
+autotvm.register_topi_compute(nn.dense, 'mali', 'direct', nn.dense.fdefault)
 
-@autotvm.task.register_topi_schedule(generic.schedule_dense, 'mali', 'direct')
+@autotvm.register_topi_schedule(generic.schedule_dense, 'mali', 'direct')
 def schedule_dense(cfg, outs):
     """Schedule for dense operator.
 

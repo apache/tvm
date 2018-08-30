@@ -9,11 +9,11 @@ from ..nn import depthwise_conv2d_nchw
 from ..util import traverse_inline
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.task.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct',
-                                   depthwise_conv2d_nchw.fdefault)
+autotvm.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct',
+                              depthwise_conv2d_nchw.fdefault)
 
 # register customized schedule for arm cpu.
-@autotvm.task.register_topi_schedule(schedule_depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct')
+@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct')
 def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
     """Schedule depthwise conv2d
 

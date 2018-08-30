@@ -33,7 +33,7 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
     """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=3)
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'mali', ['direct', 'winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_nchw, 'mali', ['direct', 'winograd'])
 def schedule_conv2d_nchw_mali(cfg, outs):
     """TOPI schedule callback for conv2d
 
