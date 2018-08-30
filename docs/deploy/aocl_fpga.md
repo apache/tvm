@@ -3,7 +3,7 @@ AOCL Backend Example
 
 TVM supports Intel FPGA SDK for OpenCL also known as AOCL.  Here is a tutorial for how to use TVM with AOCL.
 
-***Note***: This feature is still experimental.  We cannot use AOCL to deploy an end to end neural networks for now.  In addition, we only tested compilation for emulation mode of AOCL.
+***Note***: This feature is still experimental.  We cannot use AOCL to deploy an end to end neural networks for now.
 
 We use two python scripts for this tutorial.
 
@@ -71,10 +71,8 @@ Setup
 ```
 - Setup TVM with AOCL and OpenCL enabled.
 
-Emulation
----------
-
-- Run software emulation
+Run Software Emulation
+----------------------
 ```
 export CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA=1
 
@@ -82,11 +80,24 @@ python build.py
 python run.py
 ```
 
-- Run on FPGA devices (not tested)
-    - Change tgt value to "aocl -device=s5_ref" on build.py and run.py
+Run with PCI-E FPGA Cards
+-------------------------
+In build.py and run.py, change tgt value to "aocl".
 ```
-unset CL_CONTEXT_EMULATOR_DEVICE_INTELFPGA
+python build.py
+python run.py
+```
 
+Run with SoC FPGA Boards
+------------------------
+In build.py and run.py, change tgt value to "aocl".
+On x86_64 host,
+```
+python build.py
+```
+Copy generated `aocl.aocx` file to the SoC FPGA board, then, on the board,
+```
+aocl program /dev/acl0 aocl.aocx
 python build.py
 python run.py
 ```

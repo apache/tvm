@@ -28,6 +28,10 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
     code = (*f)(code).operator std::string();
   }
 
+  // We want to call "aoc" compiler only when we're running on a x86_64 host.
+  // On ARM SoC hosts, we must use "aocl.aocx" file which is precompiled on
+  // x86_64 hosts.
+#if defined(__x86_64__) || defined(_M_X64)
   // Write a .cl file.
   runtime::SaveBinaryToFile("aocl.cl", code.c_str());
 
@@ -45,6 +49,7 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
   if (system(cmd.c_str()) != 0) {
     LOG(FATAL) << "OpenCL offline compilation error.";
   }
+#endif
 
   // Read .aocx file
   std::string aocxbin;
