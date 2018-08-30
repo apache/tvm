@@ -98,5 +98,6 @@ python build.py
 Copy generated `aocl.aocx` file to the SoC FPGA board, then, on the board,
 ```
 aocl program /dev/acl0 aocl.aocx
+python build.py
 python run.py
 ```
