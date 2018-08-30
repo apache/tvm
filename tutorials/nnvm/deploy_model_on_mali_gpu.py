@@ -165,7 +165,7 @@ else:
     # optimization for mali
     target = tvm.target.mali()
 
-with nnvm.compiler.build_config(opt_level=2):
+with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
     graph, lib, params = nnvm.compiler.build(net, target=target,
             shape={"data": data_shape}, params=params, target_host=target_host)
 

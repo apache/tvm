@@ -252,11 +252,8 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
       this->platform_name = cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME);
       this->device_type = device_type;
       this->devices = devices_matched;
-      LOG(INFO) << "Initialize OpenCL platform \'" << this->platform_name << '\'';
       break;
     }
-    LOG(INFO) << "\'" << cl::GetPlatformInfo(platform_id, CL_PLATFORM_NAME)
-              << "\' platform has no OpenCL device: " << device_type << " mode";
   }
   if (this->platform_id == nullptr) {
     LOG(WARNING) << "No OpenCL device";
@@ -273,9 +270,6 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
     this->queues.push_back(
         clCreateCommandQueue(this->context, did, 0, &err_code));
     OPENCL_CHECK_ERROR(err_code);
-    LOG(INFO) << type_key << "(" << i
-              << ")=\'" << cl::GetDeviceInfo(did, CL_DEVICE_NAME)
-              << "\' cl_device_id=" << did;
   }
 }
 

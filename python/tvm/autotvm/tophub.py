@@ -21,7 +21,8 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub
 PACKAGE_VERSION = {
     'vta':     "v0.01",
     'arm_cpu': "v0.01",
-    'cuda':    "v0.01",
+    'cuda':    "v0.02",
+    'mali':    "v0.01",
 }
 
 logger = logging.getLogger('autotvm')
@@ -30,6 +31,11 @@ def _alias(name):
     """convert alias for some packages"""
     table = {
         'vtacpu': 'vta',
+
+        'opencl': 'cuda',
+        'rocm': 'cuda',
+        'metal': 'cuda',
+        'nvptx': 'cuda'
     }
     return table.get(name, name)
 
@@ -60,6 +66,7 @@ def context(target, extra_files=None):
 
     all_packages = list(PACKAGE_VERSION.keys())
     for name in possible_names:
+        name = _alias(name)
         if name in all_packages:
             check_backend(name)
 

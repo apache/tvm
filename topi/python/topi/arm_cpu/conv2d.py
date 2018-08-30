@@ -44,7 +44,22 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
 
 @autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
-    """TOPI schedule callback"""
+    """TOPI schedule callback for conv2d
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    outs: Array of Tensor
+        The computation graph description of conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d.
+    """
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -517,11 +532,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                                          layout, out_dtype)
         cfg = autotvm.DispatchContext.current.query(tvm.target.current_target(), workload)
 
-        if cfg.is_fallback: # if is fallback, clear query cache and return None
-            context = autotvm.DispatchContext.current
-            while not isinstance(context, autotvm.FallbackContext):
-                context = context._old_ctx
-            context.clear_cache(tvm.target.current_target(), workload)
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(tvm.target.current_target(), workload)
             return None
 
         if cfg.template_key == 'direct':  # packing weight tensor

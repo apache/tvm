@@ -1,16 +1,14 @@
 """
-MobileNetV2, load model from gluon model zoo
+DenseNet, load model from gluon model zoo
 
 Reference:
-Inverted Residuals and Linear Bottlenecks:
-Mobile Networks for Classification, Detection and Segmentation
-https://arxiv.org/abs/1801.04381
+Huang, Gao, et al. "Densely Connected Convolutional Networks." CVPR 2017
 """
 
 from .utils import create_workload
 from ..frontend.mxnet import _from_mxnet_impl
 
-def get_workload(batch_size, num_classes=1000, multiplier=1.0, dtype="float32"):
+def get_workload(batch_size, num_classes=1000, num_layers=121, dtype="float32"):
     """Get benchmark workload for mobilenet
 
     Parameters
@@ -21,8 +19,8 @@ def get_workload(batch_size, num_classes=1000, multiplier=1.0, dtype="float32"):
     num_classes : int, optional
         Number of classes
 
-    multiplier : tuple, optional
-        The input image shape
+    num_layers : int, optional
+        The number of layers
 
     dtype : str, optional
         The data type
@@ -36,11 +34,11 @@ def get_workload(batch_size, num_classes=1000, multiplier=1.0, dtype="float32"):
         The parameters.
     """
     import mxnet as mx
-    from mxnet.gluon.model_zoo.vision.mobilenet import MobileNetV2
+    from mxnet.gluon.model_zoo.vision import get_model
 
     image_shape = (1, 3, 224, 224)
 
-    block = MobileNetV2(multiplier=multiplier, classes=num_classes, pretrained=False)
+    block = get_model('densenet%d' % num_layers, classes=num_classes, pretrained=False)
 
     data = mx.sym.Variable('data')
     sym = block(data)

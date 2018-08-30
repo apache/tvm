@@ -320,3 +320,23 @@ class FallbackContext(DispatchContext):
             del self.memory[key]
 
 DispatchContext.current = FallbackContext()
+
+def clear_fallback_cache(target, workload):
+    """Clear fallback cache. Pass the same argument as _query_inside to this function
+    to clean the cache.
+
+    Parameters
+    ----------
+    target: Target
+        The current target
+    workload : Workload
+        The current workload.
+
+    Note
+    ----
+    This is used in alter_op_layout to clear the bad cache created before call topi compute function
+    """
+    context = DispatchContext.current
+    while not isinstance(context, FallbackContext):
+        context = context._old_ctx
+    context.clear_cache(target, workload)
