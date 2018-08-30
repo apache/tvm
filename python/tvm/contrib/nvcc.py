@@ -28,7 +28,7 @@ def compile_cuda(code,
     arch : str
         The architecture
 
-    options : str
+    options : str or str list
         The additional options
 
     path_target : str, optional
@@ -61,7 +61,12 @@ def compile_cuda(code,
     cmd += ["-arch", arch]
 
     if options:
-        cmd += [options]
+        if isinstance(options, str):
+            cmd += [options]
+        elif isinstance(options, list):
+            cmd += options
+        else:
+            raise ValueError("options must be str or str list")
 
     cmd += ["-o", file_target]
     cmd += [temp_code]
