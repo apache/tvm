@@ -2,26 +2,25 @@
 Writing a Customized Pass
 =========================
 **Author**: `Jian Weng <https://were.github.io>`_
+
 TVM is a framework to abstract the heterogenity of those various machine learning
 accelerators. Sometimes users may want to customized some analysis and IR transformation
 to adopt TVM to their own specialized hardware. This tutorial helps users write
 a customized pass in TVM.
-"""
 
-######################################################################
-# Prerequisites
-# -------------
-# Before reading this tutorial, we assume readers have already known these well:
-# - Writing an algorithm in TVM and schedule it. If not, you should go through other
-#   tutorials first.
-# - The basic structure of HalideIR. If not, you should go to ``HalideIR/src/ir/IR.h``
-#   to see what attributes of IR nodes are defined.
-# - Visitor design pattern. If not, you can go to Python ``ast`` module to see how an AST
-#   visitor is implemented.
-# - How a HalideIR/Schedule is lowered to either a LoweredFunc class or a LLVM module. If
-#   not, you can go to ``python/tvm/build_module.py`` to get some basic idea about it.
-# If all these above are true for you. Import these header and let us start!
-#
+Prerequisites
+-------------
+Before reading this tutorial, we assume readers have already known these well:
+- Writing an algorithm in TVM and schedule it. If not, you should go through other
+  tutorials first.
+- The basic structure of HalideIR. If not, you should go to ``HalideIR/src/ir/IR.h``
+  to see what attributes of IR nodes are defined.
+- Visitor design pattern. If not, you can go to Python ``ast`` module to see how an AST
+  visitor is implemented.
+- How a HalideIR/Schedule is lowered to either a LoweredFunc class or a LLVM module. If
+  not, you can go to ``python/tvm/build_module.py`` to get some basic idea about it.
+If all these above are true for you. Import these header and let us start!
+"""
 
 from __future__ import absolute_import, print_function
 
