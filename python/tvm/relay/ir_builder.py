@@ -3,6 +3,7 @@ import numpy as np
 import tvm
 from .type import FuncType, TensorType
 from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function
+from .env import Environment
 from . import op as _op
 
 class ExprBuilder():
@@ -83,6 +84,7 @@ class IRBuilder():
         self.scopes = [{}]
         self.params = []
         self.ret_value = None
+        self.env = Environment({})
 
 
     def bind(self, name, type, value):
@@ -93,6 +95,9 @@ class IRBuilder():
 
 
     def let(self, name, value, value_type=None):
+        if isinstance(value, Param):
+            value = value.var
+
         if not (isinstance(value, Expr) or isinstance(value, ExprBuilder)):
             value = into_ast(value)
 
@@ -131,8 +136,29 @@ class IRBuilder():
             raise Exception(
                 "return value already set, a function can only have one return value")
 
-    def fn_params(self):
-        pass
+    def param(self, name, ty=None):
+        if not ty:
+            ty = float_type()
+        
+        return Param(LocalVar(name), ty)
+
+    # def params(*args):
+    #      i = 0
+    #      while i < args.size():
+    #          arg = args[i]
+    #          if isinstance(arg, str):
+                
+
+    def decl(self, name: str, *params):
+        decl_builder = IRBuilder()
+
+        def _on_exit():
+            exp, sub_env = decl_builder.get()
+            self.env.add(name, Function(params, None, exp))
+            self.env.merge(sub_env)
+
+        return WithScope(decl_builder, _on_exit)
+
 
     def get(self):
         """Get the full program"""
@@ -140,14 +166,15 @@ class IRBuilder():
         scope = self.scopes.pop()
 
         if self.bindings:
-            raise Exception("...")
+            raise Exception("IRBuilder: binding error")
+
         if self.scopes:
-            raise Exception("...")
+            raise Exception("IRBuilder: scoping error")
 
-        if not self.ret_value:
-            raise Exception("...")
+        if bindings and scope and not self.ret_value:
+            raise Exception("IRBuilder: no return value set")
 
-        return _mk_let(bindings, self.ret_value)
+        return _mk_let(bindings, self.ret_value), self.env
 
 def bool_dtype():
     return 'uint1'

@@ -4,14 +4,18 @@
  * \brief The global environment in Relay.
  */
 #include <sstream>
-#include "tvm/relay/environment.h"
+#include <tvm/relay/environment.h>
+#include <tvm/relay/pass/alpha_eq.h>
+#include <tvm/relay/pass.h>
+#include <tvm/relay/pass/type_infer.h>
+#include "./../pass/resolve.h"
 // #include "tvm/relay/util/rang.h"
 
 namespace tvm {
 namespace relay {
 
 using tvm::IRPrinter;
-using namespace tvm::runtime;
+using namespace runtime;
 
 Environment EnvironmentNode::make(
       tvm::Map<GlobalVar, Function> global_funcs) {
@@ -37,53 +41,35 @@ GlobalVar EnvironmentNode::GetGlobalVar(const std::string &str) {
  * update the definition if and only if it is type compatible.
  */
 void EnvironmentNode::Add(const GlobalVar& var, const Function & func, bool update) {
-  throw Error("NYI");
-//   // Type check the item before we add it to the environment.
-//   auto env = GetRef<Environment>(this);
-//   Item item = check(env, unchecked_item);
+  // Type check the item before we add it to the environment.
+  auto env = GetRef<Environment>(this);
+  Expr checked_expr = InferType(env, func);
 
-//   if (const OperatorNode *op_node = item.as<OperatorNode>()) {
-//     Operator op = GetRef<Operator>(op_node);
-//     auto type = op->type;
-//     if (operators.find(op->id) != operators.end()) {
-//       if (!update) {
-//         throw dmlc::Error("already have definition for XXXX.");
-//       }
+  if (const FunctionNode *func_node = checked_expr.as<FunctionNode>()) {
+    auto checked_func = GetRef<Function>(func_node);
+    auto type = checked_func->checked_type();
 
-//       auto old_type = operators[op->id]->type;
+    CHECK(IsFullyResolved(type));
 
-//       if (!alpha_eq(type, old_type)) {
-//         throw dmlc::Error(
-//             "Environment#update changes type, not possible in this mode.");
-//       }
+    if (functions.find(var) != functions.end()) {
+      if (!update) {
+        throw dmlc::Error("already have definition for XXXX.");
+      }
 
-//       operators.insert({op->id, op});
-//     } else {
-//       operators.insert({op->id, op});
-//     }
-//   } else if (const FunctionNode *d = item.as<FunctionNode>()) {
-//     auto def = GetRef<Function>(d);
-//     auto type = def->type;
-//     if (items.find(def->id) != items.end()) {
-//       if (!update) {
-//         throw dmlc::Error("already have definition for XXXX.");
-//       }
+      auto old_type = functions[var].as<FunctionNode>()->checked_type();
 
-//       auto old_type = items[def->id].as<FunctionNode>()->type;
+      if (!AlphaEqual(type, old_type)) {
+        throw dmlc::Error(
+            "Environment#update changes type, not possible in this mode.");
+      }
 
-//       if (!alpha_eq(type, old_type)) {
-//         throw dmlc::Error(
-//             "Environment#update changes type, not possible in this mode.");
-//       }
-
-//       this->items.insert({def->id, def});
-//     } else {
-//       this->items.insert({def->id, def});
-//     }
-//   } else {
-//     throw EnvError("internal error: unknown item type, unreachable code");
-//   }
-// }
+      this->functions.Set(var, checked_func);
+    } else {
+      this->functions.Set(var, checked_func);
+    }
+  } else {
+    throw Error("internal error: unknown item type, unreachable code");
+  }
 }
 
 void EnvironmentNode::Update(const GlobalVar& var, const Function & func) {
@@ -109,6 +95,13 @@ Function EnvironmentNode::Lookup(const std::string &str) {
   GlobalVar id = this->GetGlobalVar(str);
   return this->Lookup(id);
 }
+
+void EnvironmentNode::Merge(const Environment & env) {
+  for (auto pair : env->functions) {
+    this->functions.Set(pair.first, pair.second);
+  }
+}
+
 
 inline SourceName EnvironmentNode::AddSource(std::string file_name,
                                           std::string source) {
@@ -155,6 +148,40 @@ TVM_REGISTER_API("relay._make.Environment")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = EnvironmentNode::make(args[0]);
     });
+
+TVM_REGISTER_API("relay._env.Environment_Add")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      env->Add(args[1], args[2], false);
+    });
+
+TVM_REGISTER_API("relay._env.Environment_GetGlobalVar")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      *ret = env->GetGlobalVar(args[1]);
+    });
+
+TVM_REGISTER_API("relay._env.Environment_Lookup")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      GlobalVar var = args[1];
+      *ret = env->Lookup(var);
+    });
+
+TVM_REGISTER_API("relay._env.Environment_Lookup_str")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      std::string var_name = args[1];
+      auto var = env->GetGlobalVar(var_name);
+      *ret = env->Lookup(var);
+    });
+
+TVM_REGISTER_API("relay._env.Environment_Merge")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Environment env = args[0];
+      env->Merge(args[1]);
+    });
+
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<EnvironmentNode>([](const EnvironmentNode *node,

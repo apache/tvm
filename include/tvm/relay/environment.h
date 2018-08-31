@@ -63,6 +63,7 @@ class EnvironmentNode : public RelayNode {
   void Update(const GlobalVar& var, const Function & func);
   void Remove(const GlobalVar& var);
 
+  /*! \brief Lookup a global function by its variable. */
   GlobalVar GetGlobalVar(const std::string& str);
 
   /*! \brief Lookup a global function by its variable. */
@@ -70,6 +71,9 @@ class EnvironmentNode : public RelayNode {
 
   /*! \brief Lookup a global function by its string name */
   Function Lookup(const std::string & s);
+  
+  // TODO(@jroesch, @tqchen): what are the semantics here
+  void Merge(const Environment & env);
 
   /*! \brief Add a source fragment to the environment. */
   SourceName AddSource(std::string file_name, std::string source);

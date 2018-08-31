@@ -168,8 +168,8 @@ TVM_REGISTER_API("relay._make.Let")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<LetNode>([](const LetNode *node, tvm::IRPrinter *p) {
-      p->stream << "LetNode(" << node->var << node->value << node->body
-                << node->value_type << ")";
+      p->stream << "LetNode(" << node->var << ", " << node->value
+                << ", " << node->body << ", " << node->value_type << ")";
     });
 
 If IfNode::make(Expr cond, Expr true_value, Expr false_value) {
