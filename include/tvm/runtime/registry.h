@@ -27,7 +27,7 @@
 
 #include <string>
 #include <vector>
-#include "./packed_func.h"
+#include "packed_func.h"
 
 namespace tvm {
 namespace runtime {
@@ -46,6 +46,24 @@ class Registry {
    */
   Registry& set_body(PackedFunc::FType f) {  // NOLINT(*)
     return set_body(PackedFunc(f));
+  }
+  /*!
+   * \brief set the body of the function to be TypedPackedFunc.
+   *
+   * \code
+   *
+   * TVM_REGISTER_API("addone")
+   * .set_body_typed<int(int)>([](int x) { return x + 1; });
+   *
+   * \endcode
+   *
+   * \param f The body of the function.
+   * \tparam FType the signature of the function.
+   * \tparam FLambda The type of f.
+   */
+  template<typename FType, typename FLambda>
+  Registry& set_body_typed(FLambda f) {
+    return set_body(TypedPackedFunc<FType>(f).packed());
   }
   /*!
    * \brief Register a function with given name

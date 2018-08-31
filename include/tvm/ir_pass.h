@@ -14,10 +14,10 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include "./expr.h"
-#include "./buffer.h"
-#include "./schedule.h"
-#include "./lowered_func.h"
+#include "expr.h"
+#include "buffer.h"
+#include "schedule.h"
+#include "lowered_func.h"
 
 namespace tvm {
 namespace ir {

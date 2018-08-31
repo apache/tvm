@@ -37,7 +37,8 @@ def _execute_func(func, queue, args, kwargs):
         res = exc
     queue.put(res)
 
-def timeout_monitor(queue, timeout, func, args, kwargs):
+
+def call_with_timeout(queue, timeout, func, args, kwargs):
     """A wrapper to support timeout of a function call"""
 
     # start a new process for timeout (cannot use thread because we have c function)
@@ -45,16 +46,11 @@ def timeout_monitor(queue, timeout, func, args, kwargs):
     p.start()
     p.join(timeout=timeout)
 
-    alive = p.is_alive()
+    queue.put(executor.TimeoutError())
+
     kill_child_processes(p.pid)
     p.terminate()
     p.join()
-
-    if alive:
-        queue.put(executor.TimeoutError())
-    else:
-        if queue.empty():
-            queue.put(executor.ExecutionError("Fatal error in local executor"))
 
 
 class LocalFuture(executor.Future):
@@ -133,8 +129,8 @@ class LocalExecutor(executor.Executor):
         if not self.do_fork:
             return LocalFutureNoFork(func(*args, **kwargs))
 
-        queue = Queue(1)
-        process = Process(target=timeout_monitor,
+        queue = Queue(2)
+        process = Process(target=call_with_timeout,
                           args=(queue, self.timeout, func, args, kwargs))
         process.start()
         return LocalFuture(process, queue)

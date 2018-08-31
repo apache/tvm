@@ -9,8 +9,8 @@
 #include <atomic>
 #include <vector>
 #include <utility>
-#include "./c_runtime_api.h"
-#include "./serializer.h"
+#include "c_runtime_api.h"
+#include "serializer.h"
 
 namespace tvm {
 namespace runtime {
@@ -246,6 +246,7 @@ struct NDArray::Container {
 
  private:
   friend class NDArray;
+  friend class RPCWrappedFunc;
   /*!
    * \brief The shape container,
    *  can be used used for shape data.

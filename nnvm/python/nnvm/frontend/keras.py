@@ -269,14 +269,12 @@ def _convert_pooling(insym, keras_layer, symtab):
                   'padding': [0, 0]}
         if keras_layer.padding == 'valid':
             pass
-        # we insert a separate pad operator
         elif keras_layer.padding == 'same':
             in_h = keras_layer.input_shape[1]
             in_w = keras_layer.input_shape[2]
             pad_t, pad_b = _get_pad_pair(in_h, pool_h, stride_h)
             pad_l, pad_r = _get_pad_pair(in_w, pool_w, stride_w)
-            insym = _sym.pad(data=insym, pad_width=(
-                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            params['padding'] = [pad_t, pad_l, pad_b, pad_r]
         else:
             raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
         if pool_type == 'MaxPooling2D':
@@ -309,6 +307,21 @@ def _convert_upsample(insym, keras_layer, _):
     else:
         raise TypeError("Unsupported upsampling type : {}".format(upsample_type))
     return _sym.upsampling(insym, **params)
+
+
+def _convert_cropping(insym, keras_layer, _):
+    _check_data_format(keras_layer)
+    crop_type = type(keras_layer).__name__
+    if crop_type == "Cropping1D":
+        raise NotImplementedError("Cropping1D not implemented")
+    elif crop_type == "Cropping2D":
+        (_, in_h, in_w, _) = keras_layer.input_shape
+        ((crop_t, crop_b), (crop_l, crop_r)) = keras_layer.cropping
+    else:
+        raise TypeError("Unrecognized cropping type : {}".format(crop_type))
+    int32_max = np.iinfo(np.int32).max
+    return _sym.strided_slice(insym, begin=[0, 0, crop_t, crop_l],
+                              end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
 
 
 def _convert_batchnorm(insym, keras_layer, symtab):
@@ -409,6 +422,7 @@ _convert_map = {
     'Multiply'                 : _convert_merge,
     'ZeroPadding2D'            : _convert_padding,
     'UpSampling2D'             : _convert_upsample,
+    'Cropping2D'               : _convert_cropping,
 
     # 'ZeroPadding1D'          : _convert_padding,
     # 'AveragePooling1D'       : _convert_pooling,
@@ -416,7 +430,6 @@ _convert_map = {
     # 'GlobalAveragePooling1D' : _convert_pooling,
     # 'GlobalMaxPooling1D'     : _convert_pooling,
     # 'Cropping1D'             : _convert_cropping,
-    # 'Cropping2D'             : _convert_cropping,
     # 'UpSampling1D'           : _convert_upsample,
     # 'UpSampling3D'           : _convert_upsample,
     # 'Conv1D'                 : _convert_convolution1d,
@@ -519,15 +532,15 @@ def from_keras(model):
                 # they are named uniquely to input_1, input_2, input_3 ... by default.
                 for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
                     if isinstance(pred, keras.engine.InputLayer):
-                        _sym = symtab.get_var(pred.name, must_contain=True)
+                        sym = symtab.get_var(pred.name, must_contain=True)
                     else:
-                        _sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
-                    insym.append(_sym)
+                        sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
+                    insym.append(sym)
 
                 if len(insym) == 1:
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
-    outsym = symtab.get_var(model._output_layers[0].name + ':0')
+    outsym = [symtab.get_var(layer.name + ':0') for layer in model._output_layers]
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
-    return outsym, tvmparams
+    return _sym.Group(outsym), tvmparams

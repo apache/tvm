@@ -64,7 +64,7 @@ from tvm import autotvm
 #
 
 @autotvm.template
-def conv2d_no_batching(N, H, W, CI, CO, KH, KW, stride, padding):
+def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
     assert N == 1, "Only consider batch_size = 1 in this template"
 
     data = tvm.placeholder((N, CI, H, W), name='data')
@@ -164,12 +164,12 @@ task = autotvm.task.create(conv2d_no_batching,
                            target='cuda')
 print(task.config_space)
 
-# use local gpu, measure 5 times for every config to reduce variance
-# run 8 parallel threads for compilation
-measure_option = autotvm.measure_option('local',
-                                        number=5,
-                                        n_parallel=8,
-                                        timeout=20)
+# use local gpu, measure 10 times for every config to reduce variance
+# The timeout of compiling a program is 10 seconds, the timeout for running is 4 seconds
+measure_option = autotvm.measure_option(
+    builder=autotvm.LocalBuilder(),
+    runner=autotvm.LocalRunner(repeat=3, min_repeat_ms=100, timeout=4)
+)
 
 # begin tuning, log records to file `conv2d.log`
 tuner = autotvm.tuner.XGBTuner(task)
@@ -206,8 +206,8 @@ func(a_tvm, w_tvm, c_tvm)
 
 np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
-# Evaluate running time. Here we choose a large repeat number (200) to reduce the noise
+# Evaluate running time. Here we choose a large repeat number (400) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.
-evaluator = func.time_evaluator(func.entry_name, ctx, number=200)
+evaluator = func.time_evaluator(func.entry_name, ctx, number=400)
 print('Time cost of this operator: %f' % evaluator(a_tvm, w_tvm, c_tvm).mean)
 

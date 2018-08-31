@@ -262,23 +262,7 @@ def extract_ext_funcs(finit):
 def _get_api(f):
     flocal = f
     flocal.is_global = True
-    def my_api_func(*args):
-        """
-
-        This is a type erased API that calls into Global PackedFunc.
-        These APIs corresponds to functions registered from C++ backend
-        and can be used as developer functions.
-
-        args : list
-          The positional arguments to the function call.
-
-        Returns
-        -------
-        value : int, float, None, Node or Function
-        The result of the API function call.
-        """
-        return flocal(*args)
-    return my_api_func
+    return flocal
 
 def _init_api(namespace, target_module_name=None):
     """Initialize api for a given module name

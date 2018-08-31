@@ -8,8 +8,8 @@
 
 #include <vector>
 #include <functional>
-#include "./base.h"
-#include "./graph.h"
+#include "base.h"
+#include "graph.h"
 
 namespace nnvm {
 

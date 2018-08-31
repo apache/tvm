@@ -104,11 +104,11 @@ You are supposed to find a free "android" in the queue status.
 ...
 
 Queue Status
-----------------------------
-key    	free	pending
-----------------------------
-android	1	0
-----------------------------
+-------------------------------
+key       total  free  pending
+-------------------------------
+android   1      1     0
+-------------------------------
 ```
 
 

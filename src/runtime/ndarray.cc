@@ -7,7 +7,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
-#include "./runtime_base.h"
+#include "runtime_base.h"
 
 // deleter for arrays used by DLPack exporter
 extern "C" void NDArrayDLPackDeleter(DLManagedTensor* tensor);

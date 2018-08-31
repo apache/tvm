@@ -9,6 +9,69 @@ Refer to the Roadmap issue for complete list on on-going version features.
 If you check in something that is not reflected in Roadmap issue, please reply
 to that issue so it can get added.
 
+## 0.4
+
+This release features several major improvements. The high-level graph optimizer is now part of TVM repo. Some of the highlights are: Initial support of AutoTVM for automated optimization; customized accelerator backend VTA.
+
+- Tensor operator primitives
+  - Introduce attrs field to operator primitives(e.g. compute) to store additional metadata, the attrs can be used as hint for scheduling
+- Enable embedding of asm micro-kernels
+- Hybrid python programming model
+   - python AST based IR builder interface
+   - support GPU programs
+- AutoTVM, Automated tuning, and scheduling
+   - basic autotvm infra
+    - GPU IR verifier
+   - basic autotuning tutorial
+   - topi integration
+- ARM support
+    - winograd support
+   - initial support of ARM autotuning records
+- TOPI Vision
+   - Generic GPU sort support(useful for vision)
+   - SSD operator support
+- TOPI numpy consistency
+   - Rename all binary operators for numpy consistecy: broadcast_add-> add, broadcast_sub -> substract, broadcast_mul -> multiply, broadcast_div->divide
+   - New operators: slice, LRN, equal, not_equal, less, greater
+   - tutorials on topi
+- Initial low-bit operator support support
+    - Optimized popcount generation on ARM
+    - general bit-serial convolution and GEMM
+    - optimized low bit kernels
+    - parallel optimization
+- New topi backend optimization for intel graphics
+- Adapt AVX schedules for SSE target
+- VTA: customized accelerator backend
+  - custom hardware backend example
+  - tutorials on how to use customized accelerator
+- Initial experimental support for  HLS backend
+- Bugfix in SPIRV code generator for vulkan
+- libdevice support, enable NVPTX backend
+- Introduce NDArrayContainer for managed NDarray
+- RPC and Device API
+   - Support communication between big/small endian machines.
+   - RPC and device API protocol upgrade (this is a non-backward compatible change) to support big-small endian communication. This is a non-backward compatible change, need to use the latest version of TVM runtime with the RPC
+   - graduate rpc from contrib, tvm.contrib.rpc->tvm.rpc
+   -Support tracker in Android RPC, add fault tolerance for AutoTVM
+- BIG.LITTLE aware threadpool
+- tvm4j graph runtime that runs end to end workload in java
+- DLPack support
+   - Support from_dlpack and to_dlpack
+   - Enables bridges to pytorch
+- Enable link of stackvm in runtime
+- Tensorflow graphdef frontend
+- Keras frontend
+   - improved to support reuse layers, add activations
+- ONNX
+   - gather,  LRN
+- CoreML frontend
+   - Support C-RNN and activation functions
+- Fix grads for sum and expand_like
+- Enhanced operator fusion for multiple elemwise branches
+- Separate nnvm fusion and compilation pass
+- Unified build system to cmake, customizable cmake path for vulkan, rocm, cuda
+
+
 ## 0.3
 
 This release features numerous improvements in TOPI and backends. We make the first step toward object detection support in TOPI, featuring operators necessary for YOLO and SSDs. The topi now supports numpy-style API and operator overloading. RPC is significantly improved to support resource allocation and using a pool of devices. We are adding two new backends: WebGL for running GPUs on the browser, and Vulkan for running on next-generation graphics API.

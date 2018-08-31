@@ -5,6 +5,7 @@ import topi
 from topi.util import get_const_tuple
 from tvm.contrib.pickle_memoize import memoize
 
+from common import get_all_backend
 
 def verify_clip(N, a_min, a_max, dtype):
     A = tvm.placeholder((N, N), dtype=dtype, name='A')
@@ -34,7 +35,7 @@ def verify_clip(N, a_min, a_max, dtype):
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['llvm', 'opencl', 'sdaccel']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_clip():

@@ -32,8 +32,12 @@ class LAYERTYPE(object):
     NETWORK = 20
     XNOR = 21
     REGION = 22
-    REORG = 23
-    BLANK = 24
+    YOLO = 23
+    REORG = 24
+    UPSAMPLE = 25
+    LOGXENT = 26
+    L2NORM = 27
+    BLANK = 28
 
 class ACTIVATION(object):
     """Darknet ACTIVATION Class constant."""
@@ -257,6 +261,12 @@ def _darknet_reshape(inputs, attrs):
     new_attrs['shape'] = _darknet_required_attr(attrs, 'shape')
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
+def _darknet_upsampling(inputs, attrs):
+    """Process the upsampling operation."""
+    op_name, new_attrs = 'upsampling', {}
+    new_attrs['scale'] = attrs.get('scale', 1)
+    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+
 def _darknet_softmax_output(inputs, attrs):
     """Process the softmax operation."""
     temperature = attrs.get('temperature', 1)
@@ -296,6 +306,15 @@ def _darknet_region(inputs, attrs):
         new_attrs['background'] = attrs.get('background', 0)
     if 'softmax' in attrs:
         new_attrs['softmax'] = attrs.get('softmax', 0)
+    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+
+def _darknet_yolo(inputs, attrs):
+    """Process the yolo operation."""
+    op_name, new_attrs = 'yolov3_yolo', {}
+    if 'n' in attrs:
+        new_attrs['n'] = attrs.get('n', 1)
+    if 'classes' in attrs:
+        new_attrs['classes'] = attrs.get('classes', 1)
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
 def _darknet_activations(inputs, attrs):
@@ -350,6 +369,8 @@ _DARKNET_CONVERT_MAP = {
     LAYERTYPE.REORG           : _darknet_reorg,
     LAYERTYPE.REGION          : _darknet_region,
     LAYERTYPE.SHORTCUT        : _darknet_shortcut,
+    LAYERTYPE.UPSAMPLE        : _darknet_upsampling,
+    LAYERTYPE.YOLO            : _darknet_yolo,
     LAYERTYPE.DETECTION       : _darknet_op_not_support,
     LAYERTYPE.CROP            : _darknet_op_not_support,
     LAYERTYPE.COST            : _darknet_op_not_support,
@@ -575,6 +596,13 @@ class GraphProto(object):
             attr.update({'coords' : layer.coords})
             attr.update({'background' : layer.background})
             attr.update({'softmax' : layer.softmax})
+
+        elif LAYERTYPE.YOLO == layer.type:
+            attr.update({'n' : layer.n})
+            attr.update({'classes' : layer.classes})
+
+        elif LAYERTYPE.UPSAMPLE == layer.type:
+            attr.update({'scale' : layer.stride})
         else:
             err = "Darknet layer type {} is not supported in nnvm.".format(layer.type)
             raise NotImplementedError(err)

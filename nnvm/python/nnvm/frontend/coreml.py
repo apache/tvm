@@ -217,6 +217,16 @@ def AddLayerParams(op, insyms, symtab):
         ret = _sym.__add_scalar__(ret, scalar=op.alpha)
     return ret
 
+def MultiplyLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list):
+        insyms = [insyms]
+    ret = insyms[0]
+    for i in range(1, len(insyms)):
+        ret = _sym.elemwise_mul(ret, insyms[i])
+    if op.alpha != 1:
+        ret = _sym.__mul_scalar__(ret, scalar=op.alpha)
+    return ret
+
 def ConcatLayerParams(op, insyms, symtab):
     if not isinstance(insyms, list):
         insyms = [insyms]
@@ -249,6 +259,49 @@ def PermuteLayerParams(op, insym, symtab):
     axes = tuple(op.axis)
     return _sym.transpose(insym, axes=axes)
 
+def UpsampleLayerParams(op, insym, symtab):
+    if op.scalingFactor[0] != op.scalingFactor[1]:
+        raise NotImplementedError("Upsampling only supported with same \
+            height and width scaling factor.")
+    interpolationMode = 'NEAREST_NEIGHBOR' if op.mode == 0 else 'BILINEAR'
+    return _sym.upsampling(insym, scale=op.scalingFactor[0], method=interpolationMode)
+
+def L2NormalizeLayerParams(op, insym, symtab):
+    return _sym.l2_normalize(insym, eps=op.epsilon, axis=1)
+
+def LRNLayerParams(op, insym, symtab):
+    par = {}
+    par['size'] = op.localSize
+    par['bias'] = op.k
+    par['alpha'] = op.alpha
+    par['beta'] = op.beta
+    par['axis'] = 1 #default layout is nchw
+    return _sym.lrn(data=insym, **par)
+
+def AverageLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    count = len(insyms)
+    _sum = insyms[0]
+    for i in range(1, count):
+        _sum = _sym.broadcast_add(_sum, insyms[i])
+    return _sum / count
+
+def MaxLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    _max = insyms[0]
+    for i in range(1, len(insyms)):
+        _max = _sym.broadcast_max(_max, insyms[i])
+    return _max
+
+def MinLayerParams(op, insyms, symtab):
+    if not isinstance(insyms, list) or len(insyms) < 2:
+        raise ValueError("Expect minimum 2 inputs")
+    _min = insyms[0]
+    for i in range(1, len(insyms)):
+        _min = _sym.broadcast_min(_min, insyms[i])
+    return _min
 
 _convert_map = {
     'NeuralNetworkMeanImage': NeuralNetworkMeanImage,
@@ -261,10 +314,17 @@ _convert_map = {
     'SoftmaxLayerParams':SoftmaxLayerParams,
     'InnerProductLayerParams':InnerProductLayerParams,
     'AddLayerParams':AddLayerParams,
+    'MultiplyLayerParams':MultiplyLayerParams,
     'FlattenLayerParams':FlattenLayerParams,
     'ConcatLayerParams':ConcatLayerParams,
     'PaddingLayerParams':PaddingLayerParams,
     'PermuteLayerParams':PermuteLayerParams,
+    'UpsampleLayerParams':UpsampleLayerParams,
+    'L2NormalizeLayerParams':L2NormalizeLayerParams,
+    'LRNLayerParams':LRNLayerParams,
+    'AverageLayerParams':AverageLayerParams,
+    'MaxLayerParams':MaxLayerParams,
+    'MinLayerParams':MinLayerParams,
 }
 
 def coreml_op_to_nnvm(op, inname, outname, symtab):

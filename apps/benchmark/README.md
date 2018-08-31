@@ -40,14 +40,14 @@ python3 -m tvm.exec.rpc_tracker
   For our test environment, one sample output can be 
   ```bash
   Queue Status                
-  ------------------------------
-  key            free    pending    
-  ------------------------------
-  mate10pro      1       0   
-  p20pro         2       0  
-  pixel2         2       0 
-  rk3399         2       0
-  rasp3b         8       0
+  ----------------------------------
+  key          total  free  pending    
+  ----------------------------------
+  mate10pro    1      1     0
+  p20pro       2      2     0 
+  pixel2       2      2     0
+  rk3399       2      2     0
+  rasp3b       8      8     0
   ```
 
  4. Run benchmark  
@@ -63,8 +63,11 @@ python3 -m tvm.exec.rpc_tracker
   python3 arm_cpu_imagenet_bench.py --device mate10pro --rpc-key mate10pro  
   ```
 
-  If your device has a same SoC of the above device, you can reuse these parameters
-  (e.g. use `llvm -device=arm_cpu -mode=rk3399 -target=aarch64-linux-gnu` as target).
-  Otherwise, you need to tune for your own device, please follow this 
-  [tutorial](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html).
+  If your device has a same or similar SoC of the above devices, you can reuse these parameters.
+  For example, if your SoC is similar to rasp3b, use
+  ```bash
+  python3 arm_cpu_imagenet_bench.py --device rasp3b --rpc-key your_custom_key
+  ```
+  For other devices, to get the best performance, it is recommended that you tune your network by yourself. 
+  Please follow this [tutorial](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html).
 

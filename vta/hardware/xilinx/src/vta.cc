@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "./vta.h"
+#include "vta.h"
 
 void fetch(
   uint32_t insn_count,

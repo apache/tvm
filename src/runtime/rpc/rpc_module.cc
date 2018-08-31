@@ -6,19 +6,19 @@
 #include <tvm/runtime/registry.h>
 #include <memory>
 #include <cstring>
-#include "./rpc_session.h"
+#include "rpc_session.h"
 
 namespace tvm {
 namespace runtime {
 
 // Wrapped remote function to packed func.
-struct RPCWrappedFunc {
+class RPCWrappedFunc {
  public:
   RPCWrappedFunc(void* handle,
                  std::shared_ptr<RPCSession> sess)
       : handle_(handle), sess_(sess) {
     fwrap_ = PackedFunc([sess](TVMArgs args, TVMRetValue* rv) {
-        WrapRemote(sess, args.values[0].v_handle, args.type_codes[0], rv);
+        WrapRemote(sess, args, rv);
       });
   }
 
@@ -34,9 +34,46 @@ struct RPCWrappedFunc {
   }
 
   static void WrapRemote(std::shared_ptr<RPCSession> sess,
-                         void* handle,
-                         int tcode,
+                         TVMArgs args,
                          TVMRetValue* rv);
+
+  // deleter of RPC remote array
+  static void RemoteNDArrayDeleter(NDArray::Container* ptr) {
+    RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
+    space->sess->CallRemote(RPCCode::kNDArrayFree, ptr->manager_ctx);
+    delete space;
+    delete ptr;
+  }
+  // wrap return value as remote NDArray.
+  static NDArray WrapRemoteNDArray(std::shared_ptr<RPCSession> sess,
+                                   DLTensor* tensor,
+                                   void* nd_handle) {
+    NDArray::Container* data = new NDArray::Container();
+    data->manager_ctx = nd_handle;
+    data->deleter = RemoteNDArrayDeleter;
+    RemoteSpace* space = new RemoteSpace();
+    space->sess = sess;
+    space->data = tensor->data;
+    data->dl_tensor.data = space;
+    NDArray ret(data);
+    // RAII now in effect
+    data->shape_ = std::vector<int64_t>(
+        tensor->shape, tensor->shape + tensor->ndim);
+    data->dl_tensor.shape = dmlc::BeginPtr(data->shape_);
+    data->dl_tensor.ndim = static_cast<int>(data->shape_.size());
+    // setup dtype
+    data->dl_tensor.dtype = tensor->dtype;
+    // setup ctx, encode as remote session
+    data->dl_tensor.ctx.device_id = tensor->ctx.device_id;
+    data->dl_tensor.ctx.device_type = static_cast<DLDeviceType>(
+        static_cast<int>(tensor->ctx.device_type) +
+        kRPCSessMask * (sess->table_index() + 1));
+    // check strides.
+    CHECK(tensor->strides == nullptr);
+    // setup byteoffset
+    data->dl_tensor.byte_offset = tensor->byte_offset;
+    return ret;
+  }
 
  private:
   PackedFunc fwrap_;
@@ -126,20 +163,28 @@ class RPCModuleNode final : public ModuleNode {
 };
 
 void RPCWrappedFunc::WrapRemote(std::shared_ptr<RPCSession> sess,
-                                void* handle,
-                                int tcode,
+                                TVMArgs args,
                                 TVMRetValue *rv) {
+  void* handle = args.values[0].v_handle;
+  int tcode = args.type_codes[0];
+
   if (handle == nullptr) return;
   if (tcode == kFuncHandle) {
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) {
         return wf->operator()(args, rv);
       });
-  } else {
-    CHECK_EQ(tcode, kModuleHandle);
+  } else if (tcode == kModuleHandle) {
     std::shared_ptr<RPCModuleNode> n =
         std::make_shared<RPCModuleNode>(handle, sess);
     *rv = Module(n);
+  } else if (tcode == kArrayHandle || tcode == kNDArrayContainer) {
+    CHECK_EQ(args.size(), 2);
+    DLTensor* tensor = args[0];
+    void* nd_handle = args[1];
+    *rv = WrapRemoteNDArray(sess, tensor, nd_handle);
+  } else {
+    LOG(FATAL) << "Cannot wrap tcode=" << tcode;
   }
 }
 

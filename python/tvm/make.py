@@ -6,9 +6,10 @@ The functions are automatically exported from C++ side via PackedFunc.
 Each api is a PackedFunc that can be called in a positional argument manner.
 You can use make function to build the IR node.
 """
+from __future__ import absolute_import as _abs
 from ._ffi.function import _init_api
 from ._ffi.runtime_ctypes import TVMType
-from . import stmt as _stmt
+
 
 def range_by_min_extent(min_value, extent):
     """Construct a Range by min and extent.
@@ -71,6 +72,17 @@ def node(type_key, **kwargs):
     **kwargs : dict
         The fields of the node.
 
+    Returns
+    -------
+    node : Node
+        The corresponding DSL Node
+
+    Note
+    ----
+    If the created node is instance of AttrsNode, then
+    the creator function will also run bound checks and
+    default value setup as supported by Attrs.
+
     Example
     -------
     The following code constructs a IntImm object
@@ -85,46 +97,6 @@ def node(type_key, **kwargs):
     for k, v in kwargs.items():
         args += [k, v]
     return _Node(*args)
-
-
-def stmt_seq(*args):
-    """Make sequence of statements
-
-    Parameters
-    ----------
-    args : list of Expr or Var
-        List of statements to be combined as sequence.
-
-    Returns
-    -------
-    stmt : Stmt
-        The combined statement.
-    """
-    ret = None
-    for value in args:
-        if not isinstance(value, _stmt.Stmt):
-            value = Evaluate(value)
-        ret = value if ret is None else Block(ret, value)
-    return ret if ret else Evaluate(0)
-
-
-def stmt_list(stmt):
-    """Make list of stmt from blocks.
-
-    Parameters
-    ----------
-    stmt : A block statement
-
-    Returns
-    -------
-    stmt_list : list of Stmt
-         The unpacked list of statements
-    """
-    if isinstance(stmt, _stmt.Block):
-        return stmt_list(stmt.first) + stmt_list(stmt.rest)
-    elif isinstance(stmt, _stmt.ProducerConsumer):
-        return stmt_list(stmt.body)
-    return [stmt]
 
 
 _init_api("tvm.make")

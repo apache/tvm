@@ -39,10 +39,8 @@ import android.app.NotificationManager;
 
 
 public class MainActivity extends AppCompatActivity {
-  private boolean skipRelaunch = true;
   // wait time before automatic restart of RPC Activity
   public static final int HANDLER_RESTART_DELAY = 5000;
-
 
   private void showDialog(String title, String msg) {
     AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -91,7 +89,7 @@ public class MainActivity extends AppCompatActivity {
     final Runnable rPCStarter = new Runnable() {
         public void run() {
             if (switchPersistent.isChecked()) {
-              System.err.println("relaunching RPC activity in 5s...");
+              System.err.println("relaunching RPC activity...");
               Intent intent = ((MainActivity) context).updateRPCPrefs();
               startActivity(intent);
             }
@@ -116,19 +114,12 @@ public class MainActivity extends AppCompatActivity {
         if (isChecked) {
           System.err.println("automatic RPC restart enabled...");
           updateRPCPrefs();
+          setupRelaunch();
         } else {
           System.err.println("automatic RPC restart disabled...");
           updateRPCPrefs();
         }
       }
-    });
-
-    Button startRPC = findViewById(R.id.button_start_rpc);
-    startRPC.setOnClickListener(new View.OnClickListener() {
-        public void onClick(View v) {
-            Intent intent = ((MainActivity) context).updateRPCPrefs();
-            startActivity(intent);
-        }
     });
 
     enableInputView(true);
@@ -137,15 +128,8 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onResume() {
     System.err.println("MainActivity onResume...");
-    System.err.println("skipRelaunch: " + skipRelaunch);
-    // if this is the first time onResume is called, do nothing, otherwise we
-    // may double launch
-    if (!skipRelaunch) {
-        enableInputView(true);
-        setupRelaunch();
-    } else {
-        skipRelaunch = false;
-    }
+    enableInputView(true);
+    setupRelaunch();
     super.onResume();
   }
 

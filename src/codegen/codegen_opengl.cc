@@ -8,8 +8,8 @@
 #include <tvm/packed_func_ext.h>
 #include <vector>
 #include <string>
-#include "./codegen_opengl.h"
-#include "./build_common.h"
+#include "codegen_opengl.h"
+#include "build_common.h"
 #include "../runtime/thread_storage_scope.h"
 
 namespace tvm {

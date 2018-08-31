@@ -8,8 +8,8 @@
 #include <array>
 #include <string>
 #include <mutex>
-#include "./vulkan_common.h"
-#include "./vulkan_module.h"
+#include "vulkan_common.h"
+#include "vulkan_module.h"
 #include "../pack_args.h"
 #include "../thread_storage_scope.h"
 #include "../meta_data.h"

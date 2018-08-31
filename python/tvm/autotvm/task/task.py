@@ -206,7 +206,7 @@ def args_to_workload(x):
     elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
         return x.value
     elif x is None:
-        return None
+        return 0
     else:
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
                            'primitive types only' % type(x))

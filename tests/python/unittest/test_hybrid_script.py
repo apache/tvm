@@ -43,6 +43,7 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
 
 @script
 def outer_product(n, m, a, b, c):
+    """This is a simple outer product"""
     for i in range(n):
         for j in range(m):
             c[i, j] = a[i] * b[j]

@@ -6,7 +6,7 @@
 
 #include <tvm/base.h>
 #include <mutex>
-#include "./llvm_common.h"
+#include "llvm_common.h"
 
 namespace tvm {
 namespace codegen {

@@ -406,6 +406,24 @@ def _fully_connected(opset):
     return _impl
 
 
+class Upsample(OnnxOpConverter):
+    """ Operator converter for Upsample (nearest mode).
+    """
+
+    @classmethod
+    def _impl_v7(cls, inputs, attr, params):
+        scales = attr.get('scales')
+        assert len(scales) == 4 and scales[0] == 1.0 and scales[1] == 1.0 and scales[2] == scales[3]
+        mode = attr.get('mode')
+        if mode == b'nearest':
+            method = "NEAREST_NEIGHBOR"
+        elif mode == b'linear':
+            method = "BILINEAR"
+        else:
+            raise ValueError("Invalid ONNX upsample mode: {}".format(mode))
+        return _sym.upsampling(inputs[0], scale=int(scales[-1]), method=method, layout='NCHW')
+
+
 class Shape(OnnxOpConverter):
     """ Operator converter for Shape.
     """
@@ -511,6 +529,53 @@ class LRN(OnnxOpConverter):
         return _sym.lrn(inputs[0], size=nsize, axis=axis,
                         alpha=alpha, beta=beta, bias=bias)
 
+class Maximum(OnnxOpConverter):
+    """ Operator converter for Maximum.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError("Expect minimum 2 inputs")
+        _max = inputs[0]
+        for i in range(1, len(inputs)):
+            _max = AttrCvt(op_name='broadcast_max')([_max, inputs[i]], {})
+        return _max
+
+class Minimum(OnnxOpConverter):
+    """ Operator converter for Minimum.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError("Expect minimum 2 inputs")
+        _min = inputs[0]
+        for i in range(1, len(inputs)):
+            _min = AttrCvt(op_name='broadcast_min')([_min, inputs[i]], {})
+        return _min
+
+class Mean(OnnxOpConverter):
+    """ Operator converter for Mean.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        if not isinstance(inputs, list) or len(inputs) < 2:
+            raise ValueError("Expect minimum 2 inputs")
+        count = len(inputs)
+        _sum = inputs[0]
+        for i in range(1, count):
+            _sum = AttrCvt(op_name='broadcast_add')([_sum, inputs[i]], {})
+        return _sum / count
+
+class HardSigmoid(OnnxOpConverter):
+    """ Operator converter for HardSigmoid.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        alpha = attr.get('alpha', 0.2)
+        beta = attr.get('beta', 0.5)
+        transformX = (inputs[0] * alpha) + beta
+        attr = {'a_min':0, 'a_max':1}
+        return AttrCvt(op_name='clip')([transformX], attr)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -539,7 +604,7 @@ def _get_convert_map(opset):
         # 'MeanVarianceNormalization'
         # 'Crop'
         # 'Embedding'
-        # 'Upsample'
+        'Upsample' : Upsample.get_converter(opset),
         'SpatialBN': BatchNorm.get_converter(opset),
 
         # defs/generator
@@ -572,11 +637,11 @@ def _get_convert_map(opset):
         'Pow': Renamer('broadcast_pow'),
         'PRelu': Prelu.get_converter(opset),
         'Sigmoid': Renamer('sigmoid'),
-        # 'HardSigmoid'
-        # 'Max' : this is the elemwise maximum
-        # 'Min' : this is the elemwise minimum
+        'HardSigmoid': HardSigmoid.get_converter(opset),
+        'Max': Maximum.get_converter(opset),
+        'Min': Minimum.get_converter(opset),
         'Sum': Sum.get_converter(opset),
-        # 'Mean'
+        'Mean': Mean.get_converter(opset),
         'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
         # softmax default axis is different in onnx
         'Softmax': AttrCvt('softmax', {'axis': ('axis', 1)}),

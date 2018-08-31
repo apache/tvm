@@ -5,14 +5,18 @@ import topi
 import math
 from topi.util import get_const_tuple
 
+from common import get_all_backend
+
 def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_pad=True):
     iw = ih
     kw = kh
     sw = sh
     pt, pl, pb, pr = padding
+    layout = "NCHW"
     A = tvm.placeholder((n, ic, ih, iw), name='A')
     B = topi.nn.pool(A, kernel=[kh, kw], stride=[sh, sw], padding=padding,
-                     pool_type=pool_type, ceil_mode=ceil_mode, count_include_pad=count_include_pad)
+                     pool_type=pool_type, ceil_mode=ceil_mode,
+                     layout="NCHW", count_include_pad=count_include_pad)
     B = topi.nn.relu(B)
     dtype = A.dtype
 
@@ -54,7 +58,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
             return
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            s = topi.generic.schedule_pool(B)
+            s = topi.generic.schedule_pool(B, layout)
 
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
@@ -62,7 +66,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode, count_include_
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_pool():
@@ -107,7 +111,7 @@ def verify_global_pool(n, c, h, w, pool_type):
         f(a, b)
         np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
-    for device in ['cuda', 'opencl', 'metal', 'rocm', 'vulkan', 'nvptx']:
+    for device in get_all_backend():
         check_device(device)
 
 def test_global_pool():

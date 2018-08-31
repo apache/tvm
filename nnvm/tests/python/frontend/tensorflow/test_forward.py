@@ -342,11 +342,31 @@ def _test_argx(func, data, **kwargs):
 
         compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
 
-def test_argmin_argmax():
+def test_forward_argminmax():
     for axis in [None,0,1,2]:
         data = np.random.uniform(size=(8,4,9)).astype('float32')
         _test_argx(tf.argmax, data=data, axis=axis)
         _test_argx(tf.argmin, data=data, axis=axis)
+
+#######################################################################
+# Reduce
+# ------
+
+def _test_reduce(func, data, **kwargs):
+    """ One iteration of a reduce operation"""
+
+    with tf.Graph().as_default():
+        inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
+        func(inp, name="reducex0", **kwargs)
+
+        compare_tf_with_tvm(data, 'c0:0', 'reducex0:0')
+
+def test_forward_reduce():
+    data = np.random.uniform(size=(8,4,9)).astype('float32')
+    _test_reduce(tf.reduce_sum, data=data)
+    _test_reduce(tf.reduce_sum, data=data, axis=0)
+    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))    
+
 
 #######################################################################
 # Variable
@@ -554,6 +574,31 @@ def test_forward_lstm():
     '''test LSTM block cell'''
 
     _test_lstm_cell(1, 2, 1, 0.0, 'float32')
+
+
+
+#######################################################################
+# Pack
+# ---
+def _test_pack(axis, shape, **kwargs):
+
+    a = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+    b = np.arange(np.prod(shape), dtype=np.float32).reshape(shape)
+
+    with tf.Graph().as_default():
+        tf_a = array_ops.placeholder(shape=shape, dtype='float32', name='pl_a')
+        tf_b = array_ops.placeholder(shape=shape, dtype='float32', name='pl_b')
+        tf_c = tf.stack([tf_a,tf_b], axis=axis, **kwargs)
+        assert tf_c.op.op_def.name == 'Pack', "tf.stack() is expected to produce 'Pack' operation"
+
+        compare_tf_with_tvm([a,b], ['pl_a:0','pl_b:0'], 'stack:0')
+
+def test_forward_pack():
+    for axis in range(-3,3):
+        _test_pack(axis, [3,2,1])
+    for axis in range(-1,1):
+        _test_pack(axis, [3])
+    _test_pack(0, [])
 
 #######################################################################
 # Pad
@@ -818,9 +863,12 @@ if __name__ == '__main__':
     test_forward_reshape()
     test_forward_squeeze()
     test_forward_sigmoid()
+    test_forward_argminmax()
+    test_forward_reduce()
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()
     test_forward_multi_input()
+    test_forward_pack()
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()

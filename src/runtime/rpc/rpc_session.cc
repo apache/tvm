@@ -11,7 +11,9 @@
 #include <array>
 #include <string>
 #include <chrono>
-#include "./rpc_session.h"
+#include <vector>
+#include <utility>
+#include "rpc_session.h"
 #include "../../common/ring_buffer.h"
 
 namespace tvm {
@@ -130,19 +132,22 @@ class RPCSession::EventHandler : public dmlc::Stream {
           break;
         }
         case kReturnReceived: {
-          CHECK_EQ(arg_buf_->value.size(), 1U);
+          CHECK_GE(arg_buf_->value.size(), 1U);
+
           TVMArgValue argv = arg_buf_->AsTVMArgs()[0];
           if (argv.type_code() == kFuncHandle ||
-              argv.type_code() == kModuleHandle) {
+              argv.type_code() == kModuleHandle ||
+              argv.type_code() == kArrayHandle) {
             CHECK(fwrap != nullptr) << "function/module wrapper not available";
             fwrap->CallPacked(arg_buf_->AsTVMArgs(), rv);
           } else {
+            CHECK_EQ(arg_buf_->value.size(), 1U);
             *rv = argv;
           }
           arg_buf_.reset();
           this->SwitchToState(kRecvCode);
           std::swap(client_mode_, client_mode);
-          return  RPCCode::kReturn;
+          return RPCCode::kReturn;
         }
         case kCopyAckReceived: {
           std::swap(client_mode_, client_mode);
@@ -172,15 +177,22 @@ class RPCSession::EventHandler : public dmlc::Stream {
     ctx.device_type = static_cast<DLDeviceType>(dev_type % kRPCSessMask);
     return ctx;
   }
-  // send Packed sequence to writer.
-  void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int n) {
+  // Send Packed sequence to writer.
+  // return_ndarray is a special flag to handle returning of ndarray
+  //    In this case, we return the shape, context and data of the array,
+  //    as well as a customized PackedFunc that handles deletion of
+  //    the array in the remote.
+  void SendPackedSeq(const TVMValue* arg_values,
+                     const int* type_codes,
+                     int n,
+                     bool return_ndarray = false) {
     this->Write(n);
-    // only handles .
     for (int i = 0; i < n; ++i) {
       int tcode = type_codes[i];
       if (tcode == kNDArrayContainer) tcode = kArrayHandle;
       this->Write(tcode);
     }
+
     // Argument packing.
     for (int i = 0; i < n; ++i) {
       int tcode = type_codes[i];
@@ -215,9 +227,23 @@ class RPCSession::EventHandler : public dmlc::Stream {
         case kNDArrayContainer:
         case kArrayHandle: {
           DLTensor* arr = static_cast<DLTensor*>(value.v_handle);
-          TVMContext ctx = StripSessMask(arr->ctx);
-          uint64_t data = reinterpret_cast<uint64_t>(
-              static_cast<RemoteSpace*>(arr->data)->data);
+          TVMContext ctx;
+          uint64_t data;
+          if (!return_ndarray) {
+            // in the client mode
+            // ctx contains the remote table index
+            // the space is wrapped by an RemoteSpace
+            // that holds reference to the session.
+            ctx = StripSessMask(arr->ctx);
+            data = reinterpret_cast<uint64_t>(
+                static_cast<RemoteSpace*>(arr->data)->data);
+          } else {
+            // When we return NDArray, we directly return
+            // the space and the context
+            // The client will be further wrapping
+            ctx = arr->ctx;
+            data = reinterpret_cast<uint64_t>(arr->data);
+          }
           this->Write(data);
           this->Write(ctx);
           this->Write(arr->ndim);
@@ -701,6 +727,21 @@ class RPCSession::EventHandler : public dmlc::Stream {
               << "Only server can send function and module handle back.";
         rv.MoveToCHost(&ret_value, &ret_tcode);
         SendPackedSeq(&ret_value, &ret_tcode, 1);
+      } else if (rv.type_code() == kNDArrayContainer) {
+        // always send handle in 64 bit.
+        CHECK(!client_mode_)
+            << "Only server can send NDArray back";
+        // We follow a special protocol to return NDArray to client side
+        // The first pack value is the NDArray handle as DLTensor
+        // The second pack value is a customized deleter that deletes the NDArray.
+        TVMValue ret_value_pack[2];
+        int ret_tcode_pack[2];
+        rv.MoveToCHost(&ret_value_pack[0], &ret_tcode_pack[0]);
+
+        NDArray::Container* nd = static_cast<NDArray::Container*>(ret_value_pack[0].v_handle);
+        ret_value_pack[1].v_handle = nd;
+        ret_tcode_pack[1] = kHandle;
+        SendPackedSeq(ret_value_pack, ret_tcode_pack, 2, true);
       } else {
         ret_value = rv.value();
         ret_tcode = rv.type_code();
@@ -1090,6 +1131,11 @@ void RPCModuleGetSource(TVMArgs args, TVMRetValue *rv) {
   *rv = (*static_cast<Module*>(mhandle))->GetSource(fmt);
 }
 
+void RPCNDArrayFree(TVMArgs args, TVMRetValue *rv) {
+  void* handle = args[0];
+  static_cast<NDArray::Container*>(handle)->DecRef();
+}
+
 void RPCGetTimeEvaluator(TVMArgs args, TVMRetValue *rv) {
   PackedFunc *pf = static_cast<PackedFunc*>(args[0].operator void*());
   void *fhandle = new PackedFunc(WrapTimeEvaluator(*pf, args[1], args[2], args[3]));
@@ -1138,6 +1184,7 @@ void RPCSession::EventHandler::HandlePackedCall() {
     case RPCCode::kModuleFree: CallHandler(RPCModuleFree); break;
     case RPCCode::kModuleGetFunc: CallHandler(RPCModuleGetFunc); break;
     case RPCCode::kModuleGetSource: CallHandler(RPCModuleGetSource); break;
+    case RPCCode::kNDArrayFree: CallHandler(RPCNDArrayFree); break;
     default: LOG(FATAL) << "Unknown event " << static_cast<int>(code_);
   }
   CHECK_EQ(state_, kRecvCode);

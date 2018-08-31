@@ -135,6 +135,29 @@ TEST(PackedFunc, Type) {
   CHECK(get_type2("float32x2").operator Type() == Float(32, 2));
 }
 
+TEST(TypedPackedFunc, HighOrder) {
+  using namespace tvm;
+  using namespace tvm::runtime;
+  using Int1Func = TypedPackedFunc<int(int)>;
+  using Int2Func = TypedPackedFunc<int(int, int)>;
+  using BindFunc = TypedPackedFunc<Int1Func(Int2Func, int value)>;
+  BindFunc ftyped;
+  ftyped = [](Int2Func f1, int value) -> Int1Func {
+    auto binded = [f1, value](int x) {
+      return f1(value, x);
+    };
+    Int1Func x(binded);
+    return x;
+  };
+  auto add = [](int x, int y) { return x + y; };
+  CHECK_EQ(ftyped(Int2Func(add), 1)(2), 3);
+  PackedFunc f = ftyped(Int2Func(add), 1);
+  CHECK_EQ(f(3).operator int(), 4);
+  // call the type erased version.
+  Int1Func f1 = ftyped.packed()(Int2Func(add), 1);
+  CHECK_EQ(f1(3), 4);
+}
+
 // new namespoace
 namespace test {
 // register int vector as extension type

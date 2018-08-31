@@ -1,5 +1,5 @@
 """Test code for broadcasting operators."""
-import os
+from common import get_all_backend
 import numpy as np
 import tvm
 import topi
@@ -8,6 +8,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
     # Build the logic and compile the function
     A = tvm.placeholder(shape=in_shape, name="A")
     B = fbcast(A, out_shape)
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -21,16 +22,11 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
         out_npy = np.broadcast_to(data_npy, out_shape)
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), ctx)
-        for _ in range(1):
-            foo(data_nd, out_nd)
+        foo(data_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
-    check_device("vulkan")
-    check_device("opencl")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
-    check_device("nvptx")
+    for target in get_all_backend():
+        check_device(target)
     check_device("sdaccel")
 
 
@@ -45,9 +41,10 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
     B = (tvm.var("B", dtype=dtype) if rhs_shape is None
          else tvm.placeholder(shape=rhs_shape, name="B", dtype=dtype))
     C = ftopi(A, B)
-    if (isinstance(A, tvm.expr.Expr) and isinstance(B, tvm.expr.Expr)):
+    if isinstance(A, tvm.expr.Expr) and isinstance(B, tvm.expr.Expr):
         assert(isinstance(C, tvm.expr.Expr))
         return
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -82,12 +79,8 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         foo(lhs_nd, rhs_nd, out_nd)
         np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
-    check_device("opencl")
-    check_device("vulkan")
-    check_device("cuda")
-    check_device("metal")
-    check_device("rocm")
-    check_device("nvptx")
+    for target in get_all_backend():
+        check_device(target)
     check_device("sdaccel")
 
 def test_broadcast_to():

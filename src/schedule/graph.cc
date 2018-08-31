@@ -8,7 +8,7 @@
 #include <tvm/operation.h>
 #include <unordered_set>
 #include <unordered_map>
-#include "./graph.h"
+#include "graph.h"
 
 namespace tvm {
 namespace schedule {

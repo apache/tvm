@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "./verilog_ir.h"
+#include "verilog_ir.h"
 #include "../codegen_source_base.h"
 
 namespace tvm {

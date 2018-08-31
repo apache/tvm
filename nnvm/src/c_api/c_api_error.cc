@@ -4,7 +4,7 @@
  * \brief C error handling
  */
 #include <dmlc/thread_local.h>
-#include "./c_api_common.h"
+#include "c_api_common.h"
 
 struct ErrorEntry {
   std::string last_error;

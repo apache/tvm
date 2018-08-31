@@ -5,15 +5,16 @@
 #include <tvm/build_module.h>
 #include <vector>
 #include <string>
-#include "./codegen_opencl.h"
-#include "./build_common.h"
+#include "codegen_opencl.h"
+#include "build_common.h"
 #include "../runtime/opencl/aocl/aocl_module.h"
 #include "../runtime/file_util.h"
 
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
+runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str,
+                          bool emulation) {
   // Get code.
   using tvm::runtime::Registry;
   bool output_ssa = false;
@@ -31,17 +32,16 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
   runtime::SaveBinaryToFile("aocl.cl", code.c_str());
 
   // Compile the .cl file.
-  Target target = Target::create(target_str);
-  if (target->device_name == "") {
-    LOG(FATAL) << "AOCL device name not specified in build target.";
-  }
   std::string cmd = "aoc aocl.cl";
-  for (std::string option : target->options()) {
-    if (option == "-mattr=emulator") {
-      cmd += " -march=emulator";
-    }
+  // AOCL supports fp64.
+  cmd += " -Dcl_khr_fp64";
+  Target target = Target::create(target_str);
+  if (target->device_name != "") {
+    cmd += " -board=" + target->device_name;
   }
-  cmd += " -board=" + target->device_name;
+  if (emulation) {
+    cmd += " -march=emulator";
+  }
   if (system(cmd.c_str()) != 0) {
     LOG(FATAL) << "OpenCL offline compilation error.";
   }
@@ -55,7 +55,12 @@ runtime::Module BuildAOCL(Array<LoweredFunc> funcs, std::string target_str) {
 
 TVM_REGISTER_API("codegen.build_aocl")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-    *rv = BuildAOCL(args[0], args[1]);
+    *rv = BuildAOCL(args[0], args[1], false);
+  });
+
+TVM_REGISTER_API("codegen.build_aocl_sw_emu")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    *rv = BuildAOCL(args[0], args[1], true);
   });
 
 }  // namespace codegen

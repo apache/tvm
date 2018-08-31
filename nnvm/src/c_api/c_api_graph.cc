@@ -9,7 +9,7 @@
 #include <nnvm/graph.h>
 #include <nnvm/pass.h>
 #include <dmlc/json.h>
-#include "./c_api_common.h"
+#include "c_api_common.h"
 
 using namespace nnvm;
 

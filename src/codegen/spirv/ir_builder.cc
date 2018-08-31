@@ -3,7 +3,7 @@
  * \file ir_builder.cc
  * \brief IRBuilder for SPIRV block
  */
-#include "./ir_builder.h"
+#include "ir_builder.h"
 
 namespace tvm {
 namespace codegen {

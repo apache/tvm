@@ -12,9 +12,9 @@
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
-#include "./base.h"
-#include "./node.h"
-#include "./symbolic.h"
+#include "base.h"
+#include "node.h"
+#include "symbolic.h"
 
 namespace nnvm {
 

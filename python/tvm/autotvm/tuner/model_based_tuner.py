@@ -8,7 +8,7 @@ import gc
 import numpy as np
 
 from .tuner import Tuner
-
+from ..env import GLOBAL_SCOPE
 
 class FeatureCache(object):
     """Feature cache manager for cache sharing between different cost models"""
@@ -119,11 +119,9 @@ class CostModel(object):
         """
         raise NotImplementedError()
 
-    def clone_new(self):
-        """Clone a new model with the same parameters.
-        This function will only copy hyperparameters of the tuner, not all the trained model
-
-        This is used for deriving a base model conveniently
+    def spawn_base_model(self):
+        """Clone a base model with the same parameters.
+        The base model is used to fit history data in transfer learning.
 
         Returns
         -------
@@ -221,7 +219,9 @@ class ModelBasedTuner(Tuner):
                     break
                 self.trial_pt += 1
 
-            if self.trial_pt >= len(self.trials):  # trial list is empty, choose randomly
+            if self.trial_pt >= len(self.trials) - int(0.05 * self.plan_size):
+                # if the trial list is empty or
+                # the tuner is doing the last 5% trials (e-greedy), choose randomly
                 index = np.random.randint(len(self.space))
                 while index in self.visited:
                     index = np.random.randint(len(self.space))
@@ -264,18 +264,16 @@ class ModelBasedTuner(Tuner):
             self.train_ct += 1
 
     def load_history(self, data_set):
-        # filter data, only pick the data with a same task
-        data = []
-        for inp, res in data_set:
-            if inp.task.name == self.task.name and \
-                            inp.config.template_key == self.task.config_space.template_key:
-                data.append((inp, res))
-        if not data:
-            return
+        # set in_tuning as True to make the feature extraction consistent
+        GLOBAL_SCOPE.in_tuning = True
 
         # fit base model
-        base_model = self.cost_model.clone_new()
-        base_model.fit_log(data, self.plan_size)
+        base_model = self.cost_model.spawn_base_model()
+        success = base_model.fit_log(data_set, self.plan_size)
+
+        if not success:
+            GLOBAL_SCOPE.in_tuning = False
+            return
 
         # use base model to select initial points
         if not self.trials:
@@ -285,6 +283,7 @@ class ModelBasedTuner(Tuner):
             self.trial_pt = 0
 
         self.cost_model.load_basemodel(base_model)
+        GLOBAL_SCOPE.in_tuning = False
 
     def has_next(self):
         return len(self.visited) < len(self.space)

@@ -6,7 +6,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/codegen.h>
 #include <mutex>
-#include "./codegen_verilog.h"
+#include "codegen_verilog.h"
 #include "../../runtime/file_util.h"
 #include "../../runtime/meta_data.h"
 
