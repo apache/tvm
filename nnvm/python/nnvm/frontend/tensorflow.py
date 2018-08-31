@@ -657,6 +657,27 @@ def _transpose():
         return _sym.transpose(inputs[0], axes=tuple(axes))
     return _impl
 
+def _rank():
+    def _impl(inputs, attr, params):
+        input_shapes = attr['_input_shapes'][inputs[0]]
+        assert len(inputs) == 1
+
+        name = attr["_node_name"]
+        params[name] = tvm.nd.array([len(input_shapes[0])])
+        return _sym.Variable(name=name, shape=params[name].shape)
+    return _impl
+
+def _range():
+    def _impl(inputs, attr, params):
+        start = params.pop(inputs[0].list_output_names()[0]).asnumpy()[0]
+        limit = params.pop(inputs[1].list_output_names()[0]).asnumpy()[0]
+        delta = params.pop(inputs[2].list_output_names()[0]).asnumpy()[0]
+
+        name = attr["_node_name"]
+        params[name] = tvm.nd.array([start, limit, delta])
+        return _sym.Variable(name=name, shape=params[name].shape)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -706,6 +727,8 @@ _convert_map = {
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
+    'Range'                             : _range(),
+    'Rank'                              : _rank(),
     'Transpose'                         : _transpose(),
 }
 
@@ -984,26 +1007,6 @@ class GraphProto(object):
 
                 attr = self._parse_attr(node.attr)
 
-            elif node.op == "Rank":
-                self._num_param += 1
-
-                input_shapes = [self._output_shapes[i] for i in node.input]
-                assert len(input_shapes) == 1
-
-                self._params[node.name] = tvm.nd.array([len(input_shapes[0][0])])
-                self._nodes[node.name] = _sym.Variable(name=node.name,
-                                                       shape=self._params[node.name].shape)
-
-            elif node.op == "Range":
-                self._num_param += 1
-
-                start = self._params.pop(node.input[0]).asnumpy()[0]
-                limit = self._params.pop(node.input[1]).asnumpy()[0]
-                delta = self._params.pop(node.input[2]).asnumpy()[0]
-
-                self._params[node.name] = tvm.nd.array([start, limit, delta])
-                self._nodes[node.name] = _sym.Variable(name=node.name,
-                                                       shape=self._params[node.name].shape)
             else:
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = self._output_shapes[node.name]
@@ -1061,10 +1064,6 @@ class GraphProto(object):
             if node.op == "Placeholder":
                 pass
             elif node.op == "Const":
-                pass
-            elif node.op == "Rank":
-                pass
-            elif node.op == "Range":
                 pass
             else:
                 if any([node.op in t for t in [_identity_list, _convert_map, _convert_map_rnn]]):
