@@ -8,7 +8,7 @@ from ..util import get_const_tuple
 from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
-from .int8Intrinsics import _intrin_reduce4int8_common
+from .int8_intrinsics import _intrin_reduce4int8_common
 
 AVXConvCommonFwd = namedtuple('AVXConvCommonFwd', ['ic_bn', 'oc_bn', 'reg_n', 'unroll_kw'])
 

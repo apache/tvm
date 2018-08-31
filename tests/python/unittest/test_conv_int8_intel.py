@@ -137,11 +137,11 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
 if __name__ == "__main__":
     LOGGER.info("Workload, Kernel_size, FP32_time, INT8_time, Speedup")
     SPEEDUP_ARRAY = []
-    for i in enumerate(len(WORKLOADS)):
-        fp32_time = run_inference('float32', 'float32', 'float32', *WORKLOADS[i])
-        int8_time = run_inference('uint8', 'int8', 'int32', *WORKLOADS[i])
-        kernel_h = WORKLOADS[i][4]
-        kernel_w = WORKLOADS[i][5]
+    for i, wkl in enumerate(WORKLOADS):
+        fp32_time = run_inference('float32', 'float32', 'float32', *wkl)
+        int8_time = run_inference('uint8', 'int8', 'int32', *wkl)
+        kernel_h = wkl[4]
+        kernel_w = wkl[5]
         LOGGER.info("Workload#" + str(i) + ", " + str(kernel_h) + "x" + str(kernel_w) + ", "
                     + str(fp32_time) + ", " + str(int8_time) + ", " + str(fp32_time/int8_time))
 
