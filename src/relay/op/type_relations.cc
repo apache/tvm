@@ -24,6 +24,7 @@ TensorType as_ttype(const Type & t) {
 int to_int(const tvm::Expr & e) {
   auto imm = e.as<tvm::ir::IntImm>();
   CHECK(imm);
+  std::cout << "TYPE: " << imm << imm->type << std::endl;
   return imm->value;
 }
 
@@ -60,26 +61,41 @@ static Type ConcreteBroadcast(const TensorType & t1, const TensorType & t2) {
     }
   }
 
-  Array<tvm::Expr> larger;
-  Array<tvm::Expr> smaller;
+  Array<HalideIR::Expr> larger;
+  Array<HalideIR::Expr> smaller;
 
   for (int i = 0; i < (full_len - suffix_len); i++) {
-    // smaller.push_back(tvm::ir::IntImm::make(1));
+    smaller.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), 1));
   }
 
   if (sh1.size() < sh2.size()) {
-
+    for (auto sh : sh1) {
+      smaller.push_back(sh);
+    }
+    larger = sh2;
   } else if (sh1.size() > sh2.size()) {
-
+    for (auto sh : sh1) {
+      larger.push_back(sh);
+    }
+    smaller = sh2;
   } else {
-
+    larger = sh1;
+    smaller = sh2;
   }
 
-  for (int i = 0; i < suffix_len - full_len; i++) {
+  CHECK(larger.size() == smaller.size());
 
+  Array<HalideIR::Expr> out_shape;
+  for (int i = 0; i < smaller.size(); i++) {
+    auto left = smaller[i].as<tvm::ir::IntImm>();
+    auto right = larger[i].as<tvm::ir::IntImm>();
+    CHECK(left);
+    CHECK(right);
+    int64_t dim = std::max(left->value, right->value);
+    out_shape.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), dim));
   }
 
-  return t1;
+  return TensorTypeNode::make(out_shape, t1->dtype);
 }
 
 Array<Type> BroadcastRel(const Array<Type> & types, int num_args) {
@@ -89,6 +105,7 @@ Array<Type> BroadcastRel(const Array<Type> & types, int num_args) {
       return { t1, t2, ConcreteBroadcast(t1, t2) };
     }
   }
+
   return types;
 }
 

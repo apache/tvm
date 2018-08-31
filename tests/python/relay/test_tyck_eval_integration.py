@@ -47,6 +47,6 @@ def test_dual_op():
     assert has_type(func.to_func(), func_type([float_type()], float_type()))
 
 if __name__ == "__main__":
-    # test_monomorphic_let()
-    # test_single_op()
+    test_monomorphic_let()
+    test_single_op()
     test_dual_op()
