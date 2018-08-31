@@ -650,6 +650,35 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
+def _transpose():
+    def _impl(inputs, attr, params):
+        # If perm is not specified, axes is left empty,
+        # otherwise its value is get from params
+        param_name = inputs[1].list_output_names()[0]
+        axes = params.get(param_name, tvm.nd.array([])).asnumpy()
+        return _sym.transpose(inputs[0], axes=tuple(axes))
+    return _impl
+
+def _rank():
+    def _impl(inputs, attr, params):
+        input_shapes = attr['_input_shapes'][inputs[0]]
+        assert len(inputs) == 1
+
+        name = attr["_node_name"]
+        params[name] = tvm.nd.array([len(input_shapes[0])])
+        return _sym.Variable(name=name, shape=params[name].shape)
+    return _impl
+
+def _range():
+    def _impl(inputs, attr, params):
+        start = params.pop(inputs[0].list_output_names()[0]).asnumpy()[0]
+        limit = params.pop(inputs[1].list_output_names()[0]).asnumpy()[0]
+        delta = params.pop(inputs[2].list_output_names()[0]).asnumpy()[0]
+
+        name = attr["_node_name"]
+        params[name] = tvm.nd.array([start, limit, delta])
+        return _sym.Variable(name=name, shape=params[name].shape)
+    return _impl
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -700,6 +729,9 @@ _convert_map = {
     'LRN'                               : _lrn(),
     'Pad'                               : _pad('Pad'),
     'PadV2'                             : _pad('PadV2'),
+    'Range'                             : _range(),
+    'Rank'                              : _rank(),
+    'Transpose'                         : _transpose(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
