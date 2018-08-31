@@ -493,8 +493,80 @@ bool Conv2DScaleAxisForward(
   if ((*in_info)[0].kind != kPending) return false;
   // only optimize for nchw for now
   if (param.kernel_layout == "OIHW" && (*in_info)[0].axis == 1) {
+    // Check whether it is depthwise conv2d
+    if (param.use_bias) {
+      CHECK_EQ(in_shape.size(), 3U) << "Input:[data, weight, bias]";
+    } else {
+      CHECK_EQ(in_shape.size(), 2U) << "Input:[data, weight]";
+    }
+
+    auto dshape = in_shape.at(0);
+    CHECK_EQ(dshape.ndim(), 4U) << "Input data shape should be 4D";
+
+    // TODO(FrozenGene): Currently, we don't support conv2d's groups != in channels.
+    if (param.groups > 1 && dshape[1] != param.groups) {
+      LOG(WARNING) << "FoldScaleAxis optimization doesn't support conv2d "
+                   << "with groups != in channels. We will skip FoldScaleAxis "
+                   << "optimization for this op.";
+      return false;
+    }
+
+
+    // input channel equals to groups, which means depthwise conv2d
+    bool is_depthwise_conv2d = (dshape[1] == param.groups);
+
+    // if it is depthwise convolution, the weight fold axis should along to axis 0.
+    // For example:
+    // data shape [1,54,63,127] weights shape [54,1,3,3], scale shape [54]
+    // depthwise convolution's weights shape means we have divided the data shape's channel
+    // to groups parties. Here, we divide 54 channels into 54 parties. Every part size is 1.
+    // weights shape's first dimision means how many parties we have divided (mapping to
+    // input shape's channel). So, in the depthwise convolution, we shouldn't do like
+    // traditional convolution(i.e. OIHW)
+
+    // Backgroud of this algorithm:
+
+    // Original Graph:
+    //    Graph(%x,
+    //          %in_scale,
+    //          %weight,
+    //          %bias,
+    //          %out_scale) {
+    //      %1 = __add_scalar__(%x, scalar='1')
+    //      %3 = expand_dims(%in_scale, num_newaxis='2', axis='1')
+    //      %4 = broadcast_mul(%1, %3)
+    //      %7 = conv2d(%4, %weight, %bias, padding='(1, 1)', kernel_size='(3, 3)', channels='2')
+    //      %8 = relu(%7)
+    //      %10 = expand_dims(%out_scale, num_newaxis='2', axis='1')
+    //      %11 = broadcast_mul(%8, %10)
+    //      ret %11
+    //    }
+
+    // Optimized Graph:
+    //    Graph(%x,
+    //          %weight,
+    //          %out_scale,
+    //          %in_scale,
+    //          %bias) {
+    //      %1 = __add_scalar__(%x, scalar='1')
+    //      %4 = expand_dims(%out_scale, num_newaxis='3', axis='1')
+    //      %5 = broadcast_mul(%weight, %4)
+    //      %7 = expand_dims(%in_scale, num_newaxis='2', axis='1')
+    //      %8 = broadcast_mul(%5, %7)
+    //      %10 = broadcast_mul(%bias, %out_scale)
+    //      %11 = conv2d(%1, %8, %10, padding='(1, 1)', kernel_size='(3, 3)', channels='2')
+    //      %12 = relu(%11)
+    //      ret %12
+    //    }
+
+    // Conv2DScaleAxisForward will need in_scale. Conv2DScaleAxisBackward will need out_scale.
+    // in_scale will apply into input data's channel (in_channel). out_scale will apply in
+    // conv2d's result, which will apply in weight's output channel.
+    // So, default Conv2DScaleAxisForward will fold axis 1 (weights' input channel).
+    // Conv2DScaleAxisBackward will fold axis 0 (weights' output channel).
+    // But depthwise convolution is another story as said previously.
     (*in_info)[1].kind = kMulConsumer;
-    (*in_info)[1].axis = 1;
+    (*in_info)[1].axis = is_depthwise_conv2d ? 0 : 1;
     (*in_info)[1].source = (*in_info)[0].source;
     return true;
   } else {
