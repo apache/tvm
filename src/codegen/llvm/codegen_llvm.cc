@@ -692,7 +692,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
     llvm::Value *v = MakeValue(op->args[0]);
     return CreateBroadcast(v, 16);
   } else if (op->is_intrinsic("bitcast")){
-    llvm::Type * target = LLVMType(op->type);
+    llvm::Type* target = LLVMType(op->type);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->name;

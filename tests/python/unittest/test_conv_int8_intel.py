@@ -1,18 +1,19 @@
+#pylint: disable-msg=too-many-arguments, too-many-locals, assignment-from-no-return
+""" Conv Int8 functional and performance testing"""
+import sys
+import logging
+import numpy as np
 import tvm
 import topi
-import numpy as np
-import timeit
-import logging
-import sys
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logger = logging.getLogger('test_conv_int8_intel')
-logger.disabled = True
+LOGGER = logging.getLogger('test_conv_int8_intel')
+LOGGER.disabled = True
 
-# All the workloads from Resnet except first layer
+# All the WORKLOADS from Resnet except first layer
 # Workload is ['height', 'width', 'in_filter', 'out_filter',
 #              'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
-workloads = [(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+WORKLOADS = [(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
              (56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
              (56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
              (56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
@@ -40,38 +41,48 @@ workloads = [(56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
             ]
 
 
-target_name = 'llvm -mcpu=skylake-avx512'
-avx2_len = 16
-ctx = tvm.context(target_name, 0)
+TARGET_NAME = 'llvm -mcpu=skylake-avx512'
+NUM_VEC_LANES = 16
+CTX = tvm.context(TARGET_NAME, 0)
 
-def get_shape(im_height, im_width, in_filter, out_filter, kh, kw, hpad, wpad,
-             hstride, wstride, out_dtype):
+def get_shape(im_height, im_width, in_filter, out_filter, k_h, k_w, hpad, wpad,
+              hstride, wstride, out_dtype):
+    """
+    Finds out the shape of all data structures
+    """
     ## Find shapes
-    data_shape = (1, in_filter/avx2_len, im_height, im_width, avx2_len)
+    data_shape = (1, in_filter/NUM_VEC_LANES, im_height, im_width, NUM_VEC_LANES)
 
     if out_dtype == 'int32':
-        if kh != 1:
-            kernel_shape = (out_filter/avx2_len, in_filter/avx2_len, kh, kw, avx2_len/4, avx2_len, 4)
+        if k_h != 1:
+            kernel_shape = (out_filter/NUM_VEC_LANES, in_filter/NUM_VEC_LANES, k_h, k_w,
+                            NUM_VEC_LANES/4, NUM_VEC_LANES, 4)
         else:
-            kernel_shape = (out_filter/avx2_len, in_filter/avx2_len, avx2_len/4, avx2_len, 4, kh, kw)
+            kernel_shape = (out_filter/NUM_VEC_LANES, in_filter/NUM_VEC_LANES, NUM_VEC_LANES/4,
+                            NUM_VEC_LANES, 4, k_h, k_w)
     elif out_dtype == 'float32':
-        if kh != 1:
-            kernel_shape = (out_filter/avx2_len, in_filter/avx2_len, kh, kw, avx2_len, avx2_len)
+        if k_h != 1:
+            kernel_shape = (out_filter/NUM_VEC_LANES, in_filter/NUM_VEC_LANES, k_h, k_w,
+                            NUM_VEC_LANES, NUM_VEC_LANES)
         else:
-            kernel_shape = (out_filter/avx2_len, in_filter/avx2_len, avx2_len, avx2_len, kh, kw)
-    out_height = (im_height + 2 * hpad - kh) // hstride + 1
-    out_width = (im_width + 2 * wpad - kw) // wstride + 1
-    o_shape = (1, out_filter/avx2_len, out_height, out_width, avx2_len)
+            kernel_shape = (out_filter/NUM_VEC_LANES, in_filter/NUM_VEC_LANES, NUM_VEC_LANES,
+                            NUM_VEC_LANES, k_h, k_w)
+    out_height = (im_height + 2 * hpad - k_h) // hstride + 1
+    out_width = (im_width + 2 * wpad - k_w) // wstride + 1
+    o_shape = (1, out_filter/NUM_VEC_LANES, out_height, out_width, NUM_VEC_LANES)
     return (data_shape, kernel_shape, o_shape)
 
 
 
 def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_filter,
-             out_filter, kh, kw, hpad, wpad, hstride, wstride):
-
+                  out_filter, k_h, k_w, hpad, wpad, hstride, wstride):
+    """
+    Runs the inference and checks the functional correctness between
+    compute and schedule outputs
+    """
     (data_shape, kernel_shape, o_shape) = get_shape(im_height, im_width, in_filter,
-                                                out_filter, kh, kw, hpad, wpad,
-                                                hstride, wstride, out_dtype)
+                                                    out_filter, k_h, k_w, hpad, wpad,
+                                                    hstride, wstride, out_dtype)
 
     # Create TVM placeholders
     data = tvm.placeholder(data_shape, name='data', dtype=data_dtype)
@@ -79,61 +90,60 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
 
     # Create the numpy arrays to be used for executing conv models
     if data_dtype == 'float32':
-        a = tvm.nd.array(np.random.rand(*data_shape).astype(dtype=data_dtype), ctx)
-        b = tvm.nd.array(np.random.rand(*kernel_shape).astype(dtype=kernel_dtype), ctx)
+        data_array = tvm.nd.array(np.random.rand(*data_shape).astype(dtype=data_dtype), CTX)
+        kernel_array = tvm.nd.array(np.random.rand(*kernel_shape).astype(dtype=kernel_dtype), CTX)
     else:
-        a = tvm.nd.array(np.random.randint(100, size=data_shape).astype(data_dtype))
-        b = tvm.nd.array(np.random.randint(100, size=kernel_shape).astype(kernel_dtype))
+        data_array = tvm.nd.array(np.random.randint(100, size=data_shape).astype(data_dtype))
+        kernel_array = tvm.nd.array(np.random.randint(100, size=kernel_shape).astype(kernel_dtype))
 
-    # cOrig will be used for declaration ouptut
-    # cSch will be used for scheduled computation output
-    cOrig = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), ctx)
-    cSch = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), ctx)
+    # c_orig will be used for declaration ouptut
+    # c_sch will be used for scheduled computation output
+    c_orig = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), CTX)
+    c_sch = tvm.nd.array(np.zeros(o_shape, dtype=out_dtype), CTX)
 
 
-    with tvm.target.create(target_name):
+    with tvm.target.create(TARGET_NAME):
         conv = topi.nn.conv2d_NCHWc(data, kernel, num_filter=out_filter,
-                                    kernel_size=(kh, kw), stride=hstride,
+                                    kernel_size=(k_h, k_w), stride=hstride,
                                     padding=hpad, layout='NCHWc',
                                     out_layout='NCHWc', out_dtype=out_dtype)
         out = topi.nn.relu(conv)
-        s = tvm.create_schedule(out.op)
-        func = tvm.build(s, [data, kernel, out], target=target_name, name='out')
-        func(a, b, cOrig)
-        logger.debug(tvm.lower(s, [data, kernel], simple_mode=True))
+        sch = tvm.create_schedule(out.op)
+        func = tvm.build(sch, [data, kernel, out], target=TARGET_NAME, name='out')
+        func(data_array, kernel_array, c_orig)
+        LOGGER.debug(tvm.lower(sch, [data, kernel], simple_mode=True))
 
         # Generate and run the optimized schedule
         sconv = topi.generic.nn.schedule_conv2d_NCHWc(num_filter=out_filter,
-                                                      kernel_size=(kh,kw),
+                                                      kernel_size=(k_h, k_w),
                                                       strides=hstride,
                                                       padding=hpad,
                                                       layout='NCHWc',
                                                       out_layout='NCHWc',
                                                       outs=[out])
-        func = tvm.build(sconv, [data, kernel, out], target=target_name, name='conv')
-        func(a, b, cSch)
+        func = tvm.build(sconv, [data, kernel, out], target=TARGET_NAME, name='conv')
+        func(data_array, kernel_array, c_sch)
 
         # Functional check
-        if data_dtype == 'uint8': np.testing.assert_equal(cOrig.asnumpy(), cSch.asnumpy())
-        else : assert(np.allclose(cOrig.asnumpy(), cSch.asnumpy()))
+        if data_dtype == 'uint8':
+            np.testing.assert_equal(c_orig.asnumpy(), c_sch.asnumpy())
+        else:
+            assert np.allclose(c_orig.asnumpy(), c_sch.asnumpy())
 
-        evaluator = func.time_evaluator(func.entry_name, ctx, number=1000)
-        logger.debug(tvm.lower(sconv, [data, kernel], simple_mode=True))
-        return evaluator(a, b, cSch).mean
+        evaluator = func.time_evaluator(func.entry_name, CTX, number=1000)
+        LOGGER.debug(tvm.lower(sconv, [data, kernel], simple_mode=True))
+        return evaluator(data_array, kernel_array, c_sch).mean
 
 if __name__ == "__main__":
-    logger.info("Workload, kernelSize, FP32_time, INT8_time, Speedup")
-    speedUps = []
-    for i in range(0, len(workloads)):
-        # workloas[i] -> (im_height, im_width, in_filter, out_filter, kh, kw, hpad, wpad, hstride, wstride)
-        # Int8
-        fpTime = run_inference('float32','float32','float32', *workloads[i])
-        int8Time = run_inference('uint8', 'int8', 'int32', *workloads[i])
-        kh = workloads[i][4]
-        kw = workloads[i][5]
-        logger.info("Workload#" + str(i) + ", " + str(kh) + "x" + str(kw) + ", " + str(fpTime) + ", " + str(int8Time) + ", " + str(fpTime/int8Time))
+    LOGGER.info("Workload, Kernel_size, FP32_time, INT8_time, Speedup")
+    SPEEDUP_ARRAY = []
+    for i in enumerate(len(WORKLOADS)):
+        fp32_time = run_inference('float32', 'float32', 'float32', *WORKLOADS[i])
+        int8_time = run_inference('uint8', 'int8', 'int32', *WORKLOADS[i])
+        kernel_h = WORKLOADS[i][4]
+        kernel_w = WORKLOADS[i][5]
+        LOGGER.info("Workload#" + str(i) + ", " + str(kernel_h) + "x" + str(kernel_w) + ", "
+                    + str(fp32_time) + ", " + str(int8_time) + ", " + str(fp32_time/int8_time))
 
-        speedUps.append(fpTime/int8Time)
-    logger.info("Average speedup --> ", sum(speedUps)/float(len(speedUps)))
-
-
+        SPEEDUP_ARRAY.append(fp32_time/int8_time)
+    LOGGER.info("Average speedup --> %s" % sum(SPEEDUP_ARRAY)/float(len(SPEEDUP_ARRAY)))
