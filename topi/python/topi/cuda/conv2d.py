@@ -11,7 +11,7 @@ from .conv2d_direct import schedule_direct_cuda
 from .conv2d_winograd import winograd_cuda, schedule_winograd_cuda
 
 
-@autotvm.task.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd'])
+@autotvm.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd'])
 def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for cuda backend.
 
@@ -65,10 +65,9 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
         cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW)
 
         dilation_h = dilation_w = 1
-        kernel_cudnn = kernel
+        kernel_before_dilation = kernel
         if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
             kernel_before_dilation = kernel.op.input_tensors[0]
-            kernel_cudnn = kernel_before_dilation
             if layout == 'NCHW':
                 dilation_h = (get_const_int(kernel.shape[2]) +
                               get_const_int(kernel_before_dilation.shape[2]) - 1) \
@@ -85,7 +84,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
                              // get_const_int(kernel_before_dilation.shape[2])
 
         return cudnn.conv2d_forward(data,
-                                    kernel_cudnn,
+                                    kernel_before_dilation,
                                     stride_h,
                                     stride_w,
                                     pad_h,
@@ -108,8 +107,8 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
         raise ValueError("not support this layout {} yet".format(layout))
 
 
-@autotvm.task.register_topi_schedule(generic.schedule_conv2d_nchw, ["cuda", "gpu"],
-                                     ["direct", 'winograd'])
+@autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, ["cuda", "gpu"],
+                                ["direct", 'winograd'])
 def schedule_conv2d_nchw_cuda(cfg, outs):
     """TOPI schedule callback of conv2d for cuda gpu
 
