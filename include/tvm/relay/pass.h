@@ -6,17 +6,26 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
-#include <tvm/relay/expr.h>
 #include <tvm/relay/environment.h>
+#include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace relay {
 
-/*! The result of type checking an expression is a new expression
- * with unambigous type information filled in, as well as it's
- * checked type field populated with the result type.
+/*! \brief Infer the type of an expression with the provided environment.
+ *
+ * The result of type checking is a new expression with unambigous
+ * type information filled in, as well as it's checked type field
+ * populated with the result type.
+ *
+ * \param env The environment used for global settings and referencing
+ * global functions.
+ *
+ * \param e The expression to type check.
+ *
+ * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Environment & env, const Expr & e);
+Expr InferType(const Environment& env, const Expr& e);
 
 /*!
  * \brief Check that types are well formed by applying "kinding rules".
@@ -28,7 +37,7 @@ Expr InferType(const Environment & env, const Expr & e);
  *
  * We check this by ensuring the `dtype` field of a Tensor always contains
  * a data type such as `int`, `float`, `uint`.
- * 
+ *
  * \param env The global environment.
  * \param t The type to check.
  */
