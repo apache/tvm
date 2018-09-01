@@ -22,7 +22,7 @@ def evaluate_network(network, target, target_host, number):
     net, params, input_shape, output_shape = get_network(network, batch_size=1)
 
     print_progress("%-20s building..." % network)
-    with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
+    with nnvm.compiler.build_config(opt_level=3):
         graph, lib, params = nnvm.compiler.build(
             net, target=target, target_host=target_host,
             shape={'data': input_shape}, params=params, dtype=dtype)
@@ -64,7 +64,7 @@ if __name__ == "__main__":
                          'mobilenet', 'mobilenet_v2', 'squeezenet v1.1'])
     parser.add_argument("--model", type=str, choices=
                         ['rk3399'], default='rk3399',
-                       help="The model of the test device. If your device is not listed in "
+                        help="The model of the test device. If your device is not listed in "
                              "the choices list, pick the most similar one as argument.")
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=9190)
@@ -88,4 +88,3 @@ if __name__ == "__main__":
 
     for network in networks:
         evaluate_network(network, target, target_host, args.number)
-
