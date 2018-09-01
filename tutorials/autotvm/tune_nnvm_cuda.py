@@ -174,7 +174,7 @@ def tune_tasks(tasks,
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
-            tuner_obj = XGBTuner(tsk, loss_type='rank', num_threads=24)
+            tuner_obj = XGBTuner(tsk, loss_type='rank')
         elif tuner == 'ga':
             tuner_obj = GATuner(tsk, pop_size=100)
         elif tuner == 'random':

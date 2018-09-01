@@ -135,7 +135,7 @@ def download_package(package_name):
 REFERENCE_LOG_CACHE = {}
 
 def load_reference_log(backend, model, workload_name, template_key):
-    """ Load reference log from TopHub to support fallback in tempalte.
+    """ Load reference log from TopHub to support fallback in template.
     Template will use these reference logs to choose fallback config.
 
     Parameters

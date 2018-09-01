@@ -85,7 +85,7 @@ def conv2d_rocm(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, 'rocm', ["direct", 'winograd'])
 def schedule_conv2d_nchw_rocm(cfg, outs):
-    """TOPI schedule callback of conv2d for arm cpu
+    """TOPI schedule callback of conv2d for rocm
 
     Parameters
     ----------

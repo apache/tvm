@@ -334,6 +334,9 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
     """Alter op layout for pre-computing kernel transformation"""
+    if 'cudnn' in tvm.target.current_target().libs:
+        return None
+
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
 
