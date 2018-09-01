@@ -42,6 +42,7 @@ def conv2d_rocm(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
     if "miopen" in target.libs:
         assert layout == 'NCHW', "Only NCHW layout is supported."
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
+        N, _, H, W = get_const_tuple(data.shape)
 
         # handle dilation
         stride_h, stride_w = (strides, strides) if isinstance(strides, int) else strides
