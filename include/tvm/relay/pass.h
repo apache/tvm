@@ -40,8 +40,9 @@ Expr InferType(const Environment& env, const Expr& e);
  *
  * \param env The global environment.
  * \param t The type to check.
+ * \return true if the rules are satisified otherwise false
  */
-void KindCheck(const Environment& env, const Type& t);
+bool KindCheck(const Environment& env, const Type& t);
 
 }  // namespace relay
 }  // namespace tvm

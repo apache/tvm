@@ -23,13 +23,12 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/logging.h>
-#include <tvm/relay/pass/type_infer.h>
+#include <tvm/relay/pass.h>
 #include "./incomplete_type.h"
 #include "./resolve.h"
 #include "./type_subst.h"
 #include "./type_visitor.h"
 #include "./unifier.h"
-// #include "tvm/relay/typeck/kindchecker.h"
 
 namespace tvm {
 namespace relay {
@@ -378,11 +377,7 @@ FuncType TypeInferencer::instantiate(FuncType fn_ty,
   Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, {});
   inst_ty = TypeSubst(fn_ty, subst_map);
 
-  // if (!check_kind(t)) {
-  //   this->fatal_error("Kind rules broken when instantiating type
-  //   variables",
-  //                     t->span);
-  // }
+  CHECK(KindCheck(this->env, inst_ty));
 
   return GetRef<FuncType>(inst_ty.as<FuncTypeNode>());
 }

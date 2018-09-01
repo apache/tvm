@@ -33,7 +33,7 @@ struct KindChecker : TypeVisitor<> {
   }
 };
 
-bool KindCheck(const Type &t) {
+bool KindCheck(const Environment& env, const Type &t) {
   KindChecker kc;
   return kc.Check(t);
 }

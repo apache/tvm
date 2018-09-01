@@ -7,7 +7,6 @@
 #include <tvm/relay/environment.h>
 #include <tvm/relay/pass/alpha_eq.h>
 #include <tvm/relay/pass.h>
-#include <tvm/relay/pass/type_infer.h>
 #include "./../pass/resolve.h"
 // #include "tvm/relay/util/rang.h"
 
