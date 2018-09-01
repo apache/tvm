@@ -28,7 +28,7 @@ def compile_cuda(code,
     arch : str
         The architecture
 
-    options : str
+    options : str or list of str
         The additional options
 
     path_target : str, optional
@@ -59,10 +59,16 @@ def compile_cuda(code,
     cmd = ["nvcc"]
     cmd += ["--%s" % target, "-O3"]
     cmd += ["-arch", arch]
-    cmd += ["-o", file_target]
 
     if options:
-        cmd += options
+        if isinstance(options, str):
+            cmd += [options]
+        elif isinstance(options, list):
+            cmd += options
+        else:
+            raise ValueError("options must be str or list of str")
+
+    cmd += ["-o", file_target]
     cmd += [temp_code]
 
     proc = subprocess.Popen(
