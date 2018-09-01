@@ -688,10 +688,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
       indices.push_back(i);
     }
     return builder_->CreateShuffleVector(v0, v1, indices);
-  } else if (op->is_intrinsic("broadcast16")){
+  } else if (op->is_intrinsic("broadcast16")) {
     llvm::Value *v = MakeValue(op->args[0]);
     return CreateBroadcast(v, 16);
-  } else if (op->is_intrinsic("bitcast")){
+  } else if (op->is_intrinsic("bitcast")) {
     llvm::Type* target = LLVMType(op->type);
     return builder_->CreateBitCast(MakeValue(op->args[0]), target);
   } else {

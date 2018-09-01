@@ -1,4 +1,5 @@
 """Core kernel of dot product of 4 Int8 operations"""
+#pylint: disable=invalid-name
 import tvm
 
 

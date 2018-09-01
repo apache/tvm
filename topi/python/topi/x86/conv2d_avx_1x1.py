@@ -252,16 +252,19 @@ def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
 
     # Intel performs dot product of 2 "4" Int8 values
     n_elems = 4
-    assert(sch.ic_bn%4 == 0)
+    assert sch.ic_bn%4 == 0
     ic_outer = tvm.reduce_axis((0, wkl.in_filter//(sch.ic_bn)), name='ic_outer')
     ic_f_inner = tvm.reduce_axis((0, sch.ic_bn//n_elems), name='ic_f_inner')
     ic_s_inner = tvm.reduce_axis((0, 4), name='ic_s_inner')
-    
+
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n, ic_outer, oh*HSTR, ow*WSTR, ic_f_inner * n_elems + ic_s_inner].astype(out_dtype) *
-                               kernel[oc_chunk, ic_outer, ic_f_inner, oc_block, ic_s_inner, 0, 0].astype(out_dtype),
-                               axis=[ic_outer, ic_f_inner, ic_s_inner]), name='conv2d_NCHWc_int8',
-                               tag="conv2d_NCHWc_int8")
+                       tvm.sum(data_pad[n, ic_outer, oh*HSTR, ow*WSTR,
+                                        ic_f_inner * n_elems + ic_s_inner].astype(out_dtype) *
+                               kernel[oc_chunk, ic_outer, ic_f_inner,
+                                      oc_block, ic_s_inner, 0, 0].astype(out_dtype),
+                               axis=[ic_outer, ic_f_inner, ic_s_inner]),
+                       name='conv2d_NCHWc_int8',
+                       tag="conv2d_NCHWc_int8")
 
 
     return conv
@@ -271,9 +274,10 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     """
     Defines the schedule for INT8 for intel machines
     Uses the Intel intrinsics to use INT8 operations
-    More details - https://software.intel.com/en-us/articles/lower-numerical-precision-deep-learning-inference-and-training
+    More details - https://software.intel.com/en-us/articles/
+    lower-numerical-precision-deep-learning-inference-and-training
     """
-    
+
     target = tvm.target.current_target(allow_none=False)
     avx2_len = -1
     for opt in target.options:
@@ -281,8 +285,8 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
             avx2_len = 16
         else:
             return s
-    assert(avx2_len != -1)
-    
+    assert avx2_len != -1
+
     # schedule data
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
@@ -306,19 +310,19 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
 
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
-    
-    # Sylake and future processors have 16 vector lanes 
-    assert(sch.oc_bn % avx2_len == 0)
 
-    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len);
+    # Sylake and future processors have 16 vector lanes
+    assert sch.oc_bn % avx2_len == 0
+
+    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len)
 
     oh_outer, oh_inner = s[CC].split(oh, factor=sch.oh_factor)
     ow_outer, ow_inner = s[CC].split(ow, factor=sch.ow_factor)
 
     s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_outer, ic_f_inner, oh_inner,
-    ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
+                  ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
     s[CC].fuse(oc_chunk, oh_outer)
-    
+
     n_elems = 4
     pc = _intrin_reduce4int8_1x1(avx2_len, n_elems)
     s[CC].tensorize(oc_s_inner, pc)
