@@ -301,3 +301,77 @@ def tune_and_evaluate(tuning_opt):
 #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
 #
 #   Finally, always feel free to ask our community for help on https://discuss.tvm.ai
+
+
+#################################################################
+# Scale up measurement by using multiple devices
+# ----------------------------------------------
+#
+# If you have multiple devices, you can use all of them for measurement.
+# TVM uses RPC Tracker to manage distributed devices.
+# The RPC Tracker is a centralized master node. We can register all devices to
+# the tracker. For example, if we have 10 GPU cards, we can register all of them
+# to the tracker, then we can run 10 measurements in parallel, which accelerates
+# the tuning process.
+#
+# To start an RPC tracker, run this command on the host machine. The tracker is
+# required during the whole tuning process, so we need to open a new terminal for
+# this command:
+#
+# .. code-block:: bash
+#
+#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#
+# The expected output is
+#
+# .. code-block:: bash
+#
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
+#
+# Then open another new terminal for the RPC server. We need to start one server
+# for one dedicated device. We use key to distinguish the type of devices. You
+# can pick a name you like.
+# (Note: For rocm backend, there are some internal errors with the compiler,
+# we need to add `--no-fork` to the argument list.)
+#
+# .. code-block:: bash
+#
+#     python -m tvm.exec.rpc_server --tracker=localhost:9190 --key=1080ti
+#
+# After registering devices, we can confirm it by querying rpc_tracker
+#
+# .. code-block:: bash
+#
+#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#
+# For example, if we have four 1080ti, two titanx and one gfx800, the output can be
+#
+# .. code-block:: bash
+#
+#    Queue Status
+#    ----------------------------------
+#    key          total  free  pending
+#    ----------------------------------
+#    1080ti       4      4     0
+#    titanx       2      2     0
+#    gfx900       1      1     0
+#    ----------------------------------
+#
+# Finally, we need to change the tuning option to use RPCRunner. Use the code below
+# to replace the corresponding part above.
+
+tuning_option = {
+    'log_filename': log_file,
+
+    'tuner': 'xgb',
+    'n_trial': 2000,
+    'early_stopping': 600,
+
+    'measure_option': autotvm.measure_option(
+        builder=autotvm.LocalBuilder(timeout=10),
+        runner=autotvm.RPCRunner(
+            '1080ti',  # change the device key to your key
+            'localhost', 9190,
+            number=20, repeat=3, timeout=4),
+    ),
+}

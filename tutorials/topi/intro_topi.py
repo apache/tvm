@@ -113,8 +113,6 @@ with tvm.target.create("cuda"):
 #    declaration and schedule. TVM will choose the right function to call with
 #    the target information.
 
-We can have different implementation for different
-
 data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
 

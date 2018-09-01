@@ -111,7 +111,7 @@ def get_network(name, batch_size):
 # to the tracker, then we can run 10 measurements in parallel, which accelerates
 # the tuning process.
 #
-# To start an RPC tracker, run this command in the host machine. The tracker is
+# To start an RPC tracker, run this command on the host machine. The tracker is
 # required during the whole tuning process, so we need to open a new terminal for
 # this command:
 #
