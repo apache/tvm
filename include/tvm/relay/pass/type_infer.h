@@ -6,8 +6,8 @@
  *  The pass produces a new expression with its checked_type
  *  field populated and incomplete types resolved.
  */
-#ifndef TVM_RELAY_PASS_TYPECHECKER_H_
-#define TVM_RELAY_PASS_TYPECHECKER_H_
+#ifndef TVM_RELAY_PASS_TYPE_INFER_H_
+#define TVM_RELAY_PASS_TYPE_INFER_H_
 
 #include "tvm/relay/expr.h"
 #include "tvm/relay/environment.h"
@@ -22,4 +22,4 @@ Op CheckOp(const Environment & env, const Op & op);
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_PASS_TYPECHECKER_H_
+#endif  // TVM_RELAY_PASS_TYPE_INFER_H_

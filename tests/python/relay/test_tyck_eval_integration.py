@@ -20,7 +20,7 @@ def test_monomorphic_let():
     x = b.let('x', 1.0, value_type=float_type(64))
     b.ret(x)
 
-    prog = b.get()
+    prog, _ = b.get()
     assert has_type(prog, float_type(64))
 
 def test_single_op():

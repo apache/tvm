@@ -16,6 +16,10 @@ struct Error : dmlc::Error {
     Error(std::string msg) : dmlc::Error(msg) {}
 };
 
+struct InternalError : Error {
+    InternalError(std::string msg) : Error(msg) {}
+};
+
 struct SpannedError {
   std::string msg;
   Span sp;

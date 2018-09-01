@@ -61,8 +61,9 @@ class UnionFind : public NodeRef {
   UnionFind() {}
   explicit UnionFind(std::shared_ptr<tvm::Node> p) : NodeRef(p) {}
 
-  // no const so that union find can be mutable as a member of unifier
-  inline UnionFindNode* operator->() const {
+  // The union find structure is mutable so we do not use the standard macros
+  // and expose the pointer via `->`. 
+  UnionFindNode* operator->() const {
     return static_cast<UnionFindNode*>(node_.get());
   }
 

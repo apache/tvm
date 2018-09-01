@@ -24,7 +24,7 @@ namespace relay {
 /*!
  * \brief we always used NodeRef for referencing nodes.
  *
- *  By default, NodePtr is a std::shared_ptr of node
+ *  By default, NodeRef is a std::shared_ptr of node
  */
 using NodeRef = tvm::NodeRef;
 

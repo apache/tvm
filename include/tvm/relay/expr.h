@@ -224,8 +224,6 @@ class FunctionNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
 
-using Attrs = tvm::Attrs;
-
 /*!
  * \brief Call corresponds to operator invocation.
  *  Corresponds to the operator in computational graph terminology.

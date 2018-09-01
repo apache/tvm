@@ -14,7 +14,7 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
-SourceFragment::SourceFragment(std::string file_name, std::string source)
+SourceFragment::SourceFragment(const std::string& file_name, const std::string& source)
     : file_name(file_name), source_lines({}) {
   RELAY_LOG(INFO)<< "SourceFragment::SourceFragment source=" << source << std::endl;
   std::stringstream source_stream;
@@ -28,7 +28,7 @@ SourceFragment::SourceFragment(std::string file_name, std::string source)
   }
 }
 
-std::string SourceFragment::SourceAt(Span sp, int max_lines) {
+std::string SourceFragment::SourceAt(Span sp, int max_lines = 1) {
   std::stringstream out;
 
   // We need to move from 1 based indexing to zero based indexing.

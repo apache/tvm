@@ -7,13 +7,13 @@
 #ifndef TVM_RELAY_ENVIRONMENT_H_
 #define TVM_RELAY_ENVIRONMENT_H_
 
+#include <tvm/relay/expr.h>
+#include <tvm/relay/type.h>
+#include <tvm/relay/op.h>
+#include <tvm/relay/error.h>
+#include <tvm/relay/source_map.h>
 #include <string>
 #include <vector>
-#include "./expr.h"
-#include "./type.h"
-#include "./op.h"
-#include "./error.h"
-#include "tvm/relay/source_map.h"
 
 namespace tvm {
 namespace relay {
@@ -28,7 +28,7 @@ struct Environment;
  *  It contains all global functions, and configuration 
  *  options.
  *
- *  Many operations require acess to the global
+ *  Many operations require access to the global
  *  Environment. We pass the Environment by value
  *  in a functional style as an explicit argument,
  *  but we will mutate the Environment while optimizing

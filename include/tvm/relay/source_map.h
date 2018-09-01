@@ -18,7 +18,7 @@ struct SourceFragment {
   std::string file_name;
   std::vector<std::string> source_lines;
 
-  SourceFragment(std::string file_name, std::string source);
+  SourceFragment(const std::string& file_name, const std::string& source);
 
   SourceFragment(const SourceFragment& sf) {
     this->file_name = sf.file_name;
