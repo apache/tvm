@@ -519,7 +519,7 @@ def request_remote(device_key, host=None, port=None, priority=1, timeout=60):
     return remote
 
 
-def check_remote(target, device_key, host=None, port=None, priority=2, timeout=10):
+def check_remote(target, device_key, host=None, port=None, priority=100, timeout=10):
     """
     Check the availability of a remote device
 

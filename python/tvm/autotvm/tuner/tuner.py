@@ -34,6 +34,7 @@ class Tuner(object):
         # time to leave
         self.ttl = None
         self.n_trial = None
+        self.early_stopping = None
 
     def has_next(self):
         """Whether has next untried config in the space
@@ -92,6 +93,7 @@ class Tuner(object):
         n_parallel = getattr(measure_batch, 'n_parallel', 1)
         early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
+        self.early_stopping = early_stopping
 
         old_level = logger.level
 

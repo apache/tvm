@@ -385,7 +385,7 @@ def rocm(model='unknown', options=None):
     options : str or list of str
         Additional options
     """
-    opts = _merge_opts(["--model=%s" % model], options)
+    opts = _merge_opts(["-model=%s" % model], options)
     return _api_internal._TargetCreate("rocm", *opts)
 
 
