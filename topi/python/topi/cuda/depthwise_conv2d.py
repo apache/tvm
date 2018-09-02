@@ -36,20 +36,24 @@ def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
 
             ##### space definition begin #####
             n, f, y, x = s[conv].op.axis
-            cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
-            cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-            cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
+            cfg.define_split("tile_f", f, num_outputs=4)
+            cfg.define_split("tile_y", y, num_outputs=4)
+            cfg.define_split("tile_x", x, num_outputs=4)
             cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
-            cfg.define_knob("unroll_explicit", [0, 1])
+
+            target = tvm.target.current_target()
+            if target.target_name in ['nvptx', 'rocm']:
+                cfg.define_knob("unroll_explicit", [1])
+            else:
+                cfg.define_knob("unroll_explicit", [0, 1])
 
             # fallback support
             if cfg.is_fallback:
                 ref_log = autotvm.tophub.load_reference_log(
-                    'cuda', '1080ti', 'depthwise_conv2d_nchw', 'direct')
+                    target.target_name, target.model, 'depthwise_conv2d_nchw', 'direct')
                 cfg.fallback_with_reference_log(ref_log)
                 # TODO(lmzheng): A bug here, set unroll_explicit to False as workaround
-                cfg['unroll_explicit'].val = False
-
+                cfg['unroll_explicit'].val = 0
             ##### space definition end #####
 
             s[pad_data].compute_inline()

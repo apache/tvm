@@ -119,6 +119,22 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             kernel = op.input_tensors[1]
             conv = op.output(0)
 
+            ##### space definition begin #####
+            n, f, y, x = s[conv].op.axis
+            rc = s[conv].op.reduce_axis[0]
+            cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
+            cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
+            cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
+            cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
+            cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
+
+            target = tvm.target.current_target()
+            if target.target_name in ['nvptx', 'rocm']:
+                cfg.define_knob("unroll_explicit", [1])
+            else:
+                cfg.define_knob("unroll_explicit", [0, 1])
+            ##### space definition end #####
+
             if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
                 s[kernel].compute_inline()
 
@@ -137,15 +153,12 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
 
             # tile and bind spatial axes
             n, f, y, x = s[output].op.axis
-            cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
-            cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-            cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
-
+            kernel_scope, n = s[output].split(n, nparts=1)
             bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
             by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
             bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
-            kernel_scope = n  # this is the scope to attach global config inside this kernel
 
+            bf = s[output].fuse(n, bf)
             s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
             s[output].bind(by, tvm.thread_axis("blockIdx.y"))
             s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
@@ -155,19 +168,19 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
             s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
             s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
             s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
-            s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+            s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
             s[OL].compute_at(s[output], tx)
 
-            # tile and bind reduction axes
+            # tile reduction axes
             n, f, y, x = s[OL].op.axis
             rc, ry, rx = s[OL].op.reduce_axis
-            cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=3)
             rco, rcm, rci = cfg['tile_rc'].apply(s, OL, rc)
             s[OL].reorder(rco, rcm, ry, rx, rci, n, f, y, x)
 
             s[AA].compute_at(s[OL], rcm)
             s[WW].compute_at(s[OL], rcm)
 
+            # cooperative fetching
             for load in [AA, WW]:
                 n, f, y, x = s[load].op.axis
                 fused = s[load].fuse(n, f, y, x)
@@ -178,8 +191,6 @@ def schedule_conv2d_transpose_nchw_cuda(cfg, outs):
                 s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
                 s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-            cfg.define_knob("auto_unroll_max_step", [64, 512, 1500])
-            cfg.define_knob("unroll_explicit", [0, 1])
             s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
             s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 

@@ -215,6 +215,24 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
 
+    ##### space definition begin #####
+    b1, b2, y, x = s[bgemm].op.axis
+    rc = s[bgemm].op.reduce_axis[0]
+    alpha = get_const_int(b1.dom.extent)
+
+    cfg.define_split("tile_b", cfg.axis(alpha * alpha), num_outputs=4,
+                     filter=lambda x: x.size[-3:] == [1, 1, 1])
+    cfg.define_split("tile_y", y, num_outputs=4)
+    cfg.define_split("tile_x", x, num_outputs=4)
+    cfg.define_split("tile_rc", rc, num_outputs=2)
+    cfg.define_knob("auto_unroll_max_step", [0, 128, 1500])
+    target = tvm.target.current_target()
+    if target.target_name in ['nvptx', 'rocm']:
+        cfg.define_knob("unroll_explicit", [1])
+    else:
+        cfg.define_knob("unroll_explicit", [0, 1])
+    ##### space definition end #####
+
     # batch gemm
     C = bgemm
     A0, B0 = kernel_pack, data_pack
@@ -223,14 +241,9 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     AA = s.cache_read(A0, 'shared', [OL])
     BB = s.cache_read(B0, 'shared', [OL])
 
-    b1, b2, y, x = s[bgemm].op.axis
-    alpha = get_const_int(b1.dom.extent)
     b = s[bgemm].fuse(b1, b2)
+
     # tile and bind spatial axes
-    cfg.define_split("tile_b", cfg.axis(alpha * alpha), num_outputs=4,
-                     filter=lambda x: x.size[-3:] == [1, 1, 1])
-    cfg.define_split("tile_y", y, num_outputs=4)
-    cfg.define_split("tile_x", x, num_outputs=4)
     bgemm_scope, b = s[bgemm].split(b, nparts=1)
     bz, vz, tz, zi = cfg["tile_b"].apply(s, C, b)
     by, vy, ty, yi = cfg["tile_y"].apply(s, C, y)
@@ -246,18 +259,18 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
     s[C].reorder(bgemm_scope, bz, by, bx, vz, vy, vx, tz, ty, tx, zi, yi, xi)
 
-    # tile and bind reduction axes
+    # tile reduction axes
     s[OL].compute_at(s[C], tx)
     b1, b2, y, x = s[OL].op.axis
     b = s[OL].fuse(b1, b2)
     rc, = s[OL].op.reduce_axis
-    cfg.define_split("tile_rc", cfg.axis(rc), num_outputs=2)
     rco, rci = cfg['tile_rc'].apply(s, OL, rc)
     s[OL].reorder(rco, rci, b, y, x)
 
     s[AA].compute_at(s[OL], rco)
     s[BB].compute_at(s[OL], rco)
 
+    # cooperative fetching
     for load in [AA, BB]:
         fused = s[load].fuse(*list(s[load].op.axis))
         fused, tx = s[load].split(fused, cfg["tile_x"].size[2])
@@ -267,8 +280,6 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
         s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
         s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-    cfg.define_knob("auto_unroll_max_step", [0, 128, 1500])
-    cfg.define_knob("unroll_explicit", [0, 1])
     s[C].pragma(bgemm_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
     s[C].pragma(bgemm_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
 

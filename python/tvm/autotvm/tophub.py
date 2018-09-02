@@ -23,6 +23,7 @@ PACKAGE_VERSION = {
     'vta':     "v0.01",
     'arm_cpu': "v0.01",
     'cuda':    "v0.02",
+    'rocm':    "v0.01",
     'mali':    "v0.01",
 }
 
@@ -34,7 +35,6 @@ def _alias(name):
         'vtacpu': 'vta',
 
         'opencl': 'cuda',
-        'rocm': 'cuda',
         'metal': 'cuda',
         'nvptx': 'cuda'
     }
@@ -161,8 +161,17 @@ def load_reference_log(backend, model, workload_name, template_key):
     if key not in REFERENCE_LOG_CACHE:
         tmp = []
         if os.path.isfile(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, package_name)):
+            find = False
+            inp = None
             for inp, res in load_from_file(filename):
-                if (model in str(inp.target) and inp.task.workload[0] == workload_name and
+                if model == inp.target.model:
+                    find = True
+                    break
+            if not find and inp:
+                model = inp.target.model
+
+            for inp, res in load_from_file(filename):
+                if (model == inp.target.model and inp.task.workload[0] == workload_name and
                         inp.config.template_key == template_key):
                     tmp.append((inp, res))
         REFERENCE_LOG_CACHE[key] = tmp

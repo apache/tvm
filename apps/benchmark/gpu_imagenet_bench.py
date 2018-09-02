@@ -20,7 +20,7 @@ if __name__ == "__main__":
         ['resnet-18', 'resnet-34', 'resnet-50', 'vgg-16', 'vgg-19',
          'inception_v3', 'mobilenet', 'mobilenet_v2', 'densenet-121'])
     parser.add_argument("--model", type=str,
-                        choices=['1080ti', 'titanx'], default='1080ti',
+                        choices=['1080ti', 'titanx', 'gfx900'], default='1080ti',
                         help="The model of the test device. If your device is not listed in "
                              "the choices list, pick the most similar one as argument.")
     parser.add_argument("--number", type=int, default=500)
