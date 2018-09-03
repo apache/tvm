@@ -39,7 +39,7 @@ CFG_NAME = MODEL_NAME + '.cfg'
 WEIGHTS_NAME = MODEL_NAME + '.weights'
 REPO_URL = 'https://github.com/siju-samuel/darknet/blob/master/'
 CFG_URL = REPO_URL + 'cfg/' + CFG_NAME + '?raw=true'
-WEIGHTS_URL = REPO_URL + 'weights/' + WEIGHTS_NAME + '?raw=true'
+WEIGHTS_URL = 'https://pjreddie.com/media/files/' + WEIGHTS_NAME
 
 download(CFG_URL, CFG_NAME)
 download(WEIGHTS_URL, WEIGHTS_NAME)
