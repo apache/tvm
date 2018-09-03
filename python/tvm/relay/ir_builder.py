@@ -220,7 +220,7 @@ def float_dtype(bits=32):
     return f'float{bits}'
 
 def uint_dtype(bits=32):
-    return f'fuint{bits}'
+    return f'uint{bits}'
     
 def int_type(bits=32, lanes=1):
     # TODO(@jroesch, @tqchen) How do we set lanes?
