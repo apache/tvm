@@ -6,11 +6,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define __CORRECT_ISO_CPP_STDLIB_H_PROTO
 
 #include "vta.h"
+
+template <typename T>
+void memcpy_st(
+  T * __dest, 
+  const T * __src, 
+  int __n) {
+  for (int i = 0; i < __n; ++i) {
+    __dest[i] = __src[i];
+  }
+}
 
 component void fetch(
   uint32_t insn_count,
@@ -99,8 +108,6 @@ component void load(
   // Skip padding along y dimension
   sram_idx += y_offset;
 
-#if 0
-
   // Perform data transfer from DRAM
   for (int y = 0; y < y_size; y++) {
 // #pragma HLS PIPELINE rewind
@@ -108,13 +115,16 @@ component void load(
     sram_idx += x_pad_0;
     // Perform data transfer
     if (memory_type == VTA_MEM_ID_INP) {
-      memcpy(&inp_mem[sram_idx][0],
+      // memcpy(&inp_mem[sram_idx][0],
+      //        (const inp_vec_T*) &inputs[dram_idx * VTA_BATCH],
+      //        x_size * VTA_INP_ELEM_BYTES);
+      memcpy_st<inp_vec_T>(&inp_mem[sram_idx][0],
              (const inp_vec_T*) &inputs[dram_idx * VTA_BATCH],
-             x_size * VTA_INP_ELEM_BYTES);
+             x_size);
     } else {
-      memcpy(&wgt_mem[sram_idx][0],
+      memcpy_st<wgt_vec_T>(&wgt_mem[sram_idx][0],
              (const wgt_vec_T*) &weights[dram_idx * VTA_BLOCK_OUT],
-             x_size * VTA_WGT_ELEM_BYTES);
+             x_size);
     }
     sram_idx += x_size;
     dram_idx += x_stride;
@@ -178,9 +188,6 @@ component void load(
   if (push_next_dependence) {
     l2g_dep_queue.write(1);
   }
-
-#endif
-
 }
 
 #if 0
@@ -271,7 +278,7 @@ component void compute(
 
     if (memory_type == VTA_MEM_ID_UOP) {
       // Perform data transfer
-      memcpy(&uop_mem[sram_base],
+      memcpy_st(&uop_mem[sram_base],
              (const uop_T*) &uops[dram_base],
              x_size * sizeof(uop_T));
     } else {
@@ -491,8 +498,6 @@ component void compute(
 
 #endif
 
-#if 0
-
 component void store(
   volatile out_vec_T *outputs,
   ihc::stream_in<insn_T> &store_queue,
@@ -547,10 +552,10 @@ component void store(
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
-    memcpy(
+    memcpy_st<out_vec_T>(
       const_cast<out_vec_T*>(&outputs[dram_idx*VTA_BATCH]),
       (const out_vec_T*) &out_mem[sram_idx][0],
-      x_size * VTA_INP_ELEM_BYTES);
+      x_size);
     sram_idx += x_size;
     dram_idx += x_stride;
     // Skip padding along x dimension
@@ -562,6 +567,8 @@ component void store(
     s2g_dep_queue.write(1);
   }
 }
+
+#if 0
 
 component void vta(
   uint32_t insn_count,
