@@ -577,6 +577,26 @@ class HardSigmoid(OnnxOpConverter):
         attr = {'a_min':0, 'a_max':1}
         return AttrCvt(op_name='clip')([transformX], attr)
 
+class ArgMax(OnnxOpConverter):
+    """ Operator converter for ArgMax.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 0)
+        keepdims = attr.get('keepdims', True)
+        attr = {'axis':axis, 'keepdims':keepdims}
+        return AttrCvt(op_name='argmax')(inputs, attr)
+
+class ArgMin(OnnxOpConverter):
+    """ Operator converter for ArgMin.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        axis = attr.get('axis', 0)
+        keepdims = attr.get('keepdims', True)
+        attr = {'axis':axis, 'keepdims':keepdims}
+        return AttrCvt(op_name='argmin')(inputs, attr)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -673,8 +693,8 @@ def _get_convert_map(opset):
         # 'ReduceMean'
         # 'ReduceProd'
         # 'ReduceLogSumExp'
-        'ArgMax': AttrCvt('argmax'),
-        'ArgMin': AttrCvt('argmin'),
+        'ArgMax': ArgMax.get_converter(opset),
+        'ArgMin': ArgMin.get_converter(opset),
 
         # defs/tensor
         'Cast': Cast.get_converter(opset),
