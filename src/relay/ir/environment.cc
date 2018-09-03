@@ -42,7 +42,8 @@ GlobalVar EnvironmentNode::GetGlobalVar(const std::string &str) {
 void EnvironmentNode::Add(const GlobalVar& var, const Function & func, bool update) {
   // Type check the item before we add it to the environment.
   auto env = GetRef<Environment>(this);
-  Expr checked_expr = InferType(env, func);
+
+  Expr checked_expr = InferType(env, var, func);
 
   if (const FunctionNode *func_node = checked_expr.as<FunctionNode>()) {
     auto checked_func = GetRef<Function>(func_node);
@@ -104,13 +105,11 @@ void EnvironmentNode::Merge(const Environment & env) {
 
 inline SourceName EnvironmentNode::AddSource(std::string file_name,
                                           std::string source) {
-  throw Error("need to restore error handling");
-  // return this->source_map_.add_source(file_name, source);
+  return this->source_map_.AddSource(file_name, source);
 }
 
-void EnvironmentNode::ReportError(std::string msg, Span sp) {
-  throw Error("need to restore error handling");
-  // this->errors_.push_back(Error(msg, sp));
+void EnvironmentNode::AddDiagnostic(SpannedError error) {
+  this->errors_.push_back(error);
 }
 
 void EnvironmentNode::DisplayErrors() {

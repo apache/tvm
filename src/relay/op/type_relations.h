@@ -15,6 +15,7 @@ namespace relay {
 
 Array<Type> IdentityRel(const Array<Type> & types, int num_args);
 Array<Type> BroadcastRel(const Array<Type> & types, int num_args);
+Array<Type> BroadcastCompRel(const Array<Type> & types, int num_args);
 
 }  // namespace relay
 }  // namespace tvm

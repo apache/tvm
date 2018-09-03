@@ -85,5 +85,40 @@ RELAY_REGISTER_OP("add")
   // input2: Tensor[dtype, s2]
   // output: Tensor[dtype, broadcast(s1, s2)]
 
+// Addition
+TVM_REGISTER_API("relay.op._make.subtract")
+  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
+      static const Op& op = Op::Get("subtract");
+    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  });
+
+RELAY_REGISTER_OP("subtract")
+  .set_num_inputs(2)
+  .add_argument("lhs", "Tensor", "The left hand side tensor.")
+  .add_argument("rhs", "Tensor", "The right hand side tensor.")
+  .set_support_level(1)
+  .add_type_func("BroadcastComp", BroadcastCompRel);
+
+  // def broadcast(s1, s2):
+  // ...
+  //
+  // input1: Tensor[dtype, s1]
+  // input2: Tensor[dtype, s2]
+  // output: Tensor[dtype, broadcast(s1, s2)]
+
+// Addition
+TVM_REGISTER_API("relay.op._make.equal")
+  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
+      static const Op& op = Op::Get("equal");
+    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+  });
+
+RELAY_REGISTER_OP("equal")
+  .set_num_inputs(2)
+  .add_argument("lhs", "Tensor", "The left hand side tensor.")
+  .add_argument("rhs", "Tensor", "The right hand side tensor.")
+  .set_support_level(1)
+  .add_type_func("BroadcastComp", BroadcastCompRel);
+
 }  // namespace relayv
 }  // namespace tvm

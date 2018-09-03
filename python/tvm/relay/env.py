@@ -23,6 +23,9 @@ class Environment(NodeBase):
     def merge(self, other):
         return _env.Environment_Merge(self, other)
     
+    def global_var(self, var):
+        return _env.Environment_GetGlobalVar(self, var)
+
     def lookup(self, var):
         if isinstance(var, str):
             return _env.Environment_Lookup_str(self, var)

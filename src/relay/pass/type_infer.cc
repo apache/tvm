@@ -188,7 +188,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const LocalVarNode *op) {
 CheckedExpr TypeInferencer::VisitExpr_(const GlobalVarNode *op) {
   GlobalVar var = GetRef<GlobalVar>(op);
   Expr e = this->env->Lookup(var);
-  return { var, e->checked_type() };
+  return {var, e->checked_type()};
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const ConstantNode *const_node) {
@@ -206,7 +206,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const TupleNode *op) {
     field_types.push_back(checked_field.type);
   }
 
-  return { TupleNode::make(field_exprs), TupleTypeNode::make(field_types) };
+  return {TupleNode::make(field_exprs), TupleTypeNode::make(field_types)};
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
@@ -488,21 +488,14 @@ CheckedExpr TypeInferencer::VisitExpr_(const IfNode *op) {
   auto checked_cond = this->Infer(ifn->cond);
   auto cond_type = checked_cond.type;
 
-  if (const TensorTypeNode *tt_node = cond_type.as<TensorTypeNode>()) {
-    TensorType tt = GetRef<TensorType>(tt_node);
-    if (tt->dtype.is_bool() && tt->shape.size() == 0) {
-      auto checked_true = this->Infer(ifn->true_value);
-      auto checked_false = this->Infer(ifn->false_value);
-      auto unified_type =
-          this->unify(checked_true.type, checked_false.type, ifn->span);
-      auto checked_if = IfNode::make(checked_cond.expr, checked_true.expr,
-                                     checked_false.expr);
-      return {checked_if, unified_type};
-    }
-  }
-
-  this->fatal_error("if-then-else guard must be a rank-0 boolean tensor",
-                    ifn->cond->span);
+  this->unify(cond_type, TensorTypeNode::make({}, HalideIR::Bool()), ifn->cond->span);
+  auto checked_true = this->Infer(ifn->true_value);
+  auto checked_false = this->Infer(ifn->false_value);
+  auto unified_type =
+    this->unify(checked_true.type, checked_false.type, ifn->span);
+  auto checked_if = IfNode::make(checked_cond.expr, checked_true.expr,
+                                 checked_false.expr);
+  return {checked_if, unified_type};
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op_node) {
@@ -510,7 +503,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op_node) {
   return {op, op->op_type};
 }
 
-Type TypeInferencer::resolve(const Type &t) {
+Type TypeInferencer::resolve(const Type& t) {
   if (t.defined()) {
     return ::tvm::relay::Resolve(this->unifier, t);
   } else {
@@ -518,19 +511,9 @@ Type TypeInferencer::resolve(const Type &t) {
   }
 }
 
-Expr TypeInferencer::resolve(const Expr &e) {
+Expr TypeInferencer::resolve(const Expr& e) {
   CHECK(e.defined());
   return ::tvm::relay::Resolve(this->unifier, e);
-}
-
-void TypeInferencer::CheckOp(Op op) {
-  throw Error("NYI");
-  // if (!check_kind(op->type)) {
-  //   report_error("the type of the operator is ill formed", op->type->span);
-  // }
-
-  // // Fix me
-  // return op;
 }
 
 // Defn TypeInferencer::CheckDefn(Defn defn) {
@@ -565,31 +548,24 @@ Expr InferType(const Environment &env, const Expr &e) {
   return checked_expr.expr;
 }
 
-// Item Check(const Environment &env, const Item &i) {
-//   TypeInferencer tc(env);
+Expr InferType(const Environment &env, const GlobalVar & var, const Function & func) {
+  TypeInferencer ti(env);
+  auto func_copy = FunctionNode::make(func->params, func->ret_type, func->body, func->type_params);
+  func_copy->checked_type_ = ti.resolve(func_copy->fn_type());
+  env->functions.Set(var, func_copy);
+  auto checked_expr = ti.Infer(func);
+  auto map_node = env->functions.CopyOnWrite();
+  map_node->data.erase(var.node_);
+  return checked_expr.expr;
+}
 
-//   try {
-//     if (const DefnNode *defn = i.as<DefnNode>()) {
-//       return tc.CheckDefn(GetRef<Defn>(defn));
-//     } else if (const OpNode *op_node = i.as<OpNode>()) {
-//       return tc.CheckOp(GetRef<Op>(op_node));
-//     } else {
-//       throw dmlc::Error("internal error: unknown Item type");
-//     }
-//   } catch (const FatalTypeError &err) {
-//     env->display_errors();
-//     throw dmlc::Error(
-//         "We encountered a fatal error while type checking your program,
-//         please " "read above for more details.");
-//   }
-// }
 
 inline void TypeInferencer::report_error(const std::string &msg, Span sp) {
-  // this->env->report_error(msg, sp);
+  this->env->AddDiagnostic({msg, sp});
 }
 
 void TypeInferencer::fatal_error(const std::string &msg, Span sp) {
-  // this->env->report_error(msg, sp);
+  this->env->AddDiagnostic({msg, sp});
   throw FatalTypeError(
       "internal error: this exception should"
       "be handled and errors reported with Environment::display_errors\n" +

@@ -2,9 +2,10 @@
    for expressions.
 """
 from tvm.relay.ir_pass import check_expr
-from tvm.relay.ir_builder import IRBuilder, float_type, func_type, tensor_type
+from tvm.relay.ir_builder import IRBuilder, float_type, int_type
+from tvm.relay.ir_builder import func_type, tensor_type, into_ast
 from tvm.relay.env import Environment
-from tvm.relay.op import log, add
+from tvm.relay.op import log, add, equal, subtract
 
 def has_type(expr, typ, env=Environment({})):
     checked_expr = check_expr(env, expr)
@@ -40,6 +41,7 @@ def test_dual_op():
          return t1;
        }
     """
+    pass
     b = IRBuilder()
     with b.function(('x', tensor_type(10, 10))) as func:
         x, = func.param_ids()
@@ -56,16 +58,42 @@ def test_decl():
            return lx;
        }
     """
+    pass
     b = IRBuilder()
     x = b.param('x')
-    with b.decl('f', x) as d:
-        lx = d.let('lx', log(x))
-        d.ret(lx)
+    with b.decl('f', x):
+        lx = b.let('lx', log(x))
+        b.ret(lx)
     _, env = b.get()
     assert decl_has_type(env, 'f', func_type([float_type()], float_type()))
 
+def test_recursion():
+    """
+    Program:
+       def f(n: i32, data: f32) -> f32 {
+          if (n == 0) {
+              return f(n - 1, log(data));
+          } else {
+              return data;
+          }
+       }
+       f(2, 10000);
+    """
+    b = IRBuilder()
+    f = b.global_var('f')
+    n = b.param('n', ty=int_type())
+    data = b.param('data', ty=float_type())
+    with b.decl(f, n, data):
+        with b.if_scope(equal(n, into_ast(0.0))):
+            b.ret(f(subtract(n, into_ast(1)), log(data)))
+        with b.else_scope():
+            b.ret(data)
+    b.ret(f(into_ast(2.0), into_ast(10000.0)))
+    assert decl_has_type(b.env, 'f', func_type([int_type(), float_type()], float_type()))
+        
 if __name__ == "__main__":
     test_monomorphic_let()
     test_single_op()
     test_dual_op()
     test_decl()
+    test_recursion()

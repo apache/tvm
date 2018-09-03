@@ -215,6 +215,8 @@ class FunctionNode : public ExprNode {
     v->Visit("span", &span);
   }
 
+  Type fn_type() const;
+
   TVM_DLL static Function make(tvm::Array<Param> params, Type ret_type,
                                Expr body, tvm::Array<TypeParam> ty_params);
 

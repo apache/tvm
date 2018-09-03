@@ -78,7 +78,7 @@ class EnvironmentNode : public RelayNode {
   /*! \brief Add a source fragment to the environment. */
   SourceName AddSource(std::string file_name, std::string source);
 
-  void ReportError(std::string msg, Span sp);
+  void AddDiagnostic(SpannedError);
   void DisplayErrors();
 
   static constexpr const char* _type_key = "relay.Environment";

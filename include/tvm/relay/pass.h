@@ -26,6 +26,7 @@ namespace relay {
  * \return A type checked expression with its checked_type field populated.
  */
 Expr InferType(const Environment& env, const Expr& e);
+Expr InferType(const Environment& env, const GlobalVar & v, const Function & e);
 
 /*!
  * \brief Check that types are well formed by applying "kinding rules".

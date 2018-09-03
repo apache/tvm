@@ -180,6 +180,12 @@ Type TypeUnifierNode::VisitType(const Type & t1, const Type t2) {
   // When the right hand size is a type variable immediately unify.
   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
     return this->unifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
+  // The TypeCallNode case is special and not symmetric.
+  // 
+  // We flip the arguments so we hit the TypeCall and other case in there is
+  // ever a type call.
+  } else if (const TypeCallNode *tvn2 = t2.as<TypeCallNode>()) {
+    return TypeFunctor<Type(const Type & t1, const Type t2)>::VisitType(t2, t1);
   } else {
     return TypeFunctor<Type(const Type & t1, const Type t2)>::VisitType(t1, t2);
   }
@@ -353,7 +359,8 @@ Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
 
     return TypeCallNode::make(unified_func, new_args);
   } else {
-    throw UnificationError("Cannot unify call with non-call");
+    auto args = ty_call1->args;
+    return this->VisitType(args[args.size() - 1], t2);
   }
 }
 

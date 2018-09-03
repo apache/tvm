@@ -119,6 +119,15 @@ Function FunctionNode::make(tvm::Array<Param> params, Type ret_type, Expr body,
   return Function(n);
 }
 
+Type FunctionNode::fn_type() const {
+  Array<Type> param_types;
+  for (auto param : this->params) {
+    param_types.push_back(param->type);
+  }
+
+  return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
+}
+
 TVM_REGISTER_API("relay._make.Function")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = FunctionNode::make(args[0], args[1], args[2], args[3]);

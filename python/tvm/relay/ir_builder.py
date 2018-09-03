@@ -2,27 +2,20 @@ from typing import Any
 import numpy as np
 import tvm
 from .type import FuncType, TensorType
-from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function
+from .expr import Expr, Call, Constant, Let, LocalVar, Param, Function, If
 from .env import Environment
 from . import op as _op
-
-class ExprBuilder():
-    def __init__(self, expr):
-        self.expr = expr
-
-    def __call__(self, *args):
-        return ExprBuilder(Call(self.expr, list(args), None, None))
 
 def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
     """Convert Python values into the appropriate types
        for the Relay evaluator.
     """
     if isinstance(arg, int):
-        return tvm.nd.array(arg, ctxt)
+        return tvm.nd.array(np.array(arg, dtype='int32'), ctxt)
     elif isinstance(arg, float):
         return tvm.nd.array(arg, ctxt)
     elif isinstance(arg, bool):
-        return tvm.nd.array(arg, ctxt)
+        return tvm.nd.array(np.array(arg, dtype='float32'), ctxt)
     elif isinstance(arg, np.ndarray):
         return tvm.nd.array(arg, ctxt)
     elif isinstance(arg, tvm.ndarray.NDArray):
@@ -36,10 +29,10 @@ def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
         raise Exception("..")
     else:
         value = convert(arg, ctxt)
-        return ExprBuilder(Constant(value))
+        return Constant(value)
 
 class WithScope(object):
-    """Auxiliary scope  with"""
+    """A wrapper for builder methods which introduce scoping."""
 
     def __init__(self, enter_value, exit_cb):
         self._enter_value = enter_value
@@ -49,7 +42,10 @@ class WithScope(object):
         return self._enter_value
 
     def __exit__(self, ptype, value, trace):
-        self._exit_cb()
+        if value:
+            raise value
+        else:
+            self._exit_cb()
 
 
 class PartialFunc():
@@ -77,14 +73,27 @@ def _mk_let(bindings, ret_value):
 
     return let_expr
 
-
 class IRBuilder():
     def __init__(self):
         self.bindings = [{}]
         self.scopes = [{}]
         self.params = []
-        self.ret_value = None
+        self.ret_values = [None]
         self.env = Environment({})
+
+    def enter_scope(self, params=[]):
+        self.bindings.append({})
+        self.scopes.append({})
+        self.params.append(params)
+        self.ret_values.append(None)
+
+
+    def exit_scope(self):
+        bindings = self.bindings.pop()
+        scopes = self.scopes.pop()
+        params = self.params.pop()
+        ret_value = self.ret_values.pop()
+        return bindings, scopes, params, ret_value
 
 
     def bind(self, name, type, value):
@@ -98,11 +107,8 @@ class IRBuilder():
         if isinstance(value, Param):
             value = value.var
 
-        if not (isinstance(value, Expr) or isinstance(value, ExprBuilder)):
+        if not isinstance(value, Expr):
             value = into_ast(value)
-
-        if isinstance(value, ExprBuilder):
-            value = value.expr
 
         return self.bind(name, value_type, value)
 
@@ -115,26 +121,51 @@ class IRBuilder():
 
         # self.params.append(relay_params)
 
+        self.enter_scope()
+
         pfunc = PartialFunc(relay_params, None, None, [])
 
         def _on_exit():
-            bindings = self.bindings.pop()
-            scope = self.scopes.pop()
-            ret_value = self.ret_value
+            bindings, scope, params, ret_value = self.exit_scope()
             body = _mk_let(bindings, ret_value)
-            self.ret_value = None
             pfunc.body = body
-
 
         return WithScope(pfunc, _on_exit)
 
 
     def ret(self, x):
-        if not self.ret_value:
-            self.ret_value = x
+        if not self.ret_values[-1]:
+            self.ret_values[-1] = x
         else:
             raise Exception(
                 "return value already set, a function can only have one return value")
+
+    def if_scope(self, cond):
+        self.enter_scope()
+
+        def _on_exit():
+            bindings, _, _, ret_value = self.exit_scope()
+            assert self.ret_values[-1] is None
+            true_branch = _mk_let(bindings, ret_value)
+            self.ret_values[-1] = If(cond, true_branch, None)
+        
+        return WithScope(10, _on_exit)
+
+    
+    def else_scope(self):
+        self.enter_scope()
+
+        def _on_exit():
+            bindings, _, _, ret_value = self.exit_scope()
+            partial_if = self.ret_values[-1]
+            assert isinstance(partial_if, If) and partial_if.false_value is None
+            false_branch = _mk_let(bindings, ret_value)
+            self.ret_values[-1] = If(
+                partial_if.cond, 
+                partial_if.true_value, 
+                false_branch)
+        
+        return WithScope(10, _on_exit)
 
     def param(self, name, ty=None):
         if not ty:
@@ -148,18 +179,21 @@ class IRBuilder():
     #          arg = args[i]
     #          if isinstance(arg, str):
                 
+    def global_var(self, name: str):
+        return self.env.global_var(name)
 
-    def decl(self, name: str, *params):
-        decl_builder = IRBuilder()
+    def decl(self, name: str, *params, ret_type=None):
+        self.enter_scope()
 
         def _on_exit():
-            exp, sub_env = decl_builder.get()
-            self.env.add(name, Function(params, None, exp))
-            self.env.merge(sub_env)
+            bindings, _, _, ret_value = self.exit_scope()
+            exp = _mk_let(bindings, ret_value)
+            self.env.add(name, Function(params, ret_type, exp))
 
-        return WithScope(decl_builder, _on_exit)
+        return WithScope(10, _on_exit)
 
-
+    
+    # def while_loop(cond)
     def get(self):
         """Get the full program"""
         bindings = self.bindings.pop()
@@ -171,16 +205,16 @@ class IRBuilder():
         if self.scopes:
             raise Exception("IRBuilder: scoping error")
 
-        if bindings and scope and not self.ret_value:
+        if bindings and scope and not self.ret_values:
             raise Exception("IRBuilder: no return value set")
 
-        return _mk_let(bindings, self.ret_value), self.env
+        return _mk_let(bindings, self.ret_values[-1]), self.env
 
 def bool_dtype():
     return 'uint1'
 
 def int_dtype(bits=32):
-    return f'int1{bits}'
+    return f'int{bits}'
 
 def float_dtype(bits=32):
     return f'float{bits}'

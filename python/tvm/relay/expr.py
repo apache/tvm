@@ -9,7 +9,11 @@ from tvm import expr
 from ._ir_pass import _get_checked_type
 from . import _make
 
-class Expr(NodeBase):
+class ExprBuilder():
+    def __call__(self, *args, **kwargs):
+        return Call(self, args, None, None)
+
+class Expr(NodeBase, ExprBuilder):
     """The base type for all Relay exprressions."""
     def checked_type(self):
         return _get_checked_type(self)
