@@ -110,8 +110,6 @@ void fetch(
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue);
 
-#if 0
-
 /*!
 * \brief Load module.
 *   Reads in load instructions from the load queue, and performs appropriate
@@ -130,11 +128,13 @@ void fetch(
 void load(
   volatile inp_vec_T *inputs,
   volatile wgt_vec_T *weights,
-  ihc::stream<insn_T> &load_queue,
-  ihc::stream<bool> &g2l_dep_queue,
-  ihc::stream<bool> &l2g_dep_queue,
+  ihc::stream_in<insn_T> &load_queue,
+  ihc::stream_in<bool> &g2l_dep_queue,
+  ihc::stream_out<bool> &l2g_dep_queue,
   inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]);
+
+#if 0
 
 /*!
 * \brief Compute module.
@@ -172,6 +172,8 @@ void compute(
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
 
+#endif
+
 /*!
 * \brief Store module.
 *   Reads in store instructions from the store queue, and performs appropriate
@@ -187,9 +189,9 @@ void compute(
 */
 void store(
   volatile out_vec_T *outputs,
-  ihc::stream<insn_T> &store_queue,
-  ihc::stream<bool> &g2s_dep_queue,
-  ihc::stream<bool> &s2g_dep_queue,
+  ihc::stream_in<insn_T> &store_queue,
+  ihc::stream_in<bool> &g2s_dep_queue,
+  ihc::stream_out<bool> &s2g_dep_queue,
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]);
 
 /*!
@@ -211,7 +213,5 @@ void vta(
   volatile wgt_vec_T *weights,
   volatile acc_vec_T *biases,
   volatile out_vec_T *outputs);
-
-#endif
 
 #endif  // VTA_VTA_H_

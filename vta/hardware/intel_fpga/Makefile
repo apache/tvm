@@ -15,6 +15,7 @@ HSI = hsi
 
 # Device
 DEVICE = 5CSEBA6U23I7
+# DEVICE = x86-64
 HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8 -I$(INCLUDE_DIR)
 
 # HLS mode
@@ -62,6 +63,9 @@ HLS_CXX_FLAGS += -DVTA_LOG_WGT_BUFF_SIZE=$(VTA_WGT_BUFF_SIZE)
 HLS_CXX_FLAGS += -DVTA_LOG_ACC_BUFF_SIZE=$(VTA_ACC_BUFF_SIZE)
 HLS_CXX_FLAGS += -DVTA_LOG_OUT_BUFF_SIZE=$(VTA_OUT_BUFF_SIZE)
 
+HLS_CXX_FLAGS += --fpga-only --debug-log -v
+# HLS_CXX_FLAGS += --x86-only
+
 #---------------------
 # FPGA Parameters
 #--------------------
@@ -93,14 +97,14 @@ BIT_PATH = $(BUILD_DIR)/qsys/$(CONF)/export/$(CONF).bit
 
 .PHONY: all ip bit bsp clean clean_all
 
-all: bit
+all: ip
 ip: $(IP_PATH)
 bit: $(BIT_PATH)
 
 $(IP_PATH): $(SRC_DIR)/*
 	mkdir -p $(IP_BUILD_PATH)
 	cd $(IP_BUILD_PATH) && \
-	  $(CXX) $(HLS_CXX_FLAGS) --fpga-only -march=$(DEVICE) $(SRC_DIR)/vta.cc -o $(IP_BUILD_PATH)/vta
+	  $(CXX) $(HLS_CXX_FLAGS) -march=$(DEVICE) $(SRC_DIR)/vta.cc -o $(IP_BUILD_PATH)/vta
 # -tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) 
 # $(MODE) $(DEBUG) $(NO_DSP) $(NO_ALU) $(VTA_TARGET_PER) 
 # $(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_ACC_WIDTH) $(VTA_OUT_WIDTH) 
