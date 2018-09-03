@@ -48,7 +48,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             dW = topi.nn.dilate(W, (1, 1, dilation, dilation))
-            C = topi.nn.conv2d(A, dW, stride, padding, layout='NCHW', out_dtype=dtype)
+            C = topi.nn.conv2d(A, dW, (stride, stride), (padding, padding),
+                               layout='NCHW', out_dtype=dtype)
             if add_bias:
                 C = topi.add(C, bias)
             if add_relu:
@@ -72,7 +73,11 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
 
 
 def test_conv2d_nchw():
-    autotvm.DispatchContext.current.silent = True
+    # load tophub
+    ctx = autotvm.apply_history_best([])
+    for device in get_all_backend():
+        context = autotvm.tophub.context(device)
+        context.__enter__()
 
     # ResNet18 workloads
     verify_conv2d_nchw(1,   3, 224,  64, 7, 2, 3)
@@ -97,8 +102,8 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, dilation=2)
 
     # weird workloads
-    #verify_conv2d_nchw(1, 1, 1, 1, 1, 1, 1, dilation=1)
-    #verify_conv2d_nchw(1, 1, 1, 1, 1, 1, 1, dilation=2)
+    verify_conv2d_nchw(1, 1, 1, 1, 1, 1, 1, dilation=1)
+    verify_conv2d_nchw(1, 1, 1, 1, 1, 1, 1, dilation=2)
     verify_conv2d_nchw(2, 2, 2, 2, 2, 2, 2)
     verify_conv2d_nchw(3, 3, 3, 3, 3, 3, 3)
     verify_conv2d_nchw(4, 4, 4, 4, 4, 4, 4)

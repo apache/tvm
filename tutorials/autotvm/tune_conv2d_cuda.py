@@ -10,7 +10,7 @@ vendor provided library CuDNN in many cases.
 
 ######################################################################
 # Install dependencies
-# ----------------------------------------
+# --------------------
 # To use autotvm package in tvm, we need to install some extra dependencies.
 # (change "3" to "2" if you use python2):
 #
@@ -20,7 +20,6 @@ vendor provided library CuDNN in many cases.
 #
 # To make tvm run faster in tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
-# (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
 #
@@ -41,7 +40,7 @@ from tvm import autotvm
 
 ######################################################################
 # Step 1:  Define the search space
-# ---------------------------------
+# --------------------------------
 # There are plenty of useful schedule primitives in tvm. You can also find 
 # some tutorials that describe them in more details, such as 
 # (1). :ref:`opt-conv-gpu`

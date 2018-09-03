@@ -8,9 +8,9 @@ performance. This is a tutorial about how to tune a whole convolutional
 network.
 
 The operator implementation for ARM CPU in TVM is written in template form.
-It has many tunable knobs (tile factor, vectorization, unrolling, etc).
-We will do tuning for all convolution and depthwise convolution operators
-in the neural network. After the tuning, we can get a log file which stores
+The template has many tunable knobs (tile factor, vectorization, unrolling, etc).
+We will tune all convolution and depthwise convolution operators
+in the neural network. After tuning, we produce a log file which stores
 the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
@@ -21,15 +21,15 @@ to see the results.
 
 ######################################################################
 # Install dependencies
-# ----------------------------------------
-# To use autotvm package in tvm, we need to install some extra dependencies.
+# --------------------
+# To use the autotvm package in tvm, we need to install some extra dependencies.
 # (change "3" to "2" if you use python2):
 #
 # .. code-block:: bash
 #
 #   pip3 install --user psutil xgboost tornado
 #
-# To make tvm run faster in tuning, it is recommended to use cython
+# To make tvm run faster during tuning, it is recommended to use cython
 # as FFI of tvm. In the root directory of tvm, execute
 # (change "3" to "2" if you use python2):
 #
@@ -108,8 +108,7 @@ def get_network(name, batch_size):
 # To scale up the tuning, TVM uses RPC Tracker to manage distributed devices.
 # The RPC Tracker is a centralized master node. We can register all devices to
 # the tracker. For example, if we have 10 phones, we can register all of them
-# to the tracker, then we can run 10 measurements in parallel, which accelerates
-# the tuning process.
+# to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
 #
 # To start an RPC tracker, run this command on the host machine. The tracker is
 # required during the whole tuning process, so we need to open a new terminal for
@@ -170,7 +169,7 @@ def get_network(name, batch_size):
 ###########################################
 # Set Tuning Options
 # ------------------
-# Before tuning, we should do some configurations. Here I use an RK3399 board
+# Before tuning, we should apply some configurations. Here I use an RK3399 board
 # as example. In your setting, you should modify the target and device_key accordingly.
 # set :code:`use_android` to True if you use android phone.
 
@@ -222,9 +221,9 @@ tuning_option = {
 # Begin Tuning
 # ------------
 # Now we can extract tuning tasks from the network and begin tuning.
-# Here we provide a simple utility function to tune a list of tasks.
+# Here, we provide a simple utility function to tune a list of tasks.
 # This function is just an initial implementation which tunes them in sequential order.
-# Later we will bring more sophisticated tuner scheduler.
+# We will introduce a more sophisticated tuning scheduler in the future.
 
 # You can skip the implementation of this function for this tutorial.
 def tune_tasks(tasks,
@@ -284,7 +283,7 @@ def tune_tasks(tasks,
 
 
 ########################################################################
-# Finally we launch tuning jobs and evaluate the end-to-end performance.
+# Finally, we launch tuning jobs and evaluate the end-to-end performance.
 
 def tune_and_evaluate(tuning_opt):
     # extract workloads from nnvm graph
@@ -338,7 +337,7 @@ def tune_and_evaluate(tuning_opt):
               (np.mean(prof_res), np.std(prof_res)))
 
 # We do not run the tuning in our webpage server since it takes too long.
-# Uncomment the following line to run by yourself.
+# Uncomment the following line to run it by yourself.
 
 # tune_and_evaluate(tuning_option)
 
@@ -373,9 +372,9 @@ def tune_and_evaluate(tuning_opt):
 
 ######################################################################
 #
-# .. note:: **Meet some problems?**
+# .. note:: **Experiencing Difficulties?**
 #
-#   The auto tuning module is error prone. If you always see " 0.00/ 0.00 GFLOPS",
+#   The auto tuning module is error-prone. If you always see " 0.00/ 0.00 GFLOPS",
 #   then there must be something wrong.
 #
 #   First, make sure you set the correct configuration of your device.

@@ -108,9 +108,9 @@ with tvm.target.create("cuda"):
 # .. note::
 #
 #    TOPI functions are all generic functions. They have different implementations
-#    for different backends in order to achieve best performance.
-#    So it is necessary to call them under a target scope for both compute 
-#    declaration and schedule. TVM will choose the right function to call with
+#    for different backends to optimize for performance.
+#    For each backend, it is necessary to call them under a target scope for both
+#    compute declaration and schedule. TVM will choose the right function to call with
 #    the target information.
 
 data = tvm.placeholder((1, 3, 224, 224))
