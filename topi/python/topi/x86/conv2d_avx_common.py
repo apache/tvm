@@ -259,7 +259,7 @@ def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
     """
     This function sets up the compute for INT8 conv 2d
     Inputs are in INT8 datatype
-    Ouptut is in INT32 datatype
+    Output is in INT32 datatype
     """
 
     out_dtype = wkl.out_dtype
@@ -346,7 +346,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
 
     ow_chunk, ow_block = s[CC].split(ow, factor=sch.reg_n)
 
-    # Sylake and future processors have 16 vector lanes
+    # Skylake and future processors have 16 vector lanes
     assert sch.oc_bn % avx2_len == 0
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len)

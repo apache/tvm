@@ -311,7 +311,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
-    # Sylake and future processors have 16 vector lanes
+    # Skylake and future processors have 16 vector lanes
     assert sch.oc_bn % avx2_len == 0
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len)
