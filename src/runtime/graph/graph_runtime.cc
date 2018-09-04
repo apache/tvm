@@ -149,7 +149,7 @@ class GraphRuntime : public ModuleNode {
     const DLTensor* data = data_entry_[eid].operator->();
     CHECK_EQ(data->ndim, data_out->ndim);
     for (int32_t j = 0; j < data->ndim; ++j) {
-        CHECK_EQ(data->shape[j], data_out->shape[j]);
+      CHECK_EQ(data->shape[j], data_out->shape[j]);
     }
 
     data_entry_[eid].CopyTo(data_out);
@@ -167,7 +167,7 @@ class GraphRuntime : public ModuleNode {
     const DLTensor* data = data_entry_[eid].operator->();
     CHECK_EQ(data->ndim, data_out->ndim);
     for (int32_t j = 0; j < data->ndim; ++j) {
-        CHECK_EQ(data->shape[j], data_out->shape[j]);
+      CHECK_EQ(data->shape[j], data_out->shape[j]);
     }
 
     data_entry_[eid].CopyTo(data_out);
@@ -393,7 +393,7 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
-  void LoadDLTensor(dmlc::Stream* strm, NDArray tensor);
+  void LoadNDArray(dmlc::Stream* strm, NDArray tensor);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors */
@@ -447,7 +447,7 @@ class GraphRuntime : public ModuleNode {
 };
 
 
-void GraphRuntime::LoadDLTensor(dmlc::Stream* strm, NDArray dst) {
+void GraphRuntime::LoadNDArray(dmlc::Stream* strm, NDArray dst) {
   // always use strm->Read to maintain endianness conversion
   NDArray temp;
   temp.Load(strm);
@@ -476,7 +476,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
-    LoadDLTensor(strm, data_entry_[eid]);
+    LoadNDArray(strm, data_entry_[eid]);
   }
 }
 
@@ -603,9 +603,9 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         if (args.num_args == 2) {
-            this->GetOutputAsDLTensor(args[0], args[1]);
+          this->GetOutputAsDLTensor(args[0], args[1]);
         } else {
-            *rv = this->GetOutputAsNDArray(args[0]);
+          *rv = this->GetOutputAsNDArray(args[0]);
         }
       });
   } else if (name == "get_input") {
@@ -618,14 +618,14 @@ PackedFunc GraphRuntime::GetFunction(
         }
         CHECK_GE(in_idx, 0);
         if (args.num_args == 2) {
-            this->GetInputAsDLTensor(in_idx, args[1]);
+          this->GetInputAsDLTensor(in_idx, args[1]);
         } else {
-            *rv = this->GetInputAsNDArray(in_idx);
+          *rv = this->GetInputAsNDArray(in_idx);
         }
       });
   } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-          *rv = this->GetNumOutputs();
+        *rv = this->GetNumOutputs();
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {
