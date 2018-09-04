@@ -42,8 +42,6 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
     elif type == "argmin":
         B = topi.cpp.argmin(A1, axis, keepdims)
         out_dtype = "int32"
-    elif type == "mean":
-        B = topi.cpp.mean(A1, axis, keepdims)
     elif type == "prod":
         B = topi.cpp.prod(A1, axis, keepdims)
     else:
@@ -75,8 +73,6 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum"):
             out_npy = _my_npy_argmax(in_npy_map, axis=axis, keepdims=keepdims)
         elif type == "argmin":
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
-        elif type == "mean":
-            out_npy = in_npy_map.mean(axis=axis, keepdims=keepdims)
         elif type == "prod":
             out_npy = in_npy_map.prod(axis=axis, keepdims=keepdims)
         else:
@@ -131,34 +127,6 @@ def test_reduce_map():
                           axis=(0, 1),
                           keepdims=False,
                           type="prod")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(0, 1),
-                          keepdims=False,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(0, 2),
-                          keepdims=False,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128),
-                          axis=None,
-                          keepdims=True,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128),
-                          axis=None,
-                          keepdims=False,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128),
-                          axis=(0, 1, 2),
-                          keepdims=True,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(0, 1),
-                          keepdims=True,
-                          type="mean")
-    verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
-                          axis=(0, 2),
-                          keepdims=True,
-                          type="mean")
     verify_reduce_map_ele(in_shape=(32, 128),
                           axis=1,
                           keepdims=True,

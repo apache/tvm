@@ -347,8 +347,14 @@ Example::
                                   param.axis, param.exclude);
     if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
     auto axis = ShapeToArray(r_axes);
+
+    Expr count = make_one(inputs[0]->dtype);
+    for (auto &i : r_axes) {
+        count *= inputs[0]->shape[i];
+    }
+
     return Array<Tensor>{
-      topi::mean(inputs[0], axis, param.keepdims) };
+      topi::divide(topi::sum(inputs[0], axis, param.keepdims), count) };
 });
 
 NNVM_REGISTER_REDUCE_OP(prod)

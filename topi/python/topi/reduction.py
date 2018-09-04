@@ -130,9 +130,9 @@ def argmax(data, axis=None, keepdims=False):
     return cpp.argmax(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
-def mean(data, axis=None, keepdims=False):
-    """Mean of array elements over a given axis or a list of axes
+@tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
+def argmin(data, axis=None, keepdims=False):
+    """Returns the indices of the minimum values along an axis.
 
     Parameters
     ----------
@@ -140,9 +140,9 @@ def mean(data, axis=None, keepdims=False):
         The input tvm tensor
 
     axis : None or int or tuple of int
-        Axis or axes along which a mean operation is performed.
-        The default, axis=None, will get the mean over all of the elements of the
-        input array. If axis is negative it counts from the last to the first axis.
+        Axis or axes along which a argmin operation is performed.
+        The default, axis=None, will find the indices of minimum element all of the elements of
+        the input array. If axis is negative it counts from the last to the first axis.
 
     keepdims : bool
         If this is set to True, the axes which are reduced are left in the result as dimensions
@@ -153,7 +153,7 @@ def mean(data, axis=None, keepdims=False):
     -------
     ret : tvm.Tensor
     """
-    return cpp.mean(data, axis, keepdims)
+    return cpp.argmin(data, axis, keepdims)
 
 
 @tvm.tag_scope(tag=tag.COMM_REDUCE)
@@ -180,29 +180,3 @@ def prod(data, axis=None, keepdims=False):
     ret : tvm.Tensor
     """
     return cpp.prod(data, axis, keepdims)
-
-
-@tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
-def argmin(data, axis=None, keepdims=False):
-    """Returns the indices of the minimum values along an axis.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        The input tvm tensor
-
-    axis : None or int or tuple of int
-        Axis or axes along which a argmin operation is performed.
-        The default, axis=None, will find the indices of minimum element all of the elements of
-        the input array. If axis is negative it counts from the last to the first axis.
-
-    keepdims : bool
-        If this is set to True, the axes which are reduced are left in the result as dimensions
-        with size one.
-        With this option, the result will broadcast correctly against the input array.
-
-    Returns
-    -------
-    ret : tvm.Tensor
-    """
-    return cpp.argmin(data, axis, keepdims)

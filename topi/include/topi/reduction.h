@@ -448,28 +448,5 @@ inline Tensor prod(const Tensor& data, Array<Expr> axis, bool keepdims = false) 
   return CommReduce(data, axis, ProdOp, keepdims);
 }
 
-/*!
-* \brief Creates an operation that finds mean over given axis
-*
-* \param data The input tensor
-* \param axis The axis along which the argmax is performed. If axis is empty,
-* the operation will calculate mean for all elements of the array.
-* \param keepdims If this is set to true, the axes which are reduced are
-* left in the result as dimensions with size one. This enables the result
-* to broadcast correctly against the input array.
-*
-* \return A Tensor whose op member is the mean operation
-*/
-inline Tensor mean(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
-  auto axis_val = detail::GetConstIntValues(axis, "axis");
-  auto real_axis = GetRealAxis(static_cast<int>(data.ndim()), axis_val);
-  Expr count = make_one(data->dtype);
-  for (auto &i : real_axis) {
-    count *= data->shape[i];
-  }
-  return topi::divide(sum(data, axis, keepdims), count);
-}
-
-
 }  // namespace topi
 #endif  // TOPI_REDUCTION_H_
