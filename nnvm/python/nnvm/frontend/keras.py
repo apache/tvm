@@ -388,6 +388,38 @@ def _convert_reshape(insym, keras_layer, _):
     shape = (-1, ch) + keras_layer.target_shape[:-1]
     return _sym.reshape(insym, shape=shape)
 
+def _convert_lstm(insym, keras_layer, symtab):
+    _check_data_format(keras_layer)
+    if not isinstance(insym, list):
+        buffer = np.zeros((1, keras_layer.units), 'float32')
+        c_sym = symtab.new_const(buffer)
+        h_sym = symtab.new_const(buffer)
+        insym = [insym, c_sym, h_sym]
+
+    in_data = insym[0]
+    in_state_c = insym[1]
+    in_state_h = insym[2]
+
+    weightList = keras_layer.get_weights()
+
+    kernel_wt = symtab.new_const(weightList[0].transpose([1, 0]))
+    recurrent_wt = symtab.new_const(weightList[1].transpose([1, 0]))
+    in_bias = symtab.new_const(weightList[2])
+
+    units = list(weightList[0].shape)[1]
+
+    in_data = _sym.flatten(in_data)
+    ixh1 = _sym.dense(in_data, kernel_wt, use_bias=False, units=units)
+    ixh2 = _sym.dense(in_state_h, recurrent_wt, in_bias, use_bias=True, units=units)
+    gate = ixh1 + ixh2
+    gates = _sym.split(gate, indices_or_sections=4, axis=1)
+    in_gate = _sym.sigmoid(gates[0])
+    in_transform = _sym.sigmoid(gates[1])
+    next_c = in_transform * in_state_c + in_gate * _sym.tanh(gates[2])
+    out_gate = _sym.sigmoid(gates[3])
+    next_h = out_gate * _sym.tanh(next_c)
+
+    return [next_h, next_h, next_c]
 
 def _default_skip(insym, keras_layer, _): # pylint: disable=unused-argument
     """Layers that can be skipped because they are train time only."""
@@ -435,7 +467,7 @@ _convert_map = {
     # 'Conv1D'                 : _convert_convolution1d,
 
     # 'GRU'                    : _convert_gru,
-    # 'LSTM'                   : _convert_lstm,
+    'LSTM'                     : _convert_lstm,
     # 'SimpleRNN'              : _convert_simple_rnn,
     # 'Bidirectional'          : _convert_bidirectional,
     # 'TimeDistributed'        : _default_skip,
@@ -459,6 +491,11 @@ def _check_unsupported_layers(model):
         if type(layer).__name__ not in _convert_map:
             raise ValueError("Keras layer {} not supported.".format(type(layer).__name__))
 
+def _as_list(arr):
+    """Force being a list, ignore if already is."""
+    if isinstance(arr, list):
+        return arr
+    return [arr]
 
 def keras_op_to_nnvm(insym, keras_layer, outname, symtab):
     """Convert keras layer to nnvm symbol, and update symtab.
@@ -479,9 +516,12 @@ def keras_op_to_nnvm(insym, keras_layer, outname, symtab):
     """
     if type(keras_layer).__name__ not in _convert_map:
         raise NotImplementedError("{} is not supported".format((type(keras_layer).__name__)))
-    ret = _convert_map[type(keras_layer).__name__](insym, keras_layer, symtab)
-    symtab.set_var(outname, ret)
+    sym = _convert_map[type(keras_layer).__name__](insym, keras_layer, symtab)
+    sym = _as_list(sym)
 
+    for t_idx, _sym in enumerate(sym):
+        name = outname + ":" + str(t_idx)
+        symtab.set_var(name, _sym)
 
 def from_keras(model):
     """Convert keras model to NNVM format.
@@ -530,17 +570,21 @@ def from_keras(model):
                 # The one exception is InputLayer.  Changing input variable names after conversion
                 # would confuse users, so we should keep them as far as possible.  Fortunately,
                 # they are named uniquely to input_1, input_2, input_3 ... by default.
-                for pred_idx, pred in zip(node.node_indices, node.inbound_layers):
+                zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
+                for pred_idx, t_idx, pred in zip_node:
                     if isinstance(pred, keras.engine.InputLayer):
                         sym = symtab.get_var(pred.name, must_contain=True)
                     else:
-                        sym = symtab.get_var(pred.name + ':' + str(pred_idx), must_contain=True)
+                        sym_name = pred.name + ':' + str(pred_idx) + ':' + str(t_idx)
+                        sym = symtab.get_var(sym_name, must_contain=True)
                     insym.append(sym)
 
                 if len(insym) == 1:
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
-    outsym = [symtab.get_var(layer.name + ':0') for layer in model._output_layers]
+    outsym = [symtab.get_var(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
+              for oc in model._output_coordinates]
+
     tvmparams = {k:tvm.nd.array(np.array(v, dtype=np.float32)) for k, v in symtab.params.items()}
     return _sym.Group(outsym), tvmparams

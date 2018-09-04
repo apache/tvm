@@ -21,8 +21,14 @@ def verify_keras_frontend(keras_model):
     for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
     out_shapes = []
-    for layer in keras_model._output_layers:
-        out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.output.shape))
+
+    for oc in keras_model._output_coordinates:
+        layer = oc[0]
+        if isinstance(layer.output, list):
+            layer_output = layer.output[oc[2]]
+        else:
+            layer_output = layer.output
+        out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer_output.shape))
 
     def get_keras_output(xs, dtype='float32'):
         return keras_model.predict(xs)
@@ -45,7 +51,7 @@ def verify_keras_frontend(keras_model):
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ] if len(xs[0].shape) == 4 else xs, target, ctx)
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -227,6 +233,18 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
+def test_forward_LSTM():
+    num_inputs = num_hidden = 8
+    data = keras.layers.Input(shape=(1, num_inputs))
+    lstm_out = keras.layers.LSTM(num_hidden,
+                                 return_sequences=False,
+                                 return_state=True,
+                                 recurrent_activation='sigmoid',
+                                 activation='tanh')
+    x = lstm_out(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model)
+
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
@@ -246,3 +264,4 @@ if __name__ == '__main__':
     test_forward_multi_inputs()
     test_forward_multi_outputs()
     test_forward_reuse_layers()
+    test_forward_LSTM()
