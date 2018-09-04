@@ -178,7 +178,7 @@ def test_power():
 def test_squeeze():
     in_shape = (1, 3, 1, 3, 1, 1)
     out_shape = (3, 3)
-    y = helper.make_node("Squeeze", ['in'], ['out'])
+    y = helper.make_node("Squeeze", ['in'], ['out'], axes=[0, 2, 4, 5])
 
     graph = helper.make_graph([y],
                               'squeeze_test',
