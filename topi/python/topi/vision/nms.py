@@ -17,18 +17,22 @@ def rearrange_out(input, output):
     output : Tensor or Var or numpy NDArray
         Transformed NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
-        It should filled with invalid entry -1.
     """
     batch_size = input.shape[0]
     num_anchors = input.shape[1]
     elem_length = input.shape[2]
+    for i in range(batch_size):
+        for j in range(num_anchors):
+            for k in range(elem_length):
+                output[i, j, k] = -1.0
+
     for i in range(batch_size):
         valid_idx = 0
         for j in range(num_anchors):
             if input[i, j, 0] >= 0:
                 for k in range(elem_length):
                     output[i, valid_idx, k] = input[i, j, k]
-                valid_idx += 1
+                valid_idx = valid_idx + 1
 
 
 @hybrid.script
@@ -61,7 +65,7 @@ def get_valid_counts(data, inter_data, valid_count, score_threshold):
             if score >= score_threshold:
                 valid_count[i] += 1
                 inter_data[i, inter_idx] = data[i, j]
-                inter_idx += 1
+                inter_idx = inter_idx + 1
 
 
 def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, nms_topk):
@@ -165,6 +169,101 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
                 p_out[n * num_anchors * 6 + (l + p_valid_count[n]) * 6 + m] = -1.0
     return ib.get()
 
+@hybrid.script
+def calculate_iou(inter_data, batch_idx, box_a_idx, box_b_idx, box_start_idx):
+    a_t = inter_data[batch_idx, box_a_idx, box_start_idx + 1]
+    a_b = inter_data[batch_idx, box_a_idx, box_start_idx + 3]
+    a_l = inter_data[batch_idx, box_a_idx, box_start_idx]
+    a_r = inter_data[batch_idx, box_a_idx, box_start_idx + 2]
+    b_t = inter_data[batch_idx, box_b_idx, box_start_idx + 1]
+    b_b = inter_data[batch_idx, box_b_idx, box_start_idx + 3]
+    b_l = inter_data[batch_idx, box_b_idx, box_start_idx]
+    b_r = inter_data[batch_idx, box_b_idx, box_start_idx + 2]
+    w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
+    h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
+    i = h * w
+    u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - i
+    return 0.0 if u <= 0 else i / u
+
+@hybrid.script
+def hybrid_nms(data, sorted_index, valid_count, output, iou_threshold, force_suppress, nms_topk):
+    """Hybrid routing for non-maximum suppression.
+
+    Parameters
+    ----------
+    data: Tensor or Var or numpy NDArray
+        Bounding boxes with class and score. 3-D tensor with shape
+        [batch_size, num_anchors, 6].
+
+    sorted_index : Tensor or Var or numpy NDArray
+        Bounding box indexes sorted by score, with shape
+        [batch_size, num_anchors].
+
+    valid_count : Tensor or Var or numpy NDArray
+        1-D tensor for valid number of boxes.
+
+    output : Tensor or Var or numpy NDArray
+        NMS output tensor.
+
+    iou_threshold : float
+        Overlapping(IoU) threshold to suppress object with smaller score.
+
+    force_suppress : boolean
+        Whether to suppress all detections regardless of class_id.
+
+    nms_topk : int
+        Keep maximum top k detections before nms, -1 for no limit.
+    """
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    box_data_length = data.shape[2]
+    for i in parallel(batch_size):
+        if iou_threshold > 0  and valid_count[i] > 0:
+            # Reorder output
+            nkeep = nms_topk if 0 < nms_topk < valid_count[i] else valid_count[i]
+            for j in range(nkeep):
+                for k in range(box_data_length):
+                    output[i, j, k] = data[i, sorted_index[i, j], k]
+            if 0 < nms_topk < valid_count[i]:
+                for j in range(valid_count[i] - nkeep):
+                    for k in range(box_data_length):
+                        output[i, j + nkeep, k] = data[i, j + nkeep, k]
+            # Apply nms
+            for j in range(valid_count[i]):
+                if output[i, j, 0] >= 0:
+                    for k in range(valid_count[i]):
+                        if k > j and output[i, k, 0] >= 0 and (force_suppress
+                                                               or output[i, j, 0]
+                                                               == output[i, k, 0]):
+                            #iou = calculate_iou(output, i, j, k, 2)
+                            inter_data = output
+                            batch_idx = i
+                            box_a_idx, box_b_idx = j, k
+                            box_start_idx = 2
+                            a_t = inter_data[batch_idx, box_a_idx, box_start_idx + 1]
+                            a_b = inter_data[batch_idx, box_a_idx, box_start_idx + 3]
+                            a_l = inter_data[batch_idx, box_a_idx, box_start_idx]
+                            a_r = inter_data[batch_idx, box_a_idx, box_start_idx + 2]
+                            b_t = inter_data[batch_idx, box_b_idx, box_start_idx + 1]
+                            b_b = inter_data[batch_idx, box_b_idx, box_start_idx + 3]
+                            b_l = inter_data[batch_idx, box_b_idx, box_start_idx]
+                            b_r = inter_data[batch_idx, box_b_idx, box_start_idx + 2]
+                            w = max(0.0, min(a_r, b_r) - max(a_l, b_l))
+                            h = max(0.0, min(a_b, b_b) - max(a_t, b_t))
+                            i = h * w
+                            u = (a_r - a_l) * (a_b - a_t) + (b_r - b_l) * (b_b - b_t) - i
+                            iou = 0.0 if u <= 0 else i / u
+                            if iou >= iou_threshold:
+                                output[i, k, 0] = -1.0
+        else:
+            for j in range(valid_count[i]):
+                for k in range(box_data_length):
+                    output[i, j, k] = data[i, j, k]
+        # Set invalid entry to be -1
+        for j in range(num_anchors - valid_count[i]):
+            for k in range(box_data_length):
+                output[i, j + valid_count[i], k] = -1.0
+
 
 @tvm.target.generic_func
 def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
@@ -244,16 +343,23 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
                    in_buffers=[score_tensor_buf, valid_count_buf],
                    out_buffers=sort_tensor_buf,
                    name="nms_sort")
+    d_plc = tvm.placeholder(data.shape, name="nms_out", dtype="float32")
+    out = tvm.placeholder(data.shape, name="nms_out", dtype="float32")
+    inter_func = hybrid.parse(hybrid_nms, [data, sort_tensor, valid_count, out, nms_threshold, force_suppress, nms_topk])
+    print(inter_func)
     out = \
         tvm.extern(data.shape,
                    [data, sort_tensor, valid_count],
-                   lambda ins, outs: nms_ir(
-                       ins[0], ins[1], ins[2], outs[0], nms_threshold,
-                       force_suppress, nms_topk),
+                   lambda ins, outs: hybrid.parse(
+                       hybrid_nms,
+                       [ins[0], ins[1], ins[2], outs[0], nms_threshold,
+                        force_suppress, nms_topk]),
                    dtype="float32",
                    in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
                    tag="nms")
     if do_rearrange:
-        normalized_out = tvm.compute(out.shape, lambda *index: -1)
-        hybrid.parse(rearrange_out, [out, normalized_out])
+        out = tvm.extern(out.shape, [out],
+                         lambda ins, outs: hybrid.parse(
+                             rearrange_out, [ins[0], outs[0]]),
+                         dtype="float32",)
     return out
