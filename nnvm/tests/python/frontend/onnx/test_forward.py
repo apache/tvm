@@ -645,6 +645,7 @@ def verify_argmax(input_dim, axis=None, keepdims=None):
         np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_arg_min_max():
+    '''Verify argmin and argmax'''
     verify_argmin([3,4,4])
     verify_argmax([3,4,4])
     verify_argmin([3,4,4], axis=1)
