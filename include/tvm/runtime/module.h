@@ -103,7 +103,7 @@ class ModuleNode {
    * \param file_name The file to be saved to.
    * \param format The format of the file.
    */
-  virtual void SaveToFile(const std::string& file_name,
+  TVM_DLL virtual void SaveToFile(const std::string& file_name,
                           const std::string& format);
   /*!
    * \brief Save the module to binary stream.
