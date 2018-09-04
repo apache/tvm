@@ -8,7 +8,7 @@ from ..util import get_const_tuple
 from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
-from .int8Intrinsics import _intrin_reduce4int8_1x1
+from .int8_intrinsics import _intrin_reduce4int8_1x1
 
 AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
 
@@ -311,7 +311,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
     ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
-    # Sylake and future processors have 16 vector lanes
+    # Skylake and future processors have 16 vector lanes
     assert sch.oc_bn % avx2_len == 0
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len)
