@@ -4,12 +4,10 @@ import json
 from typing import Dict, Any, List, Tuple
 
 import attr
-
-from relay.frontend import get_env
-from . import ir
-from .tyck import get_checked_type
-from .opt import AbstractExprVisitor, compile_ops_to_module
-from ._make import Operator_is_generic
+from .ir_pass import AbstractExprVisitor
+from .op import compile_ops
+from .type import TensorType
+from .expr import LocalVar, Function, Let, Call
 
 
 @attr.s(auto_attribs=True)
@@ -71,7 +69,7 @@ class OpNode(Node):
         }
 
 
-def from_tensor(typ: ir.TensorType) -> Tuple[str, List[int]]:
+def from_tensor(typ: TensorType) -> Tuple[str, List[int]]:
     dtype = typ.dtype.dtype
     shape = typ.shape
     dims = []
@@ -83,7 +81,7 @@ def from_tensor(typ: ir.TensorType) -> Tuple[str, List[int]]:
 class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
     """The compiler from Relay to the TVM runtime system."""
     nodes: List[Node]
-    id_map: Dict[ir.LocalId, NodeRef]
+    id_map: Dict[LocalVar, NodeRef]
 
     def __init__(self) -> None:
         self.nodes = []
@@ -94,10 +92,10 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         ident = len(self.nodes) - 1
         return NodeRef(ident)
 
-    def add_binding(self, ident: ir.LocalId, ref: NodeRef) -> None:
+    def add_binding(self, ident: LocalVar, ref: NodeRef) -> None:
         self.id_map[ident] = ref
 
-    def let_bind(self, ident: ir.LocalId, node: Node) -> NodeRef:
+    def let_bind(self, ident: LocalVar, node: Node) -> NodeRef:
         ref = self.add_node(node)
         self.add_binding(ident, ref)
         return ref
@@ -105,10 +103,10 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
     def get_node(self, ref: NodeRef) -> Node:
         return self.nodes[ref.ident]
 
-    def lookup(self, ident: ir.LocalId) -> NodeRef:
+    def lookup(self, ident: LocalVar) -> NodeRef:
         return self.id_map[ident]
 
-    def compile(self, func: ir.Function) -> None:
+    def compile(self, func: Function) -> None:
         """Compile a single function into a graph."""
         # TODO: (@jroesch) Restore me
         # assert len(fn.ty_params) == 0
@@ -132,30 +130,30 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         # become our output node.
         self.get_node(output_ref).is_output = True
 
-    def visit_let(self, let: ir.Let) -> NodeRef:
+    def visit_let(self, let: Let) -> NodeRef:
         """Visit the Let binding, by first traversing its value,
            then setting the metadata on the returned NodeRef.
 
            Finally visit the body, and return the NodeRef corresponding
            to it.
         """
-        ident = let.id
+        ident = let.var
         val = let.value
         body = let.body
 
         # Need to add type info?
         val_ref = self.visit(val)
-        dtype, shape = from_tensor(get_checked_type(val))
+        dtype, shape = from_tensor(val.checked_type())
         val_node = self.get_node(val_ref)
         val_node.attrs["dtype"] = dtype
         val_node.attrs["shape"] = shape
         self.add_binding(ident, val_ref)
         return self.visit(body)
 
-    def visit_local_id(self, ident: ir.LocalId) -> NodeRef:
+    def visit_local_id(self, ident: LocalVar) -> NodeRef:
         return self.lookup(ident)
 
-    def visit_call(self, call: ir.Call) -> NodeRef:
+    def visit_call(self, call: Call) -> NodeRef:
         inputs = []
         for arg in call.args:
             inputs.append(self.visit(arg).to_json())
@@ -219,20 +217,21 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         return json.dumps(json_dict)
 
 
-def compile_to_tvm(func):
+def compile(func):
     """Compile a single function to the components needed by the
        TVM RTS.
     """
-    env = get_env()
-    iids = []
+    op_names = []
 
-    # Why do I need to call items?
-    for op in env.operators():
-        if not Operator_is_generic(op):
-            iids.append(op.id)
+    # # Why do I need to call items?
+    # for op in env.operators():
+    #     if not Operator_is_generic(op):
+    #         iids.append(op.id)
 
     # TODO(@jroesch): Need to write test case for this
-    mod = compile_ops_to_module(env, iids)
+    print("above")
+    mod = compile_ops(op_names)
+    print("below")
     comp = TVMRTSCompiler()
     comp.compile(func)
     graph_json = comp.to_json()

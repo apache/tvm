@@ -7,11 +7,11 @@
 #ifndef TVM_RELAY_ENVIRONMENT_H_
 #define TVM_RELAY_ENVIRONMENT_H_
 
-#include <tvm/relay/expr.h>
-#include <tvm/relay/type.h>
-#include <tvm/relay/op.h>
 #include <tvm/relay/error.h>
+#include <tvm/relay/expr.h>
+#include <tvm/relay/op.h>
 #include <tvm/relay/source_map.h>
+#include <tvm/relay/type.h>
 #include <string>
 #include <vector>
 
@@ -24,8 +24,8 @@ struct Environment;
  *
  *  The global environment contains the global
  *  information needed to compile a Relay program.
- * 
- *  It contains all global functions, and configuration 
+ *
+ *  It contains all global functions, and configuration
  *  options.
  *
  *  Many operations require access to the global
@@ -34,14 +34,15 @@ struct Environment;
  *  but we will mutate the Environment while optimizing
  *  Relay programs.
  *
- *  The functional style allows users to construct custom 
+ *  The functional style allows users to construct custom
  *  environments easily, for example each thread can store
  *  an Environment while auto-tuning.
  * */
 
 class EnvironmentNode : public RelayNode {
  private:
-  /*! \brief A map from string names to global variables ensures global uniqueness. */
+  /*! \brief A map from string names to global variables ensures global
+   * uniqueness. */
   tvm::Map<std::string, GlobalVar> global_map_;
   /*! \brief A map from file names to source fragments. */
   SourceMap source_map_;
@@ -56,11 +57,10 @@ class EnvironmentNode : public RelayNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {}
 
-  TVM_DLL static Environment make(
-      tvm::Map<GlobalVar, Function> global_funcs);
+  TVM_DLL static Environment make(tvm::Map<GlobalVar, Function> global_funcs);
 
-  void Add(const GlobalVar& var, const Function & func, bool update = false);
-  void Update(const GlobalVar& var, const Function & func);
+  void Add(const GlobalVar& var, const Function& func, bool update = false);
+  void Update(const GlobalVar& var, const Function& func);
   void Remove(const GlobalVar& var);
 
   /*! \brief Lookup a global function by its variable. */
@@ -70,13 +70,19 @@ class EnvironmentNode : public RelayNode {
   Function Lookup(const GlobalVar& id);
 
   /*! \brief Lookup a global function by its string name */
-  Function Lookup(const std::string & s);
-  
+  Function Lookup(const std::string& s);
+
   // TODO(@jroesch, @tqchen): what are the semantics here
-  void Merge(const Environment & env);
+  void Merge(const Environment& env);
 
   /*! \brief Add a source fragment to the environment. */
   SourceName AddSource(std::string file_name, std::string source);
+
+  using Transformer = runtime::TypedPackedFunc<
+      runtime::TypedPackedFunc<Function(const GlobalVar&, const Function&)>(const Environment&)>;
+
+  /*! \brief Apply a function over every function in the global environment. */
+  void Transform(Transformer tranformer);
 
   void AddDiagnostic(SpannedError);
   void DisplayErrors();

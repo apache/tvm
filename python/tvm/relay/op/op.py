@@ -3,7 +3,7 @@ from ..._ffi.function import _init_api
 
 from ..base import register_relay_node
 from ..expr import Expr
-from ..._ffi.function import Function
+from ..._ffi.function import Function, register_func
 from ...api import convert
 
 @register_relay_node
@@ -72,6 +72,46 @@ def register(op_name, attr_key, value=None, level=10):
         return v
     return _register(value) if value else _register
 
+def compile_ops(op_names):
+    """Register an operator property of an operator.
+
+
+    Parameters
+    ----------
+    op_name : str
+        The name of operator
+
+    attr_key : str
+        The attribute name.
+
+    value : object, optional
+        The value to set
+
+    level : int, optional
+        The priority level
+
+    Returns
+    -------
+    fregister : function
+        Register function if value is not specified.
+    """
+    fake_map = {}
+    for name in op_names:
+        fake_map[name] = LocalVar(name)
+    if isinstance({}, dict):
+        fake_map = None
+    return [] # _CompileOpsToModule(fake_map)
+
+# TODO(@jroesch): We should port to C++, just need to figure out how to write this code.
+@register_func("relay.opt.compile_ops")
+def _compile_ops(op_impls):
+    lowered = []
+    for local, sch, inputs in op_impls:
+        lfn = tvm.lower(sch, inputs, name=local.name_hint)
+        lowered.append(lfn)
+
+    # TOOD(@jroesch): Where should we read these settings from
+    return tvm.build(lowered, target='llvm', target_host=tvm.cpu(0))
 
 _init_api("relay.op", __name__)
 

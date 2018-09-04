@@ -31,3 +31,6 @@ class Environment(NodeBase):
             return _env.Environment_Lookup_str(self, var)
         else:
             return _env.Environment_Lookup(self, var)
+    
+    def transform(self, transformer):
+        _env.Environment_Transform(self, transformer)

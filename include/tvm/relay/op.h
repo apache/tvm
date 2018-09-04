@@ -34,7 +34,7 @@ class OpNode : public relay::ExprNode {
  public:
   /*! \brief name of the operator */
   std::string name;
-
+  /*! \brief the type of the operator */
   Type op_type;
   /*!
    * \brief detailed description of the operator
@@ -62,6 +62,7 @@ class OpNode : public relay::ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name", &name);
+    v->Visit("op_type", &op_type);
     v->Visit("description", &description);
     v->Visit("arguments", &arguments);
     v->Visit("attrs_type_key", &attrs_type_key);

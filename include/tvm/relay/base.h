@@ -154,6 +154,18 @@ RefType GetRef(const NodeType* ptr) {
   return RefType(const_cast<NodeType*>(ptr)->shared_from_this());
 }
 
+/*!
+ * \brief Get PackedFunction from global registry and
+ *  report error if it does not exist
+ * \param name The name of the function.
+ * \return The created PackedFunc.
+ */
+inline const PackedFunc& GetPackedFunc(const std::string& name) {
+  const PackedFunc* pf = tvm::runtime::Registry::Get(name);
+  CHECK(pf != nullptr) << "Cannot find function " << name << " in registry";
+  return *pf;
+}
+
 }  // namespace relay
 }  // namespace tvm
 

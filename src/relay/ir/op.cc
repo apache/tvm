@@ -1,4 +1,8 @@
+#include <tvm/relay/type.h>
 #include <tvm/relay/op.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/packed_func.h>
+
 #include <mutex>
 #include <memory>
 
@@ -131,6 +135,56 @@ TVM_REGISTER_API("relay.op._Register")
       }
     }
   });
+
+bool IsGeneric(const Op& op) {
+  if (auto ty_func = op.as<FuncTypeNode>()) {
+    return ty_func->type_params.size() == 0;
+  } else {
+    return false;
+  }
+}
+
+using namespace runtime;
+
+Module CompileOpsToModule(const std::vector<std::string> & op_names) {
+  PackedFunc compile_ops = GetPackedFunc("relay.op.compile_ops");
+  tvm::Array<tvm::Array<NodeRef>> args;
+
+  auto compiler_map = Op::GetAttr<PackedFunc>("FRelayOpCompiler");
+
+  for (auto op_name : op_names) {
+    Op op = Op::Get(op_name);
+
+    if (IsGeneric(op)) {
+      auto compiler = compiler_map[op];
+      tvm::Array<NodeRef> pair =
+          compiler(op->name, op->op_type);
+      //TODO(@jroesch): I can't pass strings across what should be the interface here.
+      tvm::Array<NodeRef> triple = {LocalVarNode::make(op->name), pair[0], pair[1]};
+      args.push_back(triple);
+    } else {
+      throw dmlc::Error("it is impossible to compile generic operators.");
+    }
+  }
+
+  // Nothing to do, bail out earlier.
+  // TVM will complain if we try to generate a module of size 0.
+  if (args.size() == 0) {
+    return Module(nullptr);
+  }
+
+  return compile_ops(args);
+}
+
+TVM_REGISTER_API("relay.op._CompileOpsToModule")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  tvm::Map<std::string, NodeRef> map = args[0];
+  std::vector<std::string> names;
+  for (auto pair : map) {
+    names.push_back(pair.first);
+  }
+  *ret = CompileOpsToModule(names);
+});
 
 }  // namespace relay
 }  // namespace tvm

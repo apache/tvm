@@ -271,6 +271,7 @@ class CallNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("op", &op);
     v->Visit("args", &args);
+    v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
     v->Visit("span", &span);
   }

@@ -211,6 +211,9 @@ CheckedExpr TypeInferencer::VisitExpr_(const TupleNode *op) {
 
 CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
   auto rtype = resolve(param->type);
+  // This is a special case ... not sure if there is a better way
+  // to handle this.
+  param->var->checked_type_ = rtype;
   return {ParamNode::make(param->var, rtype), rtype};
 }
 
@@ -545,7 +548,7 @@ Expr TypeInferencer::resolve(const Expr& e) {
 Expr InferType(const Environment &env, const Expr &e) {
   TypeInferencer ti(env);
   auto checked_expr = ti.Infer(e);
-  return checked_expr.expr;
+  return ti.resolve(checked_expr.expr);
 }
 
 Expr InferType(const Environment &env, const GlobalVar & var, const Function & func) {
@@ -556,7 +559,7 @@ Expr InferType(const Environment &env, const GlobalVar & var, const Function & f
   auto checked_expr = ti.Infer(func);
   auto map_node = env->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
-  return checked_expr.expr;
+  return ti.resolve(checked_expr.expr);
 }
 
 

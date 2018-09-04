@@ -25,8 +25,12 @@ def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
         raise Exception(f"unsupported argument type {type(arg)}")
 
 def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
-    if isinstance(arg, tuple):
+    if isinstance(arg, Expr):
+        return arg
+    elif isinstance(arg, tuple):
         raise Exception("..")
+    elif isinstance(arg, PartialFunc):
+        return arg.to_func()
     else:
         value = convert(arg, ctxt)
         return Constant(value)
@@ -114,10 +118,11 @@ class IRBuilder():
 
     def function(self, *params):
         relay_params = []
-        for name, ty in params:
-            lv = LocalVar(name)
-            self.scopes[-1][name] = lv
-            relay_params.append(Param(lv, ty))
+        for param in params:
+            name = param.var
+            ty = param.type
+            self.scopes[-1][name.name_hint] = name
+            relay_params.append(Param(name, ty))
 
         # self.params.append(relay_params)
 
@@ -135,7 +140,7 @@ class IRBuilder():
 
     def ret(self, x):
         if not self.ret_values[-1]:
-            self.ret_values[-1] = x
+            self.ret_values[-1] = into_ast(x)
         else:
             raise Exception(
                 "return value already set, a function can only have one return value")
