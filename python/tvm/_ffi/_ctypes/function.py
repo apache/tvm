@@ -230,6 +230,7 @@ C_TO_PY_ARG_SWITCH[TypeCode.MODULE_HANDLE] = _wrap_arg_func(
     _return_module, TypeCode.MODULE_HANDLE)
 C_TO_PY_ARG_SWITCH[TypeCode.ARRAY_HANDLE] = lambda x: _make_array(x.v_handle, True)
 C_TO_PY_ARG_SWITCH[TypeCode.NDARRAY_CONTAINER] = lambda x: _make_array(x.v_handle, False)
+C_TO_PY_ARG_SWITCH[TypeCode.TVM_CONTEXT] = lambda x: x.v_ctx
 
 _CLASS_MODULE = None
 _CLASS_FUNCTION = None

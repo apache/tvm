@@ -4,14 +4,15 @@ from __future__ import absolute_import as _abs
 
 import ctypes
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray, TypeCode
+from ..runtime_ctypes import TVMByteArray, TypeCode, TVMContext
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
     _fields_ = [("v_int64", ctypes.c_int64),
                 ("v_float64", ctypes.c_double),
                 ("v_handle", ctypes.c_void_p),
-                ("v_str", ctypes.c_char_p)]
+                ("v_str", ctypes.c_char_p),
+                ('v_ctx', TVMContext)]
 
 
 TVMPackedCFunc = ctypes.CFUNCTYPE(
