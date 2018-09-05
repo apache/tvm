@@ -35,7 +35,7 @@ class OpNode : public relay::ExprNode {
   /*! \brief name of the operator */
   std::string name;
   /*! \brief the type of the operator */
-  Type op_type;
+  mutable FuncType op_type;
   /*!
    * \brief detailed description of the operator
    *  This can be used to generate docstring automatically for the operator.

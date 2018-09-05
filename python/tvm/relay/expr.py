@@ -10,7 +10,16 @@ from ._ir_pass import _get_checked_type
 from . import _make
 
 class ExprBuilder():
+    # def convert_args(self, 
     def __call__(self, *args, **kwargs):
+        converted_args = []
+        for arg in args:
+            import pdb; pdb.set_trace()
+            if isinstance(arg, Param):
+                converted_args.append(arg.var)
+            else:
+                converted_args.append(arg)
+
         return Call(self, args, None, None)
 
 class Expr(NodeBase, ExprBuilder):

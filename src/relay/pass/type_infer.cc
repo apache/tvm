@@ -210,6 +210,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const TupleNode *op) {
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
+  // We should trigger error here and move param code direclty into function checking.
   auto rtype = resolve(param->type);
   // This is a special case ... not sure if there is a better way
   // to handle this.

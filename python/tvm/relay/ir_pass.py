@@ -13,9 +13,10 @@ import tvm
 from .expr import Expr
 from .expr import Function, Let, Call, LocalVar
 from .expr import GlobalVar, If, Constant
-from .type import Type
+from .type import Type, TypeParam
 from .env import Environment
 from .op import Op
+from .op.op import specialize_op
 # import relay.make as relay_mk
 # from relay import ir
 # from relay.env import Environment
@@ -126,7 +127,7 @@ class ExprVisitor(AbstractExprVisitor[Expr]):
         return Let(new_var, new_val, new_body, new_value_type)
 
     def visit_call(self, call: Call) -> Expr:
-        new_fn = self.visit(call.fn)
+        new_fn = self.visit(call.op)
         new_args = [self.visit(arg) for arg in call.args]
         return Call(new_fn, new_args, call.attrs)
 
@@ -148,7 +149,7 @@ class ExprVisitor(AbstractExprVisitor[Expr]):
     def visit_constant(self, const: Constant) -> Expr:
         return const
 
-MMCacheKey = Tuple[GlobalVar, List[Type]]
+MMCacheKey = Tuple[Union[GlobalVar, str], List[Type]]
 
 class Monomorphize(ExprVisitor):
     """A monomorphization pass.
@@ -168,60 +169,54 @@ class Monomorphize(ExprVisitor):
 
     # pylint: disable=no-else-return
     def visit_call(self, call: Call) -> Expr:
-        import pdb; pdb.set_trace()
-        # cache_key = (call.fn, call.ty_args)
-        # if isinstance(call.fn, OperatorId):
-        #     if cache_key in self.monomorph_map:
-        #         op = self.monomorph_map[cache_key]
-        #         new_args = [self.visit(arg) for arg in call.args]
-        #         return Call(op, new_args, call.attrs)
-        #     else:
-        #         new_name = mangle(call.fn.name, call.ty_args)
-        #         new_id = self.env.operator_id(new_name)
-        #         self.monomorph_map[cache_key] = new_id
-        #         op = self.env.lookup(call.fn)
-        #         for arg in call.ty_args:
-        #             if isinstance(arg, TypeParam):
-        #                 return call # raise Exception("...") # Fix me in the morning!!!
-        #         new_op = concretize(new_id, op, call.ty_args, call.attrs)
-        #         self.monomorph_map[cache_key] = new_op.id
-        #         self.env.add(new_op)
-        #         new_args = [self.visit(arg) for arg in call.args]
-        #         return Call(new_op.id, new_args, call.attrs)
-        # elif isinstance(call.fn, GlobalVar):
-        #     if cache_key in self.monomorph_map:
-        #         op_name = self.monomorph_map[cache_key]
-        #         new_args = [self.visit(arg) for arg in call.args]
-        #         return Call(op_name, new_args, call.attrs)
-        #     else:
-        #         defn = self.env.lookup(call.fn)
-        #         new_id = self.env.global_id(defn.id.name + str(1))
-        #         cache_key = (call.fn, call.ty_args)
-        #         self.monomorph_map[cache_key] = new_id
-        #         new_body = self.visit(type_specialize(call.ty_args, defn.body))
-        #         new_body = Function(
-        #             [], new_body.params, new_body.ret_type, new_body.body)
-        #         new_ty = check_expr(self.env, new_body)
-        #         # TODO(@jroesch): move into C++
-        #         # TODO(@joresch): implement and call name mangler
-        #         defn = Defn(new_id, new_ty, new_body)
-        #         self.env.add(defn)
-        #         self.visit_item(defn)
-        #         return Call(new_id, call.args, call.attrs)
-        # elif isinstance(call.fn, Function):
-        #     new_args = [self.visit(arg) for arg in call.args]
-        #     new_func = type_specialize(call.ty_args, call.fn)
-        #     new_func = self.visit(new_func)
-        #     new_func = Function([],
-        #                                  new_func.params,
-        #                                  new_func.ret_type,
-        #                                  new_func.body)
-        #     check_expr(self.env, new_func)
-        #     return Call(new_func, call.args, call.attrs)
-        # else:
-        #     new_fn = self.visit(call.fn)
-        #     new_args = [self.visit(arg) for arg in call.args]
-        #     return Call(new_fn, new_args, call.attrs)
+        cache_key = (call.op, call.type_args)
+        new_args = [self.visit(arg) for arg in call.args]
+
+        if cache_key in self.monomorph_map:
+            op = self.monomorph_map[cache_key]
+            new_args = [self.visit(arg) for arg in call.args]
+            return Call(op, new_args, call.attrs)
+        else:
+            if isinstance(call.op, Op):
+                poly_name = call.op.name
+                mono_name = mangle(poly_name, call.type_args)
+                for arg in call.type_args:
+                    if isinstance(arg, TypeParam):
+                        return call # raise Exception("...") # Fix me in the morning!!!
+
+                mono_op = specialize_op(poly_name, mono_name, call.type_args)
+                self.monomorph_map[cache_key] = mono_op
+                return Call(mono_op, new_args,call.attrs, [])
+            elif isinstance(call.op, GlobalVar):
+                return call
+                # defn = self.env.lookup(call.op)
+                # new_id = self.env.global_id(defn.id.name + str(1))
+                # cache_key = (call.op, call.type_args)
+                # self.monomorph_map[cache_key] = new_id
+                # new_body = self.visit(type_specialize(call.type_args, defn.body))
+                # new_body = Function(
+                #     [], new_body.params, new_body.ret_type, new_body.body)
+                # new_ty = check_expr(self.env, new_body)
+                # # TODO(@jroesch): move into C++
+                # # TODO(@joresch): implement and call name mangler
+                # defn = Defn(new_id, new_ty, new_body)
+                # self.env.add(defn)
+                # self.visit_item(defn)
+                # return Call(new_id, call.args, call.attrs)
+                
+            elif isinstance(call.op, Function):
+                return call
+                # new_func = type_specialize(call.type_args, call.op)
+                # new_func = self.visit(new_func)
+                # new_func = Function([],
+                #                          new_func.params,
+                #                          new_func.ret_type,
+                #                          new_func.body)
+                # check_expr(self.env, new_func)
+                # return Call(new_func, call.args, call.attrs)
+            else:
+                new_fn = self.visit(call.op)
+                return Call(new_fn, new_args, call.attrs)
 
 
 # TODO(@jroesch): Fix up my type

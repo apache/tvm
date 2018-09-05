@@ -1,11 +1,11 @@
 """A compiler from Relay programs to TVM's graph runtime.
 """
 import json
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Set
 
 import attr
 from .ir_pass import AbstractExprVisitor
-from .op import compile_ops
+from .op import compile_ops, Op
 from .type import TensorType
 from .expr import LocalVar, Function, Let, Call
 
@@ -69,23 +69,23 @@ class OpNode(Node):
         }
 
 
+def shape_to_json(shape):
+    return [str(sh.value) for sh in shape]
+
 def from_tensor(typ: TensorType) -> Tuple[str, List[int]]:
-    dtype = typ.dtype.dtype
-    shape = typ.shape
-    dims = []
-    for dim in shape.shapes:
-        dims.append(dim.value)
-    return dtype, dims
+    return (typ.dtype, shape_to_json(typ.shape))
 
 
 class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
     """The compiler from Relay to the TVM runtime system."""
     nodes: List[Node]
     id_map: Dict[LocalVar, NodeRef]
+    all_ops: Set[Op]
 
     def __init__(self) -> None:
         self.nodes = []
         self.id_map = {}
+        self.all_ops = set()
 
     def add_node(self, node: Node) -> NodeRef:
         self.nodes.append(node)
@@ -116,11 +116,11 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
 
         for param in params:
             dtype, shape = from_tensor(param.type)
-            node = InputNode(f"{param.id.name}", {
+            node = InputNode(f"{param.var.name_hint}", {
                 "shape": shape,
                 "dtype": dtype,
             })
-            self.let_bind(param.id, node)
+            self.let_bind(param.var, node)
 
         # Then we compile the body into a graph which can depend
         # on input variables.
@@ -150,7 +150,7 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         self.add_binding(ident, val_ref)
         return self.visit(body)
 
-    def visit_local_id(self, ident: LocalVar) -> NodeRef:
+    def visit_local_var(self, ident: LocalVar) -> NodeRef:
         return self.lookup(ident)
 
     def visit_call(self, call: Call) -> NodeRef:
@@ -158,9 +158,13 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         for arg in call.args:
             inputs.append(self.visit(arg).to_json())
 
-        # need to deal with name mangle
-        op_name = call.fn.name
-        op_node = OpNode("call_name", {}, op_name, inputs, {})
+        assert isinstance(call.op, Op)
+        self.all_ops.add(call.op.name)
+
+        op_name = call.op.name
+        attrs = { 'shape': shape_to_json(call.checked_type().shape),
+                  'dtype': call.checked_type().dtype }
+        op_node = OpNode("call_name", attrs, op_name, inputs, {})
         return self.add_node(op_node)
 
     def to_json(self) -> str:
@@ -221,18 +225,16 @@ def compile(func):
     """Compile a single function to the components needed by the
        TVM RTS.
     """
-    op_names = []
-
-    # # Why do I need to call items?
-    # for op in env.operators():
-    #     if not Operator_is_generic(op):
-    #         iids.append(op.id)
-
-    # TODO(@jroesch): Need to write test case for this
-    print("above")
-    mod = compile_ops(op_names)
-    print("below")
     comp = TVMRTSCompiler()
     comp.compile(func)
+    op_names = list(comp.all_ops)
+    mod = compile_ops(op_names)
     graph_json = comp.to_json()
-    return graph_json, mod, None  # params currently isn't supported by API
+    try:
+        import nnvm
+        graph = nnvm.graph.load_json(graph_json)
+    except Exception as e:
+        import traceback
+        traceback.print_tb(e.__traceback__)
+        import pdb; pdb.set_trace()
+    return graph, mod, None  # params currently isn't supported by API

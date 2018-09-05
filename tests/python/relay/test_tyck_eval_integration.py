@@ -1,6 +1,9 @@
 """Test that type checker correcly computes types
    for expressions.
 """
+import tvm
+import numpy as np 
+from nnvm import graph
 from tvm.relay.ir_pass import check_expr
 from tvm.relay.ir_builder import IRBuilder, float_type, int_type
 from tvm.relay.ir_builder import func_type, tensor_type, into_ast
@@ -9,6 +12,7 @@ from tvm.relay.ir_pass import Monomorphize
 from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.expr import Function
 from tvm.relay import to_tvm
+from tvm.contrib import graph_runtime
 
 def has_type(expr, typ, env=Environment({})):
     checked_expr = check_expr(env, expr)
@@ -19,14 +23,18 @@ def decl_has_type(env, name, typ):
     return func.checked_type() == typ
     
 
-def run(env, expr):
+def run(env, expr, inputs, shape):
     if not isinstance(expr, Function):
         expr = Function([], None, expr, [])
 
     env.add("main", expr)
     env.transform(Monomorphize.to_pass())
     main = env.lookup("main")
-    graph_json, mod, _ = to_tvm.compile(main)
+    graph, lib, _ = to_tvm.compile(main)
+    module = graph_runtime.create(graph, lib, tvm.cpu(0))
+    module.set_input(None, None, **inputs)
+    module.run()
+    out = module.get_output(0, out=tvm.nd.array(shape))
     import pdb; pdb.set_trace()
 
 def test_monomorphic_let():
@@ -59,13 +67,15 @@ def test_binary_op():
     x = b.param('x', tensor_type(5, 5, 5))
     y = b.param('y', tensor_type(5, 5, 5))
     with b.function(x, y) as func:
-        b.ret(add(x, y))
+        b.ret(add(x.var, y.var))
     b.ret(func)
     prog, env = b.get()
     ttype = tensor_type(5, 5, 5)
     expected_ty = func_type([ttype, ttype], ttype)
     assert has_type(func.to_func(), expected_ty)
-    run(env, prog)
+    x_data = np.random.rand(5, 5, 5)
+    y_data = np.random.rand(5, 5, 5)
+    run(env, prog, { 'x': x_data, 'y': y_data }, (5, 5, 5))
 
 def test_dual_op():
     """Program: 

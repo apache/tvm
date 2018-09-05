@@ -22,7 +22,12 @@ if sys.version_info[0] == 3:
     numeric_types = (float, int, np.float32, np.int32)
     # this function is needed for python3
     # to convert ctypes.char_p .value back to python str
-    py_str = lambda x: x.decode('utf-8')
+    def py_str(x):
+        try:
+            return x.decode('utf-8')
+        except:
+            print(x)
+    # py_str = lambda x: x.decode('utf-8')
 else:
     string_types = basestring
     numeric_types = (float, int, long, np.float32, np.int32)
