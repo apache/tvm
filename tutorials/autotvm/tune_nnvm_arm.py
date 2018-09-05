@@ -212,9 +212,11 @@ tuning_option = {
 #
 # .. note:: How to set tuning options
 #
-#   In general, the default value provided here works well.
-#   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
+#   In general, the default values provided here work well.
+#   If you have enough time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
 #   which makes the tuning run longer.
+#   If your device runs very slow or your conv2d operators have many GFLOPs, considering to
+#   set timeout larger.
 #
 
 ###################################################################

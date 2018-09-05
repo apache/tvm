@@ -101,6 +101,10 @@ def test_conv2d_nchw():
     # dilation = 2
     verify_conv2d_nchw(1, 64, 56, 64, 3, 1, 1, dilation=2)
 
+    # batch size
+    verify_conv2d_nchw(4, 64, 56, 64, 3, 1, 1)
+    verify_conv2d_nchw(9, 64, 56, 64, 3, 1, 1)
+
     # weird workloads
     verify_conv2d_nchw(2, 2, 2, 2, 2, 2, 2)
     verify_conv2d_nchw(3, 3, 3, 3, 3, 3, 3)

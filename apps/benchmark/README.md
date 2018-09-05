@@ -7,15 +7,15 @@ See results on wiki page https://github.com/dmlc/tvm/wiki/Benchmark
 ## How to Reproduce
 
 To obtain the best performance, we always do auto-tuning for the specific devices and get
-the parameters for used kernels. We release some pre-tuned networks on some devices
-so users can easily reproduce our results. TVM will download related tuning cache files
-during compilation.
+the parameters for used kernels. To enable easy reproduction of our results, we release
+pre-tuned parameters for popular networks on some common devices.
+TVM will download related tuning cache files during compilation.
 
 If you don't have the following listed devices, you can still run these scripts.
 You can pick the one that is most similar to your device as argument.
 In general, the performance should also be good.
 
-For your custom devices and networks, we recommend that you tune it by yourself.
+It is recommended that you run tuning by yourself if you have your customized network or devices.
 Please follow the tutorial for
 [NVIDIA GPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_cuda.html),
 [ARM CPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html),
@@ -26,15 +26,8 @@ Please follow the tutorial for
 Build TVM with LLVM and CUDA enabled. [Help](https://docs.tvm.ai/install/from_source.html)
 
 ```bash
-python3 gpu_imagenet_benchmark.py --model 1080ti
-python3 gpu_imagenet_benchmark.py --model titanx
-```
-
-### AMD GPU
-
-Build TVM with LLVM and ROCm enabled. [Help](https://docs.tvm.ai/install/from_source.html)
-```bash
-python3 gpu_imagenet_benchmark.py --model gfx900 --target rocm
+python3 gpu_imagenet_bench.py --model 1080ti
+python3 gpu_imagenet_bench.py --model titanx
 ```
 
 ### ARM CPU & Mali GPU
@@ -96,3 +89,10 @@ python3 -m tvm.exec.rpc_tracker
   # Mali GPU
   python3 mobile_gpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
   ```
+
+### AMD GPU
+
+Build TVM with LLVM and ROCm enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+```bash
+python3 gpu_imagenet_bench.py --model gfx900 --target rocm
+```

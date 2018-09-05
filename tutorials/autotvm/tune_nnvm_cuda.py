@@ -342,7 +342,7 @@ def tune_and_evaluate(tuning_opt):
 #
 #   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
 #
-# For example, if we have four 1080ti, two titanx and one gfx800, the output can be
+# For example, if we have four 1080ti, two titanx and one gfx900, the output can be
 #
 # .. code-block:: bash
 #
