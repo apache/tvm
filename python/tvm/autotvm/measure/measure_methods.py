@@ -72,11 +72,14 @@ class LocalBuilder(Builder):
                 raise ValueError("Invalid build_func" + build_func)
 
         self.build_func = build_func
-        self.tmp_dir = tempfile.mkdtemp()
         self.executor = LocalExecutor(timeout=timeout)
+        self.tmp_dir = tempfile.mkdtemp()
 
     def build(self, measure_inputs):
         results = []
+
+        shutil.rmtree(self.tmp_dir)
+        self.tmp_dir = tempfile.mkdtemp()
 
         for i in range(0, len(measure_inputs), self.n_parallel):
             futures = []
@@ -95,7 +98,7 @@ class LocalBuilder(Builder):
                     results.append(MeasureResult((res,), MeasureErrorNo.BUILD_TIMEOUT,
                                                  self.timeout, time.time()))
                 elif res.error is not None:
-                    # instantiation errorD
+                    # instantiation error
                     if isinstance(res.error, InstantiationError):
                         results.append(MeasureResult((res.error,),
                                                      MeasureErrorNo.INSTANTIATION_ERROR,
@@ -119,9 +122,6 @@ class LocalBuilder(Builder):
                     results.append(res)
 
         return results
-
-    def __del__(self):
-        shutil.rmtree(self.tmp_dir)
 
 
 class RPCRunner(Runner):

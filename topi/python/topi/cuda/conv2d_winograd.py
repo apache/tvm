@@ -166,7 +166,6 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
     kernel_pack, data_pack = s[bgemm].op.input_tensors
     input_tile, B = s[data_pack].op.input_tensors
     pad_data = s[input_tile].op.input_tensors[0]
-    data = s[pad_data].op.input_tensors[0]
 
     # data transform
     s[B].compute_inline()

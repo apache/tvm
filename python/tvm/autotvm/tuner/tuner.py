@@ -129,13 +129,12 @@ class Tuner(object):
                              res, config)
 
             i += len(results)
+            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
 
             self.update(inputs, results)
-
             for callback in callbacks:
                 callback(self, inputs, results)
 
-            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
             if i >= self.best_iter + early_stopping:
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
