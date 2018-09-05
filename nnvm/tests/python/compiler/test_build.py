@@ -94,9 +94,61 @@ def test_dtypes():
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
 
+def test_ndarray_output():
+    x = sym.Variable("x")
+    y = sym.Variable("y")
+    z = x + y
+    shape = (10, 10)
+    dtype = tvm.float32
+    nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    params = {"x": nx, "ny": ny}
+    graph, lib, params = nnvm.compiler.build(
+        z, "llvm", shape={"y": ny.shape, "x": nx.shape}, params=params)
+    m = graph_runtime.create(graph, lib, tvm.cpu(0))
+    m.set_input("x", nx)
+    m.set_input("y", ny)
+    m.run()
+    out = m.get_output(0)
+    np.testing.assert_allclose(
+        out.asnumpy(), nx.asnumpy() + ny.asnumpy())
+
+def test_ndarray_input():
+    x = sym.Variable("x")
+    y = sym.Variable("y")
+    z = x + y
+    shape = (2, 2)
+    dtype = tvm.float32
+    nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    params = {"x": nx, "ny": ny}
+    graph, lib, params = nnvm.compiler.build(
+        z, "llvm", shape={"y": ny.shape, "x": nx.shape}, params=params)
+    m = graph_runtime.create(graph, lib, tvm.cpu(0))
+    m.set_input("x", nx)
+    m.set_input("y", ny)
+    in_x = m.get_input("x")
+    in_y = m.get_input("y")
+    np.testing.assert_allclose(nx.asnumpy(), in_x.asnumpy())
+    np.testing.assert_allclose(ny.asnumpy(), in_y.asnumpy())
+
+def test_num_outputs():
+    x = sym.Variable('x')
+    z = sym.split(x, indices_or_sections=5, axis=1)
+    shape = (10, 10)
+    dtype = tvm.float32
+    nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
+    params = {"x": nx}
+    graph, lib, params = nnvm.compiler.build(
+        z, "llvm", shape={"x": nx.shape}, params=params)
+    m = graph_runtime.create(graph, lib, tvm.cpu(0))
+    assert m.get_num_outputs() == 5
 
 if __name__ == "__main__":
     test_precompute_prune()
     test_compile()
     test_run()
     test_dtypes()
+    test_ndarray_output()
+    test_ndarray_input()
+    test_num_outputs()
