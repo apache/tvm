@@ -6,7 +6,7 @@ import tvm
 def _intrin_reduce4int8_common(vec_size, num_elements_intel):
     data = tvm.placeholder((num_elements_intel,), dtype='uint8', name='data')
     kernel = tvm.placeholder((vec_size, num_elements_intel), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, 4), name='k')
+    k = tvm.reduce_axis((0, num_elements_intel), name='k')
     C = tvm.compute((vec_size,),
                     lambda i: tvm.sum(data[k].astype('int32') *
                                       kernel[i, k].astype('int32'),
@@ -55,7 +55,7 @@ def _intrin_reduce4int8_common(vec_size, num_elements_intel):
 def _intrin_reduce4int8_1x1(vec_size, num_elements_intel):
     data = tvm.placeholder((num_elements_intel,), dtype='uint8', name='data')
     kernel = tvm.placeholder((vec_size, num_elements_intel, 1, 1), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, 4), name='k')
+    k = tvm.reduce_axis((0, num_elements_intel), name='k')
     C = tvm.compute((vec_size,), \
                     lambda i: tvm.sum(data[k].astype('int32') *
                                       kernel[i, k, 0, 0].astype('int32'),
