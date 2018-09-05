@@ -2,7 +2,7 @@
 TopHub: Tensor Operator Hub
 To get the best performance, we typically need auto-tuning for the specific devices.
 TVM releases pre-tuned parameters in TopHub for some common networks and hardware targets.
-TVM will download these parameters for you when you create the target for the first time.
+TVM will download these parameters for you when you call nnvm.compiler.build_module .
 """
 # pylint: disable=invalid-name
 
@@ -20,11 +20,14 @@ AUTOTVM_TOPHUB_ROOT_PATH = os.path.join(os.path.expanduser('~'), ".tvm", "tophub
 
 # the version of each package
 PACKAGE_VERSION = {
-    'vta':     "v0.01",
     'arm_cpu': "v0.01",
+
     'cuda':    "v0.02",
     'rocm':    "v0.01",
+    'opencl':  "v0.01",
     'mali':    "v0.01",
+
+    'vta':     "v0.01",
 }
 
 logger = logging.getLogger('autotvm')
@@ -34,8 +37,7 @@ def _alias(name):
     table = {
         'vtacpu': 'vta',
 
-        'opencl': 'cuda',
-        'metal': 'cuda',
+        'metal': 'opencl',
         'nvptx': 'cuda'
     }
     return table.get(name, name)

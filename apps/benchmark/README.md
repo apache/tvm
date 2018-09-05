@@ -13,7 +13,7 @@ during compilation.
 
 If you don't have the following listed devices, you can still run these scripts.
 You can pick the one that is most similar to your device as argument.
-By this way you can verify the environment setting, but we cannot guarantee the performance.
+In general, the performance should also be good.
 
 For your custom devices and networks, we recommend that you tune it by yourself.
 Please follow the tutorial for
@@ -23,14 +23,25 @@ Please follow the tutorial for
 
 ### NVIDIA GPU
 
+Build TVM with LLVM and CUDA enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+
 ```bash
-python3 nvidia_gpu_imagenet_benchmark.py --model 1080ti
-python3 nvidia_gpu_imagenet_benchmark.py --model titanx
+python3 gpu_imagenet_benchmark.py --model 1080ti
+python3 gpu_imagenet_benchmark.py --model titanx
+```
+
+### AMD GPU
+
+Build TVM with LLVM and ROCm enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+```bash
+python3 gpu_imagenet_benchmark.py --model gfx900 --target rocm
 ```
 
 ### ARM CPU & Mali GPU
-We use RPC infrastructure in TVM to make the management of embedded devices easy.
+For embedded deivces, we use RPC infrastructure in TVM to make the management easy.
 So you need to use it for reproducing benchmark results.
+
+0. Build TVM with LLVM enabled. [Help](https://docs.tvm.ai/install/from_source.html)
 
 1. Start an RPC Tracker on the host machine
 ```bash
@@ -85,4 +96,3 @@ python3 -m tvm.exec.rpc_tracker
   # Mali GPU
   python3 mobile_gpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
   ```
-
