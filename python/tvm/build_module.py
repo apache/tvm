@@ -368,7 +368,7 @@ def lower(sch,
         cfg.unroll_explicit)
     for f in lower_phase2:
         stmt = f(stmt)
-    # Phase 2
+    # Phase 3
     stmt = ir_pass.Simplify(stmt)
     stmt = ir_pass.LowerStorageAccessInfo(stmt)
     stmt = ir_pass.RemoveNoOp(stmt)
