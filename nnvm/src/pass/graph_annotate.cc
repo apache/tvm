@@ -38,8 +38,6 @@ nnvm::Graph AnnotateHeterogeneousGraph(nnvm::Graph g) {
   DFSVisit(g.outputs, [&annotate_prop, &g](const nnvm::NodePtr &node) {
     const auto &selector = annotate_prop->CreateAnnotationOpSelector();
     DLDeviceType device = selector->Select(node.get());
-    // Fallback to default device if a device is not found for the operator.
-    device = device != kDLInvalid ? device : tvm::runtime::kDLDefaultDevice;
     const auto &device_name = tvm::runtime::DeviceName(device);
     const auto &target_ctx = "target" + device_name;
     CHECK(g.HasAttr(target_ctx))
@@ -68,7 +66,7 @@ nnvm::Graph AdjustAnnotation(nnvm::Graph g) {
                                    "Annotation pass before adjustment.";
 
   DFSVisit(g.outputs, [](const nnvm::NodePtr& node) {
-    if (node->is_variable() || node->attrs.device == kDLInvalid) return;
+    if (node->is_variable()) return;
 
     for (const auto& e : node->inputs) {
       if (e.node->op()) continue;
@@ -107,13 +105,6 @@ nnvm::Graph AnnotateGraph(nnvm::Graph&& g) {
     if (g.HasAttr("annotate_device")) {
       g = AdjustAnnotation(g);
       g = nnvm::ApplyPass(g, "PlaceDataCopy");
-
-      // Fallback the node to the default device if it is not set.
-      DFSVisit(g.outputs, [](const nnvm::NodePtr &node) {
-        if (node->attrs.device == kDLInvalid) {
-          node->attrs.device = tvm::runtime::kDLDefaultDevice;
-        }
-      });
     }
   }
 
