@@ -14,7 +14,7 @@ The whole workflow is illustrated by a matrix multiplication example.
 
 ######################################################################
 # Install dependencies
-# ----------------------------------------
+# --------------------
 # To use autotvm package in tvm, we need to install some extra dependencies.
 # (change "3" to "2" if you use python2):
 #
@@ -44,7 +44,7 @@ from tvm import autotvm
 
 ######################################################################
 # Step 1:  Define the search space
-# ---------------------------------
+# --------------------------------
 # In this section, we will rewrite a deterministic tvm schedule code to a
 # tunable schedule template. You can regard the process of search space definition
 # as the parametrization of our exiting schedule code.
@@ -73,7 +73,7 @@ def matmul_v0(N, L, M, dtype):
 
 #####################################################################
 # Parametrize the schedule
-# ^^^^^^^^^^^^^^^^^^^^^^^^^
+# ^^^^^^^^^^^^^^^^^^^^^^^^
 # In the previous schedule code, we use a constant "8" as tiling factor.
 # However, it might not be the best one because the best tiling factor depends
 # on real hardware environment and input shape.

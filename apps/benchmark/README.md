@@ -6,8 +6,35 @@ See results on wiki page https://github.com/dmlc/tvm/wiki/Benchmark
 
 ## How to Reproduce
 
-### ARM CPU
-We use RPC infrastructure in TVM to make device management easy. So you need to use it for reproducing benchmark results.
+To obtain the best performance, we always do auto-tuning for the specific devices and get
+the parameters for used kernels. To enable easy reproduction of our results, we release
+pre-tuned parameters for popular networks on some common devices.
+TVM will download related tuning cache files during compilation.
+
+If you don't have the following listed devices, you can still run these scripts.
+You can pick the one that is most similar to your device as argument.
+In general, the performance should also be good.
+
+It is recommended that you run tuning by yourself if you have your customized network or devices.
+Please follow the tutorial for
+[NVIDIA GPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_cuda.html),
+[ARM CPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html),
+[Mobile GPU](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_mobile_gpu.html).
+
+### NVIDIA GPU
+
+Build TVM with LLVM and CUDA enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+
+```bash
+python3 gpu_imagenet_bench.py --model 1080ti
+python3 gpu_imagenet_bench.py --model titanx
+```
+
+### ARM CPU & Mali GPU
+For embedded deivces, we use RPC infrastructure in TVM to make the management easy.
+So you need to use it for reproducing benchmark results.
+
+0. Build TVM with LLVM enabled. [Help](https://docs.tvm.ai/install/from_source.html)
 
 1. Start an RPC Tracker on the host machine
 ```bash
@@ -50,24 +77,22 @@ python3 -m tvm.exec.rpc_tracker
   rasp3b       8      8     0
   ```
 
- 4. Run benchmark  
-  We did auto-tuning for Huawei P20/Mate10 Pro, Google Pixel2, Raspberry Pi3 and Firefly-RK3399,
-  and release pre-tuned parameters in [this repo](https://github.com/uwsaml/tvm-distro).
-  During compilation, TVM will download these operator parameters automatically.
-
+4. Run benchmark  
   ```bash
-  python3 arm_cpu_imagenet_bench.py --device rasp3b --rpc-key rasp3b
-  python3 arm_cpu_imagenet_bench.py --device rk3399 --rpc-key rk3399
-  python3 arm_cpu_imagenet_bench.py --device pixel2 --rpc-key pixel2
-  python3 arm_cpu_imagenet_bench.py --device p20pro --rpc-key p20pro
-  python3 arm_cpu_imagenet_bench.py --device mate10pro --rpc-key mate10pro  
+  # ARM CPU
+  python3 arm_cpu_imagenet_bench.py --model rasp3b --rpc-key rasp3b
+  python3 arm_cpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
+  python3 arm_cpu_imagenet_bench.py --model pixel2 --rpc-key pixel2
+  python3 arm_cpu_imagenet_bench.py --model p20pro --rpc-key p20pro
+  python3 arm_cpu_imagenet_bench.py --model mate10pro --rpc-key mate10pro  
+
+  # Mali GPU
+  python3 mobile_gpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
   ```
 
-  If your device has a same or similar SoC of the above devices, you can reuse these parameters.
-  For example, if your SoC is similar to rasp3b, use
-  ```bash
-  python3 arm_cpu_imagenet_bench.py --device rasp3b --rpc-key your_custom_key
-  ```
-  For other devices, to get the best performance, it is recommended that you tune your network by yourself. 
-  Please follow this [tutorial](https://docs.tvm.ai/tutorials/autotvm/tune_nnvm_arm.html).
+### AMD GPU
 
+Build TVM with LLVM and ROCm enabled. [Help](https://docs.tvm.ai/install/from_source.html)
+```bash
+python3 gpu_imagenet_bench.py --model gfx900 --target rocm
+```

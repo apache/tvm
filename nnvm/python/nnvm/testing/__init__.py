@@ -8,6 +8,7 @@ from . import mobilenet_v2
 from . import mlp
 from . import resnet
 from . import vgg
+from . import densenet
 from . import squeezenet
 from . import inception_v3
 from . import dcgan
