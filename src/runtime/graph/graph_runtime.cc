@@ -110,7 +110,7 @@ class GraphRuntime : public ModuleNode {
    *
    * \return The number of outputs from graph.
    */
-  int GetNumOutputs(void) {
+  int NumOutputs() {
     return outputs_.size();
   }
   /*!
@@ -119,10 +119,10 @@ class GraphRuntime : public ModuleNode {
    *
    * \return NDArray corresponding to given input node index.
    */
-  NDArray GetInputAsNDArray(int index) {
+  NDArray GetInput(int index) {
     CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
     uint32_t eid = this->entry_id(input_nodes_[index], 0);
-    return NDArray(data_entry_[eid]);
+    return data_entry_[eid];
   }
   /*!
    * \brief Return NDArray for given output index.
@@ -130,36 +130,18 @@ class GraphRuntime : public ModuleNode {
    *
    * \return NDArray corresponding to given output node index.
    */
-  NDArray GetOutputAsNDArray(int index) {
+  NDArray GetOutput(int index) {
     CHECK_LT(static_cast<size_t>(index), outputs_.size());
     uint32_t eid = this->entry_id(outputs_[index]);
     tvm::runtime::DeviceAPI::Get(ctx_)->StreamSync(ctx_, nullptr);
-    return NDArray(data_entry_[eid]);
-  }
-  /*!
-   * \brief Copy index-th input to data_out
-   * \param index The input index.
-   * \param data_out The output
-   */
-  void GetInputAsDLTensor(int index, DLTensor* data_out) {
-    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
-    uint32_t eid = this->entry_id(input_nodes_[index], 0);
-
-    // Check the shapes to avoid receiving in different dimension but same size.
-    const DLTensor* data = data_entry_[eid].operator->();
-    CHECK_EQ(data->ndim, data_out->ndim);
-    for (int32_t j = 0; j < data->ndim; ++j) {
-      CHECK_EQ(data->shape[j], data_out->shape[j]);
-    }
-
-    data_entry_[eid].CopyTo(data_out);
+    return data_entry_[eid];
   }
   /*!
    * \brief Copy index-th output to data_out.
    * \param index The output index.
    * \param data_out the output data.
    */
-  void GetOutputAsDLTensor(int index, DLTensor* data_out) {
+  void CopyOutputTo(int index, DLTensor* data_out) {
     CHECK_LT(static_cast<size_t>(index), outputs_.size());
     uint32_t eid = this->entry_id(outputs_[index]);
 
@@ -393,7 +375,6 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
-  void LoadNDArray(dmlc::Stream* strm, NDArray tensor);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
   /*! \brief Setup the executors */
@@ -446,14 +427,6 @@ class GraphRuntime : public ModuleNode {
   std::vector<std::function<void()> > op_execs_;
 };
 
-
-void GraphRuntime::LoadNDArray(dmlc::Stream* strm, NDArray dst) {
-  // always use strm->Read to maintain endianness conversion
-  NDArray temp;
-  temp.Load(strm);
-  dst.CopyFrom(temp);
-}
-
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   uint64_t header, reserved;
   CHECK(strm->Read(&header))
@@ -476,7 +449,10 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
-    LoadNDArray(strm, data_entry_[eid]);
+
+    NDArray temp;
+    temp.Load(strm);
+    data_entry_[eid].CopyFrom(temp);
   }
 }
 
@@ -603,9 +579,9 @@ PackedFunc GraphRuntime::GetFunction(
   } else if (name == "get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         if (args.num_args == 2) {
-          this->GetOutputAsDLTensor(args[0], args[1]);
+          this->CopyOutputTo(args[0], args[1]);
         } else {
-          *rv = this->GetOutputAsNDArray(args[0]);
+          *rv = this->GetOutput(args[0]);
         }
       });
   } else if (name == "get_input") {
@@ -617,15 +593,11 @@ PackedFunc GraphRuntime::GetFunction(
           in_idx = args[0];
         }
         CHECK_GE(in_idx, 0);
-        if (args.num_args == 2) {
-          this->GetInputAsDLTensor(in_idx, args[1]);
-        } else {
-          *rv = this->GetInputAsNDArray(in_idx);
-        }
+        *rv = this->GetInput(in_idx);
       });
   } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetNumOutputs();
+        *rv = this->NumOutputs();
       });
 #ifdef TVM_GRAPH_RUNTIME_DEBUG
   } else if (name == "debug_get_output") {

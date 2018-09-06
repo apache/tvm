@@ -135,7 +135,7 @@ class GraphModule(object):
             The output array container
         """
         if out:
-            self._get_input(index, out)
+            self._get_input(index).copyto(out)
             return out
 
         return self._get_input(index)

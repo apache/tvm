@@ -117,7 +117,7 @@ def test_ndarray_input():
     x = sym.Variable("x")
     y = sym.Variable("y")
     z = x + y
-    shape = (2, 2)
+    shape = (10, 10)
     dtype = tvm.float32
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
@@ -127,10 +127,16 @@ def test_ndarray_input():
     m = graph_runtime.create(graph, lib, tvm.cpu(0))
     m.set_input("x", nx)
     m.set_input("y", ny)
-    in_x = m.get_input("x")
-    in_y = m.get_input("y")
+    in_x = tvm.nd.empty(shape, dtype)
+    in_y = tvm.nd.empty(shape, dtype)
+    m.get_input("x", in_x)
+    m.get_input("y", in_y)
     np.testing.assert_allclose(nx.asnumpy(), in_x.asnumpy())
     np.testing.assert_allclose(ny.asnumpy(), in_y.asnumpy())
+    in_nx = m.get_input("x")
+    in_ny = m.get_input("y")
+    np.testing.assert_allclose(nx.asnumpy(), in_nx.asnumpy())
+    np.testing.assert_allclose(ny.asnumpy(), in_ny.asnumpy())
 
 def test_num_outputs():
     x = sym.Variable('x')
