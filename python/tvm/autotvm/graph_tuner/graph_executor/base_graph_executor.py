@@ -340,14 +340,14 @@ class BaseGraphExecutor(object):
                 record_list.append(results)
             return _callback
 
-        measure_func = "local"
+        builder=autotvm.LocalBuilder(n_parallel=1, build_func=build_func)
+        runner = autotvm.LocalRunner(number=min_exec_num, repeat=1)
         if use_rpc:
             if device_key is None:
                 raise RuntimeError("device_key need to be set to use rpc tracker mode.")
-            measure_func = autotvm.measure.rpc(device_key, host=host, port=port)
-        measure_option = autotvm.measure_option(measure_func, number=min_exec_num,
-                                                n_parallel=n_parallel, do_fork=do_fork,
-                                                build_func=build_func)
+            runner = autotvm.measure.RPCRunner(device_key, host, port, n_parallel=n_parallel, 
+                                               number=min_exec_num, repeat=1)
+        measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args, layout_transform_key in zip(args_list, layout_transform_key_list):
             if layout_transform_key in self._layout_transform_dict:
                 continue
@@ -356,7 +356,7 @@ class BaseGraphExecutor(object):
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[log_to_list(records)])
-            exec_time = records[0][0].costs[0] * 1000
+            exec_time = records[0][0].costs[0]
             self._layout_transform_dict[layout_transform_key] = exec_time
 
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict

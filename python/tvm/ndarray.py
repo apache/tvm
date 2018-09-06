@@ -5,6 +5,7 @@ the correctness of the program.
 """
 # pylint: disable=invalid-name,unused-import
 from __future__ import absolute_import as _abs
+import tvm
 import numpy as _np
 
 from ._ffi.function import register_func
@@ -200,7 +201,8 @@ def array(arr, ctx=cpu(0)):
     return empty(arr.shape, arr.dtype, ctx).copyfrom(arr)
 
 @register_func("tvm.nd.random_uniform")
-def random_uniform(size, dtype, ctx):
-    return array(_np.random.uniform(size=size).astype(dtype), ctx)
+def random_uniform(size, dtype, target):
+    size = [int(x) for x in size.split()]
+    return array(_np.random.uniform(size=size).astype(dtype), context(target))
 
 _set_class_ndarray(NDArray)
