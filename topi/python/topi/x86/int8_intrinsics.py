@@ -41,9 +41,10 @@ def _intrin_reduce4int8_common(vec_size, num_elements_intel):
                                                   'llvm.x86.avx512.pmaddw.d.512',
                                                   tvm.const(0, 'uint32'),
                                                   pair_reduction, vec_one)
-            vec_c = outs[0].vload([0], "int32x16")
-            out = quad_reduction + vec_c
-            ib.emit(outs[0].vstore(0, out))
+            if index == 0:
+                ib.emit(outs[0].vstore(0, quad_reduction))
+            else:
+                ib.emit(outs[0].vstore(0, quad_reduction + outs[0].vload([0], 'int32x16')))
             return ib.get()
 
         # body, reset, update
@@ -93,9 +94,10 @@ def _intrin_reduce4int8_1x1(vec_size, num_elements_intel):
                                                   'llvm.x86.avx512.pmaddw.d.512',
                                                   tvm.const(0, 'uint32'), \
                                                   pair_reduction, vec_one)
-            vec_c = outs[0].vload([0], "int32x16")
-            out = quad_reduction + vec_c
-            ib.emit(outs[0].vstore(0, out))
+            if index == 0:
+                ib.emit(outs[0].vstore(0, quad_reduction))
+            else:
+                ib.emit(outs[0].vstore(0, quad_reduction + outs[0].vload([0], 'int32x16')))
             return ib.get()
 
         # body, reset, update

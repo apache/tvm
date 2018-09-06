@@ -314,13 +314,13 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     # compute
 
     target = tvm.target.current_target(allow_none=False)
-    avx2_len = -1
+    int32_lanes = -1
     for opt in target.options:
         if opt == '-mcpu=skylake-avx512':
-            avx2_len = 16
+            int32_lanes = 16
         else:
             return s
-    assert avx2_len != -1
+    assert int32_lanes != -1
 
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):
@@ -347,9 +347,9 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     ow_chunk, ow_block = s[CC].split(ow, factor=sch.reg_n)
 
     # Skylake and future processors have 16 vector lanes
-    assert sch.oc_bn % avx2_len == 0
+    assert sch.oc_bn % int32_lanes == 0
 
-    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=avx2_len)
+    oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
     if sch.unroll_kw:
         s[CC].reorder(oc_chunk, oh, ow_chunk, ic_outer, kh, ic_f_inner, kw,
@@ -361,7 +361,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
 
 
     n_elems = 4
-    pc = _intrin_reduce4int8_common(avx2_len, n_elems)
+    pc = _intrin_reduce4int8_common(int32_lanes, n_elems)
     s[CC].tensorize(oc_s_inner, pc)
     s[CC].unroll(ow_block)
     s[CC].unroll(oc_f_inner)
