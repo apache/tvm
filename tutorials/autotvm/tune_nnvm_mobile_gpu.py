@@ -1,21 +1,21 @@
 """
-Auto-tuning a convolutional network for ARM CPU
+Auto-tuning a convolutional network for Mobile GPU
 ====================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
-Auto-tuning for a specific ARM device is critical for getting the best
+Auto-tuning for a specific device is critical for getting the best
 performance. This is a tutorial about how to tune a whole convolutional
 network.
 
-The operator implementation for ARM CPU in TVM is written in template form.
+The operator implementation for Mobile GPU in TVM is written in template form.
 The template has many tunable knobs (tile factor, vectorization, unrolling, etc).
-We will tune all convolution and depthwise convolution operators
+We will tune all convolution, depthwise convolution and dense operators
 in the neural network. After tuning, we produce a log file which stores
 the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
 We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu>`_
+`Mobile GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#mobile-gpu>`_
 to see the results.
 """
 
@@ -177,9 +177,11 @@ def get_network(name, batch_size):
 
 #### DEVICE CONFIG ####
 
+target = tvm.target.create('opencl -device=mali')
+
 # Replace "aarch64-linux-gnu" with the correct target of your board.
-# This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
+# This target host is used for cross compilation. You can query it by :code:`gcc -v` on your device.
+target_host = 'llvm -target=aarch64-linux-gnu'
 
 # Also replace this with the device key in your tracker
 device_key = 'rk3399'
@@ -197,15 +199,15 @@ tuning_option = {
 
     'tuner': 'xgb',
     'n_trial': 1000,
-    'early_stopping': 400,
+    'early_stopping': 450,
 
     'measure_option': autotvm.measure_option(
         builder=autotvm.LocalBuilder(
             build_func='ndk' if use_android else 'default'),
         runner=autotvm.RPCRunner(
             device_key, host='localhost', port=9190,
-            number=5,
-            timeout=4,
+            number=10,
+            timeout=5,
         ),
     ),
 }
@@ -243,9 +245,7 @@ def tune_tasks(tasks,
             try:  # try winograd template
                 tsk = autotvm.task.create(tasks[i].name, tasks[i].args,
                                           tasks[i].target, tasks[i].target_host, 'winograd')
-                input_channel = tsk.workload[1][1]
-                if input_channel >= 64:
-                    tasks[i] = tsk
+                tasks.append(tsk)
             except Exception:
                 pass
 
@@ -293,9 +293,9 @@ def tune_and_evaluate(tuning_opt):
     # extract workloads from nnvm graph
     print("Extract tasks...")
     net, params, input_shape, out_shape = get_network(network, batch_size=1)
-    tasks = autotvm.task.extract_from_graph(net, target=target,
+    tasks = autotvm.task.extract_from_graph(net, target=target, target_host=target_host,
                                             shape={'data': input_shape}, dtype=dtype,
-                                            symbols=(nnvm.sym.conv2d,))
+                                            symbols=(nnvm.sym.conv2d, nnvm.sym.dense))
 
     # run tuning tasks
     print("Tuning...")
@@ -306,7 +306,8 @@ def tune_and_evaluate(tuning_opt):
         print("Compile...")
         with nnvm.compiler.build_config(opt_level=3):
             graph, lib, params = nnvm.compiler.build(
-                net, target=target, shape={'data': input_shape}, params=params, dtype=dtype)
+                net, target=target, target_host=target_host,
+                shape={'data': input_shape}, params=params, dtype=dtype)
 
         # export library
         tmp = tempdir()
@@ -335,7 +336,7 @@ def tune_and_evaluate(tuning_opt):
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=8, repeat=3)
+        ftimer = module.module.time_evaluator("run", ctx, number=50, repeat=3)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
@@ -350,29 +351,15 @@ def tune_and_evaluate(tuning_opt):
 # -------------
 # The tuning needs to compile many programs and extract feature from them.
 # So a high performance CPU is recommended.
-# One sample output is listed below.
-# It takes about 2 hours on a 32T AMD Ryzen Threadripper.
+# One sample output is listed below. It takes about 3 hours on a 32T AMD Ryzen Threadripper.
 #
 # .. code-block:: bash
 #
 #    Extract tasks...
 #    Tuning...
-#    [Task  1/12]  Current/Best:   22.37/  52.19 GFLOPS | Progress: (544/1000) | 406.59 s Done.
-#    [Task  2/12]  Current/Best:    6.51/  18.77 GFLOPS | Progress: (608/1000) | 325.05 s Done.
-#    [Task  3/12]  Current/Best:    4.67/  24.87 GFLOPS | Progress: (480/1000) | 372.31 s Done.
-#    [Task  4/12]  Current/Best:   11.35/  46.83 GFLOPS | Progress: (736/1000) | 602.39 s Done.
-#    [Task  5/12]  Current/Best:    1.01/  19.80 GFLOPS | Progress: (448/1000) | 262.16 s Done.
-#    [Task  6/12]  Current/Best:    2.47/  23.76 GFLOPS | Progress: (672/1000) | 563.85 s Done.
-#    [Task  7/12]  Current/Best:   14.57/  33.97 GFLOPS | Progress: (544/1000) | 465.15 s Done.
-#    [Task  8/12]  Current/Best:    1.13/  17.65 GFLOPS | Progress: (576/1000) | 365.08 s Done.
-#    [Task  9/12]  Current/Best:   14.45/  22.66 GFLOPS | Progress: (928/1000) | 724.25 s Done.
-#    [Task 10/12]  Current/Best:    3.22/  15.36 GFLOPS | Progress: (864/1000) | 564.27 s Done.
-#    [Task 11/12]  Current/Best:   11.03/  32.23 GFLOPS | Progress: (736/1000) | 635.15 s Done.
-#    [Task 12/12]  Current/Best:    8.00/  21.65 GFLOPS | Progress: (1000/1000) | 1111.81 s Done.
-#    Compile...
-#    Upload...
-#    Evaluate inference time cost...
-#    Mean inference time (std dev): 162.59 ms (0.06 ms)
+#    [Task  1/17]  Current/Best:   12.22/  36.05 GFLOPS | Progress: (32/1000) | 42.12 s
+#
+#    (The following part is running, will update it later).
 
 ######################################################################
 #

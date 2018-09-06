@@ -4,6 +4,7 @@ import numpy as np
 
 import tvm
 from tvm import autotvm
+from tvm.autotvm.task.space import get_factors
 
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform
 from ..util import traverse_inline, get_const_int, get_const_tuple, const_matrix
@@ -13,6 +14,7 @@ from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d import _conv_arg_to_workload, _decl_spatial_pack,\
     _winograd_conv_arg_to_workload
+
 
 @conv2d.register('mali')
 @autotvm.task.dispatcher
@@ -232,12 +234,16 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
     nH, nW = (H + m-1) // m, (W + m-1) // m
     P = N * nH * nW
 
-    cfg.define_knob('tile_bna', [1, 2, 4, 8, 16])
+    ##### space definition begin #####
+    tile_bna_candidates = [1, 2, 4, 8, 16]
+    factors = get_factors(CO)
+    cfg.define_knob('tile_bna', [x for x in tile_bna_candidates if x in factors])
     cfg.define_knob('tile_bnb', [1, 2, 4, 8, 16])
     cfg.define_split('tile_t1', CI, num_outputs=2, max_factor=128)
     cfg.define_split('tile_t2', CO, num_outputs=2, max_factor=128)
     cfg.define_split('c_unroll', CI, num_outputs=2, max_factor=8)
     cfg.define_knob('yt', [1, 2, 4, 8, 16, 32])
+    ##### space definition end #####
 
     if cfg.is_fallback:
         cfg['tile_bnb'].val = 4
