@@ -900,6 +900,7 @@ class ConfigEntity(ConfigSpace):
         return "%s,%s,%s,%d" % (str(self._entity_map)[12:-1], self.template_key,
                                 self.code_hash, self.index)
 
+
 class FallbackConfigEntity(ConfigSpace):
     """The config entity created to support fallback"""
 
@@ -926,18 +927,74 @@ class FallbackConfigEntity(ConfigSpace):
         Then cfg.fallback_split('tile_0', [-1, 8, 4]) will give you cfg['tile_0'].size = [7, 7, 1]
         """
         space = self.space_map[name]
+        assert isinstance(space, SplitSpace)
         assert len(constraints) == space.num_outputs
-        indices = np.arange(space.num_outputs)
 
         # '-1' means no constraint
         constraints = [x if x != -1 else 1e10 for x in constraints]
 
-        for entity in reversed(space.entities):
-            if all([entity.size[i] <= constraints[i] for i in indices]):
-                self._entity_map[name] = entity
-                return
+        entity = self._entity_map[name]
+        now = space.product
 
-        raise RuntimeError("Cannot find feasible fallback split entity for node: " + name)
+        for i in reversed(range(space.num_outputs)):
+            factors = get_factors(now)
+
+            find = len(factors) - 1
+            for j, f in enumerate(factors):
+                if f > constraints[i]:
+                    find = j - 1
+                    break
+
+            if find >= 0:
+                entity.size[i] = factors[find]
+                now //= factors[find]
+            else:
+                raise RuntimeError("Cannot find feasible fallback split entity for node: " + name)
+
+    def fallback_with_reference_log(self, ref_log):
+        """A data driven fallback mechanism.
+        We use tuned parameters from TopHub as reference data.
+        For an unseen shape, we find the most similar tuned one from TopHub and
+        mimic its parameters.
+
+        Parameters
+        ----------
+        ref_log: List of (MeasureInput, MeasureResult)
+            The reference log
+        """
+        knob_names = [x for x in self.space_map.keys() if
+                      isinstance(self.space_map[x], SplitSpace)]
+
+        # find best match config in reference data by matching tiling factors
+        factor_list = []
+        for knob_name in knob_names:
+            factor_list.append(get_factors(self.space_map[knob_name].product))
+
+        best_match_cfg = None
+        best_match_score = 0
+        for inp, _ in ref_log:
+            match_score = 0
+            for i, knob_name in enumerate(knob_names):
+                factors = get_factors(int(np.prod(inp.config[knob_name].size)))
+                match_score += (float(len(set(factor_list[i]).intersection(factors))) /
+                                len(factor_list[i]))
+
+                if match_score > best_match_score:
+                    best_match_score, best_match_cfg = match_score, inp.config
+
+        if best_match_cfg is None:
+            return
+
+        # mimic its tiling strategy
+        for knob_name in knob_names:
+            constraint = list(best_match_cfg[knob_name].size)
+            constraint[0] = -1
+            self.fallback_split(knob_name, constraint)
+
+        # copy other knobs
+        for knob_name in self.space_map.keys():
+            if not isinstance(self.space_map[knob_name], SplitSpace):
+                self._entity_map[knob_name] = best_match_cfg[knob_name]
 
     def __repr__(self):
         return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)

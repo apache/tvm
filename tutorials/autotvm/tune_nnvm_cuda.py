@@ -1,21 +1,21 @@
 """
-Auto-tuning a convolutional network for ARM CPU
+Auto-tuning a convolutional network for NVIDIA GPU
 ====================================================
 **Author**: `Lianmin Zheng <https://https://github.com/merrymercy>`_
 
-Auto-tuning for a specific ARM device is critical for getting the best
-performance. This is a tutorial about how to tune a whole convolutional
-network.
+Auto-tuning for specific devices and workloads is critical for getting the
+best performance. This is a tutorial on how to tune a whole convolutional
+network for NVIDIA GPU.
 
-The operator implementation for ARM CPU in TVM is written in template form.
-The template has many tunable knobs (tile factor, vectorization, unrolling, etc).
+The operator implementation for NVIDIA GPU in TVM is written in template form.
+The template has many tunable knobs (tile factor, unrolling, etc).
 We will tune all convolution and depthwise convolution operators
 in the neural network. After tuning, we produce a log file which stores
 the best knob values for all required operators. When the tvm compiler compiles
 these operators, it will query this log file to get the best knob values.
 
-We also released pre-tuned parameters for some arm devices. You can go to
-`ARM CPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#arm-cpu>`_
+We also released pre-tuned parameters for some NVIDIA GPUs. You can go to
+`NVIDIA GPU Benchmark <https://github.com/dmlc/tvm/wiki/Benchmark#nvidia-gpu>`_
 to see the results.
 """
 
@@ -30,8 +30,7 @@ to see the results.
 #   pip3 install --user psutil xgboost tornado
 #
 # To make tvm run faster during tuning, it is recommended to use cython
-# as FFI of tvm. In the root directory of tvm, execute
-# (change "3" to "2" if you use python2):
+# as FFI of tvm. In the root directory of tvm, execute:
 #
 # .. code-block:: bash
 #
@@ -53,7 +52,7 @@ from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
-# Define network
+# Define Network
 # --------------
 # First we need to define the network in nnvm symbol API.
 # We can load some pre-defined network from :code:`nnvm.testing`.
@@ -97,116 +96,29 @@ def get_network(name, batch_size):
 
     return net, params, input_shape, output_shape
 
-
-#################################################################
-# Start RPC Tracker
-# -----------------
-# TVM uses RPC session to communicate with ARM boards.
-# During tuning, the tuner will send the generated code to the board and
-# measure the speed of code on the board.
-#
-# To scale up the tuning, TVM uses RPC Tracker to manage distributed devices.
-# The RPC Tracker is a centralized master node. We can register all devices to
-# the tracker. For example, if we have 10 phones, we can register all of them
-# to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
-#
-# To start an RPC tracker, run this command on the host machine. The tracker is
-# required during the whole tuning process, so we need to open a new terminal for
-# this command:
-#
-# .. code-block:: bash
-#
-#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
-#
-# The expected output is
-#
-# .. code-block:: bash
-#
-#   INFO:RPCTracker:bind to 0.0.0.0:9190
-
-#################################################################
-# Register devices to RPC Tracker
-# -----------------------------------
-# Now we can register our devices to the tracker. The first step is to
-# build tvm runtime for the ARM devices.
-#
-# * For Linux:
-#   Follow this section :ref:`build-tvm-runtime-on-device` to build
-#   tvm runtime on the device. Then register the device to tracker by
-#
-#   .. code-block:: bash
-#
-#     python -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=rk3399
-#
-#   (replace :code:`[HOST_IP]` with the IP address of your host machine)
-#
-# * For Android:
-#   Follow this `readme page <https://github.com/dmlc/tvm/tree/master/apps/android_rpc>`_ to
-#   install tvm rpc apk on the android device. Make sure you can pass the android rpc test.
-#   Then you have already registred your device. During tuning, you have to go to developer option
-#   and enable "Keep screen awake during changing" and charge your phone to make it stable.
-#
-# After registering devices, we can confirm it by querying rpc_tracker
-#
-# .. code-block:: bash
-#
-#   python -m tvm.exec.query_rpc_tracker --host=0.0.0.0 --port=9190
-#
-# For example, if we have 2 Huawei mate10 pro, 11 Raspberry Pi 3B and 2 rk3399,
-# the output can be
-#
-# .. code-block:: bash
-#
-#    Queue Status
-#    ----------------------------------
-#    key          total  free  pending
-#    ----------------------------------
-#    mate10pro    2      2     0
-#    rk3399       2      2     0
-#    rpi3b        11     11    0
-#    ----------------------------------
-#
-# You can register multiple devices to the tracker to accelerate the measurement in tuning.
-
 ###########################################
 # Set Tuning Options
 # ------------------
-# Before tuning, we should apply some configurations. Here I use an RK3399 board
-# as example. In your setting, you should modify the target and device_key accordingly.
-# set :code:`use_android` to True if you use android phone.
+# Before tuning, we apply some configurations.
 
 #### DEVICE CONFIG ####
-
-# Replace "aarch64-linux-gnu" with the correct target of your board.
-# This target is used for cross compilation. You can query it by :code:`gcc -v` on your device.
-target = tvm.target.create('llvm -device=arm_cpu -target=aarch64-linux-gnu')
-
-# Also replace this with the device key in your tracker
-device_key = 'rk3399'
-
-# Set this to True if you use android phone
-use_android = False
+target = tvm.target.cuda()
 
 #### TUNING OPTION ####
 network = 'resnet-18'
-log_file = "%s.%s.log" % (device_key, network)
+log_file = "%s.log" % network
 dtype = 'float32'
 
 tuning_option = {
     'log_filename': log_file,
 
     'tuner': 'xgb',
-    'n_trial': 1000,
-    'early_stopping': 400,
+    'n_trial': 2000,
+    'early_stopping': 600,
 
     'measure_option': autotvm.measure_option(
-        builder=autotvm.LocalBuilder(
-            build_func='ndk' if use_android else 'default'),
-        runner=autotvm.RPCRunner(
-            device_key, host='localhost', port=9190,
-            number=5,
-            timeout=4,
-        ),
+        builder=autotvm.LocalBuilder(timeout=10),
+        runner=autotvm.LocalRunner(number=20, repeat=3, timeout=4),
     ),
 }
 
@@ -214,11 +126,13 @@ tuning_option = {
 #
 # .. note:: How to set tuning options
 #
-#   In general, the default values provided here work well.
-#   If you have enough time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
-#   which makes the tuning run longer.
-#   If your device runs very slow or your conv2d operators have many GFLOPs, considering to
-#   set timeout larger.
+#   In general, the default value provided here works well.
+#
+#   If you have large time budget, you can set :code:`n_trial`, :code:`early_stopping` larger,
+#   which makes the tuning runs longer.
+#
+#   If you have multiple devices, you can use all of them for measurement to
+#   accelerate the tuning process. (see the 'Scale up measurement` section below).
 #
 
 ###################################################################
@@ -255,13 +169,13 @@ def tune_tasks(tasks,
         os.remove(tmp_log_file)
 
     for i, tsk in enumerate(reversed(tasks)):
-        prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
+        prefix = "[Task %2d/%2d] " %(i+1, len(tasks))
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
             tuner_obj = XGBTuner(tsk, loss_type='rank')
         elif tuner == 'ga':
-            tuner_obj = GATuner(tsk, pop_size=50)
+            tuner_obj = GATuner(tsk, pop_size=100)
         elif tuner == 'random':
             tuner_obj = RandomTuner(tsk)
         elif tuner == 'gridsearch':
@@ -310,32 +224,20 @@ def tune_and_evaluate(tuning_opt):
 
         # export library
         tmp = tempdir()
-        if use_android:
-            from tvm.contrib import ndk
-            filename = "net.so"
-            lib.export_library(tmp.relpath(filename), ndk.create_shared)
-        else:
-            filename = "net.tar"
-            lib.export_library(tmp.relpath(filename))
+        filename = "net.tar"
+        lib.export_library(tmp.relpath(filename))
 
-        # upload module to device
-        print("Upload...")
-        remote = autotvm.measure.request_remote(device_key, 'localhost', 9190,
-                                                timeout=10000)
-        remote.upload(tmp.relpath(filename))
-        rlib = remote.load_module(filename)
-
-        # upload parameters to device
-        ctx = remote.context(str(target), 0)
-        rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
+        # load parameters
+        ctx = tvm.context(str(target), 0)
+        params_tvm = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
         data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
-        module = runtime.create(graph, rlib, ctx)
+        module = runtime.create(graph, lib, ctx)
         module.set_input('data', data_tvm)
-        module.set_input(**rparams)
+        module.set_input(**params_tvm)
 
         # evaluate
         print("Evaluate inference time cost...")
-        ftimer = module.module.time_evaluator("run", ctx, number=8, repeat=3)
+        ftimer = module.module.time_evaluator("run", ctx, number=400, repeat=3)
         prof_res = np.array(ftimer().results) * 1000  # convert to millisecond
         print("Mean inference time (std dev): %.2f ms (%.2f ms)" %
               (np.mean(prof_res), np.std(prof_res)))
@@ -349,30 +251,36 @@ def tune_and_evaluate(tuning_opt):
 # Sample Output
 # -------------
 # The tuning needs to compile many programs and extract feature from them.
-# So a high performance CPU is recommended.
-# One sample output is listed below.
-# It takes about 2 hours on a 32T AMD Ryzen Threadripper.
+# So a high performance CPU is recommended. One sample output is listed below.
+# It takes about 4 hours to get the following output on a 32T AMD Ryzen Threadripper.
+# The tuning target is NVIDIA 1080 Ti.
+# (You can see some errors during compilation. If the tuning is not stuck, it is okay.)
 #
 # .. code-block:: bash
 #
 #    Extract tasks...
 #    Tuning...
-#    [Task  1/12]  Current/Best:   22.37/  52.19 GFLOPS | Progress: (544/1000) | 406.59 s Done.
-#    [Task  2/12]  Current/Best:    6.51/  18.77 GFLOPS | Progress: (608/1000) | 325.05 s Done.
-#    [Task  3/12]  Current/Best:    4.67/  24.87 GFLOPS | Progress: (480/1000) | 372.31 s Done.
-#    [Task  4/12]  Current/Best:   11.35/  46.83 GFLOPS | Progress: (736/1000) | 602.39 s Done.
-#    [Task  5/12]  Current/Best:    1.01/  19.80 GFLOPS | Progress: (448/1000) | 262.16 s Done.
-#    [Task  6/12]  Current/Best:    2.47/  23.76 GFLOPS | Progress: (672/1000) | 563.85 s Done.
-#    [Task  7/12]  Current/Best:   14.57/  33.97 GFLOPS | Progress: (544/1000) | 465.15 s Done.
-#    [Task  8/12]  Current/Best:    1.13/  17.65 GFLOPS | Progress: (576/1000) | 365.08 s Done.
-#    [Task  9/12]  Current/Best:   14.45/  22.66 GFLOPS | Progress: (928/1000) | 724.25 s Done.
-#    [Task 10/12]  Current/Best:    3.22/  15.36 GFLOPS | Progress: (864/1000) | 564.27 s Done.
-#    [Task 11/12]  Current/Best:   11.03/  32.23 GFLOPS | Progress: (736/1000) | 635.15 s Done.
-#    [Task 12/12]  Current/Best:    8.00/  21.65 GFLOPS | Progress: (1000/1000) | 1111.81 s Done.
+#    [Task  1/12]  Current/Best:  541.83/3570.66 GFLOPS | Progress: (960/2000) | 1001.31 s Done.
+#    [Task  2/12]  Current/Best:    0.56/ 803.33 GFLOPS | Progress: (704/2000) | 608.08 s Done.
+#    [Task  3/12]  Current/Best:  103.69/1141.25 GFLOPS | Progress: (768/2000) | 702.13 s Done.
+#    [Task  4/12]  Current/Best: 2905.03/3925.15 GFLOPS | Progress: (864/2000) | 745.94 sterminate called without an active exception
+#    [Task  4/12]  Current/Best: 2789.36/3925.15 GFLOPS | Progress: (1056/2000) | 929.40 s Done.
+#    [Task  5/12]  Current/Best:   89.06/1076.24 GFLOPS | Progress: (704/2000) | 601.73 s Done.
+#    [Task  6/12]  Current/Best:   40.39/2129.02 GFLOPS | Progress: (1088/2000) | 1125.76 s Done.
+#    [Task  7/12]  Current/Best: 4090.53/5007.02 GFLOPS | Progress: (800/2000) | 903.90 s Done.
+#    [Task  8/12]  Current/Best:    4.78/1272.28 GFLOPS | Progress: (768/2000) | 749.14 s Done.
+#    [Task  9/12]  Current/Best: 1391.45/2325.08 GFLOPS | Progress: (992/2000) | 1084.87 s Done.
+#    [Task 10/12]  Current/Best: 1995.44/2383.59 GFLOPS | Progress: (864/2000) | 862.60 s Done.
+#    [Task 11/12]  Current/Best: 4093.94/4899.80 GFLOPS | Progress: (224/2000) | 240.92 sterminate called without an active exception
+#    [Task 11/12]  Current/Best: 3487.98/4909.91 GFLOPS | Progress: (480/2000) | 534.96 sterminate called without an active exception
+#    [Task 11/12]  Current/Best: 4636.84/4912.17 GFLOPS | Progress: (1184/2000) | 1381.16 sterminate called without an active exception
+#    [Task 11/12]  Current/Best:   50.12/4912.17 GFLOPS | Progress: (1344/2000) | 1602.81 s Done.
+#    [Task 12/12]  Current/Best: 3581.31/4286.30 GFLOPS | Progress: (736/2000) | 943.52 s Done.
 #    Compile...
-#    Upload...
 #    Evaluate inference time cost...
-#    Mean inference time (std dev): 162.59 ms (0.06 ms)
+#    Mean inference time (std dev): 1.07 ms (0.05 ms)
+#
+# As a reference baseline, the time cost of MXNet + TensorRT on resnet-18 is 1.30ms. So we are a little faster.
 
 ######################################################################
 #
@@ -392,3 +300,76 @@ def tune_and_evaluate(tuning_opt):
 #      logging.getLogger('autotvm').setLevel(logging.DEBUG)
 #
 #   Finally, always feel free to ask our community for help on https://discuss.tvm.ai
+
+
+#################################################################
+# Scale up measurement by using multiple devices
+# ----------------------------------------------
+#
+# If you have multiple devices, you can use all of them for measurement.
+# TVM uses the RPC Tracker to manage distributed devices.
+# The RPC Tracker is a centralized master node. We can register all devices to
+# the tracker. For example, if we have 10 GPU cards, we can register all of them
+# to the tracker, and run 10 measurements in parallel, accelerating the tuning process.
+#
+# To start an RPC tracker, run this command on the host machine. The tracker is
+# required during the whole tuning process, so we need to open a new terminal for
+# this command:
+#
+# .. code-block:: bash
+#
+#   python -m tvm.exec.rpc_tracker --host=0.0.0.0 --port=9190
+#
+# The expected output is
+#
+# .. code-block:: bash
+#
+#   INFO:RPCTracker:bind to 0.0.0.0:9190
+#
+# Then open another new terminal for the RPC server. We need to start one server
+# for each dedicated device. We use a string key to distinguish the types of devices.
+# You can pick a name you like.
+# (Note: For rocm backend, there are some internal errors with the compiler,
+# we need to add `--no-fork` to the argument list.)
+#
+# .. code-block:: bash
+#
+#     python -m tvm.exec.rpc_server --tracker=localhost:9190 --key=1080ti
+#
+# After registering devices, we can confirm it by querying rpc_tracker
+#
+# .. code-block:: bash
+#
+#   python -m tvm.exec.query_rpc_tracker --host=localhost --port=9190
+#
+# For example, if we have four 1080ti, two titanx and one gfx900, the output can be
+#
+# .. code-block:: bash
+#
+#    Queue Status
+#    ----------------------------------
+#    key          total  free  pending
+#    ----------------------------------
+#    1080ti       4      4     0
+#    titanx       2      2     0
+#    gfx900       1      1     0
+#    ----------------------------------
+#
+# Finally, we need to change the tuning option to use RPCRunner. Use the code below
+# to replace the corresponding part above.
+
+tuning_option = {
+    'log_filename': log_file,
+
+    'tuner': 'xgb',
+    'n_trial': 2000,
+    'early_stopping': 600,
+
+    'measure_option': autotvm.measure_option(
+        builder=autotvm.LocalBuilder(timeout=10),
+        runner=autotvm.RPCRunner(
+            '1080ti',  # change the device key to your key
+            'localhost', 9190,
+            number=20, repeat=3, timeout=4),
+    ),
+}

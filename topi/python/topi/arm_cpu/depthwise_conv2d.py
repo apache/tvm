@@ -9,11 +9,11 @@ from ..nn import depthwise_conv2d_nchw
 from ..util import traverse_inline
 
 # register original implementation of depthwise_conv2d_nchw since we don't need to change this part
-autotvm.task.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct',
-                                   depthwise_conv2d_nchw.fdefault)
+autotvm.register_topi_compute(depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct',
+                              depthwise_conv2d_nchw.fdefault)
 
 # register customized schedule for arm cpu.
-@autotvm.task.register_topi_schedule(schedule_depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct')
+@autotvm.register_topi_schedule(schedule_depthwise_conv2d_nchw, ['arm_cpu', 'cpu'], 'direct')
 def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
     """Schedule depthwise conv2d
 
@@ -37,16 +37,19 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
         A, B, C = data, kernel, output
         s[data_pad].compute_inline()
 
-        # define tile
+        ##### space definition begin #####
         n, c, h, w = s[output].op.axis
-        cfg.define_split('tile_c', c, num_outputs=2)
-        cfg.define_split('tile_h', h, num_outputs=2)
-        cfg.define_split('tile_w', w, num_outputs=2)
+        _, vc = cfg.define_split('tile_c', c, num_outputs=2)
+        _, vh = cfg.define_split('tile_h', h, num_outputs=2)
+        _, vw = cfg.define_split('tile_w', w, num_outputs=2)
+        cfg.define_annotate('ann', [vh, vw, vc], policy='try_unroll_vec')
 
+        # fallback support
         if cfg.is_fallback:
-            cfg.fallback_split('tile_c', [-1, 4])
-            cfg.fallback_split('tile_h', [-1, 2])
-            cfg.fallback_split('tile_w', [-1, 4])
+            ref_log = autotvm.tophub.load_reference_log(
+                'arm_cpu', 'rk3399', 'depthwise_conv2d_nchw', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+        ##### space definition end #####
 
         # park data to vector form  [n, c, h, w] -> [n, C, h, w, VC]
         A0 = s.cache_read(data_pad, "global", C)
@@ -78,7 +81,6 @@ def schedule_depthwise_conv2d_nchw_arm(cfg, outs):
         s[A1].compute_at(s[C0], oh)
 
         # try unroll and vectorization
-        cfg.define_annotate('ann', [ih, iw, vc], policy='try_unroll_vec')
         cfg['ann'].apply(s, C0, [ih, iw, vc],
                          axis_lens=[cfg['tile_h'].size[-1],
                                     cfg['tile_w'].size[-1],

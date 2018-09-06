@@ -53,7 +53,7 @@ class XGBoostCostModel(CostModel):
     upper_model: XGBoostCostModel, optional
         The upper model used in transfer learning
     """
-    def __init__(self, task, feature_type, loss_type, num_threads=4, log_interval=25,
+    def __init__(self, task, feature_type, loss_type, num_threads=None, log_interval=25,
                  upper_model=None):
         super(XGBoostCostModel, self).__init__()
 

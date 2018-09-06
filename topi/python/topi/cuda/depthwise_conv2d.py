@@ -1,12 +1,17 @@
 # pylint: disable=invalid-name
 """Schedule for depthwise_conv2d with auto fusion"""
 import tvm
-from ..util import get_const_tuple
+from tvm import autotvm
+from ..util import traverse_inline
 from .. import tag
-from .. import generic
+from .. import generic, nn
 
-@generic.schedule_depthwise_conv2d_nchw.register(["cuda", "gpu"])
-def schedule_depthwise_conv2d_nchw(outs):
+# register original implementation of depthwise_conv2d_nchw since we don't need to change this part
+autotvm.register_topi_compute(nn.depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct',
+                              nn.depthwise_conv2d_nchw.fdefault)
+
+@autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_nchw, ['cuda', 'gpu'], 'direct')
+def schedule_depthwise_conv2d_nchw_cuda(cfg, outs):
     """Schedule for depthwise_conv2d nchw forward.
 
     Parameters
@@ -22,108 +27,92 @@ def schedule_depthwise_conv2d_nchw(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-    def _schedule(PaddedInput, Filter, DepthwiseConv2d):
-        in_shape = get_const_tuple(PaddedInput.shape)
-        out_shape = get_const_tuple(DepthwiseConv2d.shape)
-        in_height = in_shape[2]
-        in_width = in_shape[3]
-        out_height = out_shape[2]
-        out_width = out_shape[3]
-        channel_multiplier = get_const_tuple(Filter.shape)[1]
-        s[PaddedInput].compute_inline()
-        IS = s.cache_read(PaddedInput, "shared", [DepthwiseConv2d])
-        FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
-        IL = s.cache_read(IS, "local", [DepthwiseConv2d])
-        FL = s.cache_read(FS, "local", [DepthwiseConv2d])
-        if DepthwiseConv2d.op in s.outputs:
-            Output = DepthwiseConv2d
-            CL = s.cache_write(DepthwiseConv2d, "local")
-        else:
-            Output = outs[0].op.output(0)
-            s[DepthwiseConv2d].set_scope("local")
-        # schedule parameters
-        num_thread_y = 8
-        num_thread_x = 8
-        num_vthread_y = 1
-        num_vthread_x = 1
-        blocking_h = out_height
-        blocking_w = out_width
-        if out_height % 32 == 0 or in_height >= 108:
-            blocking_h = 32
-        if out_width % 32 == 0:
-            blocking_w = 32
-            num_thread_x = 16
-            num_vthread_x = 2
-        elif in_width >= 108:
-            blocking_w = 32
-        block_y = tvm.thread_axis("blockIdx.y")
-        block_x = tvm.thread_axis("blockIdx.x")
-        thread_y = tvm.thread_axis((0, num_thread_y), "threadIdx.y")
-        thread_x = tvm.thread_axis((0, num_thread_x), "threadIdx.x")
-        thread_vy = tvm.thread_axis((0, num_vthread_y), "vthread", name="vy")
-        thread_vx = tvm.thread_axis((0, num_vthread_x), "vthread", name="vx")
-        # split and bind
-        by, byi = s[Output].split(Output.op.axis[1], factor=channel_multiplier)
-        s[Output].reorder(Output.op.axis[2], Output.op.axis[3], byi)
-        by = s[Output].fuse(Output.op.axis[0], by)
-        s[Output].bind(by, block_y)
-        bx1, x1i = s[Output].split(Output.op.axis[2], factor=blocking_h)
-        tvy, vyi = s[Output].split(x1i, nparts=num_vthread_y)
-        ty, yi = s[Output].split(vyi, nparts=num_thread_y)
-        bx2, x2i = s[Output].split(Output.op.axis[3], factor=blocking_w)
-        tvx, vxi = s[Output].split(x2i, nparts=num_vthread_x)
-        tx, xi = s[Output].split(vxi, nparts=num_thread_x)
-        s[Output].reorder(bx1, bx2, tvy, tvx, ty, tx, yi, xi)
-        bx = s[Output].fuse(bx1, bx2)
-        s[Output].bind(bx, block_x)
-        s[Output].bind(tvy, thread_vy)
-        s[Output].bind(tvx, thread_vx)
-        s[Output].bind(ty, thread_y)
-        s[Output].bind(tx, thread_x)
-        # local memory load
-        s[IL].compute_at(s[Output], tx)
-        s[FL].compute_at(s[Output], tx)
-        if DepthwiseConv2d.op in s.outputs:
-            s[CL].compute_at(s[Output], tx)
-        else:
-            s[DepthwiseConv2d].compute_at(s[Output], tx)
-        # input's shared memory load
-        s[IS].compute_at(s[Output], bx)
-        ty, yi = s[IS].split(IS.op.axis[2], nparts=num_thread_y)
-        tx, xi = s[IS].split(IS.op.axis[3], nparts=num_thread_x)
-        s[IS].bind(ty, thread_y)
-        s[IS].bind(tx, thread_x)
-        # filter's shared memory load
-        s[FS].compute_at(s[Output], bx)
-        s[FS].reorder(FS.op.axis[2], FS.op.axis[3], FS.op.axis[1])
-        ty, yi = s[FS].split(FS.op.axis[2], nparts=num_thread_y)
-        tx, xi = s[FS].split(FS.op.axis[3], nparts=num_thread_x)
-        s[FS].bind(ty, thread_y)
-        s[FS].bind(tx, thread_x)
 
-    scheduled_ops = []
+    def _callback(op):
+        if op.tag == 'depthwise_conv2d_nchw':
+            pad_data = op.input_tensors[0]
+            kernel = op.input_tensors[1]
+            conv = op.output(0)
 
-    def traverse(OP):
-        """Internal travserse function"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(OP.tag):
-            if OP not in s.outputs:
-                s[OP].compute_inline()
-            for tensor in OP.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
-        # schedule depthwise_conv2d
-        if OP.tag == 'depthwise_conv2d_nchw':
-            PaddedInput = OP.input_tensors[0]
-            Filter = OP.input_tensors[1]
-            if isinstance(Filter.op, tvm.tensor.ComputeOp) and 'dilate' in Filter.op.tag:
-                s[Filter].compute_inline()
-            DepthwiseConv2d = OP.output(0)
-            _schedule(PaddedInput, Filter, DepthwiseConv2d)
+            ##### space definition begin #####
+            n, f, y, x = s[conv].op.axis
+            cfg.define_split("tile_f", f, num_outputs=4)
+            cfg.define_split("tile_y", y, num_outputs=4)
+            cfg.define_split("tile_x", x, num_outputs=4)
+            cfg.define_knob("auto_unroll_max_step", [0, 256, 1500])
 
-        scheduled_ops.append(OP)
+            target = tvm.target.current_target()
+            if target.target_name in ['nvptx', 'rocm']:
+                cfg.define_knob("unroll_explicit", [1])
+            else:
+                cfg.define_knob("unroll_explicit", [0, 1])
 
-    traverse(outs[0].op)
+            # fallback support
+            if cfg.is_fallback:
+                ref_log = autotvm.tophub.load_reference_log(
+                    target.target_name, target.model, 'depthwise_conv2d_nchw', 'direct')
+                cfg.fallback_with_reference_log(ref_log)
+                # TODO(lmzheng): A bug here, set unroll_explicit to False as workaround
+                cfg['unroll_explicit'].val = 0
+            ##### space definition end #####
+
+            s[pad_data].compute_inline()
+            if isinstance(kernel.op, tvm.tensor.ComputeOp) and 'dilate' in kernel.op.tag:
+                s[kernel].compute_inline()
+
+            if conv.op in s.outputs:
+                output = conv
+                OL = s.cache_write(conv, 'local')
+            else:
+                output = s.outputs[0].output(0)
+                s[conv].set_scope('local')
+                OL = conv
+
+            # create cache stage
+            AA = s.cache_read(pad_data, 'shared', [OL])
+            WW = s.cache_read(kernel, 'shared', [OL])
+            AL = s.cache_read(AA, 'local', [OL])
+            WL = s.cache_read(WW, 'local', [OL])
+
+            # tile and bind spatial axes
+            n, f, y, x = s[output].op.axis
+            bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
+            by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
+            bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
+
+            kernel_scope, n = s[output].split(n, nparts=1)
+            bf = s[output].fuse(n, bf)
+            s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
+            s[output].bind(by, tvm.thread_axis("blockIdx.y"))
+            s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
+            s[output].bind(vf, tvm.thread_axis("vthread"))
+            s[output].bind(vy, tvm.thread_axis("vthread"))
+            s[output].bind(vx, tvm.thread_axis("vthread"))
+            s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
+            s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
+            s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+            s[output].reorder(bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+            s[OL].compute_at(s[output], tx)
+
+            # cooperative fetching
+            s[AA].compute_at(s[output], bx)
+            s[WW].compute_at(s[output], bx)
+            s[AL].compute_at(s[output], tx)
+            s[WL].compute_at(s[output], tx)
+
+            for load in [AA, WW]:
+                fused = s[load].fuse(*list(s[load].op.axis))
+                fused, tx = s[load].split(fused, cfg["tile_x"].size[2])
+                fused, ty = s[load].split(fused, cfg["tile_y"].size[2])
+                fused, tz = s[load].split(fused, cfg["tile_f"].size[2])
+                s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
+                s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
+                s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
+
+            s[output].pragma(kernel_scope, 'auto_unroll_max_step', cfg['auto_unroll_max_step'].val)
+            s[output].pragma(kernel_scope, 'unroll_explicit', cfg['unroll_explicit'].val)
+
+    traverse_inline(s, outs[0].op, _callback)
     return s
 
 @generic.schedule_depthwise_conv2d_nhwc.register(["cuda", "gpu"])
@@ -143,8 +132,8 @@ def schedule_depthwise_conv2d_nhwc(outs):
     """
     outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
     s = tvm.create_schedule([x.op for x in outs])
-    def _schedule(temp, Filter, DepthwiseConv2d):
 
+    def _schedule(temp, Filter, DepthwiseConv2d):
         s[temp].compute_inline()
         FS = s.cache_read(Filter, "shared", [DepthwiseConv2d])
         if DepthwiseConv2d.op in s.outputs:

@@ -61,7 +61,6 @@ def test_make_attrs():
     datrr = tvm.load_json(tvm.save_json(dattr))
     assert dattr.name.value == "xyz"
 
-
 def test_make_sum():
     A = tvm.placeholder((2, 10), name='A')
     k = tvm.reduce_axis((0,10), "k")

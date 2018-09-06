@@ -164,6 +164,31 @@ def measure_option(builder, runner):
         Specify how to build programs
     runner: Runner
         Specify how to run programs
+
+    Examples
+    --------
+    # example setting for using local devices
+    >>> measure_option = autotvm.measure_option(
+    >>>     builder=autotvm.LocalBuilder(),      # use all local cpu cores for compilation
+    >>>     runner=autotvm.LocalRunner(          # measure them sequentially
+    >>>         number=10,
+    >>>         timeout=5)
+    >>> )
+
+    # example setting for using remote devices
+    >>> measure_option = autotvm.measure_option(
+    >>>    builder=autotvm.LocalBuilder(),  # use all local cpu cores for compilation
+    >>>    runner=autotvm.RPCRunner(
+    >>>        'rasp3b', 'locahost', 9190, # device key, host and port of the rpc tracker
+    >>>        number=4,
+    >>>        timeout=4) # timeout of a run on the device. RPC request waiting time is excluded.
+    >>>)
+
+    Note
+    ----
+    To make measurement results accurate, you should pick the correct value for the argument
+    `number` and `repeat` in Runner(). Using `min_repeat_ms` can dynamically adjusts `number`,
+    so it is recommended. The typical value for NVIDIA GPU is 100 ms.
     """
     from .measure_methods import LocalBuilder, LocalRunner
 
