@@ -138,8 +138,6 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   Type resolve(const Type &t);
   Expr resolve(const Expr &e);
   CheckedExpr VisitFunction(const Function &f, bool generalize);
-  void CheckOp(Op op);
-  // Defn CheckDefn(Defn def);
  private:
   CheckedExpr VisitExpr_(const LocalVarNode *op) override;
   CheckedExpr VisitExpr_(const GlobalVarNode *op) override;
@@ -218,43 +216,6 @@ CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
   return {ParamNode::make(param->var, rtype), rtype};
 }
 
-// // We should probably generalize the subst code.
-// struct GeneralizeTypeType : TypeFVisitor {
-//   Map<TypeVar, TypeParam> vars_to_id;
-//   const TypeUnifier &unifier;
-
-//   GeneralizeTypeType(Map<TypeVar, TypeParam> vars_to_id,
-//                      const TypeUnifier &unifier)
-//       : vars_to_id(vars_to_id), unifier(unifier) {}
-
-//   Type VisitType_(const TypeVarNode *op) override {
-//     auto repr = unifier->subst(GetRef<TypeVar>(op));
-//     if (auto tvn = repr.as<TypeVarNode>()) {
-//       auto ty_var = GetRef<TypeVar>(tvn);
-//       if (vars_to_id.find(ty_var) != vars_to_id.end()) {
-//         return vars_to_id[ty_var];
-//       } else {
-//         return ty_var;
-//       }
-//     } else {
-//       return this->VisitType(repr);
-//     }
-//   }
-// };
-
-// struct GeneralizeTypeExpr : ExprFVisitor<> {
-//   Map<TypeVar, TypeParam> vars_to_id;
-//   const TypeUnifier &unifier;
-
-//   GeneralizeTypeExpr(const TypeUnifier &unifier,
-//                      Map<TypeVar, TypeParam> vars_to_id)
-//       : vars_to_id(vars_to_id), unifier(unifier) {}
-
-//   Type VisitType(const Type &t) {
-//     return GeneralizeTypeType(vars_to_id, unifier).VisitType(t);
-//   }
-// };
-
 CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
   // First we add the parameters to the context allowing us to check their
   // types.
@@ -282,83 +243,6 @@ CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
     return {FunctionNode::make(params, unified_rtype, checked_body.expr, {}),
             FuncTypeNode::make(param_types, unified_rtype, {}, {})};
   });
-
-  //   // typecheck body and ensure that it matches stated return type
-  //   // TODO(sslyu): should the unified return type override the annotated
-  //   one? Type checked_return = this->Check(f->body); Type ret_type =
-  //   resolve(f->ret_type); Type unified =
-  //   this->unify(simple_eval_shape(ret_type),
-  //                              simple_eval_shape(checked_return), f->span);
-  //   return TypeArrowNode::make(arg_types, unified);
-  // });
-  // if (generalize) {
-  //   auto free_vars = free_type_vars(resolve(fn_type));
-  //   std::set<TypeVar> dedup_free_vars;
-
-  //   for (auto free_var : free_vars) {
-  //     auto repr = this->unifier->subst(free_var);
-  //     if (auto new_free_var_node = repr.as<TypeVarNode>()) {
-  //       dedup_free_vars.insert(GetRef<TypeVar>(new_free_var_node));
-  //     } else {
-  //       // debug(repr);
-  //       throw dmlc::Error(
-  //           "internal error: this list should only contain type var
-  //           nodes");
-  //     }
-  //   }
-
-  //   Map<TypeVar, TypeParam> vars_to_id;
-
-  //   GenFresh gf;
-  //   for (auto free_var : dedup_free_vars) {
-  //     vars_to_id.Set(free_var, gf.freshTV(free_var->kind));
-  //   }
-
-  //   fn_type = GeneralizeTypeType(vars_to_id, unifier).VisitType(fn_type);
-  //   for (std::pair<TypeVar, TypeParam> pair : vars_to_id) {
-  //     // NB: In generalization we want to find type variables with
-  //     // *no constraints* on them, and convert them to universally
-  //     quantified
-  //     // variables.
-  //     //
-  //     // i.e the program can be abstracted over the details of *that* type.
-
-  //     // For example a program that works irrespective of shape or
-  //     datatype.
-
-  //     // In order to do this we find the set of free type variables in the
-  //     // term, and then unify them with the fresh type ids we generate.
-  //     //
-  //     // Remember importantly these type variables still may appear in many
-  //     // places in the program including both types and expressions.
-
-  //     // Our method for resolving these is to unify them with the variables
-  //     // as we build the new quanitifer, changing from a program with
-  //     "holes"
-  //     // to one that is properly abstracted over.
-
-  //     // Finally later on we can iterate over the whole term and change
-  //     from
-  //     // type variables to these type ids.
-  //     this->unify(pair.first, pair.second, pair.second->span);
-  //     fn_type = TypeQuantifierNode::make(pair.second, fn_type);
-  //   }
-  // } else {
-  //   for (auto i = f->ty_params.size(); i > 0; i--) {
-  //     auto ty_param = f->ty_params[i - 1];
-  //     auto ty_param_node = ty_param.as<TypeParamNode>();
-  //     if (!ty_param_node) {
-  //       throw dmlc::Error("internal error should be TypeParam");
-  //     }
-  //     auto fresh_tid =
-  //         TypeParamNode::make(ty_param_node->name, ty_param_node->kind);
-  //     fn_type =
-  //         TypeSubst(fn_type, GetRef<TypeParam>(ty_param_node), fresh_tid);
-  //     fn_type = TypeQuantifierNode::make(fresh_tid, fn_type);
-  //   }
-  // }
-
-  // return fn_type;
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const FunctionNode *op) {
@@ -519,32 +403,6 @@ Expr TypeInferencer::resolve(const Expr& e) {
   CHECK(e.defined());
   return ::tvm::relay::Resolve(this->unifier, e);
 }
-
-// Defn TypeInferencer::CheckDefn(Defn defn) {
-//   // This is to handle recursion, but we need to speculatively
-//   // put it in env, then remove it.
-//   env->items.insert({defn->id, defn});
-
-//   Type expected_ty = this->resolve(defn->type);
-
-//   Expr body = defn->body;
-
-//   auto checked_ty = Check(body);
-
-//   try {
-//     Type uret_type = unify(expected_ty, checked_ty, defn->body->span);
-//     CHECK(is_fully_resolved(uret_type));
-//     // Now let's clean up our work from earlier.
-//     env->items.erase(defn->id);
-//     return DefnNode::make(defn->id, uret_type, this->resolve(defn->body));
-//   } catch (const UnificationError& err) {
-//       std::string msg = std::string("mismatch between `") +
-//                         PrintType(env, expected_ty, WrapWidth(40)) + "` and
-//                         `" + PrintType(env, checked_ty, WrapWidth(40)) +
-//                         "`";
-//       fatal_error(msg, defn->span);
-//   }
-// }
 
 Expr InferType(const Environment &env, const Expr &e) {
   TypeInferencer ti(env);

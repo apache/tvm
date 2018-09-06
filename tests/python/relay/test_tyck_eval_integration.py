@@ -2,7 +2,7 @@
    for expressions.
 """
 import tvm
-import numpy as np 
+import numpy as np
 from nnvm import graph
 from tvm.relay.ir_pass import check_expr
 from tvm.relay.ir_builder import IRBuilder, float_type, int_type
@@ -13,15 +13,18 @@ from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.expr import Function
 from tvm.relay import to_tvm
 from tvm.contrib import graph_runtime
+import nnvm
+
 
 def has_type(expr, typ, env=Environment({})):
     checked_expr = check_expr(env, expr)
     return checked_expr.checked_type() == typ
 
+
 def decl_has_type(env, name, typ):
     func = env.lookup(name)
     return func.checked_type() == typ
-    
+
 
 def run(env, expr, inputs, shape):
     if not isinstance(expr, Function):
@@ -31,11 +34,14 @@ def run(env, expr, inputs, shape):
     env.transform(Monomorphize.to_pass())
     main = env.lookup("main")
     graph, lib, _ = to_tvm.compile(main)
-    module = graph_runtime.create(graph, lib, tvm.cpu(0))
+    # We use NNVM to load the graph right now because it populates node_row_ptr field.
+    nnvm_graph = nnvm.graph.load_json(graph)
+    module = graph_runtime.create(nnvm_graph, lib, tvm.cpu(0))
     module.set_input(None, None, **inputs)
     module.run()
-    out = module.get_output(0, out=tvm.nd.array(shape))
-    import pdb; pdb.set_trace()
+    out_nd_array = tvm.nd.array(np.empty(shape, dtype='float32'))
+    return module.get_output(0, out=out_nd_array)
+
 
 def test_monomorphic_let():
     "Program: let x = 1; return x"
@@ -45,7 +51,8 @@ def test_monomorphic_let():
 
     prog, env = b.get()
     assert has_type(prog, float_type(64))
-    run(env, prog)
+    run(env, prog, [], float_type(64))
+
 
 def test_single_op():
     "Program: fn (x : float32) { let t1 = f(x); t1 }"
@@ -56,7 +63,8 @@ def test_single_op():
         b.ret(t1)
     assert has_type(func.to_func(), func_type([float_type()], float_type()))
 
-def test_binary_op():
+
+def test_add_op():
     """
     Program:
         fn (x, y) {
@@ -73,9 +81,34 @@ def test_binary_op():
     ttype = tensor_type(5, 5, 5)
     expected_ty = func_type([ttype, ttype], ttype)
     assert has_type(func.to_func(), expected_ty)
-    x_data = np.random.rand(5, 5, 5)
-    y_data = np.random.rand(5, 5, 5)
-    run(env, prog, { 'x': x_data, 'y': y_data }, (5, 5, 5))
+    x_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
+    y_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
+    result = run(env, prog, {'x': x_data, 'y': y_data}, (5, 5, 5))
+    np.testing.assert_allclose(
+        x_data.asnumpy() + y_data.asnumpy(), result.asnumpy())
+
+def test_add_broadcast_op():
+    """
+    Program:
+        fn (x: Tensor[(10, 4), f32], y: Tensor[(5, 10, 1), f32]) -> Tensor[(5, 10, 4), f32] {
+            return x + y;
+        }
+    """
+    b = IRBuilder()
+    x = b.param('x', tensor_type(10, 4))
+    y = b.param('y', tensor_type(5, 10, 1))
+    with b.function(x, y) as func:
+        b.ret(add(x.var, y.var))
+    b.ret(func)
+    prog, env = b.get()
+    ttype = tensor_type(5, 5, 5)
+    expected_ty = func_type([ttype, ttype], ttype)
+    assert has_type(func.to_func(), expected_ty)
+    x_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
+    y_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
+    result = run(env, prog, {'x': x_data, 'y': y_data}, (5, 10, 4))
+    np.testing.assert_allclose(
+        x_data.asnumpy() + y_data.asnumpy(), result.asnumpy())
 
 def test_dual_op():
     """Program: 
@@ -84,7 +117,7 @@ def test_dual_op():
          let t2 = add(t1, x); 
          return t1;
        }
-    """ 
+    """
     b = IRBuilder()
     with b.function(('x', tensor_type(10, 10))) as func:
         x, = func.param_ids()
@@ -109,6 +142,7 @@ def test_decl():
     _, env = b.get()
     assert decl_has_type(env, 'f', func_type([float_type()], float_type()))
 
+
 def test_recursion():
     """
     Program:
@@ -131,12 +165,16 @@ def test_recursion():
         with b.else_scope():
             b.ret(data)
     b.ret(f(into_ast(2.0), into_ast(10000.0)))
-    assert decl_has_type(b.env, 'f', func_type([int_type(), float_type()], float_type()))
+    assert decl_has_type(b.env, 'f', func_type(
+        [int_type(), float_type()], float_type()))
+    # TODO(@jroesch): need evaluator or new runtime
+    # to execute this.
 
 if __name__ == "__main__":
     # test_monomorphic_let()
     # test_single_op()
-    test_binary_op()
+    test_add_op()
+    test_add_broadcast_op()
     # test_dual_op()
     # test_decl()
     # test_recursion()

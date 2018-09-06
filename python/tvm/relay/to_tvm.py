@@ -70,7 +70,8 @@ class OpNode(Node):
 
 
 def shape_to_json(shape):
-    return [str(sh.value) for sh in shape]
+    return [sh.value for sh in shape]
+
 
 def from_tensor(typ: TensorType) -> Tuple[str, List[int]]:
     return (typ.dtype, shape_to_json(typ.shape))
@@ -162,8 +163,8 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         self.all_ops.add(call.op.name)
 
         op_name = call.op.name
-        attrs = { 'shape': shape_to_json(call.checked_type().shape),
-                  'dtype': call.checked_type().dtype }
+        attrs = {'shape': shape_to_json(call.checked_type().shape),
+                 'dtype': call.checked_type().dtype}
         op_node = OpNode("call_name", attrs, op_name, inputs, {})
         return self.add_node(op_node)
 
@@ -230,11 +231,4 @@ def compile(func):
     op_names = list(comp.all_ops)
     mod = compile_ops(op_names)
     graph_json = comp.to_json()
-    try:
-        import nnvm
-        graph = nnvm.graph.load_json(graph_json)
-    except Exception as e:
-        import traceback
-        traceback.print_tb(e.__traceback__)
-        import pdb; pdb.set_trace()
-    return graph, mod, None  # params currently isn't supported by API
+    return graph_json, mod, None  # params currently isn't supported by API
