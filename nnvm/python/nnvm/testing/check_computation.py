@@ -622,6 +622,12 @@ def check_numerical_grads(function, input_values, grad_values, function_value=No
         dist = np.sqrt(np.sum((ngrad - grad)**2))
         grad_norm = np.sqrt(np.sum(ngrad**2))
 
+        if not (np.isfinite(dist) and np.isfinite(grad_norm)):
+            raise ValueError(
+                "NaN or infinity detected during numerical gradient checking wrt {}\n"
+                "analytical grad = {}\n numerical grad = {}\n"
+                .format(x_name, grad, ngrad))
+
         # we multiple atol by this number to make it more universal for different sizes
         sqrt_n = np.sqrt(float(np.prod(grad.shape)))
 
