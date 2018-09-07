@@ -1,28 +1,28 @@
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
 import numpy as np
+import tvm
 
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
+from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 from .. import ndarray as nd
 
-
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
-
     Parameters
     ----------
     graph_json_str : str or graph class
         The graph to be deployed in json format output by nnvm graph.
         The graph can only contain one operator(tvm_op) that
         points to the name of PackedFunc in the libmod.
-
     libmod : tvm.Module
         The module of the corresponding function
-
-    ctx : TVMContext
-        The context to deploy the module, can be local or remote.
-
+    ctx : TVMContext or list of TVMContext
+        The context to deploy the module. It can be local or remote when there
+        is only one TVMContext. Otherwise, the first context in the list will
+        be used as this purpose. All context should be given for heterogeneous
+        execution.
     Returns
     -------
     graph_module : GraphModule
@@ -33,17 +33,54 @@ def create(graph_json_str, libmod, ctx):
             graph_json_str = graph_json_str._tvm_graph_json()
         except AttributeError:
             raise ValueError("Type %s is not supported" % type(graph_json_str))
-    device_type = ctx.device_type
-    device_id = ctx.device_id
-    if device_type >= rpc_base.RPC_SESS_MASK:
+    if isinstance(ctx, TVMContext):
+        ctx = [ctx]
+    elif not isinstance(ctx, (list, tuple)):
+        raise ValueError("ctx has to be the type of TVMContext or a list of "
+                         "TVMCTVMContext")
+    has_cpu = False
+    for i, cur_ctx in enumerate(ctx):
+        if not isinstance(cur_ctx, TVMContext):
+            raise ValueError("ctx has to be the type of TVMContext or a list "
+                             "of TVMCTVMContext")
+        if cur_ctx.device_type == tvm.cpu(0).device_type:
+            has_cpu = True
+        elif cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
+            ctx[0], ctx[i] = ctx[i], ctx[0]
+
+    num_devices = len(ctx)
+    device_types = []
+    device_ids = []
+    for cur_ctx in ctx:
+        device_types.append(cur_ctx.device_type)
+        device_ids.append(cur_ctx.device_id)
+
+    if device_types[0] >= rpc_base.RPC_SESS_MASK:
+        if num_devices > 1:
+            raise ValueError("RPC hasn't been supported for heterogeneous "
+                             "execution yet.")
         assert libmod.type_key == "rpc"
-        assert rpc_base._SessTableIndex(libmod) == ctx._rpc_sess._tbl_index
+        assert rpc_base._SessTableIndex(libmod) == ctx[0]._rpc_sess._tbl_index
         hmod = rpc_base._ModuleHandle(libmod)
-        fcreate = ctx._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        device_type = device_type % rpc_base.RPC_SESS_MASK
-        return GraphModule(fcreate(graph_json_str, hmod, device_type, device_id), ctx)
+        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
+        device_types[0] = device_types[0] % rpc_base.RPC_SESS_MASK
+        return GraphModule(fcreate(graph_json_str, hmod, device_types[0],
+                                   device_ids[0]), ctx[0])
+
+    # Assume CPU is the host processor when there are multiple devices on
+    # a hardware platform.
+    if (num_devices > 1) and (not has_cpu):
+        raise RuntimeError(
+            "CPU should be the host processor for heterogenous execution, but"
+            " not found in ctx.")
+
+    device_type_arr = (ctypes.c_int * num_devices)(*device_types)
+    void_dt_arr = ctypes.cast(device_type_arr, ctypes.c_void_p)
+    device_id_arr = (ctypes.c_int * num_devices)(*device_ids)
+    void_di_arr = ctypes.cast(device_id_arr, ctypes.c_void_p)
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, device_type, device_id), ctx)
+    return GraphModule(fcreate(graph_json_str, libmod, void_dt_arr,
+                               void_di_arr, num_devices), ctx[0])
 
 
 class GraphModule(object):
@@ -69,6 +106,7 @@ class GraphModule(object):
     ctx : TVMContext
         The context this module is under
     """
+
     def __init__(self, module, ctx):
         self.module = module
         self._set_input = module["set_input"]
@@ -177,7 +215,8 @@ class GraphModule(object):
         if hasattr(self, '_debug_get_output'):
             self._debug_get_output(node, out)
         else:
-            raise RuntimeError("Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
+            raise RuntimeError(
+                "Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
         return out
 
     def load_params(self, params_bytes):

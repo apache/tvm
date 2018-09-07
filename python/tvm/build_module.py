@@ -384,8 +384,14 @@ def build(sch,
           target=None,
           target_host=None,
           name="default_function",
-          binds=None):
-    """Build a function with arguments as signiture.
+          binds=None,
+          postpone_host_codegen=False):
+    """Build a function with arguments as signiture. Code will be generated
+    for a device specified by the target. For homogeneous execution, a module
+    that contains both host and device code is returned. For heterogeneous
+    execution, a list of lowered functions for the host and a module containing
+    device code are returned, but actual code generation for the host module is
+    postponed after code generation is finished for all devices.
 
     Parameters
     ----------
@@ -413,6 +419,11 @@ def build(sch,
     binds : dict, optional
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
+
+    postpone_host_codegen : bool, optional
+        A bool value that indicates if code generation for the host module
+        should be postponed. This variable is set to be true for heterogeneous
+        execution. Otherwise, it is defaulted to false.
 
     Returns
     -------
@@ -498,9 +509,67 @@ def build(sch,
     fdevice = [ir_pass.LowerIntrin(x, target_device.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-    mhost = codegen.build_module(fhost, str(target_host))
 
+    # Append fhost to the device module and return the updated module. All
+    # device modules will be imported to the host module after all of them are
+    # collected.
+    mdev = codegen.build_module(fdevice, str(target_device)) if fdevice else None
+    if postpone_host_codegen:
+        return mdev, fhost
+
+    mhost = codegen.build_module(fhost, str(target_host))
     if fdevice:
-        mdev = codegen.build_module(fdevice, str(target_device))
         mhost.import_module(mdev)
+    return mhost
+
+def combine_modules(host_funcs, device_modules, target_host=None):
+    """ Generate the host module for the lowered host functions by combining
+    them together. Then all device modules are imported to the combined host
+    module. This function is used for heterogeneous execution where multiple
+    device modules need to be imported to the host module. For homogeneous
+    execution, tvm.build is sufficient.
+
+    Parameters
+    ----------
+    host_funcs : LoweredFunc or list of LoweredFunc.
+        Lowered functions to be combined as the host module through codegen.
+
+    device_modules : tvm.module or list of tvm.module.
+        Device modules will be imported into host module.
+
+    Returns
+    -------
+        mhost : The module that contains both host and device code.
+    """
+    if isinstance(host_funcs, container.LoweredFunc):
+        host_funcs = [host_funcs]
+    elif not isinstance(host_funcs, (list, tuple, container.Array)):
+        raise ValueError("host_fucns must be the type of LoweredFunc or list "
+                         "of LoweredFunc.")
+
+    if isinstance(device_modules, module.Module):
+        device_modules = [device_modules]
+    elif not isinstance(device_modules, (list, tuple, container.Array)):
+        raise ValueError("host_funcs must be the type of Module or list of "
+                         "Module.")
+    for func in host_funcs:
+        if not isinstance(func, container.LoweredFunc):
+            raise ValueError("host_fucns must be the type of LoweredFunc or "
+                             "list of LoweredFunc.")
+    for device_mod in device_modules:
+        if device_mod and not isinstance(device_mod, module.Module):
+            raise ValueError("device_modules must be the type of Module or "
+                             "list of Module.")
+
+    if not target_host:
+        target_host = "llvm" if module.enabled("llvm") else "stackvm"
+    target_host = _target.create(target_host)
+
+    # Generate code for the list of host functions.
+    mhost = codegen.build_module(host_funcs, str(target_host))
+    # Import all device modules.
+    for device_mod in device_modules:
+        if device_mod:
+            mhost.import_module(device_mod)
+
     return mhost
