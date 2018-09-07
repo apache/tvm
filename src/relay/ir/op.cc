@@ -132,12 +132,8 @@ TVM_REGISTER_API("relay.op._Register")
       }
     });
 
-bool IsGeneric(const Op& op) {
-  if (auto ty_func = op.as<FuncTypeNode>()) {
-    return ty_func->type_params.size() != 0;
-  } else {
-    return false;
-  }
+bool IsGeneric(const FuncType & func_ty) {
+  return func_ty->type_params.size() != 0;
 }
 
 using namespace runtime;
@@ -151,7 +147,7 @@ Module CompileOpsToModule(const std::vector<std::string>& op_names) {
   for (auto op_name : op_names) {
     Op op = Op::Get(op_name);
 
-    if (!IsGeneric(op)) {
+    if (!IsGeneric(op->op_type)) {
       auto compiler = compiler_map[op];
       std::cout << "ABOVE CALL" << std::endl;
       tvm::Array<NodeRef> pair = compiler(op->name, op->op_type);

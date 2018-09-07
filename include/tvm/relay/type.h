@@ -131,9 +131,8 @@ class TypeParamNode : public TypeNode {
     kType     = 3,
   };
   /*!
-   * \brief The variable
-   *  The variable itself is only meaningful when
-   *  kind is ShapeVar, otherwise, we can only use the name.
+   * \brief The variable itself is only meaningful when
+   *  kind is ShapeVar, otherwise, we only use the name.
    */
   tvm::Var var;
   /*! \brief The kind of type parameter */

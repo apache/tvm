@@ -60,8 +60,8 @@ class Kind(IntEnum):
     """
     ShapeVar = 0
     Shape = 1
-    BaseType = 1
-    Type = 2
+    BaseType = 2
+    Type = 3
 
 
 @register_relay_node

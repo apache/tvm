@@ -23,7 +23,7 @@ namespace relay {
  * \sa tvm/ir_functor.h
  *
  * \tparam FType function signiture
- *  This type if only defined for FType with function signiture R(const Expr&,
+ *  This type is only defined for FType with function signature R(const Expr&,
  * Args...)
  */
 template <typename FType>

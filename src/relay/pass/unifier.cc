@@ -29,7 +29,7 @@ void UnionFindNode::insert(const IncompleteType &v) { this->uf_map.Set(v, v); }
 
 void UnionFindNode::debug() {
   for (auto entry : this->uf_map) {
-    std::cout << entry.first << " = " << entry.second << std::endl;
+    RELAY_LOG(INFO) << entry.first << " = " << entry.second << std::endl;
   }
 }
 
