@@ -201,7 +201,7 @@ Op SpecializeOp(const std::string& op_name, const std::string& new_op_name,
 
   // Build a subsitituion map up from the function type and type arguments.
   // Eventually allow the type vars to be passed in.
-  for (auto i = 0; i < type_args.size(); i++) {
+  for (size_t i = 0; i < type_args.size(); i++) {
     subst_map.Set(fn_ty->type_params[i], type_args[i]);
   }
 
