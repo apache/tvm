@@ -13,11 +13,11 @@ evaluator and TVM runtime system.
 # Introduction
 # -------------------------
 #
-# We use the fixed size for input tensors with 256 channels and 14 x 14
-# dimensions. The batch size is 256. Convolution filters contain 512 filters
-# of size 3 x 3.  We use stride size 1 and padding size 1 for the
-# convolution. The following code defines the convolution algorithm in TVM.
-#
+# In this tutorial, we will demonstrate how to write a fusion pass for
+# the Relay IR. We demonstrate many Relay features including defining a
+# new operator, a program transform, the NNVM compatibility layer,
+# and executing the original and transformed programs on the Relay
+# evaluator and TVM runtime system.
 
 from typing import Any, Dict
 

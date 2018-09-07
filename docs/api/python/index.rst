@@ -23,4 +23,5 @@ Python API
    topi
    vta/index
    nnvm/index
+   relay/index
    hybrid
