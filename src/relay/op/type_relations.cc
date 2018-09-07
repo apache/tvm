@@ -91,7 +91,7 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
     CHECK_EQ(larger.size(), smaller.size());
 
     Array<HalideIR::Expr> out_shape;
-    for (int i = 0; i < smaller.size(); i++) {
+    for (size_t i = 0; i < smaller.size(); i++) {
       auto left = smaller[i].as<tvm::ir::IntImm>();
       auto right = larger[i].as<tvm::ir::IntImm>();
       CHECK(left);
