@@ -556,7 +556,6 @@ def verify_argmin(input_dim, axis=None, keepdims=None):
         return result.astype(data.dtype)
 
     a_np1 = np.random.uniform(-10, 10, input_dim).astype(np.int32)
-    print("argmin inp=", input_dim, axis, keepdims)
     if keepdims is None and axis is None:
         b_np = _argmin_numpy(a_np1)
         node = onnx.helper.make_node('ArgMin',
@@ -575,15 +574,12 @@ def verify_argmin(input_dim, axis=None, keepdims=None):
                                      outputs=['out'],
                                      axis=axis)
     else:
-        print("here")
         b_np = _argmin_numpy(a_np1, axis=axis, keepdims=keepdims)
         node = onnx.helper.make_node('ArgMin',
                                      inputs=['a_np1'],
                                      outputs=['out'],
                                      axis=axis,
                                      keepdims=keepdims)
-    print("a_np1.shape = ", a_np1.shape)
-    print("b_np.shape = ", b_np.shape)
     graph = helper.make_graph([node],
                               "argmin_test",
                               inputs = [helper.make_tensor_value_info("a_np1",
