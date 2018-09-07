@@ -149,24 +149,24 @@ class OpRegistry {
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param ty_func_name The type function name to register for the return type.
-   * \param type_fn The backing relation which can solve an arbitrary relation
+   * \param type_rel_name The type function name to register for the return type.
+   * \param type_rel The backing relation which can solve an arbitrary relation
    * on variables.
    * \return reference to self.
    */
-  inline OpRegistry& add_type_func(const std::string& type_func_name,
-                                   TypeRelationFn type_fn);
+  inline OpRegistry& add_type_rel(const std::string& type_rel_name,
+                                   TypeRelationFn type_rel);
 
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param ty_func_name The type function name to register for the return type.
-   * \param type_fn The backing relation which can solve an arbitrary relation
+   * \param type_rel_name The type function name to register for the return type.
+   * \param type_rel The backing relation which can solve an arbitrary relation
    * on variables.
    * \return reference to self.
    */
-  inline OpRegistry& add_type_func(
-      const std::string& type_func_name,
-      std::function<Array<Type>(const Array<Type>&, int)> type_fn);
+  inline OpRegistry& add_type_rel(
+      const std::string& type_rel_name,
+      std::function<Array<Type>(const Array<Type>&, int)> type_rel);
 
   /*!
    * \brief Set the type key of attributes.
@@ -356,15 +356,15 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
   return *this;
 }
 
-inline OpRegistry& OpRegistry::add_type_func(
+inline OpRegistry& OpRegistry::add_type_rel(
     const std::string& type_func_name,
     std::function<Array<Type>(const Array<Type>&, int)> type_fn) {
   auto pfunc =
       runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>(type_fn);
-  return add_type_func(type_func_name, pfunc);
+  return add_type_rel(type_func_name, pfunc);
 }
 
-inline OpRegistry& OpRegistry::add_type_func(const std::string& type_func_name,
+inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
                                              TypeRelationFn type_fn) {
   auto type_func = TypeRelationNode::make(type_func_name, 0, type_fn);
 
