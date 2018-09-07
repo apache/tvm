@@ -86,13 +86,14 @@ struct TypeNormalizer : TypeFVisitor {
         CHECK(new_args.size() == normalized_args.size());
         tvm::Array<Type> final_args;
 
-        for (int i = 0; i < new_args.size(); i++) {
+        for (size_t i = 0; i < new_args.size(); i++) {
           final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
         }
 
         return TypeCallNode::make(ty_call->func, final_args);
       } else {
-        CHECK(false);
+        throw InternalError("found non type relation in the "\
+                            "type call function position");
       }
     }
   }
