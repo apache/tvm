@@ -3,11 +3,11 @@
  * \file tvm/relay/resolve.h
  * \brief Resolve incomplete types to complete types.
  */
-#ifndef TVM_RELAY_TYPECK_RESOLVE_H_
-#define TVM_RELAY_TYPECK_RESOLVE_H_
+#ifndef TVM_RELAY_PASS_RESOLVE_H_
+#define TVM_RELAY_PASS_RESOLVE_H_
 
-#include <string>
 #include <tvm/relay/expr.h>
+#include <string>
 #include "./unifier.h"
 
 namespace tvm {
@@ -20,4 +20,4 @@ bool IsFullyResolved(const Type & t);
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_TYPECK_RESOLVE_H_
+#endif  // TVM_RELAY_PASS_RESOLVE_H_

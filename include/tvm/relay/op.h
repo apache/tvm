@@ -6,23 +6,23 @@
 #ifndef TVM_RELAY_OP_H_
 #define TVM_RELAY_OP_H_
 
-#include <string>
-#include <vector>
-#include <utility>
-#include <typeinfo>
-#include <limits>
 #include <functional>
+#include <limits>
+#include <string>
+#include <typeinfo>
+#include <utility>
+#include <vector>
 
-#include "./base.h"
-#include "./type.h"
-#include "./expr.h"
 #include "../attrs.h"
+#include "./base.h"
+#include "./expr.h"
+#include "./type.h"
 
 namespace tvm {
 namespace relay {
 
 // forward declare name.
-template<typename ValueType>
+template <typename ValueType>
 class OpMap;
 class GenericOpMap;
 class OpRegistry;
@@ -103,7 +103,7 @@ class Op : public relay::Expr {
    * \return An OpMap of specified attr_name.
    * \tparam ValueType The type of the attribute.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   inline static OpMap<ValueType> GetAttr(const std::string& attr_name);
   /*!
    * \brief Get an Op for a given operator name.
@@ -129,9 +129,7 @@ class Op : public relay::Expr {
 class OpRegistry {
  public:
   /*! \return the operator */
-  const Op& op() const {
-    return op_;
-  }
+  const Op& op() const { return op_; }
   /*!
    * \brief setter function during registration
    *  Set the description of operator
@@ -146,24 +144,25 @@ class OpRegistry {
    * \param description Description of the argument.
    * \return reference to self.
    */
-  inline OpRegistry& add_argument(const std::string &name,
-                                  const std::string &type,
-                                  const std::string &description);
-   /*!
+  inline OpRegistry& add_argument(const std::string& name,
+                                  const std::string& type,
+                                  const std::string& description);
+  /*!
    * \brief Attach the type function corresponding to the return type.
    * \param ty_func The type function to register for the return type.
    * \return reference to self.
    */
-  inline OpRegistry& add_type_func(const std::string & type_func_name, TypeRelationFn type_fn);
+  inline OpRegistry& add_type_func(const std::string& type_func_name,
+                                   TypeRelationFn type_fn);
 
-   /*!
+  /*!
    * \brief Attach the type function corresponding to the return type.
    * \param ty_func The type function to register for the return type.
    * \return reference to self.
    */
   inline OpRegistry& add_type_func(
-    const std::string & type_func_name, 
-    std::function<Array<Type>(const Array<Type> &, int)> type_fn);
+      const std::string& type_func_name,
+      std::function<Array<Type>(const Array<Type>&, int)> type_fn);
 
   /*!
    * \brief Set the type key of attributes.
@@ -196,10 +195,9 @@ class OpRegistry {
    *
    * \tparam ValueType The type of the value to be set.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   inline OpRegistry& set_attr(const std::string& attr_name,  // NOLINT(*)
-                              const ValueType& value,
-                              int plevel = 10);
+                              const ValueType& value, int plevel = 10);
 
   // set the name of the op to be the same as registry
   inline OpRegistry& set_name() {  // NOLINT(*)
@@ -222,8 +220,7 @@ class OpRegistry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpMap
-  TVM_DLL void UpdateAttr(const std::string& key,
-                          TVMRetValue value,
+  TVM_DLL void UpdateAttr(const std::string& key, TVMRetValue value,
                           int plevel);
 };
 
@@ -251,7 +248,7 @@ class GenericOpMap {
    * \return the const reference to the content value.
    * \tparam ValueType The content value type.
    */
-  template<typename ValueType>
+  template <typename ValueType>
   inline ValueType get(const Op& op, ValueType def_value) const;
 
  private:
@@ -268,7 +265,7 @@ class GenericOpMap {
  * \brief Map<Op,ValueType> used to store meta-information about Op.
  * \tparam ValueType The type of the value stored in map.
  */
-template<typename ValueType>
+template <typename ValueType>
 class OpMap {
  public:
   /*!
@@ -294,15 +291,14 @@ class OpMap {
  private:
   friend class Op;
   // constructor
-  explicit OpMap(const GenericOpMap& map)
-      : map_(map) {}
+  explicit OpMap(const GenericOpMap& map) : map_(map) {}
   /*! \brief The internal map field */
   const GenericOpMap& map_;
 };
 
 // internal macros to make
-#define RELAY_REGISTER_VAR_DEF                                          \
-  static DMLC_ATTRIBUTE_UNUSED ::tvm::relay::OpRegistry & __make_ ## RelayOp
+#define RELAY_REGISTER_VAR_DEF \
+  static DMLC_ATTRIBUTE_UNUSED ::tvm::relay::OpRegistry& __make_##RelayOp
 
 /*!
  * \def RELAY_REGISTER_OP
@@ -319,16 +315,18 @@ class OpMap {
  *
  * \endcode
  */
-#define RELAY_REGISTER_OP(OpName)                                       \
-  DMLC_STR_CONCAT(RELAY_REGISTER_VAR_DEF, __COUNTER__) =        \
-      ::tvm::relay::OpRegistry::Registry()->__REGISTER_OR_GET__(OpName).set_name()
+#define RELAY_REGISTER_OP(OpName)                        \
+  DMLC_STR_CONCAT(RELAY_REGISTER_VAR_DEF, __COUNTER__) = \
+      ::tvm::relay::OpRegistry::Registry()               \
+          ->__REGISTER_OR_GET__(OpName)                  \
+          .set_name()
 
 // implementations
 inline const OpNode* Op::operator->() const {
   return static_cast<const OpNode*>(node_.get());
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline OpMap<ValueType> Op::GetAttr(const std::string& key) {
   return OpMap<ValueType>(Op::GetGenericAttr(key));
 }
@@ -337,14 +335,15 @@ inline OpNode* OpRegistry::get() {
   return const_cast<OpNode*>(op_.operator->());
 }
 
-inline OpRegistry& OpRegistry::describe(const std::string& descr) { // NOLINT(*)
+inline OpRegistry& OpRegistry::describe(
+    const std::string& descr) {  // NOLINT(*)
   get()->description = descr;
   return *this;
 }
 
-inline OpRegistry& OpRegistry::add_argument(const std::string &name,
-                                            const std::string &type,
-                                            const std::string &description) {
+inline OpRegistry& OpRegistry::add_argument(const std::string& name,
+                                            const std::string& type,
+                                            const std::string& description) {
   std::shared_ptr<AttrFieldInfoNode> n = std::make_shared<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
@@ -354,13 +353,15 @@ inline OpRegistry& OpRegistry::add_argument(const std::string &name,
 }
 
 inline OpRegistry& OpRegistry::add_type_func(
-  const std::string & type_func_name, 
-  std::function<Array<Type>(const Array<Type> &, int)> type_fn) {
-  auto pfunc = runtime::TypedPackedFunc<Array<Type>(const Array<Type> &, int)>(type_fn);
+    const std::string& type_func_name,
+    std::function<Array<Type>(const Array<Type>&, int)> type_fn) {
+  auto pfunc =
+      runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>(type_fn);
   return add_type_func(type_func_name, pfunc);
 }
 
-inline OpRegistry& OpRegistry::add_type_func(const std::string & type_func_name, TypeRelationFn type_fn) {
+inline OpRegistry& OpRegistry::add_type_func(const std::string& type_func_name,
+                                             TypeRelationFn type_fn) {
   auto type_func = TypeRelationNode::make(type_func_name, 0, type_fn);
 
   std::vector<TypeParam> type_params;
@@ -397,7 +398,7 @@ inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
   return *this;
 }
 
-inline OpRegistry& OpRegistry::set_attrs_type_key(   // NOLINT(*)
+inline OpRegistry& OpRegistry::set_attrs_type_key(  // NOLINT(*)
     const std::string& type_key) {
   get()->attrs_type_key = type_key;
   return *this;
@@ -408,13 +409,10 @@ inline OpRegistry& OpRegistry::set_support_level(int32_t n) {  // NOLINT(*)
   return *this;
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline OpRegistry& OpRegistry::set_attr(  // NOLINT(*)
-    const std::string& attr_name,
-    const ValueType& value,
-    int plevel) {
-  CHECK_GT(plevel, 0)
-      << "plevel in set_attr must be greater than 0";
+    const std::string& attr_name, const ValueType& value, int plevel) {
+  CHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   TVMRetValue rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);
@@ -435,12 +433,12 @@ inline const TVMRetValue& GenericOpMap::operator[](const Op& op) const {
   CHECK(op.defined());
   const uint32_t idx = op->index_;
   CHECK(idx < data_.size() && data_[idx].second != 0)
-        << "Attribute " << attr_name_
-        << " has not been registered for Operator " << op->name;
+      << "Attribute " << attr_name_ << " has not been registered for Operator "
+      << op->name;
   return data_[idx].first;
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline ValueType GenericOpMap::get(const Op& op, ValueType value) const {
   CHECK(op.defined());
   const uint32_t idx = op->index_;
@@ -451,17 +449,18 @@ inline ValueType GenericOpMap::get(const Op& op, ValueType value) const {
   }
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline int OpMap<ValueType>::count(const Op& op) const {
   return map_.count(op);
 }
 
-template<typename ValueType>
+template <typename ValueType>
 inline ValueType OpMap<ValueType>::operator[](const Op& op) const {
   return map_[op];
 }
-template<typename ValueType>
-inline ValueType OpMap<ValueType>::get(const Op& op, ValueType def_value) const {
+template <typename ValueType>
+inline ValueType OpMap<ValueType>::get(const Op& op,
+                                       ValueType def_value) const {
   return map_.get<ValueType>(op, def_value);
 }
 

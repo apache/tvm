@@ -1,11 +1,17 @@
+/*!
+ *  Copyright (c) 2018 by Contributors
+ * \file src/tvm/relay/op.cc
+ * \brief Resolve incomplete types to complete types.
+ */
 #include <tvm/relay/op.h>
 #include <tvm/relay/type.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
-#include "./../pass/type_subst.h"
 
 #include <memory>
 #include <mutex>
+
+#include "./../pass/type_subst.h"
 
 namespace dmlc {
 // enable registry
@@ -132,7 +138,7 @@ TVM_REGISTER_API("relay.op._Register")
       }
     });
 
-bool IsGeneric(const FuncType & func_ty) {
+bool IsGeneric(const FuncType& func_ty) {
   return func_ty->type_params.size() != 0;
 }
 
@@ -181,12 +187,12 @@ TVM_REGISTER_API("relay.op._CompileOpsToModule")
       *ret = CompileOpsToModule(names);
     });
 
-Op SpecializeOp(const std::string& op_name,
-                        const std::string& new_op_name, Array<Type> type_args) {
+Op SpecializeOp(const std::string& op_name, const std::string& new_op_name,
+                Array<Type> type_args) {
   auto registry = ::tvm::relay::OpRegistry::Registry();
   auto op_reg = registry->__REGISTER_OR_GET__(op_name);
   auto new_op_reg = registry->__REGISTER__(new_op_name).set_name();
-  
+
   auto fn_ty = op_reg.op()->op_type;
 
   tvm::Map<TypeParam, Type> subst_map;
@@ -205,7 +211,8 @@ Op SpecializeOp(const std::string& op_name,
   new_op_reg.op()->op_type = new_op_ty;
 
   // Now we want to copy over some attributes.
-  PackedFunc compiler = Op::GetAttr<PackedFunc>("FRelayOpCompiler")[op_reg.op()];
+  PackedFunc compiler =
+      Op::GetAttr<PackedFunc>("FRelayOpCompiler")[op_reg.op()];
   new_op_reg.set_attr<PackedFunc>("FRelayOpCompiler", compiler);
 
   return new_op_reg.op();

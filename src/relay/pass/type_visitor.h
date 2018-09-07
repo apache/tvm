@@ -3,8 +3,8 @@
  * \file type_visitor.h
  * \brief A wrapper around TypeFunctor for common use cases.
  */
-#ifndef TVM_RELAY_TYPE_VISITOR_H_
-#define TVM_RELAY_TYPE_VISITOR_H_
+#ifndef TVM_RELAY_PASS_TYPE_VISITOR_H_
+#define TVM_RELAY_PASS_TYPE_VISITOR_H_
 
 #include <vector>
 #include "./type_functor.h"
@@ -54,7 +54,7 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
 // A functional visitor for rebuilding an AST in place.
 struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const TensorTypeNode* op) override {
-    // TODO (@jroesch): maybe we should recursively visit
+    // TODO(@jroesch): maybe we should recursively visit
     return TensorTypeNode::make(op->shape, op->dtype);
   }
 
@@ -63,7 +63,7 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
   }
 
   Type VisitType_(const FuncTypeNode* op) override {
-    // TODO (@jroesch): handle poly
+    // TODO(@jroesch): handle poly
 
     // auto new_id = this->VisitType(op->var);
     // if (const TypeParamNode* tin = new_id.as<TypeParamNode>()) {
@@ -107,4 +107,4 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TYPE_VISITOR_H_
+#endif  // TVM_RELAY_PASS_TYPE_VISITOR_H_

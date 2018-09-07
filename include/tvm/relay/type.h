@@ -126,9 +126,9 @@ class TypeParamNode : public TypeNode {
   enum Kind : int {
     /*! \brief template variable in shape expression */
     kShapeVar = 0,
-    kShape    = 1,
+    kShape = 1,
     kBaseType = 2,
-    kType     = 3,
+    kType = 3,
   };
   /*!
    * \brief The variable itself is only meaningful when
@@ -200,8 +200,8 @@ class FuncTypeNode : public TypeNode {
   }
 
   TVM_DLL static FuncType make(tvm::Array<Type> arg_types, Type ret_type,
-                                tvm::Array<TypeParam> type_params,
-                                tvm::Array<TypeConstraint> type_constraints);
+                               tvm::Array<TypeParam> type_params,
+                               tvm::Array<TypeConstraint> type_constraints);
 
   static constexpr const char* _type_key = "relay.FuncType";
   TVM_DECLARE_NODE_TYPE_INFO(FuncTypeNode, TypeNode);
@@ -209,7 +209,8 @@ class FuncTypeNode : public TypeNode {
 
 RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
 
-using TypeRelationFn = runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>;
+using TypeRelationFn =
+    runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>;
 
 /*!
  * \brief Opaque type relation, is an input-output relation on types.
@@ -238,7 +239,8 @@ class TypeRelationNode : public RelayNode {
     v->Visit("num_args", &num_args);
   }
 
-  TVM_DLL static TypeRelation make(std::string name, int num_args, TypeRelationFn func_);
+  TVM_DLL static TypeRelation make(std::string name, int num_args,
+                                   TypeRelationFn func_);
 
   static constexpr const char* _type_key = "relay.TypeRelation";
   TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, RelayNode);
@@ -257,7 +259,7 @@ class TypeCallNode : public TypeNode {
  public:
   /*! \brief The type function to be called. */
   Type func;
-  
+
   /*! \brief The type arguments to the type function. */
   tvm::Array<Type> args;
 
@@ -290,9 +292,7 @@ class TupleTypeNode : public TypeNode {
 
   TupleTypeNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("fields", &fields);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("fields", &fields); }
 
   TVM_DLL static TupleType make(tvm::Array<Type> fields);
 

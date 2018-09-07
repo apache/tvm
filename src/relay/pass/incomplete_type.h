@@ -4,8 +4,8 @@
  * \brief A way to defined arbitrary function signature with dispatch on types.
  */
 
-#ifndef TVM_RELAY_PASS_INCOMPLETE_TYPE_H
-#define TVM_RELAY_PASS_INCOMPLETE_TYPE_H
+#ifndef TVM_RELAY_PASS_INCOMPLETE_TYPE_H_
+#define TVM_RELAY_PASS_INCOMPLETE_TYPE_H_
 
 #include <tvm/relay/expr.h>
 
@@ -22,9 +22,7 @@ class IncompleteTypeNode : public TypeNode {
  public:
   TypeParamNode::Kind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("kind", &kind);
-  }
+  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("kind", &kind); }
 
   TVM_DLL static IncompleteType make(TypeParamNode::Kind kind);
 
@@ -34,7 +32,7 @@ class IncompleteTypeNode : public TypeNode {
 
 RELAY_DEFINE_NODE_REF(IncompleteType, IncompleteTypeNode, Type);
 
-} // namespace relay
-} // namespace tvm
+}  // namespace relay
+}  // namespace tvm
 
-#endif  // TVM_RELAY_PASS_INCOMPLETE_TYPE_H
+#endif  // TVM_RELAY_PASS_INCOMPLETE_TYPE_H_

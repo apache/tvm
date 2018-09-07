@@ -47,4 +47,4 @@ bool KindCheck(const Environment& env, const Type& t);
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_PASS_TYPECHECKER_H_
+#endif  // TVM_RELAY_PASS_H_

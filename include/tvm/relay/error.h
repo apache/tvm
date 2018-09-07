@@ -13,11 +13,11 @@ namespace tvm {
 namespace relay {
 
 struct Error : dmlc::Error {
-    Error(std::string msg) : dmlc::Error(msg) {}
+  explicit Error(const std::string &msg) : dmlc::Error(msg) {}
 };
 
 struct InternalError : Error {
-    InternalError(std::string msg) : Error(msg) {}
+  explicit InternalError(const std::string &msg) : Error(msg) {}
 };
 
 struct SpannedError {
@@ -26,14 +26,14 @@ struct SpannedError {
   SpannedError(std::string msg, Span sp) : msg(msg), sp(sp) {}
 };
 
-// FIX, we should change spanned errors to have a method which allow them to report on the Environment,
-// inverting control to error definition.
+// FIX, we should change spanned errors to have a method which allow them to
+// report on the Environment, inverting control to error definition.
 struct FatalTypeError : dmlc::Error {
-   explicit FatalTypeError(const std::string & s) : dmlc::Error(s) {}
+  explicit FatalTypeError(const std::string &s) : dmlc::Error(s) {}
 };
 
 struct TypecheckerError : public dmlc::Error {
-   explicit TypecheckerError(const std::string &msg) : Error(msg) {}
+  explicit TypecheckerError(const std::string &msg) : Error(msg) {}
 };
 
 }  // namespace relay

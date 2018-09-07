@@ -14,15 +14,18 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
-SourceFragment::SourceFragment(const std::string& file_name, const std::string& source)
+SourceFragment::SourceFragment(const std::string& file_name,
+                               const std::string& source)
     : file_name(file_name), source_lines({}) {
-  RELAY_LOG(INFO)<< "SourceFragment::SourceFragment source=" << source << std::endl;
+  RELAY_LOG(INFO) << "SourceFragment::SourceFragment source=" << source
+                  << std::endl;
   std::stringstream source_stream;
   source_stream.str(source.c_str());
   std::string line;
 
   while (std::getline(source_stream, line)) {
-    RELAY_LOG(INFO) << "SourceFragment::SourceFragment: line=" << line << std::endl;
+    RELAY_LOG(INFO) << "SourceFragment::SourceFragment: line=" << line
+                    << std::endl;
     std::string copy(line);
     source_lines.push_back(copy);
   }
@@ -38,7 +41,8 @@ std::string SourceFragment::SourceAt(Span sp, int max_lines = 1) {
     throw dmlc::Error("SourceFragment: index out of bounds");
   }
 
-  auto lines = std::max(static_cast<size_t>(max_lines), source_lines.size() - starting_line);
+  auto lines = std::max(static_cast<size_t>(max_lines),
+                        source_lines.size() - starting_line);
 
   for (size_t i = 0; i < lines; i++) {
     out << std::endl << this->source_lines.at(starting_line + i);
@@ -46,11 +50,12 @@ std::string SourceFragment::SourceAt(Span sp, int max_lines = 1) {
 
   auto source_slice = out.str();
 
-  RELAY_LOG(INFO) << "SourceFragment::SourceAt: source_slice=" << source_slice << std::endl;
+  RELAY_LOG(INFO) << "SourceFragment::SourceAt: source_slice=" << source_slice
+                  << std::endl;
   return source_slice;
 }
 
-SourceName SourceMap::AddSource(std::string file_name, std::string source) {
+SourceName SourceMap::AddSource(const std::string & file_name, const std::string & source) {
   auto new_id = SourceNameNode::make(file_name);
   SourceFragment sfile(file_name, source);
   this->map_.insert({new_id, sfile});
@@ -62,7 +67,7 @@ const SourceFragment& SourceMap::GetSource(SourceName id) const {
   if (item != map_.end()) {
     return (*item).second;
   } else {
-      throw dmlc::Error("could not find requested source fragment");
+    throw dmlc::Error("could not find requested source fragment");
   }
 }
 

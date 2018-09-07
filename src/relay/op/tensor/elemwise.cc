@@ -120,5 +120,5 @@ RELAY_REGISTER_OP("equal")
   .set_support_level(1)
   .add_type_func("BroadcastComp", BroadcastCompRel);
 
-}  // namespace relayv
+}  // namespace relay
 }  // namespace tvm

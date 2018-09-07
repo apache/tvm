@@ -149,14 +149,13 @@ void EnvironmentNode::Transform(EnvironmentNode::Transformer transformer) {
     to_process.push_back(var_and_func.first);
   }
 
-  auto for_each = transformer(GetRef<Environment>(this)); 
+  auto for_each = transformer(GetRef<Environment>(this));
   for (auto var : to_process) {
     auto func = this->functions[var];
     auto transformed = for_each(var, func);
     this->Add(var, transformed, true);
   }
 }
-
 
 TVM_REGISTER_API("relay._make.Environment")
     .set_body([](TVMArgs args, TVMRetValue *ret) {

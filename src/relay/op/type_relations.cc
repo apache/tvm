@@ -29,7 +29,7 @@ int to_int(const tvm::Expr& e) {
 }
 
 Array<Type> IdentityRel(const Array<Type>& types, int num_args) {
-  CHECK(types.size() == 2);
+  CHECK_EQ(types.size(), 2);
   auto t1 = as_ttype(types[0]);
   if (t1 && types[1].as<IncompleteTypeNode>()) {
     return {t1, t1};
@@ -88,7 +88,7 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
       smaller = sh2;
     }
 
-    CHECK(larger.size() == smaller.size());
+    CHECK_EQ(larger.size(), smaller.size());
 
     Array<HalideIR::Expr> out_shape;
     for (int i = 0; i < smaller.size(); i++) {
@@ -105,11 +105,11 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
 }
 
 Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
-  CHECK(types.size() == 3);
+  CHECK_EQ(types.size(), 3);
   if (auto t1 = as_ttype(types[0])) {
     if (auto t2 = as_ttype(types[1])) {
       std::cout << t1->dtype << t2->dtype << std::endl;
-      CHECK(t1->dtype == t2->dtype);
+      CHECK_EQ(t1->dtype, t2->dtype);
       return {t1, t2, ConcreteBroadcast(t1, t2, t1->dtype)};
     }
   }
@@ -121,7 +121,7 @@ Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
    compute boolean results.
 */
 Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args) {
-  CHECK(types.size() == 3);
+  CHECK_EQ(types.size(), 3);
   if (auto t1 = as_ttype(types[0])) {
     if (auto t2 = as_ttype(types[1])) {
       return {t1, t2, ConcreteBroadcast(t1, t2, HalideIR::Bool())};

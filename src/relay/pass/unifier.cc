@@ -5,11 +5,11 @@
  * incomplete types.
  */
 
-#include <tvm/relay/type.h>
+#include "./unifier.h"
 #include <tvm/relay/expr.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass/alpha_eq.h>
-#include "./unifier.h"
+#include <tvm/relay/type.h>
 #include "./type_visitor.h"
 // #include "tvm/relay/typeck/kindchecker.h"
 
@@ -33,7 +33,7 @@ void UnionFindNode::debug() {
   }
 }
 
-void UnionFindNode::AssertAlphaEqual(const Type & l, const Type & r) {
+void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
   if (!AlphaEqual(l, r)) {
     std::stringstream ss;
     ss << "Incompatible parent types in UF:" << l << " and " << r;
@@ -141,7 +141,7 @@ Type TypeUnifierNode::unify(const Type &t1, const Type &t2) {
 
   Type unified = this->VisitType(t1, t2);
   // if (!check_kind(unified)) {
-    // throw UnificationError("Invalid kinds in unified type");
+  // throw UnificationError("Invalid kinds in unified type");
   // }
   return unified;
 }
@@ -167,32 +167,34 @@ Type TypeUnifierNode::subst(const Type &t) {
   // normalize first so substitutions in quantifiers will be correct
   Type ret = tvsubst.VisitType(t);
   // if (!check_kind(ret)) {
-    // std::stringstream ss;
-    // ss << "Invalid Kinds in substituted type!";
-    // ss << t << std::endl;
-    // ss << ret << std::endl;
-    // throw SubstitutionError(ss.str());
+  // std::stringstream ss;
+  // ss << "Invalid Kinds in substituted type!";
+  // ss << t << std::endl;
+  // ss << ret << std::endl;
+  // throw SubstitutionError(ss.str());
   // }
   return ret;
 }
 
-Type TypeUnifierNode::VisitType(const Type & t1, const Type t2) {
+Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
   // When the right hand size is a type variable immediately unify.
   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
     return this->unifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
-  // The TypeCallNode case is special and not symmetric.
-  // 
-  // We flip the arguments so we hit the TypeCall and other case in there is
-  // ever a type call.
+    // The TypeCallNode case is special and not symmetric.
+    //
+    // We flip the arguments so we hit the TypeCall and other case in there is
+    // ever a type call.
   } else if (const TypeCallNode *tvn2 = t2.as<TypeCallNode>()) {
-    return TypeFunctor<Type(const Type & t1, const Type t2)>::VisitType(t2, t1);
+    return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t2, t1);
   } else {
-    return TypeFunctor<Type(const Type & t1, const Type t2)>::VisitType(t1, t2);
+    return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t1, t2);
   }
 }
 
-Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1, const IncompleteType tv2) {
-  RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2 << std::endl;
+Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1,
+                                              const IncompleteType tv2) {
+  RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2
+                  << std::endl;
   // Fix unify to return new representative
   this->uf->unify(tv2, t1);
   auto rep = this->uf->find(tv2);
@@ -235,7 +237,8 @@ Type TypeUnifierNode::VisitType_(const FuncTypeNode *t1, const Type rt2) {
     FuncType ft2 = GetRef<FuncType>(tan2);
 
     if (ft1->type_params.size() != ft2->type_params.size()) {
-      throw UnificationError("unable to unify functions with differing number of type parameters");
+      throw UnificationError(
+          "unable to unify functions with differing number of type parameters");
     }
 
     if (ft1->type_params.size() != 0) {
@@ -282,7 +285,7 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
     TensorType tt2 = GetRef<TensorType>(ttn2);
 
     if (!AlphaEqual(tt1, tt2)) {
-        throw UnificationError("dtypes do not match");
+      throw UnificationError("dtypes do not match");
     }
 
     RELAY_LOG(INFO) << "Unify Tensor Shape s1=" << tt1->shape
@@ -290,8 +293,9 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
     try {
       // Type unified_shape = this->VisitType(tt1->shape, tt2->shape);
       return rt2;
-    } catch (const UnificationError & err) {
-      std::cout << "Need to check constraint " << tt1->shape << " = " << tt2->shape << std::endl;
+    } catch (const UnificationError &err) {
+      std::cout << "Need to check constraint " << tt1->shape << " = "
+                << tt2->shape << std::endl;
     }
 
     // fix me
@@ -328,15 +332,16 @@ Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
 }
 
 Type TypeUnifierNode::VisitType_(const TypeRelationNode *tr1, const Type t2) {
-   if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
-     if (tr1 == tr2) {
-       return GetRef<TypeRelation>(tr1);
-     } else {
-       throw UnificationError("Cannot unify different type relations");
-     }
-   } else {
-       throw UnificationError("Cannot unify type relation with another type of type");
-   }
+  if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
+    if (tr1 == tr2) {
+      return GetRef<TypeRelation>(tr1);
+    } else {
+      throw UnificationError("Cannot unify different type relations");
+    }
+  } else {
+    throw UnificationError(
+        "Cannot unify type relation with another type of type");
+  }
 }
 
 Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
@@ -347,7 +352,8 @@ Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
 
     // For now, we will only unify if they are equal.
     if (ty_call1->args.size() != tcn2->args.size()) {
-      throw UnificationError("Cannot unify calls of different number of arguments");
+      throw UnificationError(
+          "Cannot unify calls of different number of arguments");
     }
 
     // Unify members, if possible
@@ -363,7 +369,6 @@ Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
     return this->VisitType(args[args.size() - 1], t2);
   }
 }
-
 
 }  // namespace relay
 }  // namespace tvm

@@ -60,7 +60,7 @@ struct TypeContext {
 
 struct TypeNormalizer : TypeFVisitor {
   TypeUnifier unifier;
-  TypeNormalizer(const TypeUnifier &unifier) : unifier(unifier) {}
+  explicit TypeNormalizer(const TypeUnifier &unifier) : unifier(unifier) {}
 
   Type VisitType_(const TypeCallNode *ty_call_node) {
     auto ty_call = GetRef<TypeCall>(ty_call_node);

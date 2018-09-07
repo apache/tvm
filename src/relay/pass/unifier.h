@@ -7,8 +7,8 @@
 #ifndef TVM_RELAY_PASS_UNIFIER_H_
 #define TVM_RELAY_PASS_UNIFIER_H_
 
-#include <string>
 #include <tvm/relay/expr.h>
+#include <string>
 #include "./type_functor.h"
 
 namespace tvm {
@@ -62,7 +62,7 @@ class UnionFind : public NodeRef {
   explicit UnionFind(std::shared_ptr<tvm::Node> p) : NodeRef(p) {}
 
   // The union find structure is mutable so we do not use the standard macros
-  // and expose the pointer via `->`. 
+  // and expose the pointer via `->`.
   UnionFindNode* operator->() const {
     return static_cast<UnionFindNode*>(node_.get());
   }
@@ -102,8 +102,9 @@ class TypeUnifierNode : public Node,
  private:
   /*! \brief Unify incomplete type with another type. */
   Type unifyWithIncompleteType(const Type& t1, const IncompleteType tvn2);
-  /*! \brief Implements unification between two types with incomplete portions. */
-  Type VisitType(const Type & t1, const Type t2) override;
+  /*! \brief Implements unification between two types with incomplete portions.
+   */
+  Type VisitType(const Type& t1, const Type t2) override;
 
   // Visitor Cases
   Type VisitType_(const IncompleteTypeNode* t1, const Type t2) override;
@@ -130,4 +131,4 @@ class TypeUnifier : public NodeRef {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_TYPECK_UNIFIER_H_
+#endif  // TVM_RELAY_PASS_UNIFIER_H_
