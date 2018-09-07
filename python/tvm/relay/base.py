@@ -1,7 +1,6 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck
 """The base node types for the Relay language."""
 from __future__ import absolute_import as _abs
-from typing import Union
 from .._ffi.node import NodeBase, register_node as _register_tvm_node
 from . import _make
 

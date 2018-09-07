@@ -155,6 +155,7 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         return self.lookup(ident)
 
     def visit_call(self, call: Call) -> NodeRef:
+        """Transform a ::tvm.relay.Call into an operator in the TVM graph."""
         inputs = []
         for arg in call.args:
             inputs.append(self.visit(arg).to_json())
@@ -222,7 +223,7 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         return json.dumps(json_dict)
 
 
-def compile(func):
+def compile_to_tvm(func):
     """Compile a single function to the components needed by the
        TVM RTS.
     """

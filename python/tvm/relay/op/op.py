@@ -3,13 +3,13 @@ from ..._ffi.function import _init_api
 
 from ..base import register_relay_node
 from ..expr import Expr
-from ..._ffi.function import Function, register_func
-from ...api import convert
-from ...container import Map
-from ... import lower, build, cpu
+from ..._ffi.function import register_func
+from ... import lower, build
+
 
 @register_relay_node
 class Op(Expr):
+    """A Relay operator definition."""
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
 
@@ -74,6 +74,7 @@ def register(op_name, attr_key, value=None, level=10):
         return v
     return _register(value) if value else _register
 
+
 def compile_ops(op_names):
     """Register an operator property of an operator.
 
@@ -90,6 +91,8 @@ def compile_ops(op_names):
     return _CompileOpsToModule(*op_names)
 
 # TODO(@jroesch): We should port to C++, just need to figure out how to write this code.
+
+
 @register_func("relay.op._compile_ops")
 def _compile_ops(op_impls):
     lowered = []
@@ -100,7 +103,9 @@ def _compile_ops(op_impls):
     # TOOD(@jroesch): Where should we read these settings from
     return build(lowered, target='llvm', target_host='llvm')
 
+
 _init_api("relay.op", __name__)
+
 
 def specialize_op(op_name, new_op_name, type_args):
     """Specializes an operator to a set of types and assigns it new_op_name.
@@ -110,7 +115,7 @@ def specialize_op(op_name, new_op_name, type_args):
 
     add : forall (T : Type) (U : Type), (U, T) -> Broadcast(U, T)
 
-    This is a function which is polymorphic over two types `T` and `U` and 
+    This is a function which is polymorphic over two types `T` and `U` and
     takes a value of type `T` and one of `U` and returns `Broadcast` of U
     and T.
 
@@ -135,7 +140,7 @@ def specialize_op(op_name, new_op_name, type_args):
     ----------
     op_name : str
         The operator to be specialized.
-    
+
     Returns
     -------
         The specialized operator.

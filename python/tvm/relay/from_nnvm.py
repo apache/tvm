@@ -1,4 +1,7 @@
+#pylint: disable-all
+"""Convert an nnvm.graph.Graph into a tvm.relay.Expr"""
 import nnvm
 
 def from_nnvm(graph):
-    import pdb; pdb.set_trace()
+    """Convert an nnvm.graph.Graph into a tvm.relay.Expr"""
+    raise Exception("NYI")

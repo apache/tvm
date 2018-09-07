@@ -1,17 +1,20 @@
+#pylint: disable=invalid-name
 """Backend compiler related feature regsitration"""
+from topi import add
 from .op import register
 from ..type import FuncType, TensorType
 from ...schedule import create_schedule
 from ...api import placeholder
-from topi import add
 
 def type_to_placeholder(name, ty):
+    """Convert a single type into the correct placeholder."""
     if isinstance(ty, TensorType):
         return placeholder(ty.shape, name=name, dtype=ty.dtype)
     else:
         raise Exception("can only pass Tensor values to TVM operators")
 
 def func_ty_to_placeholders(func_ty):
+    """Build input placeholders based on a function type."""
     if isinstance(func_ty, FuncType):
         arg_types = func_ty.arg_types
         ret_type = func_ty.ret_type
@@ -45,12 +48,13 @@ def func_ty_to_placeholders(func_ty):
 #     schedule = tvm.create_schedule(Output.op)
 #     return [schedule, Inputs + [Output]]
 
-
-def add_compiler(op_name, func_type, *args):
-    Inputs, ret_ty = func_ty_to_placeholders(func_type)
+#pylint: disable=duplicate-argument-name
+def add_compiler(_, func_type, *_):
+    """The compilation code for the TVM compiler."""
+    inputs, _ = func_ty_to_placeholders(func_type)
     # op = lookup_in_topi(op_name)
-    Output = add(*Inputs)
-    schedule = create_schedule(Output.op)
-    return [schedule, Inputs + [Output]]
+    output = add(*inputs)
+    schedule = create_schedule(output.op)
+    return [schedule, inputs + [output]]
 
 register("add", "FRelayOpCompiler", add_compiler)

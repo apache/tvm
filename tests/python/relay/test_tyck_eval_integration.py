@@ -33,7 +33,7 @@ def run(env, expr, inputs, shape):
     env.add("main", expr)
     env.transform(Monomorphize.to_pass())
     main = env.lookup("main")
-    graph, lib, _ = to_tvm.compile(main)
+    graph, lib, _ = to_tvm.compile_to_tvm(main)
     # We use NNVM to load the graph right now because it populates node_row_ptr field.
     nnvm_graph = nnvm.graph.load_json(graph)
     module = graph_runtime.create(nnvm_graph, lib, tvm.cpu(0))

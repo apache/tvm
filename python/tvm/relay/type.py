@@ -1,9 +1,9 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The type nodes of the Relay language."""
-from typing import Tuple, List
+from typing import List
 from enum import IntEnum
-from .base import Span, NodeBase, register_relay_node
 from tvm import expr
+from .base import Span, NodeBase, register_relay_node
 from . import _make
 
 
@@ -67,18 +67,18 @@ class Kind(IntEnum):
 @register_relay_node
 class TypeParam(Type):
     """A type parameter used for generic types in Relay,
-       see tvm/relay/type.h for more details.
+    see tvm/relay/type.h for more details.
 
-       A type parameter represents a type placeholder which will
-       be filled in later on. This allows the user to write 
-       functions which are generic over types.
+    A type parameter represents a type placeholder which will
+    be filled in later on. This allows the user to write
+    functions which are generic over types.
     """
     var: expr.Var
     kind: Kind
     span: Span
 
     def __init__(self, var: expr.Var, kind: Kind) -> None:
-        """Construct a TypeParam. 
+        """Construct a TypeParam.
 
         Parameters
         ----------
@@ -87,7 +87,7 @@ class TypeParam(Type):
 
         kind: Kind
             The kind of the type parameter.
-        
+
         Returns
         -------
         type_param: TypeParam
@@ -112,8 +112,7 @@ class FuncType(Type):
     being, a sequence of argument types, and a return type.
 
     We informally write them as:
-        `forall (type_params), (arg_types) -> ret_type 
-            where type_constraints`
+    `forall (type_params), (arg_types) -> ret_type where type_constraints`
     """
     type_params: List[TypeParam]
     type_constraints: List[TypeConstraint]
@@ -121,8 +120,12 @@ class FuncType(Type):
     ret_type: Type
     span: Span
 
-    def __init__(self, arg_types: List[Type], ret_type: Type, type_params: List[TypeParam], type_constraints: List[TypeConstraint]) -> None:
-        """Construct a function type. 
+    def __init__(self,
+                 arg_types: List[Type],
+                 ret_type: Type,
+                 type_params: List[TypeParam],
+                 type_constraints: List[TypeConstraint]) -> None:
+        """Construct a function type.
 
         Parameters
         ----------
@@ -130,7 +133,7 @@ class FuncType(Type):
         ret_type: Type
         type_params: list of TypeParam
         type_constraints: list of TypeConstraint
-        
+
         Returns
         -------
         func_type: FuncType
@@ -142,8 +145,9 @@ class FuncType(Type):
 
 @register_relay_node
 class TypeCall(Type):
-    def __init__() -> None:
-        pass
+    def __init__(self, type_rel, args) -> None:
+        self.__init_handle_by_constructor__(
+            _make.TypeCall, type_rel, args)
 
 
 @register_relay_node

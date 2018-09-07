@@ -59,6 +59,7 @@ def sqrt(data):
     """
     return _make.sqrt(data)
 
+
 def add(lhs, rhs):
     """Take sqrt of data.
 
@@ -76,6 +77,7 @@ def add(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
+
 def subtract(lhs, rhs):
     """Take sqrt of data.
 
@@ -92,6 +94,7 @@ def subtract(lhs, rhs):
         The computed result.
     """
     return _make.add(lhs, rhs)
+
 
 def equal(lhs, rhs):
     return _make.equal(lhs, rhs)

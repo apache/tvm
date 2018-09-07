@@ -1,7 +1,6 @@
-# pylint: disable=no-else-return
+# pylint: disable=no-else-return,
 # pylint: disable=unidiomatic-typecheck
-"""
-The optimizer for Relay.
+"""The optimizer for Relay.
 
 Exposes an interface for configuring the optimizer and scripting
 it directly in Python.
@@ -26,6 +25,7 @@ from .op.op import specialize_op
 from . import _ir_pass
 
 # Expose checking expression, should rename to infer_type.
+# pylint: disable=invalid-name
 check_expr = _ir_pass.check_expr
 
 # # pylint: disable=invalid-name
@@ -47,7 +47,10 @@ def mangle(name: str, types: List[Type]) -> str:
         name += str(typ) + "_"
     return name
 
+
 T = TypeVar('T')
+
+
 class AbstractExprVisitor(Generic[T]):
     """A functional visitor over Expr in Python."""
 
@@ -104,10 +107,12 @@ class AbstractExprVisitor(Generic[T]):
     def to_pass(cls) -> Callable[[Environment], Callable[[GlobalVar, Function], Function]]:
         def _outer_wrapper(env):
             visitor = cls(env)
-            def _inner_wrapper(var, func):
+
+            def _inner_wrapper(_, func):
                 return visitor.visit(func)
             return _inner_wrapper
         return _outer_wrapper
+
 
 class ExprVisitor(AbstractExprVisitor[Expr]):
     """A functional visitor over Expr in Python."""
@@ -149,7 +154,9 @@ class ExprVisitor(AbstractExprVisitor[Expr]):
     def visit_constant(self, const: Constant) -> Expr:
         return const
 
+
 MMCacheKey = Tuple[Union[GlobalVar, str], List[Type]]
+
 
 class Monomorphize(ExprVisitor):
     """A monomorphization pass.
@@ -182,11 +189,12 @@ class Monomorphize(ExprVisitor):
                 mono_name = mangle(poly_name, call.type_args)
                 for arg in call.type_args:
                     if isinstance(arg, TypeParam):
-                        return call # raise Exception("...") # Fix me in the morning!!!
+                        # raise Exception("...") # Fix me in the morning!!!
+                        return call
 
                 mono_op = specialize_op(poly_name, mono_name, call.type_args)
                 self.monomorph_map[cache_key] = mono_op
-                return Call(mono_op, new_args,call.attrs, [])
+                return Call(mono_op, new_args, call.attrs, [])
             elif isinstance(call.op, GlobalVar):
                 return call
                 # defn = self.env.lookup(call.op)
@@ -203,7 +211,7 @@ class Monomorphize(ExprVisitor):
                 # self.env.add(defn)
                 # self.visit_item(defn)
                 # return Call(new_id, call.args, call.attrs)
-                
+
             elif isinstance(call.op, Function):
                 return call
                 # new_func = type_specialize(call.type_args, call.op)
@@ -222,4 +230,3 @@ class Monomorphize(ExprVisitor):
 # TODO(@jroesch): Fix up my type
 __tgt_host__ = __tgt__ = "llvm"
 __relay_tvm_context__ = tvm.cpu()
-

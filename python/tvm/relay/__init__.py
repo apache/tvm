@@ -1,8 +1,12 @@
+# pylint: disable=wildcard-import
 """The Relay IR namespace containing the IR definition and compiler."""
 from . import base
 from . import type as tpe
 from . import expr
-from . import op
+
+# Operators
+from .op import Op
+from .op.tensor import *
 
 # Span
 Span = base.Span
@@ -26,7 +30,3 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 Var = LocalVar
-
-# Operators
-from .op import Op
-from .op.tensor import *
