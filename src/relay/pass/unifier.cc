@@ -184,7 +184,7 @@ Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
     //
     // We flip the arguments so we hit the TypeCall and other case in there is
     // ever a type call.
-  } else if (const TypeCallNode *tvn2 = t2.as<TypeCallNode>()) {
+  } else if (t2.as<TypeCallNode>()) {
     return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t2, t1);
   } else {
     return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t1, t2);
