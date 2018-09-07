@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file tvm/relay/alpha_eq.h
+ * \file tvm/relay/pass/alpha_eq.h
  * \brief Check expressions and types for structural equivalence.
  */
 #ifndef TVM_RELAY_PASS_ALPHA_EQ_H_

@@ -149,7 +149,9 @@ class OpRegistry {
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param ty_func The type function to register for the return type.
+   * \param ty_func_name The type function name to register for the return type.
+   * \param type_fn The backing relation which can solve an arbitrary relation
+   * on variables.
    * \return reference to self.
    */
   inline OpRegistry& add_type_func(const std::string& type_func_name,
@@ -157,7 +159,9 @@ class OpRegistry {
 
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param ty_func The type function to register for the return type.
+   * \param ty_func_name The type function name to register for the return type.
+   * \param type_fn The backing relation which can solve an arbitrary relation
+   * on variables.
    * \return reference to self.
    */
   inline OpRegistry& add_type_func(
