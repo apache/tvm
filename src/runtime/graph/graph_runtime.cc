@@ -33,10 +33,6 @@ namespace runtime {
  */
 class GraphRuntime : public ModuleNode {
  public:
-  ~GraphRuntime() {
-    storage_pool_.clear();
-    data_entry_.clear();
-  }
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
@@ -110,7 +106,7 @@ class GraphRuntime : public ModuleNode {
    *
    * \return The number of outputs from graph.
    */
-  int NumOutputs() {
+  int NumOutputs() const {
     return outputs_.size();
   }
   /*!
@@ -133,7 +129,6 @@ class GraphRuntime : public ModuleNode {
   NDArray GetOutput(int index) {
     CHECK_LT(static_cast<size_t>(index), outputs_.size());
     uint32_t eid = this->entry_id(outputs_[index]);
-    tvm::runtime::DeviceAPI::Get(ctx_)->StreamSync(ctx_, nullptr);
     return data_entry_[eid];
   }
   /*!
@@ -146,7 +141,7 @@ class GraphRuntime : public ModuleNode {
     uint32_t eid = this->entry_id(outputs_[index]);
 
     // Check the shapes to avoid receiving in different dimension but same size.
-    const DLTensor* data = data_entry_[eid].operator->();
+    const NDArray& data = data_entry_[eid];
     CHECK_EQ(data->ndim, data_out->ndim);
     for (int32_t j = 0; j < data->ndim; ++j) {
       CHECK_EQ(data->shape[j], data_out->shape[j]);
@@ -450,6 +445,7 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
 
+    // The data_entry is allocated on device, NDArray.load always load the array into CPU.
     NDArray temp;
     temp.Load(strm);
     data_entry_[eid].CopyFrom(temp);
