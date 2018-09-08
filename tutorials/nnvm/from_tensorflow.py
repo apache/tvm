@@ -64,7 +64,6 @@ download(model_url, model_name)
 download(map_proto_url, map_proto)
 download(lable_map_url, lable_map)
 
-
 ######################################################################
 # Import model
 # ------------
@@ -76,7 +75,8 @@ with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
     graph = tf.import_graph_def(graph_def, name='')
     # Call the utility to import the graph definition into default graph.
     graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
-
+    # Add shapes to the graph.
+    graph_def = nnvm.testing.tf.AddShapesToGraphDef('softmax')
 
 ######################################################################
 # Decode image

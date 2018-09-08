@@ -8,6 +8,7 @@ import re
 import os.path
 import collections
 import numpy as np
+from tvm.contrib import util
 
 # Tensorflow imports
 import tensorflow as tf
@@ -42,6 +43,31 @@ def ProcessGraphDefParam(graph_def):
         except TypeError:
             raise TypeError('graph_def must be a GraphDef proto.')
     return graph_def
+
+
+def AddShapesToGraphDef(out_node):
+    """ Add shapes attribute to nodes of the graph.
+        Input graph here is the default graph in context.
+
+    Parameters
+    ----------
+    out_node: String
+        Final output node of the graph.
+
+    Returns
+    -------
+    graph_def : Obj
+        tensorflow graph definition with shapes attribute added to nodes.
+
+    """
+
+    with tf.Session() as sess:
+        graph_def = tf.graph_util.convert_variables_to_constants(
+            sess,
+            sess.graph.as_graph_def(add_shapes=True),
+            [out_node],
+            )
+        return graph_def
 
 class NodeLookup(object):
     """Converts integer node ID's to human readable labels."""
@@ -128,13 +154,18 @@ def get_workload(model_path):
     model_url = os.path.join(repo_base, model_path)
 
     from mxnet.gluon.utils import download
-    download(model_url, model_name)
+
+    temp = util.tempdir()
+    path_model = temp.relpath(model_name)
+
+    download(model_url, path_model)
 
     # Creates graph from saved graph_def.pb.
-    with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
+    with tf.gfile.FastGFile(path_model, 'rb') as f:
         graph_def = tf.GraphDef()
         graph_def.ParseFromString(f.read())
         graph = tf.import_graph_def(graph_def, name='')
+        temp.remove()
         return graph_def
 
 #######################################################################
