@@ -155,9 +155,7 @@ Module CompileOpsToModule(const std::vector<std::string>& op_names) {
 
     if (!IsGeneric(op->op_type)) {
       auto compiler = compiler_map[op];
-      std::cout << "ABOVE CALL" << std::endl;
       tvm::Array<NodeRef> pair = compiler(op->name, op->op_type);
-      std::cout << "BELOW CALL" << std::endl;
       // TODO(@jroesch): I can't pass strings across what should be the
       // interface here.
       tvm::Array<NodeRef> triple = {LocalVarNode::make(op->name), pair[0],
@@ -183,7 +181,6 @@ TVM_REGISTER_API("relay.op._CompileOpsToModule")
       for (auto i = 0; i < args.num_args; i++) {
         names.push_back(args[i]);
       }
-      std::cout << "Right here" << std::endl;
       *ret = CompileOpsToModule(names);
     });
 

@@ -15,8 +15,6 @@ class ExprBuilder():
     def __call__(self, *args, **kwargs):
         converted_args = []
         for arg in args:
-            import pdb
-            pdb.set_trace()
             if isinstance(arg, Param):
                 converted_args.append(arg.var)
             else:

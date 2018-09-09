@@ -49,7 +49,7 @@ def func_ty_to_placeholders(func_ty):
 #     return [schedule, Inputs + [Output]]
 
 #pylint: disable=duplicate-argument-name
-def add_compiler(_, func_type, *_):
+def add_compiler(_, func_type, *__):
     """The compilation code for the TVM compiler."""
     inputs, _ = func_ty_to_placeholders(func_type)
     # op = lookup_in_topi(op_name)

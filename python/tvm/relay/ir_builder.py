@@ -79,7 +79,7 @@ class PartialFunc():
 #pylint: disable=invalid-name
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
-    for var, value, ty in reversed(list(bindings.items())):
+    for var, (value, ty) in reversed(list(bindings.items())):
         let_expr = Let(var, value, let_expr, ty)
 
     return let_expr
@@ -114,7 +114,7 @@ class IRBuilder():
         return bindings, scopes, params, ret_value
 
     #pylint: disable=invalid-name
-    def bind(self, name, ty, value):
+    def bind(self, name, value, ty):
         lv = LocalVar(name)
         self.scopes[-1][name] = lv
         self.bindings[-1][lv] = (value, ty)
@@ -127,16 +127,35 @@ class IRBuilder():
         if not isinstance(value, Expr):
             value = into_ast(value)
 
-        return self.bind(name, value_type, value)
+        return self.bind(name, value, value_type)
+
+    def _convert_params(self, raw_params):
+        relay_params = []
+        for raw_param in raw_params:
+            if isinstance(raw_param, Param):
+                var = raw_param.var
+                param = raw_param
+            elif isinstance(raw_param, tuple):
+                var, ty = raw_param
+                if isinstance(var, str):
+                    var = LocalVar(var)
+                param = Param(var, ty)
+            elif isinstance(param, str):
+                var = LocalVar(raw_param)
+                ty = None
+                param = Param(var, ty)
+            else:
+                raise Exception("unknown parameter type")
+
+            self.scopes[-1][var.name_hint] = var
+            relay_params.append(param)
+        
+        return relay_params
 
     def function(self, *params):
         """Construct a Relay function."""
-        relay_params = []
-        for param in params:
-            name = param.var
-            ty = param.type
-            self.scopes[-1][name.name_hint] = name
-            relay_params.append(Param(name, ty))
+
+        relay_params = self._convert_params(params)
 
         # self.params.append(relay_params)
 

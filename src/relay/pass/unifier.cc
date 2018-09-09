@@ -294,7 +294,7 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
       // Type unified_shape = this->VisitType(tt1->shape, tt2->shape);
       return rt2;
     } catch (const UnificationError &err) {
-      std::cout << "Need to check constraint " << tt1->shape << " = "
+      CHECK(false) << "Need to check constraint " << tt1->shape << " = "
                 << tt2->shape << std::endl;
     }
 

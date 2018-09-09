@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(curr_path, '../vta/python'))
 # General information about the project.
 project = u'tvm'
 author = u'%s developers' % project
-copyright = u'2017, %s' % author
+copyright = u'2018, %s' % author
 github_doc_root = 'https://github.com/tqchen/tvm/tree/master/docs/'
 
 # add markdown parser

@@ -104,8 +104,8 @@ def test_add_broadcast_op():
     ttype = tensor_type(5, 5, 5)
     expected_ty = func_type([ttype, ttype], ttype)
     assert has_type(func.to_func(), expected_ty)
-    x_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
-    y_data = tvm.nd.array(np.random.rand(5, 5, 5).astype('float32'))
+    x_data = tvm.nd.array(np.random.rand(10, 4).astype('float32'))
+    y_data = tvm.nd.array(np.random.rand(5, 10, 1).astype('float32'))
     result = run(env, prog, {'x': x_data, 'y': y_data}, (5, 10, 4))
     np.testing.assert_allclose(
         x_data.asnumpy() + y_data.asnumpy(), result.asnumpy())
@@ -171,8 +171,8 @@ def test_recursion():
     # to execute this.
 
 if __name__ == "__main__":
-    # test_monomorphic_let()
-    # test_single_op()
+    test_monomorphic_let()
+    test_single_op()
     test_add_op()
     test_add_broadcast_op()
     # test_dual_op()

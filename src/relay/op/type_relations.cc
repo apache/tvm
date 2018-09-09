@@ -22,9 +22,9 @@ TensorType as_ttype(const Type& t) {
 
 // TODO(@jroesch) what size value do we extract?
 int to_int(const tvm::Expr& e) {
+  CHECK(e.defined());
   auto imm = e.as<tvm::ir::IntImm>();
-  CHECK(imm);
-  std::cout << "TYPE: " << imm << imm->type << std::endl;
+  CHECK(imm) << "TYPE: " << imm << imm->type << std::endl;
   return imm->value;
 }
 
@@ -53,17 +53,17 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
     auto suffix_len = static_cast<int>(std::min(sh1.size(), sh2.size()));
     auto full_len = static_cast<int>(std::max(sh1.size(), sh2.size()));
 
-    std::cout << "Length" << suffix_len << full_len
-              << (full_len - suffix_len - 1) << std::endl;
-    auto lower_bound = full_len - suffix_len - 1;
+    auto rev_sh1 = sh1.rbegin();
+    auto rev_sh2 = sh2.rbegin();
 
-    for (int64_t i = full_len - 1; i > lower_bound; i--) {
-      std::cout << "Index i=" << i << std::endl;
-      auto dim1 = to_int(sh1[i]);
-      auto dim2 = to_int(sh2[i]);
-      if (dim1 != dim2) {
-        CHECK(false);
+    while (rev_sh1 != sh1.rend() && rev_sh2 != sh2.rend()) {
+      auto dim1 = to_int(*rev_sh1);
+      auto dim2 = to_int(*rev_sh2);
+      if ((dim1 != dim2) && ((dim1 != 1) && (dim2 != 1))) {
+        CHECK(false) << "Dimension mistmatch " << "dim1: " << dim1 << " dim2: " << dim2 << std::endl;
       }
+      rev_sh1++;
+      rev_sh2++;
     }
 
     Array<HalideIR::Expr> larger;
@@ -106,9 +106,9 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
 
 Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
   CHECK_EQ(types.size(), 3);
+  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1] << "Out: " << types[2] << std::endl;
   if (auto t1 = as_ttype(types[0])) {
     if (auto t2 = as_ttype(types[1])) {
-      std::cout << t1->dtype << t2->dtype << std::endl;
       CHECK_EQ(t1->dtype, t2->dtype);
       return {t1, t2, ConcreteBroadcast(t1, t2, t1->dtype)};
     }

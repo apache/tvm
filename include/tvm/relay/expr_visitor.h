@@ -75,6 +75,10 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
     return GetRef<LocalVar>(op);
   }
 
+  Expr VisitExpr_(const ConstantNode* op) override { 
+    return GetRef<Constant>(op);
+  }
+
   Expr VisitExpr_(const GlobalVarNode* op) override {
     return GetRef<GlobalVar>(op);
   }
