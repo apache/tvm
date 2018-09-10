@@ -230,6 +230,13 @@ using Domain = Array<Range>;
 
 // print functions for expr
 TVM_DLL std::ostream& operator<<(std::ostream& os, const NodeRef& n);  // NOLINT(*)
+
+/*!
+ * \brief Dump the node to stderr, used for debug purposes.
+ * \param node The input node
+ */
+TVM_DLL void Dump(const NodeRef& node);
+
 // definition of Node.
 /*!
  * \brief An iteration variable representing an iteration
