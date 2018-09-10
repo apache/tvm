@@ -250,7 +250,7 @@ class Server(object):
     """Start RPC server on a separate process.
 
     This is a simple python implementation based on multi-processing.
-    It is also possible to implement a similar C based sever with
+    It is also possible to implement a similar C based server with
     TVM runtime which does not depend on the python.
 
     Parameters
