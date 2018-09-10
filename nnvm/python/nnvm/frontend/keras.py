@@ -75,6 +75,8 @@ def _convert_activation(insym, keras_layer, _):
 def _convert_advanced_activation(insym, keras_layer, symtab):
     act_type = type(keras_layer).__name__
     if act_type == 'ReLU':
+        if keras_layer.max_value:
+            return _sym.clip(insym, a_min=0, a_max=keras_layer.max_value)
         return _sym.relu(insym)
     elif act_type == 'LeakyReLU':
         return _sym.leaky_relu(insym, alpha=keras_layer.alpha)
