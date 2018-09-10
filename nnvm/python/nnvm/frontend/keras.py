@@ -516,12 +516,12 @@ def keras_op_to_nnvm(insym, keras_layer, outname, symtab):
     """
     if type(keras_layer).__name__ not in _convert_map:
         raise NotImplementedError("{} is not supported".format((type(keras_layer).__name__)))
-    sym = _convert_map[type(keras_layer).__name__](insym, keras_layer, symtab)
-    sym = _as_list(sym)
+    outs = _convert_map[type(keras_layer).__name__](insym, keras_layer, symtab)
+    outs = _as_list(outs)
 
-    for t_idx, _sym in enumerate(sym):
+    for t_idx, out in enumerate(outs):
         name = outname + ":" + str(t_idx)
-        symtab.set_var(name, _sym)
+        symtab.set_var(name, out)
 
 def from_keras(model):
     """Convert keras model to NNVM format.
@@ -583,6 +583,8 @@ def from_keras(model):
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
 
+    #model._output_coordinates contains the node name, node_index and tensor index.
+    #search output nodes in symtab using this name
     outsym = [symtab.get_var(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
               for oc in model._output_coordinates]
 

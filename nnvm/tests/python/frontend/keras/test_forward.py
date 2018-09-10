@@ -13,7 +13,7 @@ config.gpu_options.per_process_gpu_memory_fraction = 0.5
 set_session(tf.Session(config=config))
 
 
-def verify_keras_frontend(keras_model):
+def verify_keras_frontend(keras_model, need_transpose=True):
     # Keras frontend currently supports tensorflow backend only.
     assert(keras.backend.backend() == 'tensorflow')
 
@@ -22,6 +22,7 @@ def verify_keras_frontend(keras_model):
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
     out_shapes = []
 
+    #model._output_coordinates contains the node name, node_index and tensor index.
     for oc in keras_model._output_coordinates:
         layer = oc[0]
         if isinstance(layer.output, list):
@@ -51,7 +52,7 @@ def verify_keras_frontend(keras_model):
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ] if len(xs[0].shape) == 4 else xs, target, ctx)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ] if need_transpose else xs, target, ctx)
         np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 
@@ -233,18 +234,20 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
-def test_forward_LSTM():
-    num_inputs = num_hidden = 8
-    data = keras.layers.Input(shape=(1, num_inputs))
-    lstm_out = keras.layers.LSTM(num_hidden,
+def test_LSTM(inputs, hidden, return_state=True):
+    data = keras.layers.Input(shape=(1, inputs))
+    lstm_out = keras.layers.LSTM(hidden,
                                  return_sequences=False,
-                                 return_state=True,
+                                 return_state=return_state,
                                  recurrent_activation='sigmoid',
                                  activation='tanh')
     x = lstm_out(data)
     keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model)
+    verify_keras_frontend(keras_model, need_transpose=False)
 
+def test_forward_LSTM():
+    test_LSTM(8, 8, return_state=True)
+    test_LSTM(4, 4, return_state=False)
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
