@@ -7,18 +7,22 @@ TVM is a framework that abstracts away the heterogenity of machine learning acce
 Sometimes users may want customize some analysis and IR transformations
 to adapt TVM to their own specialized hardware. This tutorial helps users write
 a customized pass in TVM.
+
  Prerequisites
--------------
+--------------
+
 Before reading this tutorial, we assume readers have already known these topics well:
+
 - Writing an algorithm in TVM and schedule it. Otherwise, see example tutorials like
-  `Optimize GeMM on CPU <https://docs.tvm.ai/tutorials/optimize/opt_gemm.html>_`.
+  `Optimize GeMM on CPU <https://docs.tvm.ai/tutorials/optimize/opt_gemm.html>`_.
 - The basic structure of HalideIR. Otherwise, see ``HalideIR/src/ir/IR.h`` to learn what
   attributes of IR nodes are defined.
 - Visitor design pattern. Otherwise, check the
-  `Python AST module <https://docs.python.org/3/library/ast.html>_` to see how an AST
+  `Python AST module <https://docs.python.org/3/library/ast.html>`_ to see how an AST
   visitor is implemented.
 - How a HalideIR/Schedule is lowered to either a LoweredFunc class or a LLVM module. Otherwise,
   take a look at ``python/tvm/build_module.py`` to get some basics.
+
 """
 
 from __future__ import absolute_import, print_function
