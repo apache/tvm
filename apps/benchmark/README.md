@@ -46,12 +46,12 @@ python3 -m tvm.exec.rpc_tracker
   * Build tvm runtime on your device [Help](https://docs.tvm.ai/tutorials/nnvm/deploy_model_on_rasp.html#build-tvm-runtime-on-device)
   * Register your device to tracker by
   ```bash
-  python3 -m tvm.exec.rpc_sever --tracker=[HOST_IP]:9190 --key=[DEVICE_KEY]
+  python3 -m tvm.exec.rpc_server --tracker=[HOST_IP]:9190 --key=[DEVICE_KEY]
   ```
   replace `[HOST_IP]` with the IP address of the host machine, `[DEVICE_KEY]` with the name of device.
   
   E.g. Here is an example command for RK3399,
-  `python3 -m tvm.exec.rpc_sever --tracker=10.77.1.123:9190 --key=rk3399`, where 10.77.1.123 is the IP address of the tracker.
+  `python3 -m tvm.exec.rpc_server --tracker=10.77.1.123:9190 --key=rk3399`, where 10.77.1.123 is the IP address of the tracker.
 
 * For Android device
    * Build and install tvm RPC apk on your device [Help](https://github.com/dmlc/tvm/tree/master/apps/android_rpc).
