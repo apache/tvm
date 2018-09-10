@@ -14,7 +14,7 @@ a customized pass in TVM.
 Before reading this tutorial, we assume readers have already known these topics well:
 
 - Writing an algorithm in TVM and schedule it. Otherwise, see example tutorials like
-  `Optimize GeMM on CPU <https://docs.tvm.ai/tutorials/optimize/opt_gemm.html>`_.
+  :ref:`opt-gemm`.
 - The basic structure of HalideIR. Otherwise, see ``HalideIR/src/ir/IR.h`` to learn what
   attributes of IR nodes are defined.
 - Visitor design pattern. Otherwise, check the
