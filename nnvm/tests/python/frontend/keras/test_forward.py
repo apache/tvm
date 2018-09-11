@@ -38,15 +38,20 @@ def verify_keras_frontend(keras_model):
         m.set_input(**params)
         m.run()
 
-        out = [m.get_output(i, tvm.nd.empty(shape, dtype)).asnumpy()
+        out = [m.get_output(i).asnumpy()
                    for i, shape in enumerate(out_shapes)]
         return out if len(out) > 1 else out[0]
 
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
+
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
-        np.testing.assert_allclose(keras_out, tvm_out, rtol=1e-5, atol=1e-5)
+        if isinstance (keras_out, list):
+            for kout, tout in zip(keras_out, tvm_out):
+                np.testing.assert_allclose(kout, tout.reshape(kout.shape), rtol=1e-5, atol=1e-5)
+        else:
+            np.testing.assert_allclose(keras_out, tvm_out.reshape(keras_out.shape), rtol=1e-5, atol=1e-5)
 
 
 def test_forward_elemwise_add():

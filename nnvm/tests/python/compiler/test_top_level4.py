@@ -36,10 +36,14 @@ def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float
         # set input
         m.run(x=data)
         # oshape set to None means do not test the shape-correctness
-        oshape = result.shape if oshape is None else oshape
+        oshape = result.shape if isinstance(result, np.ndarray) else (1,) if oshape is None else oshape
         out = m.get_output(0, tvm.nd.empty(oshape, dtype=otype))
-        np.testing.assert_equal(out.asnumpy().shape, result.shape)
-        np.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
+        if isinstance(result, np.ndarray):
+            np.testing.assert_equal(out.asnumpy().shape, result.shape)
+            np.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
+        else:
+            tvm_out = out.asnumpy()
+            assert abs(result - tvm_out) <= (1e-5 + 1e-5 * abs(tvm_out))
 
 def verify_reduce(dshape, fnp, fsym, oshape=None, otype='float32', **kwargs):
     """ Verify reduce operations by generating data at random and calling numpy
@@ -99,7 +103,7 @@ def test_reduce():
             kwargs = { 'keepdims':keepdims }
             if axis is None:
                 # FIXME: NNVM doesn't support setting `axis=None` explicitly.
-                kwargs.update({'oshape': [1,1,1] if keepdims else [] })
+                kwargs.update({'oshape': [1,1,1] if keepdims else [1] })
             else:
                 kwargs.update({'axis': axis})
                 kwargs.update({'oshape': shape[:axis]+[1]+shape[axis+1:] if keepdims else shape[:axis]+shape[axis+1:]})
