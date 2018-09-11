@@ -47,6 +47,10 @@ std::ostream& operator<<(std::ostream& os, const NodeRef& n) {  // NOLINT(*)
   return os;
 }
 
+void Dump(const NodeRef& n) {
+  std::cerr << n << "\n";
+}
+
 Var var(const std::string& name_hint, Type t) {
   return Var(name_hint, t);
 }
