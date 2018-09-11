@@ -31,6 +31,9 @@ def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float
     x = sym.Variable("x")
     y = fsym(x + 0, **kwargs)
     for target, ctx in ctx_list():
+        # TODO(yuruofei): remove when cuda reduce schedule is done
+        if target == 'cuda' and fsym == sym.mean:
+            continue
         graph, lib, _ = nnvm.compiler.build(y, target, {"x": dshape})
         m = graph_runtime.create(graph, lib, ctx)
         # set input

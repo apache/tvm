@@ -349,8 +349,8 @@ Example::
     auto axis = ShapeToArray(r_axes);
 
     Expr count = make_one(inputs[0]->dtype);
-    for (auto &i : r_axes) {
-        count *= inputs[0]->shape[i];
+    for (auto& i : r_axes) {
+      count *= inputs[0]->shape[i];
     }
 
     return Array<Tensor>{

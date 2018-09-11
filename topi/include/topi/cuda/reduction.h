@@ -141,21 +141,7 @@ void TraverseBeforeReduce(Schedule s, Operation op) {
 */
 void TraverseAfterReduce(const Target& target, Schedule s, Operation op) {
   if (is_broadcast(op->tag)) {
-    if (!detail::contains(s->outputs, op)) {
-      s[op].compute_inline();
-    }
-    auto output = op.output(0);
-    auto fused = detail::Fuse(s[output], s[output]->op.as<ComputeOpNode>()->axis);
-    auto num_thread = target->max_num_threads;
-    IterVar bx, tx;
-    s[output].split(fused, num_thread, &bx, &tx);
-    s[output].bind(bx, tvm::thread_axis(Range(), "blockIdx.x"));
-    s[output].bind(tx, tvm::thread_axis(Range(0, num_thread), "threadIdx.x"));
-    for (auto tensor : op->InputTensors()) {
-      if (tensor->op->InputTensors().size() > 0) {
-        TraverseAfterReduce(target, s, tensor->op);
-      }
-    }
+    LOG(ERROR) << "Elementwise op after reduce is not yet supported";
   } else if (op->tag == kCommReduce) {
     ScheduleReduce(target, op, s, false);
     for (auto tensor : op->InputTensors()) {

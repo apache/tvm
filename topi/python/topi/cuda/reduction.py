@@ -107,17 +107,7 @@ def schedule_reduce(outs):
     def traverse_after_reduce(operator):
         """Internal travserse function"""
         if tag.is_broadcast(operator.tag):
-            if operator not in sch.outputs:
-                sch[operator].compute_inline()
-            axis = sch[operator].op.axis
-            fused = sch[operator].fuse(*axis)
-            num_thread = tvm.target.current_target(allow_none=False).max_num_threads
-            bx, tx = sch[operator].split(fused, num_thread)
-            sch[operator].bind(bx, tvm.thread_axis("blockIdx.x"))
-            sch[operator].bind(tx, tvm.thread_axis("threadIdx.x"))
-            for tensor in operator.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
-                    traverse_after_reduce(tensor.op)
+            raise RuntimeError("Not yet support ewise after reduce")
         elif operator.tag == 'comm_reduce':
             _schedule_reduce(operator, sch, is_idx_reduce=False)
             for tensor in operator.input_tensors:
