@@ -394,11 +394,11 @@ def _convert_lstm(insym, keras_layer, symtab):
         buffer = np.zeros((1, keras_layer.units), 'float32')
         c_sym = symtab.new_const(buffer)
         h_sym = symtab.new_const(buffer)
-        insym = [insym, c_sym, h_sym]
+        insym = [insym, h_sym, c_sym]
 
     in_data = insym[0]
-    in_state_c = insym[1]
-    in_state_h = insym[2]
+    in_state_h = insym[1]
+    in_state_c = insym[2]
 
     weightList = keras_layer.get_weights()
 
@@ -419,7 +419,9 @@ def _convert_lstm(insym, keras_layer, symtab):
     out_gate = _sym.sigmoid(gates[3])
     next_h = out_gate * _sym.tanh(next_c)
 
-    return [next_h, next_h, next_c]
+    out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
+    out = _sym.reshape(next_h, shape=out_shape)
+    return [out, next_h, next_c]
 
 def _default_skip(insym, keras_layer, _): # pylint: disable=unused-argument
     """Layers that can be skipped because they are train time only."""
@@ -562,7 +564,7 @@ def from_keras(model):
             if inbound_nodes is None:
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
-            for my_idx, node in enumerate(inbound_nodes):
+            for node_idx, node in enumerate(inbound_nodes):
                 insym = []
 
                 # Since Keras allows creating multiple layers from the same name instance,
@@ -571,20 +573,21 @@ def from_keras(model):
                 # would confuse users, so we should keep them as far as possible.  Fortunately,
                 # they are named uniquely to input_1, input_2, input_3 ... by default.
                 zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
-                for pred_idx, t_idx, pred in zip_node:
-                    if isinstance(pred, keras.engine.InputLayer):
-                        sym = symtab.get_var(pred.name, must_contain=True)
+                for n_idx, t_idx, layer in zip_node:
+                    if isinstance(layer, keras.engine.InputLayer):
+                        sym = symtab.get_var(layer.name, must_contain=True)
                     else:
-                        sym_name = pred.name + ':' + str(pred_idx) + ':' + str(t_idx)
+                        sym_name = layer.name + ':' + str(n_idx) + ':' + str(t_idx)
                         sym = symtab.get_var(sym_name, must_contain=True)
                     insym.append(sym)
 
                 if len(insym) == 1:
                     insym = insym[0]
-                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(my_idx), symtab)
+                keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(node_idx), symtab)
 
-    #model._output_coordinates contains the node name, node_index and tensor index.
-    #search output nodes in symtab using this name
+    #model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor index(oc[2]).
+    #search output nodes in symtab using the name made from above values. The out variables
+    #were added symtab in keras_op_to_nnvm using this name.
     outsym = [symtab.get_var(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
               for oc in model._output_coordinates]
 
