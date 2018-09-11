@@ -1,4 +1,6 @@
 """
+.. _opt-gemm:
+
 How to optimize GEMM on CPU
 ===========================
 **Author**: `Jian Weng <https://github.com/were>`_, \
