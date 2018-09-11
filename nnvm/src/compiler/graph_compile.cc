@@ -14,6 +14,7 @@
 #include <nnvm/pass_functions.h>
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
 
 #include "compile_engine.h"
@@ -56,10 +57,16 @@ nnvm::Graph DecorateMemoryPlan(
     if (assign_flag[nid] == 0) continue;
     const auto& inode = idx[nid];
     int var_storage_id = storage_vec[idx.entry_id(inode.inputs[0])];
-    storage_vec[idx.entry_id(nid, 0)] = var_storage_id;
+    if (inode.source->attrs.device ==
+        idx[inode.inputs[0].node_id].source->attrs.device) {
+      storage_vec[idx.entry_id(nid, 0)] = var_storage_id;
+    }
 
     if (assign_flag[nid] == 2) {
-      storage_vec[idx.entry_id(inode.inputs[1])] = var_storage_id;
+      if (inode.source->attrs.device ==
+          idx[inode.inputs[0].node_id].source->attrs.device) {
+        storage_vec[idx.entry_id(inode.inputs[1])] = var_storage_id;
+      }
     }
   }
   g.attrs["storage_id"] = std::make_shared<any>(std::move(storage_vec));
@@ -77,8 +84,10 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   CHECK(g.HasAttr("fused_entry")) << "Fusion hasn't been applied yet.";
   FuseEntryVec fuse_entries = g.GetAttr<FuseEntryVec>("fused_entry");
 
-  std::string target = g.GetAttr<std::string>("target");
-  std::string target_host;
+  std::string target, target_host;
+  if (g.HasAttr("target")) {
+    target = g.GetAttr<std::string>("target");
+  }
 
   if (g.HasAttr("target_host")) {
     target_host = g.GetAttr<std::string>("target_host");
@@ -87,7 +96,9 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
   // Start lowering.
-  Array<tvm::LoweredFunc> func_list;
+  std::unordered_map<DLDeviceType, Array<tvm::LoweredFunc>,
+                     runtime::DLDeviceTypeHash>
+      func_dev_map;
   std::unordered_set<const tvm::Node*> func_set;
   const IndexedGraph& idx = g.indexed_graph();
 
@@ -95,9 +106,14 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
-        if (static_cast<int>(nid) != root_id) continue;
+    if (static_cast<int>(nid) != root_id) continue;
     int master = master_vec[root_id];
     FuseEntry& fe = fuse_entries[root_id];
+    fe.device = inode.source->attrs.device;
+
+    // No need to lower cross devcie copy node. The actual data copy will happen
+    // at runtime.
+    if (inode.source->attrs.name.rfind("__copy", 0) == 0) continue;
 
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     CHECK_EQ(subidx.input_nodes().size(), fe.imap.size());
@@ -116,24 +132,41 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
         break;
       }
     }
-    fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
+
+    const auto& device_name = tvm::runtime::DeviceName(fe.device);
+    const auto& target_ctx = "target" + device_name;
+    if (g.HasAttr(target_ctx)) {
+      std::string cur_target = g.GetAttr<std::string>(target_ctx);
+      fe.compiled_func =
+          GraphLower(fe.subgraph, inputs, cur_target, sub_master_idx);
+    } else {
+      CHECK_EQ(fe.device, tvm::runtime::kDLDefaultDevice)
+          << "Target is not provided for " << device_name << "\n";
+      fe.compiled_func =
+          GraphLower(fe.subgraph, inputs, target, sub_master_idx);
+    }
+
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {
         func_set.insert(f.get());
-        func_list.push_back(f);
+        // LOG(INFO) << "ffffffffffffff " << fe.device << "    " << f->name;
+        func_dev_map[fe.device].push_back(f);
       }
     }
   }
 
   const nnvm::Op* tvm_op = nnvm::Op::Get("tvm_op");
-
+  std::unordered_set<int> device_types;
   std::unordered_map<uint32_t, nnvm::NodePtr> old_new;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
+    device_types.emplace(static_cast<int>(inode.source->attrs.device));
+
     if (inode.source->is_variable()) {
       // Only copy name since that is sufficient.
       nnvm::NodePtr np = nnvm::Node::Create();
       np->attrs.name = inode.source->attrs.name;
+      np->attrs.device = inode.source->attrs.device;
       old_new[nid] = np;
       continue;
     }
@@ -144,10 +177,16 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     FuseEntry& fe = fuse_entries[root_id];
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     nnvm::NodePtr np = nnvm::Node::Create();
-    np->attrs.op = tvm_op;
     np->attrs.name = inode.source->attrs.name;
+    np->attrs.device = inode.source->attrs.device;
     TVMOpParam param;
-    param.func_name = fe.compiled_func->func_name;
+    if (inode.source->attrs.name.rfind("__copy", 0) == 0) {
+      np->attrs.op = inode.source->attrs.op;
+      param.func_name = "__copy";
+    } else {
+      np->attrs.op = tvm_op;
+      param.func_name = fe.compiled_func->func_name;
+    }
     param.num_inputs = static_cast<uint32_t>(fe.imap.size());
     param.num_outputs = static_cast<uint32_t>(fe.subgraph.outputs.size());
     param.flatten_data = fe.flatten_data;
@@ -160,7 +199,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       auto rit = fe.reverse_imap.find(subidx[sub_input_id].source);
       CHECK(rit != fe.reverse_imap.end());
       const IndexedGraph::NodeEntry& e = rit->second;
-            auto it = old_new.find(e.node_id);
+      auto it = old_new.find(e.node_id);
       CHECK(it != old_new.end())
           << "cannot find node_id=" << e.node_id;
       np->inputs.emplace_back(
@@ -173,6 +212,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     }
     old_new[nid] = np;
   }
+
   nnvm::Graph ret;
   for (const auto& e : idx.outputs()) {
     auto it = old_new.find(group_vec[e.node_id]);
@@ -196,7 +236,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   //
   //  assign is a special operator that mutates the variable.
   //  Currently assign is implemented as output = copy(input[1])
-  //  Then we run DecorageMemoryPlan to force
+  //  Then we run DecorateMemoryPlan to force
   //  output.storage = input[0].storage
   //
   std::vector<int> assign_flag(new_idx.num_nodes(), 0);
@@ -208,6 +248,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     uint32_t nid = kv.first;
     const auto& inode = idx[nid];
     uint32_t new_nid = new_idx.node_id(kv.second.get());
+
     if (inode.source->op() == assign_op) {
       // Check if rhs of assign can be computed inplace.
       // If yes, we can simply set that memory to be assign target
@@ -239,8 +280,38 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
 
   // Setup module
   static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_target");
-  tvm::runtime::Module module = fbuild(func_list, target, target_host);
-  ret.attrs["module"] = std::make_shared<any>(std::move(module));
+  if (device_types.size() > 1) {
+    for (const auto &it : func_dev_map) {
+      std::string device_name = tvm::runtime::DeviceName(it.first);
+      std::string target_ctx = "target" + device_name;
+      CHECK(g.HasAttr(target_ctx))
+          << "Graph doesn't have the attribute with target " << device_name;
+      std::string cur_target = g.GetAttr<std::string>(target_ctx);
+      tvm::runtime::Module module = fbuild(it.second, cur_target, target_host);
+      ret.attrs["module" + device_name] =
+          std::make_shared<any>(std::move(module));
+    }
+
+    DeviceVector device_vec(new_idx.num_nodes());
+    for (size_t i = 0; i < new_idx.num_nodes(); i++) {
+      device_vec[i] = static_cast<int>(new_idx[i].source->attrs.device);
+    }
+    ret.attrs["device"] = std::make_shared<any>(std::move(device_vec));
+  } else {
+    const auto& it = func_dev_map.begin();
+    std::string device_name = tvm::runtime::DeviceName(it->first);
+    std::string target_ctx = "target" + device_name;
+    std::string cur_target = target;
+    if (g.HasAttr(target_ctx)) {
+      cur_target = g.GetAttr<std::string>(target_ctx);
+      // Only one device/context is annotated on the graph. The device name is
+      // tied to returned graph to make the heterogeneous build aware which
+      // device the whole graph should be schduled to.
+      ret.attrs["context"] = std::make_shared<any>(std::move(device_name));
+    }
+    tvm::runtime::Module module = fbuild(it->second, cur_target, target_host);
+    ret.attrs["module"] = std::make_shared<any>(std::move(module));
+  }
   ret = nnvm::ApplyPass(ret, "PlanMemory");
   ret = DecorateMemoryPlan(ret, assign_flag);
   return ret;

@@ -34,6 +34,7 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
       }
       nnvm::NodePtr var = nnvm::Node::Create();
       var->attrs.name = e.node->attrs.name;
+      var->attrs.device = e.node->attrs.device;
       if (e.version) {
           var->attrs.name += "_" + std::to_string(e.version);
       }

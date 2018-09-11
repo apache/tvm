@@ -3,6 +3,8 @@
  * \file graph_fuse.cc
  * \brief Fuse the operators together.
  */
+#include "graph_fuse.h"
+
 #include <dmlc/parameter.h>
 #include <nnvm/compiler/packed_func_ext.h>
 #include <nnvm/graph.h>
@@ -13,10 +15,12 @@
 #include <nnvm/pass_functions.h>
 #include <nnvm/tuple.h>
 #include <tvm/lowered_func.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
-#include <limits>
 
-#include "graph_fuse.h"
+#include <limits>
+#include <string>
+
 #include "graph_runtime.h"
 #include "pattern_util.h"
 
@@ -350,6 +354,21 @@ nnvm::Graph GraphFuse(nnvm::Graph g) {
     // Create a subgraph node.
     NodePtr gnode = Node::Create();
     gnode->attrs = inode.source->attrs;
+
+    // Save the build target information. It will be used duirng compilatio
+    // since FTVMCompute and FTVMSchedule will need target to get correct
+    // compute and schedule.
+    if (g.HasAttr("target")) {
+      gnode->attrs.dict["target"] = g.GetAttr<std::string>("target");
+    } else {
+      const auto &device_name =
+          tvm::runtime::DeviceName(inode.source->attrs.device);
+      const auto &target_ctx = "target" + device_name;
+      CHECK(g.HasAttr(target_ctx))
+          << device_name << " target hasn't been attached to the graph yet!";
+      gnode->attrs.dict["target"] = g.GetAttr<std::string>(target_ctx);
+    }
+
     // Set input entries for the subgraph node.
     for (const auto& e : inode.inputs) {
       if (group_vec[e.node_id] != root_id) {

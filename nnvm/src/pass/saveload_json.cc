@@ -3,6 +3,7 @@
  * \file saveload_json.cc
  * \brief Save and load graph to/from JSON file.
  */
+#include <dlpack/dlpack.h>
 #include <nnvm/pass.h>
 #include <nnvm/pass_functions.h>
 #include <dmlc/json.h>
@@ -86,6 +87,7 @@ struct JSONNode {
       writer->WriteObjectKeyValue("op", json_null);
     }
     writer->WriteObjectKeyValue("name", node->attrs.name);
+    writer->WriteObjectKeyValue("device", static_cast<int>(node->attrs.device));
     if (node->attrs.dict.size() != 0) {
       // write attributes in order;
       std::map<std::string, std::string> dict(
@@ -107,8 +109,10 @@ struct JSONNode {
     control_deps.clear();
     dmlc::JSONObjectReadHelper helper;
     std::string op_type_str;
+    int device_type = -1;
     helper.DeclareField("op", &op_type_str);
     helper.DeclareField("name", &(node->attrs.name));
+    helper.DeclareField("device", &(device_type));
     helper.DeclareField("inputs", &inputs);
     helper.DeclareOptionalField("attrs", &(node->attrs.dict));
     helper.DeclareOptionalField("attr", &(node->attrs.dict));
@@ -133,6 +137,10 @@ struct JSONNode {
       }
     } else {
       node->attrs.op = nullptr;
+    }
+
+    if (device_type != -1) {
+      node->attrs.device = static_cast<DLDeviceType> (device_type);
     }
   }
 };

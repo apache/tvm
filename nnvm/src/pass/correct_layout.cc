@@ -69,7 +69,6 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
       const IndexedGraph::NodeEntry& input_entry = inode.inputs[i];
       const NodePtr& new_input_node = mirror_vec[input_entry.node_id];
       CHECK(new_input_node != nullptr);
-
       // fill inputs by previous node (DFS order) inferred layouts.
       const auto& layouts_iter = new_layouts.find(new_input_node.get());
       CHECK(layouts_iter != new_layouts.end());
@@ -113,6 +112,7 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
       if (produce != request && produce.defined()) {
         nnvm::NodePtr tnode = CreateLayoutTransformNode(produce, request);
         tnode->attrs.name = idx[e.node_id].source->attrs.name + "_" + request.name();
+        tnode->attrs.device = new_node->attrs.device;
         tnode->inputs.emplace_back(new_node->inputs[i]);
         nnvm::NodeEntry tnode_output{tnode, 0, 0};
         new_node->inputs[i] = tnode_output;

@@ -6,13 +6,16 @@
 #ifndef NNVM_NODE_H_
 #define NNVM_NODE_H_
 
+#include <tvm/runtime/device_api.h>
+
 #include <memory>
 #include <string>
-#include <vector>
 #include <unordered_map>
+#include <vector>
+
 #include "base.h"
-#include "op.h"
 #include "c_api.h"
+#include "op.h"
 
 namespace nnvm {
 
@@ -106,6 +109,12 @@ struct NodeAttrs {
    * stateful operators.
    */
   std::vector<std::shared_ptr<Symbol> > subgraphs;
+  /*!
+   * \brief Device information of the node. It indicates the device that this
+   * node should be executed. By default, the fallback device is for any
+   * operator is cpu.
+   * */
+  DLDeviceType device{tvm::runtime::kDLDefaultDevice};
 };
 
 /*!

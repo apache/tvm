@@ -49,7 +49,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     stride = ast.literal_eval(attrs['strides'])
 
     wkl = _get_workload(data, kernel, stride, padding, data.dtype)
-    oc_bn = 16
+    oc_bn = 1
+    kernel_shape = util.get_const_tuple(kernel.shape)
+    for oc_bn in range(16, 1, -1):
+        if kernel_shape[0] % oc_bn == 0:
+            break
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)

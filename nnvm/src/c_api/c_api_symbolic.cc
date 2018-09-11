@@ -5,6 +5,7 @@
  */
 #include <nnvm/c_api.h>
 #include <nnvm/op.h>
+#include <nnvm/pass.h>
 #include <nnvm/symbolic.h>
 #include "c_api_common.h"
 

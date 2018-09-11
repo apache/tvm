@@ -441,6 +441,7 @@ class Layout {
         LOG(FATAL) << "Invalid layout " << layout;
       }
     }
+    layout_simplified_.size();
     CHECK(!layout_simplified_.empty()) << "Invalid layout " << layout;
     for (LayoutDim dim : layout_simplified_) {
       CHECK(is_superdim(dim) || superdim_pos_[dim-'a'] >= 0)
