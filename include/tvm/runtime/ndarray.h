@@ -30,8 +30,11 @@ class NDArray {
    */
   explicit inline NDArray(Container* data);
   /*!
-   * \brief copy constructor
-   * \param other The value to be copied
+   * \brief copy constructor.
+   *
+   * It does not make a copy, but the reference count of the input NDArray is incremented
+   *
+   * \param other NDArray that shares internal data with the input NDArray.
    */
   inline NDArray(const NDArray& other);  // NOLINT(*)
   /*!
