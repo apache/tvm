@@ -235,7 +235,7 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
-def test_LSTM(inputs, hidden, return_state=True):
+def _test_LSTM(inputs, hidden, return_state=True):
     data = keras.layers.Input(shape=(1, inputs))
     lstm_out = keras.layers.LSTM(hidden,
                                  return_state=return_state,
@@ -245,7 +245,7 @@ def test_LSTM(inputs, hidden, return_state=True):
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model, need_transpose=False)
 
-def test_LSTM_MultiLayer(inputs, hidden):
+def _test_LSTM_MultiLayer(inputs, hidden):
     inputs = keras.layers.Input(shape=(1, inputs))
     layer = keras.layers.LSTM(hidden, return_state=True, return_sequences=True,
                                  recurrent_activation='sigmoid',
@@ -259,9 +259,9 @@ def test_LSTM_MultiLayer(inputs, hidden):
 
 
 def test_forward_LSTM():
-    test_LSTM(8, 8, return_state=True)
-    test_LSTM(4, 4, return_state=False)
-    test_LSTM_MultiLayer(4, 4)
+    _test_LSTM(8, 8, return_state=True)
+    _test_LSTM(4, 4, return_state=False)
+    _test_LSTM_MultiLayer(4, 4)
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
