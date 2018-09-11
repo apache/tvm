@@ -397,3 +397,13 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
+
+def check_skylake(target):
+    """
+    Checks if the target is skylake
+    """
+
+    for opt in target.options:
+        if opt == '-mcpu=skylake-avx512':
+            return True
+    return False

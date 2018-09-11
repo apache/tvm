@@ -5,7 +5,7 @@ from collections import namedtuple
 import tvm
 
 from ..util import get_const_tuple
-from ..nn.conv2d import _get_schedule, _get_workload
+from ..nn.conv2d import _get_schedule, _get_workload, check_skylake
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
 from .int8_intrinsics import _intrin_reduce4int8_common
@@ -315,11 +315,10 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
 
     target = tvm.target.current_target(allow_none=False)
     int32_lanes = -1
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            int32_lanes = 16
-        else:
-            return s
+    if check_skylake(target):
+        int32_lanes = 16
+    else:
+        return s
     assert int32_lanes != -1
 
     A = data
