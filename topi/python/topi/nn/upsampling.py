@@ -1,6 +1,7 @@
 """TVM operator upsampling compute."""
 from __future__ import absolute_import
 import topi
+from ..util import simplify
 
 
 def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
@@ -31,9 +32,9 @@ def upsampling(data, scale, layout="NCHW", method='NEAREST_NEIGHBOR'):
     """
 
     if layout == "NCHW":
-        out_shape = (data.shape[2] * scale, data.shape[3] * scale)
+        out_shape = (simplify(data.shape[2] * scale), simplify(data.shape[3] * scale))
     elif layout == "NHWC":
-        out_shape = (data.shape[1] * scale, data.shape[2] * scale)
+        out_shape = (simplify(data.shape[1] * scale), simplify(data.shape[2] * scale))
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
