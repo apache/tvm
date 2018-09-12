@@ -79,7 +79,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._dump_root = dump_root
         self._dump_path = None
         self._debug_run = module["debug_run"]
-        self._get_ndarray = module["get_ndarray"]
+        self._get_output_by_layer = module["get_output_by_layer"]
         graph_runtime.GraphModule.__init__(self, module, ctx)
         self._create_debug_env(graph_json_str, ctx)
 
@@ -161,7 +161,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             self.debug_datum.set_time(time_stamp)
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                out_tensor = self._get_ndarray(i, j)
+                out_tensor = self._get_output_by_layer(i, j)
                 self.debug_datum.set_output_tensor(out_tensor)
 
     def run(self, **input_dict):

@@ -3,10 +3,8 @@
  * \file graph_runtime_debug.cc
  */
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/ndarray.h>
-#include <sys/time.h>
 #include <chrono>
 #include "../graph_runtime.h"
 
@@ -29,7 +27,6 @@ class GraphRuntimeDebug : public GraphRuntime {
     auto tbegin = std::chrono::high_resolution_clock::now();
     if (op_execs()[index]) {
       op_execs()[index]();
-      DeviceAPI::Get(GetCtx())->StreamSync(GetCtx(), nullptr);
     }
     auto tend = std::chrono::high_resolution_clock::now();
     double time = std::chrono::duration_cast<std::chrono::duration<double> >(
@@ -42,16 +39,25 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \param index The index of op which needs to be returned.
    * \param eid The Entry id of the op.
    */
-  NDArray GetNDArray(int index, int eid) {
-    DLTensor *dltensor = &data_entry()[GetEntryId(index, eid)];
-    return NDArray::FromDLTensor(dltensor);
+  NDArray GetOutputByLayer(int index, int eid) {
+    return data_entry()[GetEntryId(index, eid)];
   }
 
+  /*!
+   * \brief GetFunction Get the function based on input.
+   * \param name The function which needs to be invoked.
+   * \param sptr_to_self Packed function pointer.
+   */
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self);
 };
 
 
+/*!
+ * \brief GetFunction Get the function based on input.
+ * \param name The function which needs to be invoked.
+ * \param sptr_to_self Packed function pointer.
+ */
 PackedFunc GraphRuntimeDebug::GetFunction(
     const std::string& name,
     const std::shared_ptr<ModuleNode>& sptr_to_self) {
@@ -60,15 +66,22 @@ PackedFunc GraphRuntimeDebug::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->DebugRun(args[0]);
       });
-  } else if (name == "get_ndarray") {
+  } else if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->GetNDArray(args[0], args[1]);
+        *rv = this->GetOutputByLayer(args[0], args[1]);
       });
   } else {
     return GraphRuntime::GetFunction(name, sptr_to_self);
   }
 }
 
+/*!
+ * \brief GraphRuntimeDebugCreate Get the function based on input.
+ * \param sym_json The graph symbol in json format.
+ * \param m Compiled module which will be loaded.
+ * \param device_type The device type.
+ * \param device_id The device id.
+ */
 Module GraphRuntimeDebugCreate(std::string sym_json,
                                tvm::runtime::Module m,
                                int device_type,

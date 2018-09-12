@@ -163,18 +163,6 @@ class NDArray {
    */
   TVM_DLL static NDArray FromDLPack(DLManagedTensor* tensor);
   /*!
-   * \brief Create a NDArray from a dltensor.
-   *
-   * This allows us to create a NDArray using the memory
-   * allocated by an external deep learning framework
-   * that is DLPack compatible.
-   *
-   * The memory is retained until the NDArray went out of scope.
-   * \param dl_tensor The DLPack tensor to copy from.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray FromDLTensor(DLTensor* dl_tensor);
-  /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
    * \param to The target array.
