@@ -43,11 +43,14 @@ component void fetch(
     // Push to appropriate instruction queue
     if (opcode == VTA_OPCODE_STORE) {
       store_queue.write(insn);
+      fprintf(stderr, "s");
     } else if (opcode == VTA_OPCODE_LOAD &&
           (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
       load_queue.write(insn);
-    } else {
+      fprintf(stderr, "l");
+    } else  if (opcode == VTA_OPCODE_GEMM){
       gemm_queue.write(insn);
+      fprintf(stderr, "g");
     }
   }
 }
@@ -78,16 +81,16 @@ component void load(
   bool pop_next_dependence = insn[VTA_INSN_MEM_2];
   bool push_prev_dependence = insn[VTA_INSN_MEM_3];
   bool push_next_dependence = insn[VTA_INSN_MEM_4];
-  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0, 7, 1>(VTA_INSN_MEM_5_0);
-  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0, 7, 1>(VTA_INSN_MEM_6_0);
-  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0, 7, 1>(VTA_INSN_MEM_7_0);
-  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0, 7, 1>(VTA_INSN_MEM_8_0);
-  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0, 7, 1>(VTA_INSN_MEM_9_0);
-  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0, 7, 1>(VTA_INSN_MEM_A_0);
-  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0, 7, 1>(VTA_INSN_MEM_B_0);
-  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0, 7, 1>(VTA_INSN_MEM_C_0);
-  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0, 7, 1>(VTA_INSN_MEM_D_0);
-  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0, 7, 1>(VTA_INSN_MEM_E_0);
+  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0>(VTA_INSN_MEM_5_0);
+  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0>(VTA_INSN_MEM_6_0);
+  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0>(VTA_INSN_MEM_7_0);
+  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0>(VTA_INSN_MEM_8_0);
+  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0>(VTA_INSN_MEM_9_0);
+  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0>(VTA_INSN_MEM_A_0);
+  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0>(VTA_INSN_MEM_B_0);
+  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0>(VTA_INSN_MEM_C_0);
+  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0>(VTA_INSN_MEM_D_0);
+  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0>(VTA_INSN_MEM_E_0);
 
   // Pop dependence token if instructed
   if (pop_next_dependence) {
@@ -616,19 +619,28 @@ void vta(
   // Main control loop
   while (true) {
     // First execute as many load instructions as possible
-    bool tmp_load_queue_isempty = false;
-    tmp_load_queue.tryRead(tmp_load_queue_isempty);
-    while (!tmp_load_queue_isempty || tmp_load_popped == true) {
+    bool tmp_load_queue_success = true;
+    while (true) {
+      tmp_load = tmp_load_queue.tryRead(tmp_load_queue_success);
+      if (!tmp_load_queue_success && !tmp_load_popped){
+        break;
+      }
       // Pop the load instruction
       if (!tmp_load_popped) {
-        tmp_load = tmp_load_queue.read();
+        // tmp_load = tmp_load_queue.read();
         tmp_load_popped = true;
       }
       // Check dependences and invoke the load stage
       bool pop_next_dependence = tmp_load[VTA_INSN_MEM_2];
-      bool g2l_dep_queue_isempty = false;
-      g2l_dep_queue.tryRead(g2l_dep_queue_isempty);
-      if ((pop_next_dependence && !g2l_dep_queue_isempty) ||
+      bool g2l_dep_queue_success = false;
+      g2l_dep_queue.tryRead(g2l_dep_queue_success);
+      if (!pop_next_dependence){
+        fprintf(stderr, "======\n");
+      }
+      if (g2l_dep_queue_success){
+        fprintf(stderr, "xxxxxx\n");
+      }
+      if ((pop_next_dependence && g2l_dep_queue_success) ||
           !pop_next_dependence) {
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
@@ -638,15 +650,17 @@ void vta(
         // Execution of load stage pending on completion of other stages, so break here...
         break;
       }
-      tmp_load_queue.tryRead(tmp_load_queue_isempty);
     }
     // Next execute as many gemm instructions as possible
-    bool tmp_gemm_queue_isempty = false;
-    tmp_gemm_queue.tryRead(tmp_gemm_queue_isempty);
-    while (!tmp_gemm_queue_isempty || tmp_gemm_popped == true) {
+    bool tmp_gemm_queue_success = true;
+    while (true) {
+      tmp_gemv = tmp_gemm_queue.tryRead(tmp_gemm_queue_success);
+      if (!tmp_gemm_queue_success && !tmp_gemm_popped){
+        break;
+      }
       // Pop the gemm instruction
       if (!tmp_gemm_popped) {
-        tmp_gemv = tmp_gemm_queue.read();
+        // tmp_gemv = tmp_gemm_queue.read();
         tmp_gemm_popped = true;
       }
       // Check dependences and invoke the load stage
@@ -675,15 +689,17 @@ void vta(
         // so break here...
         break;
       }
-      tmp_gemm_queue.tryRead(tmp_gemm_queue_isempty);
     }
     // Finally execute as many store instructions as possible
-    bool tmp_store_queue_isempty = false;
-    tmp_store_queue.tryRead(tmp_store_queue_isempty);
-    while (!tmp_store_queue_isempty || tmp_store_popped == true) {
+    bool tmp_store_queue_success = false;
+    while (true) {
+      tmp_store = tmp_store_queue.tryRead(tmp_store_queue_success);
+      if (!tmp_store_queue_success && !tmp_store_popped){
+        break;
+      }
       // Pop the load instruction
       if (!tmp_store_popped) {
-        tmp_store = tmp_store_queue.read();
+        // tmp_store = tmp_store_queue.read();
         tmp_store_popped = true;
       }
       // Check dependences and invoke the load stage
@@ -700,7 +716,6 @@ void vta(
         // Execution of load stage pending on completion of other stages, so break here...
         break;
       }
-      tmp_store_queue.tryRead(tmp_store_queue_isempty);
     }
     // Check if we get a signal that we are done
     if (done) {

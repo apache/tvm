@@ -1,7 +1,7 @@
 # Directories
 ROOTDIR = $(CURDIR)
 BUILD_NAME = build
-BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel_fpga
+BUILD_DIR = $(ROOTDIR)/../../$(BUILD_NAME)/hardware/intel
 SCRIPT_DIR = $(ROOTDIR)/scripts
 SRC_DIR = $(ROOTDIR)/src
 SIM_DIR = $(ROOTDIR)/sim
