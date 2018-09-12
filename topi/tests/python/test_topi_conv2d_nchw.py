@@ -161,6 +161,10 @@ def test_conv2d_nchw():
     verify_conv2d_nchw(1, 2048,   8, 384, 1, 1, 0)
     verify_conv2d_nchw(1, 2048,   8, 448, 1, 1, 0)
     verify_conv2d_nchw(1, 2048,   8, 192, 1, 1, 0)
+    verify_conv2d_nchw(1, 1024,  19,  84, 3, 1, 1)
+    verify_conv2d_nchw(1, 2048,  10, 126, 3, 1, 1)
+    verify_conv2d_nchw(1,  512,   5, 126, 3, 1, 1)
+    verify_conv2d_nchw(1,  256,   3, 126, 3, 1, 1)
 
 
 if __name__ == "__main__":
