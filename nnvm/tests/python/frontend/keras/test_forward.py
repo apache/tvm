@@ -53,7 +53,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
     keras_out = get_keras_output(xs)
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ] if need_transpose else xs, target, ctx)
         if isinstance (keras_out, list):
             for kout, tout in zip(keras_out, tvm_out):
                 np.testing.assert_allclose(kout, tout.reshape(kout.shape), rtol=1e-5, atol=1e-5)
