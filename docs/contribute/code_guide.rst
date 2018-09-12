@@ -15,6 +15,7 @@ C++ Code Styles
 - Favor passing by const reference (e.g. ``const Expr&``) over passing by value.
   Except when the function consumes the value by copy constructor or move,
   pass by value is better than pass by const reference in such cases.
+- Favor ``const`` member function when possible.
 
 Python Code Styles
 ------------------

@@ -684,7 +684,7 @@ def _get_convert_map(opset):
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         'Gather': Gather.get_converter(opset),
-        'Squeeze': Renamer('squeeze'),
+        'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
         'Shape': Shape.get_converter(opset),

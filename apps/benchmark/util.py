@@ -27,20 +27,25 @@ def get_network(name, batch_size):
     input_shape = (batch_size, 3, 224, 224)
     output_shape = (batch_size, 1000)
 
-    if "resnet" in name:
+    if name == 'mobilenet':
+        net, params = nnvm.testing.mobilenet.get_workload(batch_size=batch_size)
+    elif name == 'mobilenet_v2':
+        net, params = nnvm.testing.mobilenet_v2.get_workload(batch_size=batch_size)
+    elif name == 'inception_v3':
+        input_shape = (1, 3, 299, 299)
+        net, params = nnvm.testing.inception_v3.get_workload(batch_size=batch_size)
+    elif "resnet" in name:
         n_layer = int(name.split('-')[1])
         net, params = nnvm.testing.resnet.get_workload(num_layers=n_layer, batch_size=batch_size)
     elif "vgg" in name:
         n_layer = int(name.split('-')[1])
         net, params = nnvm.testing.vgg.get_workload(num_layers=n_layer, batch_size=batch_size)
-    elif name == 'mobilenet':
-        net, params = nnvm.testing.mobilenet.get_workload(batch_size=batch_size)
+    elif "densenet" in name:
+        n_layer = int(name.split('-')[1])
+        net, params = nnvm.testing.densenet.get_workload(num_layers=n_layer, batch_size=batch_size)
     elif "squeezenet" in name:
         version = name.split("_v")[1]
         net, params = nnvm.testing.squeezenet.get_workload(batch_size=batch_size, version=version)
-    elif name == 'inception_v3':
-        input_shape = (1, 3, 299, 299)
-        net, params = nnvm.testing.inception_v3.get_workload(batch_size=batch_size)
     elif name == 'custom':
         # an example for custom network
         from nnvm.testing import utils

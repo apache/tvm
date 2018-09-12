@@ -16,8 +16,8 @@ from __future__ import absolute_import as _abs
 
 import logging
 
-from decorator import decorate
 import numpy as np
+from decorator import decorate
 
 from tvm import target as _target
 
@@ -289,15 +289,20 @@ class FallbackContext(DispatchContext):
         self.memory = {}
         self.silent = False
 
+        # a set to prevent print duplicated message
+        self.messages = set()
+
     def _query_inside(self, target, workload):
         key = (str(target), workload)
         if key in self.memory:
             return self.memory[key]
 
         if not self.silent:
-            logger.warning(
-                "Cannot find config for target=%s, workload=%s. A fallback configuration "
-                "is used, which may bring great performance regression.", target, workload)
+            msg = "Cannot find config for target=%s, workload=%s. A fallback configuration "\
+                  "is used, which may bring great performance regression." % (target, workload)
+            if msg not in self.messages:
+                self.messages.add(msg)
+                logger.warning(msg)
         cfg = FallbackConfigEntity()
 
         # cache this config
@@ -320,3 +325,23 @@ class FallbackContext(DispatchContext):
             del self.memory[key]
 
 DispatchContext.current = FallbackContext()
+
+def clear_fallback_cache(target, workload):
+    """Clear fallback cache. Pass the same argument as _query_inside to this function
+    to clean the cache.
+
+    Parameters
+    ----------
+    target: Target
+        The current target
+    workload : Workload
+        The current workload.
+
+    Note
+    ----
+    This is used in alter_op_layout to clear the bad cache created before call topi compute function
+    """
+    context = DispatchContext.current
+    while not isinstance(context, FallbackContext):
+        context = context._old_ctx
+    context.clear_cache(target, workload)

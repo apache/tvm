@@ -583,8 +583,7 @@ class Canonical::Internal : public IRMutator {
     while (i < suma->elem.size() && j < sumb->elem.size()) {
       const auto& a = suma->elem[i];
       const auto& b = sumb->elem[j];
-      if (a.value.same_as(b.value)) {
-        CHECK_EQ(a.level, b.level);
+      if (a.value.same_as(b.value) && a.level == b.level) {
         ComExprEntry e = a;
         e.scale = a.scale + b.scale * bscale;
         if (e.scale != 0) {

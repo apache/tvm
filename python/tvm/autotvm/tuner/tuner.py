@@ -34,6 +34,7 @@ class Tuner(object):
         # time to leave
         self.ttl = None
         self.n_trial = None
+        self.early_stopping = None
 
     def has_next(self):
         """Whether has next untried config in the space
@@ -92,6 +93,7 @@ class Tuner(object):
         n_parallel = getattr(measure_batch, 'n_parallel', 1)
         early_stopping = early_stopping or 1e9
         self.n_trial = n_trial
+        self.early_stopping = early_stopping
 
         old_level = logger.level
 
@@ -127,18 +129,18 @@ class Tuner(object):
                              res, config)
 
             i += len(results)
+            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
 
             self.update(inputs, results)
-
             for callback in callbacks:
                 callback(self, inputs, results)
 
-            self.ttl = min(early_stopping + self.best_iter, n_trial) - i
             if i >= self.best_iter + early_stopping:
                 logger.debug("Early stopped. Best iter: %d.", self.best_iter)
                 break
 
             if error_ct > 150:
+                logging.basicConfig()
                 logger.warning("Too many errors happen in the tuning. Now is in debug mode")
                 logger.setLevel(logging.DEBUG)
             else:

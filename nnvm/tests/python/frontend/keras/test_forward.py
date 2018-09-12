@@ -45,17 +45,20 @@ def verify_keras_frontend(keras_model, need_transpose=True):
         m.set_input(**params)
         m.run()
 
-        out = [m.get_output(i, tvm.nd.empty(shape, dtype)).asnumpy()
+        out = [m.get_output(i).asnumpy()
                    for i, shape in enumerate(out_shapes)]
         return out if len(out) > 1 else out[0]
 
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
+
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ]
-                                  if need_transpose else xs, target, ctx)
-        for k, t in zip(keras_out, tvm_out):
-            np.testing.assert_allclose(k, t, rtol=1e-5, atol=1e-5)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
+        if isinstance (keras_out, list):
+            for kout, tout in zip(keras_out, tvm_out):
+                np.testing.assert_allclose(kout, tout.reshape(kout.shape), rtol=1e-5, atol=1e-5)
+        else:
+            np.testing.assert_allclose(keras_out, tvm_out.reshape(keras_out.shape), rtol=1e-5, atol=1e-5)
 
 def test_forward_elemwise_add():
     r = []
@@ -149,25 +152,25 @@ def test_forward_crop():
 
 
 def test_forward_vgg16():
-    keras_model = keras.applications.vgg16.VGG16(include_top=True, weights=None,
+    keras_model = keras.applications.vgg16.VGG16(include_top=True, weights='imagenet',
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_xception():
-    keras_model = keras.applications.xception.Xception(include_top=True, weights=None,
+    keras_model = keras.applications.xception.Xception(include_top=True, weights='imagenet',
         input_shape=(299,299,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_resnet50():
-    keras_model = keras.applications.resnet50.ResNet50(include_top=True, weights=None,
+    keras_model = keras.applications.resnet50.ResNet50(include_top=True, weights='imagenet',
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
 
 def test_forward_mobilenet():
-    keras_model = keras.applications.mobilenet.MobileNet(include_top=True, weights=None,
+    keras_model = keras.applications.mobilenet.MobileNet(include_top=True, weights='imagenet',
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
@@ -177,6 +180,7 @@ def test_forward_activations():
     act_funcs = [keras.layers.Activation('softmax'),
                  keras.layers.Activation('softplus'),
                  keras.layers.ReLU(),
+                 keras.layers.ReLU(max_value=6.),
                  keras.layers.LeakyReLU(alpha=0.3),
                  keras.layers.PReLU(weights=weights, alpha_initializer="zero"),
                  keras.layers.ELU(alpha=0.5),

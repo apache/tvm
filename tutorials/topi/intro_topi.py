@@ -103,13 +103,22 @@ with tvm.target.create("cuda"):
 ######################################################################
 # Fusing convolutions
 # -------------------
-# We can fuse :code:`topi.nn.conv2d` and :code:`topi.nn.relu` together
+# We can fuse :code:`topi.nn.conv2d` and :code:`topi.nn.relu` together.
 #
+# .. note::
+#
+#    TOPI functions are all generic functions. They have different implementations
+#    for different backends to optimize for performance.
+#    For each backend, it is necessary to call them under a target scope for both
+#    compute declaration and schedule. TVM will choose the right function to call with
+#    the target information.
+
 data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
-conv = topi.nn.conv2d(data, kernel, strides=1, padding=2)
-out = topi.nn.relu(conv)
+
 with tvm.target.create("cuda"):
+    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2)
+    out = topi.nn.relu(conv)
     sconv = topi.generic.nn.schedule_conv2d_nchw(out)
     print(tvm.lower(sconv, [data, kernel], simple_mode=True))
 

@@ -42,9 +42,24 @@ def decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype):
     """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=2)
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
-    """TOPI schedule callback"""
+    """TOPI schedule callback for conv2d
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    outs: Array of Tensor
+        The computation graph description of conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d.
+    """
     s = tvm.create_schedule([x.op for x in outs])
 
     def _callback(op):
@@ -120,19 +135,16 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, n
 
     cfg.define_annotate("ann_reduce", [kh, kw], policy='try_unroll')
     cfg.define_annotate("ann_spatial", [vh, vw, vc], policy='try_unroll_vec')
-    # ====================================================================
 
+    # fallback support
     if cfg.is_fallback:
-        if num_tile == 2:
-            cfg.fallback_split('tile_co', [-1, 8])
-            cfg.fallback_split('tile_oh', [-1, 2])
-            cfg.fallback_split('tile_ow', [-1, 8])
-        else:
-            cfg.fallback_split('tile_co', [-1, 16, 4])
-            cfg.fallback_split('tile_oh', [-1, 1, 1])
-            cfg.fallback_split('tile_ow', [-1, 1, 4])
-        cfg['ann_reduce'].anns = ['unroll', 'unroll']
-        cfg['ann_spatial'].anns = ['none', 'unroll', 'vec']
+        if num_tile == 2:     # arm cpu
+            ref_log = autotvm.tophub.load_reference_log('arm_cpu', 'rk3399', 'conv2d', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+        elif num_tile == 3:  # mali gpu
+            ref_log = autotvm.tophub.load_reference_log('mali', 'rk3399', 'conv2d', 'direct')
+            cfg.fallback_with_reference_log(ref_log)
+    # ====================================================================
 
     VC = cfg["tile_co"].size[-1]
     VH = cfg["tile_oh"].size[-1]
@@ -478,8 +490,8 @@ def decl_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, til
                           tile_size)
 
 
-@autotvm.task.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
-                                     'arm_cpu', ['winograd'])
+@autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
+                                'arm_cpu', ['winograd'])
 def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
     """TOPI schedule callback"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -517,11 +529,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                                          layout, out_dtype)
         cfg = autotvm.DispatchContext.current.query(tvm.target.current_target(), workload)
 
-        if cfg.is_fallback: # if is fallback, clear query cache and return None
-            context = autotvm.DispatchContext.current
-            while not isinstance(context, autotvm.FallbackContext):
-                context = context._old_ctx
-            context.clear_cache(tvm.target.current_target(), workload)
+        if cfg.is_fallback:  # if is fallback, clear query cache and return None
+            autotvm.task.clear_fallback_cache(tvm.target.current_target(), workload)
             return None
 
         if cfg.template_key == 'direct':  # packing weight tensor

@@ -156,7 +156,7 @@ else:
     # The above line is a simple form of
     # target = tvm.target.create('llvm -devcie=arm_cpu -model=bcm2837 -target=armv7l-linux-gnueabihf -mattr=+neon')
 
-with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
+with nnvm.compiler.build_config(opt_level=3):
     graph, lib, params = nnvm.compiler.build(
         net, target, shape={"data": data_shape}, params=params)
 
