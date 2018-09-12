@@ -2,6 +2,7 @@
  *  Copyright (c) 2017 by Contributors
  * \file graph_runtime.cc
  */
+//#include "graph_runtime.h"
 
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>

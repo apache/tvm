@@ -8,10 +8,13 @@
 #ifndef TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 #define TVM_RUNTIME_GRAPH_GRAPH_RUNTIME_H_
 
+#include <dlpack/dlpack.h>
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
-#include <string>
+#include <tvm/runtime/ndarray.h>
+
 #include <vector>
+#include <string>
 
 namespace tvm {
 namespace runtime {
@@ -23,6 +26,7 @@ namespace runtime {
     CHECK_EQ(ret, 0)                                               \
         << TVMGetLastError();                                      \
   }
+
 /*! \brief Magic number for NDArray list file  */
 constexpr uint64_t kTVMNDArrayListMagic = 0xF7E58D4F05049CB7;
 
@@ -42,12 +46,6 @@ struct TVMOpParam {
  */
 class GraphRuntime : public ModuleNode {
  public:
-  ~GraphRuntime() {
-    for (DLTensor* t : storage_pool_) {
-      TVM_CCALL(TVMArrayFree(t));
-    }
-  }
-
   /*!
    * \brief Get member function to front-end
    * \param name The name of the function.
@@ -60,21 +58,24 @@ class GraphRuntime : public ModuleNode {
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const final{
+  const char* type_key() const final {
     return "GraphRuntime";
-  };
-
+  }
   void Run();
 
   /*!
    * \brief Initialize the graph executor with graph and context.
    * \param graph_json The execution graph.
-   * \param module The module containing the compiled functions.
-   * \param ctx The context where the graph should sit on
+   * \param module The module containing the compiled functions for the host
+   *  processor.
+   * \param ctxs The context of the host and devices where graph nodes will be
+   *  executed on.
    */
+
   void Init(const std::string& graph_json,
             tvm::runtime::Module module,
-            TVMContext ctx);
+            const std::vector<TVMContext>& ctxs);
+
   /*!
    * \brief Get the input index given the name of input.
    * \param name The name of the input.
@@ -88,21 +89,33 @@ class GraphRuntime : public ModuleNode {
    * \param data_in The input data.
    */
   void SetInput(int index, DLTensor* data_in);
-
   /*!
-   * \brief Copy index-th input to data_out
-   * \param index The input index.
-   * \param data_out The output
+   * \brief Get the number of outputs
+   *
+   * \return The number of outputs from graph.
    */
-  void GetInput(int index, DLTensor* data_out);
-
+  int NumOutputs() const;
+  /*!
+   * \brief Return NDArray for given input index.
+   * \param index The input index.
+   *
+   * \return NDArray corresponding to given input node index.
+   */
+  NDArray GetInput(int index);
+  /*!
+   * \brief Return NDArray for given output index.
+   * \param index The output index.
+   *
+   * \return NDArray corresponding to given output node index.
+   */
+  NDArray GetOutput(int index);
   /*!
    * \brief Copy index-th output to data_out.
    * \param index The output index.
    * \param data_out the output data.
    */
-  void GetOutput(int index, DLTensor* data_out);
-
+  void CopyOutputTo(int index, DLTensor* data_out);
+#ifdef TVM_GRAPH_RUNTIME_DEBUG
   /*!
    * \brief Get the node index given the name of node.
    * \param name The name of the node.
@@ -121,13 +134,12 @@ class GraphRuntime : public ModuleNode {
    * \param data_out the node data.
    */
   void DebugGetNodeOutput(int index, DLTensor* data_out);
-
+#endif
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
    */
   void LoadParams(dmlc::Stream* strm);
-
   /*!
    * \brief Load parameters from parameter blob.
    * \param param_blob A binary blob of parameter.
@@ -137,7 +149,7 @@ class GraphRuntime : public ModuleNode {
   /*!
    * \brief Get the tensor vector pointer.
    */
-  std::vector<DLTensor>& data_entry() {
+  std::vector<NDArray>& data_entry() {
       return data_entry_;
   }
 
@@ -146,14 +158,6 @@ class GraphRuntime : public ModuleNode {
    */
   std::vector<std::function<void()> >& op_execs() {
         return op_execs_;
-  }
-
-  /*!
-   * \brief Get the number of outputs of a node for a valid optype.
-   * \param index Index of the nodes.
-   */
-  size_t NumOutputs(int index) {
-      return (nodes_[index].op_type == "null") ? 1: nodes_[index].param.num_outputs;
   }
 
   /*!
@@ -166,14 +170,20 @@ class GraphRuntime : public ModuleNode {
   }
 
   /*!
-   * \brief Get Ctx.
-   * \return Returns the TVMContext
+   * \brief Get the TVMContext.
+   * \return The TVMContext is returned.
    */
-  TVMContext GetCtx() {
-    return ctx_;
-  }
+  //TVMContext GetCtx() {
+   // return ctx_;
+  //}
 
  private:
+  // Memory pool entry.
+  struct PoolEntry {
+    size_t size;
+    int device_type;
+    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
+  };
   // Node entry
   struct NodeEntry {
     uint32_t node_id;
@@ -232,7 +242,6 @@ class GraphRuntime : public ModuleNode {
     // JSON Loader
     void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
-      std::unordered_map<std::string, std::string> dict;
       int bitmask = 0;
       std::string key;
       while (reader->NextObjectItem(&key)) {
@@ -259,6 +268,7 @@ class GraphRuntime : public ModuleNode {
   struct GraphAttr {
     size_t storage_num_not_alloctaed{0};
     std::vector<int> storage_id;
+    std::vector<int> device_index;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t> > shape;
     // The graph attribute fields.
@@ -294,6 +304,14 @@ class GraphRuntime : public ModuleNode {
           reader->Read(&shape);
           CHECK(!reader->NextArrayItem());
           bitmask |= 4;
+        } else if (key == "device_index") {
+          reader->BeginArray();
+          CHECK(reader->NextArrayItem());
+          reader->Read(&type);
+          CHECK_EQ(type, "list_int");
+          CHECK(reader->NextArrayItem());
+          reader->Read(&device_index);
+          CHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
           CHECK(reader->NextArrayItem());
@@ -342,27 +360,30 @@ class GraphRuntime : public ModuleNode {
       }
       CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
   }
-  void LoadDLTensor(dmlc::Stream* strm, DLTensor* tensor);
   /*! \brief Setup the temporal storage */
   void SetupStorage();
-  /*! \brief Setup the executors */
+  /*! \brief Setup the executors. */
   void SetupOpExecs();
   /*!
    * \brief Create a executtion function given input.
-   * \param attrs The node attributes
+   * \param attrs The node attributes.
    * \param args The arguments to the functor, including inputs and outputs.
-   * \param num_inputs Number of inputs
+   * \param num_inputs Number of inputs.
+   * \param dev_type The device type of the tvm_op.
    * \return The created executor.
    */
   std::function<void()> CreateTVMOp(const TVMOpParam& attrs,
                                     const std::vector<DLTensor>& args,
                                     size_t num_inputs);
   // Get node entry index.
-  uint32_t entry_id(const NodeEntry& e) const {
-    return GetEntryId(e.node_id, e.index);
+  uint32_t entry_id(uint32_t nid, uint32_t index) const {
+    return node_row_ptr_[nid] + index;
   }
-
-  // Number of node entries
+  // Get node entry index.
+  uint32_t entry_id(const NodeEntry& e) const {
+    return entry_id(e.node_id, e.index);
+  }
+  // Number of node entries.
   uint32_t num_node_entries() const {
     return node_row_ptr_.back();
   }
@@ -370,26 +391,25 @@ class GraphRuntime : public ModuleNode {
   uint32_t num_nodes() const {
     return static_cast<uint32_t>(nodes_.size());
   }
-
-  // The graph nodes.
+  /*! \brief The graph nodes. */
   std::vector<Node> nodes_;
-  // The argument nodes.
+  /*! \brief The argument nodes. */
   std::vector<uint32_t> input_nodes_;
-  // used or quick entry indexing
+  /*! \brief Used for quick entry indexing. */
   std::vector<uint32_t> node_row_ptr_;
-  // output entries
+  /*! \brief Output entries. */
   std::vector<NodeEntry> outputs_;
-  // Additional graph attributes
+  /*! \brief Additional graph attributes. */
   GraphAttr attrs_;
-  /*! \brief The code module */
+  /*! \brief The code module that contains both host and device code. */
   tvm::runtime::Module module_;
-  /*! \brief execution context */
-  TVMContext ctx_;
-  /*! \brief common storage pool */
-  std::vector<DLTensor*> storage_pool_;
-  /*! \brief data entry of each node */
-  std::vector<DLTensor> data_entry_;
-  /*! \brief operator on each node */
+  /*! \brief Execution context of all devices including the host. */
+  std::vector<TVMContext> ctxs_;
+  /*! \brief Common storage pool for all devices. */
+  std::vector<NDArray> storage_pool_;
+  /*! \brief Data entry of each node. */
+  std::vector<NDArray> data_entry_;
+  /*! \brief Operator on each node. */
   std::vector<std::function<void()> > op_execs_;
 };
 
