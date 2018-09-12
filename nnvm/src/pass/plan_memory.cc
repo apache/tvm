@@ -201,7 +201,8 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
             ((storage_ref_count[sid_in] == 1 && !ignore_all_inputs) || identity[ipair]) &&
             entry_ref_count[eid_out] > 0 &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
-            GetTVMType(dtype_vec[eid_out]).bits() == GetTVMType(dtype_vec[eid_in]).bits()) {
+             (dtype_vec[eid_out] == dtype_vec[eid_in] ||
+             GetTVMType(dtype_vec[eid_out]).bits() == GetTVMType(dtype_vec[eid_in]).bits())) {
           // inplace optimization
           taken[kv.first] = true;
           storage[eid_out] = sid_in;
