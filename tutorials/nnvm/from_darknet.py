@@ -21,14 +21,13 @@ import nnvm.testing.darknet
 import matplotlib.pyplot as plt
 import numpy as np
 import tvm
-import os
 import sys
 
 from ctypes import *
 from tvm.contrib.download import download
 from nnvm.testing.darknet import __darknetffi__
 
-#Model name
+# Model name
 MODEL_NAME = 'yolo'
 
 ######################################################################
@@ -79,30 +78,13 @@ print("Compiling the model...")
 with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype, params)
 
-#####################################################################
-# Save the JSON
-# -------------
-def save_lib():
-    #Save the graph, params and .so to the current directory
-    print("Saving the compiled output...")
-    path_name = 'nnvm_darknet_' + model_name
-    path_lib = path_name + '_deploy_lib.so'
-    lib.export_library(path_lib)
-    with open(path_name
-+ "deploy_graph.json", "w") as fo:
-        fo.write(graph.json())
-    with open(path_name
-+ "deploy_param.params", "wb") as fo:
-        fo.write(nnvm.compiler.save_param_dict(params))
-#save_lib()
-
 ######################################################################
 # Load a test image
 # --------------------------------------------------------------------
 test_image = 'dog.jpg'
 print("Loading the test image...")
 img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
-            test_image   +'?raw=true'
+          test_image + '?raw=true'
 download(img_url, test_image)
 
 data = nnvm.testing.darknet.load_image(test_image, net.w, net.h)
@@ -124,9 +106,9 @@ print("Running the test image...")
 m.run()
 # get outputs
 out_shape = (net.outputs,)
-tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+tvm_out = m.get_output(0).asnumpy()
 
-#do the detection and bring up the bounding boxes
+# do the detection and bring up the bounding boxes
 thresh = 0.24
 hier_thresh = 0.5
 img = nnvm.testing.darknet.load_image_color(test_image)
@@ -134,16 +116,18 @@ _, im_h, im_w = img.shape
 probs = []
 boxes = []
 region_layer = net.layers[net.n - 1]
-boxes, probs = nnvm.testing.yolo2_detection.get_region_boxes(region_layer, im_w, im_h, net.w, net.h,
-                       thresh, probs, boxes, 1, tvm_out)
+boxes, probs = nnvm.testing.yolo2_detection.get_region_boxes(
+    region_layer, im_w, im_h, net.w, net.h,
+    thresh, probs, boxes, 1, tvm_out)
 
-boxes, probs = nnvm.testing.yolo2_detection.do_nms_sort(boxes, probs,
-                       region_layer.w*region_layer.h*region_layer.n, region_layer.classes, 0.3)
+boxes, probs = nnvm.testing.yolo2_detection.do_nms_sort(
+    boxes, probs,
+    region_layer.w*region_layer.h*region_layer.n, region_layer.classes, 0.3)
 
 coco_name = 'coco.names'
-coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name   +'?raw=true'
+coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
 font_name = 'arial.ttf'
-font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name   +'?raw=true'
+font_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + font_name + '?raw=true'
 download(coco_url, coco_name)
 download(font_url, font_name)
 
@@ -152,7 +136,8 @@ with open(coco_name) as f:
 
 names = [x.strip() for x in content]
 
-nnvm.testing.yolo2_detection.draw_detections(img, region_layer.w*region_layer.h*region_layer.n,
-                 thresh, boxes, probs, names, region_layer.classes)
+nnvm.testing.yolo2_detection.draw_detections(
+    img, region_layer.w*region_layer.h*region_layer.n,
+    thresh, boxes, probs, names, region_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()

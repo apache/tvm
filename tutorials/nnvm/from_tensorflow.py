@@ -5,9 +5,7 @@ This article is an introductory tutorial to deploy tensorflow models with TVM.
 
 For us to begin with, tensorflow python module is required to be installed.
 
-A quick solution is to install tensorflow from
-
-https://www.tensorflow.org/install
+Please refer to https://www.tensorflow.org/install
 """
 
 # tvm and nnvm
