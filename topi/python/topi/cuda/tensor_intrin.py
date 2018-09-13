@@ -37,8 +37,8 @@ def dp4a(x_scope, y_scope, z_scope):
             vec_y = yy.vload(0, dtype='int8x4')
             prev_z = 0 if index == 0 else zz.vload(0)
 
-            dp4a = tvm.call_pure_extern('int32', '__dp4a', vec_x, vec_y, prev_z)
-            ib.emit(zz.vstore(0, dp4a))
+            new_z = tvm.call_pure_extern('int32', '__dp4a', vec_x, vec_y, prev_z)
+            ib.emit(zz.vstore(0, new_z))
 
             return ib.get()
 
