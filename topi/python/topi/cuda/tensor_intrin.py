@@ -1,9 +1,9 @@
-"""Int8 intrinsics on CUDA."""
+"""Tensor intrinsics on CUDA."""
 #pylint: disable=invalid-name
 import tvm
 
 
-def _intrin_dp4a_reduce(x_scope, y_scope, z_scope):
+def dp4a(x_scope, y_scope, z_scope):
     """
     Int8 dot product reduced by every 4 elements using __dp4a
 

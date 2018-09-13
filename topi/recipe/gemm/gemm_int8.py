@@ -4,12 +4,12 @@ import sys
 import numpy as np
 import tvm
 from tvm import autotvm
-from topi.cuda.int8_intrinsics import _intrin_dp4a_reduce
+from topi.cuda.tensor_intrin import dp4a
 
 DO_TUNING = True
 PRETUNED_INDEX = 75333
 
-intrin_dp4a_reduce = _intrin_dp4a_reduce('local', 'local', 'local')
+intrin_dp4a = dp4a('local', 'local', 'local')
 
 @autotvm.template
 def gemm_int8(n, m, l):
@@ -38,7 +38,7 @@ def gemm_int8(n, m, l):
 
     ko, kt, ki = cfg['tile_k'].apply(s, CC, k)
 
-    s[CC].tensorize(ki, intrin_dp4a_reduce)
+    s[CC].tensorize(ki, intrin_dp4a)
 
     block_x = tvm.thread_axis('blockIdx.x')
     block_y = tvm.thread_axis('blockIdx.y')
