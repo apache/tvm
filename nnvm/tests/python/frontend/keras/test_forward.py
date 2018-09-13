@@ -95,25 +95,20 @@ def test_forward_pool():
     verify_keras_frontend(keras_model)
 
 
-def test_forward_transpose_conv():
+def test_forward_conv():
     data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.Conv2D(filters=10, kernel_size=(3,3), strides=(2,2), padding='same')(data)
-    x = keras.layers.DepthwiseConv2D(kernel_size=(3,3), padding='same')(x)
-    x = keras.layers.Conv2DTranspose(filters=64, kernel_size=(3,3), padding='valid')(x)
-    x = keras.layers.GlobalMaxPooling2D()(x)
-    keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model)
-
-
-def test_forward_separable_conv():
-    data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.SeparableConv2D(filters=10, kernel_size=(3,3),
-        padding='same', activation='relu')(data)
-    x = keras.layers.BatchNormalization(scale=True, center=False,
-        beta_initializer='uniform', gamma_initializer='uniform')(x)
-    x = keras.layers.GlobalAveragePooling2D()(x)
-    keras_model = keras.models.Model(data, x)
-    verify_keras_frontend(keras_model)
+    conv_funcs = [keras.layers.Conv2D(filters=10, kernel_size=(3,3),
+                                      strides=(2,2), padding='same'),
+                  keras.layers.Conv2D(filters=10, kernel_size=(3,3),
+                                      dilation_rate=(2,2), padding='same'),
+                  keras.layers.DepthwiseConv2D(kernel_size=(3,3), padding='same'),
+                  keras.layers.Conv2DTranspose(filters=10, kernel_size=(3,3), padding='valid'),
+                  keras.layers.SeparableConv2D(filters=10, kernel_size=(3,3), padding='same')]
+    for conv_func in conv_funcs:
+        x = conv_func(data)
+        x = keras.layers.GlobalMaxPooling2D()(x)
+        keras_model = keras.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
 
 def test_forward_upsample():
@@ -239,8 +234,7 @@ if __name__ == '__main__':
     test_forward_activations()
     test_forward_dense()
     test_forward_pool()
-    test_forward_transpose_conv()
-    test_forward_separable_conv()
+    test_forward_conv()
     test_forward_upsample()
     test_forward_reshape()
     test_forward_crop()

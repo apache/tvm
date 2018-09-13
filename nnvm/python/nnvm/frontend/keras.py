@@ -155,8 +155,6 @@ def _convert_convolution(insym, keras_layer, symtab):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
         dilation = [keras_layer.dilation_rate, keras_layer.dilation_rate]
-    kernel_h = (kernel_h - 1) * dilation[0] + 1
-    kernel_w = (kernel_w - 1) * dilation[1] + 1
     stride_h, stride_w = keras_layer.strides
     params = {'weight': symtab.new_const(weight),
               'kernel_size': [kernel_h, kernel_w],
