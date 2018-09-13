@@ -1,5 +1,5 @@
 import tvm
-import numpy as np
+from tvm.ndarray import TVMContext
 
 def test_get_global():
     targs = (10, 10.0, "hello")
@@ -69,6 +69,13 @@ def test_empty_array():
     x = tvm.convert(())
     tvm.convert(myfunc)(x)
 
+def test_ctx():
+    @tvm.register_func
+    def test_ctx_func(ctx):
+        assert ctx.device_type == TVMContext.STR2MASK['gpu']
+        assert ctx.device_id == 7
+
+    test_ctx_func(tvm.gpu(7))
 
 if __name__ == "__main__":
     test_empty_array()
@@ -77,3 +84,4 @@ if __name__ == "__main__":
     test_convert()
     test_return_func()
     test_byte_array()
+    test_ctx()
