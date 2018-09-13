@@ -307,7 +307,7 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_mul)
 });
 
 NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_div)
-.describe(R"code(Element-wise multiplication
+.describe(R"code(Element-wise division
 
 )code"  NNVM_ADD_FILELINE)
 .set_support_level(1)
