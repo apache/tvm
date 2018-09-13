@@ -9,12 +9,34 @@
 #include <nnvm/op_attr_types.h>
 #include <memory>
 #include "graph_algorithm.h"
-#include "../compiler/compile_engine.h"
 
 namespace nnvm {
 namespace pass {
 namespace {
-using namespace nnvm::compiler;
+// Return bytes of data flag.
+static int GetDTypeSize(int type_flag) {
+  switch (type_flag) {
+    case 3:  // uint8
+    case 5:  // int8
+      return 1;
+    case 2:  // float16
+    case 7:  // int16
+    case 8:  // uint16
+      return 2;
+
+    case 0:  // float32
+    case 4:  // int32
+    case 9:  // uint32
+      return 4;
+    case 1:   // float64
+    case 6:   // int64
+    case 10:  // uint64
+      return 8;
+    default:
+      LOG(FATAL) << "unknown type_flag=" << type_flag;
+      return -1;
+  }
+}
 
 // simple graph based allocator.
 class GraphAllocator {
@@ -202,7 +224,7 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
             entry_ref_count[eid_out] > 0 &&
             shape_vec[eid_out].Size() == shape_vec[eid_in].Size() &&
              (dtype_vec[eid_out] == dtype_vec[eid_in] ||
-             GetTVMType(dtype_vec[eid_out]).bits() == GetTVMType(dtype_vec[eid_in]).bits())) {
+             GetDTypeSize(dtype_vec[eid_out]) == GetDTypeSize(dtype_vec[eid_in]))) {
           // inplace optimization
           taken[kv.first] = true;
           storage[eid_out] = sid_in;
