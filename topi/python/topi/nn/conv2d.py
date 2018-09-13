@@ -84,6 +84,21 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         '{} vs. {}".format(data.dtype, kernel.dtype)
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
+def _get_workload_int8(data, kernel, stride, padding, out_dtype):
+    """ Get the workload structure. """
+    _, CI, IH, IW = [x.value for x in data.shape]
+    CO, _, KH, KW = [x.value for x in kernel.shape]
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    if isinstance(stride, (tuple, list)):
+        HSTR, WSTR = stride
+    else:
+        HSTR, WSTR = stride, stride
+    assert (data.dtype == kernel.dtype) or (data.dtype == 'uint8' and kernel.dtype == 'int8'), \
+        "Do not support inputs with different data types now. ' \
+        '{} vs. {}".format(data.dtype, kernel.dtype)
+    return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
+
+
 
 @tvm.target.generic_func
 def _get_alter_layout_schedule(wkl):
@@ -109,6 +124,17 @@ def _get_schedule(wkl):
 
 @tvm.target.generic_func
 def _get_schedule_NCHWc(wkl, layout, out_layout):
+    # pylint: disable=unreachable
+    """ Get the platform specific schedule. """
+    target = tvm.target.current_target()
+    raise RuntimeError(
+        "No schedule for current target:{}".format(target))
+    # This return has no use, merely to supress pylint warning
+    return wkl
+
+
+@tvm.target.generic_func
+def _get_schedule_NCHWc_int8(wkl, layout, out_layout):
     # pylint: disable=unreachable
     """ Get the platform specific schedule. """
     target = tvm.target.current_target()

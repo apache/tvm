@@ -5,8 +5,8 @@ from .. import generic, tag
 from .. import nn
 from ..nn.util import infer_pad, infer_stride
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
-    _get_workload, _get_schedule, _get_schedule_NCHWc, \
-    _get_alter_layout_schedule, Workload
+    _get_workload, _get_workload_int8, _get_schedule, _get_schedule_NCHWc, \
+    _get_schedule_NCHWc_int8, _get_alter_layout_schedule, Workload
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
@@ -48,35 +48,6 @@ def _get_schedule_conv(wkl):
         # workloads of resnet152_v1 on imagenet, no extra workload required
         # workloads of resnet18_v2 on imagenet, no extra workload required
         # workloads of resnet34_v2 on imagenet, no extra workload required
-
-        ## Following are for INT8 kernels
-        Workload('uint8', 'int32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
-        # workloads of resnet34_v1 on imagenet, no extra workload required
-        # workloads of resnet50_v1 on imagenet
-        Workload('uint8', 'int32', 56, 56, 64, 256, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 64, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 128, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 512, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 512, 128, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 512, 256, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 1024, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 512, 1024, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 1024, 256, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 1024, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1),
     ]
 
     fp32_vec_len = 8
@@ -119,8 +90,55 @@ def _get_schedule_conv(wkl):
         # workloads of resnet152_v1 on imagenet, no extra workload required
         # workloads of resnet18_v2 on imagenet, no extra workload required
         # workloads of resnet34_v2 on imagenet, no extra workload required
+    ]
 
+    if wkl not in _WORKLOADS_AVX:
+        if wkl.hkernel == 1 and wkl.wkernel == 1:
+            return conv2d_avx_1x1._get_default_schedule(wkl, fp32_vec_len)
+        return conv2d_avx_common._get_default_schedule(wkl, fp32_vec_len)
+    idx = _WORKLOADS_AVX.index(wkl)
+    sch = _SCHEDULES_AVX[idx]
+    return sch
 
+def _get_schedule_conv_int8(wkl):
+    _WORKLOADS_AVX = [
+        ## Following are for INT8 kernels
+        Workload('uint8', 'int32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
+        Workload('uint8', 'int32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
+        Workload('uint8', 'int32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
+        Workload('uint8', 'int32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
+        Workload('uint8', 'int32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
+        Workload('uint8', 'int32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
+        Workload('uint8', 'int32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
+        # workloads of resnet34_v1 on imagenet, no extra workload required
+        # workloads of resnet50_v1 on imagenet
+        Workload('uint8', 'int32', 56, 56, 64, 256, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 56, 56, 256, 64, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 56, 56, 256, 128, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 28, 28, 128, 512, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 56, 56, 256, 512, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 28, 28, 512, 128, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 28, 28, 512, 256, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 14, 14, 256, 1024, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 28, 28, 512, 1024, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 14, 14, 1024, 256, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 14, 14, 1024, 512, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1),
+        Workload('uint8', 'int32', 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2),
+        Workload('uint8', 'int32', 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1),
+    ]
+
+    fp32_vec_len = 8
+    target = tvm.target.current_target(allow_none=False)
+    for opt in target.options:
+        if opt == '-mcpu=skylake-avx512':
+            fp32_vec_len = 16
+
+    _SCHEDULES_AVX = [
         # Following are for INT8 operations
         # workloads of resnet18_v1 on imagenet
         AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
@@ -167,6 +185,10 @@ def _get_schedule_conv(wkl):
 @_get_schedule_NCHWc.register("cpu")
 def _get_schedule_NCHWc_x86(wkl, layout, out_layout):
     return _get_schedule_conv(wkl)
+
+@_get_schedule_NCHWc_int8.register("cpu")
+def _get_schedule_NCHWc_x86_int8(wkl, layout, out_layout):
+    return _get_schedule_conv_int8(wkl)
 
 @_get_alter_layout_schedule.register("cpu")
 def _get_alter_layout_schedule_x86(wkl):
@@ -226,6 +248,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 
+
 @conv2d_NCHWc.register("cpu")
 def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride,
                             padding, layout, out_layout, out_dtype):
@@ -244,11 +267,18 @@ def _declaration_conv_NCHWc(data, kernel, num_filter, kernel_size, stride,
     n, ic_chunk, h, w, ic_block = [x.value for x in data.shape]
     ic = ic_chunk * ic_block
     kh, kw = kernel_size
-    wkl = _get_workload(tvm.placeholder((n, ic, h, w), dtype=data.dtype),
-                        tvm.placeholder((num_filter, ic, kh, kw),
-                                        dtype=kernel.dtype),
-                        stride, padding, out_dtype)
-    sch = _get_schedule_NCHWc(wkl, layout, out_layout)
+    if data.dtype == 'uint8':
+        wkl = _get_workload_int8(tvm.placeholder((n, ic, h, w), dtype=data.dtype),
+                                 tvm.placeholder((num_filter, ic, kh, kw),
+                                                 dtype=kernel.dtype),
+                                 stride, padding, out_dtype)
+        sch = _get_schedule_NCHWc_int8(wkl, layout, out_layout)
+    else:
+        wkl = _get_workload(tvm.placeholder((n, ic, h, w), dtype=data.dtype),
+                            tvm.placeholder((num_filter, ic, kh, kw),
+                                            dtype=kernel.dtype),
+                            stride, padding, out_dtype)
+        sch = _get_schedule_NCHWc(wkl, layout, out_layout)
     return _AVX_SCH_TO_DECL_FUNC[type(sch)](wkl, sch, data, kernel)
 
 
@@ -406,8 +436,13 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding,
             original_kernel = tvm.placeholder((num_filter, ic, kh, kw),
                                               dtype=kernel.dtype)
 
-            wkl = _get_workload(original_data, original_kernel, stride, padding, conv_out.dtype)
-            sch = _get_schedule_NCHWc(wkl, layout, out_layout)
+            if data.dtype == 'uint8':
+                wkl = _get_workload_int8(original_data, original_kernel,
+                                         stride, padding, conv_out.dtype)
+                sch = _get_schedule_NCHWc_int8(wkl, layout, out_layout)
+            else:
+                wkl = _get_workload(original_data, original_kernel, stride, padding, conv_out.dtype)
+                sch = _get_schedule_NCHWc(wkl, layout, out_layout)
             _AVX_SCH_TO_SCH_FUNC[type(sch)](s, wkl, sch, data_vec,
                                             kernel, conv_out, outs[0])
 
