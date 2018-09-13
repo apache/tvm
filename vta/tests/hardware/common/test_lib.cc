@@ -530,8 +530,8 @@ VTAUop * getMapALUUops(int vector_size, bool uop_compression) {
 
 void printParameters() {
   // Some debugging code
-  printf("Size of VTAInsn: %d\n", sizeof(VTAGenericInsn));
-  printf("Size of VTAUop: %d\n", sizeof(VTAUop));
+  printf("Size of VTAInsn: %d\n", (int)sizeof(VTAGenericInsn));
+  printf("Size of VTAUop: %d\n", (int)sizeof(VTAUop));
   printf("VTA_UOP_BUFF_DEPTH: %d\n", VTA_UOP_BUFF_DEPTH);
   printf("VTA_LOG_UOP_BUFF_DEPTH: %d\n", VTA_LOG_UOP_BUFF_DEPTH);
   printf("VTA_WGT_BUFF_DEPTH: %d\n", VTA_WGT_BUFF_DEPTH);
@@ -732,7 +732,7 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
   assert(!(opcode == VTA_ALU_OPCODE_SHR && !use_imm));
   printf("=====================================================================================\n");
   printf("INFO - ALU test of %s: batch=%d, vector_size=%d, uop_compression=%d\n",
-    getOpcodeString(opcode, use_imm), batch, vector_size, uop_compression);
+         getOpcodeString(opcode, use_imm), batch, vector_size, (int)uop_compression);
 
   // Instruction count
   int ins_size = 3 * batch / VTA_BATCH + 2;
@@ -899,12 +899,12 @@ int alu_test(int opcode, bool use_imm, int batch, int vector_size, bool uop_comp
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) NULL,
-      (volatile wgt_vec_T *) NULL,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) NULL,
+      (wgt_vec_T *) NULL,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output buffer
@@ -961,7 +961,7 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
 
   printf("=====================================================================================\n");
   printf("INFO - Blocked GEMM test: batch=%d, channels=%d, block=%d, uop_comp=%d, vt=%d\n",
-         batch, channels, block, uop_compression, virtual_threads);
+         batch, channels, block, (int)uop_compression, virtual_threads);
 
   // Input/output channels
   int in_feat = channels;
@@ -1172,12 +1172,12 @@ int blocked_gemm_test(int batch, int channels, int block, bool uop_compression,
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) input_buf,
-      (volatile wgt_vec_T *) weight_buf,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) input_buf,
+      (wgt_vec_T *) weight_buf,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output data
@@ -1235,7 +1235,7 @@ int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression
 
   printf("=====================================================================================\n");
   printf("INFO - Blocked GEMM test: batch=%d, in_channels=%d, out_channels=%d, uop_comp=%d\n",
-         batch, in_channels, out_channels, uop_compression);
+         batch, in_channels, out_channels, (int)uop_compression);
 
   // Derive number of elements that need to be loaded/stored
   int ins_size = 7;
@@ -1401,12 +1401,12 @@ int gemm_test(int batch, int in_channels, int out_channels, bool uop_compression
 #else
   // Invoke the VTA
   vta(ins_size,
-      (volatile insn_T *) insn_buf,
-      (volatile uop_T *) uop_buf,
-      (volatile inp_vec_T *) input_buf,
-      (volatile wgt_vec_T *) weight_buf,
-      (volatile acc_vec_T *) bias_buf,
-      (volatile out_vec_T *) output_buf);
+      (insn_T *) insn_buf,
+      (uop_T *) uop_buf,
+      (inp_vec_T *) input_buf,
+      (wgt_vec_T *) weight_buf,
+      (acc_vec_T *) bias_buf,
+      (out_vec_T *) output_buf);
 #endif
 
   // Unpack output data

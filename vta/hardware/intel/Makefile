@@ -21,7 +21,7 @@ HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8
 # HLS mode
 MODE = skip_sim
 # Debug flag
-DEBUG = true
+DEBUG = false
 # SLURM
 SLURM = false
 # Prevent generation of DSP

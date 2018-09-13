@@ -11,19 +11,28 @@
 
 #include "vta.h"
 
-template <typename T>
-void memcpy_st(
-  T * __dest, 
-  const T * __src, 
-  int __n) {
+void _memcpy(
+  unsigned char * __dest, 
+  const unsigned char * __src, 
+  size_t __n) {
   for (int i = 0; i < __n; ++i) {
     __dest[i] = __src[i];
   }
 }
 
+// template <typename T>
+// void memcpy_st(
+//   T * __dest, 
+//   const T * __src, 
+//   int __n) {
+//   for (int i = 0; i < __n; ++i) {
+//     __dest[i] = __src[i];
+//   }
+// }
+
 component void fetch(
   uint32_t insn_count,
-  volatile insn_T *insns,
+  insn_T *insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue) {
@@ -38,26 +47,24 @@ component void fetch(
     // Read instruction fields
     insn_T insn = insns[pc];
     // Do some partial decoding
-    opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0, 7, 1>(VTA_INSN_MEM_0_0);
-    memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0, 7, 1>(VTA_INSN_MEM_5_0);
+    opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0+1>(VTA_INSN_MEM_0_0);
+    memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
     // Push to appropriate instruction queue
     if (opcode == VTA_OPCODE_STORE) {
       store_queue.write(insn);
-      fprintf(stderr, "s");
     } else if (opcode == VTA_OPCODE_LOAD &&
           (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
       load_queue.write(insn);
-      fprintf(stderr, "l");
-    } else  if (opcode == VTA_OPCODE_GEMM){
+    } else if (opcode == VTA_OPCODE_GEMM) {
+    } else {
       gemm_queue.write(insn);
-      fprintf(stderr, "g");
     }
   }
 }
 
 component void load(
-  volatile inp_vec_T *inputs,
-  volatile wgt_vec_T *weights,
+  inp_vec_T *inputs,
+  wgt_vec_T *weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
@@ -81,16 +88,16 @@ component void load(
   bool pop_next_dependence = insn[VTA_INSN_MEM_2];
   bool push_prev_dependence = insn[VTA_INSN_MEM_3];
   bool push_next_dependence = insn[VTA_INSN_MEM_4];
-  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0>(VTA_INSN_MEM_5_0);
-  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0>(VTA_INSN_MEM_6_0);
-  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0>(VTA_INSN_MEM_7_0);
-  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0>(VTA_INSN_MEM_8_0);
-  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0>(VTA_INSN_MEM_9_0);
-  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0>(VTA_INSN_MEM_A_0);
-  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0>(VTA_INSN_MEM_B_0);
-  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0>(VTA_INSN_MEM_C_0);
-  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0>(VTA_INSN_MEM_D_0);
-  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0>(VTA_INSN_MEM_E_0);
+  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
+  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0+1>(VTA_INSN_MEM_6_0);
+  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0+1>(VTA_INSN_MEM_7_0);
+  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0+1>(VTA_INSN_MEM_8_0);
+  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0+1>(VTA_INSN_MEM_9_0);
+  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0+1>(VTA_INSN_MEM_A_0);
+  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0+1>(VTA_INSN_MEM_B_0);
+  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0+1>(VTA_INSN_MEM_C_0);
+  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0+1>(VTA_INSN_MEM_D_0);
+  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0+1>(VTA_INSN_MEM_E_0);
 
   // Pop dependence token if instructed
   if (pop_next_dependence) {
@@ -118,16 +125,19 @@ component void load(
     sram_idx += x_pad_0;
     // Perform data transfer
     if (memory_type == VTA_MEM_ID_INP) {
-      // memcpy(&inp_mem[sram_idx][0],
+      memcpy((unsigned char*)&inp_mem[sram_idx][0],
+             (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
+             x_size * VTA_INP_ELEM_BYTES);
+      // memcpy_st<inp_vec_T>(&inp_mem[sram_idx][0],
       //        (const inp_vec_T*) &inputs[dram_idx * VTA_BATCH],
-      //        x_size * VTA_INP_ELEM_BYTES);
-      memcpy_st<inp_vec_T>(&inp_mem[sram_idx][0],
-             (const inp_vec_T*) &inputs[dram_idx * VTA_BATCH],
-             x_size);
+      //        x_size);
     } else {
-      memcpy_st<wgt_vec_T>(&wgt_mem[sram_idx][0],
-             (const wgt_vec_T*) &weights[dram_idx * VTA_BLOCK_OUT],
-             x_size);
+      memcpy((unsigned char*)&wgt_mem[sram_idx][0],
+             (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
+             x_size * VTA_WGT_ELEM_BYTES);
+      // memcpy_st<wgt_vec_T>(&wgt_mem[sram_idx][0],
+      //        (const wgt_vec_T*) &weights[dram_idx * VTA_BLOCK_OUT],
+      //        x_size);
     }
     sram_idx += x_size;
     dram_idx += x_stride;
@@ -194,9 +204,9 @@ component void load(
 }
 
 component void compute(
-  volatile uint32_t &done,
-  volatile uop_T *uops,
-  volatile acc_vec_T *biases,
+  uint32_t &done,
+  uop_T *uops,
+  acc_vec_T *biases,
   ihc::stream_in<insn_T> &gemm_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
@@ -232,7 +242,7 @@ component void compute(
   insn_T insn = gemm_queue.read();
 
   // Decode
-  opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0, 7, 1>(VTA_INSN_MEM_0_0);
+  opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0+1>(VTA_INSN_MEM_0_0);
   bool pop_prev_dependence = insn[VTA_INSN_MEM_1];
   bool pop_next_dependence = insn[VTA_INSN_MEM_2];
   bool push_prev_dependence = insn[VTA_INSN_MEM_3];
@@ -255,16 +265,16 @@ component void compute(
     done = 0;
 
     // Decode instruction
-    memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0, 7, 1>(VTA_INSN_MEM_5_0);
-    memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0, 7, 1>(VTA_INSN_MEM_6_0);
-    memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0, 7, 1>(VTA_INSN_MEM_7_0);
-    memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0, 7, 1>(VTA_INSN_MEM_8_0);
-    memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0, 7, 1>(VTA_INSN_MEM_9_0);
-    memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0, 7, 1>(VTA_INSN_MEM_A_0);
-    memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0, 7, 1>(VTA_INSN_MEM_B_0);
-    memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0, 7, 1>(VTA_INSN_MEM_C_0);
-    memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0, 7, 1>(VTA_INSN_MEM_D_0);
-    memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0, 7, 1>(VTA_INSN_MEM_E_0);
+    memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
+    memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0+1>(VTA_INSN_MEM_6_0);
+    memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0+1>(VTA_INSN_MEM_7_0);
+    memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0+1>(VTA_INSN_MEM_8_0);
+    memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0+1>(VTA_INSN_MEM_9_0);
+    memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0+1>(VTA_INSN_MEM_A_0);
+    memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0+1>(VTA_INSN_MEM_B_0);
+    memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0+1>(VTA_INSN_MEM_C_0);
+    memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0+1>(VTA_INSN_MEM_D_0);
+    memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0+1>(VTA_INSN_MEM_E_0);
 
     // Initialize indices
     memop_sram_T sram_idx = sram_base;
@@ -279,10 +289,10 @@ component void compute(
 
     if (memory_type == VTA_MEM_ID_UOP) {
       // Perform data transfer
-      memcpy_st(&uop_mem[sram_base],
-             (const uop_T*) &uops[dram_base],
-             // x_size * sizeof(uop_T));
-             x_size);
+      _memcpy((unsigned char*)&uop_mem[sram_base],
+             (const unsigned char*) &uops[dram_base],
+             x_size * VTA_UOP_ELEM_BYTES);
+             // x_size);
     } else {
       // Skip vertical padding
       sram_idx += y_offset;
@@ -307,23 +317,23 @@ component void compute(
 
     // Decode
     bool reset_out = insn[VTA_INSN_GEM_5];
-    uop_idx_T uop_bgn = insn.slc<VTA_INSN_GEM_6_1-VTA_INSN_GEM_6_0, 7, 1>(VTA_INSN_GEM_6_0);
-    uop_idx_T uop_end = insn.slc<VTA_INSN_GEM_7_1-VTA_INSN_GEM_7_0, 7, 1>(VTA_INSN_GEM_7_0);
-    loop_T iter_out  = insn.slc<VTA_INSN_GEM_8_1-VTA_INSN_GEM_8_0, 7, 1>(VTA_INSN_GEM_8_0);
-    loop_T iter_in  = insn.slc<VTA_INSN_GEM_9_1-VTA_INSN_GEM_9_0, 7, 1>(VTA_INSN_GEM_9_0);
-    acc_idx_T dst_factor_out = insn.slc<VTA_INSN_GEM_A_1-VTA_INSN_GEM_A_0, 7, 1>(VTA_INSN_GEM_A_0);
-    acc_idx_T dst_factor_in = insn.slc<VTA_INSN_GEM_B_1-VTA_INSN_GEM_B_0, 7, 1>(VTA_INSN_GEM_B_0);
-    inp_idx_T src_factor_out = insn.slc<VTA_INSN_GEM_C_1-VTA_INSN_GEM_C_0, 7, 1>(VTA_INSN_GEM_C_0);
-    inp_idx_T src_factor_in = insn.slc<VTA_INSN_GEM_D_1-VTA_INSN_GEM_D_0, 7, 1>(VTA_INSN_GEM_D_0);
+    uop_idx_T uop_bgn = insn.slc<VTA_INSN_GEM_6_1-VTA_INSN_GEM_6_0+1>(VTA_INSN_GEM_6_0);
+    uop_idx_T uop_end = insn.slc<VTA_INSN_GEM_7_1-VTA_INSN_GEM_7_0+1>(VTA_INSN_GEM_7_0);
+    loop_T iter_out  = insn.slc<VTA_INSN_GEM_8_1-VTA_INSN_GEM_8_0+1>(VTA_INSN_GEM_8_0);
+    loop_T iter_in  = insn.slc<VTA_INSN_GEM_9_1-VTA_INSN_GEM_9_0+1>(VTA_INSN_GEM_9_0);
+    acc_idx_T dst_factor_out = insn.slc<VTA_INSN_GEM_A_1-VTA_INSN_GEM_A_0+1>(VTA_INSN_GEM_A_0);
+    acc_idx_T dst_factor_in = insn.slc<VTA_INSN_GEM_B_1-VTA_INSN_GEM_B_0+1>(VTA_INSN_GEM_B_0);
+    inp_idx_T src_factor_out = insn.slc<VTA_INSN_GEM_C_1-VTA_INSN_GEM_C_0+1>(VTA_INSN_GEM_C_0);
+    inp_idx_T src_factor_in = insn.slc<VTA_INSN_GEM_D_1-VTA_INSN_GEM_D_0+1>(VTA_INSN_GEM_D_0);
 
     // GEMM-specific fields
-    wgt_idx_T wgt_factor_out = insn.slc<VTA_INSN_GEM_E_1-VTA_INSN_GEM_E_0, 7, 1>(VTA_INSN_GEM_E_0);
-    wgt_idx_T wgt_factor_in = insn.slc<VTA_INSN_GEM_F_1-VTA_INSN_GEM_F_0, 7, 1>(VTA_INSN_GEM_F_0);
+    wgt_idx_T wgt_factor_out = insn.slc<VTA_INSN_GEM_E_1-VTA_INSN_GEM_E_0+1>(VTA_INSN_GEM_E_0);
+    wgt_idx_T wgt_factor_in = insn.slc<VTA_INSN_GEM_F_1-VTA_INSN_GEM_F_0+1>(VTA_INSN_GEM_F_0);
 
     // ALU-specific field
-    aluop_opcode_T alu_opcode = insn.slc<VTA_INSN_ALU_E_1-VTA_INSN_ALU_E_0, 7, 1>(VTA_INSN_ALU_E_0);
+    aluop_opcode_T alu_opcode = insn.slc<VTA_INSN_ALU_E_1-VTA_INSN_ALU_E_0+1>(VTA_INSN_ALU_E_0);
     bool use_imm = insn[VTA_INSN_ALU_F];
-    aluop_imm_T imm = insn.slc<VTA_INSN_ALU_G_1-VTA_INSN_ALU_G_0, 7, 1>(VTA_INSN_ALU_G_0);
+    aluop_imm_T imm = insn.slc<VTA_INSN_ALU_G_1-VTA_INSN_ALU_G_0+1>(VTA_INSN_ALU_G_0);
     acc_idx_T dst_offset_out = 0;
     inp_idx_T src_offset_out = 0;
     wgt_idx_T wgt_offset_out = 0;
@@ -492,7 +502,7 @@ component void compute(
 }
 
 component void store(
-  volatile out_vec_T *outputs,
+  out_vec_T *outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
@@ -513,16 +523,16 @@ component void store(
   bool pop_next_dependence = insn[VTA_INSN_MEM_2];
   bool push_prev_dependence = insn[VTA_INSN_MEM_3];
   bool push_next_dependence = insn[VTA_INSN_MEM_4];
-  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0, 7, 1>(VTA_INSN_MEM_5_0);
-  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0, 7, 1>(VTA_INSN_MEM_6_0);
-  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0, 7, 1>(VTA_INSN_MEM_7_0);
-  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0, 7, 1>(VTA_INSN_MEM_8_0);
-  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0, 7, 1>(VTA_INSN_MEM_9_0);
-  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0, 7, 1>(VTA_INSN_MEM_A_0);
-  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0, 7, 1>(VTA_INSN_MEM_B_0);
-  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0, 7, 1>(VTA_INSN_MEM_C_0);
-  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0, 7, 1>(VTA_INSN_MEM_D_0);
-  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0, 7, 1>(VTA_INSN_MEM_E_0);
+  memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
+  memop_sram_T sram_base = insn.slc<VTA_INSN_MEM_6_1-VTA_INSN_MEM_6_0+1>(VTA_INSN_MEM_6_0);
+  memop_dram_T dram_base = insn.slc<VTA_INSN_MEM_7_1-VTA_INSN_MEM_7_0+1>(VTA_INSN_MEM_7_0);
+  memop_size_T y_size = insn.slc<VTA_INSN_MEM_8_1-VTA_INSN_MEM_8_0+1>(VTA_INSN_MEM_8_0);
+  memop_size_T x_size = insn.slc<VTA_INSN_MEM_9_1-VTA_INSN_MEM_9_0+1>(VTA_INSN_MEM_9_0);
+  memop_stride_T x_stride = insn.slc<VTA_INSN_MEM_A_1-VTA_INSN_MEM_A_0+1>(VTA_INSN_MEM_A_0);
+  memop_pad_T y_pad_0 = insn.slc<VTA_INSN_MEM_B_1-VTA_INSN_MEM_B_0+1>(VTA_INSN_MEM_B_0);
+  memop_pad_T y_pad_1 = insn.slc<VTA_INSN_MEM_C_1-VTA_INSN_MEM_C_0+1>(VTA_INSN_MEM_C_0);
+  memop_pad_T x_pad_0 = insn.slc<VTA_INSN_MEM_D_1-VTA_INSN_MEM_D_0+1>(VTA_INSN_MEM_D_0);
+  memop_pad_T x_pad_1 = insn.slc<VTA_INSN_MEM_E_1-VTA_INSN_MEM_E_0+1>(VTA_INSN_MEM_E_0);
 
   // Pop dependence token if instructed
   if (pop_prev_dependence) {
@@ -545,10 +555,11 @@ component void store(
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
-    memcpy_st<out_vec_T>(
+    memcpy(
       const_cast<out_vec_T*>(&outputs[dram_idx*VTA_BATCH]),
       (const out_vec_T*) &out_mem[sram_idx][0],
-      x_size);
+      x_size * VTA_INP_ELEM_BYTES);
+      // x_size);
     sram_idx += x_size;
     dram_idx += x_stride;
     // Skip padding along x dimension
@@ -563,12 +574,12 @@ component void store(
 
 void vta(
   uint32_t insn_count,
-  volatile insn_T *insns,
-  volatile uop_T *uops,
-  volatile inp_vec_T *inputs,
-  volatile wgt_vec_T *weights,
-  volatile acc_vec_T *biases,
-  volatile out_vec_T *outputs) {
+  insn_T *insns,
+  uop_T *uops,
+  inp_vec_T *inputs,
+  wgt_vec_T *weights,
+  acc_vec_T *biases,
+  out_vec_T *outputs) {
 // #pragma HLS INTERFACE s_axilite port = insn_count bundle = CONTROL_BUS
 // #pragma HLS INTERFACE m_axi port = insns offset = slave bundle = ins_port
 // #pragma HLS INTERFACE m_axi port = uops offset = slave bundle = uop_port
@@ -619,28 +630,23 @@ void vta(
   // Main control loop
   while (true) {
     // First execute as many load instructions as possible
-    bool tmp_load_queue_success = true;
-    while (true) {
-      tmp_load = tmp_load_queue.tryRead(tmp_load_queue_success);
-      if (!tmp_load_queue_success && !tmp_load_popped){
-        break;
-      }
+    while (!tmp_load_queue.empty() || tmp_load_popped == true) {
+    // bool tmp_load_queue_success = true;
+    // while (true) {
+    //   tmp_load = tmp_load_queue.tryRead(tmp_load_queue_success);
+    //   if (!tmp_load_queue_success && !tmp_load_popped){
+    //     break;
+    //   }
       // Pop the load instruction
       if (!tmp_load_popped) {
-        // tmp_load = tmp_load_queue.read();
+        tmp_load = tmp_load_queue.read();
         tmp_load_popped = true;
       }
       // Check dependences and invoke the load stage
       bool pop_next_dependence = tmp_load[VTA_INSN_MEM_2];
-      bool g2l_dep_queue_success = false;
-      g2l_dep_queue.tryRead(g2l_dep_queue_success);
-      if (!pop_next_dependence){
-        fprintf(stderr, "======\n");
-      }
-      if (g2l_dep_queue_success){
-        fprintf(stderr, "xxxxxx\n");
-      }
-      if ((pop_next_dependence && g2l_dep_queue_success) ||
+      // bool g2l_dep_queue_success = false;
+      // g2l_dep_queue.tryRead(g2l_dep_queue_success);
+      if ((pop_next_dependence && !g2l_dep_queue.empty()) ||
           !pop_next_dependence) {
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
@@ -652,30 +658,31 @@ void vta(
       }
     }
     // Next execute as many gemm instructions as possible
-    bool tmp_gemm_queue_success = true;
-    while (true) {
-      tmp_gemv = tmp_gemm_queue.tryRead(tmp_gemm_queue_success);
-      if (!tmp_gemm_queue_success && !tmp_gemm_popped){
-        break;
-      }
+    while (!tmp_gemm_queue.empty() || tmp_gemm_popped == true) {
+    // bool tmp_gemm_queue_success = true;
+    // while (true) {
+    //   tmp_gemv = tmp_gemm_queue.tryRead(tmp_gemm_queue_success);
+    //   if (!tmp_gemm_queue_success && !tmp_gemm_popped){
+    //     break;
+    //   }
       // Pop the gemm instruction
       if (!tmp_gemm_popped) {
-        // tmp_gemv = tmp_gemm_queue.read();
+        tmp_gemv = tmp_gemm_queue.read();
         tmp_gemm_popped = true;
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_gemv[VTA_INSN_MEM_1];
       bool pop_next_dependence = tmp_gemv[VTA_INSN_MEM_2];
-      bool l2g_dep_queue_isempty = false;
-      bool s2g_dep_queue_isempty = false;
-      l2g_dep_queue.tryRead(l2g_dep_queue_isempty);
-      s2g_dep_queue.tryRead(s2g_dep_queue_isempty);
+      // bool l2g_dep_queue_success = false;
+      // bool s2g_dep_queue_success = false;
+      // bool l2g_dep_item = l2g_dep_queue.tryRead(l2g_dep_queue_success);
+      // bool s2g_dep_item = s2g_dep_queue.tryRead(s2g_dep_queue_success);
       if (
-        (pop_prev_dependence && !l2g_dep_queue_isempty &&
-         pop_next_dependence && !s2g_dep_queue_isempty) ||
+        (pop_prev_dependence && !l2g_dep_queue.empty() &&
+         pop_next_dependence && !s2g_dep_queue.empty()) ||
         (!pop_prev_dependence && pop_next_dependence &&
-         !s2g_dep_queue_isempty) ||
-        (pop_prev_dependence && !l2g_dep_queue_isempty &&
+         !s2g_dep_queue.empty()) ||
+        (pop_prev_dependence && !l2g_dep_queue.empty() &&
         !pop_next_dependence) ||
         (!pop_prev_dependence && !pop_next_dependence)
       ) {
@@ -691,22 +698,23 @@ void vta(
       }
     }
     // Finally execute as many store instructions as possible
-    bool tmp_store_queue_success = false;
-    while (true) {
-      tmp_store = tmp_store_queue.tryRead(tmp_store_queue_success);
-      if (!tmp_store_queue_success && !tmp_store_popped){
-        break;
-      }
+    while (!tmp_store_queue.empty() || tmp_store_popped == true) {
+    // bool tmp_store_queue_success = false;
+    // while (true) {
+    //   tmp_store = tmp_store_queue.tryRead(tmp_store_queue_success);
+    //   if (!tmp_store_queue_success && !tmp_store_popped){
+    //     break;
+    //   }
       // Pop the load instruction
       if (!tmp_store_popped) {
-        // tmp_store = tmp_store_queue.read();
+        tmp_store = tmp_store_queue.read();
         tmp_store_popped = true;
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_store[VTA_INSN_MEM_1];
-      bool g2s_dep_queue_isempty = false;
-      g2s_dep_queue.tryRead(g2s_dep_queue_isempty);
-      if ((pop_prev_dependence && !g2s_dep_queue_isempty) ||
+      // bool g2s_dep_queue_success = false;
+      // bool g2s_dep_item = g2s_dep_queue.tryRead(g2s_dep_queue_success);
+      if ((pop_prev_dependence && !g2s_dep_queue.empty()) ||
           !pop_prev_dependence) {
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
@@ -722,30 +730,27 @@ void vta(
       break;
     }
     exit_counter++;
+    if (exit_counter==16){
+      fprintf(stderr, "[%d]", exit_counter);
+    }else{
+      fprintf(stderr, "[%d]", exit_counter);
+    }
     if (exit_counter > 1000) {
-      bool g2l_dep_queue_isempty = false;
-      bool l2g_dep_queue_isempty = false;
-      bool s2g_dep_queue_isempty = false;
-      bool g2s_dep_queue_isempty = false;
-      g2l_dep_queue.tryRead(g2l_dep_queue_isempty);
-      l2g_dep_queue.tryRead(l2g_dep_queue_isempty);
-      s2g_dep_queue.tryRead(s2g_dep_queue_isempty);
-      g2s_dep_queue.tryRead(g2s_dep_queue_isempty);
       if (tmp_load_popped) {
-        if (g2l_dep_queue_isempty) {
+        if (g2l_dep_queue.empty()) {
           printf("waiting on g2l\n");
         }
       }
       if (tmp_gemm_popped) {
-        if (l2g_dep_queue_isempty && tmp_gemv[VTA_INSN_MEM_1]) {
+        if (l2g_dep_queue.empty() && tmp_gemv[VTA_INSN_MEM_1]) {
           printf("waiting on l2g\n");
         }
-        if (s2g_dep_queue_isempty && tmp_gemv[VTA_INSN_MEM_2]) {
+        if (s2g_dep_queue.empty() && tmp_gemv[VTA_INSN_MEM_2]) {
           printf("waiting on s2g\n");
         }
       }
       if (tmp_store_popped) {
-        if (g2s_dep_queue_isempty) {
+        if (g2s_dep_queue.empty()) {
           printf("waiting on g2s\n");
         }
       }

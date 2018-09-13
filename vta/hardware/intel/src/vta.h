@@ -105,7 +105,7 @@ typedef ac_int<VTA_LOG_ACC_WIDTH, 1> aluop_sh_imm_T;
 */
 void fetch(
   uint32_t insn_count,
-  volatile insn_T *insns,
+  insn_T *insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue);
@@ -126,8 +126,8 @@ void fetch(
 * \param wgt_mem Local weight SRAM buffer. Write only single port BRAM.
 */
 void load(
-  volatile inp_vec_T *inputs,
-  volatile wgt_vec_T *weights,
+  inp_vec_T *inputs,
+  wgt_vec_T *weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
@@ -158,9 +158,9 @@ void load(
 * \param out_mem Local output SRAM buffer. Write only single port BRAM.
 */
 void compute(
-  volatile uint32_t &done,
-  volatile uop_T *uops,
-  volatile acc_vec_T *biases,
+  uint32_t &done,
+  uop_T *uops,
+  acc_vec_T *biases,
   ihc::stream_in<insn_T> &gemm_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
@@ -184,7 +184,7 @@ void compute(
 * \param out_mem Local output SRAM buffer. Read only single port BRAM.
 */
 void store(
-  volatile out_vec_T *outputs,
+  out_vec_T *outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
@@ -203,11 +203,11 @@ void store(
 */
 void vta(
   uint32_t insn_count,
-  volatile insn_T *insns,
-  volatile uop_T *uops,
-  volatile inp_vec_T *inputs,
-  volatile wgt_vec_T *weights,
-  volatile acc_vec_T *biases,
-  volatile out_vec_T *outputs);
+  insn_T *insns,
+  uop_T *uops,
+  inp_vec_T *inputs,
+  wgt_vec_T *weights,
+  acc_vec_T *biases,
+  out_vec_T *outputs);
 
 #endif  // VTA_VTA_H_
