@@ -155,6 +155,8 @@ def _convert_convolution(insym, keras_layer, symtab):
         dilation = [keras_layer.dilation_rate[0], keras_layer.dilation_rate[1]]
     else:
         dilation = [keras_layer.dilation_rate, keras_layer.dilation_rate]
+    dilated_kernel_h = (kernel_h - 1) * dilation[0] + 1
+    dilated_kernel_w = (kernel_w - 1) * dilation[1] + 1
     stride_h, stride_w = keras_layer.strides
     params = {'weight': symtab.new_const(weight),
               'kernel_size': [kernel_h, kernel_w],
@@ -176,8 +178,8 @@ def _convert_convolution(insym, keras_layer, symtab):
     elif keras_layer.padding == 'same':
         in_h = keras_layer.input_shape[1]
         in_w = keras_layer.input_shape[2]
-        pad_t, pad_b = _get_pad_pair(in_h, kernel_h, stride_h)
-        pad_l, pad_r = _get_pad_pair(in_w, kernel_w, stride_w)
+        pad_t, pad_b = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+        pad_l, pad_r = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
         if pad_t == pad_b and pad_l == pad_r:
             params['padding'] = (pad_t, pad_l)
         else:

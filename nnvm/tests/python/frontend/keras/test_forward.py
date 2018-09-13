@@ -73,10 +73,10 @@ def test_forward_elemwise_add():
     keras_model = keras.models.Model(data, y)
     verify_keras_frontend(keras_model)
 
+
 def test_forward_dense():
-    data = keras.layers.Input(shape=(32,32,3))
-    x = keras.layers.MaxPooling2D(pool_size=(2,2))(data)
-    x = keras.layers.Flatten()(x)
+    data = keras.layers.Input(shape=(32,32,1))
+    x = keras.layers.Flatten()(data)
     x = keras.layers.Dropout(0.5)(x)
     x = keras.layers.Dense(10, activation='relu', kernel_initializer='uniform')(x)
     keras_model = keras.models.Model(data, x)
@@ -84,7 +84,7 @@ def test_forward_dense():
 
 
 def test_forward_pool():
-    data = keras.layers.Input(shape=(2,2,1))
+    data = keras.layers.Input(shape=(32,32,1))
     # maxpool
     x = keras.layers.MaxPooling2D((3, 3), strides=(1, 1), padding='same')(data)
     keras_model = keras.models.Model(data, x)
@@ -106,7 +106,7 @@ def test_forward_conv():
                   keras.layers.SeparableConv2D(filters=10, kernel_size=(3,3), padding='same')]
     for conv_func in conv_funcs:
         x = conv_func(data)
-        x = keras.layers.GlobalMaxPooling2D()(x)
+        x = keras.layers.GlobalAveragePooling2D()(x)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
 
@@ -117,6 +117,7 @@ def test_forward_upsample():
     x = keras.layers.GlobalAveragePooling2D()(x)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
+
 
 def test_forward_reshape():
     data = keras.layers.Input(shape=(32,32,3))
@@ -163,6 +164,7 @@ def test_forward_mobilenet():
         input_shape=(224,224,3), classes=1000)
     verify_keras_frontend(keras_model)
 
+
 def test_forward_activations():
     data = keras.layers.Input(shape=(32,32,3))
     weights = np.random.rand(1, 32, 32, 3)
@@ -182,9 +184,10 @@ def test_forward_activations():
                  keras.layers.Activation('linear')]
     for act_func in act_funcs:
         x = act_func(data)
-        x = keras.layers.GlobalMaxPooling2D()(x)
+        x = keras.layers.GlobalAveragePooling2D()(x)
         keras_model = keras.models.Model(data, x)
         verify_keras_frontend(keras_model)
+
 
 def test_forward_multi_inputs():
     data1 = keras.layers.Input(shape=(32,32,3))
