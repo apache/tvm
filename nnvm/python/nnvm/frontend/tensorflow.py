@@ -650,6 +650,7 @@ def _pad(name):
             ignores=['Tpaddings'],)(new_inputs, attr)
     return _impl
 
+
 def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
@@ -680,6 +681,19 @@ def _range():
         return _sym.Variable(name=name, shape=params[name].shape)
     return _impl
 
+def _elu():
+    def _impl(inputs, attr, params):
+        alpha = 1.0
+        return -alpha * _sym.relu(1 - _sym.exp(inputs[0])) + _sym.relu(inputs[0])
+    return _impl
+
+def _selu():
+    def _impl(inputs, attr, params):
+        alpha = 1.6732632423543772848170429916717
+        gamma = 1.0507009873554804934193349852946
+        return gamma * (-alpha * _sym.relu(1 - _sym.exp(inputs[0])) + _sym.relu(inputs[0]))
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -695,12 +709,15 @@ _convert_map = {
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BiasAdd'                           : _bias_add(),
     'Cast'                              : _cast(),
+    'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
     'Concat'                            : _concat(),
     'ConcatV2'                          : _concatV2(),
     'Conv2D'                            : _conv('conv'),
     'DecodeJpeg'                        : _decode_image(),
+    'Elu'                               : _elu(),
     'ExpandDims'                        : _expand_dims(),
+    'Floor'                             : AttrCvt('floor'),
     'Identity'                          : _identity(),
     'MatMul'                            : _matmul(),
     'MaxPool'                           : _pooling('max_pool'),
@@ -712,9 +729,11 @@ _convert_map = {
     'Sum'                               : _sum(),
     'Square'                            : _square(),
     'Pack'                              : _pack(),
+    'LeakyRelu'                         : AttrCvt('leaky_relu'),
     'Relu'                              : AttrCvt('relu'),
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
+    'Selu'                              : _selu(),
     'Softmax'                           : AttrCvt('softmax', {'axis': ('axis', 1)}),
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
@@ -732,6 +751,7 @@ _convert_map = {
     'Range'                             : _range(),
     'Rank'                              : _rank(),
     'Transpose'                         : _transpose(),
+    'Tanh'                              : AttrCvt('tanh'),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
