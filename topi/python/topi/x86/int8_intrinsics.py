@@ -28,9 +28,9 @@ def _intrin_reduce4int8_common(vec_size, num_elements_intel):
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.call_pure_intrin('int32', 'bitcast', a_int8)
+            re_int32 = tvm.call_pure_intrin('int32', 'reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
-            vec_a = tvm.call_pure_intrin('int8x64', 'bitcast', vec_ai32)
+            vec_a = tvm.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0], "int8x64")
             vec_one = tvm.const(1, "int16x32")
             pair_reduction = tvm.call_llvm_intrin('int16x32',
@@ -81,9 +81,9 @@ def _intrin_reduce4int8_1x1(vec_size, num_elements_intel):
                 return ib.get()
 
             a_int8 = ins[0].vload([0], "uint8x4")
-            re_int32 = tvm.call_pure_intrin('int32', 'bitcast', a_int8)
+            re_int32 = tvm.call_pure_intrin('int32', 'reinterpret', a_int8)
             vec_ai32 = re_int32.astype('int32x16')
-            vec_a = tvm.call_pure_intrin('int8x64', 'bitcast', vec_ai32)
+            vec_a = tvm.call_pure_intrin('int8x64', 'reinterpret', vec_ai32)
             vec_b = ins[1].vload([0, 0, 0, 0], "int8x64")
             vec_one = tvm.const(1, "int16x32")
             pair_reduction = tvm.call_llvm_intrin('int16x32',
