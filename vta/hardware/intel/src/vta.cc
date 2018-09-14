@@ -52,12 +52,15 @@ component void fetch(
     // Push to appropriate instruction queue
     if (opcode == VTA_OPCODE_STORE) {
       store_queue.write(insn);
+      fprintf(stderr, "s");
     } else if (opcode == VTA_OPCODE_LOAD &&
           (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
       load_queue.write(insn);
-    } else if (opcode == VTA_OPCODE_GEMM) {
+      fprintf(stderr, "l");
+    // } else if (opcode == VTA_OPCODE_GEMM) {
     } else {
       gemm_queue.write(insn);
+      fprintf(stderr, "g");
     }
   }
 }
@@ -358,11 +361,11 @@ component void compute(
 
             // Decode indices
             acc_idx_T dst_idx =
-              uop.slc<VTA_UOP_GEM_0_1 - VTA_UOP_GEM_0_0>(VTA_UOP_GEM_0_0) + dst_offset_in;
+              uop.slc<VTA_UOP_GEM_0_1-VTA_UOP_GEM_0_0+1>(VTA_UOP_GEM_0_0) + dst_offset_in;
             inp_idx_T src_idx =
-              uop.slc<VTA_UOP_GEM_1_1 - VTA_UOP_GEM_1_0>(VTA_UOP_GEM_1_0) + src_offset_in;
+              uop.slc<VTA_UOP_GEM_1_1-VTA_UOP_GEM_1_0+1>(VTA_UOP_GEM_1_0) + src_offset_in;
             wgt_idx_T wgt_idx =
-              uop.slc<VTA_UOP_GEM_2_1 - VTA_UOP_GEM_2_0>(VTA_UOP_GEM_2_0) + wgt_offset_in;
+              uop.slc<VTA_UOP_GEM_2_1-VTA_UOP_GEM_2_0+1>(VTA_UOP_GEM_2_0) + wgt_offset_in;
 
             // Read weight matrix
             wgt_vec_T w_matrix[VTA_BLOCK_OUT];
@@ -395,9 +398,9 @@ component void compute(
                   inp_T i_elem =
                     i_matrix[i].slc<VTA_INP_WIDTH>(k * VTA_INP_WIDTH);
                   mul_T prod = i_elem * w_elem;
-#ifdef NO_DSP
-#pragma HLS RESOURCE variable = prod core = Mul_LUT
-#endif //  NO_DSP
+// #ifdef NO_DSP
+// #pragma HLS RESOURCE variable = prod core = Mul_LUT
+// #endif //  NO_DSP
                   tmp += (sum_T) prod;
                 }
                 // Update summation
@@ -406,7 +409,7 @@ component void compute(
                 acc_mem_val[i].slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH) =
                     reset_out ? (acc_T) 0 : accum;
                 st_buf_val[i].slc<VTA_OUT_WIDTH>(b * VTA_OUT_WIDTH) =
-                  (out_T) accum.slc<VTA_OUT_WIDTH - 1>(0);
+                  (out_T) accum.slc<VTA_OUT_WIDTH>(0);
               }
               // Write to buffers
               acc_mem[dst_idx][i] = acc_mem_val[i];
@@ -414,18 +417,18 @@ component void compute(
             }
           }
         }
-#ifndef NO_ALU
+// #ifndef NO_ALU
         else if (opcode == VTA_OPCODE_ALU) {
           // Iterate over micro op
-          READ_ALU_UOP: for (int upc = uop_bgn; upc < uop_end; upc++) {
+          for (int upc = uop_bgn; upc < uop_end; upc++) {
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
             // Decode
             acc_idx_T dst_idx =
-              uop.slc<VTA_UOP_ALU_0_1 - VTA_UOP_ALU_0_0>(VTA_UOP_ALU_0_0) + dst_offset_in;
+              uop.slc<VTA_UOP_ALU_0_1-VTA_UOP_ALU_0_0+1>(VTA_UOP_ALU_0_0) + dst_offset_in;
             acc_idx_T src_idx =
-              uop.slc<VTA_UOP_ALU_1_1 - VTA_UOP_ALU_1_0>(VTA_UOP_ALU_1_0) + src_offset_in;
+              uop.slc<VTA_UOP_ALU_1_1-VTA_UOP_ALU_1_0+1>(VTA_UOP_ALU_1_0) + src_offset_in;
 
             // Perform ALU op over matrix elements
             for (int i = 0; i < VTA_BATCH; i++) {
@@ -442,7 +445,7 @@ component void compute(
               // Results vector
               acc_vec_T res_vec = 0;
               for (int b = 0; b < VTA_BLOCK_OUT; b++) {
-#pragma HLS PIPELINE II = 1 rewind
+// #pragma HLS PIPELINE II = 1 rewind
                 // Read in operands
                 acc_T src_0 = dst_vector.slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH);
                 acc_T src_1 = use_imm ? (acc_T) imm : (acc_T) src_vector.slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH);
@@ -477,7 +480,7 @@ component void compute(
             }
           }
         }
-#endif  // NO_ALU
+// #endif  // NO_ALU
 
         // Update offsets
         dst_offset_in += dst_factor_in;
@@ -641,6 +644,8 @@ void vta(
       if (!tmp_load_popped) {
         tmp_load = tmp_load_queue.read();
         tmp_load_popped = true;
+
+        fprintf(stderr, "[%d][l]0x%0llx\n", exit_counter, tmp_load.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_next_dependence = tmp_load[VTA_INSN_MEM_2];
@@ -669,6 +674,8 @@ void vta(
       if (!tmp_gemm_popped) {
         tmp_gemv = tmp_gemm_queue.read();
         tmp_gemm_popped = true;
+
+        fprintf(stderr, "[%d][g]0x%0llx\n", exit_counter, tmp_gemv.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_gemv[VTA_INSN_MEM_1];
@@ -709,6 +716,8 @@ void vta(
       if (!tmp_store_popped) {
         tmp_store = tmp_store_queue.read();
         tmp_store_popped = true;
+
+        fprintf(stderr, "[%d][s]0x%0llx\n", exit_counter, tmp_store.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_store[VTA_INSN_MEM_1];
@@ -730,11 +739,11 @@ void vta(
       break;
     }
     exit_counter++;
-    if (exit_counter==16){
-      fprintf(stderr, "[%d]", exit_counter);
-    }else{
-      fprintf(stderr, "[%d]", exit_counter);
-    }
+    // if (exit_counter==33){
+    //   fprintf(stderr, "[%d]", exit_counter);
+    // }else{
+    //   fprintf(stderr, "[%d]", exit_counter);
+    // }
     if (exit_counter > 1000) {
       if (tmp_load_popped) {
         if (g2l_dep_queue.empty()) {
