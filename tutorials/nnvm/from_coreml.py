@@ -67,7 +67,7 @@ x = image[np.newaxis, :]
 import nnvm.compiler
 target = 'cuda'
 shape_dict = {'image': x.shape}
-with nnvm.compiler.build_config(opt_level=3):
+with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
     graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################

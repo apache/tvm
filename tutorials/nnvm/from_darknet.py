@@ -106,7 +106,7 @@ print("Running the test image...")
 m.run()
 # get outputs
 out_shape = (net.outputs,)
-tvm_out = m.get_output(0).asnumpy()
+tvm_out = m.get_output(0).asnumpy().flatten()
 
 # do the detection and bring up the bounding boxes
 thresh = 0.24
