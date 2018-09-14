@@ -38,7 +38,7 @@ using namespace tvm::runtime;
 struct TypeConstraintSet {
   std::vector<TypeConstraint> ty_rels;
   TypeConstraintSet() : ty_rels() {}
-  TypeConstraintSet(const std::vector<TypeConstraint> &cs) : ty_rels(cs) {}
+  explicit TypeConstraintSet(const std::vector<TypeConstraint> &cs) : ty_rels(cs) {}
   void Add(const TypeConstraint &ty_rel) { ty_rels.push_back(ty_rel); }
 };
 

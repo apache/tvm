@@ -69,9 +69,7 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
 
 class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
  public:
-  Expr VisitExpr_(const VarNode* op) override {
-    return GetRef<Var>(op);
-  }
+  Expr VisitExpr_(const VarNode* op) override { return GetRef<Var>(op); }
 
   Expr VisitExpr_(const ConstantNode* op) override {
     return GetRef<Constant>(op);
@@ -99,7 +97,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto type = this->VisitType(op->type);
       return ParamNode::make(var, type);
     } else {
-      CHECK(false) << "the default param visitor expected a Var found: " << var_expr << std::endl;
+      CHECK(false) << "the default param visitor expected a Var found: "
+                   << var_expr << std::endl;
       __builtin_unreachable();
     }
   }
@@ -113,7 +112,9 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
         auto ty_param_ref = GetRef<TypeParam>(ty_param);
         ty_params.push_back(ty_param_ref);
       } else {
-        CHECK(false) << "the default function visitor expected a TypeParam found: " << ty_param_type << std::endl;
+        CHECK(false)
+            << "the default function visitor expected a TypeParam found: "
+            << ty_param_type << std::endl;
         __builtin_unreachable();
       }
     }
@@ -125,7 +126,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
         auto param = GetRef<Param>(param_node);
         params.push_back(param);
       } else {
-        CHECK(false) << "the default function visitor expected a Param found: " << param_expr << std::endl;
+        CHECK(false) << "the default function visitor expected a Param found: "
+                     << param_expr << std::endl;
         __builtin_unreachable();
       }
     }
@@ -163,7 +165,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto body = this->VisitExpr(op->body);
       return LetNode::make(var, value, body, type);
     } else {
-      CHECK(false) << "the default let visitor expected a Var found: " << var_expr << std::endl;
+      CHECK(false) << "the default let visitor expected a Var found: "
+                   << var_expr << std::endl;
       __builtin_unreachable();
     }
   }

@@ -10,6 +10,7 @@
 #include <tvm/ir.h>
 #include <tvm/node.h>
 #include <string>
+#include <vector>
 
 namespace tvm {
 /*!
@@ -124,7 +125,7 @@ RELAY_DEFINE_NODE_REF(Span, SpanNode, NodeRef);
  */
 class RelayNode : public Node {
  public:
-  /*! \brief The location of the program in a SourceFragment can be null, 
+  /*! \brief The location of the program in a SourceFragment can be null,
    * check with span.defined() */
   mutable Span span;
 

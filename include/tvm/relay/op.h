@@ -149,20 +149,18 @@ class OpRegistry {
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param type_rel_name The type function name to register for the return type.
-   * \param type_rel The backing relation which can solve an arbitrary relation
-   * on variables.
-   * \return reference to self.
+   * \param type_rel_name The type function name to register for the return
+   * type. \param type_rel The backing relation which can solve an arbitrary
+   * relation on variables. \return reference to self.
    */
   inline OpRegistry& add_type_rel(const std::string& type_rel_name,
-                                   TypeRelationFn type_rel);
+                                  TypeRelationFn type_rel);
 
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param type_rel_name The type function name to register for the return type.
-   * \param type_rel The backing relation which can solve an arbitrary relation
-   * on variables.
-   * \return reference to self.
+   * \param type_rel_name The type function name to register for the return
+   * type. \param type_rel The backing relation which can solve an arbitrary
+   * relation on variables. \return reference to self.
    */
   inline OpRegistry& add_type_rel(
       const std::string& type_rel_name,
@@ -365,8 +363,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
 }
 
 inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
-                                             TypeRelationFn type_fn) {
-
+                                            TypeRelationFn type_fn) {
   std::vector<TypeParam> type_params;
   std::vector<Type> arg_types;
 
@@ -387,9 +384,11 @@ inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
   type_params.push_back(out_param);
   ty_call_args.push_back(out_param);
 
-  TypeConstraint type_rel = TypeRelationNode::make(type_func_name, type_fn, ty_call_args);
+  TypeConstraint type_rel =
+      TypeRelationNode::make(type_func_name, type_fn, ty_call_args);
 
-  auto func_type = FuncTypeNode::make(arg_types, out_param, type_params, { type_rel });
+  auto func_type =
+      FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});
 
   get()->op_type = func_type;
 

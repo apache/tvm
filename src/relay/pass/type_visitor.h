@@ -91,7 +91,7 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
     }
 
     return FuncTypeNode::make(tvm::Array<Type>(args), VisitType(op->ret_type),
-                              type_params, type_constraints); 
+                              type_params, type_constraints);
   }
 
     Type VisitType_(const TupleTypeNode* op) override {
