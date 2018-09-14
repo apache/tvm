@@ -5,10 +5,11 @@ from collections import namedtuple
 import tvm
 
 from ..util import get_const_tuple
-from ..nn.conv2d import _get_schedule, _get_workload, check_skylake
+from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
 from .int8_intrinsics import _intrin_reduce4int8_1x1
+from .check_targets import check_skylake
 
 AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
 

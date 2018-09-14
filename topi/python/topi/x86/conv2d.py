@@ -11,6 +11,7 @@ from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
 from .conv2d_avx_1x1 import AVXConv1x1Fwd
+from .check_targets import check_skylake
 
 @_get_schedule.register("cpu")
 def _get_schedule_conv(wkl):
@@ -134,9 +135,8 @@ def _get_schedule_conv_int8(wkl):
 
     fp32_vec_len = 8
     target = tvm.target.current_target(allow_none=False)
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            fp32_vec_len = 16
+    if check_skylake(target):
+        fp32_vec_len = 16
 
     _SCHEDULES_AVX = [
         # Following are for INT8 operations
