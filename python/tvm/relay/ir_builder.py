@@ -6,7 +6,7 @@ from typing import Any
 import numpy as np
 import tvm
 from .type import FuncType, TensorType
-from .expr import Expr, Constant, Let, LocalVar, Param, Function, If
+from .expr import Expr, Constant, Let, Var, Param, Function, If
 from .env import Environment
 
 
@@ -115,7 +115,7 @@ class IRBuilder():
 
     #pylint: disable=invalid-name
     def bind(self, name, value, ty):
-        lv = LocalVar(name)
+        lv = Var(name)
         self.scopes[-1][name] = lv
         self.bindings[-1][lv] = (value, ty)
         return lv
@@ -138,10 +138,10 @@ class IRBuilder():
             elif isinstance(raw_param, tuple):
                 var, ty = raw_param
                 if isinstance(var, str):
-                    var = LocalVar(var)
+                    var = Var(var)
                 param = Param(var, ty)
             elif isinstance(param, str):
-                var = LocalVar(raw_param)
+                var = Var(raw_param)
                 ty = None
                 param = Param(var, ty)
             else:
@@ -210,7 +210,7 @@ class IRBuilder():
         if not ty:
             ty = float_type()
 
-        return Param(LocalVar(name), ty)
+        return Param(Var(name), ty)
 
     # def params(*args):
     #      i = 0

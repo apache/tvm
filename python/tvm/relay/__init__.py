@@ -25,11 +25,11 @@ FuncType = tpe.FuncType
 # Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
-LocalVar = expr.LocalVar
+Var = expr.Var
 GlobalVar = expr.GlobalVar
 Param = expr.Param
 Function = expr.Function
 Call = expr.Call
 Let = expr.Let
 If = expr.If
-Var = LocalVar
+Var = Var

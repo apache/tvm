@@ -75,7 +75,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const LocalVarNode* op,
+  virtual R VisitExpr_(const VarNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const GlobalVarNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -99,7 +99,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     // Set dispatch
     RELAY_EXPR_FUNCTOR_DISPATCH(ConstantNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(TupleNode);
-    RELAY_EXPR_FUNCTOR_DISPATCH(LocalVarNode);
+    RELAY_EXPR_FUNCTOR_DISPATCH(VarNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(ParamNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(FunctionNode);

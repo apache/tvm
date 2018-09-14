@@ -10,7 +10,7 @@ from typing import Dict, Tuple, List, Callable
 import tvm
 
 from .expr import Expr
-from .expr import Function, Let, Call, LocalVar
+from .expr import Function, Let, Call, Var
 from .expr import GlobalVar, If, Constant
 from .type import Type, TypeParam
 from .env import Environment
@@ -63,7 +63,7 @@ class AbstractExprVisitor(Generic[T]):
             return self.visit_call(expr)
         elif isinstance(expr, Let):
             return self.visit_let(expr)
-        elif isinstance(expr, LocalVar):
+        elif isinstance(expr, Var):
             return self.visit_local_var(expr)
         elif isinstance(expr, GlobalVar):
             return self.visit_global_var(expr)
@@ -85,7 +85,7 @@ class AbstractExprVisitor(Generic[T]):
     def visit_call(self, _: Call) -> T:
         raise Exception("Abstract method please implement me.")
 
-    def visit_local_id(self, _: LocalVar) -> T:
+    def visit_local_id(self, _: Var) -> T:
         raise Exception("Abstract method please implement me.")
 
     def visit_type(self, typ: Type) -> Type:
@@ -136,7 +136,7 @@ class ExprVisitor(AbstractExprVisitor[Expr]):
         new_args = [self.visit(arg) for arg in call.args]
         return Call(new_fn, new_args, call.attrs)
 
-    def visit_local_var(self, local_var: LocalVar) -> Expr:
+    def visit_local_var(self, local_var: Var) -> Expr:
         return local_var
 
     def visit_global_id(self, global_var: GlobalVar) -> Expr:

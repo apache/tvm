@@ -17,7 +17,7 @@ namespace relay {
 
 class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
  public:
-  void VisitExpr_(const LocalVarNode* op) override { return; }
+  void VisitExpr_(const VarNode* op) override { return; }
 
   void VisitExpr_(const GlobalVarNode* op) override { return; }
 
@@ -69,8 +69,8 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
 
 class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
  public:
-  Expr VisitExpr_(const LocalVarNode* op) override {
-    return GetRef<LocalVar>(op);
+  Expr VisitExpr_(const VarNode* op) override {
+    return GetRef<Var>(op);
   }
 
   Expr VisitExpr_(const ConstantNode* op) override {
@@ -94,8 +94,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
 
   Expr VisitExpr_(const ParamNode* op) override {
     Expr var_expr = this->VisitExpr(op->var);
-    if (const LocalVarNode* var_node = var_expr.as<LocalVarNode>()) {
-      auto var = GetRef<LocalVar>(var_node);
+    if (const VarNode* var_node = var_expr.as<VarNode>()) {
+      auto var = GetRef<Var>(var_node);
       auto type = this->VisitType(op->type);
       return ParamNode::make(var, type);
     } else {
@@ -156,8 +156,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
 
   Expr VisitExpr_(const LetNode* op) override {
     Expr var_expr = this->VisitExpr(op->var);
-    if (const LocalVarNode* var_node = var_expr.as<LocalVarNode>()) {
-      auto var = GetRef<LocalVar>(var_node);
+    if (const VarNode* var_node = var_expr.as<VarNode>()) {
+      auto var = GetRef<Var>(var_node);
       auto type = this->VisitType(op->value_type);
       auto value = this->VisitExpr(op->value);
       auto body = this->VisitExpr(op->body);

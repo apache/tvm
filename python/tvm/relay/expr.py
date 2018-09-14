@@ -52,12 +52,12 @@ class Tuple(Expr):
 
 
 @register_relay_node
-class LocalVar(Expr):
+class Var(Expr):
     """A local variable in Relay."""
     name_hint: str
 
     def __init__(self, name_hint: str) -> None:
-        self.__init_handle_by_constructor__(_make.LocalVar, name_hint)
+        self.__init_handle_by_constructor__(_make.Var, name_hint)
 
 
 @register_relay_node
@@ -73,10 +73,10 @@ class GlobalVar(Expr):
 class Param(Expr):
     """A function type in Relay, see tvm/relay/type.h for more details.
     """
-    var: LocalVar
+    var: Var
     type: Type
 
-    def __init__(self, var: LocalVar, ty: Type) -> None:
+    def __init__(self, var: Var, ty: Type) -> None:
         self.__init_handle_by_constructor__(_make.Param, var, ty)
 
 
@@ -117,13 +117,13 @@ class Call(Expr):
 @register_relay_node
 class Let(Expr):
     """A variable bindings in Relay, see tvm/relay/expr.h for more details."""
-    var: LocalVar
+    var: Var
     value: Expr
     body: Expr
     # should be type annotation
     value_type: Type
 
-    def __init__(self, var: LocalVar, value: Expr, body: Expr, value_type: Type) -> None:
+    def __init__(self, var: Var, value: Expr, body: Expr, value_type: Type) -> None:
         self.__init_handle_by_constructor__(
             _make.Let, var, value, body, value_type)
 

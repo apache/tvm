@@ -58,21 +58,21 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
       p->stream << "TupleNode(" << node->fields << ")";
     });
 
-LocalVar LocalVarNode::make(std::string name_hint) {
-  std::shared_ptr<LocalVarNode> n = std::make_shared<LocalVarNode>();
+Var VarNode::make(std::string name_hint) {
+  std::shared_ptr<VarNode> n = std::make_shared<VarNode>();
   n->name_hint = std::move(name_hint);
-  return LocalVar(n);
+  return Var(n);
 }
 
-TVM_REGISTER_API("relay._make.LocalVar")
+TVM_REGISTER_API("relay._make.Var")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = LocalVarNode::make(args[0]);
+      *ret = VarNode::make(args[0]);
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<LocalVarNode>([](const LocalVarNode *node,
+    .set_dispatch<VarNode>([](const VarNode *node,
                                    tvm::IRPrinter *p) {
-      p->stream << "LocalVarNode(" << node->name_hint << ")";
+      p->stream << "VarNode(" << node->name_hint << ")";
     });
 
 GlobalVar GlobalVarNode::make(std::string name_hint) {
@@ -92,7 +92,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
       p->stream << "GlobalVarNode(" << node->name_hint << ")";
     });
 
-Param ParamNode::make(LocalVar var, Type type) {
+Param ParamNode::make(Var var, Type type) {
   std::shared_ptr<ParamNode> n = std::make_shared<ParamNode>();
   n->var = std::move(var);
   n->type = std::move(type);
@@ -161,7 +161,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << node->attrs << ", " << node->type_args << ")";
     });
 
-Let LetNode::make(LocalVar var, Expr value, Expr body, Type value_type) {
+Let LetNode::make(Var var, Expr value, Expr body, Type value_type) {
   std::shared_ptr<LetNode> n = std::make_shared<LetNode>();
   n->var = std::move(var);
   n->value = std::move(value);

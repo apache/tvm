@@ -7,7 +7,7 @@ import attr
 from .ir_pass import AbstractExprVisitor
 from .op import compile_ops, Op
 from .type import TensorType
-from .expr import LocalVar, Function, Let, Call
+from .expr import Var, Function, Let, Call
 
 
 @attr.s(auto_attribs=True)
@@ -80,7 +80,7 @@ def from_tensor(typ: TensorType) -> Tuple[str, List[int]]:
 class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
     """The compiler from Relay to the TVM runtime system."""
     nodes: List[Node]
-    id_map: Dict[LocalVar, NodeRef]
+    id_map: Dict[Var, NodeRef]
     all_ops: Set[Op]
 
     def __init__(self) -> None:
@@ -93,10 +93,10 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         ident = len(self.nodes) - 1
         return NodeRef(ident)
 
-    def add_binding(self, ident: LocalVar, ref: NodeRef) -> None:
+    def add_binding(self, ident: Var, ref: NodeRef) -> None:
         self.id_map[ident] = ref
 
-    def let_bind(self, ident: LocalVar, node: Node) -> NodeRef:
+    def let_bind(self, ident: Var, node: Node) -> NodeRef:
         ref = self.add_node(node)
         self.add_binding(ident, ref)
         return ref
@@ -104,7 +104,7 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
     def get_node(self, ref: NodeRef) -> Node:
         return self.nodes[ref.ident]
 
-    def lookup(self, ident: LocalVar) -> NodeRef:
+    def lookup(self, ident: Var) -> NodeRef:
         return self.id_map[ident]
 
     def compile(self, func: Function) -> None:
@@ -151,7 +151,7 @@ class TVMRTSCompiler(AbstractExprVisitor[NodeRef]):
         self.add_binding(ident, val_ref)
         return self.visit(body)
 
-    def visit_local_var(self, ident: LocalVar) -> NodeRef:
+    def visit_local_var(self, ident: Var) -> NodeRef:
         return self.lookup(ident)
 
     def visit_call(self, call: Call) -> NodeRef:

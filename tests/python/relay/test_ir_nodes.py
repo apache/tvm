@@ -66,7 +66,7 @@ def test_tuple() -> None:
 
 def test_local_var() -> None:
     name_hint = 's'
-    lv = relay.LocalVar(name_hint)
+    lv = relay.Var(name_hint)
     lv.name_hint == name_hint
     # assert lv.span == None todo(@jroesch): what do we do about spans
     str(lv)
@@ -81,7 +81,7 @@ def test_global_var() -> None:
 
 
 def test_param() -> None:
-    lv = relay.LocalVar('x')
+    lv = relay.Var('x')
     ty = None
     param = relay.Param(lv, ty)
     assert param.var == lv
@@ -92,7 +92,7 @@ def test_param() -> None:
 
 def test_function() -> None:
     param_names = ['a', 'b', 'c', 'd']
-    params = tvm.convert([relay.Param(relay.LocalVar(n), None) for n in param_names])
+    params = tvm.convert([relay.Param(relay.Var(n), None) for n in param_names])
     ret_type = None
     body = None
     type_params = tvm.convert([])
@@ -105,9 +105,9 @@ def test_function() -> None:
 
 
 def test_call() -> None:
-    op = relay.LocalVar('f')
+    op = relay.Var('f')
     arg_names = ['a', 'b', 'c', 'd']
-    args = tvm.convert([relay.LocalVar(n) for n in arg_names])
+    args = tvm.convert([relay.Var(n) for n in arg_names])
     call = relay.Call(op, args, None, None)
     assert call.op == op
     assert call.args == args
@@ -116,7 +116,7 @@ def test_call() -> None:
 
 
 def test_let() -> None:
-    lv = relay.LocalVar('x')
+    lv = relay.Var('x')
     ty = None
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
@@ -132,9 +132,9 @@ def test_let() -> None:
 
 
 def test_if() -> None:
-    cond = relay.LocalVar('cond')
-    left = relay.LocalVar('left')
-    right = relay.LocalVar('right')
+    cond = relay.Var('cond')
+    left = relay.Var('left')
+    right = relay.Var('right')
     ife = relay.If(cond, left, right)
     assert ife.cond == cond
     assert ife.true_value == left

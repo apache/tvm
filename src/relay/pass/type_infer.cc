@@ -43,12 +43,12 @@ struct TypeConstraintSet {
 };
 
 struct TypeContext {
-  std::vector<std::unordered_map<LocalVar, Type, NodeHash>> stack;
+  std::vector<std::unordered_map<Var, Type, NodeHash>> stack;
   std::vector<TypeConstraintSet> constraints;
 
   TypeContext() { stack.push_back({}); }
 
-  void insert(const LocalVar &id, const Type &t) { stack.back()[id] = t; }
+  void insert(const Var &id, const Type &t) { stack.back()[id] = t; }
 
   void AddConstraint(const TypeConstraint &ty_rel) {
     constraints.back().Add(ty_rel);
@@ -58,7 +58,7 @@ struct TypeContext {
   //   return
   // }
 
-  Type lookup(const LocalVar &id) {
+  Type lookup(const Var &id) {
     for (auto frame = stack.rbegin(); frame != stack.rend(); ++frame) {
       if (frame->find(id) != frame->end()) {
         return frame->at(id);
@@ -126,7 +126,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   CheckedExpr VisitFunction(const Function &f, bool generalize);
 
  private:
-  CheckedExpr VisitExpr_(const LocalVarNode *op) override;
+  CheckedExpr VisitExpr_(const VarNode *op) override;
   CheckedExpr VisitExpr_(const GlobalVarNode *op) override;
   CheckedExpr VisitExpr_(const ConstantNode *op) override;
   CheckedExpr VisitExpr_(const TupleNode *op) override;
@@ -160,8 +160,8 @@ CheckedExpr TypeInferencer::Infer(const Expr &expr) {
   return checked_expr;
 }
 
-CheckedExpr TypeInferencer::VisitExpr_(const LocalVarNode *op) {
-  auto var = GetRef<LocalVar>(op);
+CheckedExpr TypeInferencer::VisitExpr_(const VarNode *op) {
+  auto var = GetRef<Var>(op);
   return {var, this->context.lookup(var)};
 }
 

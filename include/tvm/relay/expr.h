@@ -108,11 +108,11 @@ RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
  * \brief Local variables used in the let expression.
  * This is similar to Var that is being used in the low level tensor expression.
  *
- * \note Each LocalVar is bind only once and is immutable/
+ * \note Each Var is bind only once and is immutable/
  */
-class LocalVar;
-/*! \brief Container for LocalVar */
-class LocalVarNode : public ExprNode {
+class Var;
+/*! \brief Container for Var */
+class VarNode : public ExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint to the user, 
    * and is not used for equality.
@@ -123,13 +123,13 @@ class LocalVarNode : public ExprNode {
     v->Visit("name_hint", &name_hint);
   }
 
-  TVM_DLL static LocalVar make(std::string name_hint);
+  TVM_DLL static Var make(std::string name_hint);
 
-  static constexpr const char* _type_key = "relay.LocalVar";
-  TVM_DECLARE_NODE_TYPE_INFO(LocalVarNode, ExprNode);
+  static constexpr const char* _type_key = "relay.Var";
+  TVM_DECLARE_NODE_TYPE_INFO(VarNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(LocalVar, LocalVarNode, Expr);
+RELAY_DEFINE_NODE_REF(Var, VarNode, Expr);
 
 /*!
  * \brief Global variable that leaves in the top-level environment.
@@ -164,7 +164,7 @@ class Param;
 class ParamNode : public ExprNode {
  public:
   /*! \brief The variable */
-  LocalVar var;
+  Var var;
   /*! \brief The type of the parameter */
   Type type;
 
@@ -174,7 +174,7 @@ class ParamNode : public ExprNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static Param make(LocalVar var, Type type);
+  TVM_DLL static Param make(Var var, Type type);
 
   static constexpr const char* _type_key = "relay.Param";
   TVM_DECLARE_NODE_TYPE_INFO(ParamNode, ExprNode);
@@ -240,7 +240,7 @@ class CallNode : public ExprNode {
    * \brief The operator(function) being invoked
    *
    *  - It can be relay::Op which corresponds to the primitive operators.
-   *  - It can also be user defined functions (Function, GlobalVar, LocalVar).
+   *  - It can also be user defined functions (Function, GlobalVar, Var).
    */
   Expr op;
 
@@ -305,7 +305,7 @@ class Let;
 class LetNode : public ExprNode {
  public:
   /*! \brief The variable we bind to */
-  LocalVar var;
+  Var var;
   /*! \brief The value we bind var to */
   Expr value;
   /*! \brief The body of the let binding */
@@ -321,7 +321,7 @@ class LetNode : public ExprNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static Let make(LocalVar var, Expr value, Expr body, Type value_type);
+  TVM_DLL static Let make(Var var, Expr value, Expr body, Type value_type);
 
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_NODE_TYPE_INFO(LetNode, ExprNode);

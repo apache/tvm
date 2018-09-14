@@ -158,7 +158,7 @@ Module CompileOpsToModule(const std::vector<std::string>& op_names) {
       tvm::Array<NodeRef> pair = compiler(op->name, op->op_type);
       // TODO(@jroesch): I can't pass strings across what should be the
       // interface here.
-      tvm::Array<NodeRef> triple = {LocalVarNode::make(op->name), pair[0],
+      tvm::Array<NodeRef> triple = {VarNode::make(op->name), pair[0],
                                     pair[1]};
       args.push_back(triple);
     } else {
