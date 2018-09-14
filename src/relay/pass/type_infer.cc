@@ -35,45 +35,35 @@ namespace relay {
 
 using namespace tvm::runtime;
 
-struct TypeConstraintSet {
-  std::vector<TypeConstraint> ty_rels;
-  TypeConstraintSet() : ty_rels() {}
-  explicit TypeConstraintSet(const std::vector<TypeConstraint> &cs) : ty_rels(cs) {}
-  void Add(const TypeConstraint &ty_rel) { ty_rels.push_back(ty_rel); }
-};
+using TypeConstraintSet = std::vector<TypeConstraint>;
 
 struct TypeContext {
-  std::vector<std::unordered_map<Var, Type, NodeHash>> stack;
+  std::unordered_map<Var, Type, NodeHash> var_map;
   std::vector<TypeConstraintSet> constraints;
 
-  TypeContext() { stack.push_back({}); }
+  TypeContext() { constraints.push_back({}); }
 
-  void insert(const Var &id, const Type &t) { stack.back()[id] = t; }
+  void Insert(const Var &id, const Type &t) { var_map[id] = t; }
 
   void AddConstraint(const TypeConstraint &ty_rel) {
-    constraints.back().Add(ty_rel);
+    constraints.back().push_back(ty_rel);
   }
 
-  // TypeConstraint & Constraints() {
-  //   return
-  // }
-
-  Type lookup(const Var &id) {
-    for (auto frame = stack.rbegin(); frame != stack.rend(); ++frame) {
-      if (frame->find(id) != frame->end()) {
-        return frame->at(id);
-      }
+  Type Lookup(const Var &id) {
+   auto type = var_map.find(id);
+   if (type != var_map.end()) {
+        return (*type).second;
+    } else {
+      throw FatalTypeError("Could not resolve local id");
     }
-    throw FatalTypeError("Could not resolve local id");
   }
 
   struct Frame {
     TypeContext &tc;
     explicit Frame(TypeContext &tc) : tc(tc) {
-      tc.stack.push_back({});
       tc.constraints.push_back({});
     }
-    ~Frame() { tc.stack.pop_back(); }
+    ~Frame() { tc.constraints.pop_back(); }
   };
 };
 
@@ -96,7 +86,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
   // Should be in header?
   template <typename T>
-  T with_frame(const std::function<T()> &f) {
+  T WithFrame(const std::function<T()> &f) {
     TypeContext::Frame fr(context);
     return f();
   }
@@ -108,16 +98,16 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
 
   CheckedExpr Infer(const Expr &expr);
 
-  FuncType instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
+  FuncType Instantiate(FuncType fn_ty, tvm::Array<Type> &ty_args);
 
   Type Normalize(const Type &t);
 
-  void report_error(const std::string &msg, Span sp);
-  [[noreturn]] void fatal_error(const std::string &msg, Span sp);
+  void ReportError(const std::string &msg, Span sp);
+  [[noreturn]] void FatalError(const std::string &msg, Span sp);
 
-  Type unify(const Type &t1, const Type &t2, Span sp);
-  Type resolve(const Type &t);
-  Expr resolve(const Expr &e);
+  Type Unify(const Type &t1, const Type &t2, Span sp);
+  Type Resolve(const Type &t);
+  Expr Resolve(const Expr &e);
   TypeRelation Solve(const TypeRelation &ty_rel);
   SolverResult Solve(std::vector<TypeRelation> &rels);
 
@@ -162,7 +152,7 @@ CheckedExpr TypeInferencer::Infer(const Expr &expr) {
 
 CheckedExpr TypeInferencer::VisitExpr_(const VarNode *op) {
   auto var = GetRef<Var>(op);
-  return {var, this->context.lookup(var)};
+  return {var, this->context.Lookup(var)};
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const GlobalVarNode *op) {
@@ -192,7 +182,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const TupleNode *op) {
 CheckedExpr TypeInferencer::VisitExpr_(const ParamNode *param) {
   // We should trigger error here and move param code direclty into function
   // checking.
-  auto rtype = resolve(param->type);
+  auto rtype = this->Resolve(param->type);
   // This is a special case ... not sure if there is a better way
   // to handle this.
   param->var->checked_type_ = rtype;
@@ -208,23 +198,31 @@ CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
   std::vector<Type> param_types;
   std::vector<Param> params;
 
-  return this->with_frame<CheckedExpr>([&]() -> CheckedExpr {
+  return this->WithFrame<CheckedExpr>([&]() -> CheckedExpr {
     for (auto param : f->params) {
       CheckedExpr checked_param = this->Infer(param);
       Type arg_type;
       param_types.push_back(checked_param.type);
       params.push_back(GetRef<Param>(checked_param.expr.as<ParamNode>()));
-      this->context.insert(param->var, checked_param.type);
+      this->context.Insert(param->var, checked_param.type);
     }
 
     auto checked_body = this->Infer(f->body);
     auto inferred_rtype = checked_body.type;
-    auto annotated_rtype = resolve(f->ret_type);
+    auto annotated_rtype = Resolve(f->ret_type);
 
-    auto unified_rtype = this->unify(inferred_rtype, annotated_rtype, f->span);
+    auto unified_rtype = this->Unify(inferred_rtype, annotated_rtype, f->span);
+
+    CHECK(RelationsHold(true));
+
+    Array<TypeConstraint> cs;
+
+    for (auto cons : this->context.constraints.back()) {
+      cs.push_back(cons);
+    }
 
     return {FunctionNode::make(params, unified_rtype, checked_body.expr, {}),
-            FuncTypeNode::make(param_types, unified_rtype, {}, {})};
+            FuncTypeNode::make(param_types, unified_rtype, {}, cs)};
   });
 }
 
@@ -232,7 +230,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const FunctionNode *op) {
   return this->VisitFunction(GetRef<Function>(op), false);
 }
 
-FuncType TypeInferencer::instantiate(FuncType fn_ty,
+FuncType TypeInferencer::Instantiate(FuncType fn_ty,
                                      tvm::Array<Type> &ty_args) {
   tvm::Map<TypeParam, Type> subst_map;
 
@@ -265,7 +263,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
   auto fn_ty_node = checked_op.type.as<FuncTypeNode>();
 
   if (!fn_ty_node) {
-    this->fatal_error("only expressions with function types can be called",
+    this->FatalError("only expressions with function types can be called",
                       c->op->span);
   }
 
@@ -277,7 +275,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
     throw Error("found manually suplied type args, not supported");
   }
 
-  fn_ty = instantiate(fn_ty, ty_args);
+  fn_ty = Instantiate(fn_ty, ty_args);
 
   std::vector<Type> arg_types;
   std::vector<Expr> checked_args;
@@ -293,14 +291,14 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
 
   if (type_arity != number_of_args) {
     if (type_arity < number_of_args) {
-      this->fatal_error("the function is provided too many arguments", c->span);
+      this->FatalError("the function is provided too many arguments", c->span);
     } else {
-      this->fatal_error("the function is provided too few arguments", c->span);
+      this->FatalError("the function is provided too few arguments", c->span);
     }
   }
 
   for (size_t i = 0; i < fn_ty->arg_types.size(); i++) {
-    this->unify(fn_ty->arg_types[i], arg_types[i], c->args[i]->span);
+    this->Unify(fn_ty->arg_types[i], arg_types[i], c->args[i]->span);
   }
 
   // After we unify the arguments we should know more about the type
@@ -326,30 +324,25 @@ CheckedExpr TypeInferencer::VisitExpr_(const LetNode *op) {
   Let let = GetRef<Let>(op);
 
   CheckedExpr checked_value;
-  Type annotated_ty = resolve(let->value_type);
+  Type annotated_ty = Resolve(let->value_type);
 
   // If we are let-defining a function, we want to be able to
   // recursively name the function in order to support recursive
   // local definitions.
   if (let->value.as<FunctionNode>()) {
-    with_frame<void>([&]() {
-      context.insert(let->var, annotated_ty);
-      checked_value = Infer(let->value);
-    });
+    context.Insert(let->var, annotated_ty);
+    checked_value = Infer(let->value);
   } else {
     checked_value = Infer(let->value);
   }
 
-  Type unified_ty = this->unify(checked_value.type, annotated_ty, let->span);
+  Type unified_ty = this->Unify(checked_value.type, annotated_ty, let->span);
 
   // Update type context with unified type now that we have
   // solved this equation.
-  context.insert(let->var, unified_ty);
+  context.Insert(let->var, unified_ty);
 
-  auto checked_body = with_frame<CheckedExpr>([&]() {
-    context.insert(let->var, unified_ty);
-    return Infer(let->body);
-  });
+  auto checked_body = Infer(let->body);
 
   auto checked_let = LetNode::make(let->var, checked_value.expr,
                                    checked_body.expr, let->value_type);
@@ -365,12 +358,12 @@ CheckedExpr TypeInferencer::VisitExpr_(const IfNode *op) {
   auto checked_cond = this->Infer(ifn->cond);
   auto cond_type = checked_cond.type;
 
-  this->unify(cond_type, TensorTypeNode::make({}, HalideIR::Bool()),
+  this->Unify(cond_type, TensorTypeNode::make({}, HalideIR::Bool()),
               ifn->cond->span);
   auto checked_true = this->Infer(ifn->true_branch);
   auto checked_false = this->Infer(ifn->false_branch);
   auto unified_type =
-      this->unify(checked_true.type, checked_false.type, ifn->span);
+      this->Unify(checked_true.type, checked_false.type, ifn->span);
   auto checked_if =
       IfNode::make(checked_cond.expr, checked_true.expr, checked_false.expr);
   return {checked_if, unified_type};
@@ -381,7 +374,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const OpNode *op_node) {
   return {op, op->op_type};
 }
 
-Type TypeInferencer::resolve(const Type &t) {
+Type TypeInferencer::Resolve(const Type &t) {
   if (t.defined()) {
     return ::tvm::relay::Resolve(this->unifier, t);
   } else {
@@ -389,7 +382,7 @@ Type TypeInferencer::resolve(const Type &t) {
   }
 }
 
-Expr TypeInferencer::resolve(const Expr &e) {
+Expr TypeInferencer::Resolve(const Expr &e) {
   CHECK(e.defined());
   return ::tvm::relay::Resolve(this->unifier, e);
 }
@@ -398,7 +391,7 @@ TypeRelation TypeInferencer::Solve(const TypeRelation &ty_rel) {
   Array<Type> normalized_args;
 
   for (auto arg : ty_rel->args) {
-    normalized_args.push_back(resolve(arg));
+    normalized_args.push_back(Resolve(arg));
   }
 
   auto new_args = ty_rel->func_(normalized_args, ty_rel->args.size() - 1);
@@ -494,7 +487,7 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
                   << std::endl;
   bool all_hold = true;
   for (auto cs_set : context.constraints) {
-    auto ty_rels = Downcast<TypeRelation>(cs_set.ty_rels);
+    auto ty_rels = Downcast<TypeRelation>(cs_set);
     auto status = Solve(ty_rels);
     RELAY_LOG(INFO) << "status= " << status << std::endl;
     if (status == SolverResult::Failed || status == SolverResult::Progress) {
@@ -513,7 +506,7 @@ Expr InferType(const Environment &env, const Expr &e) {
   TypeInferencer ti(env);
   auto checked_expr = ti.Infer(e);
   CHECK(ti.RelationsHold());
-  return ti.resolve(checked_expr.expr);
+  return ti.Resolve(checked_expr.expr);
 }
 
 Expr InferType(const Environment &env, const GlobalVar &var,
@@ -521,20 +514,20 @@ Expr InferType(const Environment &env, const GlobalVar &var,
   TypeInferencer ti(env);
   auto func_copy = FunctionNode::make(func->params, func->ret_type, func->body,
                                       func->type_params);
-  func_copy->checked_type_ = ti.resolve(func_copy->fn_type());
+  func_copy->checked_type_ = ti.Resolve(func_copy->fn_type());
   env->functions.Set(var, func_copy);
   auto checked_expr = ti.Infer(func);
   CHECK(ti.RelationsHold());
   auto map_node = env->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
-  return ti.resolve(checked_expr.expr);
+  return ti.Resolve(checked_expr.expr);
 }
 
-inline void TypeInferencer::report_error(const std::string &msg, Span sp) {
+inline void TypeInferencer::ReportError(const std::string &msg, Span sp) {
   this->env->AddDiagnostic({msg, sp});
 }
 
-void TypeInferencer::fatal_error(const std::string &msg, Span sp) {
+void TypeInferencer::FatalError(const std::string &msg, Span sp) {
   this->env->AddDiagnostic({msg, sp});
   throw FatalTypeError(
       "internal error: this exception should"
@@ -542,7 +535,7 @@ void TypeInferencer::fatal_error(const std::string &msg, Span sp) {
       msg);
 }
 
-Type TypeInferencer::unify(const Type &t1, const Type &t2, Span sp) {
+Type TypeInferencer::Unify(const Type &t1, const Type &t2, Span sp) {
   try {
     return this->unifier->unify(t1, t2);
   } catch (const dmlc::Error &e) {
@@ -554,7 +547,7 @@ Type TypeInferencer::unify(const Type &t1, const Type &t2, Span sp) {
     ss << t2;
     // ss << PrintType(env, t2, WrapWidth(40));
     ss << "`: " << e.what();
-    this->fatal_error(ss.str(), sp);
+    this->FatalError(ss.str(), sp);
   }
 }
 
