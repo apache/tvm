@@ -7,30 +7,32 @@
 #include <nnvm/pass.h>
 #include <nnvm/graph_attr_types.h>
 #include <nnvm/op_attr_types.h>
+#include <nnvm/top/tensor.h>
 #include <memory>
 #include "graph_algorithm.h"
 
 namespace nnvm {
 namespace pass {
 namespace {
+  using namespace nnvm::top;
 // Return bytes of data flag.
 static int GetDTypeSize(int type_flag) {
   switch (type_flag) {
-    case 3:  // uint8
-    case 5:  // int8
+    case kUint8:
+    case kInt8:
       return 1;
-    case 2:  // float16
-    case 7:  // int16
-    case 8:  // uint16
+    case kFloat16:
+    case kInt16:
+    case kUint16:
       return 2;
 
-    case 0:  // float32
-    case 4:  // int32
-    case 9:  // uint32
+    case kFloat32:
+    case kInt32:
+    case kUint32:
       return 4;
-    case 1:   // float64
-    case 6:   // int64
-    case 10:  // uint64
+    case kFloat64:
+    case kInt64:
+    case kUint64:
       return 8;
     default:
       LOG(FATAL) << "unknown type_flag=" << type_flag;
