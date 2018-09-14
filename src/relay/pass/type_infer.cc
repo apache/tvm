@@ -463,8 +463,6 @@ int NumSolvedVars(const TypeRelation & ty_rel) {
   for (auto arg : ty_rel->args) {
     if (!arg.as<IncompleteTypeNode>()) {
       num += 1;
-    } else {
-      std::cout << "arg :" << arg << std::endl;
     }
   }
   return num;
@@ -489,10 +487,9 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> & rels) {
 
     // We will now process each relation in order.
     for (TypeRelation & ty_rel : rels) {
-      std::cout << "TypeRelation: " << ty_rel << std::endl;
       int arity = ty_rel->args.size();
       int pre_solved = NumSolvedVars(ty_rel);
-      std::cout << "Arity: " << arity << " " << "Solved: " << pre_solved << std::endl;
+      RELAY_LOG(INFO) << "TypeInferencer::Solve: " << "TypeRelation= " << ", Arity=" << arity << ", Solved=" << pre_solved << std::endl;
       // If the relation is already solved then we will make no progress but try to
       // set the status to done.
       if (pre_solved == arity) {
@@ -535,12 +532,12 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
     constraints = context.constraints;
   }
 
-  std::cout << "Constraints hold " << std::endl;
+  RELAY_LOG(INFO) << "TypeInferencer::RelationsHold: scope_only= " << scope_only << std::endl;
   bool all_hold = true;
   for (auto cs_set : context.constraints) {
     auto ty_rels = Downcast<TypeRelation>(cs_set.ty_rels);
     auto status = Solve(ty_rels);
-    std::cout << "Status: " << status << std::endl;
+    RELAY_LOG(INFO) << "status= " << status << std::endl;
     if (status == SolverResult::Failed || status == SolverResult::Progress) {
       all_hold = false;
     } else if (status == SolverResult::Done) {
