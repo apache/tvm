@@ -94,8 +94,7 @@ m.set_input(**params)
 # execute
 m.run()
 # get outputs
-_, oshape = compiler.graph_util.infer_shape(graph, shape={"data": dshape})
-tvm_output = m.get_output(0, tvm.nd.empty(tuple(oshape[0]), dtype))
+tvm_output = m.get_output(0)
 
 
 ######################################################################

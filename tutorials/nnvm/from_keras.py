@@ -9,12 +9,12 @@ For us to begin with, keras should be installed.
 Tensorflow is also required since it's used as the default backend of keras.
 
 A quick solution is to install via pip
-```
-pip install -U keras --user
-```
-```
-pip install -U tensorflow --user
-```
+
+.. code-block:: bash
+
+    pip install -U keras --user
+    pip install -U tensorflow --user
+
 or please refer to official site
 https://keras.io/#installation
 """
@@ -45,7 +45,7 @@ weights_url = ''.join(['https://github.com/fchollet/deep-learning-models/release
 weights_file = 'resnet50_weights.h5'
 download(weights_url, weights_file)
 keras_resnet50 = keras.applications.resnet50.ResNet50(include_top=True, weights=None,
-	input_shape=(224,224,3), classes=1000)
+                                                      input_shape=(224, 224, 3), classes=1000)
 keras_resnet50.load_weights('resnet50_weights.h5')
 
 ######################################################################
@@ -75,8 +75,8 @@ sym, params = nnvm.frontend.from_keras(keras_resnet50)
 # compile the model
 target = 'cuda'
 shape_dict = {'input_1': data.shape}
-with nnvm.compiler.build_config(opt_level=2):
-	graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
+with nnvm.compiler.build_config(opt_level=3):
+    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -91,14 +91,13 @@ m.set_input(**params)
 # execute
 m.run()
 # get outputs
-out_shape = (1000,)
-tvm_out = m.get_output(0, tvm.nd.empty(out_shape, 'float32')).asnumpy()
-top1_tvm = np.argmax(tvm_out)
+tvm_out = m.get_output(0)
+top1_tvm = np.argmax(tvm_out.asnumpy()[0])
 
 #####################################################################
 # Look up synset name
 # -------------------
-# Look up prdiction top 1 index in 1000 class synset.
+# Look up prediction top 1 index in 1000 class synset.
 synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',

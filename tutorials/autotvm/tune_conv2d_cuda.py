@@ -169,14 +169,16 @@ task = autotvm.task.create(conv2d_no_batching,
                            target='cuda')
 print(task.config_space)
 
-# use local gpu, measure 10 times for every config to reduce variance
+# Use local gpu, measure 10 times for every config to reduce variance
 # The timeout of compiling a program is 10 seconds, the timeout for running is 4 seconds
 measure_option = autotvm.measure_option(
     builder=autotvm.LocalBuilder(),
     runner=autotvm.LocalRunner(repeat=3, min_repeat_ms=100, timeout=4)
 )
 
-# begin tuning, log records to file `conv2d.log`
+# Begin tuning, log records to file `conv2d.log`
+# During tuning we will also try many invalid configs, so you are expected to
+# see many error reports. As long as you can see non-zero GFLOPS, it is okay.
 tuner = autotvm.tuner.XGBTuner(task)
 tuner.tune(n_trial=20,
            measure_option=measure_option,
