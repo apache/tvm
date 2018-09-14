@@ -3,8 +3,9 @@
 from __future__ import absolute_import as _abs
 
 import ctypes
+import struct
 from ..base import py_str, check_call, _LIB
-from ..runtime_ctypes import TVMByteArray, TypeCode
+from ..runtime_ctypes import TVMByteArray, TypeCode, TVMContext
 
 class TVMValue(ctypes.Union):
     """TVMValue in C API"""
@@ -36,7 +37,7 @@ def _return_handle(x):
     return handle
 
 def _return_bytes(x):
-    """return handle"""
+    """return bytes"""
     handle = x.v_handle
     if not isinstance(handle, ctypes.c_void_p):
         handle = ctypes.c_void_p(handle)
@@ -48,6 +49,15 @@ def _return_bytes(x):
         raise RuntimeError('memmove failed')
     return res
 
+def _return_context(value):
+    """return TVMContext"""
+    # use bit unpacking from int64 view
+    # We use this to get around ctypes issue on Union of Structure
+    data = struct.pack("=q", value.v_int64)
+    arr = struct.unpack("=ii", data)
+    return TVMContext(arr[0], arr[1])
+
+
 def _wrap_arg_func(return_f, type_code):
     tcode = ctypes.c_int(type_code)
     def _wrap_func(x):
@@ -55,13 +65,20 @@ def _wrap_arg_func(return_f, type_code):
         return return_f(x)
     return _wrap_func
 
+def _ctx_to_int64(ctx):
+    """Pack context into int64 in native endian"""
+    data = struct.pack("=ii", ctx.device_type, ctx.device_id)
+    return struct.unpack("=q", data)[0]
+
+
 RETURN_SWITCH = {
     TypeCode.INT: lambda x: x.v_int64,
     TypeCode.FLOAT: lambda x: x.v_float64,
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: _return_context
 }
 
 C_TO_PY_ARG_SWITCH = {
@@ -70,5 +87,6 @@ C_TO_PY_ARG_SWITCH = {
     TypeCode.HANDLE: _return_handle,
     TypeCode.NULL: lambda x: None,
     TypeCode.STR: lambda x: py_str(x.v_str),
-    TypeCode.BYTES: _return_bytes
+    TypeCode.BYTES: _return_bytes,
+    TypeCode.TVM_CONTEXT: _return_context
 }

@@ -646,6 +646,11 @@ class TVMRetValue : public TVMPODValue_ {
     value_.v_int64 = value;
     return *this;
   }
+  TVMRetValue& operator=(TVMContext value) {
+    this->SwitchToPOD(kTVMContext);
+    value_.v_ctx = value;
+    return *this;
+  }
   TVMRetValue& operator=(TVMType t) {
     this->SwitchToPOD(kTVMType);
     value_.v_type = t;
