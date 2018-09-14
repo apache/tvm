@@ -366,7 +366,6 @@ inline OpRegistry& OpRegistry::add_type_rel(
 
 inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
                                              TypeRelationFn type_fn) {
-  auto type_func = TypeRelationNode::make(type_func_name, 0, type_fn);
 
   std::vector<TypeParam> type_params;
   std::vector<Type> arg_types;
@@ -388,9 +387,9 @@ inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
   type_params.push_back(out_param);
   ty_call_args.push_back(out_param);
 
-  auto type_result = TypeCallNode::make(type_func, ty_call_args);
+  TypeConstraint type_rel = TypeRelationNode::make(type_func_name, type_fn, ty_call_args);
 
-  auto func_type = FuncTypeNode::make(arg_types, type_result, type_params, {});
+  auto func_type = FuncTypeNode::make(arg_types, out_param, type_params, { type_rel });
 
   get()->op_type = func_type;
 

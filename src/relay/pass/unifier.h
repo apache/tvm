@@ -113,7 +113,6 @@ class TypeUnifierNode : public Node,
   Type VisitType_(const FuncTypeNode* t1, const Type t2) override;
   Type VisitType_(const TupleTypeNode* t1, const Type t2) override;
   Type VisitType_(const TypeRelationNode* s1, const Type t2) override;
-  Type VisitType_(const TypeCallNode* s1, const Type t2) override;
 };
 
 class TypeUnifier : public NodeRef {

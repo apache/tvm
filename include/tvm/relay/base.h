@@ -14,10 +14,10 @@
 namespace tvm {
 /*!
  * \brief Relay: a high level functional IR for TVM.
- * 
+ *
  * This namespace contains the abstract syntax tree, and other
  * essential data structures for the Relay IR.
- * 
+ *
  * You can find more about Relay by reading the language reference.
  */
 namespace relay {
@@ -66,7 +66,6 @@ using NodeEqual = ::tvm::NodeEqual;
     using ContainerType = NodeName;                                       \
   };
 
-
 /*!
  * \brief The source name in the Span
  * \sa SourceNameNode, Span
@@ -80,9 +79,7 @@ class SourceNameNode : public Node {
   /*! \brief The source name */
   std::string name;
   // override attr visitor
-  void VisitAttrs(AttrVisitor* v) final {
-    v->Visit("name", &name);
-  }
+  void VisitAttrs(AttrVisitor* v) final { v->Visit("name", &name); }
 
   TVM_DLL static SourceName make(std::string name);
 
@@ -152,6 +149,40 @@ RefType GetRef(const NodeType* ptr) {
   static_assert(std::is_same<typename RefType::ContainerType, NodeType>::value,
                 "Can only cast to the ref of same container type");
   return RefType(const_cast<NodeType*>(ptr)->shared_from_this());
+}
+
+// TODO(@tqchen, @jroesch): can we move these semantics to HalideIR
+template <typename T>
+inline const T* As(const NodeRef& node) {
+  const Node* ptr = static_cast<const Node*>(node.get());
+  if (ptr && (ptr->is_type<T>() || ptr->derived_from<T>())) {
+    return static_cast<const T*>(ptr);
+  }
+  return nullptr;
+}
+
+template <typename T, typename U>
+std::vector<T> Downcast(std::vector<U> array) {
+  std::vector<T> out;
+  for (const U& elem : array) {
+    const typename T::ContainerType* node =
+        elem.template as<typename T::ContainerType>();
+    CHECK(node) << "Downcast failed" << std::endl;
+    out.push_back(GetRef<T>(node));
+  }
+  return out;
+}
+
+template <typename T, typename U>
+Array<T> Downcast(Array<U> array) {
+  Array<T> out;
+  for (const U& elem : array) {
+    const typename T::ContainerType* node =
+        elem.template as<typename T::ContainerType>();
+    CHECK(node) << "Downcast failed" << std::endl;
+    out.push_back(GetRef<T>(node));
+  }
+  return out;
 }
 
 /*!

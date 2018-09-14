@@ -144,13 +144,6 @@ class FuncType(Type):
 
 
 @register_relay_node
-class TypeCall(Type):
-    def __init__(self, type_rel, args) -> None:
-        self.__init_handle_by_constructor__(
-            _make.TypeCall, type_rel, args)
-
-
-@register_relay_node
 class IncompleteType(Type):
     """An incomplete type."""
 

@@ -22,9 +22,14 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
   void VisitType_(const TypeParamNode* op, Args... args) override {}
 
   void VisitType_(const FuncTypeNode* op, Args... args) override {
-    // TODO(@jroesch): handle poly
-    // this->VisitType(op->var, args...);
-    // this->VisitType(op->boundType, args...);
+    for (auto type_param : op->type_params) {
+      this->VisitType(type_param, args...);
+    }
+
+    for (auto type_cs : op->type_constraints) {
+      this->VisitType(type_cs, args...);
+    }
+
     for (auto arg_type : op->arg_types) {
       this->VisitType(arg_type, args...);
     }
@@ -39,15 +44,12 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
     }
   }
 
-  void VisitType_(const TypeCallNode* op, Args... args) override {
-    this->VisitType(op->func, args...);
-
+  void VisitType_(const TypeRelationNode* op, Args... args) override {
     for (const Type& t : op->args) {
       this->VisitType(t, args...);
     }
   }
 
-  void VisitType_(const TypeRelationNode* op, Args... args) override {}
   void VisitType_(const IncompleteTypeNode* op, Args... args) override {}
 };
 
@@ -63,12 +65,25 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
   }
 
   Type VisitType_(const FuncTypeNode* op) override {
-    // TODO(@jroesch): handle poly
+    Array<TypeParam> type_params;
+    for (auto type_param : op->type_params) {
+      auto new_type_param = VisitType(type_param);
+      if (const TypeParamNode* tin = new_type_param.as<TypeParamNode>()) {
+        type_params.push_back(GetRef<TypeParam>(tin));
+      } else {
+        CHECK(false) << new_type_param << std::endl;
+      }
+    }
 
-    // auto new_id = this->VisitType(op->var);
-    // if (const TypeParamNode* tin = new_id.as<TypeParamNode>()) {
-    // return TypeQuantifierNode::make(GetRef<TypeParam>(tin),
-    //                                this->VisitType(op->boundType));
+    Array<TypeConstraint> type_constraints;
+    for (auto type_cs : op->type_constraints) {
+      auto new_type_cs = VisitType(type_cs);
+      if (const TypeConstraintNode* tin = As<TypeConstraintNode>(new_type_cs)) {
+        type_constraints.push_back(GetRef<TypeConstraint>(tin));
+      } else {
+        CHECK(false) << new_type_cs << std::endl;
+      }
+    }
 
     std::vector<Type> args;
     for (auto arg_type : op->arg_types) {
@@ -76,7 +91,7 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
     }
 
     return FuncTypeNode::make(tvm::Array<Type>(args), VisitType(op->ret_type),
-                              {}, {});  // fix me
+                              type_params, type_constraints); 
   }
 
     Type VisitType_(const TupleTypeNode* op) override {
@@ -87,17 +102,12 @@ struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
       return TupleTypeNode::make(new_fields);
     }
 
-  Type VisitType_(const TypeRelationNode* op) override {
-    return GetRef<TypeRelation>(op);
-  }
-
-  Type VisitType_(const TypeCallNode* op) override {
-    auto func = this->VisitType(op->func);
+  Type VisitType_(const TypeRelationNode* type_rel) override {
     std::vector<Type> new_args;
-    for (const Type& t : op->args) {
+    for (const Type& t : type_rel->args) {
       new_args.push_back(this->VisitType(t));
     }
-    return TypeCallNode::make(func, new_args);
+    return TypeRelationNode::make(type_rel->name, type_rel->func_, new_args);
   }
 
   Type VisitType_(const IncompleteTypeNode* op) override {

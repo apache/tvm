@@ -60,7 +60,8 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
       auto dim1 = to_int(*rev_sh1);
       auto dim2 = to_int(*rev_sh2);
       if ((dim1 != dim2) && ((dim1 != 1) && (dim2 != 1))) {
-        CHECK(false) << "Dimension mistmatch " << "dim1: " << dim1 << " dim2: " << dim2 << std::endl;
+        CHECK(false) << "Dimension mistmatch "
+                     << "dim1: " << dim1 << " dim2: " << dim2 << std::endl;
       }
       rev_sh1++;
       rev_sh2++;
@@ -106,7 +107,8 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
 
 Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
   CHECK_EQ(types.size(), 3);
-  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1] << "Out: " << types[2] << std::endl;
+  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
+                  << "Out: " << types[2] << std::endl;
   if (auto t1 = as_ttype(types[0])) {
     if (auto t2 = as_ttype(types[1])) {
       CHECK_EQ(t1->dtype, t2->dtype);

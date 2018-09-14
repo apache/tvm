@@ -202,8 +202,8 @@ Op SpecializeOp(const std::string& op_name, const std::string& new_op_name,
     subst_map.Set(fn_ty->type_params[i], type_args[i]);
   }
 
-  Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, {});
-  inst_ty = TypeSubst(fn_ty, subst_map);
+  Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, fn_ty->type_constraints);
+  inst_ty = TypeSubst(inst_ty, subst_map);
   FuncType new_op_ty = GetRef<FuncType>(inst_ty.as<FuncTypeNode>());
   new_op_reg.op()->op_type = new_op_ty;
 

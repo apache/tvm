@@ -129,6 +129,7 @@ class TypeParamNode : public TypeNode {
     kShape = 1,
     kBaseType = 2,
     kType = 3,
+    kTypeList = 4,
   };
   /*!
    * \brief The variable itself is only meaningful when
@@ -158,13 +159,13 @@ RELAY_DEFINE_NODE_REF(TypeParam, TypeParamNode, Type);
  */
 class TypeConstraint;
 /*! \brief TypeConstraint container node. */
-class TypeConstraintNode : public Node {
+class TypeConstraintNode : public TypeNode {
  public:
   static constexpr const char* _type_key = "relay.TypeConstraint";
-  TVM_DECLARE_BASE_NODE_INFO(TypeConstraintNode, Node);
+  TVM_DECLARE_BASE_NODE_INFO(TypeConstraintNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeConstraint, TypeConstraintNode, NodeRef);
+RELAY_DEFINE_NODE_REF(TypeConstraint, TypeConstraintNode, Type);
 
 class FuncType;
 /*!
@@ -221,12 +222,11 @@ class TypeRelation;
  * \note This node is not directly serializable.
  * The type function need to be lookedup in the environment.
  */
-class TypeRelationNode : public RelayNode {
+class TypeRelationNode : public TypeConstraintNode {
  public:
   /*! \brief The name of the function */
   std::string name;
-  /*! \brief Number of input type arguments, can be -1, which means VarArgs */
-  int num_args;
+
   /*!
    * \brief The function on input and output variables which
    *  this is not directly serializable,
@@ -234,49 +234,20 @@ class TypeRelationNode : public RelayNode {
    */
   TypeRelationFn func_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-    v->Visit("num_args", &num_args);
-  }
-
-  TVM_DLL static TypeRelation make(std::string name, int num_args,
-                                   TypeRelationFn func_);
-
-  static constexpr const char* _type_key = "relay.TypeRelation";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, RelayNode);
-};
-
-RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, Type);
-
-/*!
- * \brief Call a type function with some number of arguments.
- */
-class TypeCall;
-/*!
- * \brief TypeCall container.
- */
-class TypeCallNode : public TypeNode {
- public:
-  /*! \brief The type function to be called. */
-  Type func;
-
   /*! \brief The type arguments to the type function. */
   tvm::Array<Type> args;
 
-  TypeCallNode() {}
-
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("func", &func);
-    v->Visit("args", &args);
+    v->Visit("name", &name);
   }
 
-  TVM_DLL static TypeCall make(Type func, tvm::Array<Type> args);
+  TVM_DLL static TypeRelation make(std::string name, TypeRelationFn func_, Array<Type> args);
 
-  static constexpr const char* _type_key = "relay.TypeCall";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeCallNode, TypeNode);
+  static constexpr const char* _type_key = "relay.TypeRelation";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, TypeConstraintNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeCall, TypeCallNode, Type);
+RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
 
 /*!
  * \brief The type of tuple values.

@@ -35,12 +35,30 @@ namespace relay {
 
 using namespace tvm::runtime;
 
+struct TypeConstraintSet {
+  std::vector<TypeConstraint> ty_rels;
+  TypeConstraintSet() : ty_rels() {}
+  TypeConstraintSet(const std::vector<TypeConstraint>& cs) : ty_rels(cs) {}
+  void Add(const TypeConstraint & ty_rel) {
+    ty_rels.push_back(ty_rel);
+  }
+};
+
 struct TypeContext {
   std::vector<std::unordered_map<LocalVar, Type, NodeHash>> stack;
+  std::vector<TypeConstraintSet> constraints;
 
   TypeContext() { stack.push_back({}); }
 
   void insert(const LocalVar &id, const Type &t) { stack.back()[id] = t; }
+
+  void AddConstraint(const TypeConstraint & ty_rel) {
+    constraints.back().Add(ty_rel);
+  }
+
+  // TypeConstraint & Constraints() {
+  //   return 
+  // }
 
   Type lookup(const LocalVar &id) {
     for (auto frame = stack.rbegin(); frame != stack.rend(); ++frame) {
@@ -53,7 +71,10 @@ struct TypeContext {
 
   struct LocalFrame {
     TypeContext &tc;
-    explicit LocalFrame(TypeContext &tc) : tc(tc) { tc.stack.push_back({}); }
+    explicit LocalFrame(TypeContext &tc) : tc(tc) { 
+      tc.stack.push_back({}); 
+      tc.constraints.push_back({});
+    }
     ~LocalFrame() { tc.stack.pop_back(); }
   };
 };
@@ -62,41 +83,41 @@ struct TypeNormalizer : TypeFVisitor {
   TypeUnifier unifier;
   explicit TypeNormalizer(const TypeUnifier &unifier) : unifier(unifier) {}
 
-  Type VisitType_(const TypeCallNode *ty_call_node) {
-    auto ty_call = GetRef<TypeCall>(ty_call_node);
+  // Type VisitType_(const TypeRelationNode *ty_call_node) {
+  //   auto ty_call = GetRef<TypeCall>(ty_call_node);
 
-    Array<Type> normalized_args;
+  //   Array<Type> normalized_args;
 
-    for (auto arg : ty_call->args) {
-      normalized_args.push_back(VisitType(arg));
-    }
+  //   for (auto arg : ty_call->args) {
+  //     normalized_args.push_back(VisitType(arg));
+  //   }
 
-    auto all_concrete = true;
-    for (auto arg : normalized_args) {
-      all_concrete = all_concrete && !arg.as<IncompleteTypeNode>();
-    }
+  //   auto all_concrete = true;
+  //   for (auto arg : normalized_args) {
+  //     all_concrete = all_concrete && !arg.as<IncompleteTypeNode>();
+  //   }
 
-    if (all_concrete) {
-      return normalized_args[normalized_args.size() - 1];
-    } else {
-      if (auto ty_rel_node = ty_call->func.as<TypeRelationNode>()) {
-        // NB: we substract 1 for the output argument.
-        auto new_args =
-            ty_rel_node->func_(ty_call->args, ty_call->args.size() - 1);
-        CHECK(new_args.size() == normalized_args.size());
-        tvm::Array<Type> final_args;
+  //   if (all_concrete) {
+  //     return normalized_args[normalized_args.size() - 1];
+  //   } else {
+  //     if (auto ty_rel_node = ty_call->func.as<TypeRelationNode>()) {
+  //       // NB: we substract 1 for the output argument.
+  //       auto new_args =
+  //           ty_rel_node->func_(ty_call->args, ty_call->args.size() - 1);
+  //       CHECK(new_args.size() == normalized_args.size());
+  //       tvm::Array<Type> final_args;
 
-        for (size_t i = 0; i < new_args.size(); i++) {
-          final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
-        }
+  //       for (size_t i = 0; i < new_args.size(); i++) {
+  //         final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
+  //       }
 
-        return TypeCallNode::make(ty_call->func, final_args);
-      } else {
-        throw InternalError("found non type relation in the "\
-                            "type call function position");
-      }
-    }
-  }
+  //       return TypeCallNode::make(ty_call->func, final_args);
+  //     } else {
+  //       throw InternalError("found non type relation in the "\
+  //                           "type call function position");
+  //     }
+  //   }
+  // }
 };
 
 struct CheckedExpr {
@@ -106,9 +127,11 @@ struct CheckedExpr {
   CheckedExpr() {}
 };
 
+enum SolverResult : int;
+
 class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
  private:
-  TypeContext local_stack;
+  TypeContext context;
 
  public:
   Environment env;
@@ -117,7 +140,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   // Should be in header?
   template <typename T>
   T with_frame(const std::function<T()> &f) {
-    TypeContext::LocalFrame fr(local_stack);
+    TypeContext::LocalFrame fr(context);
     return f();
   }
 
@@ -138,6 +161,11 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   Type unify(const Type &t1, const Type &t2, Span sp);
   Type resolve(const Type &t);
   Expr resolve(const Expr &e);
+  TypeRelation Solve(const TypeRelation & ty_rel);
+  SolverResult Solve(std::vector<TypeRelation> & rels);
+  
+  /*! \brief Check that all relations hold. */
+  bool RelationsHold(bool scope_only = false);
   CheckedExpr VisitFunction(const Function &f, bool generalize);
  private:
   CheckedExpr VisitExpr_(const LocalVarNode *op) override;
@@ -181,7 +209,7 @@ CheckedExpr TypeInferencer::Infer(const Expr &expr) {
 
 CheckedExpr TypeInferencer::VisitExpr_(const LocalVarNode *op) {
   auto var = GetRef<LocalVar>(op);
-  return {var, this->local_stack.lookup(var)};
+  return {var, this->context.lookup(var)};
 }
 
 CheckedExpr TypeInferencer::VisitExpr_(const GlobalVarNode *op) {
@@ -232,7 +260,7 @@ CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
       Type arg_type;
       param_types.push_back(checked_param.type);
       params.push_back(GetRef<Param>(checked_param.expr.as<ParamNode>()));
-      this->local_stack.insert(param->var, checked_param.type);
+      this->context.insert(param->var, checked_param.type);
     }
 
     auto checked_body = this->Infer(f->body);
@@ -263,8 +291,8 @@ FuncType TypeInferencer::instantiate(FuncType fn_ty,
     subst_map.Set(ty_param, fresh);
   }
 
-  Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, {});
-  inst_ty = TypeSubst(fn_ty, subst_map);
+  Type inst_ty = FuncTypeNode::make(fn_ty->arg_types, fn_ty->ret_type, {}, fn_ty->type_constraints);
+  inst_ty = TypeSubst(inst_ty, subst_map);
 
   CHECK(KindCheck(this->env, inst_ty));
 
@@ -295,6 +323,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
   }
 
   fn_ty = instantiate(fn_ty, ty_args);
+
 
   std::vector<Type> arg_types;
   std::vector<Expr> checked_args;
@@ -328,6 +357,11 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
     ty_args.Set(i, this->unifier->subst(ty_args[i]));
   }
 
+  // Add type constraints from the function types.
+  for (auto cs : fn_ty->type_constraints) {
+    context.AddConstraint(cs);
+  }
+
   auto new_call =
       CallNode::make(checked_op.expr, checked_args, c->attrs, ty_args);
 
@@ -345,7 +379,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const LetNode *op) {
   // local definitions.
   if (let->value.as<FunctionNode>()) {
     with_frame<void>([&]() {
-      local_stack.insert(let->var, annotated_ty);
+      context.insert(let->var, annotated_ty);
       checked_value = Infer(let->value);
     });
   } else {
@@ -356,10 +390,10 @@ CheckedExpr TypeInferencer::VisitExpr_(const LetNode *op) {
 
   // Update type context with unified type now that we have
   // solved this equation.
-  local_stack.insert(let->var, unified_ty);
+  context.insert(let->var, unified_ty);
 
   auto checked_body = with_frame<CheckedExpr>([&]() {
-    local_stack.insert(let->var, unified_ty);
+    context.insert(let->var, unified_ty);
     return Infer(let->body);
   });
 
@@ -405,9 +439,124 @@ Expr TypeInferencer::resolve(const Expr& e) {
   return ::tvm::relay::Resolve(this->unifier, e);
 }
 
+TypeRelation TypeInferencer::Solve(const TypeRelation & ty_rel) {
+  Array<Type> normalized_args;
+
+  for (auto arg : ty_rel->args) {
+    normalized_args.push_back(resolve(arg));
+  }
+
+  auto new_args = ty_rel->func_(normalized_args, ty_rel->args.size() - 1);
+
+  CHECK(new_args.size() == normalized_args.size());
+  tvm::Array<Type> final_args;
+
+  for (size_t i = 0; i < new_args.size(); i++) {
+    final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
+  }
+
+  return TypeRelationNode::make(ty_rel->name, ty_rel->func_, final_args);
+}
+
+int NumSolvedVars(const TypeRelation & ty_rel) {
+  int num = 0;
+  for (auto arg : ty_rel->args) {
+    if (!arg.as<IncompleteTypeNode>()) {
+      num += 1;
+    } else {
+      std::cout << "arg :" << arg << std::endl;
+    }
+  }
+  return num;
+}
+
+enum SolverResult : int {
+  Failed = -1, 
+  Progress = 0,
+  Done = 1,
+};
+
+
+SolverResult TypeInferencer::Solve(std::vector<TypeRelation> & rels) {
+  // We start in the done state with zero progress.
+  SolverResult status = SolverResult::Done;
+  int progress = 0;
+
+  do {
+    // Upon rentering the loop we reset the state.
+    status = SolverResult::Done;
+    progress = 0;
+
+    // We will now process each relation in order.
+    for (TypeRelation & ty_rel : rels) {
+      std::cout << "TypeRelation: " << ty_rel << std::endl;
+      int arity = ty_rel->args.size();
+      int pre_solved = NumSolvedVars(ty_rel);
+      std::cout << "Arity: " << arity << " " << "Solved: " << pre_solved << std::endl;
+      // If the relation is already solved then we will make no progress but try to
+      // set the status to done.
+      if (pre_solved == arity) {
+        status = static_cast<SolverResult>((status && SolverResult::Done));
+      // If there are unsolved variables we will try to solve some.
+      } else if (pre_solved < arity) {
+        auto solved = Solve(ty_rel);
+        int post_solved = NumSolvedVars(solved);
+
+        // If we solved any variables we will try to downgrade status to progress
+        // update the type relation, and then bump the progress counter by one.
+        if (post_solved > pre_solved) {
+          status = static_cast<SolverResult>((status && SolverResult::Progress));
+          ty_rel = solved;
+          progress += 1;
+        } 
+      }
+    }
+
+    // If we made no progress and we aren't finished, then the state should be 
+    // downgraded to fail, then we should exit the loop.
+    if (progress == 0 && status != SolverResult::Done) {
+      status = SolverResult::Failed;
+      break;
+    }
+  } while (status == SolverResult::Progress);
+  return status;
+}
+
+
+bool TypeInferencer::RelationsHold(bool scope_only) {
+  // If we are only checking the top scope,
+  // slice out the constraints.
+  //
+  // Otherwise we use all of them.
+  std::vector<TypeConstraintSet> constraints;
+  if (scope_only) {
+    constraints = { context.constraints[0] };
+  } else {
+    constraints = context.constraints;
+  }
+
+  std::cout << "Constraints hold " << std::endl;
+  bool all_hold = true;
+  for (auto cs_set : context.constraints) {
+    auto ty_rels = Downcast<TypeRelation>(cs_set.ty_rels);
+    auto status = Solve(ty_rels);
+    std::cout << "Status: " << status << std::endl;
+    if (status == SolverResult::Failed || status == SolverResult::Progress) {
+      all_hold = false;
+    } else if (status == SolverResult::Done) {
+      continue;
+    } else {
+      throw InternalError("found invalid value for SolverResult");
+    }
+  }
+
+  return all_hold;
+}
+
 Expr InferType(const Environment &env, const Expr &e) {
   TypeInferencer ti(env);
   auto checked_expr = ti.Infer(e);
+  CHECK(ti.RelationsHold());
   return ti.resolve(checked_expr.expr);
 }
 
@@ -417,6 +566,7 @@ Expr InferType(const Environment &env, const GlobalVar & var, const Function & f
   func_copy->checked_type_ = ti.resolve(func_copy->fn_type());
   env->functions.Set(var, func_copy);
   auto checked_expr = ti.Infer(func);
+  CHECK(ti.RelationsHold());
   auto map_node = env->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
   return ti.resolve(checked_expr.expr);
@@ -464,6 +614,8 @@ TVM_REGISTER_API("relay._ir_pass._get_checked_type")
       Expr e = args[0];
       *ret = e->checked_type();
     });
+
+/* Incomplete Type */
 
 IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
   std::shared_ptr<IncompleteTypeNode> n =

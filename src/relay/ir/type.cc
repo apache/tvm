@@ -93,12 +93,11 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << node->type_constraints << ")";
     });
 
-TypeRelation TypeRelationNode::make(std::string name, int num_args,
-                                    TypeRelationFn func) {
+TypeRelation TypeRelationNode::make(std::string name, TypeRelationFn func, Array<Type> args) {
   std::shared_ptr<TypeRelationNode> n = std::make_shared<TypeRelationNode>();
   n->name = std::move(name);
-  n->num_args = std::move(num_args);
   n->func_ = std::move(func);
+  n->args = std::move(args);
   return TypeRelation(n);
 }
 
@@ -110,26 +109,8 @@ TVM_REGISTER_API("relay._make.TypeRelation")
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
                                        tvm::IRPrinter *p) {
-      p->stream << "TypeRelationNode(" << node->name << ", " << node->num_args
+      p->stream << "TypeRelationNode(" << node->name << ", " << node->args
                 << ")";
-    });
-
-TypeCall TypeCallNode::make(Type func, Array<Type> args) {
-  std::shared_ptr<TypeCallNode> n = std::make_shared<TypeCallNode>();
-  n->func = std::move(func);
-  n->args = std::move(args);
-  return TypeCall(n);
-}
-
-TVM_REGISTER_API("relay._make.TypeCall")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TypeCallNode::make(args[0], args[1]);
-    });
-
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TypeCallNode>([](const TypeCallNode *node,
-                                   tvm::IRPrinter *p) {
-      p->stream << "TypeCallNode(" << node->func << ", " << node->args << ")";
     });
 
 TupleType TupleTypeNode::make(Array<Type> fields) {

@@ -6,6 +6,7 @@
  */
 
 #include "./unifier.h"
+#include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass/alpha_eq.h>
@@ -180,12 +181,6 @@ Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
   // When the right hand size is a type variable immediately unify.
   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
     return this->unifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
-    // The TypeCallNode case is special and not symmetric.
-    //
-    // We flip the arguments so we hit the TypeCall and other case in there is
-    // ever a type call.
-  } else if (t2.as<TypeCallNode>()) {
-    return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t2, t1);
   } else {
     return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t1, t2);
   }
@@ -332,42 +327,7 @@ Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
 }
 
 Type TypeUnifierNode::VisitType_(const TypeRelationNode *tr1, const Type t2) {
-  if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
-    if (tr1 == tr2) {
-      return GetRef<TypeRelation>(tr1);
-    } else {
-      throw UnificationError("Cannot unify different type relations");
-    }
-  } else {
-    throw UnificationError(
-        "Cannot unify type relation with another type of type");
-  }
-}
-
-Type TypeUnifierNode::VisitType_(const TypeCallNode *tcn1, const Type t2) {
-  TypeCall ty_call1 = GetRef<TypeCall>(tcn1);
-
-  if (const TypeCallNode *tcn2 = t2.as<TypeCallNode>()) {
-    Type unified_func = this->VisitType(ty_call1->func, tcn2->func);
-
-    // For now, we will only unify if they are equal.
-    if (ty_call1->args.size() != tcn2->args.size()) {
-      throw UnificationError(
-          "Cannot unify calls of different number of arguments");
-    }
-
-    // Unify members, if possible
-    tvm::Array<Type> new_args;
-    for (size_t i = 0U; i < ty_call1->args.size(); i++) {
-      Type unified_member = this->VisitType(ty_call1->args[i], tcn2->args[i]);
-      new_args.push_back(unified_member);
-    }
-
-    return TypeCallNode::make(unified_func, new_args);
-  } else {
-    auto args = ty_call1->args;
-    return this->VisitType(args[args.size() - 1], t2);
-  }
+  throw InternalError("Cannot unify different type relations");
 }
 
 }  // namespace relay

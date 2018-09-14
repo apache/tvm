@@ -1,8 +1,8 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file tvm/relay/expr_visitor.h
- * \brief A simple visitor wrapper around ExprFunctor. 
- * 
+ * \brief A simple visitor wrapper around ExprFunctor.
+ *
  * Exposes two visitors with default traversal strategies, one
  * which doesn't compute a result but can mutate internal state,
  * and another which functionally builds a new Expr.
@@ -29,9 +29,7 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
     }
   }
 
-  void VisitExpr_(const ParamNode* op) override {
-    this->VisitExpr(op->var);
-  }
+  void VisitExpr_(const ParamNode* op) override { this->VisitExpr(op->var); }
 
   void VisitExpr_(const FunctionNode* op) override {
     for (auto param : op->params) {
@@ -75,7 +73,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
     return GetRef<LocalVar>(op);
   }
 
-  Expr VisitExpr_(const ConstantNode* op) override { 
+  Expr VisitExpr_(const ConstantNode* op) override {
     return GetRef<Constant>(op);
   }
 
@@ -83,9 +81,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
     return GetRef<GlobalVar>(op);
   }
 
-  Expr VisitExpr_(const OpNode* op) override {
-    return GetRef<Op>(op);
-  }
+  Expr VisitExpr_(const OpNode* op) override { return GetRef<Op>(op); }
 
   Expr VisitExpr_(const TupleNode* op) override {
     tvm::Array<Expr> fields;
