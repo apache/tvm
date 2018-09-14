@@ -51,7 +51,7 @@ using NodeEqual = ::tvm::NodeEqual;
 /*!
  * \brief Macro to make it easy to define node ref type given node
  * \param TypeName The name of the reference type.
- * \param NodeName The internal contrainer name.
+ * \param NodeName The internal container name.
  * \param NodeRefBase The base type.
  */
 #define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)            \
@@ -72,11 +72,11 @@ using NodeEqual = ::tvm::NodeEqual;
  */
 class SourceName;
 /*!
- * \brief The source name in the Span
+ * \brief The name of a source fragment.
  */
 class SourceNameNode : public Node {
  public:
-  /*! \brief The source name */
+  /*! \brief The source name. */
   std::string name;
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) final { v->Visit("name", &name); }
@@ -95,7 +95,6 @@ RELAY_DEFINE_NODE_REF(SourceName, SourceNameNode, NodeRef);
 class Span;
 /*!
  * \brief Stores locations in frontend source that generated a node.
- *
  */
 class SpanNode : public Node {
  public:
@@ -125,7 +124,8 @@ RELAY_DEFINE_NODE_REF(Span, SpanNode, NodeRef);
  */
 class RelayNode : public Node {
  public:
-  /*! \brief The debug information, can be null, check with span.defined() */
+  /*! \brief The location of the program in a SourceFragment can be null, 
+   * check with span.defined() */
   mutable Span span;
 
   static constexpr const char* _type_key = "relay.Node";

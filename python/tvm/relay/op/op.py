@@ -10,6 +10,7 @@ from ... import lower, build
 @register_relay_node
 class Op(Expr):
     """A Relay operator definition."""
+
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
 
@@ -90,9 +91,8 @@ def compile_ops(op_names):
     """
     return _CompileOpsToModule(*op_names)
 
+
 # TODO(@jroesch): We should port to C++, just need to figure out how to write this code.
-
-
 @register_func("relay.op._compile_ops")
 def _compile_ops(op_impls):
     lowered = []

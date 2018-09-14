@@ -1,5 +1,5 @@
 #pylint: disable=invalid-name
-"""Backend compiler related feature regsitration"""
+"""Backend compiler related feature registration"""
 from topi import add
 from .op import register
 from ..type import FuncType, TensorType

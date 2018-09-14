@@ -43,7 +43,7 @@ void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
 }
 
 void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
-  RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << "t=" << t << std::endl;
+  RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << ", t=" << t << std::endl;
   auto parent1 = this->find(v1);
 
   // if t is a type var, then unify parents

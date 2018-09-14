@@ -367,8 +367,8 @@ CheckedExpr TypeInferencer::VisitExpr_(const IfNode *op) {
 
   this->unify(cond_type, TensorTypeNode::make({}, HalideIR::Bool()),
               ifn->cond->span);
-  auto checked_true = this->Infer(ifn->true_value);
-  auto checked_false = this->Infer(ifn->false_value);
+  auto checked_true = this->Infer(ifn->true_branch);
+  auto checked_false = this->Infer(ifn->false_branch);
   auto unified_type =
       this->unify(checked_true.type, checked_false.type, ifn->span);
   auto checked_if =

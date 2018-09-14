@@ -197,11 +197,11 @@ class IRBuilder():
             bindings, _, _, ret_value = self.exit_scope()
             partial_if = self.ret_values[-1]
             assert isinstance(
-                partial_if, If) and partial_if.false_value is None
+                partial_if, If) and partial_if.false_branch is None
             false_branch = _mk_let(bindings, ret_value)
             self.ret_values[-1] = If(
                 partial_if.cond,
-                partial_if.true_value,
+                partial_if.true_branch,
                 false_branch)
 
         return WithScope(10, _on_exit)

@@ -34,7 +34,6 @@ SourceFragment::SourceFragment(const std::string& file_name,
 std::string SourceFragment::SourceAt(Span sp, int max_lines = 1) {
   std::stringstream out;
 
-  // We need to move from 1 based indexing to zero based indexing.
   int starting_line = sp->lineno;
 
   if (starting_line >= static_cast<int>(this->source_lines.size())) {

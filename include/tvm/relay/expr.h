@@ -22,7 +22,7 @@ namespace relay {
  */
 class Expr;
 /*!
- * \brief Base type of the Relay type hiearchy.
+ * \brief Base type of the Relay expression hiearchy.
  */
 class ExprNode : public RelayNode {
  public:
@@ -30,7 +30,7 @@ class ExprNode : public RelayNode {
    * \brief Stores the result of type inference(type checking).
    *
    * \note This can be undefined before type inference.
-   *       this value is discarded during serialization.
+   *       This value is discarded during serialization.
    */
   mutable Type checked_type_ = Type(nullptr);
   /*!
@@ -39,7 +39,7 @@ class ExprNode : public RelayNode {
   const Type& checked_type() const {
     CHECK(checked_type_.defined()) << "internal error: the type checker has "
                                       "not populated the checked_type "
-                                   << "field for this node";
+                                      "field for this node";
     return this->checked_type_;
   }
 
@@ -50,7 +50,7 @@ class ExprNode : public RelayNode {
 RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
 
 /*!
- * \brief Constant tensor, backed by an NDArray on cpu(0).
+ * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
  *
  * \note scalar constants are represented by rank-0 const tensor.
  *  Constant folding are handled uniformly via Tensor types.
@@ -67,7 +67,7 @@ class ConstantNode : public ExprNode {
   /*! \return The corresponding tensor type of the data */
   TensorType tensor_type() const;
 
-  /*! \return whether it is scalar(rank-0 tensor) */
+  /*! \return Whether it is scalar(rank-0 tensor) */
   bool is_scalar() const { return data->ndim == 0; }
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -114,7 +114,9 @@ class LocalVar;
 /*! \brief Container for LocalVar */
 class LocalVarNode : public ExprNode {
  public:
-  /*! \brief The name of the variable, this only acts as a hint. */
+  /*! \brief The name of the variable, this only acts as a hint to the user, 
+   * and is not used for equality.
+   */
   std::string name_hint;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -133,7 +135,7 @@ RELAY_DEFINE_NODE_REF(LocalVar, LocalVarNode, Expr);
  * \brief Global variable that leaves in the top-level environment.
  * This is used to enable recursive calls between function.
  *
- * \note GlobalVar can only corresponds to functions.
+ * \note A GlobalVar may only point to functions.
  */
 class GlobalVar;
 /*! \brief A GlobalId from the node's current type to target type. */
@@ -343,31 +345,26 @@ class IfNode : public ExprNode {
   /*! \brief The condition */
   Expr cond;
   /*! \brief The expression evaluated when condition is true. */
-  Expr true_value;
+  Expr true_branch;
   /*! \brief The expression evaluated when condition is false */
-  Expr false_value;
+  Expr false_branch;
 
   IfNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("cond", &cond);
-    v->Visit("true_value", &true_value);
-    v->Visit("false_value", &false_value);
+    v->Visit("true_branch", &true_branch);
+    v->Visit("false_branch", &false_branch);
     v->Visit("span", &span);
   }
 
-  TVM_DLL static If make(Expr cond, Expr true_value, Expr false_value);
+  TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
 
   static constexpr const char* _type_key = "relay.If";
   TVM_DECLARE_NODE_TYPE_INFO(IfNode, ExprNode);
 };
 
 RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
-
-// template<typename T, typename U>
-// T Downcast(U u) {
-
-// }
 
 }  // namespace relay
 }  // namespace tvm

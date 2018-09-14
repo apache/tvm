@@ -58,8 +58,8 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
 
   void VisitExpr_(const IfNode* op) override {
     this->VisitExpr(op->cond);
-    this->VisitExpr(op->true_value);
-    this->VisitExpr(op->false_value);
+    this->VisitExpr(op->true_branch);
+    this->VisitExpr(op->false_branch);
   }
 
   void VisitExpr_(const OpNode* op) override { return; }
@@ -99,7 +99,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto type = this->VisitType(op->type);
       return ParamNode::make(var, type);
     } else {
-      throw dmlc::Error("the default param visitor has bug");
+      CHECK(false) << "the default param visitor expected a Var found: " << var_expr << std::endl;
+      __builtin_unreachable();
     }
   }
 
@@ -112,7 +113,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
         auto ty_param_ref = GetRef<TypeParam>(ty_param);
         ty_params.push_back(ty_param_ref);
       } else {
-        throw dmlc::Error("the default func visitor has bug");
+        CHECK(false) << "the default function visitor expected a TypeParam found: " << ty_param_type << std::endl;
+        __builtin_unreachable();
       }
     }
 
@@ -123,7 +125,8 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
         auto param = GetRef<Param>(param_node);
         params.push_back(param);
       } else {
-        throw dmlc::Error("the default func visitor has bug");
+        CHECK(false) << "the default function visitor expected a Param found: " << param_expr << std::endl;
+        __builtin_unreachable();
       }
     }
 
@@ -160,14 +163,15 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto body = this->VisitExpr(op->body);
       return LetNode::make(var, value, body, type);
     } else {
-      throw dmlc::Error("the default let visitor has error");
+      CHECK(false) << "the default let visitor expected a Var found: " << var_expr << std::endl;
+      __builtin_unreachable();
     }
   }
 
   Expr VisitExpr_(const IfNode* op) override {
     auto guard = this->VisitExpr(op->cond);
-    auto true_b = this->VisitExpr(op->true_value);
-    auto false_b = this->VisitExpr(op->false_value);
+    auto true_b = this->VisitExpr(op->true_branch);
+    auto false_b = this->VisitExpr(op->false_branch);
     return IfNode::make(guard, true_b, false_b);
   }
 

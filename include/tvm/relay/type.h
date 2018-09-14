@@ -83,10 +83,10 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
   TVM_DLL static TensorType make(Array<ShapeExpr> shape, DataType dtype);
 
-  /*! \brief Constructing an unsigned integer type */
+  /*! \brief Construct an unsigned integer type */
   TVM_DLL static TensorType Int(int bits, int lanes = 1);
 
-  /*! \brief Constructing an unsigned integer type */
+  /*! \brief Construct an unsigned integer type */
   TVM_DLL static TensorType UInt(int bits, int lanes = 1);
 
   /*! \brief Construct a floating-point type */

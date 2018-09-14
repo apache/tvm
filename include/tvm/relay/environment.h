@@ -31,7 +31,7 @@ struct Environment;
  *  Many operations require access to the global
  *  Environment. We pass the Environment by value
  *  in a functional style as an explicit argument,
- *  but we will mutate the Environment while optimizing
+ *  but we mutate the Environment while optimizing
  *  Relay programs.
  *
  *  The functional style allows users to construct custom

@@ -134,5 +134,6 @@ struct NodeFactoryReg {
  */
 #define TVM_ADD_FILELINE "\n\nDefined in " __FILE__ ":L" TVM_STRINGIZE(__LINE__)
 
+
 }  // namespace tvm
 #endif  // TVM_BASE_H_

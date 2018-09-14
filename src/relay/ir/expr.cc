@@ -181,11 +181,11 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
                 << ", " << node->body << ", " << node->value_type << ")";
     });
 
-If IfNode::make(Expr cond, Expr true_value, Expr false_value) {
+If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
   std::shared_ptr<IfNode> n = std::make_shared<IfNode>();
   n->cond = std::move(cond);
-  n->true_value = std::move(true_value);
-  n->false_value = std::move(false_value);
+  n->true_branch = std::move(true_branch);
+  n->false_branch = std::move(false_branch);
   return If(n);
 }
 
@@ -195,8 +195,8 @@ TVM_REGISTER_API("relay._make.If").set_body([](TVMArgs args, TVMRetValue *ret) {
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     .set_dispatch<IfNode>([](const IfNode *node, tvm::IRPrinter *p) {
-      p->stream << "IfNode(" << node->cond << ", " << node->true_value
-                << node->false_value << ")";
+      p->stream << "IfNode(" << node->cond << ", " << node->true_branch
+                << node->false_branch << ")";
     });
 
 }  // namespace relay
