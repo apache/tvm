@@ -3,15 +3,23 @@
 import tvm
 
 
-def dp4a(x_scope, y_scope, z_scope):
+def dp4a(x_scope='local', y_scope='local', z_scope='local'):
     """
     Int8 dot product reduced by every 4 elements using __dp4a
 
     Parameters
     ----------
-    x_scope: The storage scope of buffer for lhs
-    y_scope: The storage scope of buffer for rhs
-    z_scope: The storage scope of buffer for result
+    x_scope : str, optional
+        The storage scope of buffer for lhs
+    y_scope : str, optional
+        The storage scope of buffer for rhs
+    z_scope : str, optional
+        The storage scope of buffer for result
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The dp4a TensorIntrin that can be used in tensorizing schedule.
     """
 
     n = 4  # dp4a requires operands packed by 4
