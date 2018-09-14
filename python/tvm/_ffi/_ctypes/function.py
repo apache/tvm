@@ -15,7 +15,7 @@ from . import ndarray as _nd
 from .ndarray import NDArrayBase, _make_array
 from .types import TVMValue, TypeCode
 from .types import TVMPackedCFunc, TVMCFuncFinalizer
-from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func
+from .types import RETURN_SWITCH, C_TO_PY_ARG_SWITCH, _wrap_arg_func, _ctx_to_int64
 from .node import NodeBase
 from . import node as _node
 
@@ -110,7 +110,7 @@ def _make_tvm_args(args, temp_args):
             values[i].v_str = c_str(str(arg))
             type_codes[i] = TypeCode.STR
         elif isinstance(arg, TVMContext):
-            values[i].v_ctx = arg
+            values[i].v_int64 = _ctx_to_int64(arg)
             type_codes[i] = TypeCode.TVM_CONTEXT
         elif isinstance(arg, bytearray):
             arr = TVMByteArray()
