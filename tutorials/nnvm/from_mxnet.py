@@ -10,9 +10,11 @@ This article is an introductory tutorial to deploy mxnet models with NNVM.
 For us to begin with, mxnet module is required to be installed.
 
 A quick solution is
-```
-pip install mxnet --user
-```
+
+.. code-block:: bash
+
+    pip install mxnet --user
+
 or please refer to offical installation guide.
 https://mxnet.incubator.apache.org/versions/master/install/index.html
 """
@@ -70,7 +72,8 @@ sym = nnvm.sym.softmax(sym)
 import nnvm.compiler
 target = 'cuda'
 shape_dict = {'data': x.shape}
-graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
+with nnvm.compiler.build_config(opt_level=3):
+    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
@@ -86,8 +89,8 @@ m.set_input(**params)
 # execute
 m.run()
 # get outputs
-tvm_output = m.get_output(0, tvm.nd.empty((1000,), dtype))
-top1 = np.argmax(tvm_output.asnumpy())
+tvm_output = m.get_output(0)
+top1 = np.argmax(tvm_output.asnumpy()[0])
 print('TVM prediction top-1:', top1, synset[top1])
 
 ######################################################################

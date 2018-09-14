@@ -8,9 +8,11 @@ This article is an introductory tutorial to deploy CoreML models with NNVM.
 For us to begin with, coremltools module is required to be installed.
 
 A quick solution is to install via pip
-```bash
-pip install -U coremltools --user
-```
+
+.. code-block:: bash
+
+    pip install -U coremltools --user
+
 or please refer to official site
 https://github.com/apple/coremltools
 """
@@ -65,7 +67,8 @@ x = image[np.newaxis, :]
 import nnvm.compiler
 target = 'cuda'
 shape_dict = {'image': x.shape}
-graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
+with nnvm.compiler.build_config(opt_level=2, add_pass=['AlterOpLayout']):
+    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################
 # Execute on TVM
@@ -81,14 +84,13 @@ m.set_input(**params)
 # execute
 m.run()
 # get outputs
-output_shape = (1000,)
-tvm_output = m.get_output(0, tvm.nd.empty(output_shape, dtype)).asnumpy()
-top1 = np.argmax(tvm_output)
+tvm_output = m.get_output(0)
+top1 = np.argmax(tvm_output.asnumpy()[0])
 
 #####################################################################
 # Look up synset name
 # -------------------
-# Look up prdiction top 1 index in 1000 class synset.
+# Look up prediction top 1 index in 1000 class synset.
 synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',

@@ -8,9 +8,11 @@ This article is an introductory tutorial to deploy ONNX models with NNVM.
 For us to begin with, onnx module is required to be installed.
 
 A quick solution is to install protobuf compiler, and
-```bash
-pip install onnx --user
-```
+
+.. code-block:: bash
+
+    pip install onnx --user
+
 or please refer to offical site.
 https://github.com/onnx/onnx
 """
@@ -69,7 +71,8 @@ target = 'cuda'
 # assume first input name is data
 input_name = sym.list_input_names()[0]
 shape_dict = {input_name: x.shape}
-graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
+with nnvm.compiler.build_config(opt_level=3):
+    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
 
 ######################################################################
 # Execute on TVM
