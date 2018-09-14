@@ -58,8 +58,10 @@ def _convert_activation(insym, keras_layer, _):
         return _get_elu(insym, alpha)
     elif act_type == 'selu':
         # Alpha, Gamma values, obtained from  https://arxiv.org/abs/1706.02515
-        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") else 1.67326324235437728481704299
-        gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") else 1.05070098735548049341933498
+        alpha = keras_layer.alpha if hasattr(keras_layer, "alpha") \
+            else 1.6732632423543772848170429916717
+        gamma = keras_layer.gamma if hasattr(keras_layer, "gamma") \
+            else 1.0507009873554804934193349852946
         return gamma * _get_elu(insym, alpha)
     elif act_type == 'relu6':
         return _sym.clip(insym, a_min=0, a_max=6)
