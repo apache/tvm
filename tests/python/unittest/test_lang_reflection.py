@@ -56,10 +56,13 @@ def test_make_attrs():
     assert x.padding[1].value == 4
     assert x.axis == 10
 
+
     dattr = tvm.make.node("DictAttrs", x=1, y=10, name="xyz", padding=(0,0))
     assert dattr.x.value == 1
     datrr = tvm.load_json(tvm.save_json(dattr))
     assert dattr.name.value == "xyz"
+
+
 
 def test_make_sum():
     A = tvm.placeholder((2, 10), name='A')
@@ -70,7 +73,33 @@ def test_make_sum():
     assert B.op.body[0].combiner is not None
     assert BB.op.body[0].combiner is not None
 
+
+def test_env_func():
+    @tvm.register_func("test.env_func")
+    def test(x):
+        return x + 1
+
+    f = tvm.get_global_func("test.env_func")
+    x = tvm.get_env_func("test.env_func")
+    assert x.name == "test.env_func"
+    json_str = tvm.save_json([x])
+    y = tvm.load_json(json_str)[0]
+    assert y.name == x.name
+    assert y(1) == 2
+    assert y.func(1) == 2
+
+    x = tvm.make.node("attrs.TestAttrs", name="xx", padding=(3,4), func=y)
+    assert x.name == "xx"
+    assert x.padding[0].value == 3
+    assert x.padding[1].value == 4
+    assert x.axis == 10
+    x = tvm.load_json(tvm.save_json(x))
+    assert isinstance(x.func, tvm.container.EnvFunc)
+    assert x.func(10) == 11
+
+
 if __name__ == "__main__":
+    test_env_func()
     test_make_attrs()
     test_make_node()
     test_make_smap()

@@ -45,6 +45,28 @@ def const(value, dtype=None):
     return _api_internal._const(value, dtype)
 
 
+def get_env_func(name):
+    """Get an EnvFunc by a global name.
+
+    Parameters
+    ----------
+    name: str
+        The name of the global function.
+
+    Returns
+    -------
+    env_func : EnvFunc
+        The result env function.
+
+    Note
+    ----
+    EnvFunc is a Node wrapper around
+    global function that can be serialized via its name.
+    This can be used to serialize function field in the language.
+    """
+    return _api_internal._EnvFuncGet(name)
+
+
 def convert(value):
     """Convert value to TVM node or function.
 
