@@ -8,11 +8,13 @@ from ._ir_pass import _get_checked_type
 from . import _make
 
 
-class ExprBuilder():
-    """A set of methods useful for building expressions
-    from other expressions.
-    """
-    def __call__(self, *args, **kwargs):
+class Expr(NodeBase, ExprBuilder):
+    """The base type for all Relay exprressions."""
+
+    def checked_type(self):
+        return _get_checked_type(self)
+
+    def __call__(self, *args):
         converted_args = []
         for arg in args:
             if isinstance(arg, Param):
@@ -21,13 +23,6 @@ class ExprBuilder():
                 converted_args.append(arg)
 
         return Call(self, args, None, None)
-
-
-class Expr(NodeBase, ExprBuilder):
-    """The base type for all Relay exprressions."""
-
-    def checked_type(self):
-        return _get_checked_type(self)
 
 
 @register_relay_node

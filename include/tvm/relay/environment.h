@@ -10,7 +10,6 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
-#include <tvm/relay/source_map.h>
 #include <tvm/relay/type.h>
 #include <string>
 #include <vector>
@@ -40,22 +39,15 @@ struct Environment;
  * */
 
 class EnvironmentNode : public RelayNode {
- private:
-  /*! \brief A map from string names to global variables ensures global
-   * uniqueness. */
-  tvm::Map<std::string, GlobalVar> global_map_;
-  /*! \brief A map from file names to source fragments. */
-  SourceMap source_map_;
-  /*! \brief A list of the errors reported during the current run. */
-  std::vector<SpannedError> errors_;
-
  public:
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
 
   EnvironmentNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final {}
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("global_map_", &global_map_);
+  }
 
   TVM_DLL static Environment make(tvm::Map<GlobalVar, Function> global_funcs);
 
@@ -75,20 +67,20 @@ class EnvironmentNode : public RelayNode {
   // TODO(@jroesch, @tqchen): what are the semantics here
   void Merge(const Environment& env);
 
-  /*! \brief Add a source fragment to the environment. */
-  SourceName AddSource(std::string file_name, std::string source);
-
-  using Transformer = runtime::TypedPackedFunc<
-      runtime::TypedPackedFunc<Function(const GlobalVar&, const Function&)>(const Environment&)>;
+  using Transformer =
+      runtime::TypedPackedFunc<runtime::TypedPackedFunc<Function(
+          const GlobalVar&, const Function&)>(const Environment&)>;
 
   /*! \brief Apply a function over every function in the global environment. */
   void Transform(Transformer tranformer);
 
-  void AddDiagnostic(SpannedError);
-  void DisplayErrors();
-
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
+
+ private:
+  /*! \brief A map from string names to global variables ensures global
+   * uniqueness. */
+  tvm::Map<std::string, GlobalVar> global_map_;
 };
 
 struct Environment : public NodeRef {

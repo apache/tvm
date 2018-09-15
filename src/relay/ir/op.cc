@@ -35,7 +35,7 @@ struct OpManager {
   std::unordered_map<std::string, std::unique_ptr<GenericOpMap>> attr;
   // frontend functions
   std::vector<PackedFunc*> frontend_funcs;
-  // get singleton of the
+  // get singleton of the op manager
   static OpManager* Global() {
     static OpManager inst;
     return &inst;

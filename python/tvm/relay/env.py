@@ -52,7 +52,7 @@ class Environment(NodeBase):
         """Get a global variable by name."""
         return _env.Environment_GetGlobalVar(self, var)
 
-    def lookup(self, var):
+    def __get_item__(self, var):
         """Lookup a global function by name or by variable."""
         if isinstance(var, str):
             return _env.Environment_Lookup_str(self, var)

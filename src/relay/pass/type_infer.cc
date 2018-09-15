@@ -50,9 +50,9 @@ struct TypeContext {
   }
 
   Type Lookup(const Var &id) {
-   auto type = var_map.find(id);
-   if (type != var_map.end()) {
-        return (*type).second;
+    auto type = var_map.find(id);
+    if (type != var_map.end()) {
+      return (*type).second;
     } else {
       throw FatalTypeError("Could not resolve local id");
     }
@@ -60,9 +60,7 @@ struct TypeContext {
 
   struct Frame {
     TypeContext &tc;
-    explicit Frame(TypeContext &tc) : tc(tc) {
-      tc.constraints.push_back({});
-    }
+    explicit Frame(TypeContext &tc) : tc(tc) { tc.constraints.push_back({}); }
     ~Frame() { tc.constraints.pop_back(); }
   };
 };
@@ -136,7 +134,6 @@ TypeInferencer::TypeInferencer() {
 TypeInferencer::TypeInferencer(Environment env) : env(env) {
   this->unifier = TypeUnifierNode::make(UnionFindNode::make({}));
 }
-
 
 CheckedExpr TypeInferencer::Infer(const Expr &expr) {
   RELAY_LOG(INFO) << "TypeInferencer::Check expr=" << expr << std::endl;
@@ -264,7 +261,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
 
   if (!fn_ty_node) {
     this->FatalError("only expressions with function types can be called",
-                      c->op->span);
+                     c->op->span);
   }
 
   // We now have a function type.
@@ -523,12 +520,7 @@ Expr InferType(const Environment &env, const GlobalVar &var,
   return ti.Resolve(checked_expr.expr);
 }
 
-inline void TypeInferencer::ReportError(const std::string &msg, Span sp) {
-  this->env->AddDiagnostic({msg, sp});
-}
-
 void TypeInferencer::FatalError(const std::string &msg, Span sp) {
-  this->env->AddDiagnostic({msg, sp});
   throw FatalTypeError(
       "internal error: this exception should"
       "be handled and errors reported with Environment::display_errors\n" +

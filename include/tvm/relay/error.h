@@ -20,12 +20,6 @@ struct InternalError : Error {
   explicit InternalError(const std::string &msg) : Error(msg) {}
 };
 
-struct SpannedError {
-  std::string msg;
-  Span sp;
-  SpannedError(std::string msg, Span sp) : msg(msg), sp(sp) {}
-};
-
 // FIX, we should change spanned errors to have a method which allow them to
 // report on the Environment, inverting control to error definition.
 struct FatalTypeError : dmlc::Error {

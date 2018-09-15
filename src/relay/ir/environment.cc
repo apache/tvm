@@ -102,47 +102,6 @@ void EnvironmentNode::Merge(const Environment &env) {
   }
 }
 
-inline SourceName EnvironmentNode::AddSource(std::string file_name,
-                                             std::string source) {
-  return this->source_map_.AddSource(file_name, source);
-}
-
-void EnvironmentNode::AddDiagnostic(SpannedError error) {
-  this->errors_.push_back(error);
-}
-
-void EnvironmentNode::DisplayErrors() {
-  throw Error("need to restore error printing");
-  // for (auto err : this->errors_) {
-  //   auto sp = err.sp;
-  //   auto source_file = this->source_map_.GetSource(err.sp->file_id);
-  //   auto file_name = source_file.file_name;
-  //   auto source_at_span = source_file.SourceAt(err.sp, 1);
-  //   std::string error_marker = "error:";
-  //   auto line_info =
-  //       std::to_string(sp->lineno) + ":" + std::to_string(sp->col_offset);
-
-  //   std::cout << rang::style::bold << rang::fg::red << error_marker
-  //             << rang::fg::reset << file_name << ":" << line_info
-  //             << rang::style::reset << " " << source_at_span << std::endl;
-
-  //   // Build the cursor.
-
-  //   // Fix this code, hardwired to compute alignment of pointer.
-  //   size_t spaces = error_marker.size() + line_info.size() + file_name.size()
-  //   +
-  //                   sp->col_offset - 3;
-
-  //   std::string cursor = "~~~~^~~~~";
-  //   for (size_t i = 0; i < spaces; i++) {
-  //     std::cout << " ";
-  //   }
-  //   std::cout << rang::fg::red << cursor << " " << err.msg <<
-  //   rang::style::reset
-  //             << std::endl;
-  // }
-}
-
 void EnvironmentNode::Transform(EnvironmentNode::Transformer transformer) {
   Array<GlobalVar> to_process;
   for (auto var_and_func : this->functions) {
