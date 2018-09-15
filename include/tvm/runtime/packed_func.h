@@ -257,6 +257,14 @@ class TypedPackedFunc<R(Args...)> {
   const PackedFunc& packed() const {
     return packed_;
   }
+  /*! \return Whether the packed function is nullptr */
+  bool operator==(std::nullptr_t null) const {
+    return packed_ == nullptr;
+  }
+  /*! \return Whether the packed function is not nullptr */
+  bool operator!=(std::nullptr_t null) const {
+    return packed_ != nullptr;
+  }
 
  private:
   friend class TVMRetValue;

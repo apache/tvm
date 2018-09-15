@@ -14,6 +14,7 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
   int axis;
   std::string name;
   Array<Expr> padding;
+  TypedEnvFunc<int(int)> func;
 
   TVM_DECLARE_ATTRS(TestAttrs, "attrs.TestAttrs") {
     TVM_ATTR_FIELD(axis)
@@ -26,6 +27,9 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
     TVM_ATTR_FIELD(padding)
         .describe("padding of input")
         .set_default(Array<Expr>({0, 0}));
+    TVM_ATTR_FIELD(func)
+        .describe("some random env function")
+        .set_default(TypedEnvFunc<int(int)>(nullptr));
   }
 };
 

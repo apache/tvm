@@ -28,6 +28,20 @@ class Array(NodeBase):
 
 
 @register_node
+class EnvFunc(NodeBase):
+    """Environment function.
+
+    This is a global function object that can be serialized by its name.
+    """
+    def __call__(self, *args):
+        return _api_internal._EnvFuncCall(self, *args)
+
+    @property
+    def func(self):
+        return _api_internal._EnvFuncGetPackedFunc(self)
+
+
+@register_node
 class Map(NodeBase):
     """Map container of TVM.
 
