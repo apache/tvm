@@ -25,7 +25,6 @@ static int GetDTypeSize(int type_flag) {
     case kInt16:
     case kUint16:
       return 2;
-
     case kFloat32:
     case kInt32:
     case kUint32:
