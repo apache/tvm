@@ -48,17 +48,45 @@ class Environment(NodeBase):
         """
         return _env.Environment_Merge(self, other)
 
-    def global_var(self, var):
-        """Get a global variable by name."""
-        return _env.Environment_GetGlobalVar(self, var)
+    def global_var(self, name):
+        """Get a global variable by name.
+
+        Parameters
+        ----------
+        name: str
+            The name of the global variable.
+
+        Returns
+        -------
+            global_var: GlobalVar
+                The global variable mapped to :code:`name`.
+        """
+        return _env.Environment_GetGlobalVar(self, name)
 
     def __get_item__(self, var):
-        """Lookup a global function by name or by variable."""
+        """Lookup a global function by name or by variable.
+
+        Parameters
+        ----------
+        var: str or GlobalVar
+            The name or global variable.
+
+        Returns
+        -------
+            func: Function
+                The function referenced by :code:`var`.
+        """
         if isinstance(var, str):
             return _env.Environment_Lookup_str(self, var)
         else:
             return _env.Environment_Lookup(self, var)
 
     def transform(self, transformer):
-        """Apply a transformer function to the environment."""
+        """Apply a transformer function to the environment.
+
+        Parameters
+        ----------
+        transformer: function
+            The environment transformer function.
+        """
         _env.Environment_Transform(self, transformer)
