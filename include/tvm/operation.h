@@ -182,7 +182,7 @@ class PlaceholderOpNode : public OperationNode {
   TVM_DECLARE_NODE_TYPE_INFO(PlaceholderOpNode, OperationNode);
 };
 
-class TensorOpNode : public OperationNode {
+class TensorComputeOpNode : public OperationNode {
  public:
   Array<IterVar> axis;
 
@@ -197,7 +197,7 @@ class TensorOpNode : public OperationNode {
   TensorIntrin intrin;
 
   /*! \brief constructor */
-  TensorOpNode() {}
+  TensorComputeOpNode() {}
 
   // override functions
   int num_outputs() const final;
@@ -237,13 +237,20 @@ class TensorOpNode : public OperationNode {
   static Operation make(std::string name,
                         std::string tag,
                         Array<IterVar> axis,
+                        Array<IterVar> tensor_axis,
+                        TensorIntrinCall intrin_call);
+
+  static Operation make(std::string name,
+                        std::string tag,
+                        Array<IterVar> axis,
+                        Array<IterVar> tensor_axis,
                         Array<IterVar> reduce_axis,
-                        Array<Tensor> inputs,
-                        Array<Region> input_regions,
+                        Array<Tensor> tensors,
+                        Array<Region> regions,
                         TensorIntrin intrin);
 
-  static constexpr const char* _type_key = "TensorOp";
-  TVM_DECLARE_NODE_TYPE_INFO(TensorOpNode, OperationNode);
+  static constexpr const char* _type_key = "TensorComputeOp";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorComputeOpNode, OperationNode);
 };
 
 /*!

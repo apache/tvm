@@ -26,6 +26,14 @@ class TensorIntrin : public NodeRef {
    */
   inline const TensorIntrinNode* operator->() const;
 
+  // template<typename... Args>
+  // inline Stmt operator()(Args&& ...args) const {
+  //   Array<Expr> inputs{std::forward<Args>(args)...};
+  //   return operator()(inputs);
+  // }
+
+  // TVM_DLL TensorIntrinCall operator()(Array<Expr> inputs) const;
+
   /*! \brief specify container node */
   using ContainerType = TensorIntrinNode;
 };
@@ -89,5 +97,52 @@ class TensorIntrinNode : public Node {
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
   return static_cast<const TensorIntrinNode*>(node_.get());
 }
+
+
+// Internal node container of tensor intrinsics.
+class TensorIntrinCallNode;
+
+/*! \brief Tensor intrinsic node. */
+class TensorIntrinCall : public NodeRef {
+ public:
+  TensorIntrinCall() {}
+  explicit TensorIntrinCall(std::shared_ptr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const TensorIntrinCallNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = TensorIntrinCallNode;
+};
+
+class TensorIntrinCallNode : public Node {
+ public:
+  TensorIntrin intrin;
+  Array<Tensor> tensors;
+  Array<Region> regions;
+  Array<IterVar> reduce_axis;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("intrin", &intrin);
+    v->Visit("tensors", &tensors);
+    v->Visit("regions", &regions);
+    v->Visit("reduce_axis", &reduce_axis);
+  }
+
+  static TensorIntrinCall make(TensorIntrin intrin,
+                               Array<Tensor> tensors,
+                               Array<Region> regions,
+                               Array<IterVar> reduce_axis);
+
+  static constexpr const char* _type_key = "TensorIntrinCall";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinCallNode, Node);
+};
+
+inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
+  return static_cast<const TensorIntrinCallNode*>(node_.get());
+}
+
 }  // namespace tvm
 #endif  // TVM_TENSOR_INTRIN_H_

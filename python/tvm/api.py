@@ -248,21 +248,38 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     ndim = len(shape)
     code = fcompute.__code__
 
-    if fcompute.__code__.co_argcount == 0:
+    out_ndim = ndim
+    if code.co_argcount == 0:
         arg_names = ["i%d" % i for i in range(ndim)]
     else:
         arg_names = code.co_varnames[:code.co_argcount]
+        out_ndim = code.co_argcount
 
-    if ndim != len(arg_names):
+    # TODO check ndim, arg_names
+    if out_ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
-    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
+    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
-    if not isinstance(body, (list, tuple)):
-        body = [body]
-    body = convert(body)
-    op_node = _api_internal._ComputeOp(
-        name, tag, attrs, dim_var, body)
+
+    if isinstance(body, _tensor.TensorIntrinCall):
+        tensor_var = []
+        for i, s in enumerate(shape[out_ndim:]):
+            name = "ax" + str(i)
+            tensor_var.append(_IterVar((0, s), name, 4))
+        op_node = _api_internal._TensorComputeOp(name,
+                                                 tag,
+                                                 dim_var,
+                                                 tensor_var,
+                                                 body)
+    else:
+        if not isinstance(body, (list, tuple)):
+            body = [body]
+        body = convert(body)
+        # print('body: {0}'.format(body))
+        op_node = _api_internal._ComputeOp(
+            name, tag, attrs, dim_var, body)
+
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
@@ -337,84 +354,85 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
     return res[0] if len(res) == 1 else res
 
 
-def tensor_op(out_dims,
-              in_dims,  # pylint: disable=unused-argument
-              finputs,
-              intrin,
-              raxis=None,
-              name='tensor_op',
-              tag=""):
-    """Construct new tensors with intrinsic.
-
-    Parameters
-    ----------
-    out_dims: tuple
-        The dimensions out of the tensorized region, which can be
-    scheduled through `reorder`, `split`.
-
-    in_dims: tuple
-        The dimensions inside of the tensorized region, which cannot
-    be manipulated.
-
-    finputs: lambda function of out_dims -> list of TensorSlice
-        Specifies involved regions of input tensors.
-
-    tensor_intrin : TensorIntrin
-        The tensor intrinsic used for computation.
-
-    raxis : IterVar
-        An iteration variable representing the value.
-
-    name: str, optional
-        The name hint of the tensor
-
-    tag: str, optional
-        Additonal tag information about the compute.
-    """
-    def _get_region(tslice):
-        region = []
-        for idx in tslice.indices:
-            if isinstance(idx, slice):
-                assert idx.step is None
-                region.append(Range(idx.start, idx.stop))
+def _get_region(tslice):
+    region = []
+    for idx in tslice.indices:
+        if isinstance(idx, slice):
+            assert idx.step is None
+            region.append(Range(idx.start, idx.stop))
+        else:
+            if isinstance(idx, _schedule.IterVar):
+                begin = idx.var
             else:
-                if isinstance(idx, _schedule.IterVar):
-                    begin = idx.var
-                else:
-                    begin = idx
-                region.append(_make.range_by_min_extent(begin, 1))
-        return region
+                begin = idx
+            region.append(_make.range_by_min_extent(begin, 1))
+    return region
 
-    if _tag.TagScope.current is not None:
-        if tag != "":
-            raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
 
-    code = finputs.__code__
-    if finputs.__code__.co_argcount == 0:
-        arg_names = ["i%d" % i for i in range(ndim)]
-    else:
-        arg_names = code.co_varnames[:code.co_argcount]
-
-    if len(out_dims) != len(arg_names):
-        raise ValueError("finputs do not match dimension, ndim=%d" % out_dims)
-
-    out_var = [_IterVar((0, extent), arg_name, 0) for arg_name, extent in zip(arg_names, out_dims)]
-    if isinstance(raxis, _schedule.IterVar):
-        raxis = [raxis]
-    if raxis is None:
-        raxis = []
-    tensor_regions = finputs(*[v.var for v in out_var])
-
-    op = _api_internal._TensorOp(name,
-                                 tag,
-                                 out_var,
-                                 raxis,
-                                 [x.tensor for x in tensor_regions],
-                                 [_get_region(x) for x in tensor_regions],
-                                 intrin)
-    # only support single output
-    return op.output(0)
+# def tensor_op(out_dims,
+#               in_dims,  # pylint: disable=unused-argument
+#               finputs,
+#               intrin,
+#               raxis=None,
+#               name='tensor_op',
+#               tag=""):
+#     """Construct new tensors with intrinsic.
+#
+#     Parameters
+#     ----------
+#     out_dims: tuple
+#         The dimensions out of the tensorized region, which can be
+#     scheduled through `reorder`, `split`.
+#
+#     in_dims: tuple
+#         The dimensions inside of the tensorized region, which cannot
+#     be manipulated.
+#
+#     finputs: lambda function of out_dims -> list of TensorSlice
+#         Specifies involved regions of input tensors.
+#
+#     tensor_intrin : TensorIntrin
+#         The tensor intrinsic used for computation.
+#
+#     raxis : IterVar
+#         An iteration variable representing the value.
+#
+#     name: str, optional
+#         The name hint of the tensor
+#
+#     tag: str, optional
+#         Additonal tag information about the compute.
+#     """
+#     if _tag.TagScope.current is not None:
+#         if tag != "":
+#             raise ValueError("nested tag is not allowed for now")
+#         tag = _tag.TagScope.current.tag
+#
+#     code = finputs.__code__
+#     if finputs.__code__.co_argcount == 0:
+#         arg_names = ["i%d" % i for i in range(ndim)]
+#     else:
+#         arg_names = code.co_varnames[:code.co_argcount]
+#
+#     if len(out_dims) != len(arg_names):
+#         raise ValueError("finputs do not match dimension, ndim=%d" % out_dims)
+#
+#     out_var = [_IterVar((0, extent), arg_name, 0) for arg_name, extent in zip(arg_names, out_dims)]
+#     if isinstance(raxis, _schedule.IterVar):
+#         raxis = [raxis]
+#     if raxis is None:
+#         raxis = []
+#     tensor_regions = finputs(*[v.var for v in out_var])
+#
+#     op = _api_internal._TensorOp(name,
+#                                  tag,
+#                                  out_var,
+#                                  raxis,
+#                                  [x.tensor for x in tensor_regions],
+#                                  [_get_region(x) for x in tensor_regions],
+#                                  intrin)
+#     # only support single output
+#     return op.output(0)
 
 
 def extern(shape,

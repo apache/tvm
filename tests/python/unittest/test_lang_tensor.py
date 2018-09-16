@@ -84,10 +84,10 @@ def test_tensor_reduce():
     assert(isinstance(C_loaded, tvm.tensor.Tensor))
     assert(str(C_loaded) == str(C))
 
-
-def test_tensor_tensor_op():
-    M = 1024
+def test_tensor_region():
+    m = 1024
     factor = 16
+    dtype = 'float32'
 
     def intrin_vadd(n):
         x = tvm.placeholder((n,))
@@ -102,18 +102,16 @@ def test_tensor_tensor_op():
         with tvm.build_config(offset_factor=n):
             return tvm.decl_tensor_intrin(z.op, intrin_func)
 
-    A = tvm.placeholder((M/factor, factor), name="A")
-    B = tvm.placeholder((M/factor, factor), name="B")
+    vadd = intrin_vadd(factor)
 
-    intrin = intrin_vadd(factor)
-    C = tvm.tensor_op([M/factor,], [factor,],
-                      lambda i: [A[i, 0:factor], B[i, 0:factor]],
-                      intrin, name='C')
+    A = tvm.placeholder((m/factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((m/factor, factor), name="B", dtype=dtype)
+    C = tvm.compute((m/factor, factor),
+          lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
-    intrin_code = stmt.body.body.value
-    assert isinstance(intrin_code, tvm.expr.Call)
+    print(stmt)
 
 
 def test_tensor_scan():
@@ -217,17 +215,18 @@ def test_tensor_inputs():
 
 
 if __name__ == "__main__":
-    test_rank_zero()
-    test_tensor_inputs()
-    test_tensor_reduce_multi_axis()
-    test_conv1d()
-    test_tensor_slice()
-    test_tensor()
-    test_tensor_reduce()
-    test_tensor_tensor_op()
-    test_tensor_scan()
-    test_scan_multi_out()
-    test_extern()
-    test_extern_multi_out()
-    test_tuple_inputs()
-    test_tuple_with_different_deps()
+    # test_rank_zero()
+    # test_tensor_inputs()
+    # test_tensor_reduce_multi_axis()
+    # test_conv1d()
+    # test_tensor_slice()
+    # test_tensor()
+    test_tensor_region()
+    # test_tensor_reduce()
+    # test_tensor_tensor_op()
+    # test_tensor_scan()
+    # test_scan_multi_out()
+    # test_extern()
+    # test_extern_multi_out()
+    # test_tuple_inputs()
+    # test_tuple_with_different_deps()

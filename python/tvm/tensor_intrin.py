@@ -17,8 +17,11 @@ class TensorIntrin(NodeBase):
     --------
     decl_tensor_intrin: Construct a TensorIntrin
     """
-    pass
-
+    def __call__(self, *args):
+        tensors = [x.tensor for x in args]
+        regions = [_api._get_region(x) for x in args]
+        # TODO
+        return _api_internal._TensorIntrinCall(self, tensors, regions, [])
 
 def decl_tensor_intrin(op,
                        fcompute,

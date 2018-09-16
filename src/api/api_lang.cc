@@ -239,6 +239,14 @@ TVM_REGISTER_API("_TensorIntrin")
                                   args[6]);
   });
 
+TVM_REGISTER_API("_TensorIntrinCall")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = TensorIntrinCallNode::make(args[0],
+                                      args[1],
+                                      args[2],
+                                      args[3]);
+  });
+
 TVM_REGISTER_API("_TensorEqual")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Tensor() == args[1].operator Tensor();
@@ -278,15 +286,13 @@ TVM_REGISTER_API("_ScanOp")
                             args[7]);
   });
 
-TVM_REGISTER_API("_TensorOp")
+TVM_REGISTER_API("_TensorComputeOp")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    *ret = TensorOpNode::make(args[0],
-                              args[1],
-                              args[2],
-                              args[3],
-                              args[4],
-                              args[5],
-                              args[6]);
+    *ret = TensorComputeOpNode::make(args[0],
+                                     args[1],
+                                     args[2],
+                                     args[3],
+                                     args[4]);
   });
 
 TVM_REGISTER_API("_ExternOp")

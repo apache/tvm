@@ -137,14 +137,14 @@ Tensor Schedule::cache_read(const Tensor& tensor,
 
 
 // for tensor_op
-Array<Tensor> CacheWriteWithReLayoutForTensorOp(Schedule sch,
+Array<Tensor> CacheWriteWithReLayoutForTensorComputeOp(Schedule sch,
                               const Array<Tensor>& tensor_array,
                               const std::string& scope) {
   size_t tensor_size = tensor_array.size();
   sch->InvalidateCache();
   Tensor tensor = tensor_array[0];
   Stage orig_stage = sch[tensor->op];
-  const TensorOpNode* tensor_op = orig_stage->op.as<TensorOpNode>();
+  const TensorComputeOpNode* tensor_op = orig_stage->op.as<TensorComputeOpNode>();
   std::unordered_set<IterVar> red_axis;
   for (IterVar iv : tensor_op->reduce_axis) {
     red_axis.insert(iv);
@@ -202,9 +202,10 @@ Array<Tensor> CacheWriteWithReLayoutForTensorOp(Schedule sch,
     new_regions.push_back(region);
   }
 
-  Operation cache_op = TensorOpNode::make(
+  Operation cache_op = TensorComputeOpNode::make(
       tensor_op->name + "." + scope, tensor_op->tag, new_axis,
-      tensor_op->reduce_axis, tensor_op->inputs, new_regions, tensor_op->intrin);
+      tensor_op->reduce_axis, tensor_op->tensor_axis,
+      tensor_op->inputs, new_regions, tensor_op->intrin);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;
@@ -288,8 +289,8 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   sch->InvalidateCache();
   Tensor tensor = tensor_array[0];
   Stage orig_stage = sch[tensor->op];
-  if (!strcmp(orig_stage->op->type_key(), "TensorOp")) {
-    return CacheWriteWithReLayoutForTensorOp(sch, tensor_array, scope);
+  if (!strcmp(orig_stage->op->type_key(), "TensorComputeOp")) {
+    return CacheWriteWithReLayoutForTensorComputeOp(sch, tensor_array, scope);
   }
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
   std::unordered_set<IterVar> red_axis;

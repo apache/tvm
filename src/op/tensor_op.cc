@@ -15,19 +15,20 @@
 
 namespace tvm {
 using namespace ir;
-// TensorOpNode
+// TensorComputeOpNode
 TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
-.set_dispatch<TensorOpNode>([](const TensorOpNode *op, IRPrinter *p) {
-    p->stream << "tensor_op(" << op->name << ", " << op << ")";
+.set_dispatch<TensorComputeOpNode>([](const TensorComputeOpNode *op,
+                                      IRPrinter *p) {
+    p->stream << "tensor_compute_op(" << op->name << ", " << op << ")";
   });
 
-TVM_REGISTER_NODE_TYPE(TensorOpNode);
+TVM_REGISTER_NODE_TYPE(TensorComputeOpNode);
 
-int TensorOpNode::num_outputs() const {
+int TensorComputeOpNode::num_outputs() const {
   return static_cast<int>(this->intrin->buffers.size() - this->inputs.size());
 }
 
-Array<IterVar> TensorOpNode::root_iter_vars() const {
+Array<IterVar> TensorComputeOpNode::root_iter_vars() const {
   Array<IterVar> ret = axis;
   for (IterVar iv : tensor_axis) {
     ret.push_back(iv);
@@ -38,11 +39,11 @@ Array<IterVar> TensorOpNode::root_iter_vars() const {
   return ret;
 }
 
-Type TensorOpNode::output_dtype(size_t i) const {
+Type TensorComputeOpNode::output_dtype(size_t i) const {
   return this->intrin->buffers[this->inputs.size() + i]->dtype;
 }
 
-Array<Expr> TensorOpNode::output_shape(size_t i) const {
+Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
   Array<Expr> shape;
   for (const auto& ivar : this->axis) {
     shape.push_back(ivar->dom->extent);
@@ -55,41 +56,50 @@ Array<Expr> TensorOpNode::output_shape(size_t i) const {
 }
 
 
-Operation TensorOpNode::make(std::string name,
-                             std::string tag,
-                             Array<IterVar> axis,
-                             Array<IterVar> reduce_axis,
-                             Array<Tensor> inputs,
-                             Array<Region> input_regions,
-                             TensorIntrin intrin) {
-  auto n = std::make_shared<TensorOpNode>();
+Operation TensorComputeOpNode::make(std::string name,
+                                    std::string tag,
+                                    Array<IterVar> axis,
+                                    Array<IterVar> tensor_axis,
+                                    TensorIntrinCall intrin_call) {
+  return TensorComputeOpNode::make(name,
+                                   tag,
+                                   axis,
+                                   tensor_axis,
+                                   intrin_call->reduce_axis,
+                                   intrin_call->tensors,
+                                   intrin_call->regions,
+                                   intrin_call->intrin);
+}
+
+Operation TensorComputeOpNode::make(std::string name,
+                                    std::string tag,
+                                    Array<IterVar> axis,
+                                    Array<IterVar> tensor_axis,
+                                    Array<IterVar> reduce_axis,
+                                    Array<Tensor> tensors,
+                                    Array<Region> regions,
+                                    TensorIntrin intrin) {
+  auto n = std::make_shared<TensorComputeOpNode>();
   n->name = name;
   n->tag = tag;
   n->axis = axis;
-
-  Array<Expr> tout_shape = intrin->buffers[inputs.size()]->shape;
-  for (size_t i = 0; i < tout_shape.size(); ++i) {
-    Var var("ax" + std::to_string(i));
-    Range range = Range::make_by_min_extent(make_zero(Int(32)), tout_shape[i]);
-    n->tensor_axis.push_back(IterVarNode::make(range, var, kOpaque));
-  }
-
+  n->tensor_axis = tensor_axis;
   n->reduce_axis = reduce_axis;
-  n->inputs = inputs;
-  n->input_regions = input_regions;
+  n->inputs = tensors;
+  n->input_regions = regions;
   n->intrin = intrin;
   return Operation(n);
 }
 
-Array<Tensor> TensorOpNode::InputTensors() const {
+Array<Tensor> TensorComputeOpNode::InputTensors() const {
   return inputs;
 }
 
-Operation TensorOpNode::ReplaceInputs(
+Operation TensorComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = std::make_shared<TensorOpNode>(*this);
+  auto n = std::make_shared<TensorComputeOpNode>(*this);
   auto intrin = std::make_shared<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = op::ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {
@@ -116,7 +126,7 @@ Operation TensorOpNode::ReplaceInputs(
   }
 }
 
-void TensorOpNode::PropBoundToInputs(
+void TensorComputeOpNode::PropBoundToInputs(
     const Operation& self,
     const std::unordered_map<const Variable*, IntSet>& dom_map,
     std::unordered_map<Tensor, TensorDom>* out_dom_map) const {
@@ -133,7 +143,7 @@ void TensorOpNode::PropBoundToInputs(
   }
 }
 
-void TensorOpNode::GatherBound(
+void TensorComputeOpNode::GatherBound(
     const Operation& self,
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
@@ -149,7 +159,7 @@ void TensorOpNode::GatherBound(
   }
 }
 
-Stmt TensorOpNode::BuildRealize(
+Stmt TensorComputeOpNode::BuildRealize(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& realize_map,
     const Stmt& body) const {
@@ -188,7 +198,7 @@ Stmt TensorOpNode::BuildRealize(
 }
 
 ComputeLoopNest MakeLoopNest(
-    const TensorOpNode* self,
+    const TensorComputeOpNode* self,
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) {
@@ -254,13 +264,10 @@ ComputeLoopNest MakeLoopNest(
 }
 
 
-Stmt MakeTensorOp(const TensorOpNode* self,
-                  const Stage& stage,
-                  const std::unordered_map<IterVar, Range>& dom_map,
-                  bool debug_keep_trivial_loop) {
-  std::unordered_map<IterVar, Range> out_dom;
-  std::unordered_map<Tensor, Array<Range> > in_region;
-
+Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
+                         const Stage& stage,
+                         const std::unordered_map<IterVar, Range>& dom_map,
+                         bool debug_keep_trivial_loop) {
   // Start bind data.
   Stmt nop = Evaluate::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
@@ -373,12 +380,12 @@ Stmt MakeTensorOp(const TensorOpNode* self,
 }
 
 
-Stmt TensorOpNode::BuildProvide(
+Stmt TensorComputeOpNode::BuildProvide(
     const Stage& stage,
     const std::unordered_map<IterVar, Range>& dom_map,
     bool debug_keep_trivial_loop) const {
   CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = MakeTensorOp(this, stage, dom_map, debug_keep_trivial_loop);
+  Stmt ret = MakeTensorComputeOp(this, stage, dom_map, debug_keep_trivial_loop);
   return ret;
 }
 
