@@ -8,7 +8,7 @@ from ._ir_pass import _get_checked_type
 from . import _make
 
 
-class Expr(NodeBase, ExprBuilder):
+class Expr(NodeBase):
     """The base type for all Relay exprressions."""
 
     def checked_type(self):

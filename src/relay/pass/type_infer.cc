@@ -464,6 +464,8 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
       status = SolverResult::Failed;
       break;
     }
+
+    std::reverse(rels.begin(), rels.end());
   } while (status == SolverResult::Progress);
   return status;
 }

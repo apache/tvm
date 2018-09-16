@@ -65,7 +65,7 @@ class Environment(NodeBase):
         """
         return _env.Environment_GetGlobalVar(self, name)
 
-    def __get_item__(self, var):
+    def __getitem__(self, var):
         """Lookup a global function by name or by variable.
 
         Parameters

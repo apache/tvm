@@ -3,7 +3,6 @@
 from . import base
 from . import type as tpe
 from . import expr
-from . import to_tvm
 from . import env
 from . import ir_pass
 from . import ir_builder
