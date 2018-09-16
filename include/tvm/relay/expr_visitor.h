@@ -97,9 +97,9 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto type = this->VisitType(op->type);
       return ParamNode::make(var, type);
     } else {
-      CHECK(false) << "the default param visitor expected a Var found: "
+      LOG(FATAL) << "the default param visitor expected a Var found: "
                    << var_expr << std::endl;
-      __builtin_unreachable();
+      return Expr();
     }
   }
 
@@ -112,10 +112,10 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
         auto ty_param_ref = GetRef<TypeParam>(ty_param);
         ty_params.push_back(ty_param_ref);
       } else {
-        CHECK(false)
+        LOG(FATAL)
             << "the default function visitor expected a TypeParam found: "
             << ty_param_type << std::endl;
-        __builtin_unreachable();
+        return Expr();
       }
     }
 
@@ -128,7 +128,7 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       } else {
         CHECK(false) << "the default function visitor expected a Param found: "
                      << param_expr << std::endl;
-        __builtin_unreachable();
+        return Expr();
       }
     }
 
@@ -165,9 +165,9 @@ class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
       auto body = this->VisitExpr(op->body);
       return LetNode::make(var, value, body, type);
     } else {
-      CHECK(false) << "the default let visitor expected a Var found: "
+      LOG(FATAL) << "the default let visitor expected a Var found: "
                    << var_expr << std::endl;
-      __builtin_unreachable();
+      return Expr();
     }
   }
 

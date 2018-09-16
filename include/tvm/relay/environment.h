@@ -51,28 +51,56 @@ class EnvironmentNode : public RelayNode {
 
   TVM_DLL static Environment make(tvm::Map<GlobalVar, Function> global_funcs);
 
+  /*! \brief Add a function to the global environment.
+   * \param var The name of the global function.
+   * \param func The function.
+   * \param update Controls whether you can replace a definition in the
+   * environment.
+   */
   void Add(const GlobalVar& var, const Function& func, bool update = false);
+
+  /*! \brief Update a function in the global environment.
+   * \param var The name of the global function to update.
+   * \param func The new function.
+   */
   void Update(const GlobalVar& var, const Function& func);
+
+  /*! \brief Remove a function from the global environment.
+   * \param var The name of the global function to update.
+   */
   void Remove(const GlobalVar& var);
 
-  /*! \brief Lookup a global function by its variable. */
+  /*! \brief Lookup a global function by its variable.
+   * \param str The unique string specifying the global variable.
+   * \returns The global variable.
+   */
   GlobalVar GetGlobalVar(const std::string& str);
 
-  /*! \brief Lookup a global function by its variable. */
-  Function Lookup(const GlobalVar& id);
+  /*! \brief Lookup a global function by its variable.
+   * \param var The global var to lookup.
+   * \returns The function named by the variable argument.
+   */
+  Function Lookup(const GlobalVar& var);
 
-  /*! \brief Lookup a global function by its string name */
-  Function Lookup(const std::string& s);
+  /*! \brief Lookup a global function by its string name
+   * \param name The name of the function.
+   * \returns The function named by the argument.
+   */
+  Function Lookup(const std::string& name);
 
-  // TODO(@jroesch, @tqchen): what are the semantics here
-  void Merge(const Environment& env);
+  /*! \brief Combine with another Environment.
+   * \param other The other environment.
+   */
+  void Merge(const Environment& other);
 
   using Transformer =
       runtime::TypedPackedFunc<runtime::TypedPackedFunc<Function(
           const GlobalVar&, const Function&)>(const Environment&)>;
 
-  /*! \brief Apply a function over every function in the global environment. */
-  void Transform(Transformer tranformer);
+  /*! \brief Apply a function over every function in the global environment.
+   * \param transformer The transformation function.
+   */
+  void Transform(Transformer transformer);
 
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);

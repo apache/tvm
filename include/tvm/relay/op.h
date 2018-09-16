@@ -208,7 +208,7 @@ class OpRegistry {
     }
     return *this;
   }
-  /*! \return The global single retistry */
+  /*! \return The global single registry */
   TVM_DLL static ::dmlc::Registry<OpRegistry>* Registry();
 
  private:

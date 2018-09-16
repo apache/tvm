@@ -4,11 +4,13 @@ from .base import register_relay_node, NodeBase
 from . import _make
 from . import _env
 
+
 @register_relay_node
 class Environment(NodeBase):
     """The global Relay environment containing functions,
     options and more.
     """
+
     def __init__(self, funcs) -> None:
         """Construct an environment.
 
