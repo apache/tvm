@@ -12,7 +12,6 @@
 namespace tvm {
 namespace relay {
 
-// TODO(@jroesch): We should probably generalize the subst code.
 struct ResolveTypeType : TypeFVisitor {
   const TypeUnifier &unifier;
 

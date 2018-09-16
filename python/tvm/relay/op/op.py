@@ -3,8 +3,6 @@ from ..._ffi.function import _init_api
 
 from ..base import register_relay_node
 from ..expr import Expr
-from ..._ffi.function import register_func
-from ... import lower, build
 
 
 @register_relay_node

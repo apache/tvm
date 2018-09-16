@@ -60,6 +60,7 @@ class WithScope(object):
 
 class PartialFunc():
     """A wrapper around functions while they are being built."""
+
     def __init__(self, params, ret_type, body, type_params):
         self.params = params
         self.ret_type = ret_type
@@ -77,6 +78,8 @@ class PartialFunc():
             self.type_params)
 
 #pylint: disable=invalid-name
+
+
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
     for var, (value, ty) in reversed(list(bindings.items())):
@@ -90,6 +93,7 @@ class IRBuilder():
 
     Enables users to build up a Relay environment and program.
     """
+
     def __init__(self):
         self.bindings = [{}]
         self.scopes = [{}]
@@ -149,7 +153,7 @@ class IRBuilder():
 
             self.scopes[-1][var.name_hint] = var
             relay_params.append(param)
-        
+
         return relay_params
 
     def function(self, *params):
