@@ -26,7 +26,7 @@ UnionFind UnionFindNode::make(tvm::Map<IncompleteType, Type> uf_map) {
   return UnionFind(n);
 }
 
-void UnionFindNode::insert(const IncompleteType &v) { this->uf_map.Set(v, v); }
+void UnionFindNode::Insert(const IncompleteType &v) { this->uf_map.Set(v, v); }
 
 void UnionFindNode::debug() {
   for (auto entry : this->uf_map) {
@@ -42,15 +42,15 @@ void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
   }
 }
 
-void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
+void UnionFindNode::Unify(const IncompleteType &v1, const Type &t) {
   RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << ", t=" << t << std::endl;
-  auto parent1 = this->find(v1);
+  auto parent1 = this->Find(v1);
 
   // if t is a type var, then unify parents
   const IncompleteTypeNode *tvn2 = t.as<IncompleteTypeNode>();
   if (tvn2) {
     auto v2 = GetRef<IncompleteType>(tvn2);
-    auto parent2 = this->find(v2);
+    auto parent2 = this->Find(v2);
 
     // if parents are exactly equal, then we're done
     if (parent1 == parent2) {
@@ -88,7 +88,7 @@ void UnionFindNode::unify(const IncompleteType &v1, const Type &t) {
   AssertAlphaEqual(parent1, t);
 }
 
-Type UnionFindNode::find(const IncompleteType &v) {
+Type UnionFindNode::Find(const IncompleteType &v) {
   // The node has no mapping, so its representative is just itself.
   if (this->uf_map.find(v) == this->uf_map.end()) {
     return v;
@@ -108,7 +108,7 @@ Type UnionFindNode::find(const IncompleteType &v) {
 
   // otherwise, recurse and perform path compression
   IncompleteType pv = GetRef<IncompleteType>(rep);
-  Type higher_up = this->find(pv);
+  Type higher_up = this->Find(pv);
   this->uf_map.Set(v, higher_up);
   return higher_up;
 }
@@ -134,7 +134,7 @@ TypeUnifier TypeUnifierNode::make(UnionFind uf) {
   return TypeUnifier(n);
 }
 
-void TypeUnifierNode::insert(const IncompleteType &v) { this->uf->insert(v); }
+void TypeUnifierNode::insert(const IncompleteType &v) { this->uf->Insert(v); }
 
 Type TypeUnifierNode::unify(const Type &t1, const Type &t2) {
   RELAY_LOG(INFO) << "TypeUnifierNode::unify: t1=" << t1 << " t2=" << t2
@@ -155,7 +155,7 @@ struct IncompleteTypeSubst : TypeFVisitor {
   // type var: look it up in the type map and recurse
   Type VisitType_(const IncompleteTypeNode *op) override {
     auto tv = GetRef<IncompleteType>(op);
-    auto parent = unifier->uf->find(tv);
+    auto parent = unifier->uf->Find(tv);
     if (parent == tv) {
       return tv;
     }
@@ -191,8 +191,8 @@ Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1,
   RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2
                   << std::endl;
   // Fix unify to return new representative
-  this->uf->unify(tv2, t1);
-  auto rep = this->uf->find(tv2);
+  this->uf->Unify(tv2, t1);
+  auto rep = this->uf->Find(tv2);
   RELAY_LOG(INFO) << "unifyWithIncompleteType: rep =" << rep << std::endl;
   return rep;
 }
@@ -201,8 +201,8 @@ Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
   IncompleteType tv1 = GetRef<IncompleteType>(t1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode t1=" << t1 << " = " << rt2
                   << std::endl;
-  this->uf->unify(tv1, rt2);
-  auto rep = this->uf->find(tv1);
+  this->uf->Unify(tv1, rt2);
+  auto rep = this->uf->Find(tv1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode rep=" << rep << std::endl;
   return rep;
 }

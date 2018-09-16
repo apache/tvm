@@ -26,11 +26,12 @@ struct SubstitutionError : dmlc::Error {
   explicit SubstitutionError(const std::string& msg) : Error(msg) {}
 };
 
-/*! \brief a union-find data structure for the type-checker */
-class UnionFind;  // forward declaration
+/*! \brief A union-find data structure for the type-checker */
+class UnionFind;
 
 class UnionFindNode : public Node {
  public:
+  /*! \brief The inernal map from incomplete types to their representatives. */
   tvm::Map<IncompleteType, Type> uf_map;
 
   UnionFindNode() {}
@@ -39,14 +40,21 @@ class UnionFindNode : public Node {
 
   TVM_DLL static UnionFind make(tvm::Map<IncompleteType, Type> uf_map);
 
-  // insert v into UF
-  void insert(const IncompleteType& v);
+  /*! \brief Insert it into the union find.
+  * \param it The type to add to the union find.
+  */
+  void Insert(const IncompleteType& it);
 
-  // infers that v1 and v2 must be of the smae type
-  void unify(const IncompleteType& v1, const Type& v2);
+  /*! \brief Union operation, combine two equivalence classes.
+  * \param it The incomplete type to unify.
+  * \param ty The other type.
+  */
+  void Unify(const IncompleteType& it, const Type& t);
 
-  // returns representative of v's UF-group
-  Type find(const IncompleteType& v);
+  /*! \brief Find operation, returns the representative of the argument.
+  * \param it The element to lookup.
+  */
+  Type Find(const IncompleteType& it);
 
   void debug();
 
