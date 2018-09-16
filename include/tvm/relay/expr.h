@@ -106,7 +106,9 @@ RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
 
 /*!
  * \brief Local variables used in the let expression.
- * This is similar to Var that is being used in the low level tensor expression.
+ * 
+ * Its semantics are similar to tvm.Var node used in TVM's low level 
+ * tensor expression language.
  *
  * \note Each Var is bind only once and is immutable/
  */

@@ -35,18 +35,42 @@ namespace relay {
 
 using namespace tvm::runtime;
 
-using TypeConstraintSet = std::vector<TypeConstraint>;
+// @tqchen
+// I wanted to use this data structure but then the algorithm gets more complex
+// because we need to convert them back to the same representation as before
+// when we check a single function scope. See line 240.
+//
+// I can see building an auxillary data structure at solve time but it seems
+// like a lot of complexity for an unquantified speed gain, which we may or may
+// not need.
+//
+// Thoughts?
+//
+// // We declare this for forward compatibility.
+// struct ConstraintData {};
+
+// struct TyRelData : ConstraintData {
+//   std::vector<Type> args;
+//   TypeRelationFn func;
+//   bool complete;
+//   TyRelData(Array<Type> args, TypeRelationFn func) : complete(false),
+//   func(func) {
+//     for (auto arg : args) {
+//       this->args.push_back(arg);
+//     }
+//   }
+// };
 
 struct TypeContext {
   std::unordered_map<Var, Type, NodeHash> var_map;
-  std::vector<TypeConstraintSet> constraints;
+  std::vector<std::vector<TypeConstraint>> constraints;
 
   TypeContext() { constraints.push_back({}); }
 
   void Insert(const Var &id, const Type &t) { var_map[id] = t; }
 
-  void AddConstraint(const TypeConstraint &ty_rel) {
-    constraints.back().push_back(ty_rel);
+  void AddConstraint(const TypeConstraint &constraint) {
+    constraints.back().push_back(constraint);
   }
 
   Type Lookup(const Var &id) {
@@ -475,7 +499,8 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
   // slice out the constraints.
   //
   // Otherwise we use all of them.
-  std::vector<TypeConstraintSet> constraints;
+  std::vector<std::vector<TypeConstraint>> constraints;
+
   if (scope_only) {
     constraints = {context.constraints[0]};
   } else {
