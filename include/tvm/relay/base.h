@@ -88,7 +88,35 @@ class SourceNameNode : public Node {
   TVM_DECLARE_NODE_TYPE_INFO(SourceNameNode, Node);
 };
 
-RELAY_DEFINE_NODE_REF(SourceName, SourceNameNode, NodeRef);
+/*!
+ * \brief The source name of a file span.
+ * \sa SourceNameNode, Span
+ */
+class SourceName : public NodeRef {
+ public:
+  /*! \brief default constructor  */
+  SourceName() {}
+
+  /*! \brief constructor from node pointer */
+  explicit SourceName(std::shared_ptr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const SourceNameNode* operator->() const;
+
+  /*!
+   * \brief Get an SourceName for a given operator name.
+   *  Will raise an error if the source name has not been registered.
+   * \param op_name Name of the operator.
+   * \return Pointer to a Op, valid throughout program lifetime.
+   */
+  TVM_DLL static const SourceName& Get(const std::string& name);
+
+  /*! \brief specify container node */
+  using ContainerType = SourceNameNode;
+};
+
 
 /*!
  * \brief Span information for debugging purposes

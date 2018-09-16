@@ -18,17 +18,45 @@ SourceName SourceNameNode::make(std::string name) {
   return SourceName(n);
 }
 
-// TVM_REGISTER_API("relay._make.SourceName")
-//     .set_body([](tvm::TVMArgs args, tvm::TVMRetValue *ret) {
-//       *ret = SourceNameNode::make(args[0]);
-//     });
+std::shared_ptr<SourceNameNode> CreateSourceName(const std::string& name) {
+  SourceName sn = SourceName::Get(name);
+  CHECK(!sn.defined()) << "Cannot find source name \'" << name << '\'';
+  std::shared_ptr<Node> node = sn.node_;
+  return std::dynamic_pointer_cast<SourceNameNode>(node);
+}
 
-// This causes a crash?
+const SourceName& SourceName::Get(const std::string& name) {
+  static std::unordered_map<std::string, SourceName> *source_map;
 
-// TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-//     .set_dispatch<SourceNameNode>([](const SourceNameNode *node, tvm::IRPrinter *p) {
-//       p->stream << "SourceNameNode(" << node->name << ", " << node << ")";
-//     });
+  if (source_map == nullptr) {
+    source_map = new std::unordered_map<std::string, SourceName>();
+  }
+
+  auto sn = source_map->find(name);
+  if (sn == source_map->end()) {
+    auto source_name = SourceNameNode::make(name);
+    source_map->insert({name, source_name});
+    return source_map->at(name);
+  } else {
+    return sn->second;
+  }
+}
+
+TVM_REGISTER_API("relay._make.SourceName")
+    .set_body([](tvm::TVMArgs args, tvm::TVMRetValue *ret) {
+      *ret = SourceNameNode::make(args[0]);
+    });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+    .set_dispatch<SourceNameNode>([](const SourceNameNode *node, tvm::IRPrinter *p) {
+      p->stream << "SourceNameNode(" << node->name << ", " << node << ")";
+    });
+
+TVM_REGISTER_NODE_TYPE(SourceNameNode)
+.set_creator(CreateSourceName)
+.set_global_key([](const Node* n) {
+    return static_cast<const SourceNameNode*>(n)->name;
+  });
 
 Span SpanNode::make(SourceName source, int lineno, int col_offset) {
   std::shared_ptr<SpanNode> n = std::make_shared<SpanNode>();
@@ -41,11 +69,6 @@ Span SpanNode::make(SourceName source, int lineno, int col_offset) {
 TVM_REGISTER_API("relay._make.Span")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = SpanNode::make(args[0], args[1], args[2]);
-  });
-
-TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<SourceNameNode>([](const SourceNameNode *node, tvm::IRPrinter *p) {
-    p->stream << node->name;
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
