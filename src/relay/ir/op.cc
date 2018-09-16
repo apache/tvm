@@ -138,6 +138,19 @@ TVM_REGISTER_API("relay.op._Register")
       }
     });
 
+std::shared_ptr<OpNode> CreateOp(const std::string& name) {
+  auto op = Op::Get(name);
+  CHECK(!op.defined()) << "Cannot find op \'" << name << '\'';
+  std::shared_ptr<Node> node = op.node_;
+  return std::dynamic_pointer_cast<OpNode>(node);
+}
+
+TVM_REGISTER_NODE_TYPE(OpNode)
+.set_creator(CreateOp)
+.set_global_key([](const Node* n) {
+    return static_cast<const OpNode*>(n)->name;
+  });
+
 bool IsGeneric(const FuncType& func_ty) {
   return func_ty->type_params.size() != 0;
 }
