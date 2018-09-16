@@ -82,24 +82,24 @@ class TypeUnifier;
 class TypeUnifierNode : public Node,
                         private TypeFunctor<Type(const Type&, const Type)> {
  public:
-  UnionFind uf;
+  UnionFind union_find;
 
   TypeUnifierNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("uf", &uf); }
+  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("union_find", &union_find); }
 
   TVM_DLL static TypeUnifier make(UnionFind uf);
 
   /*! \brief Introduces a new type var into the unifier */
-  void insert(const IncompleteType& v);
+  void Insert(const IncompleteType& v);
 
   /*! \brief Unifies two types if possible, throws a unification error if it
    * cannot  */
-  Type unify(const Type& t1, const Type& t2);
+  Type Unify(const Type& t1, const Type& t2);
 
   /*! \brief Attempts to substitute all type vars in t with concrete types,
    * throws substitution error if it cannot concretize*/
-  Type subst(const Type& t);
+  Type Subst(const Type& t);
 
   // /*! \brief Checks the kinds in the given type */
   // Type CheckKinds(const Type& t);
@@ -109,7 +109,7 @@ class TypeUnifierNode : public Node,
 
  private:
   /*! \brief Unify incomplete type with another type. */
-  Type unifyWithIncompleteType(const Type& t1, const IncompleteType tvn2);
+  Type UnifyWithIncompleteType(const Type& t1, const IncompleteType tvn2);
   /*! \brief Implements unification between two types with incomplete portions.
    */
   Type VisitType(const Type& t1, const Type t2) override;

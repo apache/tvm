@@ -20,7 +20,7 @@ struct ResolveTypeType : TypeFVisitor {
   Type VisitType(const Type &t) override {
     if (!t.defined()) {
       auto inc_ty = IncompleteTypeNode::make(TypeParamNode::Kind::kType);
-      unifier->insert(inc_ty);
+      unifier->Insert(inc_ty);
       return inc_ty;
     } else {
       return TypeFVisitor::VisitType(t);
@@ -28,7 +28,7 @@ struct ResolveTypeType : TypeFVisitor {
   }
 
   Type VisitType_(const IncompleteTypeNode *op) override {
-    return unifier->subst(GetRef<IncompleteType>(op));
+    return unifier->Subst(GetRef<IncompleteType>(op));
   }
 };
 

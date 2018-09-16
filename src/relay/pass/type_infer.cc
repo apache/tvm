@@ -235,7 +235,7 @@ FuncType TypeInferencer::Instantiate(FuncType fn_ty,
   // Eventually allow the type vars to be passed in.
   for (auto ty_param : fn_ty->type_params) {
     IncompleteType fresh = IncompleteTypeNode::make(ty_param->kind);
-    this->unifier->insert(fresh);
+    this->unifier->Insert(fresh);
     ty_args.push_back(fresh);
     subst_map.Set(ty_param, fresh);
   }
@@ -303,7 +303,7 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
   // representatives.
 
   for (size_t i = 0; i < ty_args.size(); i++) {
-    ty_args.Set(i, this->unifier->subst(ty_args[i]));
+    ty_args.Set(i, this->unifier->Subst(ty_args[i]));
   }
 
   // Add type constraints from the function types.
@@ -397,7 +397,7 @@ TypeRelation TypeInferencer::Solve(const TypeRelation &ty_rel) {
   tvm::Array<Type> final_args;
 
   for (size_t i = 0; i < new_args.size(); i++) {
-    final_args.push_back(unifier->unify(normalized_args[i], new_args[i]));
+    final_args.push_back(Unify(normalized_args[i], new_args[i], ty_rel->span));
   }
 
   return TypeRelationNode::make(ty_rel->name, ty_rel->func_, final_args);
@@ -529,7 +529,7 @@ void TypeInferencer::FatalError(const std::string &msg, Span sp) {
 
 Type TypeInferencer::Unify(const Type &t1, const Type &t2, Span sp) {
   try {
-    return this->unifier->unify(t1, t2);
+    return this->unifier->Unify(t1, t2);
   } catch (const dmlc::Error &e) {
     std::stringstream ss;
     ss << "Error unifying `";

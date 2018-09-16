@@ -128,15 +128,15 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
       p->stream << "UnionFindNode(" << node->uf_map << ")";
     });
 
-TypeUnifier TypeUnifierNode::make(UnionFind uf) {
+TypeUnifier TypeUnifierNode::make(UnionFind union_find) {
   std::shared_ptr<TypeUnifierNode> n = std::make_shared<TypeUnifierNode>();
-  n->uf = uf;
+  n->union_find = union_find;
   return TypeUnifier(n);
 }
 
-void TypeUnifierNode::insert(const IncompleteType &v) { this->uf->Insert(v); }
+void TypeUnifierNode::Insert(const IncompleteType &v) { this->union_find->Insert(v); }
 
-Type TypeUnifierNode::unify(const Type &t1, const Type &t2) {
+Type TypeUnifierNode::Unify(const Type &t1, const Type &t2) {
   RELAY_LOG(INFO) << "TypeUnifierNode::unify: t1=" << t1 << " t2=" << t2
                   << std::endl;
 
@@ -155,7 +155,7 @@ struct IncompleteTypeSubst : TypeFVisitor {
   // type var: look it up in the type map and recurse
   Type VisitType_(const IncompleteTypeNode *op) override {
     auto tv = GetRef<IncompleteType>(op);
-    auto parent = unifier->uf->Find(tv);
+    auto parent = unifier->union_find->Find(tv);
     if (parent == tv) {
       return tv;
     }
@@ -163,7 +163,7 @@ struct IncompleteTypeSubst : TypeFVisitor {
   }
 };
 
-Type TypeUnifierNode::subst(const Type &t) {
+Type TypeUnifierNode::Subst(const Type &t) {
   IncompleteTypeSubst tvsubst(this);
   // normalize first so substitutions in quantifiers will be correct
   Type ret = tvsubst.VisitType(t);
@@ -180,19 +180,19 @@ Type TypeUnifierNode::subst(const Type &t) {
 Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
   // When the right hand size is a type variable immediately unify.
   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
-    return this->unifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
+    return this->UnifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
   } else {
     return TypeFunctor<Type(const Type &t1, const Type t2)>::VisitType(t1, t2);
   }
 }
 
-Type TypeUnifierNode::unifyWithIncompleteType(const Type &t1,
+Type TypeUnifierNode::UnifyWithIncompleteType(const Type &t1,
                                               const IncompleteType tv2) {
   RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2
                   << std::endl;
   // Fix unify to return new representative
-  this->uf->Unify(tv2, t1);
-  auto rep = this->uf->Find(tv2);
+  this->union_find->Unify(tv2, t1);
+  auto rep = this->union_find->Find(tv2);
   RELAY_LOG(INFO) << "unifyWithIncompleteType: rep =" << rep << std::endl;
   return rep;
 }
@@ -201,8 +201,8 @@ Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
   IncompleteType tv1 = GetRef<IncompleteType>(t1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode t1=" << t1 << " = " << rt2
                   << std::endl;
-  this->uf->Unify(tv1, rt2);
-  auto rep = this->uf->Find(tv1);
+  this->union_find->Unify(tv1, rt2);
+  auto rep = this->union_find->Find(tv1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode rep=" << rep << std::endl;
   return rep;
 }
