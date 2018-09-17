@@ -5,7 +5,7 @@
  */
 
 #include <tvm/relay/expr.h>
-#include <tvm/relay/expr_visitor.h>
+#include <tvm/relay/expr_mutator.h>
 #include "./resolve.h"
 #include "./type_visitor.h"
 
@@ -37,7 +37,7 @@ struct ResolveTypeExpr : ExprMutator {
 
   explicit ResolveTypeExpr(const TypeUnifier &unifier) : unifier(unifier) {}
 
-  Expr VisitExpr(const Expr &e) {
+  Expr Mutate(const Expr &e) {
     // NB: a bit tricky here.
     //
     // We want to store resolved type without having
@@ -51,7 +51,7 @@ struct ResolveTypeExpr : ExprMutator {
     // We will visit e like normal building a new
     // term, then resolve e's old type and write
     // it back into the new node.
-    auto new_e = ExprMutator::VisitExpr(e);
+    auto new_e = ExprMutator::Mutate(e);
     CHECK(e->checked_type_.defined());
     auto resolved_cty = VisitType(e->checked_type_);
     new_e->checked_type_ = resolved_cty;
@@ -69,7 +69,7 @@ Type Resolve(const TypeUnifier &unifier, const Type &ty) {
 }
 
 Expr Resolve(const TypeUnifier &unifier, const Expr &expr) {
-  return ResolveTypeExpr(unifier).VisitExpr(expr);
+  return ResolveTypeExpr(unifier).Mutate(expr);
 }
 
 struct FullyResolved : TypeVisitor<> {

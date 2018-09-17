@@ -214,6 +214,14 @@ Array<T> Downcast(Array<U> array) {
   return out;
 }
 
+template <typename SubRef, typename BaseRef>
+SubRef Downcast(BaseRef ref) {
+  const typename SubRef::ContainerType* node =
+        ref.template as<typename SubRef::ContainerType>();
+    CHECK(node) << "Downcast failed" << std::endl;
+    return GetRef<SubRef>(node);
+}
+
 /*!
  * \brief Get PackedFunction from global registry and
  *  report error if it does not exist
