@@ -79,7 +79,7 @@ def decl_tensor_intrin(op,
         buf = (binds[t] if t in binds else
                _api.decl_buffer(t.shape, t.dtype, t.op.name,
                                 data_alignment=cfg.data_alignment,
-                                offset_factor=cfg.offset_factor))
+                                offset_factor=cfg.offset_factor).make_stride_view())
         binds_list.append(buf)
 
     body = fcompute(binds_list[:len(inputs)], binds_list[len(inputs):])
