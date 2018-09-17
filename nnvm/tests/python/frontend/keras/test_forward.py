@@ -21,14 +21,13 @@ def verify_keras_frontend(keras_model, need_transpose=True):
     for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
 
-    #_output_coordinates contains the output_node(oc[0]), node_index(oc[1]) and tensor_index(oc[2])
+    #keras_model._output_coordinates contains the output_node, node_index and tensor_index
     #get the outshapes from combining output node and tensor index
     out_shapes = []
-    #model._output_coordinates contains the node name, node_index and tensor index.
-    for oc in keras_model._output_coordinates:
-        layer_out = oc[0].output
-        if isinstance(oc[0].output, list):#if multiple outputs are there
-            layer_out = oc[0].output[oc[2]]
+    for layer, node_index, tensor_index in keras_model._output_coordinates:
+        layer_out = layer.output
+        if isinstance(layer.output, list):#if multiple outputs are there
+            layer_out = layer.output[tensor_index]
         out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer_out.shape))
 
     def get_keras_output(xs, dtype='float32'):
