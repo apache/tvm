@@ -9,7 +9,7 @@
 namespace tvm {
 namespace relay {
 
-struct TypeSubstV : TypeFVisitor {
+struct TypeSubstV : TypeMutator {
   tvm::Map<TypeParam, Type> subst_map;
 
   explicit TypeSubstV(tvm::Map<TypeParam, Type> subst_map)

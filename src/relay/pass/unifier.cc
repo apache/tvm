@@ -147,7 +147,7 @@ Type TypeUnifierNode::Unify(const Type &t1, const Type &t2) {
   return unified;
 }
 
-struct IncompleteTypeSubst : TypeFVisitor {
+struct IncompleteTypeSubst : TypeMutator {
   const TypeUnifierNode *unifier;
 
   IncompleteTypeSubst(const TypeUnifierNode *unifier) : unifier(unifier) {}

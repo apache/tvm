@@ -19,20 +19,8 @@ TensorType TensorTypeNode::make(Array<ShapeExpr> shape, DataType dtype) {
   return TensorType(n);
 }
 
-TensorType TensorTypeNode::Int(int bits, int lanes) {
-  return TensorTypeNode::make({}, HalideIR::Int(bits, lanes));
-}
-
-TensorType TensorTypeNode::UInt(int bits, int lanes) {
-  return TensorTypeNode::make({}, HalideIR::UInt(bits, lanes));
-}
-
-TensorType TensorTypeNode::Float(int bits, int lanes) {
-  return TensorTypeNode::make({}, HalideIR::Float(bits, lanes));
-}
-
-TensorType TensorTypeNode::Bool(int lanes) {
-  return TensorTypeNode::make({}, HalideIR::Bool(lanes));
+TensorType TensorTypeNode::Scalar(DataType dtype) {
+  return TensorTypeNode::make({}, dtype);
 }
 
 TVM_REGISTER_API("relay._make.TensorType")

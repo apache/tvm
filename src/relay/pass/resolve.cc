@@ -12,7 +12,7 @@
 namespace tvm {
 namespace relay {
 
-struct ResolveTypeType : TypeFVisitor {
+struct ResolveTypeType : TypeMutator {
   const TypeUnifier &unifier;
 
   explicit ResolveTypeType(const TypeUnifier &unifier) : unifier(unifier) {}
@@ -23,7 +23,7 @@ struct ResolveTypeType : TypeFVisitor {
       unifier->Insert(inc_ty);
       return inc_ty;
     } else {
-      return TypeFVisitor::VisitType(t);
+      return TypeMutator::VisitType(t);
     }
   }
 

@@ -54,7 +54,7 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
 };
 
 // A functional visitor for rebuilding an AST in place.
-struct TypeFVisitor : TypeFunctor<Type(const Type& n)> {
+struct TypeMutator : TypeFunctor<Type(const Type& n)> {
   Type VisitType_(const TensorTypeNode* op) override {
     // TODO(@jroesch): maybe we should recursively visit
     return TensorTypeNode::make(op->shape, op->dtype);
