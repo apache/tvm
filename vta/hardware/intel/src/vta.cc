@@ -20,16 +20,6 @@ void _memcpy(
   }
 }
 
-// template <typename T>
-// void memcpy_st(
-//   T * __dest, 
-//   const T * __src, 
-//   int __n) {
-//   for (int i = 0; i < __n; ++i) {
-//     __dest[i] = __src[i];
-//   }
-// }
-
 component void fetch(
   uint32_t insn_count,
   insn_T *insns,
@@ -52,15 +42,15 @@ component void fetch(
     // Push to appropriate instruction queue
     if (opcode == VTA_OPCODE_STORE) {
       store_queue.write(insn);
-      fprintf(stderr, "s");
+      // fprintf(stderr, "s");
     } else if (opcode == VTA_OPCODE_LOAD &&
           (memory_type == VTA_MEM_ID_INP || memory_type == VTA_MEM_ID_WGT)) {
       load_queue.write(insn);
-      fprintf(stderr, "l");
+      // fprintf(stderr, "l");
     // } else if (opcode == VTA_OPCODE_GEMM) {
     } else {
       gemm_queue.write(insn);
-      fprintf(stderr, "g");
+      // fprintf(stderr, "g");
     }
   }
 }
@@ -406,10 +396,10 @@ component void compute(
                 // Update summation
                 accum += (acc_T) tmp;
                 // Update result vector
-                acc_mem_val[i].slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH) =
-                    reset_out ? (acc_T) 0 : accum;
-                st_buf_val[i].slc<VTA_OUT_WIDTH>(b * VTA_OUT_WIDTH) =
-                  (out_T) accum.slc<VTA_OUT_WIDTH>(0);
+                acc_mem_val[i].set_slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH,
+                                                      reset_out ? (acc_T) 0 : accum);
+                st_buf_val[i].set_slc<VTA_OUT_WIDTH>(b * VTA_OUT_WIDTH,
+                                                     (out_T) accum.slc<VTA_OUT_WIDTH>(0));
               }
               // Write to buffers
               acc_mem[dst_idx][i] = acc_mem_val[i];
@@ -645,7 +635,7 @@ void vta(
         tmp_load = tmp_load_queue.read();
         tmp_load_popped = true;
 
-        fprintf(stderr, "[%d][l]0x%0llx\n", exit_counter, tmp_load.to_uint64());
+        // fprintf(stderr, "[%d][l]0x%0llx\n", exit_counter, tmp_load.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_next_dependence = tmp_load[VTA_INSN_MEM_2];
@@ -675,7 +665,7 @@ void vta(
         tmp_gemv = tmp_gemm_queue.read();
         tmp_gemm_popped = true;
 
-        fprintf(stderr, "[%d][g]0x%0llx\n", exit_counter, tmp_gemv.to_uint64());
+        // fprintf(stderr, "[%d][g]0x%0llx\n", exit_counter, tmp_gemv.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_gemv[VTA_INSN_MEM_1];
@@ -717,7 +707,7 @@ void vta(
         tmp_store = tmp_store_queue.read();
         tmp_store_popped = true;
 
-        fprintf(stderr, "[%d][s]0x%0llx\n", exit_counter, tmp_store.to_uint64());
+        // fprintf(stderr, "[%d][s]0x%0llx\n", exit_counter, tmp_store.to_uint64());
       }
       // Check dependences and invoke the load stage
       bool pop_prev_dependence = tmp_store[VTA_INSN_MEM_1];

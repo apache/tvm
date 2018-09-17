@@ -65,7 +65,7 @@ HLS_CXX_FLAGS += -DVTA_LOG_OUT_BUFF_SIZE=$(VTA_OUT_BUFF_SIZE)
 
 HLS_CXX_FLAGS += --debug-log -v
 # HLS_CXX_FLAGS += --fpga-only --debug-log -v
-HLS_CXX_FLAGS += --x86-only
+HLS_CXX_FLAGS += --x86-only -g0
 
 ifeq ($(DEBUG), true)
   HLS_CXX_FLAGS += -DVTA_DEBUG=1
