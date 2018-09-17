@@ -3,8 +3,8 @@
  * \file src/tvm/relay/pass/alpha_eq.cc
  * \brief Compute the set of variables not bound in the expression.
  */
+#include <tvm/relay/expr_visitor.h>
 #include "tvm/relay/pass/alpha_eq.h"
-#include "tvm/relay/expr_visitor.h"
 #include "./type_visitor.h"
 
 namespace tvm {
@@ -244,19 +244,21 @@ bool AlphaEqual(const Type &t1, const Type &t2) {
 //   }
 // };
 
-// bool alpha_eq(const Expr &e1, const Expr &e2) {
-//   AlphaEq eq;
-//   eq.VisitExpr(e1, e2);
-//   return eq.equal;
-// }
+bool AlphaEqual(const Expr &e1, const Expr &e2) {
+  // AlphaEq eq;
+  // eq.VisitExpr(e1, e2);
+  // return eq.equal;
+  LOG(FATAL) << "NYI";
+  return false;
+}
 
-// // TODO(@jroesch): move to correct namespace?
-// TVM_REGISTER_API("relay._make._alpha_eq")
-//     .set_body([](TVMArgs args, TVMRetValue *ret) {
-//       Expr e1 = args[0];
-//       Expr e2 = args[1];
-//       *ret = alpha_eq(e1, e2);
-//     });
+// TODO(@jroesch): move to correct namespace?
+TVM_REGISTER_API("relay._make._alpha_eq")
+    .set_body([](TVMArgs args, TVMRetValue *ret) {
+      Expr e1 = args[0];
+      Expr e2 = args[1];
+      *ret = AlphaEqual(e1, e2);
+    });
 
 TVM_REGISTER_API("relay._make._type_alpha_eq")
     .set_body([](TVMArgs args, TVMRetValue *ret) {

@@ -58,6 +58,7 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op, const Expr& e) {
 Expr ExprMutator::VisitExpr_(const ParamNode* op, const Expr& e) {
   Var var = Downcast<Var>(this->Mutate(op->var));
   auto type = this->VisitType(op->type);
+
   if (var == op->var && type == op->type) {
     return e;
   } else {
@@ -67,68 +68,71 @@ Expr ExprMutator::VisitExpr_(const ParamNode* op, const Expr& e) {
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op, const Expr& e) {
   tvm::Array<TypeParam> ty_params;
+  bool all_ty_params_changed = true;
 
-  for (auto ty : op->type_params) {
-    Type ty_param_type = VisitType(ty);
-    if (auto ty_param = ty_param_type.as<TypeParamNode>()) {
-      auto ty_param_ref = GetRef<TypeParam>(ty_param);
-      ty_params.push_back(ty_param_ref);
-    } else {
-      LOG(FATAL) << "the default function visitor expected a TypeParam found: "
-                 << ty_param_type << std::endl;
-      return Expr();
-    }
+  for (auto ty_param : op->type_params) {
+    TypeParam new_ty_param = Downcast<TypeParam>(VisitType(ty_param));
+    ty_params.push_back(new_ty_param);
+    all_ty_params_changed &= new_ty_param.same_as(ty_param);
   }
 
   tvm::Array<Param> params;
+  bool all_params_changed = true;
   for (auto param : op->params) {
-    Expr param_expr = this->Mutate(param);
-    if (const ParamNode* param_node = param_expr.as<ParamNode>()) {
-      auto param = GetRef<Param>(param_node);
-      params.push_back(param);
-    } else {
-      CHECK(false) << "the default function visitor expected a Param found: "
-                   << param_expr << std::endl;
-      return Expr();
-    }
+    Param new_param = Downcast<Param>(this->Mutate(param));
+    params.push_back(new_param);
+    all_params_changed &= param.same_as(new_param);
   }
 
   auto ret_type = this->VisitType(op->ret_type);
   auto body = this->Mutate(op->body);
-  return FunctionNode::make(params, ret_type, body, ty_params);
+
+  if (ty_params.same_as(op->type_params) && params.same_as(op->params) &&
+      ret_type.same_as(op->ret_type) && body.same_as(op->body)) {
+    return e;
+  } else {
+    return FunctionNode::make(params, ret_type, body, ty_params);
+  }
 }
 
 Expr ExprMutator::VisitExpr_(const CallNode* call_node, const Expr& e) {
-  auto fn = this->Mutate(call_node->op);
+  auto op = this->Mutate(call_node->op);
 
   tvm::Array<Type> ty_args;
+  bool all_ty_args_unchanged = true;
   for (auto ty_arg : call_node->type_args) {
     auto new_ty_arg = this->VisitType(ty_arg);
     ty_args.push_back(new_ty_arg);
+    all_ty_args_unchanged &= new_ty_arg.same_as(ty_arg);
   }
 
   tvm::Array<Expr> call_args;
+  bool all_args_unchanged = true;
   for (auto arg : call_node->args) {
-    call_args.push_back(this->Mutate(arg));
+    auto new_arg = this->Mutate(arg);
+    call_args.push_back(new_arg);
+    all_args_unchanged &= new_arg.same_as(arg);
   }
 
-  auto call = CallNode::make(fn, call_args, call_node->attrs, ty_args);
-
-  return call;
+  if (all_ty_args_unchanged && all_args_unchanged &&
+      call_node->op.same_as(op)) {
+    return e;
+  } else {
+    return CallNode::make(op, call_args, call_node->attrs, ty_args);
+  }
 }
 
 Expr ExprMutator::VisitExpr_(const LetNode* op, const Expr& e) {
-  Expr var_expr = this->Mutate(op->var);
-  if (const VarNode* var_node = var_expr.as<VarNode>()) {
-    auto var = GetRef<Var>(var_node);
-    auto type = this->VisitType(op->value_type);
-    auto value = this->Mutate(op->value);
-    auto body = this->Mutate(op->body);
-    return LetNode::make(var, value, body, type);
+  Var var = Downcast<Var>(this->Mutate(op->var));
+  auto type = this->VisitType(op->value_type);
+  auto value = this->Mutate(op->value);
+  auto body = this->Mutate(op->body);
+
+  if (var.same_as(op->var) && type.same_as(op->value_type) &&
+      value.same_as(op->value) && body.same_as(op->body)) {
+    return e;
   } else {
-    LOG(FATAL) << "the default let visitor expected a Var found: " << var_expr
-               << std::endl;
-    return Expr();
+    return LetNode::make(var, value, body, type);
   }
 }
 
@@ -136,6 +140,7 @@ Expr ExprMutator::VisitExpr_(const IfNode* op, const Expr& e) {
   auto guard = this->Mutate(op->cond);
   auto true_b = this->Mutate(op->true_branch);
   auto false_b = this->Mutate(op->false_branch);
+  
   if (op->cond == guard && true_b == op->true_branch &&
       false_b == op->false_branch) {
     return e;

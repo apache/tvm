@@ -154,7 +154,7 @@ class OpRegistry {
    * relation on variables. \return reference to self.
    */
   inline OpRegistry& add_type_rel(const std::string& rel_name,
-                                  const std::string& type_rel_func_name);
+                                  std::function<Array<Type>(const Array<Type> &, int)> type_rel_func);
 
   /*!
    * \brief Set the type key of attributes.
@@ -345,10 +345,24 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
 }
 
 inline OpRegistry& OpRegistry::add_type_rel(
-    const std::string& rel_name, const std::string& type_rel_func_name) {
-  auto env_func = EnvFunc::Get(type_rel_func_name);
-  TypedEnvFunc<Array<Type>(const Array<Type>&, int)> type_rel_func;
-  type_rel_func = env_func;
+    const std::string& rel_name, std::function<Array<Type>(const Array<Type> &, int)> type_rel_func) {
+
+  TypedEnvFunc<Array<Type>(const Array<Type>&, int)> env_type_rel_func;
+
+  std::cout << "BeforeHere" << std::endl;
+
+  try {
+    auto env_func = EnvFunc::Get(rel_name);
+    env_type_rel_func = env_func;
+  } catch (const dmlc::Error& err) {
+    std::cout << "In Catch...." << rel_name << std::endl;
+    TVM_REGISTER_API(rel_name).set_body_typed<Array<Type>(const Array<Type> &, int)>(type_rel_func);
+    std::cout << "After Reg...." << std::endl;
+    auto env_func = EnvFunc::Get(rel_name);
+    env_type_rel_func = env_func;
+  }
+
+  std::cout << "AfterHere" << std::endl;
 
   std::vector<TypeParam> type_params;
   std::vector<Type> arg_types;
@@ -371,7 +385,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   ty_call_args.push_back(out_param);
 
   TypeConstraint type_rel =
-      TypeRelationNode::make(rel_name, type_rel_func, ty_call_args);
+      TypeRelationNode::make(rel_name, env_type_rel_func, ty_call_args);
 
   auto func_type =
       FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});
