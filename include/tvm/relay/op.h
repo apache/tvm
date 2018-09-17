@@ -153,18 +153,8 @@ class OpRegistry {
    * type. \param type_rel The backing relation which can solve an arbitrary
    * relation on variables. \return reference to self.
    */
-  inline OpRegistry& add_type_rel(const std::string& type_rel_name,
-                                  TypeRelationFn type_rel);
-
-  /*!
-   * \brief Attach the type function corresponding to the return type.
-   * \param type_rel_name The type function name to register for the return
-   * type. \param type_rel The backing relation which can solve an arbitrary
-   * relation on variables. \return reference to self.
-   */
-  inline OpRegistry& add_type_rel(
-      const std::string& type_rel_name,
-      std::function<Array<Type>(const Array<Type>&, int)> type_rel);
+  inline OpRegistry& add_type_rel(const std::string& rel_name,
+                                  const std::string& type_rel_func_name);
 
   /*!
    * \brief Set the type key of attributes.
@@ -355,15 +345,11 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
 }
 
 inline OpRegistry& OpRegistry::add_type_rel(
-    const std::string& type_func_name,
-    std::function<Array<Type>(const Array<Type>&, int)> type_fn) {
-  auto pfunc =
-      runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>(type_fn);
-  return add_type_rel(type_func_name, pfunc);
-}
+    const std::string& rel_name, const std::string& type_rel_func_name) {
+  auto env_func = EnvFunc::Get(type_rel_func_name);
+  TypedEnvFunc<Array<Type>(const Array<Type>&, int)> type_rel_func;
+  type_rel_func = env_func;
 
-inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
-                                            TypeRelationFn type_fn) {
   std::vector<TypeParam> type_params;
   std::vector<Type> arg_types;
 
@@ -385,7 +371,7 @@ inline OpRegistry& OpRegistry::add_type_rel(const std::string& type_func_name,
   ty_call_args.push_back(out_param);
 
   TypeConstraint type_rel =
-      TypeRelationNode::make(type_func_name, type_fn, ty_call_args);
+      TypeRelationNode::make(rel_name, type_rel_func, ty_call_args);
 
   auto func_type =
       FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});

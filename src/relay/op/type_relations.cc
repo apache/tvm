@@ -38,6 +38,11 @@ Array<Type> IdentityRel(const Array<Type>& types, int num_args) {
   }
 }
 
+TVM_REGISTER_API("tvm.relay.type_relations.IdentityRel")
+.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
+  return IdentityRel(types, num_args);
+});
+
 static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
                               DataType output_dtype) {
   RELAY_LOG(INFO) << "ConcreteBroadcast: t1=" << t1 << " t2=" << t2
@@ -119,6 +124,11 @@ Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
   return types;
 }
 
+TVM_REGISTER_API("tvm.relay.type_relations.BroadcastRel")
+.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
+  return BroadcastRel(types, num_args);
+});
+
 /* A relation which specifies broadcasting rules for operations which
    compute boolean results.
 */
@@ -132,6 +142,13 @@ Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args) {
 
   return types;
 }
+
+TVM_REGISTER_API("tvm.relay.type_relations.BroadcastCompRel")
+.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
+  return BroadcastCompRel(types, num_args);
+});
+
+
 
 }  // namespace relay
 }  // namespace tvm

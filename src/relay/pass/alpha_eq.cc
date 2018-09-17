@@ -100,44 +100,23 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-//   void VisitType_(const TupleTypeNode *op, const Type &t2) override {
-//     if (const TupleTypeNode *pt = t2.as<TupleTypeNode>()) {
-//       if (op->fields.size() != pt->fields.size()) {
-//         equal = false;
-//         return;
-//       }
+  void VisitType_(const TupleTypeNode *op, const Type &t2) override {
+    if (const TupleTypeNode *pt = t2.as<TupleTypeNode>()) {
+      if (op->fields.size() != pt->fields.size()) {
+        equal = false;
+        return;
+      }
 
-//       for (size_t i = 0U; i < op->fields.size(); i++) {
-//         if (!equal) {
-//           return;
-//         }
-//         this->VisitType(op->fields[i], pt->fields[i]);
-//       }
-//     } else {
-//       equal = false;
-//     }
-//   }
-
-  // void VisitType_(const TypeCallNode *tyn1, const Type &t2) override {
-  //   TypeCall tycall = GetRef<TypeCall>(tyn1);
-  //   if (const TypeCallNode *tyn2 = t2.as<TypeCallNode>()) {
-  //     if (tycall->func != tyn2->func) {
-  //       equal = false;
-  //       return;
-  //     }
-
-  //     if (tycall->args.size() != tyn2->args.size()) {
-  //       equal = false;
-  //       return;
-  //     }
-
-  //     for (size_t i = 0U; i < tycall->args.size(); i++) {
-  //       this->VisitType(tycall->args[i], tyn2->args[i]);
-  //     }
-  //   } else {
-  //     equal = false;
-  //   }
-  // }
+      for (size_t i = 0U; i < op->fields.size(); i++) {
+        if (!equal) {
+          return;
+        }
+        this->VisitType(op->fields[i], pt->fields[i]);
+      }
+    } else {
+      equal = false;
+    }
+  }
 };
 
 bool AlphaEqual(const Type &t1, const Type &t2) {

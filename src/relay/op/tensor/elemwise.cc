@@ -37,7 +37,7 @@ RELAY_REGISTER_UNARY_OP("log")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.add_type_rel("Log", IdentityRel);
+.add_type_rel("Log", "tvm.relay.type_relations.IdentityRel");
 
 // data : Tensor[shape, dtype]
 // result: Tensor[shape, dtype]
@@ -51,7 +51,7 @@ RELAY_REGISTER_UNARY_OP("exp")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.add_type_rel("Exp", IdentityRel);
+.add_type_rel("Exp", "tvm.relay.type_relations.IdentityRel");
 
 
 RELAY_REGISTER_UNARY_OP("sqrt")
@@ -62,7 +62,7 @@ RELAY_REGISTER_UNARY_OP("sqrt")
 
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
-.add_type_rel("Sqrt", IdentityRel);
+.add_type_rel("Sqrt", "tvm.relay.type_relations.IdentityRel");
 
 // Addition
 TVM_REGISTER_API("relay.op._make.add")
@@ -76,7 +76,7 @@ RELAY_REGISTER_OP("add")
   .add_argument("lhs", "Tensor", "The left hand side tensor.")
   .add_argument("rhs", "Tensor", "The right hand side tensor.")
   .set_support_level(1)
-  .add_type_rel("Broadcast", BroadcastRel);
+  .add_type_rel("Broadcast", "tvm.relay.type_relations.BroadcastRel");
 
   // def broadcast(s1, s2):
   // ...
@@ -97,7 +97,7 @@ RELAY_REGISTER_OP("subtract")
   .add_argument("lhs", "Tensor", "The left hand side tensor.")
   .add_argument("rhs", "Tensor", "The right hand side tensor.")
   .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
+  .add_type_rel("BroadcastComp", "tvm.relay.type_relations.BroadcastCompRel");
 
   // def broadcast(s1, s2):
   // ...
@@ -118,7 +118,7 @@ RELAY_REGISTER_OP("equal")
   .add_argument("lhs", "Tensor", "The left hand side tensor.")
   .add_argument("rhs", "Tensor", "The right hand side tensor.")
   .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
+  .add_type_rel("BroadcastComp", "tvm.relay.type_relations.BroadcastCompRel");
 
 }  // namespace relay
 }  // namespace tvm

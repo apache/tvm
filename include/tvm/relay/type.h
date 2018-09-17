@@ -211,7 +211,7 @@ class FuncTypeNode : public TypeNode {
 RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
 
 using TypeRelationFn =
-    runtime::TypedPackedFunc<Array<Type>(const Array<Type>&, int)>;
+    TypedEnvFunc<Array<Type>(const Array<Type>&, int)>;
 
 /*!
  * \brief Opaque type relation, is an input-output relation on types.
