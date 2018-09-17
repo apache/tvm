@@ -67,7 +67,7 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
   virtual void VisitType(const Type& t) {}
 };
 
-class ExprFVisitor : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
+class ExprMutator : public ::tvm::relay::ExprFunctor<Expr(const Expr& n)> {
  public:
   Expr VisitExpr_(const VarNode* op) override { return GetRef<Var>(op); }
 
