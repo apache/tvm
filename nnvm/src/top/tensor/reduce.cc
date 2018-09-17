@@ -70,7 +70,7 @@ inline TShape ReduceShapeImpl(const TShape& ishape,
   if (keepdims) {
     TShape oshape(ishape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
-      if (i != r_axes[j]) continue;
+      if (j >= r_axes.ndim() || i != r_axes[j]) continue;
       oshape[i] = 1;
       ++j;
     }
@@ -79,7 +79,7 @@ inline TShape ReduceShapeImpl(const TShape& ishape,
 
   TShape oshape(indim - r_axes.ndim());
   for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
-    if (i == r_axes[j]) {
+    if (j < r_axes.ndim() && i == r_axes[j]) {
       ++j;
       continue;
     }
@@ -95,7 +95,7 @@ inline bool ReduceShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(out_attrs->size(), 1U);
   if ((*in_attrs)[0].ndim() == 0) return false;
   const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
-  NNVM_ASSIGN_INPUT_SHAPE(
+  NNVM_ASSIGN_OUTPUT_SHAPE(
       attrs, *out_attrs, 0,
       ReduceShapeImpl((*in_attrs)[0], param.axis,
                       param.keepdims, param.exclude));
