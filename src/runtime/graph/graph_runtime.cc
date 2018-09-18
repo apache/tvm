@@ -459,6 +459,16 @@ void GraphRuntime::SetupStorage() {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
   data_entry_.resize(num_node_entries());
+  int max_id = 0;
+  for (size_t i = 0; i < attrs_.shape.size(); ++i) {
+    max_id = std::max(attrs_.storage_id[i] + 1, max_id);
+  }
+  for (uint32_t nid : input_nodes_) {
+    if (attrs_.storage_id[this->entry_id(nid, 0)] < 0) {
+      attrs_.storage_id[this->entry_id(nid, 0)] = max_id++;
+    }
+  }
+
   // size of each storage pool entry
   std::vector<size_t> pool_entry_bytes;
   // Find the maximum space size.
