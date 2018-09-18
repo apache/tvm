@@ -58,7 +58,6 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op, const Expr& e) {
 Expr ExprMutator::VisitExpr_(const ParamNode* op, const Expr& e) {
   Var var = Downcast<Var>(this->Mutate(op->var));
   auto type = this->VisitType(op->type);
-
   if (var == op->var && type == op->type) {
     return e;
   } else {
@@ -140,7 +139,6 @@ Expr ExprMutator::VisitExpr_(const IfNode* op, const Expr& e) {
   auto guard = this->Mutate(op->cond);
   auto true_b = this->Mutate(op->true_branch);
   auto false_b = this->Mutate(op->false_branch);
-  
   if (op->cond == guard && true_b == op->true_branch &&
       false_b == op->false_branch) {
     return e;

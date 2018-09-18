@@ -144,7 +144,7 @@ Type TypeUnifierNode::Unify(const Type &t1, const Type &t2) {
                   << std::endl;
 
   Type unified = this->VisitType(t1, t2);
-  // TODO (@jroesch): Restore this code when we finish kind checker.
+  // TODO(@jroesch): Restore this code when we finish kind checker.
   // if (!check_kind(unified)) {
   // throw UnificationError("Invalid kinds in unified type");
   // }
@@ -171,7 +171,7 @@ Type TypeUnifierNode::Subst(const Type &t) {
   IncompleteTypeSubst tvsubst(this);
   // normalize first so substitutions in quantifiers will be correct
   Type ret = tvsubst.VisitType(t);
-  // TODO (@jroesch): Restore this code when we finish kind checker.
+  // TODO(@jroesch): Restore this code when we finish kind checker.
   // if (!check_kind(ret)) {
   // std::stringstream ss;
   // ss << "Invalid Kinds in substituted type!";
