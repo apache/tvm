@@ -108,8 +108,8 @@ class SourceName : public NodeRef {
   /*!
    * \brief Get an SourceName for a given operator name.
    *  Will raise an error if the source name has not been registered.
-   * \param op_name Name of the operator.
-   * \return Pointer to a Op, valid throughout program lifetime.
+   * \param name Name of the operator.
+   * \return Reference to a SourceName valid throughout program lifetime.
    */
   TVM_DLL static const SourceName& Get(const std::string& name);
 

@@ -149,9 +149,10 @@ class OpRegistry {
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param type_rel_name The type function name to register for the return
-   * type. \param type_rel The backing relation which can solve an arbitrary
-   * relation on variables. \return reference to self.
+   * \param rel_name The type relation name to register. 
+   * \param type_rel_func The backing relation function which can solve an arbitrary
+   * relation on variables. 
+   * \return reference to self.
    */
   inline OpRegistry& add_type_rel(
       const std::string& rel_name,
