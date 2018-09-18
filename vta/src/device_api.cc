@@ -72,8 +72,7 @@ class VTADeviceAPI final : public DeviceAPI {
 
 struct VTAWorkspacePool : public WorkspacePool {
   VTAWorkspacePool() :
-      WorkspacePool(static_cast<DLDeviceType>(kExtDev),
-                    VTADeviceAPI::Global()) {}
+      WorkspacePool(kDLExtDev, VTADeviceAPI::Global()) {}
 };
 
 void* VTADeviceAPI::AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) {
