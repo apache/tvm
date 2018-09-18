@@ -98,8 +98,9 @@ class EnvironmentNode : public RelayNode {
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
 
  private:
-  /*! \brief A map from string names to global variables ensures global
-   * uniqueness. */
+  /*! \brief A map from string names to global variables that 
+   * ensures global uniqueness. 
+   */
   tvm::Map<std::string, GlobalVar> global_map_;
 };
 

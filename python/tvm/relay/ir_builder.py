@@ -40,7 +40,7 @@ def convert(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     if isinstance(arg, Expr):
         return arg
     elif isinstance(arg, tuple):
-        raise Exception("..")
+        return relay.Tuple([convert(el) for el in arg])
     elif isinstance(arg, PartialFunc):
         return arg.to_func()
     else:
@@ -190,8 +190,6 @@ class IRBuilder(object):
         """Construct a Relay function."""
 
         relay_params = self._convert_params(params)
-
-        # self.params.append(relay_params)
 
         self.enter_scope()
 
