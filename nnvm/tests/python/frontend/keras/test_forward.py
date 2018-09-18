@@ -13,16 +13,22 @@ config.gpu_options.per_process_gpu_memory_fraction = 0.5
 set_session(tf.Session(config=config))
 
 
-def verify_keras_frontend(keras_model):
+def verify_keras_frontend(keras_model, need_transpose=True):
     # Keras frontend currently supports tensorflow backend only.
     assert(keras.backend.backend() == 'tensorflow')
 
     in_shapes = []
     for layer in keras_model._input_layers:
         in_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape))
+
+    #keras_model._output_coordinates contains the output_node, node_index and tensor_index
+    #get the outshapes from combining output node and tensor index
     out_shapes = []
-    for layer in keras_model._output_layers:
-        out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer.output.shape))
+    for layer, node_index, tensor_index in keras_model._output_coordinates:
+        layer_out = layer.output
+        if isinstance(layer.output, list):#if multiple outputs are there
+            layer_out = layer.output[tensor_index]
+        out_shapes.append(tuple(dim.value if dim.value is not None else 1 for dim in layer_out.shape))
 
     def get_keras_output(xs, dtype='float32'):
         return keras_model.predict(xs)
@@ -46,13 +52,12 @@ def verify_keras_frontend(keras_model):
     keras_out = get_keras_output(xs)
 
     for target, ctx in ctx_list():
-        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs], target, ctx)
+        tvm_out = get_tvm_output([x.transpose([0,3,1,2]) for x in xs ] if need_transpose else xs, target, ctx)
         if isinstance (keras_out, list):
             for kout, tout in zip(keras_out, tvm_out):
                 np.testing.assert_allclose(kout, tout.reshape(kout.shape), rtol=1e-5, atol=1e-5)
         else:
             np.testing.assert_allclose(keras_out, tvm_out.reshape(keras_out.shape), rtol=1e-5, atol=1e-5)
-
 
 def test_forward_elemwise_add():
     r = []
@@ -231,6 +236,33 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
+def _test_LSTM(inputs, hidden, return_state=True):
+    data = keras.layers.Input(shape=(1, inputs))
+    lstm_out = keras.layers.LSTM(hidden,
+                                 return_state=return_state,
+                                 recurrent_activation='sigmoid',
+                                 activation='tanh')
+    x = lstm_out(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def _test_LSTM_MultiLayer(inputs, hidden):
+    inputs = keras.layers.Input(shape=(1, inputs))
+    layer = keras.layers.LSTM(hidden, return_state=True, return_sequences=True,
+                                 recurrent_activation='sigmoid',
+                                 activation='tanh')
+    outputs = layer(inputs)
+    output, state = outputs[0], outputs[1:]
+    output = keras.layers.LSTM(hidden, recurrent_activation='sigmoid',
+                               activation='tanh')(output, initial_state=state)
+    keras_model = keras.models.Model(inputs, output)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+
+def test_forward_LSTM():
+    _test_LSTM(8, 8, return_state=True)
+    _test_LSTM(4, 4, return_state=False)
+    _test_LSTM_MultiLayer(4, 4)
 
 if __name__ == '__main__':
     test_forward_elemwise_add()
@@ -249,3 +281,4 @@ if __name__ == '__main__':
     test_forward_multi_inputs()
     test_forward_multi_outputs()
     test_forward_reuse_layers()
+    test_forward_LSTM()
