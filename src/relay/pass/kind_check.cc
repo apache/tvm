@@ -20,6 +20,7 @@ namespace tvm {
 namespace relay {
 
 using namespace tvm::runtime;
+using Kind = TypeParamNode::Kind;
 
 struct KindChecker : TypeVisitor<> {
   bool valid;
@@ -28,11 +29,11 @@ struct KindChecker : TypeVisitor<> {
 
   bool isTypeKind(const Type& t) {
     if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
-      return tv->kind == TypeParamNode::Kind::kType;
+      return tv->kind == Kind::kType;
     }
 
     if (const TypeParamNode *tp = t.as<TypeParamNode>()) {
-      return tp->kind == TypeParamNode::Kind::kType;
+      return tp->kind == Kind::kType;
     }
 
     return t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
