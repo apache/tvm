@@ -307,6 +307,21 @@ def test_squeeze():
     verify_squeeze((1, 1, 1, 4), (1, 2))
     verify_squeeze((1, 1, 1, 1), None)
 
+    # a special case to trigger inline let expression
+    A = tvm.placeholder((2,), 'float32', 'A')
+    E = topi.squeeze(A)
+    C = tvm.compute((1,), lambda i: E[(2 * A[0] - 1).astype('int32')])
+    for device in ['cuda', 'opencl']:
+        ctx = tvm.context(device, 0)
+        if ctx.exist:
+            with tvm.target.create(device):
+                s = topi.generic.schedule_injective(C)
+                func = tvm.build(s, [A, C])
+            a = tvm.nd.array(np.array((1, 2)).astype('float32'), ctx=ctx)
+            c = tvm.nd.empty((1,), dtype='float32', ctx=ctx)
+            func(a, c)
+            assert c.asnumpy()[0] == 2
+
 
 def test_concatenate():
     verify_concatenate([(2,), (2,), (2,)], 0)
