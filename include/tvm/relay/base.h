@@ -117,7 +117,6 @@ class SourceName : public NodeRef {
   using ContainerType = SourceNameNode;
 };
 
-
 /*!
  * \brief Span information for debugging purposes
  */
@@ -190,48 +189,12 @@ inline const T* As(const NodeRef& node) {
   return nullptr;
 }
 
-template <typename T, typename U>
-std::vector<T> Downcast(std::vector<U> array) {
-  std::vector<T> out;
-  for (const U& elem : array) {
-    const typename T::ContainerType* node =
-        elem.template as<typename T::ContainerType>();
-    CHECK(node) << "Downcast failed" << std::endl;
-    out.push_back(GetRef<T>(node));
-  }
-  return out;
-}
-
-template <typename T, typename U>
-Array<T> Downcast(Array<U> array) {
-  Array<T> out;
-  for (const U& elem : array) {
-    const typename T::ContainerType* node =
-        elem.template as<typename T::ContainerType>();
-    CHECK(node) << "Downcast failed" << std::endl;
-    out.push_back(GetRef<T>(node));
-  }
-  return out;
-}
-
 template <typename SubRef, typename BaseRef>
 SubRef Downcast(BaseRef ref) {
-  const typename SubRef::ContainerType* node =
-        ref.template as<typename SubRef::ContainerType>();
-    CHECK(node) << "Downcast failed" << std::endl;
-    return GetRef<SubRef>(node);
-}
-
-/*!
- * \brief Get PackedFunction from global registry and
- *  report error if it does not exist
- * \param name The name of the function.
- * \return The created PackedFunc.
- */
-inline const PackedFunc& GetPackedFunc(const std::string& name) {
-  const PackedFunc* pf = tvm::runtime::Registry::Get(name);
-  CHECK(pf != nullptr) << "Cannot find function " << name << " in registry";
-  return *pf;
+  CHECK(ref->template is_type<typename SubRef::ContainerType>())
+      << "Downcast from " << ref->type_key() << " to "
+      << SubRef::ContainerType::_type_key << " failed.";
+  return SubRef(ref.node_);
 }
 
 }  // namespace relay

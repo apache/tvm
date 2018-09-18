@@ -1,7 +1,7 @@
 # pylint: disable=wildcard-import
 """The Relay IR namespace containing the IR definition and compiler."""
 from . import base
-from . import type as tpe
+from . import ty
 from . import expr
 from . import env
 from . import ir_pass
@@ -14,12 +14,12 @@ from .op.tensor import *
 Span = base.Span
 
 # Type
-Type = tpe.Type
-TensorType = tpe.TensorType
-Kind = tpe.Kind
-TypeParam = tpe.TypeParam
-TypeConstraint = tpe.TypeConstraint
-FuncType = tpe.FuncType
+Type = ty.Type
+TensorType = ty.TensorType
+Kind = ty.Kind
+TypeParam = ty.TypeParam
+TypeConstraint = ty.TypeConstraint
+FuncType = ty.FuncType
 
 # Expr
 Constant = expr.Constant

@@ -111,6 +111,60 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
 };
 
+/*! \brief A simple visitor wrapper around ExprFunctor.
+ *
+ * Exposes two visitors with default traversal strategies, one
+ * which doesn't compute a result but can mutate internal state,
+ * and another which functionally builds a new Expr.
+ */
+
+class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
+ public:
+  void VisitExpr_(const VarNode* op) override;
+  void VisitExpr_(const GlobalVarNode* op) override;
+  void VisitExpr_(const ConstantNode* op) override;
+  void VisitExpr_(const TupleNode* op) override;
+  void VisitExpr_(const ParamNode* op) override;
+  void VisitExpr_(const FunctionNode* op) override;
+  void VisitExpr_(const CallNode* op) override;
+  void VisitExpr_(const LetNode* op) override;
+  void VisitExpr_(const IfNode* op) override;
+  void VisitExpr_(const OpNode* op) override;
+  virtual void VisitType(const Type& t);
+};
+
+/*! \brief A wrapper around ExprFunctor which functionally updates the AST.
+*
+* ExprMutator uses memoization and self return in order to amortize
+* the cost of using functional updates.
+*/
+class ExprMutator
+    : public ::tvm::relay::ExprFunctor<Expr(const Expr&, const Expr&)> {
+ public:
+  Expr Mutate(const Expr& expr);
+  Expr VisitExpr_(const VarNode* op, const Expr& e) override;
+  Expr VisitExpr_(const ConstantNode* op, const Expr& e) override;
+  Expr VisitExpr_(const GlobalVarNode* op, const Expr& e) override;
+  Expr VisitExpr_(const OpNode* op, const Expr& expr) override;
+  Expr VisitExpr_(const TupleNode* op, const Expr& e) override;
+  Expr VisitExpr_(const ParamNode* op, const Expr& e) override;
+  Expr VisitExpr_(const FunctionNode* op, const Expr& e) override;
+  Expr VisitExpr_(const CallNode* call_node, const Expr& e) override;
+  Expr VisitExpr_(const LetNode* op, const Expr& e) override;
+  Expr VisitExpr_(const IfNode* op, const Expr& e) override;
+  /*! \brief Used to visit the types inside of expressions. 
+   *  
+   * Can be overloaded to transform the types in arbitrary
+   * ways, one way would be to define a sub-class of type
+   * visitor for types which transform them appropriately.
+   */ 
+  virtual Type VisitType(const Type& t);
+
+ private:
+  /*! \brief Internal map used for memoization. */
+  tvm::Map<Expr, Expr> memo_;
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_FUNCTOR_H_

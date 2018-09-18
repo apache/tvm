@@ -12,7 +12,7 @@
 namespace tvm {
 namespace relay {
 
-TensorType as_ttype(const Type& t) {
+TensorType ToTensorType(const Type& t) {
   if (auto tt_node = t.as<TensorTypeNode>()) {
     return GetRef<TensorType>(tt_node);
   } else {
@@ -21,7 +21,7 @@ TensorType as_ttype(const Type& t) {
 }
 
 // TODO(@jroesch) what size value do we extract?
-int to_int(const tvm::Expr& e) {
+int ToInt(const tvm::Expr& e) {
   CHECK(e.defined());
   auto imm = e.as<tvm::ir::IntImm>();
   CHECK(imm) << "TYPE: " << imm << imm->type << std::endl;
@@ -30,18 +30,13 @@ int to_int(const tvm::Expr& e) {
 
 Array<Type> IdentityRel(const Array<Type>& types, int num_args) {
   CHECK_EQ(types.size(), 2);
-  auto t1 = as_ttype(types[0]);
+  auto t1 = ToTensorType(types[0]);
   if (t1 && types[1].as<IncompleteTypeNode>()) {
     return {t1, t1};
   } else {
     return types;
   }
 }
-
-TVM_REGISTER_API("tvm.relay.type_relations.IdentityRel")
-.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
-  return IdentityRel(types, num_args);
-});
 
 static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
                               DataType output_dtype) {
@@ -62,8 +57,8 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
     auto rev_sh2 = sh2.rbegin();
 
     while (rev_sh1 != sh1.rend() && rev_sh2 != sh2.rend()) {
-      auto dim1 = to_int(*rev_sh1);
-      auto dim2 = to_int(*rev_sh2);
+      auto dim1 = ToInt(*rev_sh1);
+      auto dim2 = ToInt(*rev_sh2);
       if ((dim1 != dim2) && ((dim1 != 1) && (dim2 != 1))) {
         CHECK(false) << "Dimension mistmatch "
                      << "dim1: " << dim1 << " dim2: " << dim2 << std::endl;
@@ -114,8 +109,8 @@ Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
   CHECK_EQ(types.size(), 3);
   RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
                   << "Out: " << types[2] << std::endl;
-  if (auto t1 = as_ttype(types[0])) {
-    if (auto t2 = as_ttype(types[1])) {
+  if (auto t1 = ToTensorType(types[0])) {
+    if (auto t2 = ToTensorType(types[1])) {
       CHECK_EQ(t1->dtype, t2->dtype);
       return {t1, t2, ConcreteBroadcast(t1, t2, t1->dtype)};
     }
@@ -124,31 +119,19 @@ Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
   return types;
 }
 
-TVM_REGISTER_API("tvm.relay.type_relations.BroadcastRel")
-.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
-  return BroadcastRel(types, num_args);
-});
-
 /* A relation which specifies broadcasting rules for operations which
    compute boolean results.
 */
 Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args) {
   CHECK_EQ(types.size(), 3);
-  if (auto t1 = as_ttype(types[0])) {
-    if (auto t2 = as_ttype(types[1])) {
+  if (auto t1 = ToTensorType(types[0])) {
+    if (auto t2 = ToTensorType(types[1])) {
       return {t1, t2, ConcreteBroadcast(t1, t2, HalideIR::Bool())};
     }
   }
 
   return types;
 }
-
-TVM_REGISTER_API("tvm.relay.type_relations.BroadcastCompRel")
-.set_body_typed<Array<Type>(const Array<Type>&, int)>([](const Array<Type>& types, int num_args) {
-  return BroadcastCompRel(types, num_args);
-});
-
-
 
 }  // namespace relay
 }  // namespace tvm

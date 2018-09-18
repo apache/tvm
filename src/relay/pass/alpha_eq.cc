@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file src/tvm/relay/pass/AlphaEqual.cc
+ * \file src/tvm/relay/pass/alpha_eq.cc
  * \brief Compute the set of variables not bound in the expression.
  */
-#include <tvm/relay/expr_visitor.h>
-#include "tvm/relay/pass/alpha_eq.h"
+#include <tvm/relay/expr_functor.h>
+#include "tvm/relay/pass.h"
 #include "./type_visitor.h"
 
 namespace tvm {
@@ -241,14 +241,14 @@ bool AlphaEqual(const Expr &e1, const Expr &e2) {
 }
 
 // TODO(@jroesch): move to correct namespace?
-TVM_REGISTER_API("relay._make._AlphaEqual")
+TVM_REGISTER_API("relay._make._alpha_eq")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Expr e1 = args[0];
       Expr e2 = args[1];
       *ret = AlphaEqual(e1, e2);
     });
 
-TVM_REGISTER_API("relay._make._type_AlphaEqual")
+TVM_REGISTER_API("relay._make._type_alpha_eq")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Type t1 = args[0];
       Type t2 = args[1];

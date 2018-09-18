@@ -511,7 +511,10 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
                   << std::endl;
   bool all_hold = true;
   for (auto cs_set : context.constraints) {
-    auto ty_rels = Downcast<TypeRelation>(cs_set);
+    std::vector<TypeRelation> ty_rels;
+    for (auto cs : cs_set) {
+      ty_rels.push_back(Downcast<TypeRelation>(cs));
+    }
     auto status = Solve(ty_rels);
     RELAY_LOG(INFO) << "status= " << status << std::endl;
     if (status == SolverResult::Failed || status == SolverResult::Progress) {

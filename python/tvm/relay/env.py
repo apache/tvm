@@ -82,13 +82,3 @@ class Environment(NodeBase):
             return _env.Environment_Lookup_str(self, var)
         else:
             return _env.Environment_Lookup(self, var)
-
-    def transform(self, transformer):
-        """Apply a transformer function to the environment.
-
-        Parameters
-        ----------
-        transformer: function
-            The environment transformer function.
-        """
-        _env.Environment_Transform(self, transformer)

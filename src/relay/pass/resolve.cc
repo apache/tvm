@@ -5,7 +5,7 @@
  */
 
 #include <tvm/relay/expr.h>
-#include <tvm/relay/expr_mutator.h>
+#include <tvm/relay/expr_functor.h>
 #include "./resolve.h"
 #include "./type_visitor.h"
 

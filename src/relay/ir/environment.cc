@@ -5,10 +5,8 @@
  */
 #include <tvm/relay/environment.h>
 #include <tvm/relay/pass.h>
-#include <tvm/relay/pass/alpha_eq.h>
 #include <sstream>
 #include "./../pass/resolve.h"
-// #include "tvm/relay/util/rang.h"
 
 namespace tvm {
 namespace relay {
@@ -101,20 +99,6 @@ void EnvironmentNode::Merge(const Environment &env) {
   }
 }
 
-void EnvironmentNode::Transform(EnvironmentNode::Transformer transformer) {
-  Array<GlobalVar> to_process;
-  for (auto var_and_func : this->functions) {
-    to_process.push_back(var_and_func.first);
-  }
-
-  auto for_each = transformer(GetRef<Environment>(this));
-  for (auto var : to_process) {
-    auto func = this->functions[var];
-    auto transformed = for_each(var, func);
-    this->Add(var, transformed, true);
-  }
-}
-
 TVM_REGISTER_API("relay._make.Environment")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       *ret = EnvironmentNode::make(args[0]);
@@ -151,12 +135,6 @@ TVM_REGISTER_API("relay._env.Environment_Merge")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Environment env = args[0];
       env->Merge(args[1]);
-    });
-
-TVM_REGISTER_API("relay._env.Environment_Transform")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      env->Transform(args[1]);
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

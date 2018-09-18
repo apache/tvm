@@ -9,7 +9,7 @@
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/logging.h>
-#include <tvm/relay/pass/alpha_eq.h>
+#include <tvm/relay/pass.h>
 #include <tvm/relay/type.h>
 #include "./type_subst.h"
 #include "./type_visitor.h"

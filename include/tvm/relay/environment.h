@@ -46,6 +46,7 @@ class EnvironmentNode : public RelayNode {
   EnvironmentNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("functions", &functions);
     v->Visit("global_map_", &global_map_);
   }
 
@@ -92,15 +93,6 @@ class EnvironmentNode : public RelayNode {
    * \param other The other environment.
    */
   void Merge(const Environment& other);
-
-  using Transformer =
-      runtime::TypedPackedFunc<runtime::TypedPackedFunc<Function(
-          const GlobalVar&, const Function&)>(const Environment&)>;
-
-  /*! \brief Apply a function over every function in the global environment.
-   * \param transformer The transformation function.
-   */
-  void Transform(Transformer transformer);
 
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);

@@ -5,12 +5,12 @@ Enables users to construct Relay programs with a Python API.
 from typing import Any
 import numpy as np
 import tvm
-from .type import FuncType, TensorType
+from .ty import Type, FuncType, TensorType
 from .expr import Expr, Constant, Let, Var, Param, Function, If
 from .env import Environment
 
 
-def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
+def _convert_to_value(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
     """Convert Python values into the appropriate types
        for the Relay evaluator.
     """
@@ -28,8 +28,15 @@ def convert(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
         # raise Exception(f"can't convert {type(arg)} to a Relay AST")
         raise Exception(f"unsupported argument type {type(arg)}")
 
+def _convert_type(rtype):
+    if isinstance(rtype, str):
+        return scalar_type(rtype)
+    elif isinstance(rtype, Type):
+        return rtype
+    else:
+        raise Exception(f"unsupported conversion to Relay type {type(rtype)}")
 
-def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
+def convert(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     if isinstance(arg, Expr):
         return arg
     elif isinstance(arg, tuple):
@@ -37,7 +44,7 @@ def into_ast(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     elif isinstance(arg, PartialFunc):
         return arg.to_func()
     else:
-        value = convert(arg, ctxt)
+        value = _convert_to_value(arg, ctxt)
         return Constant(value)
 
 
@@ -58,8 +65,13 @@ class WithScope(object):
             self._exit_cb()
 
 
-class PartialFunc():
-    """A wrapper around functions while they are being built."""
+class PartialFunc(object):
+    """A wrapper around functions while they are being built.
+
+      Used by the builder as a user is building up a function,
+      allows Function nodes which contain partially initialized
+      state.
+    """
 
     def __init__(self, params, ret_type, body, type_params):
         self.params = params
@@ -71,6 +83,7 @@ class PartialFunc():
         return [p.var for p in self.params]
 
     def to_func(self):
+        """Converts a PartialFunc into a :py:class:`~relay.Function`."""
         return Function(
             self.params,
             self.ret_type,
@@ -78,8 +91,6 @@ class PartialFunc():
             self.type_params)
 
 #pylint: disable=invalid-name
-
-
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
     for var, (value, ty) in reversed(list(bindings.items())):
@@ -88,10 +99,28 @@ def _mk_let(bindings, ret_value):
     return let_expr
 
 
-class IRBuilder():
+class IRBuilder(object):
     """The IRBuilder class.
 
     Enables users to build up a Relay environment and program.
+
+    Examples
+    --------
+    
+    Program: 
+       fn (x : Tensor[f32, (10, 10)]) { 
+         let t1 = log(x); 
+         let t2 = add(t1, x); 
+         return t1;
+       }
+    
+    ..code-block: python
+        b = IRBuilder()
+        with b.function(('x', tensor_type(10, 10))) as func:
+            x, = func.param_ids()
+            t1 = b.let('t1', log(x))
+            t2 = b.let('t2', add(t1, x))
+            b.ret(t2)
     """
 
     def __init__(self):
@@ -129,7 +158,7 @@ class IRBuilder():
             value = value.var
 
         if not isinstance(value, Expr):
-            value = into_ast(value)
+            value = convert(value)
 
         return self.bind(name, value, value_type)
 
@@ -143,6 +172,7 @@ class IRBuilder():
                 var, ty = raw_param
                 if isinstance(var, str):
                     var = Var(var)
+                ty = _convert_type(ty)
                 param = Param(var, ty)
             elif isinstance(param, str):
                 var = Var(raw_param)
@@ -175,8 +205,9 @@ class IRBuilder():
         return WithScope(pfunc, _on_exit)
 
     def ret(self, x):
+        """Set `x` to be the return value of the current function."""
         if not self.ret_values[-1]:
-            self.ret_values[-1] = into_ast(x)
+            self.ret_values[-1] = convert(x)
         else:
             raise Exception(
                 "return value already set, a function can only have one return value")
@@ -212,17 +243,26 @@ class IRBuilder():
 
     def param(self, name, ty=None):
         if not ty:
-            ty = float_type()
+            ty = scalar_type('float32')
+        else:
+            ty = _convert_type(ty)
 
         return Param(Var(name), ty)
 
-    # def params(*args):
-    #      i = 0
-    #      while i < args.size():
-    #          arg = args[i]
-    #          if isinstance(arg, str):
-
     def global_var(self, name: str):
+        """Construct a global var with `name` as its name hint.
+
+        Parameters
+        ----------
+        name: str
+            The name of the global variable.
+        
+        Returns
+        -------
+        global_var: relay.GlobalVar
+            The global variable with `name`.
+        
+        """
         return self.env.global_var(name)
 
     def decl(self, name: str, *params, ret_type=None):
@@ -235,10 +275,14 @@ class IRBuilder():
 
         return WithScope(10, _on_exit)
 
-    # def while_loop(cond)
-
     def get(self):
-        """Get the full program"""
+        """Get the full program.
+
+        Returns
+        ----------
+        (prog, env) : (relay.Expr, relay.Environment)
+            A pair of the partial program, and the modified environment.
+        """
         bindings = self.bindings.pop()
         scope = self.scopes.pop()
 
@@ -254,46 +298,44 @@ class IRBuilder():
         return _mk_let(bindings, self.ret_values[-1]), self.env
 
 
-def bool_dtype():
-    return 'uint1'
-
-
-def int_dtype(bits=32):
-    return f'int{bits}'
-
-
-def float_dtype(bits=32):
-    return f'float{bits}'
-
-
-def uint_dtype(bits=32):
-    return f'uint{bits}'
-
-
-def int_type(bits=32, _lanes=1):
-    # TODO(@jroesch, @tqchen) How do we set lanes?
-    return TensorType(tvm.convert([]), int_dtype(bits))
-
-
-def uint_type(bits=32, _lanes=1):
-    return TensorType(tvm.convert([]), uint_dtype(bits))
-
-
-def float_type(bits=32, _lanes=1):
-    return TensorType(tvm.convert([]), float_dtype(bits))
-
-
-def bool_type(_lanes=1):
-    return TensorType(tvm.convert([]), bool_dtype())
+def scalar_type(dtype):
+    """Construct a Relay scalar type.
+    
+    Parameters
+    ----------
+    dtype: dtype
+        The dtype of the scalar type.
+    
+    Returns:
+    scalar_type: relay.Type
+        The scalar type.
+    """
+    return TensorType(tvm.convert([]), dtype)
 
 
 def tensor_type(*shape, dtype='float32'):
+    """Construct a Relay Tensor type.
+    
+    Parameters
+    ----------
+    shape: list of tvm.Expr
+        The shape of the Tensor type.
+    dtype: dtype
+        The dtype of the Tensor type.
+    
+    Returns
+    -------
+    tensor_type: relay.Type
+        The resulting tensor types.
+    """
     return TensorType(tvm.convert(shape), dtype)
 
-
 def func_type(args, ret_type, type_params=None, type_constraints=None):
+    """document"""
     if not type_params:
         type_params = []
     if not type_constraints:
         type_constraints = []
+    args = [_convert_type(arg) for arg in args]
+    ret_type = _convert_type(ret_type)
     return FuncType(args, ret_type, type_params, type_constraints)

@@ -5,8 +5,8 @@ import tvm
 import numpy as np
 from nnvm import graph
 from tvm.relay.ir_pass import check_expr
-from tvm.relay.ir_builder import IRBuilder, float_type, int_type
-from tvm.relay.ir_builder import func_type, tensor_type, into_ast
+from tvm.relay.ir_builder import IRBuilder, func_type
+from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 from tvm.relay.env import Environment
 from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.expr import Function
@@ -24,11 +24,11 @@ def assert_decl_has_type(env, name, typ):
 def test_monomorphic_let():
     "Program: let x = 1; return x"
     b = IRBuilder()
-    x = b.let('x', 1.0, value_type=float_type(64))
+    x = b.let('x', 1.0, value_type=scalar_type('float64'))
     b.ret(x)
 
     prog, env = b.get()
-    assert_has_type(prog, float_type(64))
+    assert_has_type(prog, scalar_type('float64'))
     # Need to handle constants
     # run(env, prog, [], float_type(64))
 
@@ -36,12 +36,11 @@ def test_monomorphic_let():
 def test_single_op():
     "Program: fn (x : float32) { let t1 = f(x); t1 }"
     b = IRBuilder()
-    with b.function(('x', float_type())) as func:
+    with b.function(('x', 'float32')) as func:
         x, = func.param_ids()
         t1 = b.let('t1', log(x))
         b.ret(t1)
-    assert_has_type(func.to_func(), func_type([float_type()], float_type()))
-
+    assert_has_type(func.to_func(), func_type(['float32'], 'float32'))
 
 def test_add_op():
     """
@@ -93,7 +92,7 @@ def test_dual_op():
         t1 = b.let('t1', log(x))
         t2 = b.let('t2', add(t1, x))
         b.ret(t2)
-    assert_has_type(func.to_func(), func_type([float_type()], float_type()))
+    assert_has_type(func.to_func(), func_type(['float32'], 'float32'))
 
 
 def test_decl():
@@ -109,7 +108,7 @@ def test_decl():
         lx = b.let('lx', log(x))
         b.ret(lx)
     _, env = b.get()
-    assert_decl_has_type(env, 'f', func_type([float_type()], float_type()))
+    assert_decl_has_type(env, 'f', func_type(['float32'], 'float32'))
 
 
 def test_recursion():
@@ -126,16 +125,16 @@ def test_recursion():
     """
     b = IRBuilder()
     f = b.global_var('f')
-    n = b.param('n', ty=int_type())
-    data = b.param('data', ty=float_type())
+    n = b.param('n', ty='int32')
+    data = b.param('data', ty='float32')
     with b.decl(f, n, data):
-        with b.if_scope(equal(n, into_ast(0.0))):
-            b.ret(f(subtract(n, into_ast(1)), log(data)))
+        with b.if_scope(equal(n, convert(0.0))):
+            b.ret(f(subtract(n, convert(1)), log(data)))
         with b.else_scope():
             b.ret(data)
-    b.ret(f(into_ast(2.0), into_ast(10000.0)))
+    b.ret(f(convert(2.0), convert(10000.0)))
     assert_decl_has_type(b.env, 'f', func_type(
-        [int_type(), float_type()], float_type()))
+        ['int32', 'float32'], 'float32'))
     # TODO(@jroesch): need evaluator or new runtime
     # to execute this.
 

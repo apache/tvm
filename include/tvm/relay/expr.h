@@ -7,9 +7,9 @@
 #define TVM_RELAY_EXPR_H_
 
 #include <tvm/api_registry.h>
+#include <tvm/attrs.h>
 #include <tvm/ir.h>
 #include <tvm/node.h>
-#include <tvm/attrs.h>
 #include <string>
 #include "./base.h"
 #include "./type.h"
@@ -73,6 +73,7 @@ class ConstantNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static Constant make(runtime::NDArray data);
@@ -94,6 +95,7 @@ class TupleNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("fields", &fields);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static Tuple make(tvm::Array<relay::Expr> fields);
@@ -106,8 +108,8 @@ RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
 
 /*!
  * \brief Local variables used in the let expression.
- * 
- * Its semantics are similar to tvm.Var node used in TVM's low level 
+ *
+ * Its semantics are similar to tvm.Var node used in TVM's low level
  * tensor expression language.
  *
  * \note Each Var is bind only once and is immutable/
@@ -116,13 +118,14 @@ class Var;
 /*! \brief Container for Var */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The name of the variable, this only acts as a hint to the user, 
+  /*! \brief The name of the variable, this only acts as a hint to the user,
    * and is not used for equality.
    */
   std::string name_hint;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static Var make(std::string name_hint);
@@ -148,6 +151,7 @@ class GlobalVarNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static GlobalVar make(std::string name_hint);
@@ -217,6 +221,7 @@ class FunctionNode : public ExprNode {
     v->Visit("body", &body);
     v->Visit("type_params", &type_params);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   Type fn_type() const;
@@ -278,11 +283,10 @@ class CallNode : public ExprNode {
     v->Visit("attrs", &attrs);
     v->Visit("type_args", &type_args);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Call make(Expr op,
-                           Array<Expr> args,
-                           Attrs attrs = Attrs(),
+  TVM_DLL static Call make(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
                            Array<Type> ty_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
@@ -321,6 +325,7 @@ class LetNode : public ExprNode {
     v->Visit("body", &body);
     v->Visit("value_type", &value_type);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static Let make(Var var, Expr value, Expr body, Type value_type);
@@ -333,10 +338,10 @@ RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
 
 /*!
  * \brief Condition expression
- * 
+ *
  * Unlike traditional statement `if`s, the if evalutes
  * to the result of the branch taken.
- * 
+ *
  * let x = if (true) { 1 } else { 0 }; // x is 1
  * let y = if (false) { 1 } else { 0 }; // y is 0
  */
@@ -358,6 +363,7 @@ class IfNode : public ExprNode {
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
     v->Visit("span", &span);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static If make(Expr cond, Expr true_branch, Expr false_branch);
