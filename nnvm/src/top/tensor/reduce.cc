@@ -322,6 +322,70 @@ values over a given axis.
       topi::argmin(inputs[0], axis, param.keepdims) };
 });
 
+NNVM_REGISTER_REDUCE_OP(mean)
+  .describe(R"code(Computes the mean of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  mean(data)
+  [3.22]
+
+  mean(data, axis=[1,2])
+  [ 2.  3.16666667  4.5]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
+    auto axis = ShapeToArray(r_axes);
+
+    Expr count = make_one(inputs[0]->dtype);
+    for (auto& i : r_axes) {
+      count *= inputs[0]->shape[i];
+    }
+
+    return Array<Tensor>{
+      topi::divide(topi::sum(inputs[0], axis, param.keepdims), count) };
+});
+
+NNVM_REGISTER_REDUCE_OP(prod)
+  .describe(R"code(Computes the products of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  mean(data, axis=1)
+  [35562240]
+
+  mean(data, axis=[1,2])
+  [ 36  480  2058]
+
+)code" NNVM_ADD_FILELINE)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+    TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
+                                  param.axis, param.exclude);
+    if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
+    auto axis = ShapeToArray(r_axes);
+    return Array<Tensor>{
+      topi::prod(inputs[0], axis, param.keepdims) };
+});
+
 
 }  // namespace top
 }  // namespace nnvm

@@ -41,6 +41,12 @@ TVM_DLL Expr max(Expr source, Array<IterVar> axis);
  */
 TVM_DLL Expr min(Expr source, Array<IterVar> axis);
 
+/*!
+ * \brief product of of source expression over axis
+ * \param source The source expression.
+ * \param axis List of iteration variables that will be used for reduction.
+ */
+TVM_DLL Expr prod(Expr source, Array<IterVar> axis);
 
 // Unary intrinsic operators
 #define TVM_DECLARE_INTRIN_UNARY(OpName)                                \
