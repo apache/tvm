@@ -30,9 +30,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     });
 
 TensorType ConstantNode::tensor_type() const {
-  auto dl_dtype = data->dtype;
-  auto dtype = HalideIR::Type(static_cast<halideir_type_code_t>(dl_dtype.code),
-                              dl_dtype.bits, dl_dtype.lanes);
+  auto dtype = TVMType2Type(data->dtype);
 
   Array<tvm::Expr> shape;
   for (int i = 0; i < data->ndim; i++) {
@@ -100,14 +98,14 @@ Param ParamNode::make(Var var, Type type) {
 }
 
 TVM_REGISTER_API("relay._make.Param")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = ParamNode::make(args[0], args[1]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = ParamNode::make(args[0], args[1]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<ParamNode>([](const ParamNode *node, tvm::IRPrinter *p) {
-      p->stream << "ParamNode(" << node->var << ", " << node->type << ")";
-    });
+.set_dispatch<ParamNode>([](const ParamNode *node, tvm::IRPrinter *p) {
+  p->stream << "ParamNode(" << node->var << ", " << node->type << ")";
+});
 
 Function FunctionNode::make(tvm::Array<Param> params, Type ret_type, Expr body,
                             tvm::Array<TypeParam> type_params) {
@@ -129,16 +127,16 @@ Type FunctionNode::fn_type() const {
 }
 
 TVM_REGISTER_API("relay._make.Function")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = FunctionNode::make(args[0], args[1], args[2], args[3]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = FunctionNode::make(args[0], args[1], args[2], args[3]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<FunctionNode>([](const FunctionNode *node,
+.set_dispatch<FunctionNode>([](const FunctionNode *node,
                                    tvm::IRPrinter *p) {
       p->stream << "FunctionNode(" << node->params << ", " << node->ret_type
                 << ", " << node->body << ", " << node->type_params << ")";
-    });
+});
 
 Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
                     Array<Type> type_args) {
@@ -151,15 +149,15 @@ Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
 }
 
 TVM_REGISTER_API("relay._make.Call")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = CallNode::make(args[0], args[1], args[2], args[3]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = CallNode::make(args[0], args[1], args[2], args[3]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<CallNode>([](const CallNode *node, tvm::IRPrinter *p) {
-      p->stream << "CallNode(" << node->op << ", " << node->args << ", "
-                << node->attrs << ", " << node->type_args << ")";
-    });
+.set_dispatch<CallNode>([](const CallNode *node, tvm::IRPrinter *p) {
+  p->stream << "CallNode(" << node->op << ", " << node->args << ", "
+    << node->attrs << ", " << node->type_args << ")";
+});
 
 Let LetNode::make(Var var, Expr value, Expr body, Type value_type) {
   std::shared_ptr<LetNode> n = std::make_shared<LetNode>();
@@ -171,15 +169,15 @@ Let LetNode::make(Var var, Expr value, Expr body, Type value_type) {
 }
 
 TVM_REGISTER_API("relay._make.Let")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = LetNode::make(args[0], args[1], args[2], args[3]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = LetNode::make(args[0], args[1], args[2], args[3]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<LetNode>([](const LetNode *node, tvm::IRPrinter *p) {
-      p->stream << "LetNode(" << node->var << ", " << node->value
-                << ", " << node->body << ", " << node->value_type << ")";
-    });
+.set_dispatch<LetNode>([](const LetNode *node, tvm::IRPrinter *p) {
+  p->stream << "LetNode(" << node->var << ", " << node->value
+    << ", " << node->body << ", " << node->value_type << ")";
+});
 
 If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
   std::shared_ptr<IfNode> n = std::make_shared<IfNode>();
@@ -194,10 +192,10 @@ TVM_REGISTER_API("relay._make.If").set_body([](TVMArgs args, TVMRetValue *ret) {
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<IfNode>([](const IfNode *node, tvm::IRPrinter *p) {
-      p->stream << "IfNode(" << node->cond << ", " << node->true_branch
-                << node->false_branch << ")";
-    });
+.set_dispatch<IfNode>([](const IfNode *node, tvm::IRPrinter *p) {
+  p->stream << "IfNode(" << node->cond << ", " << node->true_branch
+            << node->false_branch << ")";
+});
 
 }  // namespace relay
 }  // namespace tvm
