@@ -26,6 +26,7 @@ class OpMap;
 class GenericOpMap;
 class OpRegistry;
 
+class LetList;
 /*!
  * \brief Node container of operator structure.
  */
@@ -52,6 +53,30 @@ class OpNode : public relay::ExprNode {
    * this field varies in each run and is not exposed to frontend.
    */
   uint32_t attrs_type_index{0};
+  /*!
+   * \brief a function that generate the reverse mode expression.
+   *
+   * The reverse mode expression is a function, which, has same input as the original function.
+   * it return a pair, with left hand side original result, and right hand side the updater.
+   * the updater take the gradient of the original result as input,
+   * and return the gradient of the original input.
+   *
+   * Formally speaking, If the op is <a, b, c...> -> r,
+   * reverse_mode() is <a, b, c...> -> <r, < r > -> <a, b, c...> >.
+   *
+   * The above is an intuition to how it work, but we also take two optimization technique,
+   * to generate high efficiency code.
+   *
+   * 0: We lift the function into the metalanguage(C++). Generated code do not contain any closure.
+   * 1: We fuse the addition. Instead of taking just the output gradient,
+   * we now take both the output/input gradient, and return the updated input gradient.
+   * This allow us to skip a lot of zeros.
+   */
+  using reverse_update =
+    std::function<std::vector<Expr>(LetList* rll, const Expr& dout, const std::vector<Expr>& din)>;
+  using reverse_mode_type =
+    std::function<std::pair<Expr, reverse_update>(LetList* fll, const std::vector<Expr>& in)>;
+  reverse_mode_type reverse_mode;
   /*!
    * \brief number of input arguments to the operator,
    * -1 means it is variable length
@@ -151,6 +176,14 @@ class OpRegistry {
   inline OpRegistry& add_argument(const std::string& name,
                                   const std::string& type,
                                   const std::string& description);
+
+  /*!
+   * \brief add reverse mode.
+   * \param f the reverse mode function.
+   * If the op is <a, b, c...> -> r, f is <a, b, c...> -> <r, < r > -> <a, b, c...> >
+   * \return reference to self.
+   */
+  inline OpRegistry& add_reverse(const OpNode::reverse_mode_type& f);
   /*!
    * \brief Attach the type function corresponding to the return type.
    * \param rel_name The type relation name to register.
@@ -349,6 +382,11 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
   n->type_info = type;
   n->description = description;
   get()->arguments.push_back(AttrFieldInfo(n));
+  return *this;
+}
+
+inline OpRegistry& OpRegistry::add_reverse(const OpNode::reverse_mode_type& f) {
+  get()->reverse_mode = f;
   return *this;
 }
 

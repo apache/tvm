@@ -12,6 +12,5 @@ from . import image
 from . import vision
 
 # operator registry
-from . import _tensor
 from ..expr import Expr
 from ..base import register_relay_node

@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/builder.h>
 #include "../type_relations.h"
 #include "../op_common.h"
 
@@ -14,7 +15,13 @@ namespace relay {
 // Addition
 RELAY_REGISTER_BINARY_OP("relay.op._make.", "add")
 .describe("Elementwise add with with broadcasting")
-.set_support_level(1);
+.set_support_level(1)
+.add_reverse([](LetList* fll, const std::vector<Expr>& input) {
+    CHECK_EQ(input.size(), 2);
+    return std::pair<Expr, OpNode::reverse_update>(
+      Plus(input[0], input[1]),
+      [](LetList* rll, const Expr& grad, const std::vector<Expr>& ind) { return ind; });
+  });
 
 // Subtraction
 RELAY_REGISTER_BINARY_OP("relay.op._make.", "subtract")
@@ -44,7 +51,13 @@ RELAY_REGISTER_BINARY_OP("relay.op._make.", "divide")
 
 RELAY_REGISTER_BINARY_OP("relay.op._make.", "multiply")
 .describe("Elementwise multiply with broadcasting")
-.set_support_level(1);
+.set_support_level(1)
+.add_reverse([](LetList* fll, const std::vector<Expr>& input) {
+    CHECK_EQ(input.size(), 2);
+    return std::pair<Expr, OpNode::reverse_update>(
+      Mult(input[0], input[1]),
+      [](LetList* rll, const Expr& grad, const std::vector<Expr>& ind) { return ind; });
+  });
 
 RELAY_REGISTER_BINARY_OP("relay.op._make.", "pow")
 .describe("Elementwise power with broadcasting")

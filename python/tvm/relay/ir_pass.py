@@ -106,7 +106,6 @@ def free_type_vars(expr):
     """
     return _ir_pass.free_type_vars(expr)
 
-
 def dead_code_elimination(expr):
     """ Remove expressions which does not effect the program result (dead code).
 
@@ -141,3 +140,30 @@ def alpha_equal(lhs, rhs):
       True iff lhs is alpha equal to rhs.
     """
     return bool(_make._alpha_equal(lhs, rhs))
+
+def fo_with_gradient(e, env, var=None):
+    """Transform a function to calculate it's derivative.
+
+    Parameters
+    ----------
+    f: relay.Expr
+      The input function expression.
+      It should take (a, b, c...) as input, and return float.
+
+    env: relay.Environment
+      The environment.
+
+    var: List[relay.Var] optional
+      The variables to take derivative of. Must be parameters of f.
+      If it unsupplied, it is defaulted to a list containing every parameters, in the same order.
+
+    Returns
+    -------
+    df: relay.Expr
+      df is a function that take (a, b, c...) as input, and return (float, (type of var...)).
+      The left hand side is the original input, and the right hand side is the derivative of the var.
+    """
+    if var is None:
+        return _ir_pass.fo_with_gradient(f, env)
+    else:
+        return _ir_pass.fo_with_gradient(f, env, var)
