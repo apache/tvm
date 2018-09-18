@@ -26,6 +26,44 @@ struct KindChecker : TypeVisitor<> {
 
   KindChecker() : valid(true) {}
 
+  bool isTypeKind(const Type& t) {
+    if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
+      return tv->kind == TypeParamNode::Kind::kType;
+    }
+
+    if (const TypeParamNode *tp = t.as<TypeParamNode>()) {
+      return tp->kind == TypeParamNode::Kind::kType;
+    }
+
+    return t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+  }
+
+  void VisitType_(const TupleTypeNode* op) override {
+    // tuples should only contain normal types
+    for (const Type& t : op->fields) {
+      this->VisitType(t);
+      valid = valid && isTypeKind(t);
+      if (!valid) {
+        break;
+      }
+    }
+  }
+
+  void VisitType_(const FuncTypeNode* op) override {
+    // func types should only take normal types for arguments
+    // and only return a normal type
+    for (const Type& t : op->arg_types) {
+      this->VisitType(t);
+      valid = valid && isTypeKind(t);
+      if (!valid) {
+        break;
+      }
+    }
+
+    this->VisitType(op->ret_type);
+    valid = valid && isTypeKind(op->ret_type);
+  }
+
   bool Check(const Type &t) {
     this->VisitType(t);
     return valid;
