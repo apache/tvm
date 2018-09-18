@@ -27,16 +27,30 @@ struct KindChecker : TypeVisitor<> {
 
   KindChecker() : valid(true) {}
 
-  bool isTypeKind(const Type& t) {
+  // checks if t is an incomplete node of kind k or a type param of kind k
+  bool matchKind(const Type& t, Kind k) {
     if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
-      return tv->kind == Kind::kType;
+      return tv->kind == k;
     }
 
     if (const TypeParamNode *tp = t.as<TypeParamNode>()) {
-      return tp->kind == Kind::kType;
+      return tp->kind == k;
+    }
+
+    return false;
+  }
+
+  bool isTypeKind(const Type& t) {
+    if (matchKind(t, Kind::kType)) {
+      return true;
     }
 
     return t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+  }
+
+  bool isTypeListKind(const Type& t) {
+    // no type list literal?
+    return matchKind(t, Kind::kTypeList);
   }
 
   void VisitType_(const TupleTypeNode* op) override {
@@ -63,6 +77,18 @@ struct KindChecker : TypeVisitor<> {
 
     this->VisitType(op->ret_type);
     valid = valid && isTypeKind(op->ret_type);
+  }
+
+  void VisitType_(const TypeRelationNode* op) override {
+    // arguments to type relation should be either normal
+    // types or type lists(?)
+    for (const Type& t : op->args) {
+      this->VisitType(t);
+      valid = valid && (isTypeKind(t) || isTypeListKind(t));
+      if (!valid) {
+        return;
+      }
+    }
   }
 
   bool Check(const Type &t) {
