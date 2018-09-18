@@ -153,8 +153,9 @@ class OpRegistry {
    * type. \param type_rel The backing relation which can solve an arbitrary
    * relation on variables. \return reference to self.
    */
-  inline OpRegistry& add_type_rel(const std::string& rel_name,
-                                  std::function<Array<Type>(const Array<Type> &, int)> type_rel_func);
+  inline OpRegistry& add_type_rel(
+      const std::string& rel_name,
+      std::function<Array<Type>(const Array<Type>&, int)> type_rel_func);
 
   /*!
    * \brief Set the type key of attributes.
@@ -345,24 +346,19 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
 }
 
 inline OpRegistry& OpRegistry::add_type_rel(
-    const std::string& rel_name, std::function<Array<Type>(const Array<Type> &, int)> type_rel_func) {
-
+    const std::string& rel_name,
+    std::function<Array<Type>(const Array<Type>&, int)> type_rel_func) {
   TypedEnvFunc<Array<Type>(const Array<Type>&, int)> env_type_rel_func;
 
-  std::cout << "BeforeHere" << std::endl;
-
-  try {
+  if (runtime::Registry::Get(rel_name)) {
     auto env_func = EnvFunc::Get(rel_name);
     env_type_rel_func = env_func;
-  } catch (const dmlc::Error& err) {
-    std::cout << "In Catch...." << rel_name << std::endl;
-    TVM_REGISTER_API(rel_name).set_body_typed<Array<Type>(const Array<Type> &, int)>(type_rel_func);
-    std::cout << "After Reg...." << std::endl;
+  } else {
+    runtime::Registry::Register(rel_name)
+        .set_body_typed<Array<Type>(const Array<Type>&, int)>(type_rel_func);
     auto env_func = EnvFunc::Get(rel_name);
     env_type_rel_func = env_func;
   }
-
-  std::cout << "AfterHere" << std::endl;
 
   std::vector<TypeParam> type_params;
   std::vector<Type> arg_types;
