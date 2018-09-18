@@ -412,17 +412,17 @@ component void compute(
               }
 
               // Store to accum memory/store buffer
-              // if (alu_opcode == VTA_ALU_OPCODE_MIN ||
-              //     alu_opcode == VTA_ALU_OPCODE_MAX) {
-              //   acc_mem[dst_idx][i] = cmp_res;
-              //   out_mem[dst_idx][i] = short_cmp_res;
-              // } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
-              //   acc_mem[dst_idx][i] = add_res;
-              //   out_mem[dst_idx][i] = short_add_res;
-              // } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
-              //   acc_mem[dst_idx][i] = shr_res;
-              //   out_mem[dst_idx][i] = short_shr_res;
-              // }
+              if (alu_opcode == VTA_ALU_OPCODE_MIN ||
+                  alu_opcode == VTA_ALU_OPCODE_MAX) {
+                acc_mem[dst_idx][i] = cmp_res;
+                out_mem[dst_idx][i] = short_cmp_res;
+              } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
+                acc_mem[dst_idx][i] = add_res;
+                out_mem[dst_idx][i] = short_add_res;
+              } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
+                acc_mem[dst_idx][i] = shr_res;
+                out_mem[dst_idx][i] = short_shr_res;
+              }
             }
           }
         }
