@@ -12,6 +12,7 @@
 #include <vector>
 #include <iterator>
 
+#include "topi/broadcast.h"
 #include "topi/elemwise.h"
 #include "topi/tags.h"
 #include "topi/transform.h"
@@ -288,6 +289,11 @@ inline Expr MaxOp(Expr source, Array<IterVar> axis) {
   return tvm::max(source, axis);  // NOLINT(*)
 }
 
+/*! \brief Wrap tvm::prod to ensure we get the correct overload */
+inline Expr ProdOp(Expr source, Array<IterVar> axis) {
+  return tvm::prod(source, axis);  // NOLINT(*)
+}
+
 /*!
 * \brief Creates an operation that sums array elements over a given axis
 *
@@ -424,6 +430,22 @@ inline Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmax");
   return CommReduceIdx(data, axis, func, keepdims);
+}
+
+/*!
+* \brief Creates product operation over given axis.
+*
+* \param data The input tensor
+* \param axis The axis to do product over. If axis is empty, the
+* operation will do the product over all elements of the array.
+* \param keepdims If this is set to true, the axes which are reduced are
+* left in the result as dimensions with size one. This enables the result
+* to broadcast correctly against the input array.
+*
+* \return A Tensor whose op member is the prod operation
+*/
+inline Tensor prod(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NOLINT(*)
+  return CommReduce(data, axis, ProdOp, keepdims);
 }
 
 }  // namespace topi
