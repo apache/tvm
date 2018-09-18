@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file src/tvm/relay/pass/alpha_eq.cc
+ * \file src/tvm/relay/pass/AlphaEqual.cc
  * \brief Compute the set of variables not bound in the expression.
  */
 #include <tvm/relay/expr_visitor.h>
@@ -24,7 +24,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
   void ShapeEqual(Array<ShapeExpr> s1, Array<ShapeExpr> s2) {
   }
 
-  void VisitType_(const TensorTypeNode *tt1, const Type &t2) override {
+  void VisitType_(const TensorTypeNode *tt1, const Type &t2) final {
     if (const TensorTypeNode *tt2 = t2.as<TensorTypeNode>()) {
       DataTypeEqual(tt1->dtype, tt2->dtype);
       ShapeEqual(tt1->shape, tt2->shape);
@@ -33,7 +33,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const IncompleteTypeNode *bt1, const Type &t2) override {
+  void VisitType_(const IncompleteTypeNode *bt1, const Type &t2) final {
     if (const IncompleteTypeNode *bt2 = t2.as<IncompleteTypeNode>()) {
       equal = equal && bt1 == bt2;
       return;
@@ -42,7 +42,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TypeParamNode *ti1, const Type &t2) override {
+  void VisitType_(const TypeParamNode *ti1, const Type &t2) final {
     if (const TypeParamNode *ti2 = t2.as<TypeParamNode>()) {
       auto tid1 = GetRef<TypeParam>(ti1);
       auto tid2 = GetRef<TypeParam>(ti2);
@@ -72,7 +72,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const FuncTypeNode *op, const Type &t2) override {
+  void VisitType_(const FuncTypeNode *op, const Type &t2) final {
     if (const FuncTypeNode *ta2 = t2.as<FuncTypeNode>()) {
       if (op->arg_types.size() != ta2->arg_types.size()) {
         equal = false;
@@ -92,7 +92,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TypeRelationNode *tr1, const Type &t2) override {
+  void VisitType_(const TypeRelationNode *tr1, const Type &t2) final {
     if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
       equal = tr1 == tr2;
     } else {
@@ -100,7 +100,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TupleTypeNode *op, const Type &t2) override {
+  void VisitType_(const TupleTypeNode *op, const Type &t2) final {
     if (const TupleTypeNode *pt = t2.as<TupleTypeNode>()) {
       if (op->fields.size() != pt->fields.size()) {
         equal = false;
@@ -125,142 +125,130 @@ bool AlphaEqual(const Type &t1, const Type &t2) {
   return aeq.equal;
 }
 
-// struct AlphaEq : ExprVisitor<const Expr &> {
-//  public:
-//   tvm::Map<LocalId, LocalId> eq_map;
-//   bool equal;
-//   AlphaEq() : eq_map(), equal(true) {}
+struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
+ public:
+  tvm::Map<Var, Var> eq_map;
 
-//   void VisitExpr_(const LocalIdNode *e1, const Expr &e2) override {
-//     if (const LocalIdNode *id2 = e2.as<LocalIdNode>()) {
-//       auto local1 = GetRef<LocalId>(e1);
-//       auto local2 = GetRef<LocalId>(id2);
-//       //
-//       // We handle open terms with this rule assuming variables are identical.
-//       //
-//       // Not sure if we should do this.
-//       if (local1 == local2) {
-//         equal = true;
-//         return;
-//       }
+  bool equal;
+  AlphaEq() : eq_map(), equal(true) {}
 
-//       // Next we see if there is mapping for local1 into the rhs term.
-//       // If there is we check to see if those are equal.
-//       if (eq_map.find(local1) != eq_map.end()) {
-//         equal = equal && eq_map[local1] == local2;
-//       } else {
-//         equal = false;
-//       }
-//     } else {
-//       equal = false;
-//     }
-//   }
+  void VisitExpr_(const VarNode *e1, const Expr &e2) final {
+    if (const VarNode *id2 = e2.as<VarNode>()) {
+      auto local1 = GetRef<Var>(e1);
+      auto local2 = GetRef<Var>(id2);
+      // We handle open terms with this rule assuming variables are identical.
+      if (local1 == local2) {
+        equal = true;
+        return;
+      }
 
-//   void VisitExpr_(const GlobalIdNode *g1, const Expr &e2) override {
-//     if (const GlobalIdNode *g2 = e2.as<GlobalIdNode>()) {
-//       equal = equal && g1 == g2;
-//     } else {
-//       equal = false;
-//     }
-//   }
+      // Next we see if there is mapping for local1 into the rhs term.
+      // If there is we check to see if those are equal.
+      if (eq_map.find(local1) != eq_map.end()) {
+        equal = equal && eq_map[local1] == local2;
+      } else {
+        equal = false;
+      }
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const OperatorIdNode *i1, const Expr &e2) override {
-//     if (const OperatorIdNode *i2 = e2.as<OperatorIdNode>()) {
-//       equal = equal && i1 == i2;
-//     } else {
-//       equal = false;
-//     }
-//   }
+  void VisitExpr_(const GlobalVarNode *g1, const Expr &e2) final {
+    if (const GlobalVarNode *g2 = e2.as<GlobalVarNode>()) {
+      equal = equal && g1 == g2;
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const TupleNode *pl1, const Expr &e2) override {
-//     Tuple prod1 = GetRef<Tuple>(pl1);
-//     if (const TupleNode *pl2 = e2.as<TupleNode>()) {
-//       Tuple prod2 = GetRef<Tuple>(pl2);
-//       if (prod1->fields.size() != prod2->fields.size()) {
-//         equal = false;
-//         return;
-//       }
+  void VisitExpr_(const TupleNode *pl1, const Expr &e2) final {
+    Tuple prod1 = GetRef<Tuple>(pl1);
+    if (const TupleNode *pl2 = e2.as<TupleNode>()) {
+      Tuple prod2 = GetRef<Tuple>(pl2);
+      if (prod1->fields.size() != prod2->fields.size()) {
+        equal = false;
+        return;
+      }
 
-//       for (size_t i = 0U; i < prod1->fields.size(); i++) {
-//         this->VisitExpr(prod1->fields[i], prod2->fields[i]);
-//       }
-//     } else {
-//       equal = false;
-//     }
-//   }
+      for (size_t i = 0U; i < prod1->fields.size(); i++) {
+        this->VisitExpr(prod1->fields[i], prod2->fields[i]);
+      }
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const ParamNode *p1, const Expr &e2) override {
-//     if (const ParamNode *p2 = e2.as<ParamNode>()) {
-//       eq_map.Set(p1->id, p2->id);
-//       equal = equal && alpha_eq(p1->type, p2->type);
-//     } else {
-//       equal = false;
-//     }
-//   }
+  void VisitExpr_(const ParamNode *p1, const Expr &e2) final {
+    if (const ParamNode *p2 = e2.as<ParamNode>()) {
+      eq_map.Set(p1->var, p2->var);
+      equal = equal && AlphaEqual(p1->type, p2->type);
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const FunctionNode *func1, const Expr &e2) override {
-//     if (const FunctionNode *func2 = e2.as<FunctionNode>()) {
-//       if (func1->params.size() != func2->params.size()) {
-//         equal = false;
-//         return;
-//       }
+  void VisitExpr_(const FunctionNode *func1, const Expr &e2) final {
+    if (const FunctionNode *func2 = e2.as<FunctionNode>()) {
+      if (func1->params.size() != func2->params.size()) {
+        equal = false;
+        return;
+      }
 
-//       for (size_t i = 0U; i < func1->params.size(); i++) {
-//         this->VisitExpr(func1->params[i], func2->params[i]);
-//       }
+      for (size_t i = 0U; i < func1->params.size(); i++) {
+        this->VisitExpr(func1->params[i], func2->params[i]);
+      }
 
-//       this->VisitExpr(func1->body, func2->body);
-//     } else {
-//       equal = false;
-//     }
-//   }
+      this->VisitExpr(func1->body, func2->body);
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const CallNode *op, const Expr &e2) override {
-//     if (const CallNode *call = e2.as<CallNode>()) {
-//       this->VisitExpr(op->fn, call->fn);
+  void VisitExpr_(const CallNode *op, const Expr &e2) final {
+    if (const CallNode *call = e2.as<CallNode>()) {
+      this->VisitExpr(op->op, call->op);
 
-//       if (op->args.size() != call->args.size()) {
-//         equal = false;
-//         return;
-//       }
+      if (op->args.size() != call->args.size()) {
+        equal = false;
+        return;
+      }
 
-//       for (size_t i = 0U; i < op->args.size(); i++) {
-//         this->VisitExpr(op->args[i], call->args[i]);
-//       }
+      for (size_t i = 0U; i < op->args.size(); i++) {
+        this->VisitExpr(op->args[i], call->args[i]);
+      }
 
-//     } else {
-//       equal = false;
-//     }
-//   }
+    } else {
+      equal = false;
+    }
+  }
 
-//   void VisitExpr_(const LetNode *op, const Expr &e2) override {
-//     if (const LetNode *let = e2.as<LetNode>()) {
-//       eq_map.Set(op->id, let->id);
-//       this->VisitExpr(op->value, let->value);
-//       this->VisitExpr(op->body, let->body);
-//     } else {
-//       equal = false;
-//     }
-//   }
-// };
+  void VisitExpr_(const LetNode *op, const Expr &e2) final {
+    if (const LetNode *let = e2.as<LetNode>()) {
+      eq_map.Set(op->var, let->var);
+      this->VisitExpr(op->value, let->value);
+      this->VisitExpr(op->body, let->body);
+    } else {
+      equal = false;
+    }
+  }
+};
 
 bool AlphaEqual(const Expr &e1, const Expr &e2) {
-  // AlphaEq eq;
-  // eq.VisitExpr(e1, e2);
-  // return eq.equal;
-  LOG(FATAL) << "NYI";
-  return false;
+  AlphaEq eq;
+  eq.VisitExpr(e1, e2);
+  return eq.equal;
 }
 
 // TODO(@jroesch): move to correct namespace?
-TVM_REGISTER_API("relay._make._alpha_eq")
+TVM_REGISTER_API("relay._make._AlphaEqual")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Expr e1 = args[0];
       Expr e2 = args[1];
       *ret = AlphaEqual(e1, e2);
     });
 
-TVM_REGISTER_API("relay._make._type_alpha_eq")
+TVM_REGISTER_API("relay._make._type_AlphaEqual")
     .set_body([](TVMArgs args, TVMRetValue *ret) {
       Type t1 = args[0];
       Type t2 = args[1];
