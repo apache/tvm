@@ -11,8 +11,8 @@
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass/alpha_eq.h>
 #include <tvm/relay/type.h>
+#include "./type_subst.h"
 #include "./type_visitor.h"
-// #include "tvm/relay/typeck/kindchecker.h"
 
 namespace tvm {
 namespace relay {
@@ -43,7 +43,8 @@ void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
 }
 
 void UnionFindNode::Unify(const IncompleteType &v1, const Type &t) {
-  RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << ", t=" << t << std::endl;
+  RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << ", t=" << t
+                  << std::endl;
   auto parent1 = this->Find(v1);
 
   // if t is a type var, then unify parents
@@ -134,13 +135,16 @@ TypeUnifier TypeUnifierNode::make(UnionFind union_find) {
   return TypeUnifier(n);
 }
 
-void TypeUnifierNode::Insert(const IncompleteType &v) { this->union_find->Insert(v); }
+void TypeUnifierNode::Insert(const IncompleteType &v) {
+  this->union_find->Insert(v);
+}
 
 Type TypeUnifierNode::Unify(const Type &t1, const Type &t2) {
   RELAY_LOG(INFO) << "TypeUnifierNode::unify: t1=" << t1 << " t2=" << t2
                   << std::endl;
 
   Type unified = this->VisitType(t1, t2);
+  // TODO (@jroesch): Restore this code when we finish kind checker.
   // if (!check_kind(unified)) {
   // throw UnificationError("Invalid kinds in unified type");
   // }
@@ -167,6 +171,7 @@ Type TypeUnifierNode::Subst(const Type &t) {
   IncompleteTypeSubst tvsubst(this);
   // normalize first so substitutions in quantifiers will be correct
   Type ret = tvsubst.VisitType(t);
+  // TODO (@jroesch): Restore this code when we finish kind checker.
   // if (!check_kind(ret)) {
   // std::stringstream ss;
   // ss << "Invalid Kinds in substituted type!";
@@ -210,7 +215,6 @@ Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
 Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
   TypeParam ti1 = GetRef<TypeParam>(t1);
 
-  // for other type ids, only check equality
   if (const TypeParamNode *tin2 = rt2.as<TypeParamNode>()) {
     TypeParam ti2 = GetRef<TypeParam>(tin2);
 
@@ -221,7 +225,6 @@ Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
     return ti1;
   }
 
-  // cannot unify TypeParam with non-TypeParam
   throw UnificationError("Unable to unify TypeParamNode");
 }
 
@@ -236,24 +239,13 @@ Type TypeUnifierNode::VisitType_(const FuncTypeNode *t1, const Type rt2) {
           "unable to unify functions with differing number of type parameters");
     }
 
-    if (ft1->type_params.size() != 0) {
-      throw dmlc::Error("NYI");
+    tvm::Map<TypeParam, Type> subst_map;
+
+    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+      subst_map.Set(ft1->type_params[i], ft2->type_params[i]);
     }
 
-    // TypeParam id1 = tq1->id;
-    // TypeParam id2 = tq2->id;
-
-    // if (id1->kind != id2->kind) {
-    //   throw UnificationError(
-    //       "Cannot unify quantifiers over ids of different kinds");
-    // }
-
-    // TypeParam fresh = TypeParamNode::make(id1->name, id1->kind);
-
-    // auto bt1 = type_subst(tq1->boundType, id1, fresh);
-    // auto bt2 = type_subst(tq2->boundType, id2, fresh);
-
-    // Type unified_bound_type = this->VisitType(bt1, bt2);
+    ft1 = Downcast<FuncType>(TypeSubst(ft1, subst_map));
 
     if (ft1->arg_types.size() != ft2->arg_types.size()) {
       throw UnificationError("unable to unify functions of different arities");
@@ -285,27 +277,26 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
 
     RELAY_LOG(INFO) << "Unify Tensor Shape s1=" << tt1->shape
                     << " s2= " << tt2->shape << std::endl;
-    try {
-      // Type unified_shape = this->VisitType(tt1->shape, tt2->shape);
-      return rt2;
-    } catch (const UnificationError &err) {
-      CHECK(false) << "Need to check constraint " << tt1->shape << " = "
-                << tt2->shape << std::endl;
+
+    if (tt1->shape.size() != tt2->shape.size()) {
+      throw UnificationError("shapes are not of the same length");
     }
 
-    // fix me
+    for (size_t i = 0U; i < tt1->shape.size(); i++) {
+      if (!tt1->shape[i].same_as(tt2->shape[i])) {
+        throw UnificationError("shapes do not match at index");
+      }
+    }
+
     return rt2;
-    // return TensorTypeNode::make(unified_bt, tt2->shape);
   }
 
-  // nothing else can unify
   throw UnificationError("Cannot unify TensorTypeNode");
 }
 
 Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
   TupleType pt1 = GetRef<TupleType>(t1);
 
-  // When unifying tuple types we just solve each field in order.
   if (const TupleTypeNode *ptn2 = rt2.as<TupleTypeNode>()) {
     TupleType pt2 = GetRef<TupleType>(ptn2);
 
@@ -322,7 +313,6 @@ Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
     return TupleTypeNode::make(unified_fields);
   }
 
-  // otherwise cannot unify
   throw UnificationError("Cannot unify TupleTypeNode");
 }
 

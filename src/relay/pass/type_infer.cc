@@ -561,10 +561,8 @@ Type TypeInferencer::Unify(const Type &t1, const Type &t2, Span sp) {
     std::stringstream ss;
     ss << "Error unifying `";
     ss << t1;
-    // ss << PrintType(env, t1, WrapWidth(40));
     ss << "` and `";
     ss << t2;
-    // ss << PrintType(env, t2, WrapWidth(40));
     ss << "`: " << e.what();
     this->FatalError(ss.str(), sp);
   }

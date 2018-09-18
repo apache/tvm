@@ -76,10 +76,9 @@ void EnvironmentNode::Update(const GlobalVar &var, const Function &func) {
   this->Add(var, func, true);
 }
 
-void EnvironmentNode::Remove(const GlobalVar &) {
-  // Clarify with @tqchen about how to use COW to do this.
-  throw Error("NYI");
-  // this->items.erase(id);
+void EnvironmentNode::Remove(const GlobalVar & var) {
+  auto functions_node = this->functions.CopyOnWrite();
+  functions_node->data.erase(var.node_);
 }
 
 Function EnvironmentNode::Lookup(const GlobalVar &var) {

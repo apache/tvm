@@ -348,15 +348,17 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
 inline OpRegistry& OpRegistry::add_type_rel(
     const std::string& rel_name,
     std::function<Array<Type>(const Array<Type>&, int)> type_rel_func) {
+  auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
+
   TypedEnvFunc<Array<Type>(const Array<Type>&, int)> env_type_rel_func;
 
-  if (runtime::Registry::Get(rel_name)) {
-    auto env_func = EnvFunc::Get(rel_name);
+  if (runtime::Registry::Get(func_name)) {
+    auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   } else {
-    runtime::Registry::Register(rel_name)
+    runtime::Registry::Register(func_name)
         .set_body_typed<Array<Type>(const Array<Type>&, int)>(type_rel_func);
-    auto env_func = EnvFunc::Get(rel_name);
+    auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   }
 
