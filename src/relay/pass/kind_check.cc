@@ -45,7 +45,7 @@ struct KindChecker : TypeVisitor<> {
       this->VisitType(t);
       valid = valid && isTypeKind(t);
       if (!valid) {
-        break;
+        return;
       }
     }
   }
@@ -57,7 +57,7 @@ struct KindChecker : TypeVisitor<> {
       this->VisitType(t);
       valid = valid && isTypeKind(t);
       if (!valid) {
-        break;
+        return;
       }
     }
 
