@@ -10,15 +10,10 @@ INCLUDE_DIR = $(ROOTDIR)/../../include
 
 # Executables
 CXX = i++
-QSYS = qsys
+TCLSH = quartus_sh
 HSI = hsi
 
-# Device
-# DEVICE = 5CSEBA6U23I7
-DEVICE = x86-64
-HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8 -I$(INCLUDE_DIR)
-
-# HLS mode
+# HLS mode, options: skip_sim, sim
 MODE = skip_sim
 # Debug flag
 DEBUG = false
@@ -28,6 +23,16 @@ SLURM = false
 NO_DSP = false
 # Prevent generation of ALU
 NO_ALU = false
+
+# Device
+ifeq ($(MODE), sim)
+  DEVICE = x86-64
+else
+  DEVICE = 5CSEBA6U23I7
+endif
+
+# Add header files into cxx flags
+HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8 -I$(INCLUDE_DIR)
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py
@@ -64,8 +69,14 @@ HLS_CXX_FLAGS += -DVTA_LOG_ACC_BUFF_SIZE=$(VTA_ACC_BUFF_SIZE)
 HLS_CXX_FLAGS += -DVTA_LOG_OUT_BUFF_SIZE=$(VTA_OUT_BUFF_SIZE)
 
 HLS_CXX_FLAGS += --debug-log -v
-# HLS_CXX_FLAGS += --fpga-only --debug-log -v
-HLS_CXX_FLAGS += --x86-only -g0
+
+ifeq ($(MODE), skip_sim)
+  HLS_CXX_FLAGS += --fpga-only
+endif
+
+ifeq ($(MODE), sim)
+  HLS_CXX_FLAGS += --x86-only -g
+endif
 
 ifeq ($(DEBUG), true)
   HLS_CXX_FLAGS += -DVTA_DEBUG=1
@@ -110,35 +121,12 @@ $(IP_PATH): $(SRC_DIR)/*
 	mkdir -p $(IP_BUILD_PATH)
 	cd $(IP_BUILD_PATH) && \
 	  $(CXX) $(HLS_CXX_FLAGS) -march=$(DEVICE) $(SRC_DIR)/vta.cc \
-    $(SIM_DIR)/vta_test.cc $(TEST_DIR)/test_lib.cc \
-    -o $(IP_BUILD_PATH)/vta
-# -tclargs $(SRC_DIR) $(SIM_DIR) $(TEST_DIR) $(INCLUDE_DIR) 
-# $(MODE) $(DEBUG) $(NO_DSP) $(NO_ALU) $(VTA_TARGET_PER) 
-# $(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_ACC_WIDTH) $(VTA_OUT_WIDTH) 
-# $(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) 
-# $(VTA_UOP_BUFF_SIZE) $(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) 
-# $(VTA_ACC_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)
+    $(SIM_DIR)/vta_test.cc $(TEST_DIR)/test_lib.cc -o $(IP_BUILD_PATH)/vta
+
 ifeq ($(SLURM), true)
 	mkdir -p $(BUILD_DIR)/hls
 	mv $(IP_BUILD_PATH) $(BUILD_DIR)/hls/.
 endif
-
-$(BIT_PATH): $(IP_PATH)
-	mkdir -p $(HW_BUILD_PATH)
-	cd $(HW_BUILD_PATH) && \
-		$(QSYS) -mode tcl -source $(SCRIPT_DIR)/qsys.tcl \
-		-tclargs $(BUILD_DIR)/hls/$(CONF) $(VTA_HW_COMP_THREADS) $(VTA_CLOCK_FREQ) \
-		$(VTA_INP_WIDTH) $(VTA_WGT_WIDTH) $(VTA_OUT_WIDTH) \
-		$(VTA_BATCH) $(VTA_IN_BLOCK) $(VTA_OUT_BLOCK) \
-		$(VTA_INP_BUFF_SIZE) $(VTA_WGT_BUFF_SIZE) $(VTA_OUT_BUFF_SIZE)
-ifeq ($(SLURM), true)
-	mkdir -p $(BUILD_DIR)/qsys
-	mv $(HW_BUILD_PATH) $(BUILD_DIR)/qsys/.
-endif
-
-bsp: $(BIT_PATH)
-	cd $(HW_BUILD_PATH) && $(HSI) -mode tcl -source $(SCRIPT_DIR)/hsi.tcl -nojournal -nolog
-	cd $(HW_BUILD_PATH)/bsp && make
 
 clean:
 	rm -rf *.out *.log *.sb figures
