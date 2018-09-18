@@ -587,10 +587,10 @@ def from_keras(model):
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(node_idx), symtab)
 
-    #model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor index(oc[2]).
+    #model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor index(oc[2])
     #Get all output nodes in symtab using the name made from above values. The out symbols
-    #were added to symtab in keras_op_to_nnvm using this name. For multiple outputs, make a list with
-    #these output symbols and Group them.
+    #were added to symtab in keras_op_to_nnvm using this name. For multiple outputs, make a list
+    #with these output symbols and Group them.
     outsym = [symtab.get_var(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
               for oc in model._output_coordinates]
 
