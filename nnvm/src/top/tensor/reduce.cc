@@ -67,6 +67,7 @@ inline TShape ReduceShapeImpl(const TShape& ishape,
   if (r_axes.ndim() == indim)
     return TShape(keepdims ? indim : 1);
 
+  CHECK(r_axes.ndim() < indim);
   if (keepdims) {
     TShape oshape(ishape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
