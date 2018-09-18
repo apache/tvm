@@ -739,7 +739,7 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
       void* mhandle = args[1];
       TVMContext ctx;
       int dev_type = args[2];
-      ctx.device_type = static_cast<DLDeviceType>(dev_type); 
+      ctx.device_type = static_cast<DLDeviceType>(dev_type);
       ctx.device_id = args[3];
       std::vector<TVMContext> contexts{ctx};
       *rv = GraphRuntimeCreate(args[0],
