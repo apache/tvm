@@ -110,11 +110,6 @@ def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
         op_name = _math_name_picker(name)(attr)
-        axis = int(attr.get('axis', 0))
-        conv_ops = ["conv2d", "conv2d_transpose"]
-        if op_name == 'broadcast_add' and inputs[0].attr('op_name') in conv_ops:
-            # TODO: remove hard coded infershape
-            inputs[1] = _sym.expand_dims(inputs[1], axis=axis, num_newaxis=2)
         return get_nnvm_op(op_name)(*inputs)
     return _impl
 
@@ -128,8 +123,10 @@ def _pooling(name):
 
         if attr['data_format'] == 'NHWC':
             attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
             attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
+            attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
             raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
 
@@ -139,9 +136,6 @@ def _pooling(name):
             inputs[0] = _sym.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr['data_format'] = "NCHW"
             flip_layout = True
-
-        # Fix strides
-        attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -188,8 +182,15 @@ def _conv(opname):
         attr['data_format'] = attr['data_format'].decode("utf-8")
         flip_layout = False
 
+        # NCHW Layout require weights transpose
+        if attr['data_format'] == 'NCHW':
+            tmp_shape = attr['_input_shapes'][inputs[1]][0]
+            tmp_shape = [tmp_shape[ii] for ii in (3, 2, 0, 1)]
+            inputs[1] = _sym.transpose(inputs[1], axes=(3, 2, 0, 1))
+            attr['_input_shapes'][inputs[1]] = [tmp_shape]
+
         input_shape = attr['_input_shapes'][inputs[0]][0]
-        weights_shape = params[inputs[1].list_output_names()[0]].shape
+        weights_shape = attr['_input_shapes'][inputs[1]][0]
 
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
@@ -214,6 +215,7 @@ def _conv(opname):
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
+            attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
             depth_mult, _, kernel_h, kernel_w = weights_shape
             attr['kernel_shape'] = (weights_shape[2], weights_shape[3])
@@ -226,15 +228,13 @@ def _conv(opname):
 
             if 'dilations' in attr:
                 attr['dilations'] = (attr['dilations'][2], attr['dilations'][3])
+            attr['strides'] = (attr['strides'][2], attr['strides'][3])
         else:
             raise TypeError("Unsupported data format type : {}".format(attr['data_format']))
 
 
         if opname == 'depthwise':
             attr['groups'] = attr['channels']
-
-        # Fix strides
-        attr['strides'] = (attr['strides'][1], attr['strides'][2])
 
         # Fix padding
         attr['padding'] = attr['padding'].decode("utf-8")
@@ -416,12 +416,28 @@ def _fused_batch_norm():
     def _impl(inputs, attr, params):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
         # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
-        return AttrCvt(
-            op_name='batch_norm',
-            transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
-            extras={'axis': 3}, # Fix axis
-            ignores=['data_format'],
-            disables=['momentum'])(inputs, attr)
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        axis = 3
+        if attr['data_format'] == 'NCHW':
+            axis = 1
+
+        need_cast = False
+
+        if 'U' in attr:
+            need_cast = True
+            inputs[0] = _sym.cast(inputs[0], dtype=attr['U'].name)
+
+
+        out = AttrCvt(op_name='batch_norm',
+                      transforms={'scale_after_normalization':'scale',
+                                  'variance_epsilon':'epsilon'},
+                      extras={'axis': axis},
+                      ignores=['data_format', 'U'],
+                      disables=['momentum'])(inputs, attr)
+
+        if need_cast:
+            out = _sym.cast(out, dtype=attr['T'].name)
+        return out
     return _impl
 
 def _batch_norm():
@@ -432,10 +448,15 @@ def _batch_norm():
         # (data, gamma, beta, moving_mean, moving_var)
         new_inputs = [inputs[0], inputs[4], inputs[3], inputs[1], inputs[2]]
 
+        attr['data_format'] = attr['data_format'].decode("utf-8")
+        axis = 3
+        if attr['data_format'] == 'NCHW':
+            axis = 1
+
         return AttrCvt(
             op_name='batch_norm',
             transforms={'scale_after_normalization':'scale', 'variance_epsilon':'epsilon'},
-            extras={'axis': 3}, # Fix axis
+            extras={'axis': axis},
             ignores=['data_format'],
             disables=['momentum'])(new_inputs, attr)
     return _impl
@@ -729,6 +750,14 @@ def _selu():
         return gamma * (-alpha * _sym.relu(1 - _sym.exp(inputs[0])) + _sym.relu(inputs[0]))
     return _impl
 
+def _mean():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[1].list_output_names()[0])
+        return AttrCvt(op_name="mean", ignores=['Tdim', 'Tidx'],
+                       transforms={'keep_dims': 'keepdims'},
+                       extras={'axis': tuple(axis.asnumpy())})(inputs[0], attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -773,6 +802,7 @@ _convert_map = {
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
+    'FusedBatchNormV2'                  : _fused_batch_norm(),
     'Relu6'                             : _relu6(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
     'Shape'                             : _shape(),
@@ -787,6 +817,7 @@ _convert_map = {
     'Rank'                              : _rank(),
     'Transpose'                         : _transpose(),
     'Tanh'                              : AttrCvt('tanh'),
+    'Mean'                              : _mean(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
