@@ -35,42 +35,45 @@ namespace relay {
 
 using namespace tvm::runtime;
 
-// @tqchen
-// I wanted to use this data structure but then the algorithm gets more complex
-// because we need to convert them back to the same representation as before
-// when we check a single function scope. See line 240.
-//
-// I can see building an auxillary data structure at solve time but it seems
-// like a lot of complexity for an unquantified speed gain, which we may or may
-// not need.
-//
-// Thoughts?
-//
 // // We declare this for forward compatibility.
-// struct ConstraintData {};
+struct ConstraintData {};
 
-// struct TyRelData : ConstraintData {
-//   std::vector<Type> args;
-//   TypeRelationFn func;
-//   bool complete;
-//   TyRelData(Array<Type> args, TypeRelationFn func) : complete(false),
-//   func(func) {
-//     for (auto arg : args) {
-//       this->args.push_back(arg);
-//     }
-//   }
-// };
+/*! \brief A more efficient representation of the type relation
+ * data needed for type checking.
+ */
+struct TypeRelationData : ConstraintData {
+  std::string name;
+  std::vector<Type> args;
+  TypeRelationFn func;
+  Span span;
+
+  explicit TypeRelationData(const TypeRelation& ty_rel)
+      : TypeRelationData(ty_rel->args, ty_rel->func_, ty_rel->span) {}
+
+  TypeRelationData(const Array<Type>& args, const TypeRelationFn& func, const Span& sp)
+      : func(func), span(sp) {
+    for (auto arg : args) {
+      this->args.push_back(arg);
+    }
+  }
+
+  TypeRelation ToTypeRel() const {
+    Array<Type> args = Array<Type>(this->args.begin(), this->args.end());
+    return TypeRelationNode::make(
+        this->name, this->func, args);
+  }
+};
 
 struct TypeContext {
   std::unordered_map<Var, Type, NodeHash> var_map;
-  std::vector<std::vector<TypeConstraint>> constraints;
+  std::vector<std::vector<TypeRelationData> > constraints;
 
   TypeContext() { constraints.push_back({}); }
 
   void Insert(const Var &id, const Type &t) { var_map[id] = t; }
 
   void AddConstraint(const TypeConstraint &constraint) {
-    constraints.back().push_back(constraint);
+      constraints.back().push_back(TypeRelationData(Downcast<TypeRelation>(constraint)));
   }
 
   Type Lookup(const Var &id) {
@@ -82,10 +85,10 @@ struct TypeContext {
     }
   }
 
-  struct Frame {
+  struct Scope {
     TypeContext &tc;
-    explicit Frame(TypeContext &tc) : tc(tc) { tc.constraints.push_back({}); }
-    ~Frame() { tc.constraints.pop_back(); }
+    explicit Scope(TypeContext &tc) : tc(tc) { tc.constraints.push_back({}); }
+    ~Scope() { tc.constraints.pop_back(); }
   };
 };
 
@@ -106,10 +109,9 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   Environment env;
   TypeUnifier unifier;
 
-  // Should be in header?
   template <typename T>
-  T WithFrame(const std::function<T()> &f) {
-    TypeContext::Frame fr(context);
+  T WithScope(const std::function<T()> &f) {
+    TypeContext::Scope fr(context);
     return f();
   }
 
@@ -130,11 +132,20 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr &n)> {
   Type Unify(const Type &t1, const Type &t2, Span sp);
   Type Resolve(const Type &t);
   Expr Resolve(const Expr &e);
-  TypeRelation Solve(const TypeRelation &ty_rel);
-  SolverResult Solve(std::vector<TypeRelation> &rels);
+
+  /*! \brief Attempt to solve a single relation. */
+  void Solve(TypeRelationData & ty_rel);
+
+  /*! \brief Attempt to solve all pending relations.
+   * 
+   * If the solver
+   */
+  SolverResult Solve(std::vector<TypeRelationData> &rels);
 
   /*! \brief Check that all relations hold. */
   bool RelationsHold(bool scope_only = false);
+
+  /*! \brief Visit a function node, extra flag controls behavior. */
   CheckedExpr VisitFunction(const Function &f, bool generalize);
 
  private:
@@ -219,7 +230,7 @@ CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
   std::vector<Type> param_types;
   std::vector<Param> params;
 
-  return this->WithFrame<CheckedExpr>([&]() -> CheckedExpr {
+  return this->WithScope<CheckedExpr>([&]() -> CheckedExpr {
     for (auto param : f->params) {
       CheckedExpr checked_param = this->Infer(param);
       Type arg_type;
@@ -239,7 +250,7 @@ CheckedExpr TypeInferencer::VisitFunction(const Function &f, bool generalize) {
     Array<TypeConstraint> cs;
 
     for (auto cons : this->context.constraints.back()) {
-      cs.push_back(cons);
+      cs.push_back(cons.ToTypeRel());
     }
 
     return {FunctionNode::make(params, unified_rtype, checked_body.expr, {}),
@@ -408,29 +419,27 @@ Expr TypeInferencer::Resolve(const Expr &e) {
   return ::tvm::relay::Resolve(this->unifier, e);
 }
 
-TypeRelation TypeInferencer::Solve(const TypeRelation &ty_rel) {
+void TypeInferencer::Solve(TypeRelationData & ty_rel) {
   Array<Type> normalized_args;
 
-  for (auto arg : ty_rel->args) {
+  for (auto arg : ty_rel.args) {
     normalized_args.push_back(Resolve(arg));
   }
 
-  auto new_args = ty_rel->func_(normalized_args, ty_rel->args.size() - 1);
+  auto new_args = ty_rel.func(normalized_args, ty_rel.args.size());
 
   CHECK(new_args.size() == normalized_args.size());
   tvm::Array<Type> final_args;
 
   for (size_t i = 0; i < new_args.size(); i++) {
-    final_args.push_back(Unify(normalized_args[i], new_args[i], ty_rel->span));
+    ty_rel.args[i] = Unify(normalized_args[i], new_args[i], ty_rel.span);
   }
-
-  return TypeRelationNode::make(ty_rel->name, ty_rel->func_, final_args);
 }
 
-int NumSolvedVars(const TypeRelation &ty_rel) {
+int NumSolvedVars(const Array<Type> & vars) {
   int num = 0;
-  for (auto arg : ty_rel->args) {
-    if (!arg.as<IncompleteTypeNode>()) {
+  for (auto var : vars) {
+    if (!var.as<IncompleteTypeNode>()) {
       num += 1;
     }
   }
@@ -443,7 +452,7 @@ enum SolverResult : int {
   Done = 1,
 };
 
-SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
+SolverResult TypeInferencer::Solve(std::vector<TypeRelationData> &rels) {
   // We start in the done state with zero progress.
   SolverResult status = SolverResult::Done;
   int progress = 0;
@@ -453,10 +462,13 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
     status = SolverResult::Done;
     progress = 0;
 
+    std::vector<int> complete;
+
+    int i = 0;
     // We will now process each relation in order.
-    for (TypeRelation &ty_rel : rels) {
-      int arity = ty_rel->args.size();
-      int pre_solved = NumSolvedVars(ty_rel);
+    for (TypeRelationData &ty_rel : rels) {
+      int arity = ty_rel.args.size();
+      int pre_solved = NumSolvedVars(ty_rel.args);
       RELAY_LOG(INFO) << "TypeInferencer::Solve: "
                       << "TypeRelation= "
                       << ", Arity=" << arity << ", Solved=" << pre_solved
@@ -465,10 +477,11 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
       // to set the status to done.
       if (pre_solved == arity) {
         status = static_cast<SolverResult>((status && SolverResult::Done));
-        // If there are unsolved variables we will try to solve some.
+        complete.push_back(i);
+      // If there are unsolved variables we will try to solve some.
       } else if (pre_solved < arity) {
-        auto solved = Solve(ty_rel);
-        int post_solved = NumSolvedVars(solved);
+        Solve(ty_rel);
+        int post_solved = NumSolvedVars(ty_rel.args);
 
         // If we solved any variables we will try to downgrade status to
         // progress update the type relation, and then bump the progress counter
@@ -476,10 +489,10 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
         if (post_solved > pre_solved) {
           status =
               static_cast<SolverResult>((status && SolverResult::Progress));
-          ty_rel = solved;
           progress += 1;
         }
       }
+      i++;
     }
 
     // If we made no progress and we aren't finished, then the state should be
@@ -487,6 +500,16 @@ SolverResult TypeInferencer::Solve(std::vector<TypeRelation> &rels) {
     if (progress == 0 && status != SolverResult::Done) {
       status = SolverResult::Failed;
       break;
+    }
+
+    // Remove the satisfied relations.
+    for (auto i : complete) {
+      if (rels.size() > 1) {
+        rels[i] = rels.back();
+        rels.pop_back();
+      } else {
+        rels.pop_back();
+      }
     }
 
     std::reverse(rels.begin(), rels.end());
@@ -499,7 +522,7 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
   // slice out the constraints.
   //
   // Otherwise we use all of them.
-  std::vector<std::vector<TypeConstraint>> constraints;
+  std::vector<std::vector<TypeRelationData> > constraints;
 
   if (scope_only) {
     constraints = {context.constraints[0]};
@@ -510,11 +533,7 @@ bool TypeInferencer::RelationsHold(bool scope_only) {
   RELAY_LOG(INFO) << "TypeInferencer::RelationsHold: scope_only= " << scope_only
                   << std::endl;
   bool all_hold = true;
-  for (auto cs_set : context.constraints) {
-    std::vector<TypeRelation> ty_rels;
-    for (auto cs : cs_set) {
-      ty_rels.push_back(Downcast<TypeRelation>(cs));
-    }
+  for (auto ty_rels : context.constraints) {
     auto status = Solve(ty_rels);
     RELAY_LOG(INFO) << "status= " << status << std::endl;
     if (status == SolverResult::Failed || status == SolverResult::Progress) {
