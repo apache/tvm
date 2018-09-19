@@ -3,6 +3,8 @@
 * \brief Registration of TVM operators and schedules
 * \file topi.cc
 */
+#define TOPI_REDUCE_ATLEAST1D 0
+
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>

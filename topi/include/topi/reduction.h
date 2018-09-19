@@ -20,6 +20,14 @@
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
 
+/*!
+ * \brief macro flag to enable some legacy behavior which requires
+ * reduction result to be at least 1d.
+ */
+#ifndef TOPI_REDUCE_ATLEAST1D
+#define TOPI_REDUCE_ATLEAST1D 0
+#endif
+
 namespace topi {
 using namespace tvm;
 
@@ -95,6 +103,9 @@ inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
         target_shape.push_back(data->shape[i]);
       }
     }
+  }
+  if (target_shape.size() == 0 && TOPI_REDUCE_ATLEAST1D) {
+    target_shape.push_back(1);
   }
   return target_shape;
 }
