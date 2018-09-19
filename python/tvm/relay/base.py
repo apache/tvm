@@ -23,7 +23,7 @@ def register_relay_node(type_key=None):
 @register_relay_node
 class Span(NodeBase):
     source = None # type: FileSource
-    lineno = None # type: int 
+    lineno = None # type: int
     col_offset = None # type: int
 
     def __init__(self, source, lineno, col_offset): # type: (FileSource, int, int) -> None

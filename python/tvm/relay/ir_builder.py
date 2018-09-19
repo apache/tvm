@@ -1,4 +1,4 @@
-#pylint: disable=no-else-return
+# pylint: disable=no-else-return
 """IR builder for the Relay IR.
 
 Enables users to construct Relay programs with a Python API.
@@ -37,11 +37,24 @@ def _convert_type(rtype):
     elif isinstance(rtype, Type):
         return rtype
     else:
-        raise Exception("unsupported conversion to Relay type {0}".format(type(rtype)))
+        raise Exception(
+            "unsupported conversion to Relay type {0}".format(type(rtype)))
 
 
 def convert(arg):
     # type: (Any) -> Expr
+    """Convert some Python objects into a Relay AST fragment.
+
+    Parameters
+    ----------
+    arg: Any
+        The Python object
+
+    Returns
+    -------
+    expr: relay.Expr
+        The converted expression.
+    """
     if isinstance(arg, Expr):
         return arg
     elif isinstance(arg, tuple):
@@ -343,16 +356,31 @@ def tensor_type(*shape, **kwargs):
         dtype = kwargs['dtype']
     else:
         dtype = 'float32'
-        
+
     return TensorType(tvm.convert(shape), dtype)
 
 
-def func_type(args, ret_type, type_params=None, type_constraints=None):
-    """document"""
+def func_type(args, ret_type, type_params=None):
+    """Construct a Relay function type.
+
+    Parameters
+    ----------
+    args: list of relay.Type
+        The argument types.
+
+    ret_type: relay.Type
+        The return type.
+
+    type_params: list of relay.TypeParam
+        The type parameters.
+
+    Returns
+    -------
+    func_type: The function type.
+    """
     if not type_params:
         type_params = []
-    if not type_constraints:
-        type_constraints = []
+
     args = [_convert_type(arg) for arg in args]
     ret_type = _convert_type(ret_type)
-    return FuncType(args, ret_type, type_params, type_constraints)
+    return FuncType(args, ret_type, type_params, [])
