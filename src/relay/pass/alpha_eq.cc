@@ -4,27 +4,26 @@
  * \brief Compute the set of variables not bound in the expression.
  */
 #include <tvm/relay/expr_functor.h>
-#include "tvm/relay/pass.h"
 #include "./type_visitor.h"
+#include "tvm/relay/pass.h"
 
 namespace tvm {
 namespace relay {
 
 using namespace tvm::runtime;
 
-struct TypeAlphaEq : TypeVisitor<const Type &> {
+struct TypeAlphaEq : TypeVisitor<const Type&> {
   tvm::Map<TypeParam, TypeParam> eq_map;
   bool equal;
 
   TypeAlphaEq() : eq_map(), equal(true) {}
 
-  void DataTypeEqual(const DataType & dt1, const DataType & dt2) {
-      equal = equal && dt1 == dt2;
+  void DataTypeEqual(const DataType& dt1, const DataType& dt2) {
+    equal = equal && dt1 == dt2;
   }
-  void ShapeEqual(Array<ShapeExpr> s1, Array<ShapeExpr> s2) {
-  }
+  void ShapeEqual(Array<ShapeExpr> s1, Array<ShapeExpr> s2) {}
 
-  void VisitType_(const TensorTypeNode *tt1, const Type &t2) final {
+  void VisitType_(const TensorTypeNode *tt1, const Type& t2) final {
     if (const TensorTypeNode *tt2 = t2.as<TensorTypeNode>()) {
       DataTypeEqual(tt1->dtype, tt2->dtype);
       ShapeEqual(tt1->shape, tt2->shape);
@@ -33,7 +32,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const IncompleteTypeNode *bt1, const Type &t2) final {
+  void VisitType_(const IncompleteTypeNode *bt1, const Type& t2) final {
     if (const IncompleteTypeNode *bt2 = t2.as<IncompleteTypeNode>()) {
       equal = equal && bt1 == bt2;
       return;
@@ -42,7 +41,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TypeParamNode *ti1, const Type &t2) final {
+  void VisitType_(const TypeParamNode *ti1, const Type& t2) final {
     if (const TypeParamNode *ti2 = t2.as<TypeParamNode>()) {
       auto tid1 = GetRef<TypeParam>(ti1);
       auto tid2 = GetRef<TypeParam>(ti2);
@@ -72,7 +71,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const FuncTypeNode *op, const Type &t2) final {
+  void VisitType_(const FuncTypeNode *op, const Type& t2) final {
     if (const FuncTypeNode *ta2 = t2.as<FuncTypeNode>()) {
       if (op->arg_types.size() != ta2->arg_types.size()) {
         equal = false;
@@ -92,7 +91,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TypeRelationNode *tr1, const Type &t2) final {
+  void VisitType_(const TypeRelationNode *tr1, const Type& t2) final {
     if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
       equal = tr1 == tr2;
     } else {
@@ -100,7 +99,7 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
     }
   }
 
-  void VisitType_(const TupleTypeNode *op, const Type &t2) final {
+  void VisitType_(const TupleTypeNode *op, const Type& t2) final {
     if (const TupleTypeNode *pt = t2.as<TupleTypeNode>()) {
       if (op->fields.size() != pt->fields.size()) {
         equal = false;
@@ -119,20 +118,20 @@ struct TypeAlphaEq : TypeVisitor<const Type &> {
   }
 };
 
-bool AlphaEqual(const Type &t1, const Type &t2) {
+bool AlphaEqual(const Type& t1, const Type& t2) {
   TypeAlphaEq aeq;
   aeq.VisitType(t1, t2);
   return aeq.equal;
 }
 
-struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
+struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
  public:
   tvm::Map<Var, Var> eq_map;
 
   bool equal;
   AlphaEq() : eq_map(), equal(true) {}
 
-  void VisitExpr_(const VarNode *e1, const Expr &e2) final {
+  void VisitExpr_(const VarNode *e1, const Expr& e2) final {
     if (const VarNode *id2 = e2.as<VarNode>()) {
       auto local1 = GetRef<Var>(e1);
       auto local2 = GetRef<Var>(id2);
@@ -154,7 +153,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const GlobalVarNode *g1, const Expr &e2) final {
+  void VisitExpr_(const GlobalVarNode *g1, const Expr& e2) final {
     if (const GlobalVarNode *g2 = e2.as<GlobalVarNode>()) {
       equal = equal && g1 == g2;
     } else {
@@ -162,7 +161,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const TupleNode *pl1, const Expr &e2) final {
+  void VisitExpr_(const TupleNode *pl1, const Expr& e2) final {
     Tuple prod1 = GetRef<Tuple>(pl1);
     if (const TupleNode *pl2 = e2.as<TupleNode>()) {
       Tuple prod2 = GetRef<Tuple>(pl2);
@@ -179,7 +178,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const ParamNode *p1, const Expr &e2) final {
+  void VisitExpr_(const ParamNode *p1, const Expr& e2) final {
     if (const ParamNode *p2 = e2.as<ParamNode>()) {
       eq_map.Set(p1->var, p2->var);
       equal = equal && AlphaEqual(p1->type, p2->type);
@@ -188,7 +187,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const FunctionNode *func1, const Expr &e2) final {
+  void VisitExpr_(const FunctionNode *func1, const Expr& e2) final {
     if (const FunctionNode *func2 = e2.as<FunctionNode>()) {
       if (func1->params.size() != func2->params.size()) {
         equal = false;
@@ -205,7 +204,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const CallNode *op, const Expr &e2) final {
+  void VisitExpr_(const CallNode *op, const Expr& e2) final {
     if (const CallNode *call = e2.as<CallNode>()) {
       this->VisitExpr(op->op, call->op);
 
@@ -223,7 +222,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
     }
   }
 
-  void VisitExpr_(const LetNode *op, const Expr &e2) final {
+  void VisitExpr_(const LetNode *op, const Expr& e2) final {
     if (const LetNode *let = e2.as<LetNode>()) {
       eq_map.Set(op->var, let->var);
       this->VisitExpr(op->value, let->value);
@@ -234,7 +233,7 @@ struct AlphaEq : ExprFunctor<void(const Expr &, const Expr &)> {
   }
 };
 
-bool AlphaEqual(const Expr &e1, const Expr &e2) {
+bool AlphaEqual(const Expr& e1, const Expr& e2) {
   AlphaEq eq;
   eq.VisitExpr(e1, e2);
   return eq.equal;

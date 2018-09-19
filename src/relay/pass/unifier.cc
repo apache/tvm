@@ -26,15 +26,15 @@ UnionFind UnionFindNode::make(tvm::Map<IncompleteType, Type> uf_map) {
   return UnionFind(n);
 }
 
-void UnionFindNode::Insert(const IncompleteType &v) { this->uf_map.Set(v, v); }
+void UnionFindNode::Insert(const IncompleteType& v) { this->uf_map.Set(v, v); }
 
 void UnionFindNode::debug() {
-  for (auto entry : this->uf_map) {
+  for (const auto& entry : this->uf_map) {
     RELAY_LOG(INFO) << entry.first << " = " << entry.second << std::endl;
   }
 }
 
-void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
+void UnionFindNode::AssertAlphaEqual(const Type& l, const Type& r) {
   if (!AlphaEqual(l, r)) {
     std::stringstream ss;
     ss << "Incompatible parent types in UF:" << l << " and " << r;
@@ -42,7 +42,7 @@ void UnionFindNode::AssertAlphaEqual(const Type &l, const Type &r) {
   }
 }
 
-void UnionFindNode::Unify(const IncompleteType &v1, const Type &t) {
+void UnionFindNode::Unify(const IncompleteType& v1, const Type& t) {
   RELAY_LOG(INFO) << "UnionFindNode::Unify v1=" << v1 << ", t=" << t
                   << std::endl;
   auto parent1 = this->Find(v1);
@@ -89,7 +89,7 @@ void UnionFindNode::Unify(const IncompleteType &v1, const Type &t) {
   AssertAlphaEqual(parent1, t);
 }
 
-Type UnionFindNode::Find(const IncompleteType &v) {
+Type UnionFindNode::Find(const IncompleteType& v) {
   // The node has no mapping, so its representative is just itself.
   if (this->uf_map.find(v) == this->uf_map.end()) {
     return v;
@@ -135,11 +135,11 @@ TypeUnifier TypeUnifierNode::make(UnionFind union_find) {
   return TypeUnifier(n);
 }
 
-void TypeUnifierNode::Insert(const IncompleteType &v) {
+void TypeUnifierNode::Insert(const IncompleteType& v) {
   this->union_find->Insert(v);
 }
 
-Type TypeUnifierNode::Unify(const Type &t1, const Type &t2) {
+Type TypeUnifierNode::Unify(const Type& t1, const Type& t2) {
   RELAY_LOG(INFO) << "TypeUnifierNode::unify: t1=" << t1 << " t2=" << t2
                   << std::endl;
 
@@ -167,7 +167,7 @@ struct IncompleteTypeSubst : TypeMutator {
   }
 };
 
-Type TypeUnifierNode::Subst(const Type &t) {
+Type TypeUnifierNode::Subst(const Type& t) {
   IncompleteTypeSubst tvsubst(this);
   // normalize first so substitutions in quantifiers will be correct
   Type ret = tvsubst.VisitType(t);
@@ -182,7 +182,7 @@ Type TypeUnifierNode::Subst(const Type &t) {
   return ret;
 }
 
-Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
+Type TypeUnifierNode::VisitType(const Type& t1, const Type t2) {
   // When the right hand size is a type variable immediately unify.
   if (const IncompleteTypeNode *tvn2 = t2.as<IncompleteTypeNode>()) {
     return this->UnifyWithIncompleteType(t1, GetRef<IncompleteType>(tvn2));
@@ -191,7 +191,7 @@ Type TypeUnifierNode::VisitType(const Type &t1, const Type t2) {
   }
 }
 
-Type TypeUnifierNode::UnifyWithIncompleteType(const Type &t1,
+Type TypeUnifierNode::UnifyWithIncompleteType(const Type& t1,
                                               const IncompleteType tv2) {
   RELAY_LOG(INFO) << "unifyWithIncompleteType: t1=" << t1 << " t2=" << tv2
                   << std::endl;
@@ -202,7 +202,7 @@ Type TypeUnifierNode::UnifyWithIncompleteType(const Type &t1,
   return rep;
 }
 
-Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
+Type TypeUnifierNode::VisitType_(const IncompleteTypeNode* t1, const Type rt2) {
   IncompleteType tv1 = GetRef<IncompleteType>(t1);
   RELAY_LOG(INFO) << "VisitType_: IncompleteTypeNode t1=" << t1 << " = " << rt2
                   << std::endl;
@@ -212,7 +212,7 @@ Type TypeUnifierNode::VisitType_(const IncompleteTypeNode *t1, const Type rt2) {
   return rep;
 }
 
-Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
+Type TypeUnifierNode::VisitType_(const TypeParamNode* t1, const Type rt2) {
   TypeParam ti1 = GetRef<TypeParam>(t1);
 
   if (const TypeParamNode *tin2 = rt2.as<TypeParamNode>()) {
@@ -228,7 +228,7 @@ Type TypeUnifierNode::VisitType_(const TypeParamNode *t1, const Type rt2) {
   throw UnificationError("Unable to unify TypeParamNode");
 }
 
-Type TypeUnifierNode::VisitType_(const FuncTypeNode *t1, const Type rt2) {
+Type TypeUnifierNode::VisitType_(const FuncTypeNode* t1, const Type rt2) {
   FuncType ft1 = GetRef<FuncType>(t1);
 
   if (const FuncTypeNode *tan2 = rt2.as<FuncTypeNode>()) {
@@ -265,7 +265,7 @@ Type TypeUnifierNode::VisitType_(const FuncTypeNode *t1, const Type rt2) {
   throw UnificationError("unable to unify function types");
 }
 
-Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
+Type TypeUnifierNode::VisitType_(const TensorTypeNode* t1, const Type rt2) {
   TensorType tt1 = GetRef<TensorType>(t1);
 
   if (const TensorTypeNode *ttn2 = rt2.as<TensorTypeNode>()) {
@@ -294,7 +294,7 @@ Type TypeUnifierNode::VisitType_(const TensorTypeNode *t1, const Type rt2) {
   throw UnificationError("Cannot unify TensorTypeNode");
 }
 
-Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
+Type TypeUnifierNode::VisitType_(const TupleTypeNode* t1, const Type rt2) {
   TupleType pt1 = GetRef<TupleType>(t1);
 
   if (const TupleTypeNode *ptn2 = rt2.as<TupleTypeNode>()) {
@@ -316,7 +316,7 @@ Type TypeUnifierNode::VisitType_(const TupleTypeNode *t1, const Type rt2) {
   throw UnificationError("Cannot unify TupleTypeNode");
 }
 
-Type TypeUnifierNode::VisitType_(const TypeRelationNode *tr1, const Type t2) {
+Type TypeUnifierNode::VisitType_(const TypeRelationNode* tr1, const Type t2) {
   throw InternalError("Cannot unify different type relations");
 }
 

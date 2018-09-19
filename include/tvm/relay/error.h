@@ -20,8 +20,8 @@ struct InternalError : Error {
   explicit InternalError(const std::string &msg) : Error(msg) {}
 };
 
-// FIX, we should change spanned errors to have a method which allow them to
-// report on the Environment, inverting control to error definition.
+// TODO(@jroesch): we should change spanned errors to report
+// errors against the Environment, inverting control to error definition.
 struct FatalTypeError : dmlc::Error {
   explicit FatalTypeError(const std::string &s) : dmlc::Error(s) {}
 };

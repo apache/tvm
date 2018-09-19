@@ -6,11 +6,8 @@
 #ifndef TVM_RELAY_EXPR_H_
 #define TVM_RELAY_EXPR_H_
 
-#include <tvm/api_registry.h>
-#include <tvm/attrs.h>
-#include <tvm/ir.h>
-#include <tvm/node.h>
 #include <string>
+#include <tvm/attrs.h>
 #include "./base.h"
 #include "./type.h"
 
@@ -52,7 +49,7 @@ RELAY_DEFINE_NODE_REF(Expr, ExprNode, NodeRef);
 /*!
  * \brief Constant tensor, backed by an NDArray on the cpu(0) device.
  *
- * \note scalar constants are represented by rank-0 const tensor.
+ * \note Scalar constants are represented by rank-0 const tensor.
  *  Constant folding are handled uniformly via Tensor types.
  */
 class Constant;
@@ -316,7 +313,7 @@ class LetNode : public ExprNode {
   Expr value;
   /*! \brief The body of the let binding */
   Expr body;
-  /*! \brief type annotation of value, this can be null */
+  /*! \brief Type annotation of value, this can be null */
   Type value_type;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -344,6 +341,8 @@ RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
  *
  * let x = if (true) { 1 } else { 0 }; // x is 1
  * let y = if (false) { 1 } else { 0 }; // y is 0
+ * 
+ * \note This is similar to C's ternary operator.
  */
 class If;
 /*! \brief container of If */
