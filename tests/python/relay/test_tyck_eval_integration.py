@@ -7,7 +7,7 @@ from tvm.relay.ir_pass import check_expr
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 from tvm.relay.env import Environment
-from tvm.relay.op import log, add, equal, subtract
+from tvm.relay.op import log, add, equal, subtract, concat
 from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
@@ -135,11 +135,28 @@ def test_recursion():
     # TODO(@jroesch): need evaluator or new runtime
     # to execute this.
 
+def test_concat():
+    """
+    Program:
+        def try_concat2(x: Float(3, 2), y: Float(2, 2)) -> Float(5, 2) {
+            return concat(x, y);
+        }
+    """
+    ib = IRBuilder()
+    try_concat2 = ib.global_var('try_concat2')
+    x = ib.param('x', ty=tensor_type(3, 2))
+    y = ib.param('y', ty=tensor_type(2, 2))
+    with ib.decl(try_concat2, x, y):
+        ib.ret(concat(x, y))
+    fn_ty = func_type([tensor_type(3, 2), tensor_type(2, 2)], tensor_type(5, 2))
+    assert_decl_has_type(ib.env, try_concat2, fn_ty)
+
 if __name__ == "__main__":
-    test_monomorphic_let()
-    test_single_op()
-    test_add_op()
-    test_add_broadcast_op()
-    test_dual_op()
-    test_decl()
-    test_recursion()
+    # test_monomorphic_let()
+    # test_single_op()
+    # test_add_op()
+    # test_add_broadcast_op()
+    # test_dual_op()
+    # test_decl()
+    # test_recursion()
+    test_concat()

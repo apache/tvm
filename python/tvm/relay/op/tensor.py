@@ -1,6 +1,7 @@
 """Basic tensor operations."""
 from __future__ import absolute_import as _abs
 from . import _make
+from ..expr import Tuple
 
 # We create a wrapper function for each operator in the
 # python side to call into the positional _make.OpName function.
@@ -61,7 +62,7 @@ def sqrt(data):
 
 
 def add(lhs, rhs):
-    """Take sqrt of data.
+    """Elementwise addition.
 
     Parameters
     ----------
@@ -77,6 +78,23 @@ def add(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
+
+def subtract(lhs, rhs):
+    """Elementwise subtraction.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.add(lhs, rhs)
 
 def subtract(lhs, rhs):
     """Take sqrt of data.
@@ -98,3 +116,8 @@ def subtract(lhs, rhs):
 
 def equal(lhs, rhs):
     return _make.equal(lhs, rhs)
+
+def concat(*args):
+    tup = Tuple(list(args))
+    return _make.concat(tup)
+

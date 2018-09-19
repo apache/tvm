@@ -7,7 +7,9 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/op.h>
+#include <numeric>
 #include "../pass/incomplete_type.h"
+#include "./type_relations.h"
 
 namespace tvm {
 namespace relay {
@@ -20,7 +22,7 @@ TensorType ToTensorType(const Type& t) {
   }
 }
 
-// TODO(@jroesch) what size value do we extract?
+// TODO(@jroesch) what size value do we extract, 64bit or 32bit?
 int ToInt(const tvm::Expr& e) {
   CHECK(e.defined());
   auto imm = e.as<tvm::ir::IntImm>();
@@ -131,6 +133,73 @@ Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args) {
   }
 
   return types;
+}
+
+/*! \brief Handle concrete concat case from known input to output. */
+inline Type ConcreteConcatRel(const Type& input_type) {
+  if (auto tuple_node = input_type.as<TupleTypeNode>()) {
+    // NB: For now the axis argument is hardwired to be 0.
+    std::vector<int> dims;
+    DataType dtype;
+
+    CHECK_LT(1, tuple_node->fields.size());
+    bool skip_first = true;
+
+    // Collect the suffix dimensions since axis is zero.
+    // TODO(@jroesch): This is a demonstration of how
+    // to do varargs. It requires a little more work to
+    // fully type the behavior of concat.
+
+    auto first = Downcast<TensorType>(tuple_node->fields[0]);
+    dtype = first->dtype;
+
+    for (auto dim_expr : first->shape) {
+      if (!skip_first) {
+        dims.push_back(ToInt(dim_expr));
+      } else {
+        skip_first = false;
+      }
+    }
+
+    std::vector<int> axis_dims;
+    for (auto field_ty : tuple_node->fields) {
+      auto ttype = Downcast<TensorType>(field_ty);
+      for (size_t i = 0; i < ttype->shape.size(); i++) {
+        if (i != 0) {
+          CHECK_EQ(ToInt(dims[i - 1]), ToInt(ttype->shape[i]));
+        } else {
+          axis_dims.push_back(ToInt(ttype->shape[i]));
+        }
+      }
+    }
+
+    auto out_axis_dim = std::accumulate(axis_dims.begin(), axis_dims.end(), 0);
+
+    Array<tvm::Expr> out_shape = { tvm::ir::IntImm::make(HalideIR::Int(64), out_axis_dim) };
+
+    for (auto dim : dims) {
+      out_shape.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), dim));
+    }
+
+    return TensorTypeNode::make(out_shape, dtype);
+
+  } else {
+    throw TypeRelationError("concat can only be used with a tuple as its argument");
+  }
+}
+
+Array<Type> ConcatRel(const Array<Type>& types, int num_args) {
+  CHECK_EQ(types.size(), 2);
+
+  if (types[0].as<IncompleteTypeNode>() && types[1].as<IncompleteTypeNode>()) {
+    return types;
+  } else if (types[1].as<IncompleteTypeNode>()) {
+    return { types[0], ConcreteConcatRel(types[0]) };
+  } else {
+    throw TypeRelationError(
+      "can not deduce relationship between the " \
+      "type of concat's input and output");
+  }
 }
 
 }  // namespace relay
