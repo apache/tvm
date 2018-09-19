@@ -6,8 +6,10 @@ from . import _api_internal
 from . import make as _make
 from . import expr as _expr
 
+
 class TensorSlice(NodeGeneric, _expr.ExprOp):
     """Auxiliary data structure for enable slicing syntax from tensor."""
+
     def __init__(self, tensor, indices):
         if not isinstance(indices, tuple):
             indices = (indices,)
@@ -31,9 +33,11 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
 
 itervar_cls = None
 
+
 @register_node
 class Tensor(NodeBase, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
+
     def __call__(self, *indices):
         ndim = self.ndim
         if len(indices) != ndim:
@@ -104,6 +108,7 @@ class Tensor(NodeBase, _expr.ExprOp):
 
 class Operation(NodeBase):
     """Represent an operation that generate a tensor"""
+
     def output(self, index):
         """Get the index-th output of the operation
 
