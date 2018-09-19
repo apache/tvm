@@ -62,11 +62,7 @@ typedef int64_t tvm_index_t;
 typedef enum {
   kDLAOCL = 5,
   kDLSDAccel = 6,
-  kDLVulkan = 7,
   kOpenGL = 11,
-  // Extension DRAM type, used for quickly test extension device
-  // The device api can differ depending on the xpu driver registered.
-  kExtDev = 12,
   // AddExtraTVMType which is not in DLPack here
 } TVMDeviceExtType;
 
