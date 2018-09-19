@@ -3,7 +3,6 @@
 
 Enables users to construct Relay programs with a Python API.
 """
-from typing import Any
 import numpy as np
 import tvm
 from .ty import Type, FuncType, TensorType
@@ -285,10 +284,21 @@ class IRBuilder(object):
         return self.env.global_var(name)
 
     def decl(self, name, *params, **kwargs):
-        if 'ret_type' in kwargs:
-            ret_type = kwargs['ret_type']
-        else:
-            ret_type = None
+        """Create a global function.
+
+        Parameters
+        ----------
+        name: str or GlobalVar
+            The name of the function.
+        params: params
+            The parameters of the function.
+
+        Returns
+        -------
+        with_scope: Scope for the function.
+        """
+
+        ret_type = kwargs.get('ret_type', None)
 
         self.enter_scope()
 
@@ -352,10 +362,7 @@ def tensor_type(*shape, **kwargs):
     tensor_type: relay.Type
         The resulting tensor types.
     """
-    if 'dtype' in kwargs:
-        dtype = kwargs['dtype']
-    else:
-        dtype = 'float32'
+    dtype = kwargs.get('dtype', 'float32')
 
     return TensorType(tvm.convert(shape), dtype)
 

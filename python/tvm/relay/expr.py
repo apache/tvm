@@ -1,7 +1,6 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from .base import NodeBase, register_relay_node
-from .ty import Type, TypeParam
 from ._ir_pass import _get_checked_type
 from . import _make
 
@@ -75,8 +74,8 @@ class Function(Expr):
                  params,
                  ret_type,
                  body,
-                 type_params=None,
-                 ):
+                 type_params=None
+                ):
         if not type_params:
             type_params = []
         self.__init_handle_by_constructor__(
