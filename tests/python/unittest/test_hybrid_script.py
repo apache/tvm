@@ -31,9 +31,10 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
             nd_args.append(emu_args[-1])
 
     func(*emu_args)
-
-    lowerd_func = tvm.lower(func(*args), args)
-    module = tvm.build(lowerd_func, target=target)
+    
+    lowered_ir = tvm.hybrid.lower(func, args, simple_mode=True)
+    lowered_func = tvm.lower(lowered_ir, args)
+    module = tvm.build(lowered_func, target=target)
     assert module
     module(*nd_args)
 
@@ -56,7 +57,7 @@ def test_outer_product():
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
     c = tvm.placeholder((n, m), name='c')
-    ir = outer_product(n, m, a, b, c)
+    ir = tvm.hybrid.lower(outer_product, [n, m, a, b, c], simple_mode=True)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
@@ -106,7 +107,7 @@ def test_fanout():
     n = tvm.var('n')
     a = tvm.placeholder((n, ), 'float32', name='a')
     b = tvm.placeholder((n-3, ), 'float32', name='b')
-    ir = fanout(n, a, b)
+    ir = tvm.hybrid.lower(fanout, [n, a, b], simple_mode=True)
 
     #Check for i in (0, n-3)
     assert isinstance(ir, tvm.stmt.For)
@@ -173,7 +174,7 @@ def failure():
 
 def test_failure():
     try:
-        tvm.hybrid.parse(failure, [])
+        tvm.hybrid.lower(failure, [], simple_mode=True)
     except IOError as err:
         assert sys.version_info[0] == 2
         print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
@@ -194,7 +195,7 @@ def test_looptype():
     a = tvm.placeholder((8, ), name='a', dtype='int32')
     b = tvm.placeholder((8, ), name='b', dtype='int32')
     c = tvm.placeholder((8, ), name='c', dtype='int32')
-    ir = looptype(a, b, c)
+    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
     iloop = ir.first
     jloop = ir.rest.first
     kloop = ir.rest.rest
@@ -250,7 +251,7 @@ def test_math_intrin():
         a[7] = max(a[5], a[6])
 
     a8 = tvm.placeholder((8, ), dtype='float32', name='a')
-    ir = intrin_real(a8)
+    ir = tvm.hybrid.lower(intrin_real, [a8], simple_mode=True)
     func = tvm.build(tvm.lower(ir, [a8]))
     assert func
     a = numpy.arange(2, 10).astype('float32')
@@ -264,7 +265,7 @@ def test_math_intrin():
         a[0] = popcount(a[0])
 
     a1 = tvm.placeholder((1, ), dtype='int32')
-    ir = intrin_int(a1)
+    ir = tvm.hybrid.lower(intrin_int, [a1], simple_mode=True)
     func = tvm.build(tvm.lower(ir, [a1]))
     assert func
     a = numpy.array([1234567890]).astype('int32')

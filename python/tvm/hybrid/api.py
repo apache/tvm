@@ -1,8 +1,11 @@
 """APIs of lowering the Python subset to HalideIR"""
 from __future__ import absolute_import as _abs
 
+import ast
 import types
 from .._ffi.base import decorate
+from .._api_internal import _ExternOp
+from ..api import decl_buffer
 from .parser import parse_python
 
 
@@ -20,7 +23,8 @@ def script(pyfunc):
     def wrapped_func(func, *args, **kwargs):
         from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
         if _is_tvm_arg_types(args):
-            return parse(func, args)
+            return lower(func, args)
+
 
         intersect = _enter_hybrid_runtime(func)
         value = func(*args, **kwargs)
@@ -29,7 +33,8 @@ def script(pyfunc):
     return decorate(pyfunc, wrapped_func)
 
 
-def parse(func, args):
+#TODO: make it False later
+def lower(func, args, simple_mode=False):
     """Parse a subset of Python to HalideIR
 
     Parameters
@@ -53,4 +58,19 @@ def parse(func, args):
     else:
         assert isinstance(func, types.FunctionType)
         src = _pruned_source(func)
-    return parse_python(src, args)
+    parser = parse_python(src, args)
+    if simple_mode:
+        return parser.parsed_body
+
+    input_tensors = args
+    input_buffers = []
+    output_buffers = []
+    tensor_to_buffer = {}
+    for i in args:
+        buf_ = tensor_to_buffer[i.name] = decl_buffer(i.shape, i.dtype, i.name)
+        input_buffers.append(buf_)
+    for i in parser.outputs:
+        output_buffers.append(tensor_to_buffer[i])
+    res = _ExternOp(parser.func_name, "HybridOp", {}, args,
+            input_buffers, output_buffers, parser.parsed_body)
+    return res
