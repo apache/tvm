@@ -104,6 +104,12 @@ file(GLOB COMPILER_SRCS
     src/schedule/*.cc
     )
 
+file(GLOB_RECURSE RELAY_SRCS
+    src/relay/*.cc
+    )
+list(APPEND COMPILER_SRCS ${RELAY_SRCS})
+
+
 if(NOT MSVC)
   file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
   list(APPEND COMPILER_SRCS ${COMPILER_VERILOG_SRCS})
