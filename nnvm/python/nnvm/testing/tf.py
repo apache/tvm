@@ -8,11 +8,12 @@ import re
 import os.path
 import collections
 import numpy as np
-from tvm.contrib import util
 
 # Tensorflow imports
 import tensorflow as tf
 from tensorflow.core.framework import graph_pb2
+
+from tvm.contrib import util
 
 ######################################################################
 # Some helper functions

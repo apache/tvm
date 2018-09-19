@@ -229,11 +229,10 @@ def tune_and_evaluate(tuning_opt):
 
         # load parameters
         ctx = tvm.context(str(target), 0)
-        params_tvm = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module = runtime.create(graph, lib, ctx)
+        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input('data', data_tvm)
-        module.set_input(**params_tvm)
+        module.set_input(**params)
 
         # evaluate
         print("Evaluate inference time cost...")
