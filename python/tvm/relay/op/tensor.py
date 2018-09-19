@@ -96,28 +96,9 @@ def subtract(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
-def subtract(lhs, rhs):
-    """Take sqrt of data.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.add(lhs, rhs)
-
-
 def equal(lhs, rhs):
     return _make.equal(lhs, rhs)
 
 def concat(*args):
     tup = Tuple(list(args))
     return _make.concat(tup)
-
