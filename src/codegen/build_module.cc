@@ -102,7 +102,7 @@ Target CreateTarget(const std::string& target_name,
   } else if (target_name == "stackvm") {
     t->device_type = kDLCPU;
   } else if (target_name == "ext_dev") {
-    t->device_type = kExtDev;
+    t->device_type = kDLExtDev;
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
