@@ -149,10 +149,11 @@ class DebugResult():
     def display_debug_result(self):
         """Displays the debugger result"
         """
-        header = ["Node Name", "Ops", "Time(us)", "Shape", "Inputs", "Outputs"]
-        lines = ["---------", "---", "--------", "-----", "------", "-------"]
+        header = ["Node Name", "Ops", "Time(us)","Time(%)", "Shape", "Inputs", "Outputs"]
+        lines = ["---------", "---", "--------", "-------","-----", "------", "-------"]
         eid = 0
         data = []
+        total_time = sum(time for time in self._time_list)
         for node, time in zip(self._nodes_list, self._time_list):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
@@ -161,15 +162,16 @@ class DebugResult():
                     continue
                 name = node['name']
                 shape = str(self._output_tensor_list[eid].shape)
-                time_us = time * 1000000
+                time_us = round(time * 1000000, 2)
+                time_percent = round(((time / total_time) * 100), 2)
                 inputs = str(node['attrs']['num_inputs'])
                 outputs = str(node['attrs']['num_outputs'])
-                node_data = [name, op, time_us, shape, inputs, outputs]
+                node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
                 data.append(node_data)
                 eid += 1
         fmt = ""
         for i, _ in enumerate(header):
-            max_len = 10
+            max_len = len(header[i])
             for j, _ in enumerate(data):
                 item_len = len(str(data[j][i]))
                 if item_len > max_len:

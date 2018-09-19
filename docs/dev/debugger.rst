@@ -140,10 +140,10 @@ The below is the output of running  ``tvm/nnvm/tutorials/from_onnnx.py`` with de
 
 ::
 
-    Node Name        Ops                                Time(us)             Shape               Inputs       Outputs
-    ---------        ---                                --------             -----               ------       -------
-    relu0            fuse_conv2d_broadcast_add_relu     14840.649            (1, 1, 224, 224)    3            1
-    relu1            fuse_conv2d_broadcast_add_relu_1   224299.577           (64, 1, 5, 5)       3            1
-    relu2            fuse_conv2d_broadcast_add_relu_2   111466.68699999999   (64, 1, 1)          3            1
-    broadcast_add3   fuse_conv2d_broadcast_add          25375.287            (1, 64, 224, 224)   3            1
-    reshape1         fuse_reshape_transpose_reshape     1309.9260000000002   (64, 64, 3, 3)      1            1
+    Node Name        Ops                                Time(us)    Time(%)   Shape               Inputs   Outputs
+    ---------        ---                                --------    -------   -----               ------   -------
+    relu0            fuse_conv2d_broadcast_add_relu     14568.25    3.84      (1, 1, 224, 224)    3        1
+    relu1            fuse_conv2d_broadcast_add_relu_1   224888.2    59.32     (64, 1, 5, 5)       3        1
+    relu2            fuse_conv2d_broadcast_add_relu_2   112520.85   29.68     (64, 1, 1)          3        1
+    broadcast_add3   fuse_conv2d_broadcast_add          25811.21    6.81      (1, 64, 224, 224)   3        1
+    reshape1         fuse_reshape_transpose_reshape     1328.47     0.35      (64, 64, 3, 3)      1        1
