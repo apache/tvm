@@ -65,7 +65,7 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype,
     if isinstance(output_shape, list) and isinstance(output_dtype, list):
         tvm_output_list = []
         for i, s in enumerate(output_shape):
-            tvm_output = m.get_output(i, tvm.nd.empty((s), output_dtype[i]))
+            tvm_output = m.get_output(i)
             tvm_output_list.append(tvm_output.asnumpy())
         return tvm_output_list
     else:
@@ -579,7 +579,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
     out = tvm_output[0]
     out_state = tvm_output[1]
-    out_state_tup = np.split(out_state, indices_or_sections=2, axis=0)
+    out_state_tup = np.split(out_state, indices_or_sections=2, axis=1)
     out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
     out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
     tvm_out = [out, out_state_c, out_state_h]
@@ -587,7 +587,6 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
 
 def test_forward_lstm():
     '''test LSTM block cell'''
-    return
     _test_lstm_cell(1, 2, 1, 0.0, 'float32')
 
 
@@ -1029,7 +1028,7 @@ if __name__ == '__main__':
     test_forward_ptb()
 
     # RNN
-    #test_forward_lstm()
+    test_forward_lstm()
 
     # Elementwise
     test_forward_ceil()
