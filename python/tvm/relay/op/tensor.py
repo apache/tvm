@@ -100,5 +100,15 @@ def equal(lhs, rhs):
     return _make.equal(lhs, rhs)
 
 def concat(*args):
+    """Concatenate the input tensors along the zero axis.
+
+    Parameters
+    ----------
+    args: list of Tensor
+
+    Returns
+    -------
+    tensor: The concatenated tensor.
+    """
     tup = Tuple(list(args))
     return _make.concat(tup)

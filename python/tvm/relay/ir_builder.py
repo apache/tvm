@@ -3,6 +3,7 @@
 
 Enables users to construct Relay programs with a Python API.
 """
+from collections import OrderedDict
 import numpy as np
 import tvm
 from .ty import Type, FuncType, TensorType
@@ -143,8 +144,8 @@ class IRBuilder(object):
     """
 
     def __init__(self):
-        self.bindings = [{}]
-        self.scopes = [{}]
+        self.bindings = [OrderedDict({})]
+        self.scopes = [OrderedDict({})]
         self.params = []
         self.ret_values = [None]
         self.env = Environment({})
@@ -153,8 +154,8 @@ class IRBuilder(object):
         if not params:
             params = []
 
-        self.bindings.append({})
-        self.scopes.append({})
+        self.bindings.append(OrderedDict({}))
+        self.scopes.append(OrderedDict({}))
         self.params.append(params)
         self.ret_values.append(None)
 
