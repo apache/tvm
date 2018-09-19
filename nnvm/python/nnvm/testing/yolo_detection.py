@@ -9,8 +9,8 @@ These are utility functions used for testing and tutorial file.
 from __future__ import division
 import math
 from collections import namedtuple
-import numpy as np
 from functools import cmp_to_key
+import numpy as np
 
 Box = namedtuple('Box', ['x', 'y', 'w', 'h'])
 
@@ -27,7 +27,7 @@ def nms_comparator(a, b):
 
 def _correct_boxes(dets, w, h, netw, neth, relative):
     new_w, new_h = (netw, (h*netw)//w) if (netw/w < neth/h) else ((w*neth//h), neth)
-    for i in range(len(dets)):
+    for i, _ in enumerate(dets):
         b = dets[i]['bbox']
         b = b._replace(x=(b.x - (netw - new_w)/2/netw) / (new_w/netw))
         b = b._replace(y=(b.y - (neth - new_h)/2/neth) / (new_h/neth))
@@ -158,7 +158,7 @@ def do_nms_sort(dets, classes, thresh):
 
 def draw_detections(im, dets, thresh, names, classes):
     "Draw the markings around the detected region"
-    for i in range(len(dets)):
+    for i, _ in enumerate(dets):
         labelstr = []
         category = -1
         for j in range(classes):
