@@ -23,30 +23,30 @@ struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
 
   void VisitType_(const FuncTypeNode* op, Args... args) override {
     for (auto type_param : op->type_params) {
-      this->VisitType(type_param, args...);
+      this->VisitType(type_param, std::forward<Args>(args)...);
     }
 
     for (auto type_cs : op->type_constraints) {
-      this->VisitType(type_cs, args...);
+      this->VisitType(type_cs, std::forward<Args>(args)...);
     }
 
     for (auto arg_type : op->arg_types) {
-      this->VisitType(arg_type, args...);
+      this->VisitType(arg_type, std::forward<Args>(args)...);
     }
-    this->VisitType(op->ret_type, args...);
+    this->VisitType(op->ret_type, std::forward<Args>(args)...);
   }
 
   void VisitType_(const TensorTypeNode* op, Args... args) override {}
 
   void VisitType_(const TupleTypeNode* op, Args... args) override {
     for (const Type& t : op->fields) {
-      this->VisitType(t, args...);
+      this->VisitType(t, std::forward<Args>(args)...);
     }
   }
 
   void VisitType_(const TypeRelationNode* op, Args... args) override {
     for (const Type& t : op->args) {
-      this->VisitType(t, args...);
+      this->VisitType(t, std::forward<Args>(args)...);
     }
   }
 

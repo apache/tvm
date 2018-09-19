@@ -112,10 +112,10 @@ class IRBuilder(object):
     Examples
     --------
 
-    Program: 
-       fn (x : Tensor[f32, (10, 10)]) { 
-         let t1 = log(x); 
-         let t2 = add(t1, x); 
+    Program:
+       fn (x : Tensor[f32, (10, 10)]) {
+         let t1 = log(x);
+         let t2 = add(t1, x);
          return t1;
        }
 
