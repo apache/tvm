@@ -69,8 +69,8 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
       rev_sh2++;
     }
 
-    Array<HalideIR::Expr> larger;
-    Array<HalideIR::Expr> smaller;
+    Array<ShapeExpr> larger;
+    Array<ShapeExpr> smaller;
 
     for (int i = 0; i < (full_len - suffix_len); i++) {
       smaller.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), 1));
