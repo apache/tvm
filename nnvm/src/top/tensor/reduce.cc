@@ -3,6 +3,9 @@
  * \file reduce.cc
  * \brief reduce operator.
  */
+// Enforce TOPI to use old behavior that reduces to at least 1d
+#define TOPI_REDUCE_ATLEAST1D 1
+
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
@@ -16,6 +19,8 @@
 #include "topi/elemwise.h"
 #include "topi/reduction.h"
 #include "topi/transform.h"
+
+static_assert(TOPI_REDUCE_ATLEAST1D, "need to use legacy reduce behavior");
 
 namespace nnvm {
 namespace top {
