@@ -493,6 +493,21 @@ class GraphProto(object):
             k = self._get_tvm_params_name(opname[0], 'bias')
             self._tvmparams[k] = tvm.nd.array(biases)
 
+    def _get_region_weights(self, layer, opname):
+        """Parse the biases for region layer."""
+        biases = self._read_memory_buffer((layer.n*2, ), layer.biases)
+        k = self._get_tvm_params_name(opname, 'bias')
+        self._tvmparams[k] = tvm.nd.array(biases)
+
+    def _get_yolo_weights(self, layer, opname):
+        """Parse the biases and mask for yolo layer."""
+        biases = self._read_memory_buffer((layer.total*2, ), layer.biases)
+        mask = self._read_memory_buffer((layer.n, ), layer.mask)
+        k = self._get_tvm_params_name(opname, 'bias')
+        self._tvmparams[k] = tvm.nd.array(biases)
+        k = self._get_tvm_params_name(opname, 'mask')
+        self._tvmparams[k] = tvm.nd.array(mask)
+
     def _get_batchnorm_weights(self, layer, opname, size):
         """Parse the weights for batchnorm, which includes, scales, moving mean
         and moving variances."""
@@ -621,6 +636,11 @@ class GraphProto(object):
         elif LAYERTYPE.CONNECTED == layer.type:
             self._get_connected_weights(layer, opname)
 
+        elif LAYERTYPE.REGION == layer.type:
+            self._get_region_weights(layer, opname)
+
+        elif LAYERTYPE.YOLO == layer.type:
+            self._get_yolo_weights(layer, opname)
     def _preproc_layer(self, layer, layer_num):
         """To preprocess each darknet layer, some layer doesnt need processing."""
         if layer_num == 0:
@@ -850,6 +870,31 @@ class GraphProto(object):
 
         return processed, sym
 
+    def _make_outlist(self, sym, op_name, layer, layer_num):
+        if layer.type == LAYERTYPE.REGION:
+            l_param = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
+                                layer.classes, layer.coords, layer.background],
+                               dtype=np.int32)
+            self._outs.append(_sym.Variable(name='region'+str(layer_num)+'_attribute',
+                                            init=l_param))
+            k = self._get_tvm_params_name(op_name, 'bias')
+            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            self._outs.append(sym)
+
+        elif layer.type == LAYERTYPE.YOLO:
+            l_param = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
+                                layer.classes, layer.total],
+                               dtype=np.int32)
+            self._outs.append(_sym.Variable(name='yolo'+str(layer_num)+'_attribute',
+                                            init=l_param))
+            k = self._get_tvm_params_name(op_name, 'bias')
+            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            k = self._get_tvm_params_name(op_name, 'mask')
+            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            self._outs.append(sym)
+
+        return
+
     def from_darknet(self):
         """To convert the darknet symbol to nnvm symbols."""
         for i in range(self.net.n):
@@ -867,6 +912,8 @@ class GraphProto(object):
             layer_name, sym = _darknet_convert_symbol(op_name, _as_list(sym), attr)
             self._get_darknet_params(self.net.layers[i], layer_name)
             self._sym_array[i] = sym
+            self._make_outlist(sym, layer_name, layer, i)
+
         self._outs = _as_list(sym) + self._outs
         if isinstance(self._outs, list):
             sym = _sym.Group(self._outs)
