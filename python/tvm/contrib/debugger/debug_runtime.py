@@ -80,7 +80,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         self._dump_path = None
         self._debug_run = module["debug_run"]
         self._get_output_by_layer = module["get_output_by_layer"]
-        self.ctx = ctx
         graph_runtime.GraphModule.__init__(self, module, ctx)
         self._create_debug_env(graph_json_str, ctx)
 
@@ -159,7 +158,6 @@ class GraphModuleDebug(graph_runtime.GraphModule):
 
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             time_stamp = self._debug_run(i)
-            self.ctx.sync()
             self.debug_datum.set_time(time_stamp)
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):

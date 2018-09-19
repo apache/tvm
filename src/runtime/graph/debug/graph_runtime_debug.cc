@@ -24,10 +24,12 @@ class GraphRuntimeDebug : public GraphRuntime {
      * \param index The index of op which needs to be run.
      */
   double DebugRun(int index) {
+    TVMContext ctx = GetCtx();
     auto tbegin = std::chrono::high_resolution_clock::now();
     if (op_execs()[index]) {
       op_execs()[index]();
     }
+    TVMSynchronize(ctx.device_type, ctx.device_id, nullptr);
     auto tend = std::chrono::high_resolution_clock::now();
     double time = std::chrono::duration_cast<std::chrono::duration<double> >(
         tend - tbegin).count();
