@@ -26,17 +26,13 @@ std::shared_ptr<SourceNameNode> CreateSourceName(const std::string& name) {
 }
 
 const SourceName& SourceName::Get(const std::string& name) {
-  static std::unordered_map<std::string, SourceName> *source_map;
+  static std::unordered_map<std::string, SourceName> source_map;
 
-  if (source_map == nullptr) {
-    source_map = new std::unordered_map<std::string, SourceName>();
-  }
-
-  auto sn = source_map->find(name);
-  if (sn == source_map->end()) {
+  auto sn = source_map.find(name);
+  if (sn == source_map.end()) {
     auto source_name = SourceNameNode::make(name);
-    source_map->insert({name, source_name});
-    return source_map->at(name);
+    source_map.insert({name, source_name});
+    return source_map.at(name);
   } else {
     return sn->second;
   }

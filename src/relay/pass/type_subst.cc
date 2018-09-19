@@ -15,7 +15,7 @@ struct TypeSubstV : TypeMutator {
   explicit TypeSubstV(tvm::Map<TypeParam, Type> subst_map)
     : subst_map(subst_map) {}
 
-  Type VisitType_(const TypeParamNode *op) override {
+  Type VisitType_(const TypeParamNode* op) override {
     auto id = GetRef<TypeParam>(op);
     if (subst_map.find(id) != subst_map.end()) {
       return this->subst_map[id];

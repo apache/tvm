@@ -1,3 +1,4 @@
+#pylint: disable=no-else-return
 """IR builder for the Relay IR.
 
 Enables users to construct Relay programs with a Python API.
@@ -28,6 +29,7 @@ def _convert_to_value(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
         # raise Exception(f"can't convert {type(arg)} to a Relay AST")
         raise Exception(f"unsupported argument type {type(arg)}")
 
+
 def _convert_type(rtype):
     if isinstance(rtype, str):
         return scalar_type(rtype)
@@ -35,6 +37,7 @@ def _convert_type(rtype):
         return rtype
     else:
         raise Exception(f"unsupported conversion to Relay type {type(rtype)}")
+
 
 def convert(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     if isinstance(arg, Expr):
@@ -91,6 +94,8 @@ class PartialFunc(object):
             self.type_params)
 
 #pylint: disable=invalid-name
+
+
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
     for var, (value, ty) in reversed(list(bindings.items())):
@@ -106,14 +111,14 @@ class IRBuilder(object):
 
     Examples
     --------
-    
+
     Program: 
        fn (x : Tensor[f32, (10, 10)]) { 
          let t1 = log(x); 
          let t2 = add(t1, x); 
          return t1;
        }
-    
+
     ..code-block: python
         b = IRBuilder()
         with b.function(('x', tensor_type(10, 10))) as func:
@@ -254,12 +259,12 @@ class IRBuilder(object):
         ----------
         name: str
             The name of the global variable.
-        
+
         Returns
         -------
         global_var: relay.GlobalVar
             The global variable with `name`.
-        
+
         """
         return self.env.global_var(name)
 
@@ -298,12 +303,12 @@ class IRBuilder(object):
 
 def scalar_type(dtype):
     """Construct a Relay scalar type.
-    
+
     Parameters
     ----------
     dtype: dtype
         The dtype of the scalar type.
-    
+
     Returns:
     scalar_type: relay.Type
         The scalar type.
@@ -313,20 +318,21 @@ def scalar_type(dtype):
 
 def tensor_type(*shape, dtype='float32'):
     """Construct a Relay Tensor type.
-    
+
     Parameters
     ----------
     shape: list of tvm.Expr
         The shape of the Tensor type.
     dtype: dtype
         The dtype of the Tensor type.
-    
+
     Returns
     -------
     tensor_type: relay.Type
         The resulting tensor types.
     """
     return TensorType(tvm.convert(shape), dtype)
+
 
 def func_type(args, ret_type, type_params=None, type_constraints=None):
     """document"""
