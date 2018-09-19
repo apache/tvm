@@ -149,8 +149,8 @@ class DebugResult():
     def display_debug_result(self):
         """Displays the debugger result"
         """
-        header = ["Node Name", "Ops", "Time(us)","Time(%)", "Shape", "Inputs", "Outputs"]
-        lines = ["---------", "---", "--------", "-------","-----", "------", "-------"]
+        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
+        lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
         eid = 0
         data = []
         total_time = sum(time for time in self._time_list)
