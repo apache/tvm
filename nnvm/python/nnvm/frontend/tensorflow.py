@@ -126,15 +126,19 @@ def _pooling(name):
 
         input_shape = attr['_input_shapes'][inputs[0]][0]
 
+        if attr['data_format'] == 'NHWC':
+            attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
+        elif attr['data_format'] == 'NCHW':
+            attr['kernel_shape'] = (attr['ksize'][2], attr['ksize'][3])
+        else:
+            raise TypeError("Unsupported data_format type : {}".format(attr['data_format']))
+
         if attr['_target_layout'] == "NCHW" and attr['data_format'] == "NHWC":
             tmp_shape = attr['_input_shapes'][inputs[0]][0]
-            tmp_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
-            input_shape = tmp_shape
+            input_shape = [tmp_shape[ii] for ii in (0, 3, 1, 2)]
             inputs[0] = _sym.transpose(inputs[0], axes=(0, 3, 1, 2))
             attr['data_format'] = "NCHW"
             flip_layout = True
-
-        attr['kernel_shape'] = (attr['ksize'][1], attr['ksize'][2])
 
         # Fix strides
         attr['strides'] = (attr['strides'][1], attr['strides'][2])
