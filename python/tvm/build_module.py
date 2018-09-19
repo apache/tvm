@@ -427,8 +427,11 @@ def build(sch,
 
     Returns
     -------
-    f : Function, or pair of functions
-       The result function.
+    ret : tvm.module, or (list of LoweredFunc, tvm.module) tuple
+        A module that combines both host and device code is returned when
+        postpone_host_codegen is not set. Otherwise, a list of lowered
+        functions for the host and a module contains only device code are
+        returned.
 
     Note
     ----
