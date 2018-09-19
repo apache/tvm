@@ -6,7 +6,7 @@
 #include <tvm/base.h>
 #include <tvm/expr.h>
 #include <tvm/attrs.h>
-#include <tvm/container.h>
+#include <tvm/node/container.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
 #include <dmlc/json.h>
@@ -248,7 +248,7 @@ class JSONAttrGetter : public AttrVisitor {
 
 class JSONAttrSetter : public AttrVisitor {
  public:
-  const std::vector<std::shared_ptr<Node> >* node_list_;
+  const std::vector<NodePtr<Node> >* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* node_;
 
@@ -401,13 +401,13 @@ std::string SaveJSON(const NodeRef& n) {
   return os.str();
 }
 
-std::shared_ptr<Node> LoadJSON_(std::string json_str) {
+NodePtr<Node> LoadJSON_(std::string json_str) {
   std::istringstream is(json_str);
   dmlc::JSONReader reader(&is);
   JSONGraph jgraph;
   // load in json graph.
   jgraph.Load(&reader);
-  std::vector<std::shared_ptr<Node> > nodes;
+  std::vector<NodePtr<Node> > nodes;
   std::vector<runtime::NDArray> tensors;
   // load in tensors
   for (const std::string& blob : jgraph.b64ndarrays) {
@@ -427,7 +427,7 @@ std::shared_ptr<Node> LoadJSON_(std::string json_str) {
           << "Node type \'" << jnode.type_key << "\' is not registered in TVM";
       nodes.emplace_back(f->fcreator(jnode.global_key));
     } else {
-      nodes.emplace_back(std::shared_ptr<Node>());
+      nodes.emplace_back(NodePtr<Node>());
     }
   }
   CHECK_EQ(nodes.size(), jgraph.nodes.size());
@@ -526,7 +526,7 @@ void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
   CHECK(f->fglobal_key == nullptr)
       << "Cannot make node type \'" << type_key << "\' with global_key.";
-  std::shared_ptr<Node> n = f->fcreator(empty_str);
+  NodePtr<Node> n = f->fcreator(empty_str);
   if (n->derived_from<BaseAttrsNode>()) {
     static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
   } else {

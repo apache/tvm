@@ -71,7 +71,7 @@ struct GraphCacheEntryNode : public tvm::Node {
 class GraphCacheEntry : public ::tvm::NodeRef {
  public:
   GraphCacheEntry() {}
-  explicit GraphCacheEntry(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}
+  explicit GraphCacheEntry(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {}
   GraphCacheEntryNode* operator->() {
     return static_cast<GraphCacheEntryNode*>(node_.get());
   }

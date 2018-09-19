@@ -19,7 +19,7 @@ class TensorIntrinNode;
 class TensorIntrin : public NodeRef {
  public:
   TensorIntrin() {}
-  explicit TensorIntrin(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit TensorIntrin(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

@@ -32,7 +32,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 */
 Target CreateTarget(const std::string& target_name,
                     const std::vector<std::string>& options) {
-  auto target = Target(std::make_shared<TargetNode>());
+  auto target = Target(make_node<TargetNode>());
   auto t = static_cast<TargetNode*>(target.node_.get());
 
   t->target_name = target_name;
@@ -475,7 +475,7 @@ runtime::Module build(const Array<LoweredFunc>& funcs,
 }
 
 BuildConfig build_config() {
-  return BuildConfig(std::make_shared<BuildConfigNode>());
+  return BuildConfig(make_node<BuildConfigNode>());
 }
 
 /*! \brief Entry to hold the BuildConfig context stack. */
@@ -533,7 +533,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 });
 
 struct GenericFunc::Manager {
-  std::unordered_map<std::string, std::shared_ptr<Node> > fmap;
+  std::unordered_map<std::string, NodePtr<Node> > fmap;
   // mutex
   std::mutex mutex;
 
@@ -551,7 +551,7 @@ GenericFunc GenericFunc::Get(const std::string& name) {
   std::lock_guard<std::mutex>(m->mutex);
   auto it = m->fmap.find(name);
   if (it == m->fmap.end()) {
-    auto f = std::make_shared<GenericFuncNode>();
+    auto f = make_node<GenericFuncNode>();
     f->name_ = name;
     m->fmap[name] = f;
     return GenericFunc(f);
@@ -669,7 +669,7 @@ TVM_REGISTER_API("_BuildConfigGetAddLowerPassInfo")
 
 TVM_REGISTER_API("_GenericFuncCreate")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = GenericFunc(std::make_shared<GenericFuncNode>());
+  *ret = GenericFunc(make_node<GenericFuncNode>());
   });
 
 TVM_REGISTER_API("_GenericFuncGetGlobal")

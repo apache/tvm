@@ -6,7 +6,6 @@
 #ifndef TVM_TENSOR_H_
 #define TVM_TENSOR_H_
 
-#include <tvm/container.h>
 #include <ir/FunctionBase.h>
 #include <string>
 #include <vector>
@@ -15,6 +14,7 @@
 #include "base.h"
 #include "expr.h"
 #include "arithmetic.h"
+#include "node/container.h"
 
 namespace tvm {
 
@@ -33,7 +33,7 @@ class Tensor : public NodeRef {
  public:
   /*! \brief default constructor, used internally */
   Tensor() {}
-  explicit Tensor(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Tensor(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -118,7 +118,7 @@ class Operation : public FunctionRef {
  public:
   /*! \brief default constructor  */
   Operation() {}
-  explicit Operation(std::shared_ptr<Node> n) : FunctionRef(n) {}
+  explicit Operation(NodePtr<Node> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

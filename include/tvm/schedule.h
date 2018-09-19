@@ -36,7 +36,7 @@ enum AttachType : int {
 class Stage : public NodeRef {
  public:
   Stage() {}
-  explicit Stage(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Stage(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief create a new schedule for op.
    * \param op The operator in the schedule
@@ -260,7 +260,7 @@ class Stage : public NodeRef {
 class Schedule : public NodeRef {
  public:
   Schedule() {}
-  explicit Schedule(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Schedule(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Get a copy of current schedule.
    * \return The copied schedule.
@@ -383,7 +383,7 @@ class Schedule : public NodeRef {
 class IterVarRelation : public NodeRef {
  public:
   IterVarRelation() {}
-  explicit IterVarRelation(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit IterVarRelation(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -397,7 +397,7 @@ class IterVarRelation : public NodeRef {
 class IterVarAttr : public NodeRef {
  public:
   IterVarAttr() {}
-  explicit IterVarAttr(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit IterVarAttr(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

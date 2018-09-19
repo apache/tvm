@@ -6,10 +6,10 @@
 #ifndef TVM_IR_MUTATOR_H_
 #define TVM_IR_MUTATOR_H_
 
-#include <tvm/ir_functor.h>
 #include <unordered_map>
 #include "expr.h"
 #include "ir.h"
+#include "node/ir_functor.h"
 
 namespace tvm {
 namespace ir {

@@ -116,7 +116,7 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
       "Conversion only works for NodeRef");
   if (type_code_ == kNull) return TNodeRef();
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
+  NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
   CHECK(NodeTypeChecker<TNodeRef>::Check(sptr.get()))
       << "Expected type " << NodeTypeName<TNodeRef>()
       << " but get " << sptr->type_key();
@@ -132,7 +132,7 @@ inline TVMArgValue::operator HalideIR::Expr() const {
     return Expr(static_cast<float>(value_.v_float64));
   }
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
+  NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
   if (sptr->is_type<IterVarNode>()) {
     return IterVar(sptr)->var;
   }
@@ -145,27 +145,27 @@ inline TVMArgValue::operator HalideIR::Expr() const {
   return Expr(sptr);
 }
 
-inline std::shared_ptr<Node>& TVMArgValue::node_sptr() {
+inline NodePtr<Node>& TVMArgValue::node_sptr() {
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  return *ptr<std::shared_ptr<Node> >();
+  return *ptr<NodePtr<Node> >();
 }
 
 
 template<typename TNodeRef, typename>
 inline bool TVMArgValue::IsNodeType() const {
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  std::shared_ptr<Node>& sptr =
-      *ptr<std::shared_ptr<Node> >();
+  NodePtr<Node>& sptr =
+      *ptr<NodePtr<Node> >();
   return NodeTypeChecker<TNodeRef>::Check(sptr.get());
 }
 
 // extensions for TVMRetValue
 inline TVMRetValue& TVMRetValue::operator=(
-    const std::shared_ptr<Node>& other) {
+    const NodePtr<Node>& other) {
   if (other.get() == nullptr) {
     SwitchToPOD(kNull);
   } else {
-    SwitchToClass<std::shared_ptr<Node> >(kNodeHandle, other);
+    SwitchToClass<NodePtr<Node> >(kNodeHandle, other);
   }
   return *this;
 }
@@ -174,7 +174,7 @@ inline TVMRetValue& TVMRetValue::operator=(const NodeRef& other) {
   if (!other.defined()) {
     SwitchToPOD(kNull);
   } else {
-    SwitchToClass<std::shared_ptr<Node> >(kNodeHandle, other.node_);
+    SwitchToClass<NodePtr<Node> >(kNodeHandle, other.node_);
   }
   return *this;
 }
@@ -186,7 +186,7 @@ inline TNodeRef TVMRetValue::AsNodeRef() const {
       "Conversion only works for NodeRef");
   if (type_code_ == kNull) return TNodeRef();
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
-  std::shared_ptr<Node>& sptr = *ptr<std::shared_ptr<Node> >();
+  NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
   CHECK(NodeTypeChecker<TNodeRef>::Check(sptr.get()))
       << "Expected type " << NodeTypeName<TNodeRef>()
       << " but get " << sptr->type_key();
@@ -195,7 +195,7 @@ inline TNodeRef TVMRetValue::AsNodeRef() const {
 
 inline void TVMArgsSetter::operator()(size_t i, const NodeRef& other) const {  // NOLINT(*)
   if (other.defined()) {
-    values_[i].v_handle = const_cast<std::shared_ptr<Node>*>(&(other.node_));
+    values_[i].v_handle = const_cast<NodePtr<Node>*>(&(other.node_));
     type_codes_[i] = kNodeHandle;
   } else {
     type_codes_[i] = kNull;
