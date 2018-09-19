@@ -264,6 +264,58 @@ def test_forward_LSTM():
     _test_LSTM(4, 4, return_state=False)
     _test_LSTM_MultiLayer(4, 4)
 
+def _test_RNN(inputs, units):
+    data = keras.layers.Input(shape=(1, inputs))
+    rnn_out = keras.layers.SimpleRNN(units, return_state=True,
+                                 activation='tanh')
+    x = rnn_out(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def _test_RNN_MultiLayer(inputs, units):
+    inputs = keras.layers.Input(shape=(1, inputs))
+    layer = keras.layers.SimpleRNN(units, return_state=True, return_sequences=True,
+                                   activation='tanh')
+    outputs = layer(inputs)
+    output, state = outputs[0], outputs[1:]
+    output = keras.layers.SimpleRNN(units, activation='tanh')(output, initial_state=state)
+    keras_model = keras.models.Model(inputs, output)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def test_forward_RNN():
+    _test_RNN(2, 4)
+    _test_RNN(4, 3)
+    _test_RNN_MultiLayer(4, 12)
+
+def _test_GRU(inputs, units):
+    data = keras.layers.Input(shape=(1, inputs))
+    gru_out = keras.layers.GRU(units,
+                               return_state=True,
+                               recurrent_activation='sigmoid',
+                               activation='tanh')
+    x = gru_out(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def _test_GRU_MultiLayer(inputs, units):
+    inputs = keras.layers.Input(shape=(1, inputs))
+    layer = keras.layers.GRU(units,
+                             return_state=True,
+                             return_sequences=True,
+                             recurrent_activation='sigmoid',
+                             activation='tanh')
+    outputs = layer(inputs)
+    output, state = outputs[0], outputs[1:]
+    output = keras.layers.GRU(units, recurrent_activation='sigmoid',
+                              activation='tanh')(output, initial_state=state)
+    keras_model = keras.models.Model(inputs, output)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def test_forward_GRU():
+    _test_GRU(2, 4)
+    _test_GRU(4, 3)
+    _test_GRU_MultiLayer(4, 4)
+
 if __name__ == '__main__':
     test_forward_elemwise_add()
     test_forward_activations()
@@ -282,3 +334,5 @@ if __name__ == '__main__':
     test_forward_multi_outputs()
     test_forward_reuse_layers()
     test_forward_LSTM()
+    test_forward_RNN()
+    test_forward_GRU()
