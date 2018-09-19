@@ -727,11 +727,28 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      CHECK_EQ(args.size(), 5) << "5 arguments are expected, but "
-                               << args.size() << " are passed in.";
-      tvm::runtime::Module modules = args[1];
-      const auto& contexts = GetAllContext(args);
-      *rv = GraphRuntimeCreate(args[0], modules, contexts);
+      std::vector<TVMContext> contexts;
+      // 4 argument version is currently reserved to keep support of calling
+      // from jvm4j and js, since they don't have heterogeneous execution
+      // support yet. For heterogenenous execution, 5 arguments will be passed
+      // in. They are graph_json, module, list of context types, list of context
+      // ids, and the number of devices. Eventually, we will only have the
+      // version with 5 parameters when we support heterogeneous execution for
+      // Java and js.
+      if (args.num_args == 4) {
+        TVMContext ctx;
+        int dev_type = args[2];
+        ctx.device_type = static_cast<DLDeviceType>(dev_type);
+        ctx.device_id = args[3];
+        contexts.push_back(ctx);
+      } else if (args.num_args == 5) {
+        contexts = GetAllContext(args);
+      } else {
+        LOG(FATAL)
+            << "The number arguments of creaet must be 4 or 5, but it has "
+            << args.num_args;
+      }
+      *rv = GraphRuntimeCreate(args[0], args[1], contexts);
     });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
