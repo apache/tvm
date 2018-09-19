@@ -1,8 +1,10 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
+from __future__ import absolute_import
 from .base import NodeBase, register_relay_node
 from ._ir_pass import _get_checked_type
 from . import _make
+from .. import convert
 
 
 class Expr(NodeBase):
@@ -76,8 +78,9 @@ class Function(Expr):
                  body,
                  type_params=None
                 ):
-        if not type_params:
-            type_params = []
+        if type_params is None:
+            type_params = convert([])
+
         self.__init_handle_by_constructor__(
             _make.Function, params, ret_type, body, type_params)
 

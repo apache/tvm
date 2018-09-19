@@ -6,7 +6,7 @@ def test_let():
     b = IRBuilder()
     x = b.let('x', 1)
     b.ret(x)
-    prog = b.get()
+    prog, _ = b.get()
     assert isinstance(prog, Let)
     var = prog.var
     value = prog.value
@@ -15,9 +15,6 @@ def test_let():
     assert isinstance(value, Constant)
     assert value.data.asnumpy() == np.array(1)
     assert prog.value_type == None
-
-# def test_function():
-#    b = IRBuilder()
 
 if __name__ == "__main__":
     test_let()

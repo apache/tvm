@@ -8,16 +8,16 @@ from . import _make
 class Type(NodeBase):
     """The base type for all Relay types."""
 
-    def __eq__(self, other): # type: (Type) -> bool
+    def __eq__(self, other):
         """Compare two Relay types for structural equivalence using
            alpha equivalence.
         """
         return bool(_make._type_alpha_eq(self, other))
 
-    def __ne__(self, other): # (Type) -> bool
+    def __ne__(self, other):
         return not self.__eq__(other)
 
-    def same_as(self, other): # (Type) -> bool
+    def same_as(self, other):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
@@ -29,12 +29,8 @@ class TensorType(Type):
     This is the type assigned to tensor's with a known dype and shape. For
     example a tensor of `float32` and `(5, 5)`.
     """
-    shape = None # type: List[expr.Expr]
-    dtype = None # type: str
-    span = None # type: Span
 
     def __init__(self, shape, dtype):
-        # type: (List[expr.Expr], str) -> None
         """Construct a tensor type.
 
         Parameters
@@ -72,12 +68,8 @@ class TypeParam(Type):
     be filled in later on. This allows the user to write
     functions which are generic over types.
     """
-    var = None # type: expr.Var
-    kind = None # type: Kind
-    span = None # type: Span
 
     def __init__(self, var, kind):
-        # type: (expr.Var, Kind) -> None
         """Construct a TypeParam.
 
         Parameters
@@ -114,19 +106,12 @@ class FuncType(Type):
     We informally write them as:
     `forall (type_params), (arg_types) -> ret_type where type_constraints`
     """
-    type_params = None # type: List[TypeParam]
-    type_constraints = None # type: List[TypeConstraint]
-    arg_types = None # type: List[Type]
-    ret_type = None # type: Type
-    span = None # type: Span
-
     def __init__(self,
-                 arg_types, # type: List[Type],
-                 ret_type, # type: Type,
-                 type_params, # type: List[TypeParam],
-                 type_constraints # type: List[TypeConstraint]
+                 arg_types,
+                 ret_type,
+                 type_params,
+                 type_constraints
                 ):
-        # type: (...) -> None
         """Construct a function type.
 
         Parameters
@@ -150,5 +135,4 @@ class IncompleteType(Type):
     """An incomplete type."""
 
     def __init__(self, kind):
-        # type: (Kind) -> None
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)

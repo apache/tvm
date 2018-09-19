@@ -4,7 +4,7 @@ from tvm import relay
 from tvm.expr import *
 
 # Span
-def test_span() -> None:
+def test_span():
     span = relay.Span(None, 1, 1)
     assert span.source == None
     assert span.lineno == 1
@@ -16,7 +16,7 @@ def test_span() -> None:
 
 # Types
 
-def test_tensor_type() -> None:
+def test_tensor_type():
     shape = tvm.convert([1, 2, 3])
     dtype = 'float32'
     tt = relay.TensorType(shape, dtype)
@@ -26,14 +26,14 @@ def test_tensor_type() -> None:
     str(tt)
 
 
-def test_type_param() -> None:
+def test_type_param():
     tp = relay.TypeParam('name', relay.Kind.Shape)
     tp.kind == relay.Kind.Shape
     tp.span  # TODO allow us to set span
     str(tp)
 
 
-def test_func_type() -> None:
+def test_func_type():
     type_params = tvm.convert([])
     type_constraints = tvm.convert([])  # TODO: fill me in
     arg_types = tvm.convert([])
@@ -48,7 +48,7 @@ def test_func_type() -> None:
     str(tf)
 
 
-def test_constant() -> None:
+def test_constant():
     arr = tvm.nd.array(10)
     const = relay.Constant(arr)
     assert const.data == arr
@@ -56,7 +56,7 @@ def test_constant() -> None:
     str(const)
 
 
-def test_tuple() -> None:
+def test_tuple():
     fields = tvm.convert([])
     tup = relay.Tuple(fields)
     assert tup.fields == fields
@@ -64,7 +64,7 @@ def test_tuple() -> None:
     str(tup)
 
 
-def test_local_var() -> None:
+def test_local_var():
     name_hint = 's'
     lv = relay.Var(name_hint)
     lv.name_hint == name_hint
@@ -72,7 +72,7 @@ def test_local_var() -> None:
     str(lv)
 
 
-def test_global_var() -> None:
+def test_global_var():
     name_hint = 'g'
     gv = relay.GlobalVar(name_hint)
     gv.name_hint == name_hint
@@ -80,7 +80,7 @@ def test_global_var() -> None:
     str(gv)
 
 
-def test_param() -> None:
+def test_param():
     lv = relay.Var('x')
     ty = None
     param = relay.Param(lv, ty)
@@ -90,7 +90,7 @@ def test_param() -> None:
     str(param)
 
 
-def test_function() -> None:
+def test_function():
     param_names = ['a', 'b', 'c', 'd']
     params = tvm.convert([relay.Param(relay.Var(n), None) for n in param_names])
     ret_type = None
@@ -104,7 +104,7 @@ def test_function() -> None:
     str(fn)
 
 
-def test_call() -> None:
+def test_call():
     op = relay.Var('f')
     arg_names = ['a', 'b', 'c', 'd']
     args = tvm.convert([relay.Var(n) for n in arg_names])
@@ -115,13 +115,13 @@ def test_call() -> None:
     str(call)
 
 
-def test_let() -> None:
+def test_let():
     lv = relay.Var('x')
     ty = None
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
     # I would prefer that the order of arguments
-    # matches syntax let x : t = v in b
+    # matches syntax let x: t = v in b
     let = relay.Let(lv, value, lv, ty)
     assert let.var == lv
     assert let.value == value
@@ -131,14 +131,14 @@ def test_let() -> None:
     str(let)
 
 
-def test_if() -> None:
+def test_if():
     cond = relay.Var('cond')
     left = relay.Var('left')
     right = relay.Var('right')
     ife = relay.If(cond, left, right)
     assert ife.cond == cond
-    assert ife.true_value == left
-    assert ife.false_value == right
+    assert ife.true_branch == left
+    assert ife.false_branch == right
     assert ife.span == None
     str(ife)
 

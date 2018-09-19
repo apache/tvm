@@ -3,7 +3,6 @@
 """
 import tvm
 import numpy as np
-from nnvm import graph
 from tvm.relay.ir_pass import check_expr
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.ir_builder import scalar_type, convert, tensor_type
