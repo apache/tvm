@@ -72,7 +72,6 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
             out_npy = _my_npy_argmin(in_npy_map, axis=axis, keepdims=keepdims)
         else:
             raise NotImplementedError
-        out_npy = np.atleast_1d(out_npy)
         data_tvm = tvm.nd.array(in_npy, ctx=ctx)
         out_tvm = tvm.nd.empty(shape=out_npy.shape, ctx=ctx, dtype=out_dtype)
         for _ in range(1):
