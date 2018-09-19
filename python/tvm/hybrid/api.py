@@ -6,6 +6,9 @@ import types
 from .._ffi.base import decorate
 from .._api_internal import _ExternOp
 from ..api import decl_buffer
+from ..expr import Call, Var
+from ..ir_pass import PostOrderVisit
+from ..tensor import Tensor
 from .parser import parse_python
 
 
@@ -33,7 +36,6 @@ def script(pyfunc):
     return decorate(pyfunc, wrapped_func)
 
 
-#TODO: make it False later
 def lower(func, args, simple_mode=False):
     """Parse a subset of Python to HalideIR
 
@@ -59,18 +61,31 @@ def lower(func, args, simple_mode=False):
         assert isinstance(func, types.FunctionType)
         src = _pruned_source(func)
     parser = parse_python(src, args)
+    body = parser.parsed_body
     if simple_mode:
-        return parser.parsed_body
+        return body
 
-    input_tensors = args
+    input_tensors = set()
+    def find_inputs(op):
+        if isinstance(op, Call):
+            for i in args:
+                if op.name == i.name:
+                    input_tensors.add(i)
+    PostOrderVisit(body, find_inputs)
+    input_tensors = list(input_tensors)
+
     input_buffers = []
     output_buffers = []
-    tensor_to_buffer = {}
+    attrs = {}
     for i in args:
-        buf_ = tensor_to_buffer[i.name] = decl_buffer(i.shape, i.dtype, i.name)
-        input_buffers.append(buf_)
-    for i in parser.outputs:
-        output_buffers.append(tensor_to_buffer[i])
-    res = _ExternOp(parser.func_name, "HybridOp", {}, args,
-            input_buffers, output_buffers, parser.parsed_body)
+        if isinstance(i, Tensor):
+            buf_ = decl_buffer(i.shape, i.dtype, i.name)
+            if i in input_tensors:
+                input_buffers.append(buf_)
+            if i.name in parser.outputs:
+                output_buffers.append(buf_)
+        attrs[i.name] = i
+
+    res = _ExternOp(parser.func_name, "HybridOp", attrs, input_tensors,
+            input_buffers, output_buffers, body)
     return res

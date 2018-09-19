@@ -57,6 +57,8 @@ def test_outer_product():
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
     c = tvm.placeholder((n, m), name='c')
+    op = outer_product(n, m, a, b, c)
+
     ir = tvm.hybrid.lower(outer_product, [n, m, a, b, c], simple_mode=True)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
