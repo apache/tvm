@@ -368,8 +368,8 @@ inline OpRegistry& OpRegistry::add_type_rel(
 
   // Add inputs.
   std::string input_name_prefix = "in";
-  for (int i = 0; i < get()->arguments.size(); i++) {
-    auto name = input_name_prefix + std::to_string(i++);
+  for (int i = 0; i < get()->num_inputs; i++) {
+    auto name = input_name_prefix + std::to_string(i);
     auto param = TypeParamNode::make(name, TypeParamNode::Kind::kType);
     type_params.push_back(param);
     arg_types.push_back(param);

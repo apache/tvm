@@ -291,6 +291,8 @@ CheckedExpr TypeInferencer::VisitExpr_(const CallNode *op) {
   // We now have a function type.
   FuncType fn_ty = GetRef<FuncType>(fn_ty_node);
 
+  std::cout << fn_ty << std::endl;
+
   tvm::Array<Type> ty_args;
   if (ty_args.size() != 0) {
     throw Error("found manually suplied type args, not supported");

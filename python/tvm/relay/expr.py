@@ -88,7 +88,7 @@ class Function(Expr):
 class Call(Expr):
     """A function call in Relay, see tvm/relay/expr.h for more details."""
 
-    def __init__(self, op: Expr, args: List[Expr], attrs, ty_args=None) -> None:
+    def __init__(self, op, args, attrs, ty_args=None):
         if not ty_args:
             ty_args = []
 
@@ -99,9 +99,8 @@ class Call(Expr):
 @register_relay_node
 class Let(Expr):
     """A variable bindings in Relay, see tvm/relay/expr.h for more details."""
-    # should be type annotation
 
-    def __init__(self, var: Var, value: Expr, body, value_type) -> None:
+    def __init__(self, var, value, body, value_type):
         self.__init_handle_by_constructor__(
             _make.Let, var, value, body, value_type)
 
@@ -110,6 +109,6 @@ class Let(Expr):
 class If(Expr):
     """A conditional expression in Relay, see tvm/relay/expr.h for more details."""
 
-    def __init__(self, cond: Expr, true_value: Expr, false_value: Expr) -> None:
+    def __init__(self, cond, true_value, false_value):
         self.__init_handle_by_constructor__(
             _make.If, cond, true_value, false_value)
