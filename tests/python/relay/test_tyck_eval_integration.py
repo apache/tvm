@@ -29,8 +29,6 @@ def test_monomorphic_let():
 
     prog, env = b.get()
     assert_has_type(prog, scalar_type('float64'))
-    # Need to handle constants
-    # run(env, prog, [], float_type(64))
 
 
 def test_single_op():
@@ -58,7 +56,6 @@ def test_add_op():
     prog, env = b.get()
     ttype = tensor_type(5, 5, 5)
     expected_ty = func_type([ttype, ttype], ttype)
-    import pdb; pdb.set_trace()
     assert_has_type(func.to_func(), expected_ty)
 
 def test_add_broadcast_op():
@@ -140,10 +137,10 @@ def test_recursion():
     # to execute this.
 
 if __name__ == "__main__":
-    # test_monomorphic_let()
-    # test_single_op()
+    test_monomorphic_let()
+    test_single_op()
     test_add_op()
-    # test_add_broadcast_op()
-    # test_dual_op()
-    # test_decl()
-    # test_recursion()
+    test_add_broadcast_op()
+    test_dual_op()
+    test_decl()
+    test_recursion()
