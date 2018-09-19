@@ -11,7 +11,8 @@ from .expr import Expr, Constant, Let, Var, Param, Function, If
 from .env import Environment
 
 
-def _convert_to_value(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
+def _convert_to_value(arg, ctxt=tvm.cpu(0)):
+    # type: (Any, tvm.Context) -> tvm.nd.NDArray
     """Convert Python values into the appropriate types
        for the Relay evaluator.
     """
@@ -27,7 +28,7 @@ def _convert_to_value(arg: Any, ctxt=tvm.cpu(0)) -> tvm.nd.NDArray:
         return arg
     else:
         # raise Exception(f"can't convert {type(arg)} to a Relay AST")
-        raise Exception(f"unsupported argument type {type(arg)}")
+        raise Exception("unsupported argument type {0}".format(type(arg)))
 
 
 def _convert_type(rtype):
@@ -36,10 +37,11 @@ def _convert_type(rtype):
     elif isinstance(rtype, Type):
         return rtype
     else:
-        raise Exception(f"unsupported conversion to Relay type {type(rtype)}")
+        raise Exception("unsupported conversion to Relay type {0}".format(type(rtype)))
 
 
-def convert(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
+def convert(arg):
+    # type: (Any) -> Expr
     if isinstance(arg, Expr):
         return arg
     elif isinstance(arg, tuple):
@@ -47,7 +49,7 @@ def convert(arg: Any, ctxt=tvm.cpu(0)) -> Expr:
     elif isinstance(arg, PartialFunc):
         return arg.to_func()
     else:
-        value = _convert_to_value(arg, ctxt)
+        value = _convert_to_value(arg)
         return Constant(value)
 
 
@@ -252,7 +254,8 @@ class IRBuilder(object):
 
         return Param(Var(name), ty)
 
-    def global_var(self, name: str):
+    def global_var(self, name):
+        # type: (str) -> GlobalVar
         """Construct a global var with `name` as its name hint.
 
         Parameters
@@ -268,7 +271,12 @@ class IRBuilder(object):
         """
         return self.env.global_var(name)
 
-    def decl(self, name: str, *params, ret_type=None):
+    def decl(self, name, *params, **kwargs):
+        if 'ret_type' in kwargs:
+            ret_type = kwargs['ret_type']
+        else:
+            ret_type = None
+
         self.enter_scope()
 
         def _on_exit():
@@ -316,7 +324,7 @@ def scalar_type(dtype):
     return TensorType(tvm.convert([]), dtype)
 
 
-def tensor_type(*shape, dtype='float32'):
+def tensor_type(*shape, **kwargs):
     """Construct a Relay Tensor type.
 
     Parameters
@@ -331,6 +339,11 @@ def tensor_type(*shape, dtype='float32'):
     tensor_type: relay.Type
         The resulting tensor types.
     """
+    if 'dtype' in kwargs:
+        dtype = kwargs['dtype']
+    else:
+        dtype = 'float32'
+        
     return TensorType(tvm.convert(shape), dtype)
 
 

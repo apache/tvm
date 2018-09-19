@@ -12,6 +12,7 @@ from tvm.relay.op import log, add, equal, subtract
 from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
+    import pdb; pdb.set_trace()
     checked_expr = check_expr(env, expr)
     assert checked_expr.checked_type() == typ
 

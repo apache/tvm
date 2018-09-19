@@ -24,17 +24,16 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
 }
 
 TVM_REGISTER_API("relay._make.TensorType")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Array<ShapeExpr> shape = args[0];
-      *ret = TensorTypeNode::make(shape, args[1]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  Array<ShapeExpr> shape = args[0];
+  *ret = TensorTypeNode::make(shape, args[1]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TensorTypeNode>([](const TensorTypeNode *node,
+.set_dispatch<TensorTypeNode>([](const TensorTypeNode *node,
                                      tvm::IRPrinter *p) {
-      p->stream << "TensorTypeNode(" << node->dtype << ", " << node->shape
-                << ")";
-    });
+  p->stream << "TensorTypeNode(" << node->dtype << ", " << node->shape << ")";
+});
 
 TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
   std::shared_ptr<TypeParamNode> n = std::make_shared<TypeParamNode>();
@@ -44,18 +43,18 @@ TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
 }
 
 TVM_REGISTER_API("relay._make.TypeParam")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      int kind = args[1];
-      *ret =
-          TypeParamNode::make(args[0], static_cast<TypeParamNode::Kind>(kind));
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  int kind = args[1];
+  *ret =
+    TypeParamNode::make(args[0], static_cast<TypeParamNode::Kind>(kind));
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TypeParamNode>([](const TypeParamNode *node,
+.set_dispatch<TypeParamNode>([](const TypeParamNode *node,
                                     tvm::IRPrinter *p) {
-      p->stream << "TypeParamNode(" << node->var->name_hint << ", "
-                << node->kind << ")";
-    });
+  p->stream << "TypeParamNode(" << node->var->name_hint << ", "
+    << node->kind << ")";
+});
 
 FuncType FuncTypeNode::make(tvm::Array<Type> arg_types, Type ret_type,
                             tvm::Array<TypeParam> type_params,
@@ -69,17 +68,17 @@ FuncType FuncTypeNode::make(tvm::Array<Type> arg_types, Type ret_type,
 }
 
 TVM_REGISTER_API("relay._make.FuncType")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = FuncTypeNode::make(args[0], args[1], args[2], args[3]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = FuncTypeNode::make(args[0], args[1], args[2], args[3]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<FuncTypeNode>([](const FuncTypeNode *node,
+.set_dispatch<FuncTypeNode>([](const FuncTypeNode *node,
                                    tvm::IRPrinter *p) {
-      p->stream << "FuncTypeNode(" << node->type_params << ", "
-                << node->arg_types << ", " << node->ret_type << ", "
-                << node->type_constraints << ")";
-    });
+  p->stream << "FuncTypeNode(" << node->type_params << ", "
+            << node->arg_types << ", " << node->ret_type << ", "
+            << node->type_constraints << ")";
+});
 
 TypeRelation TypeRelationNode::make(std::string name, TypeRelationFn func, Array<Type> args) {
   std::shared_ptr<TypeRelationNode> n = std::make_shared<TypeRelationNode>();
@@ -90,16 +89,16 @@ TypeRelation TypeRelationNode::make(std::string name, TypeRelationFn func, Array
 }
 
 TVM_REGISTER_API("relay._make.TypeRelation")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TypeRelationNode::make(args[0], args[1], args[2]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  *ret = TypeRelationNode::make(args[0], args[1], args[2]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
+.set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
                                        tvm::IRPrinter *p) {
-      p->stream << "TypeRelationNode(" << node->name << ", " << node->args
-                << ")";
-    });
+  p->stream << "TypeRelationNode(" << node->name << ", " << node->args
+    << ")";
+});
 
 TupleType TupleTypeNode::make(Array<Type> fields) {
   std::shared_ptr<TupleTypeNode> n = std::make_shared<TupleTypeNode>();
@@ -108,15 +107,15 @@ TupleType TupleTypeNode::make(Array<Type> fields) {
 }
 
 TVM_REGISTER_API("relay._make.TupleType")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TupleTypeNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = TupleTypeNode::make(args[0]);
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TupleTypeNode>([](const TupleTypeNode *node,
+.set_dispatch<TupleTypeNode>([](const TupleTypeNode *node,
                                     tvm::IRPrinter *p) {
-      p->stream << "TupleTypeNode(" << node->fields << ")";
-    });
+  p->stream << "TupleTypeNode(" << node->fields << ")";
+});
 
 }  // namespace relay
 }  // namespace tvm

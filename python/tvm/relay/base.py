@@ -22,9 +22,9 @@ def register_relay_node(type_key=None):
 
 @register_relay_node
 class Span(NodeBase):
-    source: "FileSource"
-    lineno: int
-    col_offset: int
+    source = None # type: FileSource
+    lineno = None # type: int 
+    col_offset = None # type: int
 
-    def __init__(self, source, lineno, col_offset):
+    def __init__(self, source, lineno, col_offset): # type: (FileSource, int, int) -> None
         self.__init_handle_by_constructor__(_make.Span, source, lineno, col_offset)

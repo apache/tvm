@@ -11,7 +11,7 @@ class Environment(NodeBase):
     options and more.
     """
 
-    def __init__(self, funcs) -> None:
+    def __init__(self, funcs):
         """Construct an environment.
 
         Parameters
@@ -24,7 +24,7 @@ class Environment(NodeBase):
         """
         self.__init_handle_by_constructor__(_make.Environment, funcs)
 
-    def add(self, var, func) -> None:
+    def add(self, var, func):
         """Add a function to the environment.
 
         Parameters

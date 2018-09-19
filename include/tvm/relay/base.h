@@ -9,7 +9,6 @@
 #include <tvm/api_registry.h>
 #include <tvm/ir.h>
 #include <tvm/node.h>
-#include <tvm/attrs.h>
 #include <string>
 #include <vector>
 
