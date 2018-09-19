@@ -196,7 +196,38 @@ def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
 
 reg.register_pattern("_contrib_conv2d_NCHWc", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+@reg.register_compute("_contrib_conv2d_NCHWc_int8_prepacked")
+def compute_contrib_conv2d_NCHWc_int8_prepacked(attrs, inputs, _):
+    """Compute definition of int8 conv2d NCHWc"""
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    layout = attrs.get_string("layout")
+    out_dtype = attrs.get_string("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+    assert dilation == (1, 1), "not support dilate now"
+    if groups == 1:
+        # pylint: disable=assignment-from-no-return
+        out = topi.nn.conv2d_NCHWc_int8_prepacked(inputs[0], inputs[1], strides, padding, layout, out_dtype)
+        # pylint: enable=assignment-from-no-return
+    else:
+        raise ValueError("not support arbitrary group number > 1 for now")
+    if attrs.get_bool("use_bias"):
+        bias = inputs[2]
+        bias = topi.expand_dims(bias, axis=1, num_newaxis=2)
+        out = topi.add(out, bias)
+    return out
+ 
+@reg.register_schedule("_contrib_conv2d_NCHWc_int8_prepacked")
+def schedule_contrib_conv2d_NCHWc_int8(attrs, outs, target):
+    with tvm.target.create(target):
+        return topi.generic.schedule_conv2d_NCHWc_int8_prepacked(outs)
 
+reg.register_pattern("_contrib_conv2d_NCHWc_int8", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+    
 @reg.register_compute("_contrib_conv2d_winograd_weight_transform")
 def compute_contrib_conv2d_winograd_weight_transform(attrs, inputs, _):
     return topi.nn.conv2d_winograd_weight_transform(inputs[0], attrs.get_int('tile_size'))

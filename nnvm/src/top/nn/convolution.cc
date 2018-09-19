@@ -344,6 +344,22 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2);
 
+NNVM_REGISTER_OP(_contrib_conv2d_NCHWc_int8_prepacked)
+.describe(R"code(2D convolution layer in int8 using prepacked data and kernel.
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "5D Tensor", "Packed input data.")
+.add_argument("weight", "6D Tensor", "Packed weight matrix.")
+.add_argument("bias", "1D Tensor", "Bias parameter.")
+.add_arguments(Conv2DParam::__FIELDS__())
+.set_attr_parser(ParamParser<Conv2DParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<Conv2DParam>)
+.set_attr<FListInputNames>("FListInputNames", UseBiasListInputNames<Conv2DParam>)
+.set_attr<FInferShape>("FInferShape", Conv2DInferShape)
+.set_attr<FInferType>("FInferType", Conv2DInferType<Conv2DParam>)
+.set_attr<FCorrectLayout>("FCorrectLayout", Conv2DCorrectLayout<Conv2DParam>)
+.set_num_outputs(1)
+.set_num_inputs(UseBiasNumInputs<Conv2DParam>)
+.set_support_level(2);
 
 NNVM_REGISTER_OP(_contrib_conv2d_winograd_weight_transform)
 .describe(R"code(Weight transformation of winograd fast convolution algorithm.

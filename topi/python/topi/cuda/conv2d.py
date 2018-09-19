@@ -9,7 +9,7 @@ from ..util import get_const_int, get_const_tuple, traverse_inline
 
 from .conv2d_direct import schedule_direct_cuda
 from .conv2d_winograd import winograd_cuda, schedule_winograd_cuda
-from .conv2d_int8 import conv2d_int8_NCHWc, schedule_conv2d_int8_NCHWc
+from .conv2d_int8 import conv2d_NCHWc_int8, schedule_conv2d_NCHWc_int8
 
 
 @autotvm.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd', 'int8'])
@@ -103,9 +103,9 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
         return winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype,
                              pre_computed=False)
     if cfg.template_key == 'int8':
-        return conv2d_int8_NCHWc(cfg, data, kernel, strides, padding, layout, out_dtype)
+        return conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, layout, out_dtype,
+                pre_computed=False)
 
-    print(cfg.template_key)
     if layout == 'NCHW':
         return nn.conv2d_nchw(data, kernel, strides, padding, out_dtype)
     elif layout == 'HWCN':
@@ -145,8 +145,8 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
             schedule_direct_cuda(cfg, s, op.output(0))
         if op.tag == 'conv2d_nchw_winograd':
             schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=False)
-        if op.tag == "conv2d_int8_NCHWc":
-            schedule_conv2d_int8_NCHWc(cfg, s, op.output(0))
+        if op.tag == "conv2d_NCHWc_int8":
+            schedule_conv2d_NCHWc_int8(cfg, s, op.output(0), pre_computed=False)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

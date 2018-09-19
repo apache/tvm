@@ -3,13 +3,15 @@
 import tvm
 from tvm import autotvm
 
+from ..generic import schedule_conv2d_NCHWc_int8_prepacked
 from .tensor_intrin import dp4a
+from ..nn.conv2d import conv2d_NCHWc_int8_prepacked
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple, get_const_int
+from ..util import get_const_tuple, get_const_int, traverse_inline
 
 
-def _conv2d_int8_NCHWc_arg_to_workload(data, kernel, stride, padding, layout, out_dtype):
+def _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype):
     """convert argument to workload"""
     shape = get_const_tuple(data.shape)
     if len(shape) == 5:
@@ -23,15 +25,15 @@ def _conv2d_int8_NCHWc_arg_to_workload(data, kernel, stride, padding, layout, ou
     if len(shape) == 6:
         oc_chunk, ic_chunk, KH, KW, oc_block, ic_block = shape
         raw_kernel = tvm.placeholder(
-            (oc_chunk, ic_chunk, KH, KW, oc_block, ic_block), dtype=kernel.dtype)
+            (oc_chunk*oc_block, ic_chunk*ic_block, KH, KW), dtype=kernel.dtype)
     else:
         raw_kernel = kernel
 
     return ('conv2d', ) + autotvm.task.task.args_to_workload(
-        [raw_data, raw_kernel, stride, padding, out_dtype])
+        [raw_data, raw_kernel, stride, padding, "NCHW", out_dtype])
 
 
-def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
+def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre_computed):
     """Convolution operator in NCHW[x]c layout for int8.
 
     Parameters
@@ -57,20 +59,23 @@ def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
     layout : str
         layout of data
 
-    out_dtype: str
+    out_dtype : str
         The output type. This is used for mixed precision.
+
+    pre_computed : str
+        Whether packed data and kernel are pre-computed
 
     Returns
     -------
     output : tvm.Tensor
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
-    assert layout == 'NCHW'
+    assert layout == "NCHW" or layout == "NCHW4c"
 
     ic_block_factor = 4
     oc_block_factor = 4
 
-    if len(data.shape) == 4:
+    if not pre_computed:
         batch, channels, height, width = get_const_tuple(data.shape)
         assert channels % ic_block_factor == 0, \
             "Number of input channels should be multiple of {}".format(
@@ -79,10 +84,7 @@ def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
                                   lambda n, c, h, w, vc: kernel[n,
                                                                 c*ic_block_factor + vc, h, w],
                                   name="packed_data")
-    else:
-        packed_data = data
 
-    if len(kernel.shape) == 4:
         out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(
             kernel.shape)
         assert out_channels % 4 == 0, \
@@ -95,7 +97,9 @@ def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
             kernel[oc_chunk * oc_block_factor + oc_block,
                    ic_chunk * ic_block_factor + ic_block, kh, kw],
             name="packed_kernel")
+
     else:
+        packed_data = data
         packed_kernel = kernel
 
     batch, ic_chunk, in_height, in_width, ic_block = get_const_tuple(
@@ -134,9 +138,9 @@ def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
 
     output = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                          conv[n, oc_chunk, oh, ow, oc_block].astype(out_dtype),
-                         tag="conv2d_int8_NCHWc",
-                         attrs={"workload": _conv2d_int8_NCHWc_arg_to_workload(
-                             data, kernel, stride, padding, layout, out_dtype)})
+                         tag="conv2d_NCHWc_int8",
+                         attrs={"workload": _conv2d_NCHWc_int8_arg_to_workload(
+                             data, kernel, stride, padding, out_dtype)})
 
     # num flop
     num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
@@ -149,7 +153,7 @@ def conv2d_int8_NCHWc(cfg, data, kernel, stride, padding, layout, out_dtype):
 _dp4a = dp4a('shared', 'shared', 'local')
 
 
-def schedule_conv2d_int8_NCHWc(cfg, s, output):
+def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     """Schedule conv2d int8 NCHWc template"""
     workload = output.op.attrs["workload"]
 
@@ -164,14 +168,14 @@ def schedule_conv2d_int8_NCHWc(cfg, s, output):
     else:
         pad_data = packed_data
 
-    if autotvm.GLOBAL_SCOPE.in_tuning:
-        # skip this part during tuning to make recrods accurate
-        # this part will be pre-computed during NNVM's pre-compute optimization pass
-        s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
-        s[packed_kernel].pragma(
-            s[packed_kernel].op.axis[0], "debug_skip_region")
-    else:
-        if isinstance(packed_data.op, tvm.tensor.ComputeOp):
+    if not pre_computed:
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # skip this part during tuning to make recrods accurate
+            # this part will be pre-computed during NNVM's pre-compute optimization pass
+            s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
+            s[packed_kernel].pragma(
+                s[packed_kernel].op.axis[0], "debug_skip_region")
+        else:
             s[packed_data].compute_inline()
         if isinstance(packed_kernel.op, tvm.tensor.ComputeOp):
             s[packed_kernel].compute_inline()
@@ -244,7 +248,7 @@ def schedule_conv2d_int8_NCHWc(cfg, s, output):
     for load in [AA, WW]:
         if load == AA:
             n, f, y, x, c = s[load].op.axis
-            if pad_data != packed_data and stride_h == 1 and stride_w == 1:
+            if pad_data == packed_data and stride_h == 1 and stride_w == 1:
                 s[load].vectorize(c)
                 fused = s[load].fuse(n, f, y, x)
             else:
@@ -263,12 +267,12 @@ def schedule_conv2d_int8_NCHWc(cfg, s, output):
         s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
 
     # double buffer
-    for load in [AA, WW]:
-        name = load.op.name + '_double_buffer'
-        cfg.define_knob(name, [0, 1])
-
-        if cfg[name].val:
-            s[load].double_buffer()
+    cfg.define_knob('AA_double_buffer', [0, 1])
+    cfg.define_knob('WW_double_buffer', [0, 1])
+    if cfg['AA_double_buffer'].val:
+        s[AA].double_buffer()
+    if cfg['WW_double_buffer'].val:
+        s[WW].double_buffer()
 
     # unroll
     cfg.define_knob("auto_unroll_max_step", [0, 512, 1500])
@@ -276,4 +280,44 @@ def schedule_conv2d_int8_NCHWc(cfg, s, output):
                      cfg['auto_unroll_max_step'].val)
     s[output].pragma(kernel_scope, 'unroll_explicit', False)
 
+    return s
+
+
+@conv2d_NCHWc_int8_prepacked.register(["cuda", "gpu"])
+@autotvm.task.dispatcher
+def conv2d_NCHWc_int8_prepacked_dispatcher(data, kernel, stride, padding, layout, out_dtype):
+    assert layout == 'NCHW4c'
+    return _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype)
+
+
+@conv2d_NCHWc_int8_prepacked_dispatcher.register("int8")
+def _decl_conv2d_NCHWc_int8_prepacked(cfg, data, kernel, stride, padding, layout, out_dtype):
+    return conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype,
+            pre_computed=True)
+
+@autotvm.register_topi_schedule(schedule_conv2d_NCHWc_int8_prepacked, ["cuda", "gpu"], ["int8"])
+def schedule_conv2d_NCHWc_int8_prepacked_cuda(cfg, outs):
+    """TOPI schedule callback of conv2d for cuda gpu
+
+    Parameters
+    ----------
+    cfg: ConfigEntity
+        The config for this template
+
+    outs: Array of Tensor
+        The computation graph description of conv2d
+        in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+        The computation schedule for conv2d.
+    """
+    s = tvm.create_schedule([x.op for x in outs])
+
+    def _callback(op):
+        if 'conv2d_NCHWc_int8' in op.tag:
+            schedule_conv2d_NCHWc_int8(cfg, s, op.output(0), pre_computed=True)
+
+    traverse_inline(s, outs[0].op, _callback)
     return s

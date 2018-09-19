@@ -375,6 +375,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         if cfg.template_key == 'direct':
             return None
 
+        if cfg.template_key == 'int8':
+            new_attrs['layout'] = 'NCHW4c'
+            new_attrs['out_layout'] = 'NCHW4c'
+            new_attrs['kernel_layout'] = 'OIHW4o4i'
+            return sym.contrib.conv2d_NCHWc_int8_prepacked(*copy_inputs, **new_attrs)
+
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 

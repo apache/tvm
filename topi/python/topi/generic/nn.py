@@ -140,6 +140,24 @@ def schedule_conv2d_winograd_without_weight_transform(outs):
 
 
 @tvm.target.generic_func
+def schedule_conv2d_NCHWc_int8_prepacked(outs):
+    """Schedule for conv2d NCHWc int8 with prepacked data and kernel
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of this operator
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):
     """Schedule for conv2d_transpose_nchw
 
