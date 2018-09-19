@@ -157,7 +157,7 @@ struct IncompleteTypeSubst : TypeMutator {
   IncompleteTypeSubst(const TypeUnifierNode *unifier) : unifier(unifier) {}
 
   // type var: look it up in the type map and recurse
-  Type VisitType_(const IncompleteTypeNode *op) override {
+  Type VisitType_(const IncompleteTypeNode* op) override {
     auto tv = GetRef<IncompleteType>(op);
     auto parent = unifier->union_find->Find(tv);
     if (parent == tv) {

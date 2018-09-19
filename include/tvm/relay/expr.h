@@ -6,8 +6,8 @@
 #ifndef TVM_RELAY_EXPR_H_
 #define TVM_RELAY_EXPR_H_
 
-#include <string>
 #include <tvm/attrs.h>
+#include <string>
 #include "./base.h"
 #include "./type.h"
 

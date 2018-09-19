@@ -119,8 +119,7 @@ class TypeParamNode : public TypeNode {
     kShapeVar = 0,
     kShape = 1,
     kBaseType = 2,
-    kType = 3,
-    kTypeList = 4,
+    kType = 3
   };
   /*!
    * \brief The variable itself is only meaningful when
