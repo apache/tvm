@@ -4,7 +4,7 @@
  * \brief Function for substituting a concrete type in place of a type ID
  */
 #include <tvm/relay/pass.h>
-#include <tvm/relay/expr_visitor.h>
+#include <tvm/relay/expr_functor.h>
 #include <unordered_set>
 
 namespace tvm {
