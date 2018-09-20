@@ -177,7 +177,6 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
                 s[packed_kernel].op.axis[0], "debug_skip_region")
         else:
             s[packed_data].compute_inline()
-        if isinstance(packed_kernel.op, tvm.tensor.ComputeOp):
             s[packed_kernel].compute_inline()
 
     if pad_data != packed_data:
