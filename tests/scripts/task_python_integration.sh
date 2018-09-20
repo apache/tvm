@@ -10,6 +10,7 @@ make cython3 || exit -1
 
 # Test extern package package
 cd apps/extension
+rm -rf lib
 make || exit -1
 cd ../..
 python -m nose -v apps/extension/tests || exit -1
