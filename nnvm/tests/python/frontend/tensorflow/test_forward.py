@@ -1019,7 +1019,7 @@ if __name__ == '__main__':
 
     # End to End
     test_forward_inception_v3()
-    #test_forward_inception_v1()
+    test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
     test_forward_ptb()
