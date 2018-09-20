@@ -8,7 +8,7 @@
 
 #include <dmlc/logging.h>
 #include <dmlc/registry.h>
-#include <tvm/node.h>
+#include <tvm/node/node.h>
 #include <string>
 #include <memory>
 #include <functional>
@@ -25,7 +25,7 @@ using ::tvm::AttrVisitor;
   class TypeName : public ::tvm::NodeRef {                       \
    public:                                                       \
     TypeName() {}                                                 \
-    explicit TypeName(std::shared_ptr<::tvm::Node> n) : NodeRef(n) {}   \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {}     \
     const NodeName* operator->() const {                          \
       return static_cast<const NodeName*>(node_.get());           \
     }                                                             \
@@ -48,7 +48,7 @@ std::string SaveJSON(const NodeRef& node);
  *
  * \return The shared_ptr of the Node.
  */
-std::shared_ptr<Node> LoadJSON_(std::string json_str);
+NodePtr<Node> LoadJSON_(std::string json_str);
 
 /*!
  * \brief Load the node from json string.
@@ -85,7 +85,7 @@ struct NodeFactoryReg {
    *        If this is not empty then FGlobalKey
    * \return The created function.
    */
-  using FCreate = std::function<std::shared_ptr<Node>(const std::string& global_key)>;
+  using FCreate = std::function<NodePtr<Node>(const std::string& global_key)>;
   /*!
    * \brief Global key function, only needed by global objects.
    * \param node The node pointer.
@@ -123,7 +123,7 @@ struct NodeFactoryReg {
 #define TVM_REGISTER_NODE_TYPE(TypeName)                                \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::NodeFactoryReg & __make_Node ## _ ## TypeName ## __ = \
       ::tvm::NodeFactoryReg::Registry()->__REGISTER__(TypeName::_type_key) \
-      .set_creator([](const std::string&) { return std::make_shared<TypeName>(); })
+      .set_creator([](const std::string&) { return ::tvm::make_node<TypeName>(); })
 
 
 #define TVM_STRINGIZE_DETAIL(x) #x

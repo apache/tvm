@@ -15,7 +15,7 @@ using tvm::IRPrinter;
 using namespace runtime;
 
 Environment EnvironmentNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
-  std::shared_ptr<EnvironmentNode> n = std::make_shared<EnvironmentNode>();
+  auto n = make_node<EnvironmentNode>();
   n->functions = std::move(global_funcs);
   return Environment(n);
 }
@@ -31,20 +31,22 @@ GlobalVar EnvironmentNode::GetGlobalVar(const std::string &str) {
   }
 }
 
-/*! \brief Add a new item to the global environment
+/*!
+ * \brief Add a new item to the global environment
  * \note if the update flag is not set adding a duplicate
  * definition will trigger an exception, otherwise we will
  * update the definition if and only if it is type compatible.
  */
-void EnvironmentNode::Add(const GlobalVar &var, const Function &func,
+void EnvironmentNode::Add(const GlobalVar &var,
+                          const Function &func,
                           bool update) {
   // Type check the item before we add it to the environment.
-  auto env = GetRef<Environment>(this);
+  auto env = relay::GetRef<Environment>(this);
 
   Expr checked_expr = InferType(env, var, func);
 
   if (const FunctionNode *func_node = checked_expr.as<FunctionNode>()) {
-    auto checked_func = GetRef<Function>(func_node);
+    auto checked_func = relay::GetRef<Function>(func_node);
     auto type = checked_func->checked_type();
 
     CHECK(IsFullyResolved(type));
@@ -100,46 +102,46 @@ void EnvironmentNode::Merge(const Environment &env) {
 }
 
 TVM_REGISTER_API("relay._make.Environment")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = EnvironmentNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = EnvironmentNode::make(args[0]);
+  });
 
 TVM_REGISTER_API("relay._env.Environment_Add")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      env->Add(args[1], args[2], false);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Environment env = args[0];
+    env->Add(args[1], args[2], false);
+  });
 
 TVM_REGISTER_API("relay._env.Environment_GetGlobalVar")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      *ret = env->GetGlobalVar(args[1]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Environment env = args[0];
+    *ret = env->GetGlobalVar(args[1]);
+  });
 
 TVM_REGISTER_API("relay._env.Environment_Lookup")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      GlobalVar var = args[1];
-      *ret = env->Lookup(var);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Environment env = args[0];
+    GlobalVar var = args[1];
+    *ret = env->Lookup(var);
+  });
 
 TVM_REGISTER_API("relay._env.Environment_Lookup_str")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      std::string var_name = args[1];
-      auto var = env->GetGlobalVar(var_name);
-      *ret = env->Lookup(var);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Environment env = args[0];
+    std::string var_name = args[1];
+    auto var = env->GetGlobalVar(var_name);
+    *ret = env->Lookup(var);
+  });
 
 TVM_REGISTER_API("relay._env.Environment_Merge")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      Environment env = args[0];
-      env->Merge(args[1]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    Environment env = args[0];
+    env->Merge(args[1]);
+  });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<EnvironmentNode>([](const EnvironmentNode *node,
-                                      tvm::IRPrinter *p) {
+.set_dispatch<EnvironmentNode>(
+    [](const EnvironmentNode *node, tvm::IRPrinter *p) {
       p->stream << "EnvironmentNode( " << node->functions << ")";
     });
 

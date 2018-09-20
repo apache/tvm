@@ -136,7 +136,7 @@ class Attrs : public NodeRef {
   // normal constructor
   Attrs() {}
   // construct from shared ptr.
-  explicit Attrs(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Attrs(NodePtr<Node> n) : NodeRef(n) {}
 
   /*! \return The attribute node */
   const BaseAttrsNode* operator->() const {
@@ -442,7 +442,7 @@ class AttrDocEntry {
  public:
   using TSelf = AttrDocEntry;
 
-  explicit AttrDocEntry(std::shared_ptr<AttrFieldInfoNode> info)
+  explicit AttrDocEntry(NodePtr<AttrFieldInfoNode> info)
       : info_(info) {
   }
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
@@ -466,15 +466,15 @@ class AttrDocEntry {
   }
 
  private:
-  std::shared_ptr<AttrFieldInfoNode> info_;
+  NodePtr<AttrFieldInfoNode> info_;
 };
 
 class AttrDocVisitor {
  public:
   template<typename T>
   AttrDocEntry operator()(const char* key, T* v) {
-    std::shared_ptr<AttrFieldInfoNode> info
-        = std::make_shared<AttrFieldInfoNode>();
+    NodePtr<AttrFieldInfoNode> info
+        = make_node<AttrFieldInfoNode>();
     info->name = key;
     info->type_info = TypeName<T>::value;
     fields_.push_back(AttrFieldInfo(info));

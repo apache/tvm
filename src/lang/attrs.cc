@@ -30,7 +30,7 @@ Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const {
 }
 
 Attrs DictAttrsNode::make(Map<std::string, NodeRef> dict) {
-  std::shared_ptr<DictAttrsNode> n = std::make_shared<DictAttrsNode>();
+  NodePtr<DictAttrsNode> n = make_node<DictAttrsNode>();
   n->dict = std::move(dict);
   return Attrs(n);
 }
