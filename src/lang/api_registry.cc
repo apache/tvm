@@ -11,10 +11,10 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
     p->stream << "EnvFunc(" << op->name << ")";
 });
 
-std::shared_ptr<EnvFuncNode> CreateEnvNode(const std::string& name) {
+NodePtr<EnvFuncNode> CreateEnvNode(const std::string& name) {
   auto* f = runtime::Registry::Get(name);
   CHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
-  std::shared_ptr<EnvFuncNode> n = std::make_shared<EnvFuncNode>();
+  NodePtr<EnvFuncNode> n = make_node<EnvFuncNode>();
   n->func = *f;
   n->name = name;
   return n;

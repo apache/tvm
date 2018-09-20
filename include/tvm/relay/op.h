@@ -90,7 +90,7 @@ class Op : public relay::Expr {
   /*! \brief default constructor  */
   Op() {}
   /*! \brief constructor from node pointer */
-  explicit Op(std::shared_ptr<Node> n) : Expr(n) {}
+  explicit Op(NodePtr<Node> n) : Expr(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -149,9 +149,9 @@ class OpRegistry {
                                   const std::string& description);
   /*!
    * \brief Attach the type function corresponding to the return type.
-   * \param rel_name The type relation name to register. 
+   * \param rel_name The type relation name to register.
    * \param type_rel_func The backing relation function which can solve an arbitrary
-   * relation on variables. 
+   * relation on variables.
    * \return reference to self.
    */
   inline OpRegistry& add_type_rel(
@@ -338,7 +338,7 @@ inline OpRegistry& OpRegistry::describe(
 inline OpRegistry& OpRegistry::add_argument(const std::string& name,
                                             const std::string& type,
                                             const std::string& description) {
-  std::shared_ptr<AttrFieldInfoNode> n = std::make_shared<AttrFieldInfoNode>();
+  auto n = make_node<AttrFieldInfoNode>();
   n->name = name;
   n->type_info = type;
   n->description = description;

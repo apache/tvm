@@ -69,7 +69,7 @@ Tensor compute(Array<Expr> shape,
                std::string name,
                std::string tag,
                Map<std::string, NodeRef> attrs) {
-  auto op_node = std::make_shared<ComputeOpNode>();
+  auto op_node = make_node<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -91,7 +91,7 @@ Array<Tensor> compute(Array<Expr> shape,
                       std::string name,
                       std::string tag,
                       Map<std::string, NodeRef> attrs) {
-  auto op_node = std::make_shared<ComputeOpNode>();
+  auto op_node = make_node<ComputeOpNode>();
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -117,7 +117,7 @@ Operation ComputeOpNode::make(std::string name,
                               Map<std::string, NodeRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
-  auto n = std::make_shared<ComputeOpNode>();
+  auto n = make_node<ComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -163,7 +163,7 @@ Operation ComputeOpNode::ReplaceInputs(
     if (!new_reduce.same_as(this->body[0])) {
       const ir::Reduce* r = new_reduce.as<ir::Reduce>();
       for (size_t k = 0; k < this->body.size(); ++k) {
-        std::shared_ptr<ir::Reduce> n = std::make_shared<ir::Reduce>(*r);
+        auto n = make_node<ir::Reduce>(*r);
         n->value_index = static_cast<int>(k);
         n->type = r->source[k].type();
         arr.push_back(Expr(n));

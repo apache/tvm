@@ -94,7 +94,7 @@ class CompileEngine {
       return it->second->graph_func;
     }
     GraphFunc f = DoLower(key->graph, key->inputs, key->target, master_idx);
-    std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
+    auto n = tvm::make_node<GraphCacheEntryNode>();
     n->graph_func = f;
     n->use_count = 1;
     n->master_idx = master_idx;
@@ -107,8 +107,7 @@ class CompileEngine {
     Array<NodeRef> items;
     for (auto& kv : cache_) {
       items.push_back(kv.first);
-      std::shared_ptr<GraphCacheEntryNode> n =
-          std::make_shared<GraphCacheEntryNode>(*(kv.second.operator->()));
+      auto n = tvm::make_node<GraphCacheEntryNode>(*(kv.second.operator->()));
       items.push_back(GraphCacheEntry(n));
     }
     return items;
@@ -126,7 +125,7 @@ class CompileEngine {
   // Set the given function on given graph key.
   void Set(const GraphKey& key, GraphFunc func) {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::shared_ptr<GraphCacheEntryNode> n = std::make_shared<GraphCacheEntryNode>();
+    auto n = tvm::make_node<GraphCacheEntryNode>();
     n->graph_func = func;
     n->use_count = 1;
     cache_[key] = GraphCacheEntry(n);
@@ -265,7 +264,7 @@ class CompileEngine {
         graph, inputs, target, master_idx,
         &readable_name, &outputs);
 
-    std::shared_ptr<GraphFuncNode> gf = std::make_shared<GraphFuncNode>();
+    auto gf = tvm::make_node<GraphFuncNode>();
     gf->target = target;
     gf->func_name = GetUniqeName(readable_name);
     gf->inputs = inputs;

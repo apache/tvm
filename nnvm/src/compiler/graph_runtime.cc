@@ -91,8 +91,7 @@ TVM_REGISTER_GLOBAL("nnvm.compiler._load_param_dict")
     for (size_t i = 0; i < size; ++i) {
       tvm::runtime::NDArray temp;
       temp.Load(strm);
-      std::shared_ptr<NDArrayWrapperNode> n
-          = std::make_shared<NDArrayWrapperNode>();
+      auto n = tvm::make_node<NDArrayWrapperNode>();
       n->name = std::move(names[i]);
       n->array = temp;
       ret.push_back(NDArrayWrapper(n));

@@ -27,7 +27,7 @@ using runtime::PackedFunc;
 class VPISession : public NodeRef {
  public:
   VPISession() {}
-  explicit VPISession(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit VPISession(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Get handle by name.
    * \param name The name of the handle.
@@ -63,7 +63,7 @@ class VPISession : public NodeRef {
 class VPIHandle : public NodeRef {
  public:
   VPIHandle() {}
-  explicit VPIHandle(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit VPIHandle(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Get handle by name.
    * \param name The name of the handle.

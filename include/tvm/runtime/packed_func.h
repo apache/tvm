@@ -17,6 +17,7 @@
 #include "c_runtime_api.h"
 #include "module.h"
 #include "ndarray.h"
+#include "node_base.h"
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -31,12 +32,6 @@ struct Expr;
 #endif
 
 namespace tvm {
-// Forward declare NodeRef and Node for extensions.
-// This header works fine without depend on NodeRef
-// as long as it is not used.
-class Node;
-class NodeRef;
-
 namespace runtime {
 // forward declarations
 class TVMArgs;
@@ -549,7 +544,7 @@ class TVMArgValue : public TVMPODValue_ {
   inline operator HalideIR::Type() const;
   inline operator HalideIR::Expr() const;
   // get internal node ptr, if it is node
-  inline std::shared_ptr<Node>& node_sptr();
+  inline NodePtr<Node>& node_sptr();
 };
 
 /*!
@@ -745,7 +740,7 @@ class TVMRetValue : public TVMPODValue_ {
   template<typename TNodeRef>
   inline TNodeRef AsNodeRef() const;
   inline TVMRetValue& operator=(const NodeRef& other);
-  inline TVMRetValue& operator=(const std::shared_ptr<Node>& other);
+  inline TVMRetValue& operator=(const NodePtr<Node>& other);
   // type related
   inline operator HalideIR::Type() const;
   inline TVMRetValue& operator=(const HalideIR::Type& other);
@@ -775,8 +770,8 @@ class TVMRetValue : public TVMPODValue_ {
         break;
       }
       case kNodeHandle: {
-        SwitchToClass<std::shared_ptr<Node> >(
-            kNodeHandle, *other.template ptr<std::shared_ptr<Node> >());
+        SwitchToClass<NodePtr<Node> >(
+            kNodeHandle, *other.template ptr<NodePtr<Node> >());
         break;
       }
       default: {
@@ -821,7 +816,7 @@ class TVMRetValue : public TVMPODValue_ {
       case kStr: delete ptr<std::string>(); break;
       case kFuncHandle: delete ptr<PackedFunc>(); break;
       case kModuleHandle: delete ptr<Module>(); break;
-      case kNodeHandle: delete ptr<std::shared_ptr<Node> >(); break;
+      case kNodeHandle: delete ptr<NodePtr<Node> >(); break;
       case kNDArrayContainer: {
         static_cast<NDArray::Container*>(value_.v_handle)->DecRef();
         break;

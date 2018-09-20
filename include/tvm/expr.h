@@ -76,7 +76,7 @@ class Var : public HalideIR::VarExpr {
  public:
   EXPORT explicit Var(const std::string& name_hint = "v",
                Type t = Int(32)) : VarExpr(name_hint, t) {}
-  explicit Var(std::shared_ptr<Node> n) : VarExpr(n) {}
+  explicit Var(NodePtr<Node> n) : VarExpr(n) {}
   explicit Var(VarExpr v) : VarExpr(v) {}
   /*!
    * \brief Make a new copy of var with same type, append suffix
@@ -107,7 +107,7 @@ class Range : public HalideIR::IR::Range {
  public:
   /*! \brief constructor */
   Range() {}
-  explicit Range(std::shared_ptr<Node> n) : HalideIR::IR::Range(n) {}
+  explicit Range(NodePtr<Node> n) : HalideIR::IR::Range(n) {}
   /*!
    * \brief constructor by begin and end
    * \param begin The begin of the range.
@@ -197,7 +197,7 @@ class IterVar : public NodeRef {
   // construct a new iter var without a domain
   IterVar() {}
   // construct from shared ptr.
-  explicit IterVar(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit IterVar(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

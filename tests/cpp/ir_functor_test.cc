@@ -1,7 +1,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tvm.h>
-#include <tvm/ir_functor.h>
+#include <tvm/node/ir_functor.h>
 #include <tvm/ir_functor_ext.h>
 
 TEST(IRF, Basic) {

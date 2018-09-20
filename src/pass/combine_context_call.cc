@@ -90,7 +90,7 @@ class ContextCallCombiner final : public IRMutator {
 };
 
 LoweredFunc CombineContextCall(LoweredFunc f) {
-  auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = ContextCallCombiner().Combine(n->body);
   return LoweredFunc(n);
 }

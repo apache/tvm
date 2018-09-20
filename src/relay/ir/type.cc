@@ -3,7 +3,6 @@
  * \file src/tvm/ir/type.cc
  * \brief The type system AST nodes of Relay.
  */
-#include <tvm/ir_functor.h>
 #include <tvm/relay/type.h>
 
 namespace tvm {
@@ -13,7 +12,7 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 TensorType TensorTypeNode::make(Array<ShapeExpr> shape, DataType dtype) {
-  std::shared_ptr<TensorTypeNode> n = std::make_shared<TensorTypeNode>();
+  NodePtr<TensorTypeNode> n = make_node<TensorTypeNode>();
   n->shape = std::move(shape);
   n->dtype = std::move(dtype);
   return TensorType(n);
@@ -36,7 +35,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
-  std::shared_ptr<TypeParamNode> n = std::make_shared<TypeParamNode>();
+  NodePtr<TypeParamNode> n = make_node<TypeParamNode>();
   n->var = tvm::Var(name);
   n->kind = std::move(kind);
   return TypeParam(n);
@@ -59,7 +58,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 FuncType FuncTypeNode::make(tvm::Array<Type> arg_types, Type ret_type,
                             tvm::Array<TypeParam> type_params,
                             tvm::Array<TypeConstraint> type_constraints) {
-  std::shared_ptr<FuncTypeNode> n = std::make_shared<FuncTypeNode>();
+  NodePtr<FuncTypeNode> n = make_node<FuncTypeNode>();
   n->arg_types = std::move(arg_types);
   n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
@@ -81,7 +80,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TypeRelation TypeRelationNode::make(std::string name, TypeRelationFn func, Array<Type> args) {
-  std::shared_ptr<TypeRelationNode> n = std::make_shared<TypeRelationNode>();
+  NodePtr<TypeRelationNode> n = make_node<TypeRelationNode>();
   n->name = std::move(name);
   n->func_ = std::move(func);
   n->args = std::move(args);
@@ -101,7 +100,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 TupleType TupleTypeNode::make(Array<Type> fields) {
-  std::shared_ptr<TupleTypeNode> n = std::make_shared<TupleTypeNode>();
+  NodePtr<TupleTypeNode> n = make_node<TupleTypeNode>();
   n->fields = std::move(fields);
   return TupleType(n);
 }

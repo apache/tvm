@@ -8,7 +8,7 @@
 
 #include <tvm/api_registry.h>
 #include <tvm/ir.h>
-#include <tvm/node.h>
+#include <tvm/node/node.h>
 #include <string>
 
 #include "./base.h"
@@ -37,7 +37,7 @@ class TypeNode : public RelayNode {
 class Type : public NodeRef {
  public:
   Type() {}
-  explicit Type(std::shared_ptr<tvm::Node> p) : NodeRef(p) {}
+  explicit Type(NodePtr<tvm::Node> p) : NodeRef(p) {}
 
   using ContainerType = TypeNode;
 };

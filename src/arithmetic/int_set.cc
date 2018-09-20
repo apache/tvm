@@ -329,7 +329,7 @@ inline IntSet AsStrideSet(IntSet a) {
   if (a.as<StrideSet>()) return a;
   const IntervalSet* s = a.as<IntervalSet>();
   CHECK(s->i.is_bounded());
-  std::shared_ptr<StrideSet> n = std::make_shared<StrideSet>();
+  NodePtr<StrideSet> n = make_node<StrideSet>();
   n->base = s->i;
   return IntSet(n);
 }
@@ -348,7 +348,7 @@ inline IntSet CombineSets<Add>(IntSet a, IntSet b) {
   b = AsStrideSet(b);
   const StrideSet* a_stride = a.as<StrideSet>();
   const StrideSet* b_stride = b.as<StrideSet>();
-  auto n = std::make_shared<StrideSet>(*a_stride);
+  auto n = make_node<StrideSet>(*a_stride);
   for (size_t i = 0; i < b_stride->extents.size(); ++i) {
     n->extents.push_back(b_stride->extents[i]);
     n->strides.push_back(b_stride->strides[i]);

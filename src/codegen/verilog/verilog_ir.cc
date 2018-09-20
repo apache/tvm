@@ -17,14 +17,14 @@ using namespace ir;
 
 ControlSignal ControlSignalNode::make(
     ControlSignalType type, int advance_size) {
-  auto n = std::make_shared<ControlSignalNode>();
+  auto n = make_node<ControlSignalNode>();
   n->ctrl_type = type;
   n->advance_size = advance_size;
   return ControlSignal(n);
 }
 
 StageInput StageInputNode::make(Var var, StageInputType input_type) {
-  std::shared_ptr<StageInputNode> n = std::make_shared<StageInputNode>();
+  NodePtr<StageInputNode> n = make_node<StageInputNode>();
   n->var = var;
   n->input_type = input_type;
   return StageInput(n);
@@ -81,7 +81,7 @@ class PipelineExtractor: public IRVisitor {
         arg_handle_[arg.get()] = arg;
       }
     }
-    pipeline_ = std::make_shared<PipelineNode>();
+    pipeline_ = make_node<PipelineNode>();
     this->Visit(f->body);
     // setup channels
     for (const auto &kv : cmap_) {
@@ -113,7 +113,7 @@ class PipelineExtractor: public IRVisitor {
       if (cb.node != nullptr) {
         CHECK(cb.node->channel.same_as(ch));
       } else {
-        cb.node = std::make_shared<ChannelBlockNode>();
+        cb.node = make_node<ChannelBlockNode>();
         cb.node->channel = ch;
       }
       if (op->attr_key == attr::channel_read_scope) {
@@ -167,8 +167,8 @@ class PipelineExtractor: public IRVisitor {
     // The replace logic
     StageInputReplacer repl(var_info_);
     // Setup the compute block.
-    std::shared_ptr<ComputeBlockNode> compute =
-        std::make_shared<ComputeBlockNode>();
+    NodePtr<ComputeBlockNode> compute =
+        make_node<ComputeBlockNode>();
     compute->loop = Array<Stmt>(loop_);
     // setup the advance triggers
     for (const auto& e : trigger_) {
@@ -180,8 +180,8 @@ class PipelineExtractor: public IRVisitor {
       } else {
         ch = Channel(attr->node.node_);
       }
-      std::shared_ptr<SignalTriggerNode> trigger
-          = std::make_shared<SignalTriggerNode>();
+      NodePtr<SignalTriggerNode> trigger
+          = make_node<SignalTriggerNode>();
       trigger->channel_var = ch->handle_var;
       // predicate for the trigger
       Expr predicate = const_true();
@@ -249,7 +249,7 @@ class PipelineExtractor: public IRVisitor {
     CHECK(!cmap_.count(var))
         << "Multiple access to the same handle";
     ChannelEntry& cb = cmap_[var];
-    cb.node = std::make_shared<ChannelBlockNode>();
+    cb.node = make_node<ChannelBlockNode>();
     cb.node->channel = ChannelNode::make(arg_handle_.at(var), dtype);
     return cb.node->channel;
   }
@@ -257,7 +257,7 @@ class PipelineExtractor: public IRVisitor {
  private:
   // The channel information.
   struct ChannelEntry {
-    std::shared_ptr<ChannelBlockNode> node;
+    NodePtr<ChannelBlockNode> node;
     int read_ref_count{0};
     int write_ref_count{0};
   };
@@ -276,7 +276,7 @@ class PipelineExtractor: public IRVisitor {
   // The argument handle map
   std::unordered_map<const Variable*, Var> arg_handle_;
   // The result block.
-  std::shared_ptr<PipelineNode> pipeline_;
+  NodePtr<PipelineNode> pipeline_;
 };
 
 Pipeline MakePipeline(LoweredFunc f) {

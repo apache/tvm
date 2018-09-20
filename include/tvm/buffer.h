@@ -6,11 +6,11 @@
 #ifndef TVM_BUFFER_H_
 #define TVM_BUFFER_H_
 
-#include <tvm/container.h>
 #include <string>
 
 #include "base.h"
 #include "expr.h"
+#include "node/container.h"
 
 namespace tvm {
 
@@ -31,7 +31,7 @@ enum class AccessMask : int {
 class Buffer : public NodeRef {
  public:
   Buffer() {}
-  explicit Buffer(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Buffer(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Return a new buffer that is equivalent with current one
    *  but always add stride field.

@@ -30,7 +30,7 @@ Tensor TensorNode::make(Array<Expr> shape,
                         Type dtype,
                         Operation op,
                         int value_index) {
-  auto n = std::make_shared<TensorNode>();
+  auto n = make_node<TensorNode>();
   n->shape = std::move(shape);
   n->dtype = dtype;
   n->op = op;
@@ -47,7 +47,7 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
 Tensor Operation::output(size_t i) const {
-  auto node = std::make_shared<TensorNode>();
+  auto node = make_node<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
@@ -62,7 +62,7 @@ TensorIntrin TensorIntrinNode::make(std::string name,
                                     Stmt body,
                                     Stmt reduce_init,
                                     Stmt reduce_update) {
-  auto n = std::make_shared<TensorIntrinNode>();
+  auto n = make_node<TensorIntrinNode>();
   n->name = std::move(name);
   n->op = std::move(op);
   n->inputs = std::move(inputs);

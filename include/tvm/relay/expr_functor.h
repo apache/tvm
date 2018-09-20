@@ -7,7 +7,7 @@
 #ifndef TVM_RELAY_EXPR_FUNCTOR_H_
 #define TVM_RELAY_EXPR_FUNCTOR_H_
 
-#include <tvm/ir_functor.h>
+#include <tvm/node/ir_functor.h>
 #include <string>
 #include "./expr.h"
 #include "./op.h"
@@ -19,7 +19,7 @@ namespace relay {
  * \brief A dynamical functor that dispatches on in the first Expr argument.
  *  You can use this as a more powerful Visitor, since it allows you to
  *  define function signatures of Visit Function.
- * 
+ *
  * \sa tvm/ir_functor.h
  *
  * \tparam FType function signiture
@@ -30,7 +30,7 @@ template <typename FType>
 class ExprFunctor;
 
 // functions to be overriden.
-#define EXPR_FUNCTOR_DEFAULT \
+#define EXPR_FUNCTOR_DEFAULT                                      \
   { return VisitExprDefault_(op, std::forward<Args>(args)...); }
 
 #define RELAY_EXPR_FUNCTOR_DISPATCH(OP)                                \
@@ -152,12 +152,12 @@ class ExprMutator
   Expr VisitExpr_(const CallNode* call_node, const Expr& e) override;
   Expr VisitExpr_(const LetNode* op, const Expr& e) override;
   Expr VisitExpr_(const IfNode* op, const Expr& e) override;
-  /*! \brief Used to visit the types inside of expressions. 
-   *  
+  /*! \brief Used to visit the types inside of expressions.
+   *
    * Can be overloaded to transform the types in arbitrary
    * ways, one way would be to define a sub-class of type
    * visitor for types which transform them appropriately.
-   */ 
+   */
   virtual Type VisitType(const Type& t);
 
  private:

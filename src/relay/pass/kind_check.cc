@@ -10,10 +10,9 @@
  *
  * For example tensors are not allowed to contain functions in Relay.
  *
- * We check this by ensuring the `dtype` field of a Tensor always 
+ * We check this by ensuring the `dtype` field of a Tensor always
  * contains a data type such as `int`, `float`, `uint`.
  */
-#include <tvm/ir_functor.h>
 #include <tvm/relay/pass.h>
 #include "./type_visitor.h"
 

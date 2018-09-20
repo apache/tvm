@@ -9,6 +9,7 @@
 #include <nnvm/graph.h>
 #include <tvm/base.h>
 #include <tvm/expr.h>
+#include <tvm/node/memory.h>
 #include <tvm/packed_func_ext.h>
 #include <tvm/runtime/ndarray.h>
 #include <vector>

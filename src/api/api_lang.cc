@@ -45,11 +45,11 @@ TVM_REGISTER_API("_str")
 
 TVM_REGISTER_API("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
-    std::vector<std::shared_ptr<Node> > data;
+    std::vector<NodePtr<Node> > data;
     for (int i = 0; i < args.size(); ++i) {
       data.push_back(args[i].node_sptr());
     }
-    auto node = std::make_shared<ArrayNode>();
+    auto node = make_node<ArrayNode>();
     node->data = std::move(data);
     *ret = node;
   });
@@ -87,7 +87,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].operator std::string(),
                                     args[i + 1].node_sptr()));
       }
-      auto node = std::make_shared<StrMapNode>();
+      auto node = make_node<StrMapNode>();
       node->data = std::move(data);
       *ret = node;
     } else {
@@ -101,7 +101,7 @@ TVM_REGISTER_API("_Map")
         data.emplace(std::make_pair(args[i].node_sptr(),
                                     args[i + 1].node_sptr()));
       }
-      auto node = std::make_shared<MapNode>();
+      auto node = make_node<MapNode>();
       node->data = std::move(data);
       *ret = node;
     }
@@ -163,7 +163,7 @@ TVM_REGISTER_API("_MapItems")
     auto& sptr = args[0].node_sptr();
     if (sptr->is_type<MapNode>()) {
       auto* n = static_cast<const MapNode*>(sptr.get());
-      auto rkvs = std::make_shared<ArrayNode>();
+      auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(kv.first);
         rkvs->data.push_back(kv.second);
@@ -171,7 +171,7 @@ TVM_REGISTER_API("_MapItems")
       *ret = rkvs;
     } else {
       auto* n = static_cast<const StrMapNode*>(sptr.get());
-      auto rkvs = std::make_shared<ArrayNode>();
+      auto rkvs = make_node<ArrayNode>();
       for (const auto& kv : n->data) {
         rkvs->data.push_back(ir::StringImm::make(kv.first).node_);
         rkvs->data.push_back(kv.second);
