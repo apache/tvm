@@ -6,7 +6,7 @@
 #ifndef TVM_RELAY_PASS_TYPE_FUNCTOR_H_
 #define TVM_RELAY_PASS_TYPE_FUNCTOR_H_
 
-#include <tvm/ir_functor.h>
+#include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr.h>
 #include "./incomplete_type.h"
 

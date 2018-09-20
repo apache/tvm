@@ -103,8 +103,6 @@ class TVM_DLL Node : public NodeBase {
   inline bool is_type() const;
   /*!
    * \brief Get a NodeRef that holds reference to this Node.
-   *
-   * \note This is enabled by enable_shared_from_this.
    * \return the NodeRef
    */
   inline NodeRef GetNodeRef() const;
@@ -221,9 +219,6 @@ inline bool Node::derived_from() const {
 }
 
 inline NodeRef Node::GetNodeRef() const {
-  // const_cast<Node*> because NodeRef requires std::shared_ptr<Node>,
-  // This is fine as NodeRef mostly only gives you back const Node*,
-  // of course things can be breached as it is C++
   return NodeRef(NodePtr<Node>(const_cast<Node*>(this)));
 }
 

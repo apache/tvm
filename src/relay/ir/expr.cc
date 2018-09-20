@@ -3,7 +3,6 @@
  * \file src/tvm/ir/expr.cc
  * \brief The expression AST nodes of Relay.
  */
-#include <tvm/ir_functor.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {
@@ -13,21 +12,20 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 Constant ConstantNode::make(runtime::NDArray data) {
-  std::shared_ptr<ConstantNode> n = std::make_shared<ConstantNode>();
+  NodePtr<ConstantNode> n = make_node<ConstantNode>();
   n->data = std::move(data);
   return Constant(n);
 }
 
 TVM_REGISTER_API("relay._make.Constant")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = ConstantNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = ConstantNode::make(args[0]);
+  });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<ConstantNode>([](const ConstantNode *node,
-                                   tvm::IRPrinter *p) {
-      p->stream << "ConstantNode(TODO)";
-    });
+.set_dispatch<ConstantNode>([](const ConstantNode *node, tvm::IRPrinter *p) {
+    p->stream << "Constant(TODO)";
+  });
 
 TensorType ConstantNode::tensor_type() const {
   auto dtype = TVMType2Type(data->dtype);
@@ -41,57 +39,55 @@ TensorType ConstantNode::tensor_type() const {
 }
 
 Tuple TupleNode::make(tvm::Array<relay::Expr> fields) {
-  std::shared_ptr<TupleNode> n = std::make_shared<TupleNode>();
+  NodePtr<TupleNode> n = make_node<TupleNode>();
   n->fields = std::move(fields);
   return Tuple(n);
 }
 
 TVM_REGISTER_API("relay._make.Tuple")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = TupleNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = TupleNode::make(args[0]);
+  });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<TupleNode>([](const TupleNode *node, tvm::IRPrinter *p) {
-      p->stream << "TupleNode(" << node->fields << ")";
-    });
+.set_dispatch<TupleNode>([](const TupleNode *node, tvm::IRPrinter *p) {
+    p->stream << "Tuple(" << node->fields << ")";
+  });
 
 Var VarNode::make(std::string name_hint) {
-  std::shared_ptr<VarNode> n = std::make_shared<VarNode>();
+  NodePtr<VarNode> n = make_node<VarNode>();
   n->name_hint = std::move(name_hint);
   return Var(n);
 }
 
 TVM_REGISTER_API("relay._make.Var")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = VarNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = VarNode::make(args[0]);
+  });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<VarNode>([](const VarNode *node,
-                                   tvm::IRPrinter *p) {
-      p->stream << "VarNode(" << node->name_hint << ")";
-    });
+.set_dispatch<VarNode>([](const VarNode *node, tvm::IRPrinter *p) {
+    p->stream << "Var(" << node->name_hint << ")";
+  });
 
 GlobalVar GlobalVarNode::make(std::string name_hint) {
-  std::shared_ptr<GlobalVarNode> n = std::make_shared<GlobalVarNode>();
+  NodePtr<GlobalVarNode> n = make_node<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   return GlobalVar(n);
 }
 
 TVM_REGISTER_API("relay._make.GlobalVar")
-    .set_body([](TVMArgs args, TVMRetValue *ret) {
-      *ret = GlobalVarNode::make(args[0]);
-    });
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    *ret = GlobalVarNode::make(args[0]);
+  });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-    .set_dispatch<GlobalVarNode>([](const GlobalVarNode *node,
-                                    tvm::IRPrinter *p) {
-      p->stream << "GlobalVarNode(" << node->name_hint << ")";
-    });
+.set_dispatch<GlobalVarNode>([](const GlobalVarNode *node, tvm::IRPrinter *p) {
+    p->stream << "GlobalVar(" << node->name_hint << ")";
+  });
 
 Param ParamNode::make(Var var, Type type) {
-  std::shared_ptr<ParamNode> n = std::make_shared<ParamNode>();
+  NodePtr<ParamNode> n = make_node<ParamNode>();
   n->var = std::move(var);
   n->type = std::move(type);
   return Param(n);
@@ -104,12 +100,12 @@ TVM_REGISTER_API("relay._make.Param")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ParamNode>([](const ParamNode *node, tvm::IRPrinter *p) {
-  p->stream << "ParamNode(" << node->var << ", " << node->type << ")";
+    p->stream << "Param(" << node->var << ", " << node->type << ")";
 });
 
 Function FunctionNode::make(tvm::Array<Param> params, Type ret_type, Expr body,
                             tvm::Array<TypeParam> type_params) {
-  std::shared_ptr<FunctionNode> n = std::make_shared<FunctionNode>();
+  NodePtr<FunctionNode> n = make_node<FunctionNode>();
   n->params = std::move(params);
   n->ret_type = std::move(ret_type);
   n->body = std::move(body);
@@ -140,7 +136,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
                     Array<Type> type_args) {
-  std::shared_ptr<CallNode> n = std::make_shared<CallNode>();
+  NodePtr<CallNode> n = make_node<CallNode>();
   n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
@@ -160,7 +156,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 Let LetNode::make(Var var, Expr value, Expr body, Type value_type) {
-  std::shared_ptr<LetNode> n = std::make_shared<LetNode>();
+  NodePtr<LetNode> n = make_node<LetNode>();
   n->var = std::move(var);
   n->value = std::move(value);
   n->body = std::move(body);
@@ -180,7 +176,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 });
 
 If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
-  std::shared_ptr<IfNode> n = std::make_shared<IfNode>();
+  NodePtr<IfNode> n = make_node<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
   n->false_branch = std::move(false_branch);

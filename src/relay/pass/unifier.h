@@ -67,7 +67,7 @@ class UnionFindNode : public Node {
 class UnionFind : public NodeRef {
  public:
   UnionFind() {}
-  explicit UnionFind(std::shared_ptr<tvm::Node> p) : NodeRef(p) {}
+  explicit UnionFind(NodePtr<tvm::Node> p) : NodeRef(p) {}
 
   // The union find structure is mutable so we do not use the standard macros
   // and expose the pointer via `->`.
@@ -126,7 +126,7 @@ class TypeUnifierNode : public Node,
 class TypeUnifier : public NodeRef {
  public:
   TypeUnifier() {}
-  explicit TypeUnifier(std::shared_ptr<tvm::Node> p) : NodeRef(p) {}
+  explicit TypeUnifier(NodePtr<tvm::Node> p) : NodeRef(p) {}
 
   // no const so that unifier can be mutable as a member of typechecker
   inline TypeUnifierNode* operator->() const {
