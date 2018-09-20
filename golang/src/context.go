@@ -29,8 +29,8 @@ var KDLSDAccel int32        = int32(C.kDLSDAccel)
 var KDLVulkan int32         = int32(C.kDLVulkan)
 // KOpenGL is golang enum correspond to TVM device type kOpenGL.
 var KOpenGL int32           = int32(C.kOpenGL)
-// KExtDev is golang enum correspond to TVM device type kExtDev.
-var KExtDev int32           = int32(C.kExtDev)
+// KExtDev is golang enum correspond to TVM device type kDLExtDev.
+var KExtDev int32           = int32(C.kDLExtDev)
 
 // Context dtype corresponding to TVMContext aka DLContext
 type Context struct {

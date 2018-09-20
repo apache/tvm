@@ -16,21 +16,18 @@ import (
 // Create an array and check size.
 func TestArrayCreateSize(t *testing.T) {
     _, err := Empty([]int64{4})
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     _, err = Empty([]int64{4, 5, 6})
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     _, err = Empty([]int64{})
-
     if err == nil {
         t.Error("Expected err for empty Array created, but didn't got !!")
         return
@@ -40,28 +37,24 @@ func TestArrayCreateSize(t *testing.T) {
 // Check array creation via various different arguments.
 func TestArrayCreateArgs(t *testing.T) {
     _, err := Empty([]int64{4, 2}, "float32", CPU(0))
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     _, err = Empty([]int64{4, 2}, "float32")
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     _, err = Empty([]int64{4, 2}, CPU(0))
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     _, err = Empty([]int64{4, 2}, CPU(0), "float32")
-
     if err != nil {
         t.Error(err.Error())
         return
@@ -71,7 +64,6 @@ func TestArrayCreateArgs(t *testing.T) {
 // Create an array and check the NDim.
 func TestArrayNDim(t *testing.T) {
     arr, err := Empty([]int64{4, 5, 6})
-
     if err != nil {
         t.Error(err.Error())
         return
@@ -86,14 +78,12 @@ func TestArrayNDim(t *testing.T) {
 // Create an array and check Shape.
 func TestArrayShape(t *testing.T) {
     arr, err := Empty([]int64{4, 5, 6})
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     shape := arr.GetShape()
-
     if len(shape) != 3 {
         t.Errorf("Shape slice expected: 3 Got :%v\n", len(shape))
         return
@@ -109,38 +99,32 @@ func TestArrayShape(t *testing.T) {
 func TestArrayCtx(t *testing.T) {
     // TODO: Could some test cases for other targets
     arr, err := Empty([]int64{4}, CPU(0))
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     ctx := arr.GetCtx()
-
     if ctx.DeviceType != KDLCPU {
         t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
         return
     }
-
     if ctx.DeviceID != 0 {
         t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
         return
     }
 
     arr, err = Empty([]int64{4}, CPU(2))
-
     if err != nil {
         t.Error(err.Error())
         return
     }
 
     ctx = arr.GetCtx()
-
     if ctx.DeviceType != KDLCPU {
         t.Errorf("Ctx DeviceType expected: %v Got :%v\n", KDLCPU, ctx.DeviceType)
         return
     }
-
     if ctx.DeviceID != 2 {
         t.Errorf("Ctx DeviceID expected: %v Got :%v\n", KDLCPU, ctx.DeviceID)
         return
@@ -149,13 +133,10 @@ func TestArrayCtx(t *testing.T) {
 
 // Create array of different dtypes and check dtypes.
 func TestArrayDType(t *testing.T) {
-
     for _, dtype := range  []string{"int8", "int16", "int32", "int64",
                                     "uint8", "uint16", "uint32", "uint64",
                                     "float32", "float64"} {
-
         arr, err := Empty([]int64{4}, dtype)
-
         if err != nil {
             t.Error(err.Error())
             return
@@ -172,6 +153,7 @@ func TestArrayDType(t *testing.T) {
 func TestArrayCopySliceInt8(t *testing.T) {
     dlen := int64(32)
     arr, err := Empty([]int64{4, dlen/4}, "int8")
+
     if err != nil {
         t.Error(err.Error())
         return
@@ -201,12 +183,10 @@ func TestArrayCopySliceInt8(t *testing.T) {
     }
 
     dataRet := ret.([]int8)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -239,7 +219,6 @@ func TestArrayCopySliceInt16(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     switch ret.(type) {
         case []int16:
         default:
@@ -248,12 +227,10 @@ func TestArrayCopySliceInt16(t *testing.T) {
     }
 
     dataRet := ret.([]int16)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -293,14 +270,11 @@ func TestArrayCopySliceInt32(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]int32)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -340,14 +314,11 @@ func TestArrayCopySliceInt64(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]int64)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -387,14 +358,11 @@ func TestArrayCopySliceUInt8(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]uint8)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -434,14 +402,11 @@ func TestArrayCopySliceUInt16(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]uint16)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -481,14 +446,11 @@ func TestArrayCopySliceUInt32(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]uint32)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -528,14 +490,11 @@ func TestArrayCopySliceUInt64(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]uint64)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)
@@ -577,14 +536,11 @@ func TestArrayCopySliceFloat32(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]float32)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v \nGot :%v \n", data, dataRet)
@@ -626,14 +582,11 @@ func TestArrayCopySliceFloat64(t *testing.T) {
             t.Errorf("Expected : %T but got :%T\n", data, ret)
             return
     }
-
     dataRet := ret.([]float64)
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v\n", data, dataRet)

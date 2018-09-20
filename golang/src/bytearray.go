@@ -47,10 +47,8 @@ func (tbytearray ByteArray) getData() (retVal []byte) {
 //
 // returns newly created ByteArray.
 func newByteArray(val []byte) (retVal ByteArray) {
-
     handle := ByteArray(C._NewTVMByteArray())
     handle.setData(string(val))
-
     retVal = handle
     return
 }

@@ -14,13 +14,10 @@ import (
 
 // sampleFunctionArg receives a Packed Function handle and calls it.
 func sampleFunctionArg(args ...*gotvm.Value) (retVal interface{}, err error) {
-
     // Reveive Packed Function Handle
     pfunc := args[0].AsFunction()
-
     // Call Packed Function
     retVal, err = pfunc.Invoke(args[1].AsInt64(), args[2].AsInt64())
-
     return
 }
 
@@ -29,15 +26,14 @@ func main() {
     // Not passing a function name implicitely
     // picks the name from reflection as "main.sampleDunctionArg"
     gotvm.RegisterFunction(sampleFunctionArg);
-
     fmt.Printf("Registered: sampleFunctionArg\n")
 
+    // Get registered global function.
     funp, err := gotvm.GetGlobalFunction("main.sampleFunctionArg")
     if err != nil {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("GetGlobalFunction: main.sampleFunctionArg - Success\n")
 
     // funccall is a simple golang callback function like C = A + B.
@@ -45,12 +41,9 @@ func main() {
         for _, v := range args {
             fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
         }
-
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
-
         retVal = int64(val1+val2)
-
         return
     }
 
@@ -60,6 +53,5 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Invoked sampleFunctionArg with function closure arg : Result:%v\n", result.AsInt64())
 }

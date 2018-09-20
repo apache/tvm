@@ -54,14 +54,12 @@ void _native_free(void *ptr) {
  */
 char * _gostring_to_native(_gostring_ gostr) {
   char *nstr;
-
   nstr = reinterpret_cast<char *>(_native_malloc(gostr.n + 1));
 
   if (nstr) {
     memcpy(nstr, gostr.p, gostr.n);
     nstr[gostr.n] = '\0';
   }
-
   return nstr;
 }
 
@@ -108,7 +106,6 @@ static void putuint64(std::string *s, size_t off, uint64_t v) {
 _gostring_ _TVM_VERSION(void) {
   char version[8];
   snprintf(version, sizeof(version), "%s", TVM_VERSION);
-
   return _native_to_gostring(version, strlen(TVM_VERSION));
 }
 
@@ -144,7 +141,6 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
     off += strlen(names_array[ii]);
   }
   *names = _native_to_gostring(str.data(), str.size());
-
   return result;
 }
 
@@ -166,11 +162,8 @@ _gostring_ _TVMGetLastError(void) {
  */
 void _TVMAPISetLastError(_gostring_ err) {
   char *err_str = _gostring_to_native(err);
-
   TVMAPISetLastError(err_str);
-
   _native_free(err_str);
-
   return;
 }
 
@@ -191,7 +184,6 @@ int _TVMModLoadFromFile(_gostring_ modpath, _gostring_ modtype, TVMModuleHandle 
     if (nmodtype) _native_free(nmodtype);
     return -1;
   }
-
   if (!nmodtype) {
     if (nmodpath) _native_free(nmodpath);
     return -1;
@@ -201,7 +193,6 @@ int _TVMModLoadFromFile(_gostring_ modpath, _gostring_ modtype, TVMModuleHandle 
 
   _native_free(nmodpath);
   _native_free(nmodtype);
-
   return ret;
 }
 
@@ -215,7 +206,6 @@ int _TVMModLoadFromFile(_gostring_ modpath, _gostring_ modtype, TVMModuleHandle 
  */
 int _TVMFuncGetGlobal(_gostring_ funcname, TVMModuleHandle *funp) {
   char *nfuncname = _gostring_to_native(funcname);
-
   if (!nfuncname) {
     return -1;
   }
@@ -223,7 +213,6 @@ int _TVMFuncGetGlobal(_gostring_ funcname, TVMModuleHandle *funp) {
   int ret =  TVMFuncGetGlobal((char const *)nfuncname, funp);
 
   _native_free(nfuncname);
-
   return ret;
 }
 
@@ -279,7 +268,6 @@ int _TVMModGetFunction(TVMModuleHandle modp, _gostring_ funcname,
   int result = TVMModGetFunction(modp, (char const *)nfuncname, query_imports, funp);
 
   _native_free(nfuncname);
-
   return result;
 }
 
@@ -499,7 +487,6 @@ uintptr_t* _TVMValueNativeAllocate(int n) {
 void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
   TVMValue **from_p = reinterpret_cast<TVMValue**>(from_ptr);
   TVMValue *to_p = reinterpret_cast<TVMValue*>(to_ptr);
-
   memcpy(&(to_p[ind]), from_p, sizeof(TVMValue));
 }
 
@@ -514,7 +501,6 @@ void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
 void _TVMValueNativeGet(void* to_ptr, void* from_ptr, int ind) {
   TVMValue *from_p = reinterpret_cast<TVMValue*>(from_ptr);
   TVMValue **to_p = reinterpret_cast<TVMValue**>(to_ptr);
-
   memcpy(to_p, &(from_p[ind]), sizeof(TVMValue));
 }
 
@@ -616,7 +602,6 @@ void _TVMByteArraySetData(TVMByteArray *tbytearray, _gostring_ val) {
   }
   char * ptr = reinterpret_cast<char*>(new char[val.n]);
   memcpy(ptr, (const char *)val.p, val.n);
-
   tbytearray->data = ptr;
   tbytearray->size = (size_t)val.n;
 }
@@ -653,7 +638,6 @@ void _DeleteTVMByteArray(TVMByteArray *tbytearray) {
   if (tbytearray->data) {
     delete tbytearray->data;
   }
-
   delete tbytearray;
 }
 
@@ -699,7 +683,6 @@ int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
                                    fptr,
                                    _TVMPackedCFuncFinalizer,
                                    fhandle);
-
   return ret;
 }
 
@@ -713,11 +696,8 @@ int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
  */
 int _RegisterFunction(_gostring_ fname, TVMFunctionHandle fhandle) {
   char *func_name = _gostring_to_native(fname);
-
   int ret = TVMFuncRegisterGlobal(func_name, fhandle, 0);  // Override = False
-
   _native_free(func_name);
-
   return ret;
 }
 

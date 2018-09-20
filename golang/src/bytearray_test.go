@@ -18,14 +18,11 @@ func TestByteArrayGet(t *testing.T) {
     rand.Read(data)
 
     barr := newByteArray(data)
-
     dataRet := barr.GetData()
-
     if len(data) != len(dataRet) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(data), len(dataRet))
             return
     }
-
     for i := range data {
         if data[i] != dataRet[i] {
             t.Errorf("Data expected: %v Got :%v at : %v\n", data[i], dataRet[i], i)

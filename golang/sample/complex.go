@@ -34,7 +34,6 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Global Functions:%v\n", funcNames)
 
     // Import tvm module (so)
@@ -46,7 +45,6 @@ func main() {
         return
     }
     fmt.Printf("Module Imported:%p\n", modp)
-
     bytes, err := ioutil.ReadFile(modJSON)
     if err != nil {
         fmt.Print(err)
@@ -60,7 +58,6 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Calling tvm.graph_runtime.create\n")
     // Call function
     graphrt, err := funp.Invoke(jsonStr, modp, (int64)(gotvm.KDLCPU), (int64)(0))
@@ -68,10 +65,7 @@ func main() {
         fmt.Print(err)
         return
     }
-
-
     graphmod := graphrt.AsModule()
-
     fmt.Printf("Graph runtime Created\n")
 
     // Array allocation attributes
@@ -106,7 +100,6 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Func load_params:%p\n", funp)
 
     // Call function
@@ -115,17 +108,14 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Module params loaded\n")
 
     // Set some data in input Array
     inSlice := make([]float32, (244 * 244 * 3))
-
     rand.Seed(10)
     rand.Shuffle(len(inSlice), func(i, j int) {inSlice[i],
                                                inSlice[j] = rand.Float32(),
                                                rand.Float32() })
-
     inX.CopyFrom(inSlice)
 
     // Set Input
@@ -157,7 +147,6 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Module Executed \n")
 
     // Call runtime function get_output

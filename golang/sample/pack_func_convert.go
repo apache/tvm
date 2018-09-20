@@ -16,12 +16,9 @@ func sampleCb(args ...*gotvm.Value) (retVal interface{}, err error) {
     for _, v := range args {
         fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
     }
-
     val1 := args[0].AsInt64()
     val2 := args[1].AsInt64()
-
     retVal = int64(val1+val2)
-
     return
 }
 
@@ -35,7 +32,6 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Converted function\n")
 
     retVal, err := fhandle.Invoke(10, 20)
@@ -44,6 +40,5 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("Result:%v\n", retVal.AsInt64())
 }

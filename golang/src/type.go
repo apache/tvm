@@ -54,8 +54,8 @@ func dtypeFromTVMType(tvmtype pTVMType) (retVal string, err error) {
 // `dtype` string for the given data type.
 func dtypeToTVMType(args ...interface{}) (tvmtype pTVMType, err error) {
     dtype := args[0].(string)
-
     lanes := 1
+
     if len(args) == 2 {
         lanes = args[1].(int)
     }
@@ -67,7 +67,6 @@ func dtypeToTVMType(args ...interface{}) (tvmtype pTVMType, err error) {
             return
         }
     }
-
     err = fmt.Errorf("Cannot map dtype:%v to TVMType", dtype)
     return
 }

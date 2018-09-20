@@ -20,7 +20,6 @@ func TestModuleTestLoad1(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(mod).Kind() != reflect.Ptr {
         t.Error("Module type mis matched\n")
         return
@@ -35,7 +34,6 @@ func TestModuleTestLoad2(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(mod).Kind() != reflect.Ptr {
         t.Error("Module type mis matched\n")
         return
@@ -49,7 +47,6 @@ func TestModuleTestLoad3(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(mod).Kind() != reflect.Ptr {
         t.Error("Module type mis matched\n")
         return
@@ -64,7 +61,6 @@ func TestModuleTestLoad4(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(mod).Kind() != reflect.Ptr {
         t.Error("Module type mis matched\n")
         return
@@ -79,7 +75,6 @@ func TestModuleTestLoad5(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(mod).Kind() != reflect.Ptr {
         t.Error("Module type mis matched\n")
         return

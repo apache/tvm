@@ -22,7 +22,6 @@ var DLPackVersion int       = int(C.DLPACK_VERSION)
 // TVMVersion is the TVM runtime version.
 var TVMVersion              = getTVMVersion()
 
-
 func getTVMVersion() (retStr string) {
     version := C._TVM_VERSION()
     retStr = goStringFromNative(*(*string)(unsafe.Pointer(&version)))

@@ -66,14 +66,12 @@ type Value struct {
 // AsInt64 returns the int64 value inside the Value.
 func (tvmval *Value)  AsInt64() (retVal int64) {
     retVal = tvmval.getVInt64()
-
     return
 }
 
 // AsFloat64 returns the Float64 value inside the Value.
 func (tvmval *Value)  AsFloat64() (retVal float64) {
     retVal = tvmval.getVFloat64()
-
     return
 }
 
@@ -81,7 +79,6 @@ func (tvmval *Value)  AsFloat64() (retVal float64) {
 func (tvmval *Value)  AsModule() (retVal *Module) {
     mhandle := tvmval.getVMHandle()
     retVal = &mhandle
-
     return
 }
 
@@ -103,7 +100,6 @@ func (tvmval *Value)  AsBytes() (retVal []byte) {
 func (tvmval *Value) AsStr() (retVal string) {
     str := tvmval.getVStr()
     retVal = str
-
     return
 }
 
@@ -328,25 +324,21 @@ func newTVMValue() (retVal *Value) {
     handle.nptr = (uintptr(C._NewTVMValue()))
     handle.dtype = KNull
     handle.isLocal = true
-
     finalizer := func(vhandle *Value) {
         vhandle.deleteTVMValue()
         vhandle = nil
     }
     runtime.SetFinalizer(handle, finalizer)
-
     retVal = handle
     return
 }
 
 // deleteTVMValue free the native Value object which is allocated in newTVMValue.
 func (tvmval Value) deleteTVMValue() {
-
     if tvmval.isLocal == true {
         if tvmval.dtype == KStr {
             tvmval.unSetVStr()
         }
-
         if tvmval.dtype == KBytes {
             tvmval.getVBHandle().deleteTVMByteArray()
         }

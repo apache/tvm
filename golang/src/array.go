@@ -28,14 +28,11 @@ func (parray Array) nativeCPtr() (retVal uintptr) {
     return
 }
 
-
 func (parray Array) nativeCopyFrom(data C.native_voidp, datalen int) (err error) {
     ret := C._TVMArrayCopyFromBytes(C.native_voidp(parray.nativeCPtr()), data, C.int(datalen))
-
     if ret != 0 {
         err = errors.New(getTVMLastError())
     }
-
     return
 }
 
@@ -48,7 +45,6 @@ func (parray Array) nativeCopyFrom(data C.native_voidp, datalen int) (err error)
 func (parray Array) CopyFrom(val interface{}) (err error) {
     var data C.native_voidp
     var datalen int
-
     dtype := C._DLTensorGetDType(C.uintptr_t(parray))
 
     switch val.(type) {
@@ -106,17 +102,14 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
             err = fmt.Errorf("Given type not supported : %v\n", reflect.TypeOf(val))
             return
     }
-
     return
 }
 
 func (parray Array) nativeCopyTo (data C.native_voidp, datalen int) (err error){
     ret := C._TVMArrayCopyToBytes(C.native_voidp(parray.nativeCPtr()), data, C.int(datalen))
-
     if ret != 0 {
         err = errors.New(getTVMLastError())
     }
-
    return
 }
 
@@ -127,14 +120,12 @@ func (parray Array) nativeCopyTo (data C.native_voidp, datalen int) (err error){
 func (parray Array) AsSlice() (retVal interface{}, err error) {
     shape := parray.GetShape()
     size := int64(1)
+    var data C.native_voidp
+    var datalen int
 
     for ii := range shape {
         size *= shape[ii]
     }
-
-    var data C.native_voidp
-    var datalen int
-
     dtype := C._DLTensorGetDType(C.uintptr_t(parray))
 
     switch parray.GetDType() {
@@ -202,7 +193,6 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
             err = fmt.Errorf("Given type not supported : %v\n", parray.GetDType())
             return
     }
-
     return
 }
 
@@ -220,7 +210,6 @@ func (parray Array) GetShape() (retVal []int64) {
     shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapeArr))[:ndim:ndim]
     retVal = make([]int64, ndim)
     copy(retVal, shapeSlice)
-
     return
 }
 
@@ -257,12 +246,10 @@ func nativeTVMArrayAlloc(shape []int64, ndim int32,
     ret := (int32)(C._TVMArrayAlloc(C.native_voidp(&(shape[0])), C.int(ndim),
                                    C.int(dtypeCode), C.int(dtypeBits), C.int(dtypeLanes),
                                    C.int(deviceType), C.int(deviceID), C.native_voidp(&retVal)))
-
     if ret != 0 {
         err = errors.New(getTVMLastError())
         return
     }
-
     return
 }
 
@@ -299,21 +286,16 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
     }
 
     tvmType, err := dtypeToTVMType(typeName)
-
     if err != nil {
         return
     }
-
     ndim := int32(len(shape))
-
     newArray, err := nativeTVMArrayAlloc(shape, ndim, int32(tvmType.code),
                                     int32(tvmType.bits), int32(tvmType.lanes),
                                     ctx.DeviceType, ctx.DeviceID)
-
     if err != nil {
         return
     }
-
     handle := new(Array)
     *handle = Array(newArray)
 
@@ -321,9 +303,7 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
         nativeTVMArrayFree(*ahandle)
         ahandle = nil
     }
-
     runtime.SetFinalizer(handle, finalizer)
-
     parray = handle
     return
 }

@@ -51,7 +51,6 @@ clean:
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) && go clean -cache); fi
 	@rm -rf gopath
-	@rm -f *.a *.o
 	@make -C sample clean
 
 lint:

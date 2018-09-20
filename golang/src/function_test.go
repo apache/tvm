@@ -21,7 +21,6 @@ func TestFunctionGlobals(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if len(funcNames) < 1 {
         t.Errorf("Global Function names received:%v\n", funcNames)
     }
@@ -34,7 +33,6 @@ func TestFunctionGlobalGet(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(funp).Kind() != reflect.Ptr {
         t.Error("Function type mis matched\n")
         return
@@ -47,26 +45,21 @@ func TestFunctionModuleGet(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     funp, err := modp.GetFunction("myadd")
     if err != nil {
         t.Error(err.Error())
         return
     }
-
     if reflect.TypeOf(funp).Kind() != reflect.Ptr {
         t.Error("Function type mis matched\n")
         return
     }
 
     dlen := int64(1024)
-
     shape := []int64{dlen}
-
     inX, _ := Empty(shape)
     inY, _ := Empty(shape)
     out, _ := Empty(shape)
-
     dataX := make([]float32, (dlen))
     dataY := make([]float32, (dlen))
     outExpected :=  make([]float32, (dlen))
@@ -81,17 +74,12 @@ func TestFunctionModuleGet(t *testing.T) {
     inY.CopyFrom(dataY)
 
     funp.Invoke(inX, inY, out)
-
     outi, _ := out.AsSlice()
-
     outSlice := outi.([]float32)
-
-
     if len(outSlice) != len(outExpected) {
             t.Errorf("Data expected Len: %v Got :%v\n", len(outExpected), len(outSlice))
             return
     }
-
     for i := range outSlice {
         if outExpected[i] != outSlice[i] {
             t.Errorf("Data expected: %v Got :%v at index %v\n", outExpected[i], outSlice[i], i)
@@ -105,9 +93,7 @@ func TestFunctionConvert(t *testing.T) {
     sampleCb := func (args ...*Value) (retVal interface{}, err error) {
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
-
         retVal = int64(val1+val2)
-
         return
     }
 
@@ -157,14 +143,11 @@ func TestFunctionRegister(t *testing.T) {
     sampleCb := func (args ...*Value) (retVal interface{}, err error) {
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
-
         retVal = int64(val1+val2)
-
         return
     }
 
     RegisterFunction(sampleCb, "TestFunctionRegister.sampleCb");
-
     // Query global functions available
     funcNames, err := FuncListGlobalNames()
     if err != nil {
@@ -178,12 +161,10 @@ func TestFunctionRegister(t *testing.T) {
             found = 1
         }
     }
-
     if found == 0 {
         t.Error("Registered function not found in global function list.")
         return
     }
-
 
     // Get "sampleCb" and verify the call.
     funp, err := GetGlobalFunction("TestFunctionRegister.sampleCb")
@@ -198,7 +179,6 @@ func TestFunctionRegister(t *testing.T) {
         t.Error(err.Error())
         return
     }
-
     if result.AsInt64() != int64(30) {
         t.Errorf("Expected result :30 got:%v\n", result.AsInt64())
         return
@@ -209,7 +189,6 @@ func TestFunctionRegister(t *testing.T) {
 func TestFunctionClosureArg(t *testing.T) {
     // sampleFunctionArg receives a Packed Function handle and calls it.
     sampleFunctionArg := func (args ...*Value) (retVal interface{}, err error) {
-
         // Reveive Packed Function Handle
         pfunc := args[0].AsFunction()
 
@@ -224,19 +203,15 @@ func TestFunctionClosureArg(t *testing.T) {
         if err != nil {
             return
         }
-
         if ret1.AsInt64() != ret.AsInt64() {
             err = fmt.Errorf("Invoke with int64 didn't match with Value\n")
             return
         }
-
         retVal = ret
-
         return
     }
 
     RegisterFunction(sampleFunctionArg, "TestFunctionClosureArg.sampleFunctionArg");
-
     funp, err := GetGlobalFunction("TestFunctionClosureArg.sampleFunctionArg")
     if err != nil {
         t.Error(err.Error())
@@ -245,12 +220,9 @@ func TestFunctionClosureArg(t *testing.T) {
 
     // funccall is a simple golang callback function like C = A + B.
     funccall := func (args ...*Value) (retVal interface{}, err error) {
-
         val1 := args[0].AsInt64()
         val2 := args[1].AsInt64()
-
         retVal = int64(val1+val2)
-
         return
     }
 
@@ -271,24 +243,17 @@ func TestFunctionClosureArg(t *testing.T) {
 func TestFunctionClosureReturn(t *testing.T) {
     // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
     sampleFunctionCb := func (args ...*Value) (retVal interface{}, err error) {
-
         funccall := func (cargs ...*Value) (fret interface{}, ferr error) {
-
             val1 := cargs[0].AsInt64()
             val2 := cargs[1].AsInt64()
-
             fret = int64(val1+val2)
-
             return
         }
-
         retVal = funccall
-
         return
     }
 
     RegisterFunction(sampleFunctionCb, "TestFunctionClosureReturn.sampleFunctionCb");
-
     funp, err := GetGlobalFunction("TestFunctionClosureReturn.sampleFunctionCb")
     if err != nil {
         t.Error(err.Error())
@@ -303,13 +268,11 @@ func TestFunctionClosureReturn(t *testing.T) {
     }
 
     pfunc := result.AsFunction()
-
     pfuncRet, err := pfunc.Invoke(30, 40)
     if err != nil {
         t.Error(err.Error())
         return
     }
-
     if pfuncRet.AsInt64() != int64(70) {
         t.Errorf("Expected result :70 got:%v\n", pfuncRet.AsInt64())
         return
@@ -339,13 +302,10 @@ func TestFunctionNoArgsReturns(t *testing.T) {
 func TestFunctionNoArgsReturns2(t *testing.T) {
     // sampleFunctionCb returns a function closure which is embed as packed function in TVMValue.
     sampleFunctionCb := func (args ...*Value) (retVal interface{}, err error) {
-
         funccall := func (cargs ...*Value) (fret interface{}, ferr error) {
             return
         }
-
         retVal = funccall
-
         return
     }
 
@@ -363,11 +323,9 @@ func TestFunctionNoArgsReturns2(t *testing.T) {
     }
 
     pfunc := result.AsFunction()
-
     _, err = pfunc.Invoke()
     if err != nil {
         t.Error(err.Error())
         return
     }
 }
-

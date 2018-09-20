@@ -31,7 +31,6 @@ func main() {
 
 
     // Allocate Array for inputs and outputs.
-
     // Allocation by explicit type and context.
     tshapeIn  := []int64{4}
     inX, _ := gotvm.Empty(tshapeIn, "float32", gotvm.CPU(0))
@@ -41,13 +40,11 @@ func main() {
 
     // Default allocation to type "float32" and on CPU
     out, _ := gotvm.Empty(tshapeIn)
-
     fmt.Printf("Input and Output Arrays allocated\n")
 
     // Fill Input Data : inX , inY
     inXSlice := make([]float32, 4)
     inYSlice := make([]float32, 4)
-
     for i := range inXSlice {
         inXSlice[i] = rand.Float32()
         inYSlice[i] = rand.Float32()
@@ -57,7 +54,6 @@ func main() {
     // Copy the data on target memory through runtime CopyFrom api.
     inX.CopyFrom(inXSlice)
     inY.CopyFrom(inYSlice)
-
     fmt.Printf("X: %v\n", inXSlice)
     fmt.Printf("Y: %v\n", inYSlice)
 
@@ -66,7 +62,6 @@ func main() {
 
     // Call function
     funp.Invoke(inX, inY, out)
-
     fmt.Printf("Module function myadd executed\n")
 
     // Get the output tensor as an interface holding a slice through runtime CopyTo api.

@@ -17,12 +17,9 @@ func sampleCb(args ...*gotvm.Value) (retVal interface{}, err error) {
     for _, v := range args {
         fmt.Printf("ARGS:%T : %v\n", v.AsInt64(), v.AsInt64())
     }
-
     val1 := args[0].AsInt64()
     val2 := args[1].AsInt64()
-
     retVal = int64(val1+val2)
-
     return
 }
 
@@ -30,7 +27,6 @@ func sampleCb(args ...*gotvm.Value) (retVal interface{}, err error) {
 func main() {
     // Register sampleCb with TVM packed function system and call and check Global Function List.
     gotvm.RegisterFunction(sampleCb, "sampleCb");
-
     // Query global functions available
     funcNames, err := gotvm.FuncListGlobalNames()
     if err != nil {
@@ -44,7 +40,6 @@ func main() {
             found = 1
         }
     }
-
     if found == 0 {
         fmt.Printf("Function registerd but, not listed\n")
         return
@@ -64,6 +59,5 @@ func main() {
         fmt.Print(err)
         return
     }
-
     fmt.Printf("sampleCb result: %v\n", result.AsInt64())
 }

@@ -95,7 +95,6 @@ func (tvmmodule *Module) GetFunction (
     }
 
     var funp uintptr
-
     ret := (int32)(C._TVMModGetFunction(C.uintptr_t(*tvmmodule),
                                         *(*C._gostring_)(unsafe.Pointer(&funcname)),
                                         C.int(queryImports), C.native_voidp(&funp)))
@@ -107,14 +106,11 @@ func (tvmmodule *Module) GetFunction (
 
     handle := new(Function)
     *handle = Function(funp)
-
     finalizer := func(fhandle *Function) {
         nativeTVMFuncFree(fhandle)
         fhandle = nil
     }
-
     runtime.SetFinalizer(handle, finalizer)
-
     retVal = handle
     return
 }

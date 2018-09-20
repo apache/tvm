@@ -14,4 +14,4 @@ all: $(EXECUTABLE)
 	@go tool compile -pack -o $@ $<
 
 clean:
-	@rm -f $(EXECUTABLE) *.so *.o
+	@rm -f $(EXECUTABLE) *.so *.o *.a
