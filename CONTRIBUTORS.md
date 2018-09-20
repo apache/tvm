@@ -27,6 +27,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
 - [Jared Roesch](https://github.com/jroesch)
 - [Siva](https://github.com/srkreddy1238)
+- [Siju Samuel](https://github.com/siju-samuel)
 - [Alex Weaver](https://github.com/alex-weaver)
 - [Yao Wang](https://github.com/kevinthesun)
 - [Jian Weng](https://github.com/were)
