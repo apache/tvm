@@ -22,7 +22,6 @@ const (
 func main() {
     // Welcome
     defer runtime.GC()
-    fmt.Printf("TVM Go Interface : v%v\n", gotvm.GoTVMVersion)
     fmt.Printf("TVM Version   : v%v\n", gotvm.TVMVersion)
     fmt.Printf("DLPACK Version: v%v\n\n", gotvm.DLPackVersion)
 

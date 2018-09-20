@@ -28,14 +28,3 @@ func TestDLPackVersion(t *testing.T) {
         t.Error("TVMVersion type mismatch\n")
     }
 }
-
-// Check GoTVMVersion API
-func TestGoTVMVersion(t *testing.T) {
-    if len(GoTVMVersion) == 0 {
-        t.Error("GoTVMVersion not set\n")
-    }
-    if reflect.TypeOf(GoTVMVersion).Kind() != reflect.String {
-        t.Error("GoTVMVersion type mismatch\n")
-    }
-}
-
