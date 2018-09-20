@@ -32,12 +32,10 @@ def get_simplex_graph(host_dev_type, device_dev_type):
         A json encoded object.
     """
     # Construct each node in the graph.
-    var_a = {"op": "null", "name": "A", "device_type": device_dev_type,
-             "inputs": []}
-    var_b = {"op": "null", "name": "B", "device_type": device_dev_type,
-             "inputs": []}
+    var_a = {"op": "null", "name": "A", "inputs": []}
+    var_b = {"op": "null", "name": "B", "inputs": []}
     elemwise_add = {
-        "op": "tvm_op", "name": "elemwise_add", "device_type": device_dev_type,
+        "op": "tvm_op", "name": "elemwise_add",
         "attrs": {
             "flatten_data": "1",
             "func_name": "elemwise_add",
@@ -49,7 +47,6 @@ def get_simplex_graph(host_dev_type, device_dev_type):
     copy = {
         "op": "device_copy_op",
         "name": "__copy_add_to_sub",
-        "device_type": host_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "__copy",
@@ -58,11 +55,9 @@ def get_simplex_graph(host_dev_type, device_dev_type):
         },
         "inputs": [[2, 0, 0]]
     }
-    var_c = {"op": "null", "name": "C", "device_type": host_dev_type,
-             "inputs": []}
+    var_c = {"op": "null", "name": "C", "inputs": []}
     elemwise_sub = {
         "op": "tvm_op", "name": "elemwise_sub",
-        "device_type": host_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_sub",
@@ -81,9 +76,9 @@ def get_simplex_graph(host_dev_type, device_dev_type):
     attrs = {
         "storage_id": ["list_int", [3, 4, 0, 1, 5, 2]],
         "shape": ["list_shape", [shape, shape, shape, shape, shape, shape]],
-        "device_type": ["list_int", [device_dev_type, device_dev_type,
-                                     device_dev_type, host_dev_type,
-                                     host_dev_type, host_dev_type]],
+        "device_index": ["list_int", [device_dev_type, device_dev_type,
+                                      device_dev_type, host_dev_type,
+                                      host_dev_type, host_dev_type]],
         "dtype": ["list_int", [0, 0, 0, 0, 0, 0]],
         "dltype": ["list_str", ["float32", "float32", "float32",
                                 "float32", "float32", "float32"]]
@@ -129,7 +124,7 @@ def test_simplex_data_transferring():
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
         lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add],
                               name="elemwise_add")
-        lib_add, host_funcs_add = tvm.build(lower_add, target=target_device,
+        host_funcs_add, lib_add = tvm.build(lower_add, target=target_device,
                                             name="elemwise_add",
                                             postpone_host_codegen=True)
 
@@ -147,15 +142,18 @@ def test_simplex_data_transferring():
                                              elemwise_sub],
                               name="elemwise_sub")
 
-        lib_sub, host_funcs_sub = tvm.build(lower_sub, target=target_host,
+        host_funcs_sub, lib_sub = tvm.build(lower_sub, target=target_host,
                                             name="elemwise_sub",
                                             postpone_host_codegen=True)
         host_funcs = host_funcs_add + host_funcs_sub
-        combined_mod = tvm.combine_modules(host_funcs, [lib_add, lib_sub],
-                                           target_host=target_host)
+        mhost = tvm.codegen.build_module(host_funcs, target_host)
+        if lib_add:
+            mhost.import_module(lib_add)
+        if lib_sub:
+            mhost.import_module(lib_sub)
 
         ctx = [host_ctx, device_ctx]
-        mod = graph_runtime.create(graph, combined_mod, ctx)
+        mod = graph_runtime.create(graph, mhost, ctx)
         params = {}
         params["A"] = tensor_a = np.random.uniform(
             size=shape).astype(tensor_a.dtype)
@@ -203,13 +201,10 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         A json encoded object.
     """
     # Construct each node in the graph.
-    var_a = {"op": "null", "name": "A", "device_type": device_dev_type,
-             "inputs": []}
-    var_b = {"op": "null", "name": "B", "device_type": device_dev_type,
-             "inputs": []}
+    var_a = {"op": "null", "name": "A", "inputs": []}
+    var_b = {"op": "null", "name": "B", "inputs": []}
     elemwise_add0 = {
-        "op": "tvm_op", "name": "elemwise_add0", "device_type":
-        device_dev_type,
+        "op": "tvm_op", "name": "elemwise_add0",
         "attrs": {
             "flatten_data": "1",
             "func_name": "elemwise_add0",
@@ -221,7 +216,6 @@ def get_duplex_graph(host_dev_type, device_dev_type):
     copy_add_sub = {
         "op": "device_copy_op",
         "name": "__copy_add_to_sub",
-        "device_type": host_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "__copy",
@@ -230,11 +224,9 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         },
         "inputs": [[2, 0, 0]]
     }
-    var_c = {"op": "null", "name": "C", "device_type": host_dev_type,
-             "inputs": []}
+    var_c = {"op": "null", "name": "C", "inputs": []}
     elemwise_sub = {
         "op": "tvm_op", "name": "elemwise_sub",
-        "device_type": host_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_sub",
@@ -246,7 +238,6 @@ def get_duplex_graph(host_dev_type, device_dev_type):
     copy_sub_add = {
         "op": "device_copy_op",
         "name": "__copy_sub_to_add",
-        "device_type": device_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "__copy",
@@ -255,11 +246,9 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         },
         "inputs": [[5, 0, 0]]
     }
-    var_d = {"op": "null", "name": "D", "device_type": device_dev_type,
-             "inputs": []}
+    var_d = {"op": "null", "name": "D", "inputs": []}
     elemwise_add1 = {
         "op": "tvm_op", "name": "elemwise_add1",
-        "device_type": device_dev_type,
         "attrs": {
             "flatten_data": "0",
             "func_name": "elemwise_add1",
@@ -280,11 +269,11 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         "storage_id": ["list_int", [4, 5, 0, 1, 6, 2, 0, 7, 3]],
         "shape": ["list_shape", [shape, shape, shape, shape, shape, shape,
                                  shape, shape, shape]],
-        "device_type": ["list_int", [device_dev_type, device_dev_type,
-                                device_dev_type,
-                                host_dev_type, host_dev_type, host_dev_type,
-                                device_dev_type, device_dev_type,
-                                device_dev_type]],
+        "device_index": ["list_int", [device_dev_type, device_dev_type,
+                                      device_dev_type,
+                                      host_dev_type, host_dev_type, host_dev_type,
+                                      device_dev_type, device_dev_type,
+                                      device_dev_type]],
         "dtype": ["list_int", [0, 0, 0, 0, 0, 0, 0, 0, 0]],
         "dltype": ["list_str", ["float32", "float32", "float32",
                                 "float32", "float32", "float32",
@@ -349,7 +338,7 @@ def test_duplex_data_transferring():
         lower_add1 = tvm.lower(
             add_schedule1, [tensor_d, copy_sub_add, elemwise_add1],
             name="elemwise_add1")
-        lib_add, host_funcs_add = tvm.build([lower_add0, lower_add1],
+        host_funcs_add, lib_add = tvm.build([lower_add0, lower_add1],
                                             target=target_device,
                                             postpone_host_codegen=True)
 
@@ -361,12 +350,15 @@ def test_duplex_data_transferring():
         lower_sub = tvm.lower(sub_schedule, [copy_add_sub, tensor_c,
                                              elemwise_sub],
                               name="elemwise_sub")
-        lib_sub, host_funcs_sub = tvm.build(lower_sub, target=target_host,
+        host_funcs_sub, lib_sub = tvm.build(lower_sub, target=target_host,
                                             postpone_host_codegen=True)
         host_funcs = host_funcs_add + host_funcs_sub
+        mhost = tvm.codegen.build_module(host_funcs, target_host)
+        if lib_add:
+            mhost.import_module(lib_add)
+        if lib_sub:
+            mhost.import_module(lib_sub)
 
-        combined_mod = tvm.combine_modules(host_funcs, [lib_add, lib_sub],
-                                           target_host=target_host)
         ctx = [host_ctx, device_ctx]
         params = {}
         params["A"] = tensor_a = np.random.uniform(
@@ -379,7 +371,7 @@ def test_duplex_data_transferring():
             size=shape).astype(tensor_d.dtype)
 
         def check_verify():
-            mod = graph_runtime.create(graph, combined_mod, ctx)
+            mod = graph_runtime.create(graph, mhost, ctx)
             mod.set_input(**params)
             mod.run()
             out = mod.get_output(0, tvm.nd.empty(shape))
@@ -389,7 +381,7 @@ def test_duplex_data_transferring():
         def check_load_module():
             temp = util.tempdir()
             path_lib = temp.relpath("deploy.so")
-            combined_mod.export_library(path_lib)
+            mhost.export_library(path_lib)
             with open(temp.relpath("deploy.json"), "w") as out_file:
                 out_file.write(graph)
             loaded_lib = tvm.module.load(path_lib)

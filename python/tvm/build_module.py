@@ -518,61 +518,9 @@ def build(sch,
     # collected.
     mdev = codegen.build_module(fdevice, str(target_device)) if fdevice else None
     if postpone_host_codegen:
-        return mdev, fhost
+        return fhost, mdev
 
     mhost = codegen.build_module(fhost, str(target_host))
     if fdevice:
         mhost.import_module(mdev)
-    return mhost
-
-def combine_modules(host_funcs, device_modules, target_host=None):
-    """ Generate the host module for the lowered host functions by combining
-    them together. Then all device modules are imported to the combined host
-    module. This function is used for heterogeneous execution where multiple
-    device modules need to be imported to the host module. For homogeneous
-    execution, tvm.build is sufficient.
-
-    Parameters
-    ----------
-    host_funcs : LoweredFunc or list of LoweredFunc.
-        Lowered functions to be combined as the host module through codegen.
-
-    device_modules : tvm.module or list of tvm.module.
-        Device modules will be imported into host module.
-
-    Returns
-    -------
-        mhost : The module that contains both host and device code.
-    """
-    if isinstance(host_funcs, container.LoweredFunc):
-        host_funcs = [host_funcs]
-    elif not isinstance(host_funcs, (list, tuple, container.Array)):
-        raise ValueError("host_fucns must be the type of LoweredFunc or list "
-                         "of LoweredFunc.")
-
-    if isinstance(device_modules, module.Module):
-        device_modules = [device_modules]
-    elif not isinstance(device_modules, (list, tuple, container.Array)):
-        raise ValueError("host_funcs must be the type of Module or list of "
-                         "Module.")
-    for func in host_funcs:
-        if not isinstance(func, container.LoweredFunc):
-            raise ValueError("host_fucns must be the type of LoweredFunc or "
-                             "list of LoweredFunc.")
-    for device_mod in device_modules:
-        if device_mod and not isinstance(device_mod, module.Module):
-            raise ValueError("device_modules must be the type of Module or "
-                             "list of Module.")
-
-    if not target_host:
-        target_host = "llvm" if module.enabled("llvm") else "stackvm"
-    target_host = _target.create(target_host)
-
-    # Generate code for the list of host functions.
-    mhost = codegen.build_module(host_funcs, str(target_host))
-    # Import all device modules.
-    for device_mod in device_modules:
-        if device_mod:
-            mhost.import_module(device_mod)
-
     return mhost

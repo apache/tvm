@@ -20,9 +20,6 @@
 
 namespace tvm {
 namespace runtime {
-using StorageDeviceMap = std::unordered_map<uint32_t, DLDeviceType>;
-using DeviceStoragePoolMap = std::unordered_map<size_t, NDArray>;
-using ModuleContextMap = std::unordered_map<tvm::runtime::Module*, TVMContext>;
 
 /*! \brief Macro to do C API call. */
 #define TVM_CCALL(func)                                            \
@@ -211,6 +208,12 @@ class GraphRuntime : public ModuleNode {
   }
 
  private:
+  // Memory pool entry.
+  struct PoolEntry {
+    size_t size;
+    int device_type;
+    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
+  };
   // Node entry
   struct NodeEntry {
     uint32_t node_id;
@@ -241,13 +244,6 @@ class GraphRuntime : public ModuleNode {
     TVMOpParam param;
     // inputs
     std::vector<NodeEntry> inputs;
-    // device_type is used to indicate where the node should be scheduled to.
-    // TODO(zhiics) device_type is defaulted to CPU for transition purpose only
-    // because it will have random value otherwise. Using this default value is
-    // to make sure homogeneous execution works correctly. It will be removed
-    // when we add the compiler pass as we will read the serialized value from
-    // json for all execution.
-    DLDeviceType device_type{kDLCPU};
     // control deps
     std::vector<uint32_t> control_deps;
     // JSON Loader
@@ -268,20 +264,14 @@ class GraphRuntime : public ModuleNode {
           bitmask |= 4;
         } else if (key == "flatten_data") {
           param->flatten_data = strtoul(value.c_str(), nullptr, 10);
-          // TODO(zhiics) Enable the following when annotation is added to the
-          // heterogeneous compilation part.
-          // bitmask |= 8;
         }
       }
-      // TODO(zhiics) Add |8 when annotation is added to the heterogeneous
-      // compilation part.
       CHECK_EQ(bitmask, 1|2|4) << "invalid format";
     }
     // JSON Loader
     void Load(dmlc::JSONReader *reader) {
       reader->BeginObject();
       int bitmask = 0;
-      int device_type = 0;
       std::string key;
       while (reader->NextObjectItem(&key)) {
         if (key == "op") {
@@ -297,22 +287,17 @@ class GraphRuntime : public ModuleNode {
           this->LoadAttrs(reader, &param);
         } else if (key == "control_deps") {
           reader->Read(&control_deps);
-        } else if (key == "device_type") {
-          reader->Read(&device_type);
-          this->device_type = static_cast<DLDeviceType>(device_type);
-          // TODO(zhiics) Enable this when working on the compiler part.
-          // bitmask |= 8;
         } else {
           LOG(FATAL) << "do not support key " << key;
         }
       }
-      // TODO(zhiics) Add |8 in the compiler pass.
       CHECK_EQ(bitmask, 1|2|4) << "invalid format";
     }
   };
   struct GraphAttr {
     size_t storage_num_not_alloctaed{0};
     std::vector<int> storage_id;
+    std::vector<int> device_index;
     std::vector<std::string> dltype;
     std::vector<std::vector<int64_t> > shape;
     // The graph attribute fields.
@@ -348,6 +333,14 @@ class GraphRuntime : public ModuleNode {
           reader->Read(&shape);
           CHECK(!reader->NextArrayItem());
           bitmask |= 4;
+        } else if (key == "device_index") {
+          reader->BeginArray();
+          CHECK(reader->NextArrayItem());
+          reader->Read(&type);
+          CHECK_EQ(type, "list_int");
+          CHECK(reader->NextArrayItem());
+          reader->Read(&device_index);
+          CHECK(!reader->NextArrayItem());
         } else {
           reader->BeginArray();
           CHECK(reader->NextArrayItem());
@@ -400,8 +393,6 @@ class GraphRuntime : public ModuleNode {
   void SetupStorage();
   /*! \brief Setup the executors. */
   void SetupOpExecs();
-  /*! \brief Get storage id to device map. */
-  StorageDeviceMap GetStorageDeviceMap() const;
   /*!
    * \brief Create a executtion function given input.
    * \param attrs The node attributes.
@@ -443,8 +434,8 @@ class GraphRuntime : public ModuleNode {
   tvm::runtime::Module module_;
   /*! \brief Execution context of all devices including the host. */
   std::vector<TVMContext> ctxs_;
-  /*! \brief Common storage pool for each device. */
-  DeviceStoragePoolMap device_storage_pool_;
+  /*! \brief Common storage pool for all devices. */
+  std::vector<NDArray> storage_pool_;
   /*! \brief Data entry of each node. */
   std::vector<NDArray> data_entry_;
   /*! \brief Operator on each node. */
@@ -481,34 +472,6 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   }
 }
 
-// Return a storage id to device type map. This map will be used to help memory
-// allocation for the storage pool of each device. It will be also used to
-// allocate memory to each data_entry_.
-StorageDeviceMap GraphRuntime::GetStorageDeviceMap() const {
-  StorageDeviceMap sid_dev_map;
-  for (uint32_t nid = 0; nid < this->num_nodes(); ++nid) {
-    const auto& inode = nodes_[nid];
-    for (const auto& e : inode.inputs) {
-      uint32_t eid = this->entry_id(e);
-      uint32_t sid = attrs_.storage_id[eid];
-      auto en_dev = nodes_[e.node_id].device_type;
-      CHECK(sid_dev_map.count(sid) == 0 || sid_dev_map[sid] == en_dev)
-          << "Cannot map the same storage id to multiple devices.";
-      sid_dev_map[sid] = en_dev;
-    }
-  }
-  // Get all output entries.
-  for (const auto& output : outputs_) {
-    uint32_t eid = this->entry_id(output);
-    uint32_t sid = attrs_.storage_id[eid];
-    auto en_dev = nodes_[output.node_id].device_type;
-    CHECK(sid_dev_map.count(sid) == 0 || sid_dev_map[sid] == en_dev)
-        << "Cannot map the same storage id to multiple devices.";
-    sid_dev_map[sid] = en_dev;
-  }
-  return sid_dev_map;
-}
-
 void GraphRuntime::SetupStorage() {
   // Grab saved optimization plan from graph.
   std::vector<TVMType> vtype;
@@ -516,12 +479,16 @@ void GraphRuntime::SetupStorage() {
     vtype.push_back(tvm::runtime::String2TVMType(s_type));
   }
 
-  const StorageDeviceMap& sid_dev_map = GetStorageDeviceMap();
-  std::unordered_map<uint32_t, size_t> device_pool_entry_bytes;
-
-  // Find the maximum space size for each device.
+  // Size and device type of each storage pool entry.
+  std::vector<PoolEntry> pool_entry;
+  // Find the maximum space size.
   for (size_t i = 0; i < attrs_.shape.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
+    // Use the fallback device if no device index is available.
+    int device_type = static_cast<int>(ctxs_[0].device_type);
+    if (!attrs_.device_index.empty()) {
+      device_type = attrs_.device_index[i];
+    }
     size_t size = 1;
     for (int64_t sz : attrs_.shape[i]) {
       size *= static_cast<size_t>(sz);
@@ -533,37 +500,43 @@ void GraphRuntime::SetupStorage() {
     size_t bytes = (bits / 8U) * size;
 
     uint32_t sid = static_cast<uint32_t>(storage_id);
-    device_pool_entry_bytes[sid] =
-        std::max(device_pool_entry_bytes[sid], bytes);
+    if (sid >= pool_entry.size()) {
+      pool_entry.resize(sid + 1, {0, -1});
+    } else {
+      CHECK(pool_entry[sid].device_type == -1 ||
+            pool_entry[sid].device_type == device_type)
+          << "The same pool entry cannot be assigned to multiple devices";
+    }
+    pool_entry[sid].size = std::max(pool_entry[sid].size, bytes);
+    pool_entry[sid].device_type = device_type;
   }
 
-  // Allocate the space on each device.
-  for (const auto& pit : device_pool_entry_bytes) {
+  // Allocate the space.
+  for (size_t i = 0; i < pool_entry.size(); ++i) {
     std::vector<int64_t> shape;
-    shape.push_back(static_cast<int64_t>(pit.second + 3) / 4);
     TVMContext ctx = ctxs_[0];
     // This for loop is very fast since there are usually only a couple of
     // devices available on the same hardware.
     for (const auto& cit : ctxs_) {
-      if (sid_dev_map.at(pit.first) == cit.device_type) {
+      if (pool_entry[i].device_type == static_cast<int>(cit.device_type)) {
         ctx = cit;
         break;
       }
     }
-    device_storage_pool_[pit.first] =
-        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx);
+    shape.push_back(static_cast<int64_t>(pool_entry[i].size + 3) / 4);
+    storage_pool_.push_back(
+        NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
   }
 
   // Assign the pooled entries. A unified memory pool is used to simplifiy
   // memory assignment for each node entry. The allocated memory on each device
-  // is mapped to this pool by querying the storage id to device type map.
+  // is mapped to this pool.
   data_entry_.resize(num_node_entries());
   for (size_t i = 0; i < data_entry_.size(); ++i) {
-    uint32_t storage_id = static_cast<uint32_t>(attrs_.storage_id[i]);
-    CHECK(device_storage_pool_.count(storage_id))
-        << "The storage hasn't been assigned to a specific device.";
+    int storage_id = attrs_.storage_id[i];
+    CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
     data_entry_[i] =
-        device_storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+        storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
   }
 }
 
@@ -715,59 +688,57 @@ Module GraphRuntimeCreate(const std::string& sym_json,
 
 // Get all context for the host and other runtime devices.
 std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
-  std::vector<TVMContext> ret;
-  int* device_types = args[2].ptr<int>();
-  int* device_ids = args[3].ptr<int>();
-  int num_devices = args[4];
-
-  TVMContext ctx;
-  for (int i = 0; i < num_devices; i++) {
-    ctx.device_type = static_cast<DLDeviceType>(device_types[i]);
-    ctx.device_id = device_ids[i];
-    ret.push_back(ctx);
+  // Reserve the first item as the fallback device.
+  std::vector<TVMContext> ret(1);
+  if (args.num_args == 4) {
+    int dev_type = args[2];
+    ret[0].device_type = static_cast<DLDeviceType>(dev_type);
+    ret[0].device_id = args[3];
+  } else {
+    int num_devices = args[2];
+    CHECK_EQ(args.num_args - 3, num_devices * 2)
+        << "The number of device_type and device_id passed in doesn't match, "
+           "or the number of is not the same as the number of devices.";
+    TVMContext ctx;
+    for (int i = 0; i < num_devices; i++) {
+      int dev_type = args[3 + i];
+      ctx.device_type = static_cast<DLDeviceType>(dev_type);
+      ctx.device_id = args[3 + i + num_devices];
+      if (ctx.device_type == static_cast<int>(kDLCPU)) {
+        ret[0] = ctx;
+      } else {
+        ret.push_back(ctx);
+      }
+    }
   }
-
   return ret;
 }
 
+// 4-argument version is currently reserved to keep support of calling
+// from tvm4j and javascript, since they don't have heterogeneous
+// execution support yet. For heterogenenous execution, at least 5 arguments will
+// be passed in. The third one is the number of devices.
+// Eventually, we will only probably pass TVMContext for all the languages.
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      std::vector<TVMContext> contexts;
-      // 4-argument version is currently reserved to keep support of calling
-      // from tvm4j and javascript, since they don't have heterogeneous
-      // execution support yet. For heterogenenous execution, 5 arguments will
-      // be passed in. They are graph_json, module, list of context types, list
-      // of context ids, and the number of devices.
-      // Eventually, we will only have the version with 5 arguments when we
-      // support heterogeneous execution for Java and js.
-      if (args.num_args == 4) {
-        TVMContext ctx;
-        int dev_type = args[2];
-        ctx.device_type = static_cast<DLDeviceType>(dev_type);
-        ctx.device_id = args[3];
-        contexts.push_back(ctx);
-      } else if (args.num_args == 5) {
-        contexts = GetAllContext(args);
-      } else {
-        LOG(FATAL)
-            << "The expected number of arguments for graph_runtime.create is "
-               "4 or 5, but it has "
-            << args.num_args;
-      }
+      CHECK_GE(args.num_args, 4)
+          << "The expected number of arguments for graph_runtime.create is "
+             "at least 4, but it has "
+          << args.num_args;
+      const auto& contexts = GetAllContext(args);
       *rv = GraphRuntimeCreate(args[0], args[1], contexts);
     });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
+      CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
+                                    "graph_runtime.remote_create is "
+                                    "at least 4, but it has "
+                                 << args.num_args;
       void* mhandle = args[1];
-      TVMContext ctx;
-      int dev_type = args[2];
-      ctx.device_type = static_cast<DLDeviceType>(dev_type);
-      ctx.device_id = args[3];
-      std::vector<TVMContext> contexts{ctx};
-      *rv = GraphRuntimeCreate(args[0],
-                               *static_cast<tvm::runtime::Module*>(mhandle),
-                               contexts);
+      const auto& contexts = GetAllContext(args);
+      *rv = GraphRuntimeCreate(
+          args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
     });
 }  // namespace runtime
 }  // namespace tvm
