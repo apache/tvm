@@ -203,6 +203,7 @@ def _conv(opname):
                 inputs[1] = _sym.transpose(inputs[1], axes=(2, 3, 0, 1))
 
             attr['data_format'] = "NCHW"
+            attr['strides'] = [attr['strides'][ii] for ii in (0, 3, 1, 2)]
             flip_layout = True
 
         if attr['data_format'] == 'NHWC':
@@ -416,17 +417,16 @@ def _fused_batch_norm():
     def _impl(inputs, attr, params):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
         # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
-        attr['data_format'] = attr['data_format'].decode("utf-8")
         axis = 3
-        if attr['data_format'] == 'NCHW':
-            axis = 1
-
         need_cast = False
 
+        if 'data_format' in attr:
+            attr['data_format'] = attr['data_format'].decode("utf-8")
+            if attr['data_format'] == 'NCHW':
+                axis = 1
         if 'U' in attr:
             need_cast = True
             inputs[0] = _sym.cast(inputs[0], dtype=attr['U'].name)
-
 
         out = AttrCvt(op_name='batch_norm',
                       transforms={'scale_after_normalization':'scale',
@@ -448,10 +448,11 @@ def _batch_norm():
         # (data, gamma, beta, moving_mean, moving_var)
         new_inputs = [inputs[0], inputs[4], inputs[3], inputs[1], inputs[2]]
 
-        attr['data_format'] = attr['data_format'].decode("utf-8")
         axis = 3
-        if attr['data_format'] == 'NCHW':
-            axis = 1
+        if 'data_format' in attr:
+            attr['data_format'] = attr['data_format'].decode("utf-8")
+            if attr['data_format'] == 'NCHW':
+                axis = 1
 
         return AttrCvt(
             op_name='batch_norm',

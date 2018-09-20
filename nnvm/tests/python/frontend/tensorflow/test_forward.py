@@ -88,7 +88,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     return output_data
 
 
-def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False):
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False):
     """Generic function to generate and compare tensorflow and TVM output"""
 
     out_node = out_name.split(':')[0] if ":" in out_name else out_name
@@ -115,6 +115,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False)
             ctx = tvm.context(device, 0)
             if not ctx.exist:
                 print("Skip because %s is not enabled" % device)
+                continue
+            if no_gpu and device == 'cuda':
                 continue
 
             tvm_output = run_tvm_graph(final_graph_def, in_data,
@@ -792,18 +794,19 @@ def test_forward_mobilenet():
 # ---------
 def test_forward_resnetv2():
     '''test resnet model'''
-    with tf.Graph().as_default():
-        graph_def = nnvm.testing.tf.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
-        # Call the utility to import the graph definition into default graph.
-        graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
+    if is_gpu_available():
+        with tf.Graph().as_default():
+            graph_def = nnvm.testing.tf.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
+            # Call the utility to import the graph definition into default graph.
+            graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
-        data = np.random.uniform(size=(128, 224, 224, 3)).astype('float32')
-        out_node = 'ArgMax'
+            data = np.random.uniform(size=(128, 224, 224, 3)).astype('float32')
+            out_node = 'ArgMax'
 
-        with tf.Session() as sess:
-            tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
-            tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
-            np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
+            with tf.Session() as sess:
+                tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
+                tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
+                np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB
@@ -1049,7 +1052,7 @@ def test_forward_mean():
         with tf.Graph().as_default():
             in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
             tf.keras.backend.mean(in1, **kwargs)
-            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Mean:0')
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Mean:0', no_gpu=True)
 
     check_mean((10, 8, 16, 32))
     check_mean((10, 8, 16, 32), axis=(2,3))
@@ -1098,8 +1101,7 @@ if __name__ == '__main__':
     test_forward_inception_v3()
     test_forward_inception_v1()
     test_forward_mobilenet()
-    if is_gpu_available():
-        test_forward_resnetv2()
+    test_forward_resnetv2()
 
     # NLP
     test_forward_ptb()
