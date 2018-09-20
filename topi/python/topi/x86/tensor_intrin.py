@@ -3,11 +3,41 @@
 import tvm
 
 
-def _intrin_reduce4int8_common(vec_size, num_elements_intel):
-    data = tvm.placeholder((num_elements_intel,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((vec_size, num_elements_intel), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, num_elements_intel), name='k')
-    C = tvm.compute((vec_size,),
+def reduce_4int8_common():
+    """
+    Int8 dot product by every 4 elements using AVX2 Skylake instructions.
+    This function takes two arrays of int8 datatype -- data[4] and
+    kernel[16][4] -- and computes a dot product of data[4] with every
+    4 elements of kernels, resulting in output[16] of int32 datatype.
+    The pseudo code is as follows.
+    .. code-block:: c
+        void reduce_4_int8_common(int8 data[4], int8 kernel[16][4],
+                int32 output[16]){
+            for (int i = 0; i < 16; i++){
+                out[i] = 0;
+                for (int k = 0; k < 4; k++){
+                    out[i] += data[k] * kernel[i][k]
+                }
+            }
+        }
+
+    Physically, the kernel array sits in an AVX512 vector register and
+    the data[4] is broadcasted to another AVX512 vector register. This
+    function returns a TensorIntrin that can be used to tensorize
+    a schedule.
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Skylake int8 TensorIntrin that can be used in tensorizing schedule
+    """
+
+    int32_lanes = 16 # 16 int32 lanes in AVX512
+    num_int8_elements = 4 # 4 int8 elements in int32
+    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
+    kernel = tvm.placeholder((int32_lanes, num_int8_elements), dtype='int8', name='kernel')
+    k = tvm.reduce_axis((0, num_int8_elements), name='k')
+    C = tvm.compute((int32_lanes,),
                     lambda i: tvm.sum(data[k].astype('int32') *
                                       kernel[i, k].astype('int32'),
                                       axis=k),
@@ -53,11 +83,41 @@ def _intrin_reduce4int8_common(vec_size, num_elements_intel):
     with tvm.build_config(offset_factor=1, partition_const_loop=True):
         return tvm.decl_tensor_intrin(C.op, _intrin_func, binds={data:a_buffer, kernel:b_buffer})
 
-def _intrin_reduce4int8_1x1(vec_size, num_elements_intel):
-    data = tvm.placeholder((num_elements_intel,), dtype='uint8', name='data')
-    kernel = tvm.placeholder((vec_size, num_elements_intel, 1, 1), dtype='int8', name='kernel')
-    k = tvm.reduce_axis((0, num_elements_intel), name='k')
-    C = tvm.compute((vec_size,), \
+def reduce_4int8_1x1():
+    """
+    Int8 dot product by every 4 elements using AVX2 Skylake instructions.
+    This function takes two arrays of int8 datatype -- data[4] and
+    kernel[16][4] -- and computes a dot product of data[4] with every
+    4 elements of kernels, resulting in output[16] of int32 datatype.
+    The pseudo code is as follows.
+    .. code-block:: c
+        void reduce_4_int8_common(int8 data[4], int8 kernel[16][4],
+                int32 output[16]){
+            for (int i = 0; i < 16; i++){
+                out[i] = 0;
+                for (int k = 0; k < 4; k++){
+                    out[i] += data[k] * kernel[i][k]
+                }
+            }
+        }
+
+    Physically, the kernel array sits in an AVX512 vector register and
+    the data[4] is broadcasted to another AVX512 vector register. This
+    function returns a TensorIntrin that can be used to tensorize
+    a schedule.
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The Skylake int8 TensorIntrin that can be used in tensorizing schedule
+    """
+
+    int32_lanes = 16 # 16 int32 lanes in AVX512
+    num_int8_elements = 4 # 4 int8 elements in int32
+    data = tvm.placeholder((num_int8_elements,), dtype='uint8', name='data')
+    kernel = tvm.placeholder((int32_lanes, num_int8_elements, 1, 1), dtype='int8', name='kernel')
+    k = tvm.reduce_axis((0, num_int8_elements), name='k')
+    C = tvm.compute((int32_lanes,), \
                     lambda i: tvm.sum(data[k].astype('int32') *
                                       kernel[i, k, 0, 0].astype('int32'),
                                       axis=k),

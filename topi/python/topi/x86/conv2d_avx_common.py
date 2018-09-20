@@ -8,7 +8,7 @@ from ..util import get_const_tuple
 from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
-from .int8_intrinsics import _intrin_reduce4int8_common
+from .tensor_intrin import reduce_4int8_common
 from .check_targets import check_skylake
 
 AVXConvCommonFwd = namedtuple('AVXConvCommonFwd', ['ic_bn', 'oc_bn', 'reg_n', 'unroll_kw'])
@@ -360,8 +360,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
                       ow_block, oc_f_inner, oc_s_inner, ic_s_inner)
 
 
-    n_elems = 4
-    pc = _intrin_reduce4int8_common(int32_lanes, n_elems)
+    pc = reduce_4int8_common()
     s[CC].tensorize(oc_s_inner, pc)
     s[CC].unroll(ow_block)
     s[CC].unroll(oc_f_inner)
