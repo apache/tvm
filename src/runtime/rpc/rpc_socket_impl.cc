@@ -7,6 +7,7 @@
 #include <memory>
 #include "rpc_session.h"
 #include "../../common/socket.h"
+#include "rpc_server.h"
 
 namespace tvm {
 namespace runtime {
@@ -98,6 +99,11 @@ TVM_REGISTER_GLOBAL("rpc._Connect")
 TVM_REGISTER_GLOBAL("rpc._ServerLoop")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
     RPCServerLoop(args[0]);
+  });
+
+TVM_REGISTER_GLOBAL("rpc._ServerCreate")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
   });
 }  // namespace runtime
 }  // namespace tvm

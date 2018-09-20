@@ -45,12 +45,12 @@ def test_graph_simple():
         out = mod.get_output(0, tvm.nd.empty((n,)))
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
-    def check_remote():
+    def check_remote(cpp_server=False):
         if not tvm.module.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("localhost")
+        server = rpc.Server("localhost", cpp_server=cpp_server)
         remote = rpc.connect(server.host, server.port)
         temp = util.tempdir()
         ctx = remote.cpu(0)
@@ -67,6 +67,7 @@ def test_graph_simple():
 
     check_verify()
     check_remote()
+    check_remote(cpp_server=True)
 
 if __name__ == "__main__":
     test_graph_simple()

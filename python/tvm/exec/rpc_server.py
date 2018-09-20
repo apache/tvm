@@ -28,7 +28,8 @@ def main(args):
                         tracker_addr=tracker_addr,
                         load_library=args.load_library,
                         custom_addr=args.custom_addr,
-                        silent=args.silent)
+                        silent=args.silent,
+                        cpp_server=args.cpp_server)
     server.proc.join()
 
 
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     parser.add_argument('--port', type=int, default=9090,
                         help='The port of the PRC')
     parser.add_argument('--port-end', type=int, default=9199,
-                        help='The end search port of the PRC')
+                        help='The end search port of the RPC')
     parser.add_argument('--tracker', type=str,
                         help="The address of RPC tracker in host:port format. "
                              "e.g. (10.77.1.234:9190)")
@@ -55,6 +56,8 @@ if __name__ == "__main__":
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
+    parser.add_argument('--c++', dest='cpp_server', action='store_true',
+                        help="Creates a c++ rpc server")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

@@ -83,20 +83,24 @@ def test_rpc_array():
     fremote = remote.get_function("rpc.test.remote_array_func")
     fremote(r_cpu)
 
-def test_rpc_file_exchange():
+def _test_rpc_file_exchange(cpp_server=False):
     if not tvm.module.enabled("rpc"):
         return
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", cpp_server=cpp_server)
     remote = rpc.connect(server.host, server.port)
     blob = bytearray(np.random.randint(0, 10, size=(10)))
     remote.upload(blob, "dat.bin")
     rev = remote.download("dat.bin")
     assert(rev == blob)
 
-def test_rpc_remote_module():
+def test_rpc_file_exchange():
+    _test_rpc_file_exchange(cpp_server=False)
+    _test_rpc_file_exchange(cpp_server=True)
+
+def _test_rpc_remote_module(cpp_server=False):
     if not tvm.module.enabled("rpc"):
         return
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", cpp_server=cpp_server)
     client = rpc.connect(server.host, server.port)
     # graph
     n = tvm.convert(1024)
@@ -173,6 +177,9 @@ def test_rpc_remote_module():
     check_remote(client)
     check_remote(rpc.LocalSession())
 
+def test_rpc_remote_module():
+    _test_rpc_remote_module(cpp_server=True)
+    _test_rpc_remote_module(cpp_server=False)
 
 def test_rpc_return_func():
     @tvm.register_func("rpc.test.remote_func")
@@ -240,13 +247,14 @@ def test_local_func():
     rev = client.download("dat.bin")
     assert rev == blob
 
-def test_rpc_tracker_register():
+def _test_rpc_tracker_register(cpp_server=False):
     # test registration
     tracker = Tracker('localhost', port=9000, port_end=10000)
     device_key = 'test_device'
     server = rpc.Server('localhost', port=9000, port_end=10000,
                         key=device_key,
-                        tracker_addr=(tracker.host, tracker.port))
+                        tracker_addr=(tracker.host, tracker.port),
+                 cpp_server=cpp_server)
     time.sleep(1)
     client = rpc.connect_tracker(tracker.host, tracker.port)
 
@@ -271,13 +279,17 @@ def test_rpc_tracker_register():
 
     tracker.terminate()
 
-def test_rpc_tracker_request():
+def test_rpc_tracker_register():
+    _test_rpc_tracker_register(cpp_server=True)
+    _test_rpc_tracker_register(cpp_server=False)
+
+def _test_rpc_tracker_request(cpp_server=False):
     # test concurrent request
     tracker = Tracker('localhost', port=9000, port_end=10000)
     device_key = 'test_device'
     server = rpc.Server('localhost', port=9000, port_end=10000,
                         key=device_key,
-                        tracker_addr=(tracker.host, tracker.port))
+                        tracker_addr=(tracker.host, tracker.port), cpp_server=cpp_server)
     client = rpc.connect_tracker(tracker.host, tracker.port)
 
     def target(host, port, device_key, timeout):
@@ -313,6 +325,9 @@ def test_rpc_tracker_request():
     server.terminate()
     tracker.terminate()
 
+def test_rpc_tracker_request():
+    _test_rpc_tracker_request(cpp_server=True)
+    _test_rpc_tracker_request(cpp_server=False)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)

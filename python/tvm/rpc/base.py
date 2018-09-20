@@ -124,7 +124,7 @@ def random_key(prefix, cmap=None):
 
 
 def connect_with_retry(addr, timeout=60, retry_period=5):
-    """Connect to a TPC address with retry
+    """Connect to a RPC address with retry
 
     This function is only reliable to short period of server restart.
 

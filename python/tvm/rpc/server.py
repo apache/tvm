@@ -245,12 +245,39 @@ def _popen(cmd):
         msg += out
         raise RuntimeError(msg)
 
+def _cpp_server_create(host, port, port_end, tracker_addr,
+                       key, custom_addr, silent, is_proxy):
+    def signal_handler(sig, frame):
+            print('You pressed Ctrl+C!')
+            sys.exit(0)
+    signal.signal(signal.SIGINT, signal_handler)
+    print("Starting CPP Server, Press Ctrl+C to stop")
+    if not tracker_addr:
+        tracker_addr = ""
+    if not custom_addr:
+        custom_addr = ""
+    if host == "localhost":
+        host = "127.0.0.1"
+
+    def _base_server_create(host, port, port_end, tracker_addr,
+                            key, custom_addr, silent, is_proxy):
+        return base._ServerCreate(host, port, port_end, tracker_addr,
+                                  key, custom_addr, silent, is_proxy)
+
+    return multiprocessing.Process(target=_base_server_create, args=(str(host),
+                                                                     port,
+                                                                     port_end,
+                                                                     str(tracker_addr),
+                                                                     str(key),
+                                                                     str(custom_addr),
+                                                                     silent,
+                                                                     is_proxy))
 
 class Server(object):
     """Start RPC server on a separate process.
 
     This is a simple python implementation based on multi-processing.
-    It is also possible to implement a similar C based server with
+    It is also possible to implement a similar C based sever with
     TVM runtime which does not depend on the python.
 
     Parameters
@@ -289,6 +316,9 @@ class Server(object):
 
     silent: bool, optional
         Whether run this server in silent mode.
+
+    cpp_server: bool, optional
+        Whether run this server in C++.
     """
     def __init__(self,
                  host,
@@ -300,7 +330,8 @@ class Server(object):
                  key="",
                  load_library=None,
                  custom_addr=None,
-                 silent=False):
+                 silent=False,
+                 cpp_server=False):
         try:
             if base._ServerLoop is None:
                 raise RuntimeError("Please compile with USE_RPC=1")
@@ -330,33 +361,42 @@ class Server(object):
                 cmd += ["--custom-addr", custom_addr]
             if silent:
                 cmd += ["--silent"]
-
+            if cpp_server:
+                cmd += ["--c++"]
+            print("cmd = ", cmd)
             self.proc = subprocess.Popen(cmd, preexec_fn=os.setsid)
             time.sleep(0.5)
         elif not is_proxy:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.port = None
-            for my_port in range(port, port_end):
-                try:
-                    sock.bind((host, my_port))
-                    self.port = my_port
-                    break
-                except socket.error as sock_err:
-                    if sock_err.errno in [98, 48]:
-                        continue
-                    else:
-                        raise sock_err
-            if not self.port:
-                raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
-            logger.info("bind to %s:%d", host, self.port)
-            sock.listen(1)
-            self.sock = sock
-            self.proc = multiprocessing.Process(
-                target=_listen_loop, args=(
-                    self.sock, self.port, key, tracker_addr, load_library,
-                    self.custom_addr))
-            self.proc.deamon = True
-            self.proc.start()
+            if cpp_server:
+                self.proc = _cpp_server_create(host, port, port_end, tracker_addr,
+                                               key, custom_addr, silent, is_proxy)
+                self.proc.deamon = True
+                self.proc.start()
+                time.sleep(1)
+            else:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.port = None
+                for my_port in range(port, port_end):
+                    try:
+                        sock.bind((host, my_port))
+                        self.port = my_port
+                        break
+                    except socket.error as sock_err:
+                        if sock_err.errno in [98, 48]:
+                            continue
+                        else:
+                            raise sock_err
+                if not self.port:
+                    raise ValueError("cannot bind to any port in [%d, %d)" % (port, port_end))
+                logger.info("bind to %s:%d", host, self.port)
+                sock.listen(1)
+                self.sock = sock
+                self.proc = multiprocessing.Process(
+                    target=_listen_loop, args=(
+                        self.sock, self.port, key, tracker_addr, load_library,
+                        self.custom_addr))
+                self.proc.deamon = True
+                self.proc.start()
         else:
             self.proc = multiprocessing.Process(
                 target=_connect_proxy_loop, args=((host, port), key, load_library))
