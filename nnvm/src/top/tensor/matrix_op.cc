@@ -3,7 +3,7 @@
  * \file matrix_op.cc
  * \brief Matrix operators
  */
-#include <topi/nn.h>
+#include <topi/transform.h>
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>

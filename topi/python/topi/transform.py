@@ -338,3 +338,23 @@ def take(a, indices, axis=None):
     if axis is None:
         return cpp.take(a, indices)
     return cpp.take(a, indices, int(axis))
+
+@tvm.tag_scope(tag=tag.MATMUL)
+def matmul(a, b, transp_a=False, transp_b=False):
+    """
+    Creates an operation that calculates a matrix multiplication (row-major notation):
+        A(i, k) * B(k, j)
+    if trans_a == trans_b, the usual transposed combinations, otherwise
+
+    Parameters
+    ----------
+    a : The matrix A
+    b : The matrix B
+    trans_a : Is A's layout transposed?
+    trans_b : Is B's layout transposed?
+
+    Returns
+    -------
+    A Tensor whose op member is the matmul operation
+    """
+    return cpp.matmul(a, b, transp_a, transp_b)

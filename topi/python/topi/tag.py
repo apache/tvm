@@ -32,6 +32,7 @@ BROADCAST = "broadcast"
 INJECTIVE = "injective"
 COMM_REDUCE = "comm_reduce"
 COMM_REDUCE_IDX = "comm_reduce_idx"
+MATMUL = "matmul"
 
 
 def is_broadcast(tag):
