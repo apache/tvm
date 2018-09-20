@@ -328,11 +328,10 @@ def tune_and_evaluate(tuning_opt):
 
         # upload parameters to device
         ctx = remote.context(str(target), 0)
-        rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module = runtime.create(graph, rlib, ctx)
+        data_tvm = tvm.nd.array((np.random.uniform(size=input_shape)).astype(dtype))
         module.set_input('data', data_tvm)
-        module.set_input(**rparams)
+        module.set_input(**params)
 
         # evaluate
         print("Evaluate inference time cost...")
@@ -357,9 +356,28 @@ def tune_and_evaluate(tuning_opt):
 #
 #    Extract tasks...
 #    Tuning...
-#    [Task  1/17]  Current/Best:   12.22/  36.05 GFLOPS | Progress: (32/1000) | 42.12 s
+#    [Task  1/17]  Current/Best:   25.30/  39.12 GFLOPS | Progress: (992/1000) | 751.22 s Done.
+#    [Task  2/17]  Current/Best:   40.70/  45.50 GFLOPS | Progress: (736/1000) | 545.46 s Done.
+#    [Task  3/17]  Current/Best:   38.83/  42.35 GFLOPS | Progress: (992/1000) | 1549.85 s Done.
+#    [Task  4/17]  Current/Best:   23.31/  31.02 GFLOPS | Progress: (640/1000) | 1059.31 s Done.
+#    [Task  5/17]  Current/Best:    0.06/   2.34 GFLOPS | Progress: (544/1000) | 305.45 s Done.
+#    [Task  6/17]  Current/Best:   10.97/  17.20 GFLOPS | Progress: (992/1000) | 1050.00 s Done.
+#    [Task  7/17]  Current/Best:    8.98/  10.94 GFLOPS | Progress: (928/1000) | 421.36 s Done.
+#    [Task  8/17]  Current/Best:    4.48/  14.86 GFLOPS | Progress: (704/1000) | 582.60 s Done.
+#    [Task  9/17]  Current/Best:   10.30/  25.99 GFLOPS | Progress: (864/1000) | 899.85 s Done.
+#    [Task 10/17]  Current/Best:   11.73/  12.52 GFLOPS | Progress: (608/1000) | 304.85 s Done.
+#    [Task 11/17]  Current/Best:   15.26/  18.68 GFLOPS | Progress: (800/1000) | 747.52 s Done.
+#    [Task 12/17]  Current/Best:   17.48/  26.71 GFLOPS | Progress: (1000/1000) | 1166.40 s Done.
+#    [Task 13/17]  Current/Best:    0.96/  11.43 GFLOPS | Progress: (960/1000) | 611.65 s Done.
+#    [Task 14/17]  Current/Best:   17.88/  20.22 GFLOPS | Progress: (672/1000) | 670.29 s Done.
+#    [Task 15/17]  Current/Best:   11.62/  13.98 GFLOPS | Progress: (736/1000) | 449.25 s Done.
+#    [Task 16/17]  Current/Best:   19.90/  23.83 GFLOPS | Progress: (608/1000) | 708.64 s Done.
+#    [Task 17/17]  Current/Best:   17.98/  22.75 GFLOPS | Progress: (736/1000) | 1122.60 s Done.
+#    Compile...
+#    Upload...
+#    Evaluate inference time cost...
+#    Mean inference time (std dev): 128.05 ms (7.74 ms)
 #
-#    (The following part is running, will update it later).
 
 ######################################################################
 #

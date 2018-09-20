@@ -1,4 +1,6 @@
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
+import numpy as np
+
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
 from ..rpc import base as rpc_base
@@ -97,9 +99,13 @@ class GraphModule(object):
         """
         if key:
             self._set_input(key, nd.array(value, ctx=self.ctx))
-        for k, v in params.items():
-            self._set_input(k, nd.array(v, ctx=self.ctx))
-        return self
+
+        if params:
+            # upload big arrays first to avoid memory issue in rpc mode
+            keys = list(params.keys())
+            keys.sort(key=lambda x: -np.prod(params[x].shape))
+            for k in keys:
+                self._set_input(k, nd.array(params[k], ctx=self.ctx))
 
     def run(self, **input_dict):
         """Run forward execution of the graph

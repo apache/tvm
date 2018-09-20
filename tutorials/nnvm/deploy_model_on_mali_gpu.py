@@ -132,7 +132,6 @@ batch_size = 1
 num_classes = 1000
 image_shape = (3, 224, 224)
 data_shape = (batch_size,) + image_shape
-out_shape = (batch_size, num_classes)
 
 ######################################################################
 # Compile The Graph
@@ -197,20 +196,17 @@ else:
 remote.upload(lib_fname)
 rlib = remote.load_module('net.tar')
 
-ctx = remote.cpu(0) if local_demo else remote.cl(0)
-# upload the parameter
-rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
-
 # create the remote runtime module
+ctx = remote.cl(0) if not local_demo else remote.cpu(0)
 module = runtime.create(graph, rlib, ctx)
-# set parameter
-module.set_input(**rparams)
+# set parameter (upload params to the remote device. This may take a while)
+module.set_input(**params)
 # set input data
 module.set_input('data', tvm.nd.array(x.astype('float32')))
 # run
 module.run()
 # get output
-out = module.get_output(0, tvm.nd.empty(out_shape, ctx=ctx))
+out = module.get_output(0)
 # get top1 result
 top1 = np.argmax(out.asnumpy())
 print('TVM prediction top-1: {}'.format(synset[top1]))
