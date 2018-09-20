@@ -3,7 +3,7 @@
 TVM_BASE   = $(PWD)/../
 TARGET     = gotvm
 LIBS       = -lm -ldl
-NATIVE_SRC = tvm.cc
+NATIVE_SRC = tvm_runtime_pack.cc
 
 GOPATH=$(PWD)/gopath
 GOPATHDIR=${GOPATH}/src/${TARGET}/

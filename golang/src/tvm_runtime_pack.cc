@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief This is an all in one TVM runtime file.
- * \file tvm.cc
+ * \file tvm_runtime_pack.cc
  */
 #include "src/runtime/c_runtime_api.cc"
 #include "src/runtime/cpu_device_api.cc"
