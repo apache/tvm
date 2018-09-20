@@ -28,7 +28,7 @@ struct TVMAPIThreadLocalEntry {
 /*! \brief Thread local store that can be used to hold return values. */
 typedef dmlc::ThreadLocalStore<TVMAPIThreadLocalEntry> TVMAPIThreadLocalStore;
 
-using TVMAPINode = std::shared_ptr<Node>;
+using TVMAPINode = NodePtr<Node>;
 
 struct APIAttrGetter : public AttrVisitor {
   std::string skey;

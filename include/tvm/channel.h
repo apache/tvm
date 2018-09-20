@@ -17,7 +17,7 @@ class Channel : public NodeRef {
  public:
   /*! \brief default constructor  */
   Channel() {}
-  explicit Channel(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit Channel(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

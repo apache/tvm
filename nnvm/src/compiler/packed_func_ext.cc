@@ -96,7 +96,7 @@ TVM_REGISTER_GLOBAL("nnvm._register_compute")
                         const Array<Tensor>& out_info)
         -> Array<Tensor> {
       TVMRetValue ret = (*f)(GetAttrDict(attrs), inputs, out_info);
-      if ((*ret.ptr<std::shared_ptr<tvm::Node> >())->derived_from<tvm::TensorNode>()) {
+      if ((*ret.ptr<::tvm::NodePtr<tvm::Node> >())->derived_from<tvm::TensorNode>()) {
         return {ret.operator Tensor()};
       } else {
         return ret;

@@ -46,7 +46,7 @@ Expr InjectPredicate(const Array<Expr>& predicates,
   if (predicates.size() == 0) return body;
   const Reduce* reduce = body.as<Reduce>();
   if (reduce) {
-    std::shared_ptr<Reduce> n = std::make_shared<Reduce>(*reduce);
+    auto n = make_node<Reduce>(*reduce);
     n->condition = n->condition && arith::ComputeReduce<ir::And>(predicates, Expr());
     return Expr(n);
   }
@@ -400,7 +400,7 @@ void InjectInline(ScheduleNode* sch) {
               CHECK_EQ(new_body[j].size(), r->source.size());
               CHECK(r != nullptr);
               for (size_t k = 0; k < new_body[j].size(); ++k) {
-                std::shared_ptr<ir::Reduce> n = std::make_shared<ir::Reduce>(*r);
+                auto n = make_node<ir::Reduce>(*r);
                 n->value_index = static_cast<int>(k);
                 n->type = r->source[k].type();
                 new_body[j].Set(k, Expr(n));
@@ -520,11 +520,11 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   const int factor_axis_pos = \
       factor_axis >= 0 ? factor_axis : static_cast<int>(compute_op->axis.size() + 1) + factor_axis;
   CHECK_LE(factor_axis_pos, compute_op->axis.size());
-  auto n = std::make_shared<ComputeOpNode>();
+  auto n = make_node<ComputeOpNode>();
   n->name = compute_op->name + ".rf";
   {
     // axis relacement.
-    auto iv_node = std::make_shared<IterVarNode>();
+    auto iv_node = make_node<IterVarNode>();
     iv_node->dom = dom_map.at(axis);
     CHECK(is_zero(iv_node->dom->min))
         << "Can only factor reduction domain starting from 0";
@@ -565,7 +565,7 @@ Array<Tensor> Schedule::rfactor(const Tensor& tensor,
   for (IterVar iv : reduce_stage->leaf_iter_vars) {
     if (touch_map.count(iv) && !iv.same_as(axis)) {
       CHECK_EQ(iv->iter_type, kCommReduce);
-      auto ncpy = std::make_shared<IterVarNode>(*iv.operator->());
+      auto ncpy = make_node<IterVarNode>(*iv.operator->());
       ncpy->dom = dom_map.at(iv);
       n->reduce_axis.push_back(IterVar(ncpy));
     }

@@ -50,7 +50,7 @@ inline VPIHandleNode* VPIHandle::get() const {
 VPIHandle VPIHandleCreate(
     const std::shared_ptr<VPISessionEntry>& sess,
     VPIRawHandle handle) {
-  std::shared_ptr<VPIHandleNode> n = std::make_shared<VPIHandleNode>();
+  auto n = make_node<VPIHandleNode>();
   n->sess = sess;
   n->handle = handle;
   return VPIHandle(n);
@@ -102,7 +102,7 @@ int VPIGetIntProp(VPIHandleNode* h, int code) {
 }
 
 VPISession VPISession::make(int h_pipe_read, int h_pipe_write) {
-  std::shared_ptr<VPISessionNode> n = std::make_shared<VPISessionNode>();
+  auto n = make_node<VPISessionNode>();
   n->sess = std::make_shared<VPISessionEntry>(h_pipe_read, h_pipe_write);
   n->sess->in_control = true;
   VPISession sess(n);

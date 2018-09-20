@@ -21,14 +21,14 @@ struct IntervalSet : public IntSetNode {
   Interval i;
 
   static IntSet make(Interval i) {
-    std::shared_ptr<IntervalSet> n =
-        std::make_shared<IntervalSet>();
+    NodePtr<IntervalSet> n =
+        make_node<IntervalSet>();
     n->i = i;
     return IntSet(n);
   }
   static IntSet make(Expr min, Expr max) {
-    std::shared_ptr<IntervalSet> n =
-        std::make_shared<IntervalSet>();
+    NodePtr<IntervalSet> n =
+        make_node<IntervalSet>();
     n->i.min = min;
     n->i.max = max;
     return IntSet(n);

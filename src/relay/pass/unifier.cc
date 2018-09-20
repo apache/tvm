@@ -21,7 +21,7 @@ using tvm::IRPrinter;
 using namespace tvm::runtime;
 
 UnionFind UnionFindNode::make(tvm::Map<IncompleteType, Type> uf_map) {
-  std::shared_ptr<UnionFindNode> n = std::make_shared<UnionFindNode>();
+  auto n = make_node<UnionFindNode>();
   n->uf_map = uf_map;
   return UnionFind(n);
 }
@@ -130,7 +130,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     });
 
 TypeUnifier TypeUnifierNode::make(UnionFind union_find) {
-  std::shared_ptr<TypeUnifierNode> n = std::make_shared<TypeUnifierNode>();
+  auto n = make_node<TypeUnifierNode>();
   n->union_find = union_find;
   return TypeUnifier(n);
 }

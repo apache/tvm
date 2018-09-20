@@ -38,7 +38,7 @@ class IntSet : public NodeRef {
   /*! \brief constructor */
   IntSet() {}
   // constructor from not container.
-  explicit IntSet(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit IntSet(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

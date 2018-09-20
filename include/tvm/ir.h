@@ -28,7 +28,7 @@ struct CommReducerNode;
 
 struct CommReducer : public NodeRef {
   CommReducer() {}
-  explicit CommReducer(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit CommReducer(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

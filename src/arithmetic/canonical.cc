@@ -48,7 +48,7 @@ struct ComExprEntry {
 };
 
 // canonical expression for communicative expression.
-struct ComExprNode {
+struct ComExprNode : public NodeBase {
   // base constant value.
   int64_t base{0};
   // The values to be sumed.
@@ -60,7 +60,7 @@ struct ComExpr {
  public:
   // constructor
   ComExpr() {}
-  explicit ComExpr(std::shared_ptr<ComExprNode> ptr) : ptr_(ptr) {}
+  explicit ComExpr(NodePtr<ComExprNode> ptr) : ptr_(ptr) {}
   // get member
   ComExprNode* operator->() const {
     return ptr_.get();
@@ -106,7 +106,7 @@ struct ComExpr {
   }
 
  private:
-  std::shared_ptr<ComExprNode> ptr_;
+  NodePtr<ComExprNode> ptr_;
 };
 
 // binary comparison op.
@@ -173,7 +173,7 @@ class Canonical::Internal : public IRMutator {
       if (sum.defined()) return sum;
       const int64_t *v1 = as_const_int(value);
       const uint64_t *v2 = as_const_uint(value);
-      std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
+      auto n = make_node<ComExprNode>();
       if (v1) {
         n->base = *v1;
       } else if (v2) {
@@ -471,8 +471,8 @@ class Canonical::Internal : public IRMutator {
     Type type = coeff.type();
     int64_t value = GetConstIntValue(coeff);
     if (value < 0) return {};
-    std::shared_ptr<ComExprNode> xnode = std::make_shared<ComExprNode>();
-    std::shared_ptr<ComExprNode> ynode = std::make_shared<ComExprNode>();
+    auto xnode = make_node<ComExprNode>();
+    auto ynode = make_node<ComExprNode>();
     if (a->base % value == 0) {
       xnode->base = a->base;
     } else {
@@ -507,7 +507,7 @@ class Canonical::Internal : public IRMutator {
     std::vector<ComExpr> pair = TryLinearEquation(a, v);
     if (pair.size() == 0) {
       int64_t value = GetConstIntValue(v);
-      std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
+      auto n = make_node<ComExprNode>();
       n->base = a->base % value;
       for (auto e : a->elem) {
         if (e.scale % value == 0) continue;
@@ -554,8 +554,7 @@ class Canonical::Internal : public IRMutator {
     if (value == 0) {
       return make_zero(v.type());
     }
-    std::shared_ptr<ComExprNode> vsum =
-        std::make_shared<ComExprNode>(*a.operator->());
+    auto vsum = make_node<ComExprNode>(*a.operator->());
     vsum->base *= value;
     for (auto& e : vsum->elem) {
       e.scale *= value;
@@ -576,7 +575,7 @@ class Canonical::Internal : public IRMutator {
   ComExpr SumAdd_(const ComExpr& suma,
                   const ComExpr& sumb,
                   int bscale) {
-    std::shared_ptr<ComExprNode> n = std::make_shared<ComExprNode>();
+    auto n = make_node<ComExprNode>();
     n->base = suma->base + sumb->base * bscale;
     // merge of suma and sumb;
     size_t i = 0, j = 0;

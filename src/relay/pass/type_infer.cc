@@ -137,7 +137,7 @@ class TypeInferencer : private ExprFunctor<CheckedExpr(const Expr&)> {
   void Solve(TypeRelationData& ty_rel);
 
   /*! \brief Attempt to solve all pending relations.
-   * 
+   *
    * If the solver
    */
   SolverResult Solve(std::vector<TypeRelationData>& rels);
@@ -607,8 +607,7 @@ TVM_REGISTER_API("relay._ir_pass._get_checked_type")
 /* Incomplete Type */
 
 IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
-  std::shared_ptr<IncompleteTypeNode> n =
-      std::make_shared<IncompleteTypeNode>();
+  auto n = make_node<IncompleteTypeNode>();
   n->kind = std::move(kind);
   return IncompleteType(n);
 }

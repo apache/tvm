@@ -57,7 +57,7 @@ class EnvFuncNode : public Node {
 class EnvFunc : public NodeRef {
  public:
   EnvFunc() {}
-  explicit EnvFunc(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit EnvFunc(NodePtr<Node> n) : NodeRef(n) {}
   /*! \return The internal global function pointer */
   const EnvFuncNode* operator->() const {
     return static_cast<EnvFuncNode*>(node_.get());
@@ -105,7 +105,7 @@ class TypedEnvFunc<R(Args...)> : public NodeRef {
   /*! \brief short hand for this function type */
   using TSelf = TypedEnvFunc<R(Args...)>;
   TypedEnvFunc() {}
-  explicit TypedEnvFunc(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit TypedEnvFunc(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief Assign global function to a TypedEnvFunc
    * \param other Another global function.

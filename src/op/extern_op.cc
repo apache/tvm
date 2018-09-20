@@ -43,7 +43,7 @@ Operation ExternOpNode::make(std::string name,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,
                              Stmt body) {
-  auto n = std::make_shared<ExternOpNode>();
+  auto n = make_node<ExternOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -68,7 +68,7 @@ Operation ExternOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = std::make_shared<ExternOpNode>(*this);
+  auto n = make_node<ExternOpNode>(*this);
   n->body = op::ReplaceTensor(this->body, rmap);
   for (size_t i = 0; i < n->inputs.size(); ++i) {
     Tensor t = n->inputs[i];

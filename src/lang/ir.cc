@@ -52,7 +52,7 @@ CommReducer CommReducerNode::make(Array<Var> lhs,
                                   Array<Var> rhs,
                                   Array<Expr> result,
                                   Array<Expr> identity_element) {
-  auto node = std::make_shared<CommReducerNode>();
+  auto node = make_node<CommReducerNode>();
   node->lhs = lhs;
   node->rhs = rhs;
   node->result = result;
@@ -83,7 +83,7 @@ Expr Reduce::make(CommReducer combiner, Array<Expr> source,
   if (!condition.defined()) {
     condition = const_true();
   }
-  auto n = std::make_shared<Reduce>();
+  auto n = make_node<Reduce>();
   CHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     CHECK(axis[i].defined());

@@ -13,18 +13,18 @@ namespace tvm {
 using HalideIR::IR::RangeNode;
 
 Range::Range(Expr begin, Expr end)
-    : Range(std::make_shared<RangeNode>(
+    : Range(make_node<RangeNode>(
           begin,
           is_zero(begin) ? end : (end - begin))) {
 }
 
 Range Range::make_by_min_extent(Expr min, Expr extent) {
-  return Range(std::make_shared<HalideIR::IR::RangeNode>(min, extent));
+  return Range(make_node<HalideIR::IR::RangeNode>(min, extent));
 }
 
 IterVar IterVarNode::make(Range dom, Var var,
                           IterVarType t, std::string thread_tag) {
-  std::shared_ptr<IterVarNode> n = std::make_shared<IterVarNode>();
+  NodePtr<IterVarNode> n = make_node<IterVarNode>();
   n->dom = dom;
   n->var = var;
   n->iter_type = t;

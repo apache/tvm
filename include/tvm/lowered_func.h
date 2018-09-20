@@ -7,13 +7,13 @@
 #ifndef TVM_LOWERED_FUNC_H_
 #define TVM_LOWERED_FUNC_H_
 
-#include <tvm/container.h>
 #include <ir/FunctionBase.h>
 #include <string>
 
 #include "base.h"
 #include "expr.h"
 #include "tensor.h"
+#include "node/container.h"
 
 namespace tvm {
 
@@ -27,7 +27,7 @@ class LoweredFuncNode;
 class LoweredFunc : public FunctionRef {
  public:
   LoweredFunc() {}
-  explicit LoweredFunc(std::shared_ptr<Node> n) : FunctionRef(n) {}
+  explicit LoweredFunc(NodePtr<Node> n) : FunctionRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
