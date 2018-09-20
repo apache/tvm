@@ -26,11 +26,15 @@ import nnvm.testing.tf
 #######################################################################
 # Generic run functions for TVM & tensorflow
 # ------------------------------------------
-def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype):
+def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype, target='llvm'):
     """ Generic function to compile on nnvm and execute on tvm """
 
-    sym, params = nnvm.frontend.from_tensorflow(graph_def)
-    target = 'llvm'
+    layout = None
+    if target == "cuda":
+        layout = "NCHW"
+
+    sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
+    target_host = 'llvm'
     if isinstance(input_data, list):
         shape_dict = {}
         dtype_dict = {}
@@ -41,10 +45,10 @@ def run_tvm_graph(graph_def, input_data, input_node, output_shape, output_dtype)
         shape_dict = {input_node: input_data.shape}
         dtype_dict = {input_node: input_data.dtype}
 
-    graph, lib, params = nnvm.compiler.build(sym, target, shape_dict,
+    graph, lib, params = nnvm.compiler.build(sym, target=target, target_host=target_host, shape=shape_dict,
                                              dtype=dtype_dict, params=params)
 
-    ctx = tvm.cpu(0)
+    ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime
     m = graph_runtime.create(graph, lib, ctx)
     # set inputs
@@ -106,9 +110,17 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False)
             )
 
         tf_output = run_tf_graph(sess, in_data, in_name, out_name)
-        tvm_output = run_tvm_graph(final_graph_def, in_data,
-                                   in_node, tf_output.shape, tf_output.dtype)
-        np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+
+        for device in ["llvm", "cuda"]:
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("Skip because %s is not enabled" % device)
+                continue
+
+            tvm_output = run_tvm_graph(final_graph_def, in_data,
+                                       in_node, tf_output.shape, tf_output.dtype, target=device)
+            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+
         sess.close()
 
 #######################################################################
