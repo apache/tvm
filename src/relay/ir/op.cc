@@ -51,7 +51,7 @@ const Op& Op::Get(const std::string& name) {
 
 OpRegistry::OpRegistry() {
   OpManager* mgr = OpManager::Global();
-  std::shared_ptr<OpNode> n = std::make_shared<OpNode>();
+  NodePtr<OpNode> n = make_node<OpNode>();
   n->index_ = mgr->op_counter++;
   op_ = Op(n);
 }
@@ -90,14 +90,14 @@ void OpRegistry::UpdateAttr(const std::string& key, TVMRetValue value,
 
 // Frontend APIs
 TVM_REGISTER_API("relay.op._ListOpNames")
-    .set_body_typed<Array<tvm::Expr>()>([]() {
-      Array<tvm::Expr> ret;
-      for (const std::string& name :
-           dmlc::Registry<OpRegistry>::ListAllNames()) {
-        ret.push_back(tvm::Expr(name));
-      }
-      return ret;
-    });
+.set_body_typed<Array<tvm::Expr>()>([]() {
+    Array<tvm::Expr> ret;
+    for (const std::string& name :
+             dmlc::Registry<OpRegistry>::ListAllNames()) {
+      ret.push_back(tvm::Expr(name));
+    }
+    return ret;
+  });
 
 TVM_REGISTER_API("relay.op._GetOp").set_body_typed<Op(std::string)>(Op::Get);
 
@@ -138,11 +138,10 @@ TVM_REGISTER_API("relay.op._Register")
       }
     });
 
-std::shared_ptr<OpNode> CreateOp(const std::string& name) {
+NodePtr<Node> CreateOp(const std::string& name) {
   auto op = Op::Get(name);
   CHECK(!op.defined()) << "Cannot find op \'" << name << '\'';
-  std::shared_ptr<Node> node = op.node_;
-  return std::dynamic_pointer_cast<OpNode>(node);
+  return op.node_;
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode)

@@ -950,8 +950,7 @@ class VectorAllocRewriter : public IRMutator {
 
 
 LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
-  std::shared_ptr<LoweredFuncNode> n =
-      std::make_shared<LoweredFuncNode>(*f.operator->());
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
   VectorAllocRewriter rewriter;
   n->body = rewriter.Mutate(n->body);
   for (Var arg : f->args) {

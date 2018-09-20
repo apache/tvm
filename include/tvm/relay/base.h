@@ -8,7 +8,7 @@
 
 #include <tvm/api_registry.h>
 #include <tvm/ir.h>
-#include <tvm/node.h>
+#include <tvm/node/node.h>
 #include <string>
 #include <vector>
 
@@ -55,16 +55,16 @@ using NodeEqual = ::tvm::NodeEqual;
  * \param NodeName The internal container name.
  * \param NodeRefBase The base type.
  */
-#define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)            \
-  class TypeName : public NodeRefBase {                                   \
-   public:                                                                \
-    TypeName() {}                                                         \
-    explicit TypeName(std::shared_ptr<::tvm::Node> n) : NodeRefBase(n) {} \
-    const NodeName* operator->() const {                                  \
-      return static_cast<const NodeName*>(node_.get());                   \
-    }                                                                     \
-    operator bool() { return this->defined(); }                           \
-    using ContainerType = NodeName;                                       \
+#define RELAY_DEFINE_NODE_REF(TypeName, NodeName, NodeRefBase)          \
+  class TypeName : public NodeRefBase {                                 \
+   public:                                                              \
+    TypeName() {}                                                        \
+    explicit TypeName(::tvm::NodePtr<::tvm::Node> n) : NodeRefBase(n) {} \
+    const NodeName* operator->() const {                                \
+      return static_cast<const NodeName*>(node_.get());                 \
+    }                                                                   \
+    operator bool() { return this->defined(); }                         \
+    using ContainerType = NodeName;                                     \
   };
 
 /*!
@@ -82,8 +82,6 @@ class SourceNameNode : public Node {
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) final { v->Visit("name", &name); }
 
-  TVM_DLL static SourceName make(std::string name);
-
   static constexpr const char* _type_key = "relay.SourceName";
   TVM_DECLARE_NODE_TYPE_INFO(SourceNameNode, Node);
 };
@@ -98,7 +96,7 @@ class SourceName : public NodeRef {
   SourceName() {}
 
   /*! \brief constructor from node pointer */
-  explicit SourceName(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit SourceName(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container
@@ -109,9 +107,9 @@ class SourceName : public NodeRef {
    * \brief Get an SourceName for a given operator name.
    *  Will raise an error if the source name has not been registered.
    * \param name Name of the operator.
-   * \return Reference to a SourceName valid throughout program lifetime.
+   * \return SourceName valid throughout program lifetime.
    */
-  TVM_DLL static const SourceName& Get(const std::string& name);
+  TVM_DLL static SourceName Get(const std::string& name);
 
   /*! \brief specify container node */
   using ContainerType = SourceNameNode;
@@ -176,7 +174,7 @@ template <typename RefType, typename NodeType>
 RefType GetRef(const NodeType* ptr) {
   static_assert(std::is_same<typename RefType::ContainerType, NodeType>::value,
                 "Can only cast to the ref of same container type");
-  return RefType(const_cast<NodeType*>(ptr)->shared_from_this());
+  return RefType(std::move(ptr->GetNodeRef().node_));
 }
 
 // TODO(@tqchen, @jroesch): can we move these semantics to HalideIR

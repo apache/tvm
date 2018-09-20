@@ -288,7 +288,7 @@ class BuiltinLower : public IRMutator {
 };
 
 LoweredFunc LowerTVMBuiltin(LoweredFunc f) {
-  auto n = std::make_shared<LoweredFuncNode>(*f.operator->());
+  auto n = make_node<LoweredFuncNode>(*f.operator->());
   n->body = BuiltinLower().Build(n->body);
   return LoweredFunc(n);
 }

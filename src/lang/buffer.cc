@@ -289,7 +289,7 @@ Buffer Buffer::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
   std::vector<Expr> temp;
-  auto n = std::make_shared<BufferNode>(*operator->());
+  auto n = make_node<BufferNode>(*operator->());
   Expr acc = make_const(n->DefaultIndexType(), 1);
   for (size_t i = n->shape.size(); i != 0 ; --i) {
     temp.push_back(acc);
@@ -373,7 +373,7 @@ Buffer BufferNode::make(Var data,
                         std::string scope,
                         int data_alignment,
                         int offset_factor) {
-  auto n = std::make_shared<BufferNode>();
+  auto n = make_node<BufferNode>();
   n->data = std::move(data);
   n->dtype = dtype;
   n->shape = std::move(shape);
