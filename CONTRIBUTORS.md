@@ -25,6 +25,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Kazutaka Morita](https://github.com/kazum)
 - [Tatsuya Nishiyama](https://github.com/nishi-t)
 - [Pariksheet Pinjari](https://github.com/PariksheetPinjari909)
+- [Jared Roesch](https://github.com/jroesch)
 - [Siva](https://github.com/srkreddy1238)
 - [Alex Weaver](https://github.com/alex-weaver)
 - [Yao Wang](https://github.com/kevinthesun)
