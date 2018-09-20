@@ -50,6 +50,16 @@ map_proto_url = os.path.join(repo_base, map_proto)
 lable_map = 'imagenet_synset_to_human_label_map.txt'
 lable_map_url = os.path.join(repo_base, lable_map)
 
+# Target settings
+# Use these commented settings to build for cuda.
+#target = 'cuda'
+#target_host = 'llvm'
+#layout = "NCHW"
+#ctx = tvm.gpu(0)
+target = 'llvm'
+target_host = 'llvm'
+layout = None
+ctx = tvm.cpu(0)
 
 ######################################################################
 # Download required files
@@ -99,7 +109,7 @@ x = np.array(image)
 # Results:
 #   sym: nnvm graph for given tensorflow protobuf.
 #   params: params converted from tensorflow params (tensor protobuf).
-sym, params = nnvm.frontend.from_tensorflow(graph_def)
+sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
 
 print ("Tensorflow protobuf imported as nnvm graph")
 ######################################################################
@@ -113,18 +123,16 @@ print ("Tensorflow protobuf imported as nnvm graph")
 #   lib: target library which can be deployed on target with tvm runtime.
 
 import nnvm.compiler
-target = 'llvm'
 shape_dict = {'DecodeJpeg/contents': x.shape}
 dtype_dict = {'DecodeJpeg/contents': 'uint8'}
-graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, dtype=dtype_dict, params=params)
+graph, lib, params = nnvm.compiler.build(sym, shape=shape_dict, target=target, target_host=target_host, dtype=dtype_dict, params=params)
 
 ######################################################################
 # Execute the portable graph on TVM
 # ---------------------------------
-# Now we can try deploying the NNVM compiled model on cpu target.
+# Now we can try deploying the NNVM compiled model on target.
 
 from tvm.contrib import graph_runtime
-ctx = tvm.cpu(0)
 dtype = 'uint8'
 m = graph_runtime.create(graph, lib, ctx)
 # set inputs
