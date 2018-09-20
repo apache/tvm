@@ -38,41 +38,29 @@ def create(graph_json_str, libmod, ctx):
     elif not isinstance(ctx, (list, tuple)):
         raise ValueError("ctx has to be the type of TVMContext or a list of "
                          "TVMCTVMContext")
-    cpu_ctx_index = -1
     for i, cur_ctx in enumerate(ctx):
         if not isinstance(cur_ctx, TVMContext):
             raise ValueError("ctx has to be the type of TVMContext or a list "
-                             "of TVMCTVMContext")
-        if cur_ctx.device_type == tvm.cpu(0).device_type:
-            cpu_ctx_index = i
-        elif cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
+                             "of TVMContext")
+        if cur_ctx.device_type == tvm.cpu(0).device_type or \
+           cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
             ctx[0], ctx[i] = ctx[i], ctx[0]
 
-    num_devices = len(ctx)
-    device_types = []
-    device_ids = []
-    for cur_ctx in ctx:
-        device_types.append(cur_ctx.device_type)
-        device_ids.append(cur_ctx.device_id)
-
-    if device_types[0] >= rpc_base.RPC_SESS_MASK:
+    # ctx[0] is used as the primary/fallback context. All other ones are used
+    # as device context for heterogeneous execution.
+    device_type_id = [x for c in ctx[1:] for x in [c.device_type, c.device_id]]
+    if ctx[0].device_type >= rpc_base.RPC_SESS_MASK:
         assert libmod.type_key == "rpc"
         assert rpc_base._SessTableIndex(libmod) == ctx[0]._rpc_sess._tbl_index
         hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        device_types[0] = device_types[0] % rpc_base.RPC_SESS_MASK
-        return GraphModule(fcreate(graph_json_str, hmod, num_devices,
-                                   *device_types, *device_ids), ctx[0])
+        device_type = ctx[0].device_type % rpc_base.RPC_SESS_MASK
+        return GraphModule(fcreate(graph_json_str, hmod, device_type,
+                                   ctx[0].device_id, *device_type_id), ctx[0])
 
-    # Assume CPU is the host processor when there are multiple devices on
-    # a hardware platform.
-    if (num_devices > 1) and (cpu_ctx_index < 0):
-        raise RuntimeError(
-            "CPU should be the host processor for heterogenous execution, but"
-            " not found in ctx.")
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, num_devices,
-                               *device_types, *device_ids), ctx[cpu_ctx_index])
+    return GraphModule(fcreate(graph_json_str, libmod, ctx[0].device_type,
+                               ctx[0].device_id, *device_type_id), ctx[0])
 
 
 class GraphModule(object):

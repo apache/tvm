@@ -264,9 +264,10 @@ class GraphRuntime : public ModuleNode {
           bitmask |= 4;
         } else if (key == "flatten_data") {
           param->flatten_data = strtoul(value.c_str(), nullptr, 10);
+          bitmask |= 8;
         }
       }
-      CHECK_EQ(bitmask, 1|2|4) << "invalid format";
+      CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
     }
     // JSON Loader
     void Load(dmlc::JSONReader *reader) {
@@ -512,18 +513,16 @@ void GraphRuntime::SetupStorage() {
   }
 
   // Allocate the space.
-  for (size_t i = 0; i < pool_entry.size(); ++i) {
+  for (const auto& pit : pool_entry) {
     std::vector<int64_t> shape;
-    TVMContext ctx = ctxs_[0];
     // This for loop is very fast since there are usually only a couple of
     // devices available on the same hardware.
-    for (const auto& cit : ctxs_) {
-      if (pool_entry[i].device_type == static_cast<int>(cit.device_type)) {
-        ctx = cit;
-        break;
-      }
-    }
-    shape.push_back(static_cast<int64_t>(pool_entry[i].size + 3) / 4);
+    const auto& cit =
+        std::find_if(ctxs_.begin(), ctxs_.end(), [&pit](const TVMContext& c) {
+          return pit.device_type == static_cast<int>(c.device_type);
+        });
+    TVMContext ctx = cit == ctxs_.end() ? ctxs_[0] : *cit;
+    shape.push_back(static_cast<int64_t>(pit.size + 3) / 4);
     storage_pool_.push_back(
         NDArray::Empty(shape, DLDataType{kDLFloat, 32, 1}, ctx));
   }
@@ -554,8 +553,7 @@ void GraphRuntime::SetupOpExecs() {
       uint32_t eid = this->entry_id(nid, index);
       args.push_back(*(data_entry_[eid].operator->()));
     }
-    CHECK(inode.op_type == "tvm_op" || inode.op_type == "device_copy_op")
-        << "Can only take tvm_op or device_copy_op as op";
+    CHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     op_execs_[nid] = CreateTVMOp(inode.param, args, inode.inputs.size());
   }
@@ -689,27 +687,13 @@ Module GraphRuntimeCreate(const std::string& sym_json,
 // Get all context for the host and other runtime devices.
 std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
   // Reserve the first item as the fallback device.
-  std::vector<TVMContext> ret(1);
-  if (args.num_args == 4) {
-    int dev_type = args[2];
-    ret[0].device_type = static_cast<DLDeviceType>(dev_type);
-    ret[0].device_id = args[3];
-  } else {
-    int num_devices = args[2];
-    CHECK_EQ(args.num_args - 3, num_devices * 2)
-        << "The number of device_type and device_id passed in doesn't match, "
-           "or the number of is not the same as the number of devices.";
-    TVMContext ctx;
-    for (int i = 0; i < num_devices; i++) {
-      int dev_type = args[3 + i];
-      ctx.device_type = static_cast<DLDeviceType>(dev_type);
-      ctx.device_id = args[3 + i + num_devices];
-      if (ctx.device_type == static_cast<int>(kDLCPU)) {
-        ret[0] = ctx;
-      } else {
-        ret.push_back(ctx);
-      }
-    }
+  std::vector<TVMContext> ret;
+  TVMContext ctx;
+  for (int i = 2; i < args.num_args; i += 2) {
+    int dev_type = args[i];
+    ctx.device_type = static_cast<DLDeviceType>(dev_type);
+    ctx.device_id = args[i + 1];
+    ret.push_back(ctx);
   }
   return ret;
 }
@@ -720,25 +704,25 @@ std::vector<TVMContext> GetAllContext(const TVMArgs& args) {
 // be passed in. The third one is the number of devices.
 // Eventually, we will only probably pass TVMContext for all the languages.
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.create")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      CHECK_GE(args.num_args, 4)
-          << "The expected number of arguments for graph_runtime.create is "
-             "at least 4, but it has "
-          << args.num_args;
-      const auto& contexts = GetAllContext(args);
-      *rv = GraphRuntimeCreate(args[0], args[1], contexts);
-    });
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    CHECK_GE(args.num_args, 4)
+        << "The expected number of arguments for graph_runtime.create is "
+           "at least 4, but it has "
+        << args.num_args;
+    const auto& contexts = GetAllContext(args);
+    *rv = GraphRuntimeCreate(args[0], args[1], contexts);
+  });
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime.remote_create")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
-                                    "graph_runtime.remote_create is "
-                                    "at least 4, but it has "
-                                 << args.num_args;
-      void* mhandle = args[1];
-      const auto& contexts = GetAllContext(args);
-      *rv = GraphRuntimeCreate(
-          args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
-    });
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
+                                  "graph_runtime.remote_create is "
+                                  "at least 4, but it has "
+                               << args.num_args;
+    void* mhandle = args[1];
+    const auto& contexts = GetAllContext(args);
+    *rv = GraphRuntimeCreate(
+        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
+  });
 }  // namespace runtime
 }  // namespace tvm

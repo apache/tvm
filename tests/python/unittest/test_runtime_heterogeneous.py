@@ -45,7 +45,7 @@ def get_simplex_graph(host_dev_type, device_dev_type):
         "inputs": [[0, 0, 0], [1, 0, 0]]
     }
     copy = {
-        "op": "device_copy_op",
+        "op": "tvm_op",
         "name": "__copy_add_to_sub",
         "attrs": {
             "flatten_data": "0",
@@ -167,7 +167,7 @@ def test_simplex_data_transferring():
         np.testing.assert_equal(
             out.asnumpy(), (tensor_a + tensor_b) - tensor_c)
 
-    dev_tar = {"gpu": "cuda", "opencl": "opencl"}
+    dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
         check_device(device, target)
 
@@ -214,7 +214,7 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         "inputs": [[0, 0, 0], [1, 0, 0]]
     }
     copy_add_sub = {
-        "op": "device_copy_op",
+        "op": "tvm_op",
         "name": "__copy_add_to_sub",
         "attrs": {
             "flatten_data": "0",
@@ -236,7 +236,7 @@ def get_duplex_graph(host_dev_type, device_dev_type):
         "inputs": [[3, 0, 0], [4, 0, 0]]
     }
     copy_sub_add = {
-        "op": "device_copy_op",
+        "op": "tvm_op",
         "name": "__copy_sub_to_add",
         "attrs": {
             "flatten_data": "0",
@@ -396,7 +396,7 @@ def test_duplex_data_transferring():
         check_verify()
         check_load_module()
 
-    dev_tar = {"gpu": "cuda", "opencl": "opencl"}
+    dev_tar = {"cuda": "cuda", "opencl": "opencl"}
     for device, target in dev_tar.items():
         check_device(device, target)
 
