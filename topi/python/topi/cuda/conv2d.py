@@ -104,7 +104,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
                              pre_computed=False)
     if cfg.template_key == 'int8':
         return conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, layout, out_dtype,
-                pre_computed=False)
+                                 pre_computed=False)
 
     if layout == 'NCHW':
         return nn.conv2d_nchw(data, kernel, strides, padding, out_dtype)

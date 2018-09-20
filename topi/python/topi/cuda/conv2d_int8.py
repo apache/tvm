@@ -70,7 +70,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     output : tvm.Tensor
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
-    assert layout == "NCHW" or layout == "NCHW4c"
+    assert layout in ["NCHW", "NCHW4c"]
 
     ic_block_factor = 4
     oc_block_factor = 4
@@ -80,7 +80,8 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
         assert channels % ic_block_factor == 0, \
             "Number of input channels should be multiple of {}".format(
                 ic_block_factor)
-        packed_data = tvm.compute((batch, channels/ic_block_factor, height, width, ic_block_factor),
+        packed_data = tvm.compute((batch, channels // ic_block_factor, height, width,
+                                   ic_block_factor),
                                   lambda n, c, h, w, vc: kernel[n,
                                                                 c*ic_block_factor + vc, h, w],
                                   name="packed_data")
@@ -91,7 +92,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
             "Number of output channels should be multiple of {}".format(
                 oc_block_factor)
         packed_kernel = tvm.compute(
-            (out_channels / oc_block_factor, in_channels / ic_block_factor, kernel_h, kernel_w,
+            (out_channels // oc_block_factor, in_channels // ic_block_factor, kernel_h, kernel_w,
              oc_block_factor, ic_block_factor),
             lambda oc_chunk, ic_chunk, kh, kw, oc_block, ic_block:
             kernel[oc_chunk * oc_block_factor + oc_block,
@@ -282,7 +283,7 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     return s
 
 
-@conv2d_NCHWc_int8_prepacked.register(["cuda", "gpu"])
+@conv2d_NCHWc_int8_prepacked.register(["cuda"])
 @autotvm.task.dispatcher
 def conv2d_NCHWc_int8_prepacked_dispatcher(data, kernel, stride, padding, layout, out_dtype):
     assert layout == 'NCHW4c'
@@ -292,11 +293,11 @@ def conv2d_NCHWc_int8_prepacked_dispatcher(data, kernel, stride, padding, layout
 @conv2d_NCHWc_int8_prepacked_dispatcher.register("int8")
 def _decl_conv2d_NCHWc_int8_prepacked(cfg, data, kernel, stride, padding, layout, out_dtype):
     return conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype,
-            pre_computed=True)
+                             pre_computed=True)
 
-@autotvm.register_topi_schedule(schedule_conv2d_NCHWc_int8_prepacked, ["cuda", "gpu"], ["int8"])
+@autotvm.register_topi_schedule(schedule_conv2d_NCHWc_int8_prepacked, ["cuda"], ["int8"])
 def schedule_conv2d_NCHWc_int8_prepacked_cuda(cfg, outs):
-    """TOPI schedule callback of conv2d for cuda gpu
+    """TOPI schedule callback of conv2d for cuda
 
     Parameters
     ----------
