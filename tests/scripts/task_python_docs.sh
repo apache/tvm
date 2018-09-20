@@ -1,6 +1,10 @@
 #!/bin/bash
 mkdir -p docs/_build/html
 rm -rf docs/_build/html/jsdoc
+
+# remove stale tutorials and always build from scratch.
+rm -rf docs/tutorials
+
 # C++ doc
 make doc
 
