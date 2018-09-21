@@ -158,43 +158,6 @@ class RelayNode : public Node {
   TVM_DECLARE_BASE_NODE_INFO(RelayNode, Node);
 };
 
-/*!
- * \brief Get a reference type from a Node ptr type
- *
- *  It is always important to get a reference type
- *  if we want to return a value as reference or keep
- *  the node alive beyond the scope of the function.
- *
- * \param ptr The node pointer
- * \tparam RefType The reference type
- * \tparam NodeType The node type
- * \return The corresponding RefType
- */
-template <typename RefType, typename NodeType>
-RefType GetRef(const NodeType* ptr) {
-  static_assert(std::is_same<typename RefType::ContainerType, NodeType>::value,
-                "Can only cast to the ref of same container type");
-  return RefType(std::move(ptr->GetNodeRef().node_));
-}
-
-// TODO(@tqchen, @jroesch): can we move these semantics to HalideIR
-template <typename T>
-inline const T* As(const NodeRef& node) {
-  const Node* ptr = static_cast<const Node*>(node.get());
-  if (ptr && (ptr->is_type<T>() || ptr->derived_from<T>())) {
-    return static_cast<const T*>(ptr);
-  }
-  return nullptr;
-}
-
-template <typename SubRef, typename BaseRef>
-SubRef Downcast(BaseRef ref) {
-  CHECK(ref->template is_type<typename SubRef::ContainerType>())
-      << "Downcast from " << ref->type_key() << " to "
-      << SubRef::ContainerType::_type_key << " failed.";
-  return SubRef(ref.node_);
-}
-
 }  // namespace relay
 }  // namespace tvm
 
