@@ -45,25 +45,6 @@ void _native_free(void *ptr) {
 }
 
 /*!
- * \brief golang string to native char array conversion helpers
- * This method allocates the char buffer which need to be freed by caller.
- *
- * \param gostr is a _gostring_ structure
- *
- * \return char pointer which holds content from _gostring_ as a char array.
- */
-char * _gostring_to_native(_gostring_ gostr) {
-  char *nstr;
-  nstr = reinterpret_cast<char *>(_native_malloc(gostr.n + 1));
-
-  if (nstr) {
-    memcpy(nstr, gostr.p, gostr.n);
-    nstr[gostr.n] = '\0';
-  }
-  return nstr;
-}
-
-/*!
  * \brief Convert native char array to _gostring_ structure.
  * _gostring_ structure represents the same memory footprint as golang string object.
  *
@@ -100,13 +81,11 @@ static void putuint64(std::string *s, size_t off, uint64_t v) {
 /*!
  * \brief Native interface to query TVM_VERSION in golang string format.
  *
- * \return _gostring_ object containing the
- * TVM_VERSION string from runtime interface.
+ * \return char pointer to TVM-VERSION
  */
-_gostring_ _TVM_VERSION(void) {
-  char version[8];
-  snprintf(version, sizeof(version), "%s", TVM_VERSION);
-  return _native_to_gostring(version, strlen(TVM_VERSION));
+const char* _TVM_VERSION(void) {
+  const char *version = TVM_VERSION;
+  return version;
 }
 
 /*!
@@ -147,72 +126,65 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
 /*!
  * \brief Native interface for TVMGetLastError
  *
- * \return _gostring_ object holding the error string if any.
+ * \return The error string if any.
  */
-_gostring_ _TVMGetLastError(void) {
-  const char *result;
-  result = TVMGetLastError();
-  return _native_to_gostring(result, result ? strlen(result) : 0);
+const char* _TVMGetLastError(void) {
+  return TVMGetLastError();
 }
 
 /*!
  * \brief Native interface for TVMAPISetLastError
  *
- * \param is of type _gostring_ holding the error string.
+ * \param The error string.
  */
-void _TVMAPISetLastError(_gostring_ err) {
-  char *err_str = _gostring_to_native(err);
-  TVMAPISetLastError(err_str);
-  _native_free(err_str);
+void _TVMAPISetLastError(char *err) {
+  TVMAPISetLastError(err);
+  _native_free(err);
   return;
 }
 
 /*!
  * \brief Native interface for TVMModLoadFromFile
  *
- * \param modpath is _gostring_ object containing module path.
- * \param modtype is _gostring_ object containing module type in ["so", "dso", "dll", ..etc]
+ * \param modpath is compiled module path.
+ * \param modtype is module type in ["so", "dso", "dll", ..etc]
  * \param modp is pointer to TVMModuleHandle is a return argument.
  *
  * \return returns status of c runtime api.
  */
-int _TVMModLoadFromFile(_gostring_ modpath, _gostring_ modtype, TVMModuleHandle *modp) {
-  char *nmodpath = _gostring_to_native(modpath);
-  char *nmodtype = _gostring_to_native(modtype);
-
-  if (!nmodpath) {
-    if (nmodtype) _native_free(nmodtype);
+int _TVMModLoadFromFile(char *modpath, char *modtype, TVMModuleHandle *modp) {
+  if (!modpath) {
+    if (modtype) _native_free(modtype);
     return -1;
   }
-  if (!nmodtype) {
-    if (nmodpath) _native_free(nmodpath);
+  if (!modtype) {
+    if (modpath) _native_free(modpath);
     return -1;
   }
 
-  int ret =  TVMModLoadFromFile((char const *)nmodpath, (char const *)nmodtype, modp);
+  int ret =  TVMModLoadFromFile((char const *)modpath, (char const *)modtype, modp);
 
-  _native_free(nmodpath);
-  _native_free(nmodtype);
+  _native_free(modpath);
+  _native_free(modtype);
   return ret;
 }
 
 /*!
  * \brief Native interface for TVMFuncGetGlobal
  *
- * \param funcname is _gostring_ object holding the function name
+ * \param funcname is char pointer to function name
  * \param funp is pointer to TVMModuleHandle which is return value by argument.
  *
  * \return native api resutn status.
  */
-int _TVMFuncGetGlobal(_gostring_ funcname, TVMModuleHandle *funp) {
-  char *nfuncname = _gostring_to_native(funcname);
-  if (!nfuncname) {
+int _TVMFuncGetGlobal(char *funcname, TVMModuleHandle *funp) {
+  if (!funcname) {
     return -1;
   }
 
-  int ret =  TVMFuncGetGlobal((char const *)nfuncname, funp);
+  int ret =  TVMFuncGetGlobal((char const *)funcname, funp);
 
-  _native_free(nfuncname);
+  _native_free(funcname);
   return ret;
 }
 
@@ -258,16 +230,15 @@ int _TVMArrayFree(DLTensor *dltensor) {
  *
  * \return the status of c runtime api call.
  */
-int _TVMModGetFunction(TVMModuleHandle modp, _gostring_ funcname,
+int _TVMModGetFunction(TVMModuleHandle modp, char *funcname,
                        int query_imports, TVMFunctionHandle *funp) {
-  char *nfuncname = _gostring_to_native(funcname);
-  if (!nfuncname) {
+  if (!funcname) {
     return -1;
   }
 
-  int result = TVMModGetFunction(modp, (char const *)nfuncname, query_imports, funp);
+  int result = TVMModGetFunction(modp, (char const *)funcname, query_imports, funp);
 
-  _native_free(nfuncname);
+  _native_free(funcname);
   return result;
 }
 
@@ -429,15 +400,10 @@ void * _TVMValueGetHandle(TVMValue *tvmval) {
  * \brief Native helper to v_str setter
  *
  * \param tvmval is a valid TVMValue pointer.
- * \param val is _gostring_ object from which we make
- * a dynamically allocated char array for v_str.
+ * \param val is char pointer to string.
  */
-void _TVMValueSetStr(TVMValue *tvmval, _gostring_ val) {
-  char * ptr = reinterpret_cast<char*>(new char[val.n+1]);
-  strncpy(ptr, (const char *)val.p, val.n);
-  ptr[val.n] = 0;
-
-  tvmval->v_str = ptr;
+void _TVMValueSetStr(TVMValue *tvmval, char *val) {
+  tvmval->v_str = val;
 }
 
 /*!
@@ -445,10 +411,10 @@ void _TVMValueSetStr(TVMValue *tvmval, _gostring_ val) {
  *
  * \param tvmval is a valid TVMValue Pointer.
  *
- * \return _gostring_ object corresponding to the char array v_str inside TVMValue.
+ * \return char array v_str inside TVMValue.
  */
-_gostring_ _TVMValueGetStr(TVMValue *tvmval) {
-  return _native_to_gostring(tvmval->v_str, strlen(tvmval->v_str));
+const char* _TVMValueGetStr(TVMValue *tvmval) {
+  return tvmval->v_str;
 }
 
 /*!
@@ -594,16 +560,15 @@ TVMContext _DLTensorGetCtx(DLTensor *pdltensor) {
  * \brief Native helper to copy byte data from golang to native buffer.
  *
  * \param tbytearray is a valid TVMByteArray pointer.
- * \param val is golang byte array converted to golang string which is _gostring_ in native.
+ * \param val is pointer to data.
+ * \param len is the data size.
  */
-void _TVMByteArraySetData(TVMByteArray *tbytearray, _gostring_ val) {
+void _TVMByteArraySetData(TVMByteArray *tbytearray, char *val, int len) {
   if (tbytearray->data) {
     delete tbytearray->data;
   }
-  char * ptr = reinterpret_cast<char*>(new char[val.n]);
-  memcpy(ptr, (const char *)val.p, val.n);
-  tbytearray->data = ptr;
-  tbytearray->size = (size_t)val.n;
+  tbytearray->data = val;
+  tbytearray->size = (size_t)len;
 }
 
 /*!
@@ -611,10 +576,21 @@ void _TVMByteArraySetData(TVMByteArray *tbytearray, _gostring_ val) {
  *
  * \param tbytearray is a valid TVMByteArray pointer.
  *
- * \return byte array content as _gostring_ object.
+ * \return char pointer to array content.
  */
-_gostring_ _TVMByteArrayGetData(TVMByteArray *tbytearray) {
-  return _native_to_gostring(tbytearray->data, tbytearray->size);
+const char* _TVMByteArrayGetData(TVMByteArray *tbytearray) {
+  return tbytearray->data;
+}
+
+/*!
+ * \brief Native helper to return byte array from TVMByteArray.
+ *
+ * \param tbytearray is a valid TVMByteArray pointer.
+ *
+ * \return byte array length.
+ */
+int _TVMByteArrayGetDataLen(TVMByteArray *tbytearray) {
+  return tbytearray->size;
 }
 
 /*!
@@ -694,8 +670,7 @@ int _ConvertFunction(void* fptr, TVMFunctionHandle *fhandle) {
  *
  * /return is an int indicating return status ov TVM call.
  */
-int _RegisterFunction(_gostring_ fname, TVMFunctionHandle fhandle) {
-  char *func_name = _gostring_to_native(fname);
+int _RegisterFunction(char *func_name, TVMFunctionHandle fhandle) {
   int ret = TVMFuncRegisterGlobal(func_name, fhandle, 0);  // Override = False
   _native_free(func_name);
   return ret;

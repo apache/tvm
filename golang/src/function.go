@@ -101,7 +101,7 @@ func FuncListGlobalNames() (retVal []string, err error) {
 // Variadic arguments can be any type which can be embed into Value.
 func GetGlobalFunction(funcname string) (retVal *Function, err error) {
     var funp uintptr
-    ret := (int32)(C._TVMFuncGetGlobal(*(*C._gostring_)(unsafe.Pointer(&funcname)),
+    ret := (int32)(C._TVMFuncGetGlobal(C.CString(funcname),
                                        C.native_voidp(&funp)))
     if ret != 0 {
         err = errors.New(getTVMLastError())
@@ -250,7 +250,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
     retVal, err := fcb.cb(cbargs...)
     if err != nil {
         errStr := err.Error()
-        C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+        C._TVMAPISetLastError(C.CString(errStr))
         return -1
     }
 
@@ -276,7 +276,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         retTypeCode, err = retValues[0].setValue(retVal)
         if err != nil {
             errStr := err.Error()
-            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+            C._TVMAPISetLastError(C.CString(errStr))
             return -1
         }
         nretValues := nativeFromGoSlice(retValues)
@@ -289,7 +289,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         C._TVMValueNativeFree(nretValues)
         if apiRet != 0 {
             errStr := string("TVMCFuncSetReturn failed ")
-            C._TVMAPISetLastError(*(*C._gostring_)(unsafe.Pointer(&errStr)))
+            C._TVMAPISetLastError(C.CString(errStr))
         }
     }
     return
@@ -341,7 +341,7 @@ func RegisterFunction(args ...interface{}) (err error) {
         funcname = args[1].(string)
     }
 
-    result := (int32) (C._RegisterFunction(*(*C._gostring_)(unsafe.Pointer(&funcname)),
+    result := (int32) (C._RegisterFunction(C.CString(funcname),
                                            C.uintptr_t(*fhandle)));
     if result != 0 {
 	    err = errors.New(getTVMLastError())

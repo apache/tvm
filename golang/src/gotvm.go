@@ -13,17 +13,12 @@ package gotvm
 //#include "gotvm.h"
 import "C"
 
-import (
-    "unsafe"
-)
-
 // DLPackVersion is the dlpack version of tvm runtime.
 var DLPackVersion int       = int(C.DLPACK_VERSION)
 // TVMVersion is the TVM runtime version.
 var TVMVersion              = getTVMVersion()
 
 func getTVMVersion() (retStr string) {
-    version := C._TVM_VERSION()
-    retStr = goStringFromNative(*(*string)(unsafe.Pointer(&version)))
+    retStr = C.GoString(C._TVM_VERSION())
     return
 }

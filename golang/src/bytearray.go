@@ -31,13 +31,14 @@ func (tbytearray ByteArray) nativeCPtr() (retVal uintptr) {
 //
 // `val` is the golang string object from which the ByteArray is initialized.
 func (tbytearray ByteArray) setData(val string) {
-	C._TVMByteArraySetData(C.uintptr_t(tbytearray), *(*C._gostring_)(unsafe.Pointer(&val)))
+	C._TVMByteArraySetData(C.uintptr_t(tbytearray), C.CString(val), C.int(len(val)))
 }
 
 // getData returns the golang byte slice corresponding to the ByteArray.
 func (tbytearray ByteArray) getData() (retVal []byte) {
 	val := C._TVMByteArrayGetData(C.uintptr_t(tbytearray))
-	retVal = []byte(goStringFromNative(*(*string)(unsafe.Pointer(&val))))
+	blen := C._TVMByteArrayGetDataLen(C.uintptr_t(tbytearray))
+	retVal = C.GoBytes(unsafe.Pointer(val), C.int(blen))
     return
 }
 

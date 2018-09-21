@@ -10,7 +10,6 @@ package gotvm
 import "C"
 
 import (
-    "unsafe"
     "errors"
     "runtime"
 )
@@ -35,15 +34,13 @@ func (tvmmodule *Module) nativeCPtr() (retVal uintptr) {
 // returns pointer to Module and err or if any.
 func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, err error) {
     modtype := "so"
-
     if len(args) > 0 {
        modtype  = args[0].(string)
     }
-
     var modp uintptr
 
-    ret := (int32)(C._TVMModLoadFromFile(*(*C._gostring_)(unsafe.Pointer(&modpath)),
-                                         *(*C._gostring_)(unsafe.Pointer(&modtype)),
+    ret := (int32)(C._TVMModLoadFromFile(C.CString(modpath),
+                                         C.CString(modtype),
                                          C.native_voidp(&modp)))
     if ret != 0 {
         err = errors.New(getTVMLastError())
@@ -52,14 +49,11 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, er
 
     handle := new(Module)
     *handle = Module(modp)
-
     finalizer := func(mhandle *Module) {
         nativeTVMModFree(mhandle)
         mhandle = nil
     }
-
     runtime.SetFinalizer(handle, finalizer)
-
     retVal = handle
     return
 }
@@ -96,7 +90,7 @@ func (tvmmodule *Module) GetFunction (
 
     var funp uintptr
     ret := (int32)(C._TVMModGetFunction(C.uintptr_t(*tvmmodule),
-                                        *(*C._gostring_)(unsafe.Pointer(&funcname)),
+                                        C.CString(funcname),
                                         C.int(queryImports), C.native_voidp(&funp)))
 
     if ret != 0 {

@@ -10,7 +10,6 @@ package gotvm
 import "C"
 
 import (
-    "unsafe"
     "fmt"
     "runtime"
 )
@@ -122,7 +121,7 @@ func (tvmval *Value) moveFrom(fromval *Value) () {
 //
 // `val` is the int64 value to initialize the Value
 func (tvmval *Value) setVInt64(val int64) {
-	C._TVMValueSetInt64(C.uintptr_t(tvmval.nativeCPtr()), C.native_long_long(val))
+	C._TVMValueSetInt64(C.uintptr_t(tvmval.nativeCPtr()), C.int64_t(val))
     tvmval.dtype = KDLInt
     return
 }
@@ -169,7 +168,7 @@ func (tvmval *Value) getVHandle() (retVal uintptr) {
 //
 // `val` is the golang string object used to initialize the Value.
 func (tvmval *Value) setVStr(val string) {
-	C._TVMValueSetStr(C.uintptr_t(tvmval.nativeCPtr()), *(*C._gostring_)(unsafe.Pointer(&val)))
+	C._TVMValueSetStr(C.uintptr_t(tvmval.nativeCPtr()), C.CString(val))
     tvmval.dtype = KStr
     return
 }
@@ -178,7 +177,7 @@ func (tvmval *Value) setVStr(val string) {
 // getVStr returns the golang string for the native string inside Value.
 func (tvmval *Value) getVStr() (retVal string) {
 	str := C._TVMValueGetStr(C.uintptr_t(tvmval.nativeCPtr()))
-    retVal = goStringFromNative(*(*string)(unsafe.Pointer(&str)))
+    retVal = C.GoString(str)
     return
 }
 
