@@ -3,6 +3,7 @@
 import tvm
 from tvm import autotvm
 
+from .injective import _schedule_injective
 from ..generic import schedule_conv2d_NCHWc_int8_prepacked
 from .tensor_intrin import dp4a
 from ..nn.conv2d import conv2d_NCHWc_int8_prepacked
@@ -171,6 +172,7 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
         pad_data = packed_data
 
     if not pre_computed:
+        kernel, = packed_kernel.op.input_tensors
         if autotvm.GLOBAL_SCOPE.in_tuning:
             # skip this part during tuning to make recrods accurate
             # this part will be pre-computed during NNVM's pre-compute optimization pass
@@ -178,8 +180,13 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
             s[packed_kernel].pragma(
                 s[packed_kernel].op.axis[0], "debug_skip_region")
         else:
-            s[packed_data].compute_inline()
-            s[packed_kernel].compute_inline()
+            _schedule_injective(packed_data.op, s)
+            _schedule_injective(packed_kernel.op, s)
+    else:
+        kernel = packed_data
+
+    if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+        s[kernel].compute_inline()
 
     if pad_data != packed_data:
         s[pad_data].compute_inline()
