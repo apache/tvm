@@ -12,19 +12,19 @@
 namespace tvm {
 namespace relay {
 
-struct Error : dmlc::Error {
+struct Error : public dmlc::Error {
   explicit Error(const std::string &msg) : dmlc::Error(msg) {}
 };
 
-struct InternalError : Error {
+struct InternalError : public Error {
   explicit InternalError(const std::string &msg) : Error(msg) {}
 };
 
-struct FatalTypeError : Error {
+struct FatalTypeError : public Error {
   explicit FatalTypeError(const std::string &s) : Error(s) {}
 };
 
-struct TypecheckerError : Error {
+struct TypecheckerError : public Error {
   explicit TypecheckerError(const std::string &msg) : Error(msg) {}
 };
 
