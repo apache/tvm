@@ -26,7 +26,10 @@ TVM_REGISTER_API("relay._make.Constant")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<ConstantNode>([](const ConstantNode* node, tvm::IRPrinter* p) {
-    p->stream << "Constant(TODO)";
+    const PackedFunc* fprint = Registry::Get("relay._constant_repr");
+    CHECK(fprint) << "unable to find printing function for constants";
+    std::string data = (*fprint)(GetRef<Constant>(node));
+    p->stream << "Constant(" << data << ")";
   });
 
 TensorType ConstantNode::tensor_type() const {
@@ -60,6 +63,9 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 Var VarNode::make(std::string name_hint, Type type_annotation) {
   NodePtr<VarNode> n = make_node<VarNode>();
+  // if (name_hint == "accum") {
+  //   RELAY_DEBUG(10);
+  // }
   n->name_hint = std::move(name_hint);
   n->type_annotation = std::move(type_annotation);
   return Var(n);
@@ -104,12 +110,14 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 Function FunctionNode::make(tvm::Array<Var> params,
                             Expr body,
                             Type ret_type,
-                            tvm::Array<TypeVar> type_params) {
+                            tvm::Array<TypeVar> type_params,
+                            tvm::Attrs attrs) {
   NodePtr<FunctionNode> n = make_node<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
   n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
+  n->attrs = std::move(attrs);
   return Function(n);
 }
 
@@ -119,6 +127,34 @@ FuncType FunctionNode::func_type_annotation() const {
     param_types.push_back(param->type_annotation);
   }
   return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
+}
+
+NodeRef FunctionNode::GetAttr(const std::string& key) const {
+  if (!this->attrs.defined()) { return NodeRef(); }
+
+  const DictAttrsNode* dict_attrs = this->attrs.as<DictAttrsNode>();
+  CHECK(dict_attrs);
+  auto it = dict_attrs->dict.find(key);
+  if (it != dict_attrs->dict.end()) {
+    return (*it).second;
+  } else {
+    return NodeRef();
+  }
+}
+
+Function FunctionNode::SetAttr(const std::string& key, const NodeRef& data) const {
+  const DictAttrsNode* dattrs = this->attrs.as<DictAttrsNode>();
+  Attrs func_attrs;
+  if (dattrs) {
+    Map<std::string, NodeRef> dict = dattrs->dict;
+    dict.Set(key, data);
+    func_attrs = DictAttrsNode::make(dict);
+  } else {
+    Map<std::string, NodeRef> dict = {{key, data}};
+    func_attrs = DictAttrsNode::make(dict);
+  }
+
+  return FunctionNode::make(this->params, this->body, this->ret_type, this->type_params, func_attrs);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
@@ -132,7 +168,8 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<FunctionNode>([](const FunctionNode* node,
                                    tvm::IRPrinter* p) {
       p->stream << "FunctionNode(" << node->params << ", " << node->ret_type
-                << ", " << node->body << ", " << node->type_params << ")";
+                << ", " << node->body << ", " << node->type_params << ", "
+                << node->attrs << ")";
 });
 
 Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,

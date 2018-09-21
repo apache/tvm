@@ -1,10 +1,12 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
+from ..api import register_func
 from . import base
 from . import ty
 from . import expr
 from . import env
 from . import ir_pass
+from . import testing
 
 # Root operators
 from .op import Op
@@ -46,6 +48,19 @@ Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
 
+
 # helper functions
 var = expr.var
 const = expr.const
+
+@register_func("relay._tensor_value_repr")
+def _tensor_value_repr(tv):
+    return str(tv.data.asnumpy())
+
+@register_func("relay._constant_repr")
+def _tensor_value_repr(tv):
+    return str(tv.data.asnumpy())
+
+@register_func("relay.debug")
+def _debug(*args):
+    import pdb; pdb.set_trace()

@@ -213,12 +213,15 @@ class FunctionNode : public ExprNode {
    */
   tvm::Array<TypeVar> type_params;
 
+  mutable tvm::Attrs attrs;
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("span", &span);
+    v->Visit("attrs", &attrs);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -230,10 +233,14 @@ class FunctionNode : public ExprNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
+  TVM_DLL NodeRef GetAttr(const std::string& key) const;
+  TVM_DLL Function SetAttr(const std::string& key, const NodeRef& data) const;
+
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
-                               tvm::Array<TypeVar> ty_params);
+                               tvm::Array<TypeVar> ty_params,
+                               tvm::Attrs attrs = Attrs());
 
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);

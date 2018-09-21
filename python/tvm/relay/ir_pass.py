@@ -211,3 +211,9 @@ def structural_hash(value):
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
+
+def fuse_ops(expr, env):
+    return _ir_pass.FuseOps(env, expr)
+
+def lower_ops(expr, target='llvm'):
+    return _ir_pass.LowerOps(expr, target)

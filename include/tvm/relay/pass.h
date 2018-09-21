@@ -6,6 +6,7 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
+#include <tvm/lowered_func.h>
 #include <tvm/relay/environment.h>
 #include <tvm/relay/expr.h>
 
@@ -20,7 +21,8 @@ namespace relay {
  * populated with the result type.
  *
  * \param expr The expression to type check.
- * \param env The environment used for referencing global functions, can be None.
+ * \param env The environment used for referencing global functions, can be
+ * None.
  *
  * \return A type checked expression with its checked_type field populated.
  */
@@ -35,7 +37,8 @@ Expr InferType(const Expr& expr, const Environment& env);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates env and is not thread-safe.
  */
-Function InferType(const Function& f, const Environment& env, const GlobalVar& var);
+Function InferType(const Function& f, const Environment& env,
+                   const GlobalVar& var);
 
 /*!
  * \brief Check that types are well kinded by applying "kinding rules".
@@ -94,7 +97,8 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
- * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice, although x is not shadowed.
+ * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice,
+ * although x is not shadowed.
  *
  * \param e the expression to check.
  *
@@ -103,6 +107,17 @@ bool AlphaEqual(const Type& t1, const Type& t2);
 bool WellFormed(const Expr& e);
 
 /*! \brief Get free Vars from expr in PostDFS order.
+ *
+ * Free variables are variables that are not bound by a let or a function
+ * parameter in the context.
+ *
+ * \param e the expression.
+ *
+ * \return the set of free variable.
+ */
+tvm::Array<Var> FreeVariables(const Expr& e);
+
+/*! \brief Get free type parameters from expression e.
  *
  * Free variables are variables that are not bound by a
  * let or a function parameter in the context.
@@ -115,7 +130,8 @@ tvm::Array<Var> FreeVars(const Expr& expr);
 
 /*! \brief Get free TypeVars from expression expr.
  *
- * Free type parameters are type parameters that are not bound by a function type in the context.
+ * Free type parameters are type parameters that are not bound by a function
+ * type in the context.
  *
  * \param expr the expression.
  *
@@ -125,10 +141,12 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
- * It will remove let binding that are not referenced, and if branch that are not entered.
+ * It will remove let bindings which are not referenced, and branches that will
+ * not be entered.
  *
- * For example, this pass should turn `let a = 1 in 2` into `2`, as the value of the expression does not depend on a.
- * Another example is `if (true) then 1 else 2` will be optimized into 1.
+ * For example, this pass should turn `let a = 1 in 2` into `2`, as the value of
+ * the expression does not depend on a. Another example is `if (true) then 1
+ * else 2` will be optimized into 1.
  *
  * \param e the expression to optimize.
  *
@@ -156,7 +174,75 @@ size_t StructuralHash(const Type& type);
  */
 size_t StructuralHash(const Expr& expr);
 
+/*! \brief The hash struct for expressions. */
+struct ExprHash {
+  size_t operator()(const Expr& a) const {
+    return StructuralHash(a);
+  }
+};
+
+/*! \brief The equal comparator for expressions. */
+struct ExprEqual {
+  bool operator()(const Expr& a, const Expr& b) const {
+    return AlphaEqual(a, b);
+  }
+};
+
+/*! \brief A lowered Relay operation.
+ *
+ * A lowered operation is a pair containing the "primitive" function used
+ * to produce the lowered function as well as the lowered function itself.
+ */
+class LoweredOp;
+/*! \brief Call container. */
+class LoweredOpNode : public Node {
+ public:
+  /*!
+   * \brief The primitive function to be lowered.
+   *
+   * A primitive function consists only of calls to relay::Op which
+   * can be fused.
+   */
+  Function func;
+
+  /*!
+   * \brief The lowered function.
+   */
+  LoweredFunc lowered_func;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("func", &func);
+    v->Visit("lowered_func", &lowered_func);
+  }
+
+  TVM_DLL static LoweredOp make(
+      Function func,
+      LoweredFunc lowered_func);
+
+  static constexpr const char* _type_key = "relay.LoweredOp";
+  TVM_DECLARE_NODE_TYPE_INFO(LoweredOpNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
+
+/*!
+ * \brief Lower the operations contained in a Relay expression.
+ *
+ * The lowering pass will only lower functions marked as primitive,
+ * the FuseOps pass will provide this behavior, if run before LowerOps.
+ *
+ * \note This will do a reachability analysis and lower all definitions
+ * reachable from the provided expression.
+ *
+ * \param expr The expression with operations to be lowered.
+ * \param target The target to lower the functions to.
+ *
+ * \return The set of lowered operations.
+*/
+
+Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr, const std::string& target = "llvm");
 
 }  // namespace relay
 }  // namespace tvm
+
 #endif  // TVM_RELAY_PASS_H_

@@ -3,10 +3,11 @@
  *
  * \file util.cc
  *
- * \brief simple util for relay.
+ * \brief Utility functions for Relay.
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/logging.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
