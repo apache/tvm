@@ -183,8 +183,6 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     if pad_data != packed_data:
         s[pad_data].compute_inline()
 
-    s[conv].set_scope('local')
-
     batch = get_const_int(packed_data.shape[0])
     if isinstance(stride, int):
         stride_h = stride_w = stride
@@ -194,6 +192,13 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     # create cache stage
     AA = s.cache_read(pad_data, 'shared', [conv])
     WW = s.cache_read(packed_kernel, 'shared', [conv])
+
+    s[conv].set_scope('local')
+
+    # handle bias
+    if output.op not in s.outputs:
+        s[output].compute_inline()
+        output = s.outputs[0].output(0)
 
     # tile and bind spatial axes
     n, f, y, x, c = s[output].op.axis
