@@ -22,6 +22,33 @@ tvm::Array<B> map(const tvm::Array<A> & arr, const std::function<B(A)> & f) {
 
 // not basing on typemutator as it might one day memorize
 class CopyType : TypeFunctor<Type(const Type &)> {
+  virtual Type VisitType_(const TensorTypeNode * t) final {
+    return TensorTypeNode::make(t->shape, t->dtype);
+  }
+
+  virtual Type VisitType_(const TypeParamNode * tp) final {
+    return TypeParamNode::make(tp->var->name_hint, tp->kind);
+    // need help: this will remove the var if it is used
+  }
+
+  virtual Type VisitType_(const FuncTypeNode * f) final {
+    return FuncTypeNode::make(Copy(f->arg_types),
+                              Copy(f->ret_type),
+                              Copy(f->type_params),
+                              Copy(f->type_constraints));
+  }
+
+  virtual Type VisitType_(const TypeRelationNode * tr) final {
+    return TypeRelationNode::make(tr->name, tr->func_, Copy(tr->args));
+  }
+
+  virtual Type VisitType_(const TupleTypeNode * t) final {
+    return TupleTypeNode::make(Copy(t->fields));
+  }
+
+  virtual Type VisitType_(const IncompleteTypeNode * i) final {
+    return GetRef<IncompleteType>(i);
+  }
 
  public:
   Type Copy(const Type & t) {
@@ -31,6 +58,18 @@ class CopyType : TypeFunctor<Type(const Type &)> {
   tvm::Array<TypeParam> Copy(const tvm::Array<TypeParam> & tp) {
     return map<TypeParam, TypeParam>(tp, [this](const TypeParam & tp) {
         return Downcast<TypeParam>(Copy(tp));
+      });
+  }
+
+  tvm::Array<TypeConstraint> Copy(const tvm::Array<TypeConstraint> & tc) {
+    return map<TypeConstraint, TypeConstraint>(tc, [this](const TypeConstraint & tc) {
+        return Downcast<TypeConstraint>(Copy(tc));
+      });
+  }
+
+  tvm::Array<Type> Copy(const tvm::Array<Type> & t) {
+    return map<Type, Type>(t, [this](const Type & t) {
+        return Copy(t);
       });
   }
 };
@@ -90,6 +129,10 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
     return IfNode::make(Copy(i->cond),
                         Copy(i->true_branch),
                         Copy(i->false_branch));
+  }
+
+  virtual Expr VisitExpr_(const OpNode * o) final {
+    return GetRef<Op>(o);
   }
 
  public:
