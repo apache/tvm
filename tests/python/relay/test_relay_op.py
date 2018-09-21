@@ -24,4 +24,3 @@ def test_op_level1():
 if __name__ == "__main__":
     test_op_attr()
     test_op_level1()
-

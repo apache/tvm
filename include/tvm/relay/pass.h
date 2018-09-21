@@ -80,20 +80,17 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 bool AlphaEqual(const Type& t1, const Type& t2);
 
-/*! brief Check that no LocalVar got shadowed.
+/*! brief Check that each Var is only bind once.
  *
- * Roughly speaking, a LocalVar is considered to be shadowed, if it was introduce while it was already in scoped.
+ * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
- * For example, the expression `let x = 1 in let x = 2 in 3` shadow x.
- *
- * However, `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` does not shadow x, f, g.
- * x is not shadowed because it is introduce at other scoped - the x used by f is invisible to the x used by g.
+ * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice, although x is not shadowed.
  *
  * \param e the expression to check.
  *
- * \return true iff e has no shadowing.
+ * \return true iff all Var in e is bind at most once.
  */
- bool LocalVarWellFormed(const Expr & e);
+bool WellFormed(const Expr & e);
 
 }  // namespace relay
 }  // namespace tvm
