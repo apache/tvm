@@ -80,6 +80,12 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 bool AlphaEqual(const Type& t1, const Type& t2);
 
+//! \brief copy the expression, replacing each bounded variable with new one.
+Expr Copy(const Expr & e);
+
+//! \brief copy the type, replacing each bounded variable with new one.
+Type Copy(const Type & t);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_
