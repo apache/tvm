@@ -39,7 +39,8 @@ class WellFormedChecker : private ExprVisitor {
     }
     CheckWellFormed(f->body);
   }
-public:
+
+ public:
   bool CheckWellFormed(const Expr & e) {
     this->VisitExpr(e);
     return well_formed;
