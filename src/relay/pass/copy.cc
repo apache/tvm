@@ -11,10 +11,27 @@
 namespace tvm {
 namespace relay {
 
+template<typename A, typename B>
+tvm::Array<B> map(const tvm::Array<A> & arr, const std::function<B(A)> & f) {
+  std::vector<B> v;
+  for (const A & a : arr) {
+    v.push_back(f(a));
+  }
+  return v;
+}
+
 // not basing on typemutator as it might one day memorize
-struct CopyType : TypeFunctor<Type(const Type &)> {
+class CopyType : TypeFunctor<Type(const Type &)> {
+
+ public:
   Type Copy(const Type & t) {
     return this->VisitType(t);
+  }
+
+  tvm::Array<TypeParam> Copy(const tvm::Array<TypeParam> & tp) {
+    return map<TypeParam, TypeParam>(tp, [this](const TypeParam & tp) {
+        return Downcast<TypeParam>(Copy(tp));
+      });
   }
 };
 
@@ -28,11 +45,7 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
   }
 
   virtual Expr VisitExpr_(const TupleNode * c) final {
-    std::vector<Expr> v;
-    for (const auto & f : c->fields) {
-      v.push_back((*this)(f));
-    }
-    return TupleNode::make(v);
+    return TupleNode::make(Copy(c->fields));
   }
 
   virtual Expr VisitExpr_(const VarNode * v) final {
@@ -56,21 +69,44 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
   }
 
   virtual Expr VisitExpr_(const FunctionNode * f) final {
-    std::vector<Param> params;
-    for (const auto & param : f->params) {
-      // params.push_back(Copy(param));
-    }
-    std::vector<TypeParam> type_params;
-    for (const auto & type_param : f->type_params) {
-      
-    }
-    return FunctionNode::make(params, ct.Copy(f->ret_type), Copy(f->body), type_params);
+    return FunctionNode::make(Copy(f->params),
+                              ct.Copy(f->ret_type),
+                              Copy(f->body),
+                              ct.Copy(f->type_params));
+  }
+
+  virtual Expr VisitExpr_(const CallNode * c) final {
+    return CallNode::make(Copy(c->op), Copy(c->args), c->attrs);
+  }
+
+  virtual Expr VisitExpr_(const LetNode * l) final {
+    return LetNode::make(fresh(l->var),
+                          Copy(l->value),
+                          Copy(l->body),
+                          ct.Copy(l->value_type));
+  }
+
+  virtual Expr VisitExpr_(const IfNode * i) final {
+    return IfNode::make(Copy(i->cond),
+                        Copy(i->true_branch),
+                        Copy(i->false_branch));
   }
 
  public:
   Expr Copy(const Expr & e) {
     return this->VisitExpr(e);
   }
+
+  tvm::Array<Expr> Copy(const tvm::Array<Expr> & a) {
+    return map<Expr, Expr>(a, [this](const Expr & e) { return Copy(e); });
+  }
+
+  tvm::Array<Param> Copy(const tvm::Array<Param> & a) {
+    return map<Param, Param>(a, [this](const Param & p) {
+        return Downcast<Param>(Copy(p));
+      });
+  }
+
 };
 
 Expr Copy(const Expr & e) {
@@ -78,7 +114,7 @@ Expr Copy(const Expr & e) {
 }
 
 Type Copy(const Type & t) {
-  return CopyType()(t);
+  return CopyType().Copy(t);
 }
 
 }  // namespace relay
