@@ -95,13 +95,13 @@ struct TypeMutator : TypeFunctor<Type(const Type& n)> {
                               type_params, type_constraints);
   }
 
-    Type VisitType_(const TupleTypeNode* op) override {
-      std::vector<Type> new_fields;
-      for (const Type& t : op->fields) {
-        new_fields.push_back(this->VisitType(t));
-      }
-      return TupleTypeNode::make(new_fields);
+  Type VisitType_(const TupleTypeNode* op) override {
+    std::vector<Type> new_fields;
+    for (const Type& t : op->fields) {
+      new_fields.push_back(this->VisitType(t));
     }
+    return TupleTypeNode::make(new_fields);
+  }
 
   Type VisitType_(const TypeRelationNode* type_rel) override {
     std::vector<Type> new_args;
