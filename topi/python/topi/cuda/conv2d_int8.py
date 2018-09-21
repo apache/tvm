@@ -82,8 +82,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
                 ic_block_factor)
         packed_data = tvm.compute((batch, channels // ic_block_factor, height, width,
                                    ic_block_factor),
-                                  lambda n, c, h, w, vc: kernel[n,
-                                                                c*ic_block_factor + vc, h, w],
+                                  lambda n, c, h, w, vc: data[n, c*ic_block_factor + vc, h, w],
                                   name="packed_data")
 
         out_channels, in_channels, kernel_h, kernel_w = get_const_tuple(
