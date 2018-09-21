@@ -29,10 +29,7 @@ def _get_elu(insym, alpha):
     return -alpha * _sym.relu(1 - _sym.exp(insym)) + _sym.relu(insym)
 
 def _convert_recurrent_activation(insym, keras_layer):
-    if sys.version_info.major < 3:
-        act_type = keras_layer.recurrent_activation.func_name
-    else:
-        act_type = keras_layer.recurrent_activation.__name__
+    act_type = keras_layer.recurrent_activation.__name__
     return _convert_activation(insym, act_type, None)
 
 def _convert_activation(insym, keras_layer, _):
