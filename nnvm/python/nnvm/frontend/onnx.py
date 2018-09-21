@@ -597,6 +597,20 @@ class ArgMin(OnnxOpConverter):
         attr = {'axis':axis, 'keepdims':keepdims}
         return AttrCvt(op_name='argmin')(inputs, attr)
 
+class Softmax(OnnxOpConverter):
+    """ Operator converter for Softmax.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        # set default value when axis is not set in the model
+        if 'axis' not in attr:
+            attr['axis'] = 1
+        return AttrCvt(
+            op_name='softmax',
+            transforms={
+                'axis': ('axis', 1),
+            })(inputs, attr, params)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -664,7 +678,7 @@ def _get_convert_map(opset):
         'Mean': Mean.get_converter(opset),
         'Clip': AttrCvt('clip', transforms={'min': 'a_min', 'max': 'a_max'}),
         # softmax default axis is different in onnx
-        'Softmax': AttrCvt('softmax', {'axis': ('axis', 1)}),
+        'Softmax': Softmax.get_converter(opset),
         'LogSoftmax': AttrCvt('log_softmax', {'axis': ('axis', 1)}),
         # 'Hardmax'
         'Softsign': Softsign.get_converter(opset),

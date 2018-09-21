@@ -3,6 +3,7 @@ import nnvm
 import onnx
 from nnvm.compiler import graph_util, graph_attr
 from model_zoo import super_resolution, super_resolution_sym
+from model_zoo import squeezenet as squeezenet
 
 def compare_graph(onnx_file, nnvm_sym, ishape):
     onnx_model = onnx.load(onnx_file)
@@ -18,8 +19,16 @@ def compare_graph(onnx_file, nnvm_sym, ishape):
     graph_util.check_graph_equal(g1, g2)
 
 def test_super_resolution_example():
-    fname, symbol = super_resolution, super_resolution_sym
+    fname, symbol = "super_resolution.onnx", super_resolution_sym
     compare_graph(fname, symbol, ishape=(1, 1, 224, 224))
+
+def test_squeeze_net():
+    # Only works for model downloaded from
+    # https://github.com/onnx/models/tree/master/squeezenet
+    fname = "squeezenet1_1.onnx"
+    symbol, params = squeezenet.get_workload(version='1.1')
+    compare_graph(fname, symbol, ishape=(1, 3, 224, 224))
 
 if __name__ == '__main__':
     test_super_resolution_example()
+    test_squeeze_net()
