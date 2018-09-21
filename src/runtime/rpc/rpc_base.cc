@@ -59,16 +59,77 @@ std::string RandomKey(std::string prefix, std::set <std::string> cmap) {
   return prefix + std::to_string(r);
 }
 
+/*!
+ * \brief IsNumber check whether string is a number.
+ * \param str input string
+ * \return result of operation.
+ */
+bool IsNumber(const std::string& str) {
+  return !str.empty() &&
+    (str.find_first_not_of("[0123456789]") == std::string::npos);
+}
 
 /*!
- * \brief Get the socket address from url.
+ * \brief split SplitString the string based on delimiter
+ * \param str Input string
+ * \param delim The delimiter.
+ * \return vector of strings which are splitted.
+ */
+std::vector<std::string> SplitString(const std::string& str, char delim) {
+    auto i = 0;
+    std::vector<std::string> list;
+    auto pos = str.find(delim);
+    while (pos != std::string::npos) {
+      list.push_back(str.substr(i, pos - i));
+      i = ++pos;
+      pos = str.find(delim, pos);
+    }
+    list.push_back(str.substr(i, str.length()));
+    return list;
+}
+
+/*!
+ * \brief ValidateIP validates an ip address.
+ * \param ip The ip address in string format
+ * \return result of operation.
+ */
+bool ValidateIP(std::string ip) {
+    std::vector<std::string> list = SplitString(ip, '.');
+    if (list.size() != 4)
+        return false;
+    for (std::string str : list) {
+      if (!IsNumber(str) || std::stoi(str) > 255 || std::stoi(str) < 0)
+        return false;
+    }
+    return true;
+}
+
+/*!
+ * \brief ValidateTracker Check the tracker address format is correct and changes the format.
+ * \param tracker The tracker input.
+ * \return result of operation.
+ */
+bool ValidateTracker(std::string &tracker) {
+  std::vector<std::string> list = SplitString(tracker, ':');
+  if ((list.size() != 2) || (!ValidateIP(list[0])) || (!IsNumber(list[1]))) {
+    return false;
+  }
+  std::ostringstream ss;
+  ss << "('" << list[0] << "', " << list[1] << ")";
+  tracker = ss.str();
+  return true;
+}
+
+/*!
+ * \brief GetSockAddr Get the socket address from tracker.
  * \param url The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
  */
-common::SockAddr GetSockAddr(std::string url) {
-  size_t sep = url.find(",");
-  std::string host = url.substr(2, sep - 3);
-  std::string port = url.substr(sep + 1, url.length() - 1);
+common::SockAddr GetSockAddr(std::string tracker) {
+  CHECK(ValidateTracker(tracker)) << "Tracker url is not valid";
+  size_t sep = tracker.find(",");
+  std::string host = tracker.substr(2, sep - 3);
+  std::string port = tracker.substr(sep + 1, tracker.length() - 1);
   if (host == "localhost") {
     host = "127.0.0.1";
   }

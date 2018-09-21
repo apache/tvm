@@ -36,6 +36,27 @@ std::string RecvData(common::TCPSocket sock);
 std::string RandomKey(std::string prefix, std::set <std::string> cmap);
 
 /*!
+ * \brief IsNumber check whether string is a number.
+ * \param str input string
+ * \return result of operation.
+ */
+bool IsNumber(const std::string& str);
+
+/*!
+ * \brief ValidateIP validates an ip address.
+ * \param ip The ip address in string format
+ * \return result of operation.
+ */
+bool ValidateIP(std::string ip);
+
+/*!
+ * \brief ValidateTracker Check the tracker address format is correct and changes the format.
+ * \param tracker The tracker input.
+ * \return result of operation.
+ */
+bool ValidateTracker(std::string &tracker);
+
+/*!
  * \brief Get the socket address from url.
  * \param url The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
