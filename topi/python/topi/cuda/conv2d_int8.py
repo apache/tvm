@@ -107,8 +107,10 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     oc_chunk, ic_chunk, kernel_h, kernel_w, oc_block, ic_block = get_const_tuple(
         packed_kernel.shape)
 
-    stride_h, stride_w = (stride, stride) if isinstance(
-        stride, int) else stride
+    if isinstance(stride, int):
+        stride_h, stride_w = stride
+    else:
+        stride_h, stride_w = stride
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
