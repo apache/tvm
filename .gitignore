@@ -189,6 +189,13 @@ build*
 
 # Jetbrain
 .idea
+.ipython
+.jupyter
+.nv
+.pylint.d
+.python_history
+.pytest_cache
+.local
 
 # tmp file
 .nfs*
