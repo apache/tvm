@@ -1,18 +1,18 @@
-==================
+===========
 Expressions
-==================
+===========
 
-The Relay IR is a pure, expression oriented language, with a dataflow fragment 
-and structured control flow. Although Relay's representation is a tree, it is 
+The Relay IR is a pure, expression oriented language, with a dataflow fragment
+and structured control flow. Although Relay's representation is a tree, it is
 possible to view the dataflow fragments as graph for purposes of writing and
 expressing transformations.
 
 The below sections make an attempt to clearly split the dataflow
 fragment from the control fragment.
 
-==================
+====================
 Dataflow Expressions
-==================
+====================
 
 First we will cover the set of nodes which do not involve control flow,
 this fragment of the language is semantically equivalent to pure
@@ -23,15 +23,15 @@ Constants
 
 Relay programs can contain constant Tensor values. This node represents
 a constant tensor value (values are either Tensors, Products, or Closures in Relay).
-The constants are represented as :py:class:`~tvm.NDArray`, allowing us to utilize 
+The constants are represented as :py:class:`~tvm.NDArray`, allowing us to utilize
 TVM operators for constant evaluation.
 
 See :py:class:`~tvm.relay.expr.Constant` for its definition and documentation.
 
 Tuple
-~~~~~~~~~~~~~~~
+~~~~~
 
-We support tuple constructors; the tuple node builds a finite (i.e statically known size) sequence of 
+We support tuple constructors; the tuple node builds a finite (i.e statically known size) sequence of
 heterogenous data.  These tuples match closely to Python's and enable efficient projection of their m
 embers due to their fixed length.
 
@@ -65,13 +65,14 @@ binding to define locally recursive functions.
             0
         } else {
             x * fact(x - 1)
+        }
     };
     fact(10)
 
 See :py:class:`~tvm.relay.expr.Function` for its definition and documentation.
 
 Variables
-~~~~~~~~~~~
+~~~~~~~~~
 
 Both global variables, and local variables, are valid expressions, one may use them
 anywhere an expression may appear.
@@ -81,7 +82,7 @@ For example the below fragment of code is a valid expression.
 .. code-block:: python
     %ret = @global(op_name, %local)
 
-See :py:class:`~tvm.relay.expr.LocalVar` and :py:class:`~tvm.expr.GlobalVar` for its definition 
+See :py:class:`~tvm.relay.expr.LocalVar` and :py:class:`~tvm.expr.GlobalVar` for its definition
 and documentation.
 
 Let Binding
@@ -89,7 +90,7 @@ Let Binding
 
 An immutable variable binding, allows the user to bind an
 expression to a name. A let binding contains a local variable,
-an optional type annotation, a value, and body expression 
+an optional type annotation, a value, and body expression
 which may reference the bound identifier.
 
 We will first introduce a single binding with no type
@@ -153,8 +154,8 @@ tensor of booleans (:code:`Tensor[(), bool]`).
 
 .. code-block:: python
     if (sum(equal(t, u))) {
-        jreturn x:
-    } else { 
+        return x:
+    } else {
         return y;
     }
 

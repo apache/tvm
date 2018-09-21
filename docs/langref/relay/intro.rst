@@ -4,19 +4,21 @@ Introduction
 
 Relay is differentiable programming language with support for
 closures, control-flow, and recursion. It has an advanced
-static type system specifically designed for programs written by machine 
-learning practioniers and researchers.
+static type system specifically designed for programs written
+by machine  learning practioniers and researchers.
 
-Relay is intended to replace computation graph based
+Relay is intended to replace the computation graph based
 intermediate representations currently employed by deep
 learning frameworks and compilers. The deep learning community
-has organically evolved from a representation that was useful
-for the limited form of computation originally desired, i.e
-a DAG of primitive functions.
+has organically evolved a representation that was useful
+for the form of computation originally desired, i.e
+a directed acyclic graph of primitive functions.
 
-This may be a useful way to describe computation, but is limited once 
-you want to generalize to dynamic models.
+This may be a useful way to describe early ML models, but is
+limited onceyou want to generalize to dynamic models.
 
+At the same time computation graphs have been over loaded
+purpose as both a compile-time and run-time data structure.
 The conflation of the description of a computation, the
 representation used for optimizing it, and the data structure
 used to execute it uncessarily hampers many of the goals
@@ -78,8 +80,8 @@ Variables
 ==================
 
 Relay has three variable references local, global, and operators. Our design draws inspiration
-from LLVM which differentiates between identifier types. This enables writers of 
-optimizations to know precisely what an identifier references without needing information 
+from LLVM which differentiates between identifier types. This enables writers of
+optimizations to know precisely what an identifier references without needing information
 beyond the type of identifier.
 
 Globals are written with `@`, locals are written with `%`, and operators are written with
@@ -105,9 +107,9 @@ references a parameter, or let bound expression. You can write a local
 identifier as :code:`%local`.
 
 
-==================
+================
 Global Functions
-==================
+================
 
 A definition consists of a name, type parameter, parameters, and an optional return
 type. A Relay definition is similar to a procedure or function in a typical programming
@@ -134,7 +136,7 @@ we can restrict the above definition to only work on certain types
 
     def @add(%x: Tensor<Float,10, 10>, %y: Tensor<Float, 10, 10>) -> Tensor<Float, 10, 10> {
         %x + %y
-    } 
+    }
 
 A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.type.Type`. They represent
 the formal parameters of functions and definitions, and are written as :code:`%x : T`.
@@ -178,26 +180,26 @@ For example we can set the attributes for :code:`@id_real`.::
     def id_real(%x:Real) { ret %x }
 
 
-==================
+=========
 Operators
-==================
+=========
 
 A primitive operation that is not defined in the Relay language but provided
 externally. Currently we back these operators registrations with the operators
-exposed by TVM's TOPI. An operator requires a user to provide an implementation 
+exposed by TVM's TOPI. An operator requires a user to provide an implementation
 of the operator, its type and various attributes required by Relay subsystems.
 
 The input methods for Relay programs do not provide a way to describe operators in
 Relay, they must be explicitly registered in the global environment via Python or C++.
 
-Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`) when pretty 
-printing Relay programs.  Operators are explicitly contained in the program and are uniquely 
+Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`) when pretty
+printing Relay programs.  Operators are explicitly contained in the program and are uniquely
 identifiable by pointer during a run of the Relay compiler.
 
 Programs
 ~~~~~~~~
 
 Now that we have presented both global functions, and operators we have
-everthing in hand to describe a complete Relay program. A Relay program consists of a 
-registry of operators, one or more functions, as well as the global configuration 
+everthing in hand to describe a complete Relay program. A Relay program consists of a
+registry of operators, one or more functions, as well as the global configuration
 stored in the environment.

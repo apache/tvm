@@ -1,5 +1,5 @@
 tvm.relay.type
------------
+--------------
 .. automodule:: tvm.relay.type
 
 .. autoclass:: tvm.relay.type.Type

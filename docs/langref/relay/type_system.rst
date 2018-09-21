@@ -1,24 +1,24 @@
-==================
+===========
 Type System
-==================
+===========
 
 We have briefly introduced types while detailing the the expression language
 of Relay, but have fully laid out the type system.
 
-Although the majority of Relay programs are written without type annotations, 
+Although the majority of Relay programs are written without type annotations,
 Relay is statically typed.
 
-Static types are useful because they enable efficient layout, memory reuse, and 
+Static types are useful because they enable efficient layout, memory reuse, and
 code generation. They aid in debugging program transformations, but can also
-give us the expressivity afforded by more dynamic langauges. 
+give us the expressivity afforded by more dynamic langauges.
 
 We are able to omit these type annotations by a process known as type inference.
 Type inference is a technique that has its roots in the programming language
 community, and can be viewed as a method for generalizing shape inference to
 run over arbitrary user programs containing control flow and recursion.
 
-Static types are useful when performing compiler optimization because they 
-communicate properties about the data we manipulate, such as runtime shape, 
+Static types are useful when performing compiler optimization because they
+communicate properties about the data we manipulate, such as runtime shape,
 data layout, storage without needing to run the program.
 
 Most current IRs use "shape inference" to recover Tensor dimensions from the user
@@ -52,7 +52,7 @@ The base type for all Relay types. All Relay types are sub-classes of this base 
 See :py:class:`~tvm.relay.type.Type` for its definition and documentation.
 
 Tensor Type
-~~~~~~~~~~
+~~~~~~~~~~~
 
 A concrete TensorType in Relay, see tvm/relay/type.h for more details.
 
@@ -79,9 +79,9 @@ The kind of a type parameter, represents a variable shape,
 base type, type, or dimension.
 
 This controls what a type parameter is allowed to be instantiated
-with. For example one's of kind BaseType can only be `float32`, 
+with. For example one's of kind BaseType can only be `float32`,
 `int32`, and so on.
-       
+
 See :py:class:`~tvm.relay.type.Kind` for its definition and documentation.
 
 Type Parameter
@@ -121,7 +121,7 @@ See :py:class:`~tvm.relay.type.FuncType` for its definition and documentation.
 Type Relation
 ~~~~~~~~~~~~~
 
-A type relation is the most exotic type system feature in Relay. It allows 
+A type relation is the most exotic type system feature in Relay. It allows
 users to extend type and shape checking/inference with new rules. We use
 type relations to type operators with "hard" types such as broadcasting
 operators, or special ones like :code:`flatten`.
@@ -150,7 +150,7 @@ such as :code:`elemwise_add`:
 .. code-block:: python
     elemwise_add : forall (Lhs : Type) (Rhs : Type), (Lhs, Rhs) -> Broadcast(Lhs, Rhs)
 
-You might ask why we write the relation in the return type but we use it as a 
+You might ask why we write the relation in the return type but we use it as a
 notational convenience for:
 
 .. code-block:: python
@@ -164,7 +164,7 @@ See :py:class:`~tvm.relay.type.TypeRelation` for its definition and documentatio
 Type Call
 ~~~~~~~~~
 
-Apply a type relation to a set of input arguments, at the present momen the type 
+Apply a type relation to a set of input arguments, at the present momen the type
 call node represents the application of a :py:class:`~tvm.relay.type.TypeRelation`
 to a set of input arguments. The result of type application is the output variable
 of the type relation.
