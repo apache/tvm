@@ -9,7 +9,7 @@ import topi
 
 def get_simplex_graph(host_dev_type, device_dev_type):
     r""" Return the hand-crafted json object where only one copy node is
-    inserted. Tis node copies data from the target device to cpu.
+    inserted. This node copies data from the target device to cpu.
     The network is constructed as following:
                  A    B
                   \  /

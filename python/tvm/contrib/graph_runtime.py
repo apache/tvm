@@ -1,12 +1,10 @@
 """Minimum graph runtime that executes graph containing TVM PackedFunc."""
 import numpy as np
-import tvm
 
 from .._ffi.base import string_types
 from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
-from .. import ndarray as nd
 
 def create(graph_json_str, libmod, ctx):
     """Create a runtime executor module given a graph and module.
@@ -42,8 +40,7 @@ def create(graph_json_str, libmod, ctx):
         if not isinstance(cur_ctx, TVMContext):
             raise ValueError("ctx has to be the type of TVMContext or a list "
                              "of TVMContext")
-        if cur_ctx.device_type == tvm.cpu(0).device_type or \
-           cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
+        if cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
             ctx[0], ctx[i] = ctx[i], ctx[0]
 
     # ctx[0] is used as the primary/fallback context. All other ones are used
@@ -56,11 +53,11 @@ def create(graph_json_str, libmod, ctx):
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
         device_type = ctx[0].device_type % rpc_base.RPC_SESS_MASK
         return GraphModule(fcreate(graph_json_str, hmod, device_type,
-                                   ctx[0].device_id, *device_type_id), ctx[0])
+                                   ctx[0].device_id, *device_type_id))
 
     fcreate = get_global_func("tvm.graph_runtime.create")
     return GraphModule(fcreate(graph_json_str, libmod, ctx[0].device_type,
-                               ctx[0].device_id, *device_type_id), ctx[0])
+                               ctx[0].device_id, *device_type_id))
 
 
 class GraphModule(object):
@@ -82,12 +79,9 @@ class GraphModule(object):
     ----------
     module : Module
         The interal tvm module that holds the actual graph functions.
-
-    ctx : TVMContext
-        The context this module is under
     """
 
-    def __init__(self, module, ctx):
+    def __init__(self, module):
         self.module = module
         self._set_input = module["set_input"]
         self._run = module["run"]
@@ -99,7 +93,6 @@ class GraphModule(object):
         except AttributeError:
             pass
         self._load_params = module["load_params"]
-        self.ctx = ctx
 
     def set_input(self, key=None, value=None, **params):
         """Set inputs to the module via kwargs
@@ -116,14 +109,14 @@ class GraphModule(object):
            Additonal arguments
         """
         if key:
-            self._set_input(key, nd.array(value, ctx=self.ctx))
+            self._get_input(key).copyfrom(value)
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._set_input(k, nd.array(params[k], ctx=self.ctx))
+                self._get_input(k).copyfrom(params[k])
 
     def run(self, **input_dict):
         """Run forward execution of the graph

@@ -386,7 +386,7 @@ def build(sch,
           name="default_function",
           binds=None,
           postpone_host_codegen=False):
-    """Build a function with arguments as signiture. Code will be generated
+    """Build a function with arguments as signature. Code will be generated
     for a device specified by the target. For homogeneous execution, a module
     that contains both host and device code is returned. For heterogeneous
     execution, a list of lowered functions for the host and a module containing
