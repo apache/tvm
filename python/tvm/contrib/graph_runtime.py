@@ -36,28 +36,39 @@ def create(graph_json_str, libmod, ctx):
     elif not isinstance(ctx, (list, tuple)):
         raise ValueError("ctx has to be the type of TVMContext or a list of "
                          "TVMCTVMContext")
-    for i, cur_ctx in enumerate(ctx):
+    for cur_ctx in ctx:
         if not isinstance(cur_ctx, TVMContext):
             raise ValueError("ctx has to be the type of TVMContext or a list "
                              "of TVMContext")
-        if cur_ctx.device_type >= rpc_base.RPC_SESS_MASK:
-            ctx[0], ctx[i] = ctx[i], ctx[0]
 
-    # ctx[0] is used as the primary/fallback context. All other ones are used
-    # as device context for heterogeneous execution.
-    device_type_id = [x for c in ctx[1:] for x in [c.device_type, c.device_id]]
-    if ctx[0].device_type >= rpc_base.RPC_SESS_MASK:
-        assert libmod.type_key == "rpc"
-        assert rpc_base._SessTableIndex(libmod) == ctx[0]._rpc_sess._tbl_index
+    # device_type_id[0], device_type_id[1] are used as the primary/fallback
+    # context type and id. All other ones are used as device context for
+    # heterogeneous execution.
+    num_rpc_ctx = 0
+    device_type_id = []
+    for cur_ctx in ctx:
+        device_type = cur_ctx.device_type
+        if device_type >= rpc_base.RPC_SESS_MASK:
+            assert libmod.type_key == "rpc"
+            assert rpc_base._SessTableIndex(
+                libmod) == cur_ctx._rpc_sess._tbl_index
+            num_rpc_ctx += 1
+            device_type = cur_ctx.device_type % rpc_base.RPC_SESS_MASK
+        device_type_id.append(device_type)
+        device_type_id.append(cur_ctx.device_id)
+
+    if 0 < num_rpc_ctx < len(ctx):
+        raise ValueError("Either all or none of the contexts should be rpc.")
+
+    if num_rpc_ctx == len(ctx):
         hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        device_type = ctx[0].device_type % rpc_base.RPC_SESS_MASK
-        return GraphModule(fcreate(graph_json_str, hmod, device_type,
-                                   ctx[0].device_id, *device_type_id))
+        return GraphModule(fcreate(graph_json_str, hmod, device_type_id[0],
+                                   device_type_id[1], *device_type_id[2:]))
 
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, ctx[0].device_type,
-                               ctx[0].device_id, *device_type_id))
+    return GraphModule(fcreate(graph_json_str, libmod, device_type_id[0],
+                               device_type_id[1], *device_type_id[2:]))
 
 
 class GraphModule(object):
@@ -71,9 +82,6 @@ class GraphModule(object):
     ----------
     module : Module
         The interal tvm module that holds the actual graph functions.
-
-    ctx : TVMContext
-        The context this module is under
 
     Attributes
     ----------
