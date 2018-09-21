@@ -5,9 +5,9 @@
  */
 #include <tvm/runtime/registry.h>
 #include <memory>
+#include "rpc_server.h"
 #include "rpc_session.h"
 #include "../../common/socket.h"
-#include "rpc_server.h"
 
 namespace tvm {
 namespace runtime {

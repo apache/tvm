@@ -247,9 +247,9 @@ def _popen(cmd):
 
 def _cpp_server_create(host, port, port_end, tracker_addr,
                        key, custom_addr, silent, is_proxy):
-    def signal_handler(sig, frame):
-            print('You pressed Ctrl+C!')
-            sys.exit(0)
+    def signal_handler(sig, frame): # pylint: disable=unused-argument
+        print('You pressed Ctrl+C!')
+        sys.exit(0)
     signal.signal(signal.SIGINT, signal_handler)
     print("Starting CPP Server, Press Ctrl+C to stop")
     if not tracker_addr:
@@ -277,7 +277,7 @@ class Server(object):
     """Start RPC server on a separate process.
 
     This is a simple python implementation based on multi-processing.
-    It is also possible to implement a similar C based sever with
+    It is also possible to implement a similar C based server with
     TVM runtime which does not depend on the python.
 
     Parameters

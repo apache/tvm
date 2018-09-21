@@ -12,26 +12,37 @@
 #include <vector>
 #include <sstream>
 
+#include "../../src/runtime/rpc/rpc_base.h"
 #include "../../src/runtime/rpc/rpc_server.h"
+
+using namespace tvm::runtime;
 
 #define USAGE \
 "Command line usage\n" \
-" server    - Start the server\n" \
-"--host     - The hostname of the server, Default=0.0.0.0\n" \
-"--port     - The port of the RPC, Default=9090\n" \
-"--port-end - The end search port of the RPC, Default=9199\n" \
-"--tracker  - The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=\"\"\n" \
-"--key      - The key used to identify the device type in tracker. Default=\"\"\n" \
-"--silent   - Whether run in silent mode. Default=True\n" \
+" server       - Start the server\n" \
+"--host        - The hostname of the server, Default=0.0.0.0\n" \
+"--port        - The port of the RPC, Default=9090\n" \
+"--port-end    - The end search port of the RPC, Default=9199\n" \
+"--tracker     - The RPC tracker address in host:port format e.g. 10.1.1.2:9190 Default=\"\"\n" \
+"--key         - The key used to identify the device type in tracker. Default=\"\"\n" \
 "--custom-addr - Custom IP Address to Report to RPC Tracker. Default=\"\"\n" \
+"--silent      - Whether run in silent mode. Default=True\n" \
+"--proxy       - Whether to run in proxy mode. Default=False\n" \
 "\n" \
 "  Example\n" \
-"  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 --tracker=127.0.0.1:9190 --key=rasp"
+"  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 --tracker=127.0.0.1:9190 --key=rasp" \
+"\n"
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief RpcServerArgs.
+ * \arg host The hostname of the server, Default=0.0.0.0
+ * \arg port The port of the RPC, Default=9090
+ * \arg port_end The end search port of the RPC, Default=9199
+ * \arg tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
+ * \arg key The key used to identify the device type in tracker. Default=""
+ * \arg custom_addr Custom IP Address to Report to RPC Tracker. Default=""
+ * \arg silent Whether run in silent mode. Default=True
+ * \arg isProxy Whether to run in proxy mode. Default=False
  */
 struct RpcServerArgs {
   std::string host = "0.0.0.0";
@@ -41,12 +52,12 @@ struct RpcServerArgs {
   std::string key = "";
   std::string custom_addr = "";
   bool silent = false;
+  bool isProxy = false;
 };
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief printArgs print the contents of RpcServerArgs
+ * \param args RpcServerArgs structure
  */
 void printArgs(struct RpcServerArgs args) {
   printf("host        = %s\n", args.host.c_str());
@@ -56,12 +67,12 @@ void printArgs(struct RpcServerArgs args) {
   printf("key         = %s\n", args.key.c_str());
   printf("custom_addr = %s\n", args.custom_addr.c_str());
   printf("silent      = %s\n", ((args.silent) ? ("True"): ("False")));
+  printf("proxy       = %s\n", ((args.isProxy) ? ("True"): ("False")));
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief ctrlCHandler, exits if Ctrl+C is pressed
+ * \param s signal
  */
 void ctrlCHandler(int s){
   printf("\nUser pressed Ctrl+C, Exiting\n");
@@ -69,9 +80,7 @@ void ctrlCHandler(int s){
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief handleCtrlC Register for handling Ctrl+C event.
  */
 void handleCtrlC() {
   //Ctrl+C handler
@@ -83,9 +92,12 @@ void handleCtrlC() {
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief getCmdOption Parse and find the command option.
+ * \param argc arg counter
+ * \param argv arg values
+ * \param option command line option to search for.
+ * \param key whether the option itself is key
+ * \return value corresponding to option.
  */
 std::string getCmdOption(int argc, char* argv[], std::string option, bool key=false) {
   std::string cmd;
@@ -105,57 +117,13 @@ std::string getCmdOption(int argc, char* argv[], std::string option, bool key=fa
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
- */
-bool isNumber(const std::string& str) {
-  return !str.empty() &&
-    (str.find_first_not_of("[0123456789]") == std::string::npos);
-}
-
-/*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
- */
-std::vector<std::string> split(const std::string& str, char delim) {
-    auto i = 0;
-    std::vector<std::string> list;
-    auto pos = str.find(delim);
-    while (pos != std::string::npos) {
-      list.push_back(str.substr(i, pos - i));
-      i = ++pos;
-      pos = str.find(delim, pos);
-    }
-    list.push_back(str.substr(i, str.length()));
-    return list;
-}
-
-/*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
- */
-bool validateIP(std::string ip) {
-    std::vector<std::string> list = split(ip, '.');
-    if (list.size() != 4)
-        return false;
-    for (std::string str : list) {
-      if (!isNumber(str) || std::stoi(str) > 255 || std::stoi(str) < 0)
-        return false;
-    }
-    return true;
-}
-
-/*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief validateTracker Check the tracker address format is correct and changes the format.
+ * \param tracker The tracker input.
+ * \return result of operation.
  */
 bool validateTracker(std::string &tracker) {
-  std::vector<std::string> list = split(tracker, ':');
-  if ((list.size() != 2) || (!validateIP(list[0])) || (!isNumber(list[1]))) {
+  std::vector<std::string> list = SplitString(tracker, ':');
+  if ((list.size() != 2) || (!ValidateIP(list[0])) || (!IsNumber(list[1]))) {
     return false;
   }
   std::ostringstream ss;
@@ -165,14 +133,15 @@ bool validateTracker(std::string &tracker) {
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief parseCmdArgs parses the command line arguments.
+ * \param argc arg counter
+ * \param argv arg values
+ * \param args, the output structure which holds the parsed values
  */
 void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
   std::string host = getCmdOption(argc, argv, "--host=");
   if (!host.empty()) {
-    if (!validateIP(host)) {
+    if (!ValidateIP(host)) {
       printf("Wrong host address format.\n");
       printf("%s", USAGE);
       exit(1);
@@ -182,7 +151,7 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
 
   std::string port = getCmdOption(argc, argv, "--port=");
   if (!port.empty()) {
-    if (!isNumber(port) || std::stoi(port) > 65535) {
+    if (!IsNumber(port) || std::stoi(port) > 65535) {
       printf("Wrong port number.\n");
       printf("%s", USAGE);
       exit(1);
@@ -192,7 +161,7 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
 
   std::string port_end = getCmdOption(argc, argv, "--port_end=");
   if (!port_end.empty()) {
-    if (!isNumber(port_end) || std::stoi(port_end) > 65535) {
+    if (!IsNumber(port_end) || std::stoi(port_end) > 65535) {
       printf("Wrong port_end number.\n");
       printf("%s", USAGE);
       exit(1);
@@ -217,7 +186,7 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
 
   std::string custom_addr = getCmdOption(argc, argv, "--custom_addr=");
   if (!custom_addr.empty()) {
-    if (!validateIP(custom_addr)) {
+    if (!ValidateIP(custom_addr)) {
       printf("Wrong custom address format.\n");
       printf("%s", USAGE);
       exit(1);
@@ -232,30 +201,31 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief rpcServer Starts the RPC server.
+ * \param argc arg counter
+ * \param argv arg values
+ * \return result of operation.
  */
 int rpcServer(int argc, char * argv[]) {
   struct RpcServerArgs args;
 
   /* parse the command line args */
   parseCmdArgs(argc, argv, args);
+  printArgs(args);
 
   //Ctrl+C handler
   printf("Starting CPP Server, Press Ctrl+C to stop.\n");
   handleCtrlC();
-  printArgs(args);
   tvm::runtime::RPCServerCreate(args.host, args.port, args.port_end, args.tracker,
                                 args.key, args.custom_addr, args.silent);
-  printf("Server functionality\n");
   return 0;
 }
 
 /*!
- * \brief xxxx.
- * \param xxxx
- * \return xxxx.
+ * \brief main The main function.
+ * \param argc arg counter
+ * \param argv arg values
+ * \return result of operation.
  */
 int main(int argc, char * argv[]) {
   if (argc <= 1) {

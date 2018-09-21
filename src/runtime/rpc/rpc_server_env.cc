@@ -3,14 +3,15 @@
  * \file rpc_server_env.cc
  * \brief Server environment of the RPC.
  */
+#include <tvm/runtime/registry.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
 #include <fstream>
 #include <vector>
 #include <iostream>
-#include <dirent.h>
+#include <string>
 
-#include <tvm/runtime/registry.h>
 #include "../file_util.h"
 #include "rpc_server_env.h"
 
@@ -23,7 +24,7 @@ namespace runtime {
  * \param end The end substring
  * \return bool The result.
  */
-bool endsWith(std::string const & value, std::string const & end){
+bool endsWith(std::string const & value, std::string const & end) {
   if (end.size() <= value.size()) {
     return std::equal(end.rbegin(), end.rend(), value.rbegin());
   }
@@ -39,7 +40,7 @@ std::vector<std::string> listDir(const std::string dirname) {
   std::vector<std::string> vec;
   DIR *dp = opendir(dirname.c_str());
   dirent *d;
-  while((d = readdir(dp)) != NULL) {
+  while ((d = readdir(dp)) != NULL) {
     std::string filename = d->d_name;
     if (filename != "." && filename != "..") {
       vec.push_back(dirname + d->d_name);
@@ -57,8 +58,8 @@ std::vector<std::string> listDir(const std::string dirname) {
  */
 void linuxShared(const std::string output,
                  const std::vector<std::string> &files,
-                 std::string options="",
-                 std::string cc="g++") {
+                 std::string options = "",
+                 std::string cc = "g++") {
     std::string cmd = cc;
     cmd += " -shared -fPIC ";
     cmd += " -o " + output;
@@ -88,11 +89,12 @@ void createShared(const std::string output, const std::vector<std::string> &file
           cc.create_shared if the path is in format .o or .tar
           High level handling for .o and .tar file.
           We support this to be consistent with RPC module load.
- * \param file The input file
+ * \param fileIn The input file
  * \param file The format of file
  * \return Module The loaded module
  */
-Module Load(std::string& file, const std::string fmt) {
+Module Load(std::string *fileIn, const std::string fmt) {
+  std::string file = *fileIn;
   if (endsWith(file, ".so")) {
       return Module::LoadFromFile(file, fmt);
   }
@@ -102,20 +104,18 @@ Module Load(std::string& file, const std::string fmt) {
     if (endsWith(file, ".o")) {
       std::vector<std::string> files;
       files.push_back(file);
-      createShared(file + ".so", files);
-      file += ".so";
-    }
-    else if (endsWith(file, ".tar")) {
+      createShared(file_name, files);
+    } else if (endsWith(file, ".tar")) {
       std::string tmp_dir = "rpc/tmp/";
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
       CHECK(system(cmd.c_str()) == 0) << "Untar library error.";
-      createShared(file + ".so", listDir(tmp_dir));
+      createShared(file_name, listDir(tmp_dir));
       CleanDir(tmp_dir);
       rmdir(&tmp_dir[0]);
-      file += ".so";
     }
-    return Module::LoadFromFile(file, fmt);
+    *fileIn = file_name;
+    return Module::LoadFromFile(file_name, fmt);
   #else
     LOG(FATAL) << "Donot support creating shared library";
   #endif
@@ -128,7 +128,7 @@ Module Load(std::string& file, const std::string fmt) {
 void CleanDir(const std::string dirname) {
   DIR *dp = opendir(dirname.c_str());
   dirent *d;
-  while((d = readdir(dp)) != NULL) {
+  while ((d = readdir(dp)) != NULL) {
     std::string filename = d->d_name;
     if (filename != "." && filename != "..") {
       filename = dirname + d->d_name;

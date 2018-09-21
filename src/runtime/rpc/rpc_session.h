@@ -15,15 +15,15 @@
 namespace tvm {
 namespace runtime {
 
-//Magic header for RPC data plane
+// Magic header for RPC data plane
 const int kRPCMagic = 0xff271;
-//magic header for RPC tracker(control plane)
+// magic header for RPC tracker(control plane)
 const int kRPCTrackerMagic = 0x2f271;
-//sucess response
+// sucess response
 const int kRPCSuccess = kRPCMagic + 0;
-//duplicate key in proxy
+// duplicate key in proxy
 const int kRPCDupicate = kRPCMagic + 1;
-//cannot found matched key in server
+// cannot found matched key in server
 const int kRPCMismatch = kRPCMagic + 2;
 
 /*! \brief Enumeration code for the RPC tracker */

@@ -7,6 +7,9 @@
 #include <set>
 #include <chrono>
 #include <thread>
+#include <vector>
+#include <string>
+#include <random>
 
 #include "../../common/socket.h"
 #include "rpc_base.h"
@@ -47,15 +50,15 @@ std::string RecvData(common::TCPSocket sock) {
 std::string RandomKey(std::string prefix, std::set <std::string> cmap) {
   float r;
   if (!cmap.empty()) {
-    r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-    while(1) {
+    r = static_cast <float> (random()) / static_cast <float> (RAND_MAX);
+    while (1) {
       std::string key = prefix + std::to_string(r);
       if (cmap.find(key) == cmap.end()) {
         return key;
       }
     }
   }
-  r = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+  r = static_cast <float> (random()) / static_cast <float> (RAND_MAX);
   return prefix + std::to_string(r);
 }
 
@@ -90,10 +93,13 @@ std::vector<std::string> SplitString(const std::string& str, char delim) {
 
 /*!
  * \brief ValidateIP validates an ip address.
- * \param ip The ip address in string format
+ * \param ip The ip address in string format localhost or x.x.x.x format
  * \return result of operation.
  */
 bool ValidateIP(std::string ip) {
+    if (ip == "localhost") {
+      return true;
+    }
     std::vector<std::string> list = SplitString(ip, '.');
     if (list.size() != 4)
         return false;
@@ -105,31 +111,15 @@ bool ValidateIP(std::string ip) {
 }
 
 /*!
- * \brief ValidateTracker Check the tracker address format is correct and changes the format.
- * \param tracker The tracker input.
- * \return result of operation.
- */
-bool ValidateTracker(std::string &tracker) {
-  std::vector<std::string> list = SplitString(tracker, ':');
-  if ((list.size() != 2) || (!ValidateIP(list[0])) || (!IsNumber(list[1]))) {
-    return false;
-  }
-  std::ostringstream ss;
-  ss << "('" << list[0] << "', " << list[1] << ")";
-  tracker = ss.str();
-  return true;
-}
-
-/*!
  * \brief GetSockAddr Get the socket address from tracker.
- * \param url The url containing the ip and port number. Format is ('192.169.1.100', 9090)
+ * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
  */
-common::SockAddr GetSockAddr(std::string tracker) {
-  CHECK(ValidateTracker(tracker)) << "Tracker url is not valid";
+common::SockAddr GetSockAddr(const std::string tracker) {
   size_t sep = tracker.find(",");
   std::string host = tracker.substr(2, sep - 3);
   std::string port = tracker.substr(sep + 1, tracker.length() - 1);
+  CHECK(ValidateIP(host)) << "tracker url is not valid " << tracker;
   if (host == "localhost") {
     host = "127.0.0.1";
   }
@@ -161,7 +151,7 @@ common::TCPSocket ConnectWithRetry(std::string url, int timeout, int retry_perio
     LOG(WARNING) << "Cannot connect to tracker " << addr.AsString()
                  << " retry in " << retry_period << " seconds.";
     std::this_thread::sleep_for(std::chrono::seconds(retry_period));
-   }
+  }
 }
 
 }  // namespace runtime

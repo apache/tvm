@@ -8,6 +8,8 @@
 
 #include <iostream>
 #include <set>
+#include <string>
+#include <vector>
 
 #include "../../common/socket.h"
 
@@ -43,6 +45,14 @@ std::string RandomKey(std::string prefix, std::set <std::string> cmap);
 bool IsNumber(const std::string& str);
 
 /*!
+ * \brief split SplitString the string based on delimiter
+ * \param str Input string
+ * \param delim The delimiter.
+ * \return vector of strings which are splitted.
+ */
+std::vector<std::string> SplitString(const std::string& str, char delim);
+
+/*!
  * \brief ValidateIP validates an ip address.
  * \param ip The ip address in string format
  * \return result of operation.
@@ -50,18 +60,11 @@ bool IsNumber(const std::string& str);
 bool ValidateIP(std::string ip);
 
 /*!
- * \brief ValidateTracker Check the tracker address format is correct and changes the format.
- * \param tracker The tracker input.
- * \return result of operation.
- */
-bool ValidateTracker(std::string &tracker);
-
-/*!
  * \brief Get the socket address from url.
- * \param url The url containing the ip and port number. Format is ('192.169.1.100', 9090)
+ * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
  */
-common::SockAddr GetSockAddr(std::string url);
+common::SockAddr GetSockAddr(const std::string url);
 
 /*!
  * \brief Connect to a TPC address with retry.
@@ -71,7 +74,7 @@ common::SockAddr GetSockAddr(std::string url);
  * \param retry_period Number of seconds before we retry again.
  * \return TCPSocket The socket information if connect is success.
  */
-common::TCPSocket ConnectWithRetry(std::string url, int timeout=60, int retry_period=5);
+common::TCPSocket ConnectWithRetry(std::string url, int timeout = 60, int retry_period = 5);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_BASE_H_

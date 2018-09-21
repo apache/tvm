@@ -148,13 +148,14 @@ class Socket {
   }
   /*!
    * \brief try bind the socket to host, from start_port to end_port
+   * \param host host_address to bind the socket
    * \param start_port starting port number to try
    * \param end_port ending port number to try
    * \return the port successfully bind to, return -1 if failed to bind any port
    */
-  inline int TryBindHost(int start_port, int end_port) {
+  inline int TryBindHost(std::string host, int start_port, int end_port) {
     for (int port = start_port; port < end_port; ++port) {
-      SockAddr addr("0.0.0.0", port);
+      SockAddr addr(host.c_str(), port);
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
                sizeof(addr.addr)) == 0) {
         return port;
@@ -312,6 +313,21 @@ class TCPSocket : public Socket {
    */
   TCPSocket Accept() {
     SockType newfd = accept(sockfd, NULL, NULL);
+    if (newfd == INVALID_SOCKET) {
+      Socket::Error("Accept");
+    }
+    return TCPSocket(newfd);
+  }
+
+  /*!
+   * \brief get a new connection
+   * \param addr client address from which connection accepted
+   * \return The accepted socket connection.
+   */
+  TCPSocket Accept(SockAddr *addr) {
+    socklen_t addrlen = sizeof(addr->addr);
+    SockType newfd = accept(sockfd, reinterpret_cast<sockaddr*>(&addr->addr),
+             &addrlen);
     if (newfd == INVALID_SOCKET) {
       Socket::Error("Accept");
     }

@@ -14,6 +14,7 @@ namespace runtime {
  * \param sockfd Socket file descriptor
  */
 void RPCServerLoop(int sockfd);
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_SOCKET_IMPL_H_

@@ -1,9 +1,5 @@
 # Makefile to compile RPC Server.
-#g++ -fPIC -g -Wall rpc_server.cc -ltvm -lpthread -ldl -L../../build/  -I../../include -I../../dlpack/include -Wl,-R../../build/
-#g++ -std=c++11 -O2 -fPIC -g -Wall -I/media/siju/DataDisk/work/rpc/tvm/include -I/media/siju/DataDisk/work/rpc/tvm/dmlc-core/include -I/media/siju/DataDisk/work/rpc/tvm/dlpack/include tvm_rpc rpc_server.cc -L/media/siju/DataDisk/work/rpc/tvm/build -ldl -lpthread -ltvm -Wl,-R/media/siju/DataDisk/work/rpc/tvm/build
-
-#TVM_ROOT=$(shell cd ../..; pwd)
-TVM_ROOT=../..
+TVM_ROOT=$(shell cd ../..; pwd)
 DMLC_CORE=${TVM_ROOT}/dmlc-core
 BUILD=${TVM_ROOT}/build
 

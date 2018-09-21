@@ -6,6 +6,7 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SERVER_H_
 #define TVM_RUNTIME_RPC_RPC_SERVER_H_
 
+#include <string>
 #include "tvm/runtime/c_runtime_api.h"
 
 namespace tvm {
@@ -22,14 +23,14 @@ namespace runtime {
  * \param silent Whether run in silent mode. Default=True
  * \param isProxy Whether to run in proxy mode. Default=False
  */
-TVM_DLL void RPCServerCreate(std::string host="",
-                             int port=9090,
-                             int port_end=9099,
-                             std::string tracker_addr="",
-                             std::string key="",
-                             std::string custom_addr="",
-                             bool silent=true,
-                             bool is_proxy=false);
+TVM_DLL void RPCServerCreate(std::string host = "",
+                             int port = 9090,
+                             int port_end = 9099,
+                             std::string tracker_addr = "",
+                             std::string key = "",
+                             std::string custom_addr = "",
+                             bool silent = true,
+                             bool is_proxy = false);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_RPC_RPC_SERVER_H_

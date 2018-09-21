@@ -6,8 +6,10 @@
 #ifndef TVM_RUNTIME_RPC_RPC_SERVER_ENV_H_
 #define TVM_RUNTIME_RPC_RPC_SERVER_ENV_H_
 
-#include <sys/stat.h>
 #include <tvm/runtime/registry.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <string>
 
 namespace tvm {
 namespace runtime {
@@ -22,7 +24,7 @@ namespace runtime {
  * \param file The format of file
  * \return Module The loaded module
  */
-Module Load(std::string& path, const std::string fmt="");
+Module Load(std::string *path, const std::string fmt = "");
 
 /*!
  * \brief CleanDir Removes the files from the directory
@@ -48,7 +50,7 @@ struct RPCEnv {
     TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
     .set_body([](TVMArgs args, TVMRetValue *rv) {
         std::string file_name = "rpc/" + args[0].operator std::string();
-        *rv = Load(file_name, "");
+        *rv = Load(&file_name, "");
         LOG(INFO) << "Load module from " << file_name << " ...";
       });
   }
