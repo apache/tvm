@@ -65,7 +65,9 @@ class ConstantNode : public ExprNode {
   TensorType tensor_type() const;
 
   /*! \return Whether it is scalar(rank-0 tensor) */
-  bool is_scalar() const { return data->ndim == 0; }
+  bool is_scalar() const {
+    return data->ndim == 0;
+  }
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("data", &data);
@@ -341,7 +343,7 @@ RELAY_DEFINE_NODE_REF(Let, LetNode, Expr);
  *
  * let x = if (true) { 1 } else { 0 }; // x is 1
  * let y = if (false) { 1 } else { 0 }; // y is 0
- * 
+ *
  * \note This is similar to C's ternary operator.
  */
 class If;

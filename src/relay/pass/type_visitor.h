@@ -78,7 +78,8 @@ struct TypeMutator : TypeFunctor<Type(const Type& n)> {
     Array<TypeConstraint> type_constraints;
     for (auto type_cs : op->type_constraints) {
       auto new_type_cs = VisitType(type_cs);
-      if (const TypeConstraintNode* tin = As<TypeConstraintNode>(new_type_cs)) {
+      if (const TypeConstraintNode* tin =
+          new_type_cs.as_derived<TypeConstraintNode>()) {
         type_constraints.push_back(GetRef<TypeConstraint>(tin));
       } else {
         CHECK(false) << new_type_cs << std::endl;

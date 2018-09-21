@@ -139,19 +139,19 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
 * the cost of using functional updates.
 */
 class ExprMutator
-    : public ::tvm::relay::ExprFunctor<Expr(const Expr&, const Expr&)> {
+    : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  public:
   Expr Mutate(const Expr& expr);
-  Expr VisitExpr_(const VarNode* op, const Expr& e) override;
-  Expr VisitExpr_(const ConstantNode* op, const Expr& e) override;
-  Expr VisitExpr_(const GlobalVarNode* op, const Expr& e) override;
-  Expr VisitExpr_(const OpNode* op, const Expr& expr) override;
-  Expr VisitExpr_(const TupleNode* op, const Expr& e) override;
-  Expr VisitExpr_(const ParamNode* op, const Expr& e) override;
-  Expr VisitExpr_(const FunctionNode* op, const Expr& e) override;
-  Expr VisitExpr_(const CallNode* call_node, const Expr& e) override;
-  Expr VisitExpr_(const LetNode* op, const Expr& e) override;
-  Expr VisitExpr_(const IfNode* op, const Expr& e) override;
+  Expr VisitExpr_(const VarNode* op) override;
+  Expr VisitExpr_(const ConstantNode* op) override;
+  Expr VisitExpr_(const GlobalVarNode* op) override;
+  Expr VisitExpr_(const OpNode* op) override;
+  Expr VisitExpr_(const TupleNode* op) override;
+  Expr VisitExpr_(const ParamNode* op) override;
+  Expr VisitExpr_(const FunctionNode* op) override;
+  Expr VisitExpr_(const CallNode* call_node) override;
+  Expr VisitExpr_(const LetNode* op) override;
+  Expr VisitExpr_(const IfNode* op) override;
   /*! \brief Used to visit the types inside of expressions.
    *
    * Can be overloaded to transform the types in arbitrary
@@ -162,7 +162,7 @@ class ExprMutator
 
  private:
   /*! \brief Internal map used for memoization. */
-  tvm::Map<Expr, Expr> memo_;
+  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo_;
 };
 
 }  // namespace relay

@@ -102,10 +102,10 @@ class TVM_DLL Node : public NodeBase {
   template<typename T>
   inline bool is_type() const;
   /*!
-   * \brief Get a NodeRef that holds reference to this Node.
-   * \return the NodeRef
+   * \brief Get a NodePtr that holds reference to this Node.
+   * \return the NodePtr
    */
-  inline NodeRef GetNodeRef() const;
+  inline NodePtr<Node> GetNodePtr() const;
   // node ref can see this
   friend class NodeRef;
   static constexpr const char* _type_key = "Node";
@@ -177,6 +177,32 @@ class NodeRef {
 };
 
 /*!
+ * \brief Get a reference type from a Node ptr type
+ *
+ *  It is always important to get a reference type
+ *  if we want to return a value as reference or keep
+ *  the node alive beyond the scope of the function.
+ *
+ * \param ptr The node pointer
+ * \tparam RefType The reference type
+ * \tparam NodeType The node type
+ * \return The corresponding RefType
+ */
+template <typename RefType, typename NodeType>
+inline RefType GetRef(const NodeType* ptr);
+
+/*!
+ * \brief Downcast a base reference type to a more specific type.
+ *
+ * \param ref The inptut reference
+ * \return The corresponding SubRef.
+ * \tparam SubRef The target specific reference type.
+ * \tparam BaseRef the current reference type.
+ */
+template <typename SubRef, typename BaseRef>
+inline SubRef Downcast(BaseRef ref);
+
+/*!
  * \brief helper macro to declare type information in a base node.
  */
 #define TVM_DECLARE_BASE_NODE_INFO(TypeName, Parent)                    \
@@ -218,8 +244,24 @@ inline bool Node::derived_from() const {
   return this->_DerivedFrom(type_id);
 }
 
-inline NodeRef Node::GetNodeRef() const {
-  return NodeRef(NodePtr<Node>(const_cast<Node*>(this)));
+inline NodePtr<Node> Node::GetNodePtr() const {
+  return NodePtr<Node>(const_cast<Node*>(this));
+}
+
+template <typename RefType, typename NodeType>
+inline RefType GetRef(const NodeType* ptr) {
+  static_assert(std::is_base_of<typename RefType::ContainerType, NodeType>::value,
+                "Can only cast to the ref of same container type");
+  return RefType(ptr->GetNodePtr());
+}
+
+template <typename SubRef, typename BaseRef>
+inline SubRef Downcast(BaseRef ref) {
+  CHECK(ref->template is_type<typename SubRef::ContainerType>() ||
+        ref->template derived_from<typename SubRef::ContainerType>())
+      << "Downcast from " << ref->type_key() << " to "
+      << SubRef::ContainerType::_type_key << " failed.";
+  return SubRef(std::move(ref.node_));
 }
 
 inline const Node* NodeRef::get() const {

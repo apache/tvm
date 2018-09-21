@@ -41,12 +41,12 @@ void EnvironmentNode::Add(const GlobalVar &var,
                           const Function &func,
                           bool update) {
   // Type check the item before we add it to the environment.
-  auto env = relay::GetRef<Environment>(this);
+  auto env = GetRef<Environment>(this);
 
   Expr checked_expr = InferType(env, var, func);
 
   if (const FunctionNode *func_node = checked_expr.as<FunctionNode>()) {
-    auto checked_func = relay::GetRef<Function>(func_node);
+    auto checked_func = GetRef<Function>(func_node);
     auto type = checked_func->checked_type();
 
     CHECK(IsFullyResolved(type));
