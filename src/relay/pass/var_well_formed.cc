@@ -30,8 +30,10 @@ struct DetectShadow : ExprVisitor {
   };
   std::unordered_set<Var> s;
   void VisitExpr_(const LetNode & l) {
+    // we do letrec only for FunctionNode,
+    // but shadowing let in let binding is likely programming error, and we should forbidden it.
     Insert ins(this, l.var);
-    (*this)(l.value);  // we do letrec only for FunctionNode, but shadowing let in let binding is dangerous, and we should forbidden it.
+    (*this)(l.value);
     (*this)(l.body);
   }
   void VisitExpr_(const FunctionNode & f) {
