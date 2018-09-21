@@ -7,6 +7,7 @@
 #include "type_functor.h"
 #include <tvm/relay/expr_functor.h>
 #include <unordered_map>
+#include <tvm/relay/error.h>
 
 namespace tvm {
 namespace relay {
@@ -22,19 +23,23 @@ tvm::Array<B> map(const tvm::Array<A> & arr, const std::function<B(A)> & f) {
 
 // not basing on typemutator as it might one day memorize
 class CopyType : TypeFunctor<Type(const Type &)> {
+  std::unordered_map<TypeParam, TypeParam, NodeHash, NodeEqual> rename;
+
   virtual Type VisitType_(const TensorTypeNode * t) final {
     return TensorTypeNode::make(t->shape, t->dtype);
   }
 
   virtual Type VisitType_(const TypeParamNode * tp) final {
-    return TypeParamNode::make(tp->var->name_hint, tp->kind);
-    // need help: this will remove the var if it is used
+    auto var = GetRef<TypeParam>(tp);
+    return rename.count(var) == 0 ? var : rename.at(var);
   }
 
   virtual Type VisitType_(const FuncTypeNode * f) final {
     return FuncTypeNode::make(Copy(f->arg_types),
                               Copy(f->ret_type),
-                              Copy(f->type_params),
+                              map<TypeParam, TypeParam>(f->type_params, [this](const TypeParam & tp) {
+                                  return fresh(tp);
+                                }),
                               Copy(f->type_constraints));
   }
 
@@ -55,12 +60,6 @@ class CopyType : TypeFunctor<Type(const Type &)> {
     return this->VisitType(t);
   }
 
-  tvm::Array<TypeParam> Copy(const tvm::Array<TypeParam> & tp) {
-    return map<TypeParam, TypeParam>(tp, [this](const TypeParam & tp) {
-        return Downcast<TypeParam>(Copy(tp));
-      });
-  }
-
   tvm::Array<TypeConstraint> Copy(const tvm::Array<TypeConstraint> & tc) {
     return map<TypeConstraint, TypeConstraint>(tc, [this](const TypeConstraint & tc) {
         return Downcast<TypeConstraint>(Copy(tc));
@@ -72,6 +71,22 @@ class CopyType : TypeFunctor<Type(const Type &)> {
         return Copy(t);
       });
   }
+
+  TypeParam fresh(const TypeParam & tp) {
+    if (rename.count(tp) != 0) {
+      throw Error("is not unique");
+    }
+    // need help: this will remove the var if it is used
+    rename.insert(std::pair<TypeParam, TypeParam>(tp, TypeParamNode::make(tp->var->name_hint, tp->kind)));
+    return rename.at(tp);
+  }
+
+  tvm::Array<TypeParam> fresh(const tvm::Array<TypeParam> & tp) {
+    return map<TypeParam, TypeParam>(tp, [this](const TypeParam & tp) {
+        return fresh(tp);
+      });
+  }
+
 };
 
 // not basing on exprmutator as it memorize
@@ -96,13 +111,6 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
     return GetRef<GlobalVar>(g);
   }
 
-  Var fresh(const Var & v) {
-    if (rename.count(v) == 0) {
-      rename.insert(std::pair<Var, Var>(v, VarNode::make(v->name_hint)));
-    }
-    return rename.at(v);
-  }
-
   virtual Expr VisitExpr_(const ParamNode * p) final {
     return ParamNode::make(fresh(p->var), ct.Copy(p->type));
   }
@@ -111,7 +119,7 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
     return FunctionNode::make(Copy(f->params),
                               ct.Copy(f->ret_type),
                               Copy(f->body),
-                              ct.Copy(f->type_params));
+                              ct.fresh(f->type_params));
   }
 
   virtual Expr VisitExpr_(const CallNode * c) final {
@@ -150,6 +158,13 @@ class CopyExpr : ExprFunctor<Expr(const Expr &)> {
       });
   }
 
+  Var fresh(const Var & v) {
+    if (rename.count(v) != 0) {
+      throw Error("is not unique");
+    }
+    rename.insert(std::pair<Var, Var>(v, VarNode::make(v->name_hint)));
+    return rename.at(v);
+  }
 };
 
 Expr Copy(const Expr & e) {
