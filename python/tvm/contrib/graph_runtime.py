@@ -63,12 +63,10 @@ def create(graph_json_str, libmod, ctx):
     if num_rpc_ctx == len(ctx):
         hmod = rpc_base._ModuleHandle(libmod)
         fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        return GraphModule(fcreate(graph_json_str, hmod, device_type_id[0],
-                                   device_type_id[1], *device_type_id[2:]))
+        return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
 
     fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, device_type_id[0],
-                               device_type_id[1], *device_type_id[2:]))
+    return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 
 class GraphModule(object):
