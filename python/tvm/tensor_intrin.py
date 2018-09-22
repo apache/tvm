@@ -17,11 +17,16 @@ class TensorIntrin(NodeBase):
     --------
     decl_tensor_intrin: Construct a TensorIntrin
     """
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         tensors = [x.tensor for x in args]
         regions = [_api._get_region(x) for x in args]
-        # TODO
-        return _api_internal._TensorIntrinCall(self, tensors, regions, [])
+        reduce_axis = []
+        if "reduce_axis" in kwargs:
+            reduce_axis = kwargs["reduce_axis"]
+            if not isinstance(reduce_axis, (list, tuple)):
+                reduce_axis = [reduce_axis]
+            reduce_axis = _api.convert(reduce_axis)
+        return _api_internal._TensorIntrinCall(self, tensors, regions, reduce_axis)
 
 def decl_tensor_intrin(op,
                        fcompute,

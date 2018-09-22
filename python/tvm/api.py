@@ -15,7 +15,6 @@ from ._ffi.runtime_ctypes import TVMType
 from . import _api_internal
 from . import make as _make
 from . import expr as _expr
-from . import stmt as _stmt
 from . import tensor as _tensor
 from . import schedule as _schedule
 from . import container as _container
@@ -417,7 +416,8 @@ def _get_region(tslice):
 #     if len(out_dims) != len(arg_names):
 #         raise ValueError("finputs do not match dimension, ndim=%d" % out_dims)
 #
-#     out_var = [_IterVar((0, extent), arg_name, 0) for arg_name, extent in zip(arg_names, out_dims)]
+#     out_var = [_IterVar((0, extent), arg_name, 0)
+#                for arg_name, extent in zip(arg_names, out_dims)]
 #     if isinstance(raxis, _schedule.IterVar):
 #         raxis = [raxis]
 #     if raxis is None:

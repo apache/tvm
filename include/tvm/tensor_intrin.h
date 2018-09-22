@@ -106,7 +106,7 @@ class TensorIntrinCallNode;
 class TensorIntrinCall : public NodeRef {
  public:
   TensorIntrinCall() {}
-  explicit TensorIntrinCall(std::shared_ptr<Node> n) : NodeRef(n) {}
+  explicit TensorIntrinCall(NodePtr<Node> n) : NodeRef(n) {}
   /*!
    * \brief access the internal node container
    * \return the pointer to the internal node container

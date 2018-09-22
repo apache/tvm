@@ -79,7 +79,7 @@ Operation TensorComputeOpNode::make(std::string name,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
                                     TensorIntrin intrin) {
-  auto n = std::make_shared<TensorComputeOpNode>();
+  auto n = make_node<TensorComputeOpNode>();
   n->name = name;
   n->tag = tag;
   n->axis = axis;
@@ -99,8 +99,8 @@ Operation TensorComputeOpNode::ReplaceInputs(
     const Operation& self,
     const std::unordered_map<Tensor, Tensor>& rmap) const {
   CHECK_EQ(self.operator->(), this);
-  auto n = std::make_shared<TensorComputeOpNode>(*this);
-  auto intrin = std::make_shared<TensorIntrinNode>(*(this->intrin.operator->()));
+  auto n = make_node<TensorComputeOpNode>(*this);
+  auto intrin = make_node<TensorIntrinNode>(*(this->intrin.operator->()));
   intrin->body = op::ReplaceTensor(this->intrin->body, rmap);
   if (intrin->reduce_init.defined()) {
     intrin->reduce_init = op::ReplaceTensor(this->intrin->reduce_init, rmap);

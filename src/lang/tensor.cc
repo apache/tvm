@@ -29,7 +29,7 @@ Expr Tensor::operator()(Array<Expr> indices) const {
 }
 
 Tensor Operation::output(size_t i) const {
-  auto node = std::make_shared<TensorNode>();
+  auto node = make_node<TensorNode>();
   node->op = *this;
   node->value_index = i;
   node->dtype = (*this)->output_dtype(i);
@@ -98,8 +98,7 @@ TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
                                             Array<Tensor> tensors,
                                             Array<Region> regions,
                                             Array<IterVar> reduce_axis) {
-  auto n = std::make_shared<TensorIntrinCallNode>();
-  LOG(INFO) << "TensorIntrinCallNode make";
+  auto n = make_node<TensorIntrinCallNode>();
   n->intrin = std::move(intrin);
   n->tensors = std::move(tensors);
   n->regions = std::move(regions);
