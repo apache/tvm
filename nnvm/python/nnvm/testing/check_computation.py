@@ -110,9 +110,9 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
 
     for x in graph.symbol.list_input_variables():
         x_name = x.attr('name')
-        x_node_id = graph.index.entry_id(x_name)
-        input_shapes[x_name] = tuple(shapes[x_node_id])
-        input_dtypes[x_name] = TCODE_TO_DTYPE[dtypes[x_node_id]]
+        x_entry_id = graph.index.entry_id(x_name)
+        input_shapes[x_name] = tuple(shapes[x_entry_id])
+        input_dtypes[x_name] = TCODE_TO_DTYPE[dtypes[x_entry_id]]
 
     # Merge the original user-specified shapes in case some of them are specified for non-existing
     # variables
