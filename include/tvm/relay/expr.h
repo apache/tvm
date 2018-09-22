@@ -8,6 +8,7 @@
 
 #include <tvm/attrs.h>
 #include <string>
+#include <functional>
 #include "./base.h"
 #include "./type.h"
 

@@ -12,21 +12,19 @@
 namespace tvm {
 namespace relay {
 
-struct Error : dmlc::Error {
+struct Error : public dmlc::Error {
   explicit Error(const std::string &msg) : dmlc::Error(msg) {}
 };
 
-struct InternalError : Error {
+struct InternalError : public Error {
   explicit InternalError(const std::string &msg) : Error(msg) {}
 };
 
-// TODO(@jroesch): we should change spanned errors to report
-// errors against the Environment, inverting control to error definition.
-struct FatalTypeError : dmlc::Error {
-  explicit FatalTypeError(const std::string &s) : dmlc::Error(s) {}
+struct FatalTypeError : public Error {
+  explicit FatalTypeError(const std::string &s) : Error(s) {}
 };
 
-struct TypecheckerError : public dmlc::Error {
+struct TypecheckerError : public Error {
   explicit TypecheckerError(const std::string &msg) : Error(msg) {}
 };
 
