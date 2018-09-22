@@ -35,7 +35,7 @@ std::string RecvData(common::TCPSocket sock);
  * \param prefix The string prefix.
  * \return cmap The conflict map set.
  */
-std::string RandomKey(std::string prefix, std::set <std::string> cmap);
+std::string RandomKey(std::string prefix, const std::set <std::string> &cmap);
 
 /*!
  * \brief IsNumber check whether string is a number.
@@ -64,7 +64,7 @@ bool ValidateIP(std::string ip);
  * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
  */
-common::SockAddr GetSockAddr(const std::string url);
+common::SockAddr GetSockAddr(std::string url);
 
 /*!
  * \brief Connect to a TPC address with retry.

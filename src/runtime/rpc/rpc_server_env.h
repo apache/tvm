@@ -7,8 +7,10 @@
 #define TVM_RUNTIME_RPC_RPC_SERVER_ENV_H_
 
 #include <tvm/runtime/registry.h>
+#if defined(__linux__)
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 #include <string>
 
 namespace tvm {
@@ -38,21 +40,25 @@ void CleanDir(const std::string dirname);
 struct RPCEnv {
  public:
   RPCEnv() {
-    base_ = "rpc";
-    mkdir(&base_[0], 0777);
+    #if defined(__linux__) || defined(__ANDROID__)
+      base_ = "rpc";
+      mkdir(&base_[0], 0777);
 
-    TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-        static RPCEnv env;
-        *rv = env.GetPath(args[0]);
-      });
+      TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
+      .set_body([](TVMArgs args, TVMRetValue* rv) {
+          static RPCEnv env;
+          *rv = env.GetPath(args[0]);
+        });
 
-    TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
-    .set_body([](TVMArgs args, TVMRetValue *rv) {
-        std::string file_name = "rpc/" + args[0].operator std::string();
-        *rv = Load(&file_name, "");
-        LOG(INFO) << "Load module from " << file_name << " ...";
-      });
+      TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
+      .set_body([](TVMArgs args, TVMRetValue *rv) {
+          std::string file_name = "rpc/" + args[0].operator std::string();
+          *rv = Load(&file_name, "");
+          LOG(INFO) << "Load module from " << file_name << " ...";
+        });
+    #else
+      LOG(FATAL) << "Only support RPC in linux environment";
+    #endif
   }
 
   /*!
@@ -68,8 +74,12 @@ struct RPCEnv {
    * \brief Remove The RPC Environment cleanup function
    */
   void Remove() {
-    CleanDir(&base_[0]);
-    rmdir(&base_[0]);
+    #if defined(__linux__) || defined(__ANDROID__)
+      CleanDir(&base_[0]);
+      rmdir(&base_[0]);
+    #else
+      LOG(FATAL) << "Only support RPC in linux environment";
+    #endif
   }
 
  private:

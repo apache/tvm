@@ -43,23 +43,31 @@ std::string RecvData(common::TCPSocket sock) {
 }
 
 /*!
+* \brief Random Generate a random number between 0 and 1.
+* \return random float value.
+*/
+float Random() {
+  std::random_device rd;  // Will be used to obtain a seed for the random number engine
+  std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+  return dis(gen);
+}
+
+/*!
  * \brief Generate a random key.
  * \param prefix The string prefix.
  * \return cmap The conflict map set.
  */
-std::string RandomKey(std::string prefix, std::set <std::string> cmap) {
-  float r;
+std::string RandomKey(std::string prefix, const std::set <std::string> &cmap) {
   if (!cmap.empty()) {
-    r = static_cast <float> (random()) / static_cast <float> (RAND_MAX);
     while (1) {
-      std::string key = prefix + std::to_string(r);
+      std::string key = prefix + std::to_string(Random());
       if (cmap.find(key) == cmap.end()) {
         return key;
       }
     }
   }
-  r = static_cast <float> (random()) / static_cast <float> (RAND_MAX);
-  return prefix + std::to_string(r);
+  return prefix + std::to_string(Random());
 }
 
 /*!
@@ -115,7 +123,7 @@ bool ValidateIP(std::string ip) {
  * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
  * \return SockAddr parsed from url.
  */
-common::SockAddr GetSockAddr(const std::string tracker) {
+common::SockAddr GetSockAddr(std::string tracker) {
   size_t sep = tracker.find(",");
   std::string host = tracker.substr(2, sep - 3);
   std::string port = tracker.substr(sep + 1, tracker.length() - 1);

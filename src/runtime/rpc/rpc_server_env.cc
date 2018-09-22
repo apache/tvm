@@ -4,9 +4,11 @@
  * \brief Server environment of the RPC.
  */
 #include <tvm/runtime/registry.h>
+#if defined(__linux__)
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>
+#endif
 #include <fstream>
 #include <vector>
 #include <iostream>
@@ -19,12 +21,12 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief endsWith check whether the strings ends with
+ * \brief EndsWith check whether the strings ends with
  * \param value The full string
  * \param end The end substring
  * \return bool The result.
  */
-bool endsWith(std::string const & value, std::string const & end) {
+bool EndsWith(std::string const & value, std::string const & end) {
   if (end.size() <= value.size()) {
     return std::equal(end.rbegin(), end.rend(), value.rbegin());
   }
@@ -32,31 +34,35 @@ bool endsWith(std::string const & value, std::string const & end) {
 }
 
 /*!
- * \brief listDir get the list of files in a directory
+ * \brief ListDir get the list of files in a directory
  * \param dirname The root directory name
  * \return vector Files in directory.
  */
-std::vector<std::string> listDir(const std::string dirname) {
-  std::vector<std::string> vec;
-  DIR *dp = opendir(dirname.c_str());
-  dirent *d;
-  while ((d = readdir(dp)) != NULL) {
-    std::string filename = d->d_name;
-    if (filename != "." && filename != "..") {
-      vec.push_back(dirname + d->d_name);
+std::vector<std::string> ListDir(const std::string dirname) {
+  #if defined(__linux__) || defined(__ANDROID__)
+    std::vector<std::string> vec;
+    DIR *dp = opendir(dirname.c_str());
+    dirent *d;
+    while ((d = readdir(dp)) != NULL) {
+      std::string filename = d->d_name;
+      if (filename != "." && filename != "..") {
+        vec.push_back(dirname + d->d_name);
+      }
     }
-  }
-  return vec;
+    return vec;
+  #else
+    LOG(FATAL) << "Only support RPC in linux environment";
+  #endif
 }
 
 /*!
- * \brief linuxShared Creates a linux shared library
+ * \brief LinuxShared Creates a linux shared library
  * \param output The output file name
  * \param files The files for building
  * \param options The compiler options
  * \param cc The compiler
  */
-void linuxShared(const std::string output,
+void LinuxShared(const std::string output,
                  const std::vector<std::string> &files,
                  std::string options = "",
                  std::string cc = "g++") {
@@ -71,15 +77,15 @@ void linuxShared(const std::string output,
 }
 
 /*!
- * \brief createShared Creates a shared library
+ * \brief CreateShared Creates a shared library
  * \param output The output file name
  * \param files The files for building
  */
-void createShared(const std::string output, const std::vector<std::string> &files) {
+void CreateShared(const std::string output, const std::vector<std::string> &files) {
   #if defined(__linux__) || defined(__ANDROID__)
-    linuxShared(output, files);
+    LinuxShared(output, files);
   #else
-    LOG(FATAL) << "Donot support creating shared library";
+    LOG(FATAL) << "Do not support creating shared library";
   #endif
 }
 
@@ -95,22 +101,22 @@ void createShared(const std::string output, const std::vector<std::string> &file
  */
 Module Load(std::string *fileIn, const std::string fmt) {
   std::string file = *fileIn;
-  if (endsWith(file, ".so")) {
+  if (EndsWith(file, ".so")) {
       return Module::LoadFromFile(file, fmt);
   }
 
   #if defined(__linux__) || defined(__ANDROID__)
     std::string file_name = file + ".so";
-    if (endsWith(file, ".o")) {
+    if (EndsWith(file, ".o")) {
       std::vector<std::string> files;
       files.push_back(file);
-      createShared(file_name, files);
-    } else if (endsWith(file, ".tar")) {
+      CreateShared(file_name, files);
+    } else if (EndsWith(file, ".tar")) {
       std::string tmp_dir = "rpc/tmp/";
       mkdir(&tmp_dir[0], 0777);
       std::string cmd = "tar -C " + tmp_dir + " -zxf " + file;
       CHECK(system(cmd.c_str()) == 0) << "Untar library error.";
-      createShared(file_name, listDir(tmp_dir));
+      CreateShared(file_name, ListDir(tmp_dir));
       CleanDir(tmp_dir);
       rmdir(&tmp_dir[0]);
     }
@@ -126,15 +132,19 @@ Module Load(std::string *fileIn, const std::string fmt) {
  * \param dirname THe name of the directory
  */
 void CleanDir(const std::string dirname) {
-  DIR *dp = opendir(dirname.c_str());
-  dirent *d;
-  while ((d = readdir(dp)) != NULL) {
-    std::string filename = d->d_name;
-    if (filename != "." && filename != "..") {
-      filename = dirname + d->d_name;
-      std::remove(&filename[0]);
+  #if defined(__linux__) || defined(__ANDROID__)
+    DIR *dp = opendir(dirname.c_str());
+    dirent *d;
+    while ((d = readdir(dp)) != NULL) {
+      std::string filename = d->d_name;
+      if (filename != "." && filename != "..") {
+        filename = dirname + d->d_name;
+        std::remove(&filename[0]);
+      }
     }
-  }
+  #else
+    LOG(FATAL) << "Only support RPC in linux environment";
+  #endif
 }
 
 /*!

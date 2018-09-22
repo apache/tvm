@@ -56,10 +56,10 @@ struct RpcServerArgs {
 };
 
 /*!
- * \brief printArgs print the contents of RpcServerArgs
+ * \brief PrintArgs print the contents of RpcServerArgs
  * \param args RpcServerArgs structure
  */
-void printArgs(struct RpcServerArgs args) {
+void PrintArgs(struct RpcServerArgs args) {
   printf("host        = %s\n", args.host.c_str());
   printf("port        = %d\n", args.port);
   printf("port_end    = %d\n", args.port_end);
@@ -71,35 +71,35 @@ void printArgs(struct RpcServerArgs args) {
 }
 
 /*!
- * \brief ctrlCHandler, exits if Ctrl+C is pressed
+ * \brief CtrlCHandler, exits if Ctrl+C is pressed
  * \param s signal
  */
-void ctrlCHandler(int s){
+void CtrlCHandler(int s){
   printf("\nUser pressed Ctrl+C, Exiting\n");
   exit(1);
 }
 
 /*!
- * \brief handleCtrlC Register for handling Ctrl+C event.
+ * \brief HandleCtrlC Register for handling Ctrl+C event.
  */
-void handleCtrlC() {
+void HandleCtrlC() {
   //Ctrl+C handler
   struct sigaction sigIntHandler;
-  sigIntHandler.sa_handler = ctrlCHandler;
+  sigIntHandler.sa_handler = CtrlCHandler;
   sigemptyset(&sigIntHandler.sa_mask);
   sigIntHandler.sa_flags = 0;
   sigaction(SIGINT, &sigIntHandler, NULL);
 }
 
 /*!
- * \brief getCmdOption Parse and find the command option.
+ * \brief GetCmdOption Parse and find the command option.
  * \param argc arg counter
  * \param argv arg values
  * \param option command line option to search for.
  * \param key whether the option itself is key
  * \return value corresponding to option.
  */
-std::string getCmdOption(int argc, char* argv[], std::string option, bool key=false) {
+std::string GetCmdOption(int argc, char* argv[], std::string option, bool key=false) {
   std::string cmd;
   for (int i = 1; i < argc; ++i) {
     std::string arg = argv[i];
@@ -117,11 +117,11 @@ std::string getCmdOption(int argc, char* argv[], std::string option, bool key=fa
 }
 
 /*!
- * \brief validateTracker Check the tracker address format is correct and changes the format.
+ * \brief ValidateTracker Check the tracker address format is correct and changes the format.
  * \param tracker The tracker input.
  * \return result of operation.
  */
-bool validateTracker(std::string &tracker) {
+bool ValidateTracker(std::string &tracker) {
   std::vector<std::string> list = SplitString(tracker, ':');
   if ((list.size() != 2) || (!ValidateIP(list[0])) || (!IsNumber(list[1]))) {
     return false;
@@ -133,13 +133,13 @@ bool validateTracker(std::string &tracker) {
 }
 
 /*!
- * \brief parseCmdArgs parses the command line arguments.
+ * \brief ParseCmdArgs parses the command line arguments.
  * \param argc arg counter
  * \param argv arg values
  * \param args, the output structure which holds the parsed values
  */
-void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
-  std::string host = getCmdOption(argc, argv, "--host=");
+void ParseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
+  std::string host = GetCmdOption(argc, argv, "--host=");
   if (!host.empty()) {
     if (!ValidateIP(host)) {
       printf("Wrong host address format.\n");
@@ -149,7 +149,7 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
     args.host = host;
   }
 
-  std::string port = getCmdOption(argc, argv, "--port=");
+  std::string port = GetCmdOption(argc, argv, "--port=");
   if (!port.empty()) {
     if (!IsNumber(port) || std::stoi(port) > 65535) {
       printf("Wrong port number.\n");
@@ -159,7 +159,7 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
     args.port = std::stoi(port);
   }
 
-  std::string port_end = getCmdOption(argc, argv, "--port_end=");
+  std::string port_end = GetCmdOption(argc, argv, "--port_end=");
   if (!port_end.empty()) {
     if (!IsNumber(port_end) || std::stoi(port_end) > 65535) {
       printf("Wrong port_end number.\n");
@@ -169,9 +169,9 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
     args.port_end = std::stoi(port_end);
   }
 
-  std::string tracker = getCmdOption(argc, argv, "--tracker=");
+  std::string tracker = GetCmdOption(argc, argv, "--tracker=");
   if (!tracker.empty()) {
-    if (!validateTracker(tracker)) {
+    if (!ValidateTracker(tracker)) {
       printf("Wrong tracker address format.\n");
       printf("%s", USAGE);
       exit(1);
@@ -179,12 +179,12 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
     args.tracker = tracker;
   }
 
-  std::string key = getCmdOption(argc, argv, "--key=");
+  std::string key = GetCmdOption(argc, argv, "--key=");
   if (!key.empty()) {
     args.key = key;
   }
 
-  std::string custom_addr = getCmdOption(argc, argv, "--custom_addr=");
+  std::string custom_addr = GetCmdOption(argc, argv, "--custom_addr=");
   if (!custom_addr.empty()) {
     if (!ValidateIP(custom_addr)) {
       printf("Wrong custom address format.\n");
@@ -194,28 +194,28 @@ void parseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
     args.custom_addr = custom_addr;
   }
 
-  std::string silent = getCmdOption(argc, argv, "--silent", true);
+  std::string silent = GetCmdOption(argc, argv, "--silent", true);
   if (!silent.empty()) {
     args.silent = true;
   }
 }
 
 /*!
- * \brief rpcServer Starts the RPC server.
+ * \brief RpcServer Starts the RPC server.
  * \param argc arg counter
  * \param argv arg values
  * \return result of operation.
  */
-int rpcServer(int argc, char * argv[]) {
+int RpcServer(int argc, char * argv[]) {
   struct RpcServerArgs args;
 
   /* parse the command line args */
-  parseCmdArgs(argc, argv, args);
-  printArgs(args);
+  ParseCmdArgs(argc, argv, args);
+  PrintArgs(args);
 
   //Ctrl+C handler
   printf("Starting CPP Server, Press Ctrl+C to stop.\n");
-  handleCtrlC();
+  HandleCtrlC();
   tvm::runtime::RPCServerCreate(args.host, args.port, args.port_end, args.tracker,
                                 args.key, args.custom_addr, args.silent);
   return 0;
@@ -234,7 +234,7 @@ int main(int argc, char * argv[]) {
    }
 
   if (0 == strcmp(argv[1], "server")){
-    rpcServer(argc, argv);
+    RpcServer(argc, argv);
   } else {
     printf("%s", USAGE);
   }
