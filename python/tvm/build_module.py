@@ -384,8 +384,14 @@ def build(sch,
           target=None,
           target_host=None,
           name="default_function",
-          binds=None):
-    """Build a function with arguments as signiture.
+          binds=None,
+          postpone_host_codegen=False):
+    """Build a function with arguments as signature. Code will be generated
+    for a device specified by the target. For homogeneous execution, a module
+    that contains both host and device code is returned. For heterogeneous
+    execution, a list of lowered functions for the host and a module containing
+    device code are returned, but actual code generation for the host module is
+    postponed after code generation is finished for all devices.
 
     Parameters
     ----------
@@ -414,10 +420,18 @@ def build(sch,
         Dictionary that maps the binding of symbolic buffer to Tensor.
         By default, a new buffer is created for each tensor in the argument.
 
+    postpone_host_codegen : bool, optional
+        A bool value that indicates if code generation for the host module
+        should be postponed. This variable is set to be true for heterogeneous
+        execution. Otherwise, it is defaulted to false.
+
     Returns
     -------
-    f : Function, or pair of functions
-       The result function.
+    ret : tvm.module, or (list of LoweredFunc, tvm.module) tuple
+        A module that combines both host and device code is returned when
+        postpone_host_codegen is not set. Otherwise, a list of lowered
+        functions for the host and a module contains only device code are
+        returned.
 
     Note
     ----
@@ -498,9 +512,15 @@ def build(sch,
     fdevice = [ir_pass.LowerIntrin(x, target_device.target_name) for x in fdevice]
     fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
     fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-    mhost = codegen.build_module(fhost, str(target_host))
 
+    # Append fhost to the device module and return the updated module. All
+    # device modules will be imported to the host module after all of them are
+    # collected.
+    mdev = codegen.build_module(fdevice, str(target_device)) if fdevice else None
+    if postpone_host_codegen:
+        return fhost, mdev
+
+    mhost = codegen.build_module(fhost, str(target_host))
     if fdevice:
-        mdev = codegen.build_module(fdevice, str(target_device))
         mhost.import_module(mdev)
     return mhost
