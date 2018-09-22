@@ -48,11 +48,6 @@ struct KindChecker : TypeVisitor<> {
     return t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
   }
 
-  bool isTypeListKind(const Type& t) {
-    // no type list literal?
-    return matchKind(t, Kind::kTypeList);
-  }
-
   void VisitType_(const TupleTypeNode* op) override {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
@@ -80,11 +75,10 @@ struct KindChecker : TypeVisitor<> {
   }
 
   void VisitType_(const TypeRelationNode* op) override {
-    // arguments to type relation should be either normal
-    // types or type lists(?)
+    // arguments to type relation should be normal types
     for (const Type& t : op->args) {
       this->VisitType(t);
-      valid = valid && (isTypeKind(t) || isTypeListKind(t));
+      valid = valid && isTypeKind(t);
       if (!valid) {
         return;
       }
