@@ -80,6 +80,18 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 bool AlphaEqual(const Type& t1, const Type& t2);
 
+/*! brief Check that each Var is only bind once.
+ *
+ * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
+ *
+ * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice, although x is not shadowed.
+ *
+ * \param e the expression to check.
+ *
+ * \return true iff all Var in e is bind at most once.
+ */
+bool WellFormed(const Expr & e);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_

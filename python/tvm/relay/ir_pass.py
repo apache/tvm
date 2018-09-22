@@ -10,3 +10,5 @@ from . import _ir_pass
 # Expose checking expression, should rename to infer_type.
 # pylint: disable=invalid-name
 check_expr = _ir_pass.check_expr
+
+well_formed = _ir_pass.well_formed
