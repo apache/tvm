@@ -1,13 +1,13 @@
 .PHONY: clean all
 
-TVM_BASE   = $(PWD)/../
+TVM_BASE   = $(CURDIR)/../
 TARGET     = gotvm
 LIBS       = -lm -ldl
 NATIVE_SRC = tvm_runtime_pack.cc
 
-GOPATH=$(PWD)/gopath
+GOPATH=$(CURDIR)/gopath
 GOPATHDIR=${GOPATH}/src/${TARGET}/
-CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/dlpack/include/"
+CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/dlpack/include/ -std=c++11"
 CGO_CFLAGS="-I${TVM_BASE}"
 CGO_LDFLAGS="-ldl -lm"
 
@@ -25,11 +25,11 @@ all:
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) && go clean \
 	&& golint && go build -o $(TARGET).a \
-	&& go install \
-	&& python3 ../../../sample/deploy.py)
-	@mkdir gopath/doc 2>/dev/null || true
-	@godoc -html -goroot gopath/ gotvm | grep -v "for documentation on the gotvm command" > gopath/doc/gotvm.html
-	@echo "Run 'godoc -http=:6060  -goroot=./gopath' for documentation"
+	&& go install)
+	@find . -name gotvm.a
+	@#mkdir gopath/doc 2>/dev/null || true
+	@#godoc -html -goroot gopath/ gotvm | grep -v "for documentation on the gotvm command" > gopath/doc/gotvm.html
+	@#echo "Run 'godoc -http=:6060  -goroot=./gopath' for documentation"
 
 samples: all
 	cp gopath/pkg/linux_amd64/gotvm.a sample/ -rfa
@@ -41,6 +41,7 @@ tests: all
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) \
+	&& cp ../../../test/data/deploy.so . \
 	&& go test -v)
 
 clean:
@@ -49,7 +50,7 @@ clean:
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
-	(cd $(GOPATHDIR) && go clean -cache); fi
+	(cd $(GOPATHDIR) && go clean); fi
 	@rm -rf gopath
 	@make -C sample clean
 

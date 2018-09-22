@@ -10,27 +10,27 @@ package gotvm
 import "C"
 
 // KDLCPU is golang enum correspond to TVM device type kDLCPU.
-var KDLCPU int32            = int32(C.kDLCPU)
+var KDLCPU                  = int32(C.kDLCPU)
 // KDLGPU is golang enum correspond to TVM device type kDLGPU.
-var KDLGPU int32            = int32(C.kDLGPU)
+var KDLGPU                  = int32(C.kDLGPU)
 // KDLCPUPinned is golang enum correspond to TVM device type kDLCPUPinned.
-var KDLCPUPinned int32      = int32(C.kDLCPUPinned)
+var KDLCPUPinned            = int32(C.kDLCPUPinned)
 // KDLOpenCL is golang enum correspond to TVM device type kDLOpenCL.
-var KDLOpenCL int32         = int32(C.kDLOpenCL)
+var KDLOpenCL               = int32(C.kDLOpenCL)
 // KDLMetal is golang enum correspond to TVM device type kDLMetal.
-var KDLMetal int32          = int32(C.kDLMetal)
+var KDLMetal                = int32(C.kDLMetal)
 // KDLVPI is golang enum correspond to TVM device type kDLVPI.
-var KDLVPI int32            = int32(C.kDLVPI)
+var KDLVPI                  = int32(C.kDLVPI)
 // KDLROCM is golang enum correspond to TVM device type kDLROCM.
-var KDLROCM int32           = int32(C.kDLROCM)
+var KDLROCM                 = int32(C.kDLROCM)
 // KDLSDAccel is golang enum correspond to TVM device type kDLSDAccel.
-var KDLSDAccel int32        = int32(C.kDLSDAccel)
+var KDLSDAccel              = int32(C.kDLSDAccel)
 // KDLVulkan is golang enum correspond to TVM device type kDLVulkan.
-var KDLVulkan int32         = int32(C.kDLVulkan)
+var KDLVulkan               = int32(C.kDLVulkan)
 // KOpenGL is golang enum correspond to TVM device type kOpenGL.
-var KOpenGL int32           = int32(C.kOpenGL)
+var KOpenGL                 = int32(C.kOpenGL)
 // KExtDev is golang enum correspond to TVM device type kDLExtDev.
-var KExtDev int32           = int32(C.kDLExtDev)
+var KExtDev                 = int32(C.kDLExtDev)
 
 // Context dtype corresponding to TVMContext aka DLContext
 type Context struct {

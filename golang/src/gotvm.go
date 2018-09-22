@@ -14,7 +14,7 @@ package gotvm
 import "C"
 
 // DLPackVersion is the dlpack version of tvm runtime.
-var DLPackVersion int       = int(C.DLPACK_VERSION)
+var DLPackVersion           = int(C.DLPACK_VERSION)
 // TVMVersion is the TVM runtime version.
 var TVMVersion              = getTVMVersion()
 
