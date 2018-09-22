@@ -45,6 +45,12 @@ class Tensor : public NodeRef {
    * \return whether the two tensors equals each other.
    */
   inline bool operator==(const Tensor& other) const;
+  /*!
+   * \brief check if two tensors are different.
+   * \param other tensor to be checked.
+   * \return whether the two tensors are different.
+   */
+  inline bool operator!=(const Tensor& other) const;
   /*! \return The dimension of the tensor */
   inline size_t ndim() const;
   /*!
@@ -182,6 +188,10 @@ inline bool Tensor::operator==(const Tensor& other) const {
   } else {
     return false;
   }
+}
+
+inline bool Tensor::operator!=(const Tensor& other) const {
+  return !(*this == other);
 }
 
 // macro to turn every operation of slice to expression
