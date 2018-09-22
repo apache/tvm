@@ -116,7 +116,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
         break;
       }
     }
-    CHECK_NE(sub_master_idx, -1);
+    CHECK_NE(sub_master_idx, -1) << "A master node not found in the subgraph.";
     fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {
