@@ -138,7 +138,7 @@ def is_gpu_available():
 #######################################################################
 # Pooling
 # -------
-def _test_pooling(input_shape, **kwargs):
+def _test_pooling_iteration(input_shape, **kwargs):
     """ One iteration of pool operation with given shapes and attributes """
 
     x = -np.arange(
@@ -155,121 +155,45 @@ def _test_pooling(input_shape, **kwargs):
 
         compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
+def _test_pooling(input_shape, **kwargs):
+    _test_pooling_iteration(input_shape, **kwargs)
+
+    if is_gpu_available():
+        input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+        kwargs['data_layout'] = 'NCHW'
+        _test_pooling_iteration(input_shape, **kwargs)
+
 def test_forward_pooling():
     """ Pooling """
 
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
+    for pool_type in ['AVG', 'MAX']:
+            _test_pooling(input_shape=[2, 9, 10, 2],
+                         window_shape=[1, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
+            _test_pooling(input_shape=[2, 10, 9, 2],
+                         window_shape=[1, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[2, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[2, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[2, 1])
+            _test_pooling(input_shape=[2, 9, 10, 2],
+                         window_shape=[2, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[2, 3],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[2, 1])
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[2, 3],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 2])
-
-    if is_gpu_available():
-        _test_pooling(input_shape=[2, 2, 9, 10],
-                     window_shape=[1, 1],
-                     padding='SAME',
-                     pooling_type='MAX',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 1])
-        _test_pooling(input_shape=[2, 2, 9, 10],
-                     window_shape=[1, 1],
-                     padding='SAME',
-                     pooling_type='AVG',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 1])
-
-        _test_pooling(input_shape=[2, 2, 10, 9],
-                     window_shape=[1, 1],
-                     padding='SAME',
-                     pooling_type='MAX',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 1])
-        _test_pooling(input_shape=[2, 2, 10, 9],
-                     window_shape=[1, 1],
-                     padding='SAME',
-                     pooling_type='AVG',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 1])
-
-        _test_pooling(input_shape=[2, 2, 9, 10],
-                     window_shape=[2, 1],
-                     padding='SAME',
-                     pooling_type='MAX',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 1])
-        _test_pooling(input_shape=[2, 2, 9, 10],
-                     window_shape=[2, 1],
-                     padding='SAME',
-                     pooling_type='AVG',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[2, 1])
-
-        _test_pooling(input_shape=[2, 2, 10, 9],
-                     window_shape=[2, 3],
-                     padding='SAME',
-                     pooling_type='MAX',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[2, 1])
-        _test_pooling(input_shape=[2, 2, 10, 9],
-                     window_shape=[2, 3],
-                     padding='SAME',
-                     pooling_type='AVG',
-                     dilation_rate=[1, 1],
-                     data_format="NCHW",
-                     strides=[1, 2])
+            _test_pooling(input_shape=[2, 10, 9, 2],
+                         window_shape=[2, 3],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[2, 1])
 
 #######################################################################
 # Convolution
@@ -1102,9 +1026,9 @@ if __name__ == '__main__':
     test_forward_inception_v1()
     test_forward_mobilenet()
     test_forward_resnetv2()
-
-    # NLP
     test_forward_ptb()
+
+    # RNN
     #test_forward_lstm()
 
     # Elementwise
