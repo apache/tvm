@@ -139,6 +139,9 @@ class Buffer(NodeBase):
         begin = (begin,) if isinstance(begin, (int, _expr.Expr)) else begin
         return _api_internal._BufferVStore(self, begin, value)
 
+    def make_stride_view(self):
+        return _api_internal._BufferMakeStrideView(self)
+
 
 @register_node
 class Split(NodeBase):
