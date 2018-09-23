@@ -26,14 +26,6 @@ class TensorIntrin : public NodeRef {
    */
   inline const TensorIntrinNode* operator->() const;
 
-  // template<typename... Args>
-  // inline Stmt operator()(Args&& ...args) const {
-  //   Array<Expr> inputs{std::forward<Args>(args)...};
-  //   return operator()(inputs);
-  // }
-
-  // TVM_DLL TensorIntrinCall operator()(Array<Expr> inputs) const;
-
   /*! \brief specify container node */
   using ContainerType = TensorIntrinNode;
 };

@@ -186,6 +186,8 @@ class TensorComputeOpNode : public OperationNode {
  public:
   Array<IterVar> axis;
 
+  Array<IterVar> out_axis;
+
   Array<IterVar> tensor_axis;
 
   Array<IterVar> reduce_axis;
@@ -229,6 +231,7 @@ class TensorComputeOpNode : public OperationNode {
     v->Visit("name", &name);
     v->Visit("tag", &tag);
     v->Visit("axis", &axis);
+    v->Visit("out_axis", &out_axis);
     v->Visit("tensor_axis", &tensor_axis);
     v->Visit("reduce_axis", &reduce_axis);
     v->Visit("inputs", &inputs);
@@ -236,13 +239,13 @@ class TensorComputeOpNode : public OperationNode {
 
   static Operation make(std::string name,
                         std::string tag,
-                        Array<IterVar> axis,
+                        Array<IterVar> out_axis,
                         Array<IterVar> tensor_axis,
                         TensorIntrinCall intrin_call);
 
   static Operation make(std::string name,
                         std::string tag,
-                        Array<IterVar> axis,
+                        Array<IterVar> out_axis,
                         Array<IterVar> tensor_axis,
                         Array<IterVar> reduce_axis,
                         Array<Tensor> tensors,

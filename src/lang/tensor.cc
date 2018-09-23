@@ -37,12 +37,6 @@ Tensor Operation::output(size_t i) const {
   return Tensor(node);
 }
 
-// TensorIntrinCall TensorIntrin::operator()(Array<Expr> inputs) const {
-//   using HalideIR::Internal::Call;
-//   LOG(FATAL) << "CallTensorIntrin";
-//   CHECK_EQ(tensors.size(), regions.size());
-// }
-
 Tensor TensorNode::make(Array<Expr> shape,
                         Type dtype,
                         Operation op,

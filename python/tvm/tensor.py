@@ -162,6 +162,12 @@ class ComputeOp(Operation):
 
 
 @register_node
+class TensorComputeOp(Operation):
+    """Tensor operation."""
+    pass
+
+
+@register_node
 class ScanOp(Operation):
     """Scan operation."""
     @property
@@ -173,10 +179,4 @@ class ScanOp(Operation):
 @register_node
 class ExternOp(Operation):
     """Extern operation."""
-    pass
-
-
-@register_node
-class TensorComputeOp(Operation):
-    """Tensor operation."""
     pass

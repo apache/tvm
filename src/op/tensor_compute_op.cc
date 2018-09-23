@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \brief Compute Op.
- * \file compute_op.cc
+ * \brief Tensor Compute Op.
+ * \file tensor_compute_op.cc
  */
 #include <tvm/operation.h>
 #include <tvm/arithmetic.h>
@@ -29,7 +29,7 @@ int TensorComputeOpNode::num_outputs() const {
 }
 
 Array<IterVar> TensorComputeOpNode::root_iter_vars() const {
-  Array<IterVar> ret = axis;
+  Array<IterVar> ret = out_axis;
   for (IterVar iv : tensor_axis) {
     ret.push_back(iv);
   }
@@ -45,7 +45,7 @@ Type TensorComputeOpNode::output_dtype(size_t i) const {
 
 Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
   Array<Expr> shape;
-  for (const auto& ivar : this->axis) {
+  for (const auto& ivar : this->out_axis) {
     shape.push_back(ivar->dom->extent);
   }
   size_t index = this->inputs.size() + i;
@@ -58,12 +58,12 @@ Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
 
 Operation TensorComputeOpNode::make(std::string name,
                                     std::string tag,
-                                    Array<IterVar> axis,
+                                    Array<IterVar> out_axis,
                                     Array<IterVar> tensor_axis,
                                     TensorIntrinCall intrin_call) {
   return TensorComputeOpNode::make(name,
                                    tag,
-                                   axis,
+                                   out_axis,
                                    tensor_axis,
                                    intrin_call->reduce_axis,
                                    intrin_call->tensors,
@@ -73,7 +73,7 @@ Operation TensorComputeOpNode::make(std::string name,
 
 Operation TensorComputeOpNode::make(std::string name,
                                     std::string tag,
-                                    Array<IterVar> axis,
+                                    Array<IterVar> out_axis,
                                     Array<IterVar> tensor_axis,
                                     Array<IterVar> reduce_axis,
                                     Array<Tensor> tensors,
@@ -82,7 +82,15 @@ Operation TensorComputeOpNode::make(std::string name,
   auto n = make_node<TensorComputeOpNode>();
   n->name = name;
   n->tag = tag;
+  Array<IterVar> axis;
+  for (auto iv : out_axis) {
+    axis.push_back(iv);
+  }
+  for (auto iv : tensor_axis) {
+    axis.push_back(iv);
+  }
   n->axis = axis;
+  n->out_axis = out_axis;
   n->tensor_axis = tensor_axis;
   n->reduce_axis = reduce_axis;
   n->inputs = tensors;
@@ -148,10 +156,10 @@ void TensorComputeOpNode::GatherBound(
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   const TensorDom& tdom = tensor_dom.at(self.output(0));
-  for (size_t i = 0; i < this->axis.size(); ++i) {
-    Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
-    CHECK(!out_dom_map->count(this->axis[i]));
-    (*out_dom_map)[this->axis[i]] = r;
+  for (size_t i = 0; i < this->out_axis.size(); ++i) {
+    Range r = arith::Union(tdom.data.at(i)).cover_range(this->out_axis[i]->dom);
+    CHECK(!out_dom_map->count(this->out_axis[i]));
+    (*out_dom_map)[this->out_axis[i]] = r;
   }
   for (size_t i = 0; i < this->reduce_axis.size(); ++i) {
     CHECK(!out_dom_map->count(this->reduce_axis[i]));
@@ -165,7 +173,7 @@ Stmt TensorComputeOpNode::BuildRealize(
     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   HalideIR::Internal::Region bounds;
-  for (IterVar iv : this->axis) {
+  for (IterVar iv : this->out_axis) {
     bounds.push_back(realize_map.at(iv));
   }
   size_t out_buff_idx = this->intrin->buffers.size();
@@ -178,8 +186,8 @@ Stmt TensorComputeOpNode::BuildRealize(
     realize = ir::Realize::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
-    for (size_t i = 0; i < this->axis.size(); ++i) {
-      auto it = stage->iter_var_attrs.find(this->axis[i]);
+    for (size_t i = 0; i < this->out_axis.size(); ++i) {
+      auto it = stage->iter_var_attrs.find(this->out_axis[i]);
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
         if (attr->dim_align_factor != 0) {
@@ -224,7 +232,7 @@ ComputeLoopNest MakeLoopNest(
     for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
-    for (IterVar iv : self->axis) {
+    for (IterVar iv : self->out_axis) {
       update_state[iv] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
@@ -264,21 +272,23 @@ ComputeLoopNest MakeLoopNest(
 }
 
 
-Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
-                         const Stage& stage,
-                         const std::unordered_map<IterVar, Range>& dom_map,
-                         bool debug_keep_trivial_loop) {
+Stmt TensorComputeOpNode::BuildProvide(
+    const Stage& stage,
+    const std::unordered_map<IterVar, Range>& dom_map,
+    bool debug_keep_trivial_loop) const {
+  CHECK_EQ(stage->op.operator->(), this);
+
   // Start bind data.
   Stmt nop = Evaluate::make(0);
   std::vector<Stmt> input_bind_nest, output_bind_nest;
-  Array<Tensor> inputs = self->InputTensors();
+  Array<Tensor> inputs = this->InputTensors();
 
   // input binding
   size_t num_inputs = inputs.size();
   for (size_t i = 0; i < num_inputs; ++i) {
     Tensor tensor = inputs[i];
-    Region region = self->input_regions[i];
-    Buffer buffer = self->intrin->buffers[i];
+    Region region = this->input_regions[i];
+    Buffer buffer = this->intrin->buffers[i];
     Array<NodeRef> bind_spec{buffer, tensor};
 
     Array<Expr> tuple;
@@ -292,13 +302,13 @@ Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
   }
 
   // output binding
-  for (int i = 0; i < self->num_outputs(); ++i) {
+  for (int i = 0; i < this->num_outputs(); ++i) {
     Tensor tensor = stage->op.output(i);
-    Buffer buffer = self->intrin->buffers[num_inputs + i];
+    Buffer buffer = this->intrin->buffers[num_inputs + i];
     Array<NodeRef> bind_spec{buffer, tensor};
 
     Array<Expr> tuple;
-    for (const IterVar ivar : self->axis) {
+    for (const IterVar ivar : this->out_axis) {
       tuple.push_back(ivar->var);
       tuple.push_back(1);
     }
@@ -317,16 +327,16 @@ Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
   ir::ArgBinder binder(&vmap);
 
   size_t tloc = stage->leaf_iter_vars.size();
-  ComputeLoopNest n = MakeLoopNest(self, stage, dom_map, debug_keep_trivial_loop);
+  ComputeLoopNest n = MakeLoopNest(this, stage, dom_map, debug_keep_trivial_loop);
 
-  if (self->reduce_axis.size() == 0) {
+  if (this->reduce_axis.size() == 0) {
     std::vector<std::vector<Stmt> > nest(
         n.main_nest.begin(), n.main_nest.begin() + tloc + 1);
     nest.emplace_back(op::MakeIfNest(n.main_predicates));
     CHECK_EQ(n.init_predicates.size(), 0U);
-    CHECK(self->intrin->body.defined())
-        << "Normal store op for intrin " << self << " is not defined";
-    Stmt body = MergeNest(output_bind_nest, self->intrin->body);
+    CHECK(this->intrin->body.defined())
+        << "Normal store op for intrin " << this << " is not defined";
+    Stmt body = MergeNest(output_bind_nest, this->intrin->body);
     body = MergeNest(input_bind_nest, body);
     body = ir::Substitute(body, vmap);
     body = MergeNest(binder.asserts(), body);
@@ -335,26 +345,26 @@ Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
     return ret;
   } else {
     // Need to split reduction
-    CHECK(self->intrin->reduce_update.defined())
+    CHECK(this->intrin->reduce_update.defined())
         << "Reduction update op is not defined";
     // Need init and update steps
-    CHECK_NE(self->reduce_axis.size(), 0U);
+    CHECK_NE(this->reduce_axis.size(), 0U);
     std::vector<std::vector<Stmt> > common(
         n.main_nest.begin(), n.main_nest.begin() + n.num_common_loop + 1);
     std::vector<std::vector<Stmt> > update_nest(
         n.main_nest.begin() + n.num_common_loop + 1, n.main_nest.begin() + tloc + 1);
     update_nest.emplace_back(op::MakeIfNest(n.main_predicates));
 
-    if (self->intrin->reduce_init.defined()) {
+    if (this->intrin->reduce_init.defined()) {
       // init nest
       std::vector<std::vector<Stmt> > init_nest(
           n.init_nest.begin(), n.init_nest.begin() + tloc + 1);
       init_nest.emplace_back(op::MakeIfNest(n.init_predicates));
-      Stmt init = MergeNest(output_bind_nest, self->intrin->reduce_init);
+      Stmt init = MergeNest(output_bind_nest, this->intrin->reduce_init);
       init = op::Substitute(init, n.init_vmap);
       init = MergeNest(init_nest, init);
       // The update
-      Stmt update = MergeNest(output_bind_nest, self->intrin->reduce_update);
+      Stmt update = MergeNest(output_bind_nest, this->intrin->reduce_update);
       update = MergeNest(input_bind_nest, update);
       update = ir::Substitute(update, vmap);
       update = MergeNest(binder.asserts(), update);
@@ -363,11 +373,11 @@ Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
       return MergeNest(common, Block::make(init, update));
     } else {
       // When init op is not available, use body op for reset in the first iter.
-      CHECK(self->intrin->body.defined())
+      CHECK(this->intrin->body.defined())
           << "Normal body op is not defined";
       Stmt update = TransformUpdate(stage, dom_map, n,
-                                    self->intrin->body,
-                                    self->intrin->reduce_update);
+                                    this->intrin->body,
+                                    this->intrin->reduce_update);
       update = MergeNest(output_bind_nest, update);
       update = MergeNest(input_bind_nest, update);
       update = ir::Substitute(update, vmap);
@@ -377,16 +387,6 @@ Stmt MakeTensorComputeOp(const TensorComputeOpNode* self,
       return MergeNest(common, update);
     }
   }
-}
-
-
-Stmt TensorComputeOpNode::BuildProvide(
-    const Stage& stage,
-    const std::unordered_map<IterVar, Range>& dom_map,
-    bool debug_keep_trivial_loop) const {
-  CHECK_EQ(stage->op.operator->(), this);
-  Stmt ret = MakeTensorComputeOp(this, stage, dom_map, debug_keep_trivial_loop);
-  return ret;
 }
 
 }  // namespace tvm

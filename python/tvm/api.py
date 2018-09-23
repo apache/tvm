@@ -3,7 +3,6 @@
 from __future__ import absolute_import as _abs
 
 from numbers import Integral as _Integral
-from collections import namedtuple
 
 from ._ffi.base import string_types
 from ._ffi.node import register_node, NodeBase
@@ -244,6 +243,8 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.current.tag
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    # for python3
+    shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     ndim = len(shape)
     code = fcompute.__code__
 
@@ -254,7 +255,6 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         arg_names = code.co_varnames[:code.co_argcount]
         out_ndim = code.co_argcount
 
-    # TODO check ndim, arg_names
     if out_ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
@@ -264,8 +264,8 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     if isinstance(body, _tensor.TensorIntrinCall):
         tensor_var = []
         for i, s in enumerate(shape[out_ndim:]):
-            name = "ax" + str(i)
-            tensor_var.append(_IterVar((0, s), name, 4))
+            var_name = "ax" + str(i)
+            tensor_var.append(_IterVar((0, s), var_name, 4))
         op_node = _api_internal._TensorComputeOp(name,
                                                  tag,
                                                  dim_var,
@@ -275,7 +275,6 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
         if not isinstance(body, (list, tuple)):
             body = [body]
         body = convert(body)
-        # print('body: {0}'.format(body))
         op_node = _api_internal._ComputeOp(
             name, tag, attrs, dim_var, body)
 
@@ -351,88 +350,6 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
                                state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
-
-
-def _get_region(tslice):
-    region = []
-    for idx in tslice.indices:
-        if isinstance(idx, slice):
-            assert idx.step is None
-            region.append(Range(idx.start, idx.stop))
-        else:
-            if isinstance(idx, _schedule.IterVar):
-                begin = idx.var
-            else:
-                begin = idx
-            region.append(_make.range_by_min_extent(begin, 1))
-    return region
-
-
-# def tensor_op(out_dims,
-#               in_dims,  # pylint: disable=unused-argument
-#               finputs,
-#               intrin,
-#               raxis=None,
-#               name='tensor_op',
-#               tag=""):
-#     """Construct new tensors with intrinsic.
-#
-#     Parameters
-#     ----------
-#     out_dims: tuple
-#         The dimensions out of the tensorized region, which can be
-#     scheduled through `reorder`, `split`.
-#
-#     in_dims: tuple
-#         The dimensions inside of the tensorized region, which cannot
-#     be manipulated.
-#
-#     finputs: lambda function of out_dims -> list of TensorSlice
-#         Specifies involved regions of input tensors.
-#
-#     tensor_intrin : TensorIntrin
-#         The tensor intrinsic used for computation.
-#
-#     raxis : IterVar
-#         An iteration variable representing the value.
-#
-#     name: str, optional
-#         The name hint of the tensor
-#
-#     tag: str, optional
-#         Additonal tag information about the compute.
-#     """
-#     if _tag.TagScope.current is not None:
-#         if tag != "":
-#             raise ValueError("nested tag is not allowed for now")
-#         tag = _tag.TagScope.current.tag
-#
-#     code = finputs.__code__
-#     if finputs.__code__.co_argcount == 0:
-#         arg_names = ["i%d" % i for i in range(ndim)]
-#     else:
-#         arg_names = code.co_varnames[:code.co_argcount]
-#
-#     if len(out_dims) != len(arg_names):
-#         raise ValueError("finputs do not match dimension, ndim=%d" % out_dims)
-#
-#     out_var = [_IterVar((0, extent), arg_name, 0)
-#                for arg_name, extent in zip(arg_names, out_dims)]
-#     if isinstance(raxis, _schedule.IterVar):
-#         raxis = [raxis]
-#     if raxis is None:
-#         raxis = []
-#     tensor_regions = finputs(*[v.var for v in out_var])
-#
-#     op = _api_internal._TensorOp(name,
-#                                  tag,
-#                                  out_var,
-#                                  raxis,
-#                                  [x.tensor for x in tensor_regions],
-#                                  [_get_region(x) for x in tensor_regions],
-#                                  intrin)
-#     # only support single output
-#     return op.output(0)
 
 
 def extern(shape,

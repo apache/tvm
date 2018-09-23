@@ -6,8 +6,24 @@ from . import expr as _expr
 from . import stmt as _stmt
 from . import make as _make
 from . import tensor as _tensor
+from . import schedule as _schedule
 from .build_module import current_build_config
 from ._ffi.node import NodeBase, register_node
+
+
+def _get_region(tslice):
+    region = []
+    for idx in tslice.indices:
+        if isinstance(idx, slice):
+            assert idx.step is None
+            region.append(_api.Range(idx.start, idx.stop))
+        else:
+            if isinstance(idx, _schedule.IterVar):
+                begin = idx.var
+            else:
+                begin = idx
+            region.append(_make.range_by_min_extent(begin, 1))
+    return region
 
 @register_node
 class TensorIntrin(NodeBase):
@@ -19,7 +35,7 @@ class TensorIntrin(NodeBase):
     """
     def __call__(self, *args, **kwargs):
         tensors = [x.tensor for x in args]
-        regions = [_api._get_region(x) for x in args]
+        regions = [_get_region(x) for x in args]
         reduce_axis = []
         if "reduce_axis" in kwargs:
             reduce_axis = kwargs["reduce_axis"]

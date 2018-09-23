@@ -135,30 +135,29 @@ Tensor Schedule::cache_read(const Tensor& tensor,
   return cache;
 }
 
+template<typename OpType>
+void PrepareAxisMapping(Stage orig_stage,
+                        OpType* op,
+                        std::unordered_set<IterVar>* p_red_axis,
+                        Array<IterVar>* p_new_axis,
+                        std::unordered_map<IterVar, Range>* p_dom_map,
+                        std::unordered_map<const Variable*, Expr>* p_vsub,
+                        std::unordered_map<const Variable*, Expr>* p_vsub2newvar,
+                        std::vector<Expr>* p_predicates) {
+  auto& red_axis = *p_red_axis;
+  auto& new_axis = *p_new_axis;
+  auto& dom_map = *p_dom_map;
+  auto& vsub = *p_vsub;
+  auto& vsub2newvar = *p_vsub2newvar;
+  auto& predicates = *p_predicates;
 
-// for tensor_op
-Array<Tensor> CacheWriteWithReLayoutForTensorComputeOp(Schedule sch,
-                              const Array<Tensor>& tensor_array,
-                              const std::string& scope) {
-  size_t tensor_size = tensor_array.size();
-  sch->InvalidateCache();
-  Tensor tensor = tensor_array[0];
-  Stage orig_stage = sch[tensor->op];
-  const TensorComputeOpNode* tensor_op = orig_stage->op.as<TensorComputeOpNode>();
-  std::unordered_set<IterVar> red_axis;
-  for (IterVar iv : tensor_op->reduce_axis) {
+  for (IterVar iv : op->reduce_axis) {
     red_axis.insert(iv);
   }
-  std::unordered_map<IterVar, Range> dom_map;
-  Array<IterVar> new_axis;
-
-  for (IterVar iv : tensor_op->root_iter_vars()) {
+  for (IterVar iv : op->axis) {
     dom_map[iv] = iv->dom;
   }
   schedule::PassDownDomain(orig_stage, &dom_map, true);
-  std::unordered_map<const Variable*, Expr> vsub;
-  std::unordered_map<const Variable*, Expr> vsub2newvar;
-  std::vector<Expr> predicates;
   {
     // The source->cache
     std::unordered_map<IterVar, Expr> value_map;
@@ -171,7 +170,7 @@ Array<Tensor> CacheWriteWithReLayoutForTensorComputeOp(Schedule sch,
           dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
       new_axis.push_back(new_iv);
       if (is_one(dom->min)) {
-        value_map[iv] = dom->extent;
+        value_map[iv] = dom->min;
       } else {
         value_map[iv] = iv->var;
         vsub2newvar[iv->var.get()] = new_iv->var;
@@ -179,75 +178,32 @@ Array<Tensor> CacheWriteWithReLayoutForTensorComputeOp(Schedule sch,
     }
     // skip reduction iteration.
     std::unordered_set<IterVar> skip_bound_check;
-    for (IterVar iv : tensor_op->reduce_axis) {
+    for (IterVar iv : op->reduce_axis) {
       skip_bound_check.insert(iv);
     }
     schedule::PassUpIndex(orig_stage, dom_map, &value_map, true);
     predicates = schedule::MakeBoundCheck(
         orig_stage, dom_map, value_map, true, skip_bound_check);
     // The root axis
-    for (IterVar iv : tensor_op->axis) {
-      vsub[iv->var.get()] = value_map.at(iv);
+    for (IterVar iv : op->axis) {
+      if (value_map.count(iv)) {
+        vsub[iv->var.get()] = value_map.at(iv);
+      }  // to handle tensor axis
     }
   }
+}
 
-  Array<Region> new_regions;
-  for (Region old_region : tensor_op->input_regions) {
-    Region region;
-    for (Range r : old_region) {
-      Expr min = VarReplacer(vsub2newvar).Mutate(r->min);
-      Expr extent = VarReplacer(vsub2newvar).Mutate(r->extent);
-      region.push_back(Range::make_by_min_extent(min, extent));
-    }
-    new_regions.push_back(region);
-  }
-
-  Operation cache_op = TensorComputeOpNode::make(
-      tensor_op->name + "." + scope, tensor_op->tag, new_axis,
-      tensor_op->reduce_axis, tensor_op->tensor_axis,
-      tensor_op->inputs, new_regions, tensor_op->intrin);
-
-  // axis will be used in generating compute op
-  Array<IterVar> compute_axis = tensor_op->axis;
-  for (IterVar iv : tensor_op->tensor_axis) {
-    // new tensor axis with kDataPar IterVar type
-    IterVar aiv = IterVarNode::make(iv->dom, iv->var, kDataPar);
-    compute_axis.push_back(aiv);
-  }
-
-  // The reader args
-  Array<Expr> args;
-  {
-    // cache->compute
-    std::unordered_map<IterVar, Expr> value_map;
-    for (IterVar iv : compute_axis) {
-      value_map[iv] = iv->var;
-    }
-    schedule::PassDownIndex(orig_stage, dom_map, &value_map, true);
-    for (IterVar iv : orig_stage->leaf_iter_vars) {
-      if (red_axis.count(iv)) continue;
-      args.push_back(value_map.at(iv));
-    }
-    // tensorized region axis
-    for (size_t i = 0; i < tensor_op->tensor_axis.size(); ++i) {
-      IterVar iv = compute_axis[tensor_op->axis.size() + i];
-      args.push_back(value_map.at(iv));
-    }
-  }
-
+Array<Tensor> ReplaceOriginalOp(Schedule sch,
+                                Stage orig_stage,
+                                const std::string& scope,
+                                Operation cache_op,
+                                Operation orig_new_op,
+                                size_t tensor_size) {
   Array<Tensor> cache_tensor_list;
-  Array<Expr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
     cache_tensor_list.push_back(cache_tensor);
-    cache_expr_list.push_back(cache_tensor(args));
   }
-
-  Operation orig_new_op = ComputeOpNode::make(
-      tensor_op->name, tensor_op->tag, {},
-      compute_axis, cache_expr_list);
-
-
   // The replace of the dataflow
   std::unordered_map<Tensor, Tensor> vmap;
   std::unordered_map<Tensor, Tensor> rvmap;
@@ -283,61 +239,24 @@ Array<Tensor> CacheWriteWithReLayoutForTensorComputeOp(Schedule sch,
 
 // Cache write and relayout the data according to loop pattern
 Array<Tensor> CacheWriteWithReLayout(Schedule sch,
-                              const Array<Tensor>& tensor_array,
-                              const std::string& scope) {
+                                     const Array<Tensor>& tensor_array,
+                                     const std::string& scope) {
   size_t tensor_size = tensor_array.size();
   sch->InvalidateCache();
   Tensor tensor = tensor_array[0];
   Stage orig_stage = sch[tensor->op];
-  if (!strcmp(orig_stage->op->type_key(), "TensorComputeOp")) {
-    return CacheWriteWithReLayoutForTensorComputeOp(sch, tensor_array, scope);
-  }
   const ComputeOpNode* compute = orig_stage->op.as<ComputeOpNode>();
-  std::unordered_set<IterVar> red_axis;
-  for (IterVar iv : compute->reduce_axis) {
-    red_axis.insert(iv);
-  }
-  std::unordered_map<IterVar, Range> dom_map;
-  Array<IterVar> new_axis;
 
-  for (IterVar iv : compute->axis) {
-    dom_map[iv] = iv->dom;
-  }
-  schedule::PassDownDomain(orig_stage, &dom_map, true);
+  std::unordered_set<IterVar> red_axis;
+  Array<IterVar> new_axis;
+  std::unordered_map<IterVar, Range> dom_map;
+
   std::unordered_map<const Variable*, Expr> vsub;
   std::unordered_map<const Variable*, Expr> vsub2newvar;
   std::vector<Expr> predicates;
-  {
-    // The source->cache
-    std::unordered_map<IterVar, Expr> value_map;
-    for (IterVar iv : orig_stage->leaf_iter_vars) {
-      if (red_axis.count(iv)) continue;
-      CHECK_EQ(iv->iter_type, kDataPar)
-          << "Can only relayout with in data parallel dimensions";
-      Range dom = dom_map.at(iv);
-      IterVar new_iv = IterVarNode::make(
-          dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
-      new_axis.push_back(new_iv);
-      if (is_one(dom->min)) {
-        value_map[iv] = dom->min;
-      } else {
-        value_map[iv] = iv->var;
-        vsub2newvar[iv->var.get()] = new_iv->var;
-      }
-    }
-    // skip reduction iteration.
-    std::unordered_set<IterVar> skip_bound_check;
-    for (IterVar iv : compute->reduce_axis) {
-      skip_bound_check.insert(iv);
-    }
-    schedule::PassUpIndex(orig_stage, dom_map, &value_map, true);
-    predicates = schedule::MakeBoundCheck(
-        orig_stage, dom_map, value_map, true, skip_bound_check);
-    // The root axis
-    for (IterVar iv : compute->axis) {
-      vsub[iv->var.get()] = value_map.at(iv);
-    }
-  }
+
+  PrepareAxisMapping(orig_stage, compute,
+    &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar, &predicates);
 
   Expr body;
   Array<Expr> body_list;
@@ -383,46 +302,98 @@ Array<Tensor> CacheWriteWithReLayout(Schedule sch,
   Operation cache_op = ComputeOpNode::make(
       compute->name + "." + scope, compute->tag, compute->attrs,
       new_axis, body_list);
-  Array<Tensor> cache_tensor_list;
+
   Array<Expr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
     Tensor cache_tensor = cache_op.output(i);
-    cache_tensor_list.push_back(cache_tensor);
     cache_expr_list.push_back(cache_tensor(args));
   }
   Operation orig_new_op = ComputeOpNode::make(
       compute->name, compute->tag, compute->attrs,
       compute->axis, cache_expr_list);
-  // The replace of the dataflow
-  std::unordered_map<Tensor, Tensor> vmap;
-  std::unordered_map<Tensor, Tensor> rvmap;
-  vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
-  rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+  return ReplaceOriginalOp(sch, orig_stage, scope,
+    cache_op, orig_new_op, tensor_size);
+}
+
+
+// for tensor compute op
+Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
+                                           const Array<Tensor>& tensor_array,
+                                           const std::string& scope) {
+  size_t tensor_size = tensor_array.size();
+  sch->InvalidateCache();
+  Tensor tensor = tensor_array[0];
+  Stage orig_stage = sch[tensor->op];
+  const TensorComputeOpNode* tensor_op = orig_stage->op.as<TensorComputeOpNode>();
+  CHECK_EQ(tensor_op->num_outputs(), 1)
+      << "cache write only support single output tensor_compute_op";
+
+  std::unordered_set<IterVar> red_axis;
+  Array<IterVar> new_axis;
+  std::unordered_map<IterVar, Range> dom_map;
+
+  std::unordered_map<const Variable*, Expr> vsub;
+  std::unordered_map<const Variable*, Expr> vsub2newvar;
+  std::vector<Expr> predicates;
+
+  PrepareAxisMapping(orig_stage, tensor_op,
+    &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar, &predicates);
+
+
+  Array<Region> new_regions;
+  for (Region old_region : tensor_op->input_regions) {
+    Region region;
+    for (Range r : old_region) {
+      Expr min = VarReplacer(vsub2newvar).Mutate(r->min);
+      Expr extent = VarReplacer(vsub2newvar).Mutate(r->extent);
+      region.push_back(Range::make_by_min_extent(min, extent));
+    }
+    new_regions.push_back(region);
+  }
+
+  Operation cache_op = TensorComputeOpNode::make(
+      tensor_op->name + "." + scope, tensor_op->tag, new_axis,
+      tensor_op->tensor_axis, tensor_op->reduce_axis,
+      tensor_op->inputs, new_regions, tensor_op->intrin);
+
+  // axis will be used in generating compute op
+  Array<IterVar> compute_axis = tensor_op->out_axis;
+  for (IterVar iv : tensor_op->tensor_axis) {
+    // new tensor axis with kDataPar IterVar type
+    IterVar aiv = IterVarNode::make(iv->dom, iv->var, kDataPar);
+    compute_axis.push_back(aiv);
+  }
+
+  // The reader args
+  Array<Expr> args;
+  {
+    // cache->compute
+    std::unordered_map<IterVar, Expr> value_map;
+    for (IterVar iv : compute_axis) {
+      value_map[iv] = iv->var;
+    }
+    schedule::PassDownIndex(orig_stage, dom_map, &value_map, true);
+    for (IterVar iv : orig_stage->leaf_iter_vars) {
+      if (red_axis.count(iv)) continue;
+      args.push_back(value_map.at(iv));
+    }
+    // tensorized region axis
+    for (size_t i = 0; i < tensor_op->tensor_axis.size(); ++i) {
+      IterVar iv = compute_axis[tensor_op->out_axis.size() + i];
+      args.push_back(value_map.at(iv));
+    }
+  }
+
+  Array<Expr> cache_expr_list;
   for (size_t i = 0; i < tensor_size; i++) {
-    vmap[orig_stage->op.output(0)] = orig_new_op.output(0);
-    rvmap[orig_new_op.output(0)] = orig_stage->op.output(0);
+    Tensor cache_tensor = cache_op.output(i);
+    cache_expr_list.push_back(cache_tensor(args));
   }
-  ReplaceDataFlow(sch->stages, &vmap, &rvmap);
-  // mutate orig stage
-  orig_stage->op = orig_new_op;
-  orig_stage->all_iter_vars = orig_stage->op->root_iter_vars();
-  orig_stage->leaf_iter_vars = orig_stage->all_iter_vars;
-  orig_stage->relations = Array<IterVarRelation>();
-  // create schedule for new cached stage.
-  ArrayNode* stages = sch->stages.CopyOnWrite();
-  size_t pos = FindNodeRef(stages, orig_stage);
-  Stage cache_stage = Stage(cache_op);
-  cache_stage.set_scope(scope);
-  CHECK_LT(pos, stages->data.size());
-  stages->data.insert(stages->data.begin() + pos,
-                      cache_stage.node_);
-  sch->stage_map.Set(cache_op, cache_stage);
-  // Update group
-  cache_stage->group = orig_stage->group;
-  if (cache_stage->group.defined()) {
-    ++cache_stage->group->num_child_stages;
-  }
-  return cache_tensor_list;
+  Operation orig_new_op = ComputeOpNode::make(
+      tensor_op->name, tensor_op->tag, {},
+      compute_axis, cache_expr_list);
+  return ReplaceOriginalOp(sch, orig_stage, scope,
+    cache_op, orig_new_op, tensor_size);
 }
 
 
@@ -441,22 +412,25 @@ Array<Tensor> Schedule::cache_write(const Array<Tensor>& tensor_array,
     CHECK(orig_stage.same_as(tmp_stage))
         << "Input tensor list must be generated by ONE computeOp";
   }
-
   return CacheWriteWithReLayout(*this, tensor_array, scope);
 }
 
+
 Tensor Schedule::cache_write(const Tensor& tensor,
                              const std::string& scope) {
+  // support original compute and tensor compute both
   (*this)->InvalidateCache();
-  Stage orig_stage = operator[](tensor->op);
-  // const ComputeOpNode* compute = tensor->op.as<ComputeOpNode>();
-  // CHECK(compute)
-  //     << "cache write only take ComputeOp as writers";
-  // CHECK_EQ(compute->num_outputs(), 1)
-  //     << "cache write only support single output ComputeOp";
-
-  return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
+  const char* type_key = tensor->op->type_key();
+  if (!strcmp(type_key, "ComputeOp")) {
+    return (CacheWriteWithReLayout(*this, {tensor}, scope))[0];
+  } else if (!strcmp(type_key, "TensorComputeOp")) {
+    return (CacheWriteWithReLayoutTensor(*this, {tensor}, scope))[0];
+  } else {
+    LOG(FATAL) << "cache write only take ComputeOp or TensorComputeOp as writers";
+    return Tensor();
+  }
 }
+
 
 void RebaseNonZeroMinLoop(const Schedule& sch) {
   std::unordered_map<IterVar, IterVar> rebase_map;
