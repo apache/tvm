@@ -1,5 +1,5 @@
 # CI docker GPU env
-FROM nvidia/cuda:8.0-cudnn7-devel
+FROM nvidia/cuda:9.0-cudnn7-devel
 
 # Base scripts
 RUN apt-get update --fix-missing
@@ -61,6 +61,9 @@ RUN pip3 install Pillow
 
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
+
+COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
+RUN bash /install/ubuntu_install_tensorflow.sh
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
