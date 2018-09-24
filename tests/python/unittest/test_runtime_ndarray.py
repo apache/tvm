@@ -35,5 +35,26 @@ def test_nd_create():
         ctx.sync()
 
 
+def test_fp16_conversion():
+    n = 100
+
+    for (src, dst) in [('float32', 'float16'), ('float16', 'float32')]:
+        A = tvm.placeholder((n,), dtype=src)
+        B = tvm.compute((n,), lambda i: A[i].astype(dst))
+
+        s = tvm.create_schedule([B.op])
+        func = tvm.build(s, [A, B], 'llvm')
+
+        x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)
+        y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50)
+
+        func(x_tvm, y_tvm)
+
+        expected = x_tvm.asnumpy().astype(dst)
+        real = y_tvm.asnumpy()
+
+        np.testing.assert_allclose(expected, real)
+
 if __name__ == "__main__":
     test_nd_create()
+    test_fp16_conversion()
