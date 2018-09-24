@@ -1,5 +1,7 @@
 enclave {
     from "sgx_tstdc.edl" import *;
+    from "sgx_stdio.edl" import *;
+    from "sgx_backtrace.edl" import *;
 
     trusted {
         public void tvm_ecall_init([isptr, user_check] TVMRetValueHandle ret);
