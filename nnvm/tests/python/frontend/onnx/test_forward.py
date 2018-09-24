@@ -680,6 +680,38 @@ def test_forward_arg_min_max():
             verify_argmin([3,4,4], axis, keepdims)
             verify_argmax([3,4,4], axis, keepdims)
 
+def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
+    input_a = np.random.uniform(size=input_dim).astype(dtype)
+    out = np.empty(shape=out_dim, dtype=dtype)
+    out.fill(value)
+
+    if is_shape == True:
+        fill_node = helper.make_node("ConstantFill", [], ["out"], shape=input_dim, value=value, **kwargs)
+    else:
+        fill_node = helper.make_node("ConstantFill", ["input_a"], ["out"], value=value, dtype=dtype, **kwargs)
+
+    graph = helper.make_graph([fill_node],
+                              "fill_test",
+                              inputs = [helper.make_tensor_value_info("input_a",
+                                            TensorProto.FLOAT, list(input_dim))],
+                              outputs = [helper.make_tensor_value_info("out",
+                                            TensorProto.FLOAT, list(out.shape))])
+
+    model = helper.make_model(graph, producer_name='fill_test')
+
+    for target, ctx in ctx_list():
+        if is_shape == True:
+            tvm_out = get_tvm_output(model, [], target, ctx, out.shape)
+        else:
+            tvm_out = get_tvm_output(model, [input_a], target, ctx, out.shape)
+
+        np.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_constantfill():
+    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
+    verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
+    verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -704,3 +736,4 @@ if __name__ == '__main__':
     test_forward_hardsigmoid()
     test_forward_arg_min_max()
     test_softmax()
+    test_constantfill()
