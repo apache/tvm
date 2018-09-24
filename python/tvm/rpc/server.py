@@ -411,7 +411,10 @@ class Server(object):
                 self.proc = None
         else:
             if self.proc:
-                self.proc.terminate()
+                if self.proc.is_alive():
+                    self.proc.join(1)
+                if self.proc.is_alive():
+                    self.proc.terminate()
                 self.proc = None
 
     def __del__(self):

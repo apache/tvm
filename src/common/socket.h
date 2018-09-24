@@ -159,6 +159,8 @@ class Socket {
       if (bind(sockfd, reinterpret_cast<sockaddr*>(&addr.addr),
                sizeof(addr.addr)) == 0) {
         return port;
+      } else {
+        LOG(WARNING) << "Bind failed to  " << host << ":" << port;
       }
 #if defined(_WIN32)
       if (WSAGetLastError() != WSAEADDRINUSE) {

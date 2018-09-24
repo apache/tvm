@@ -176,6 +176,7 @@ def _test_rpc_remote_module(cpp_server=False):
 
     check_remote(client)
     check_remote(rpc.LocalSession())
+    server.terminate()
 
 def test_rpc_remote_module():
     _test_rpc_remote_module(cpp_server=True)

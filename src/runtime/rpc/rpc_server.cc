@@ -8,6 +8,7 @@
 
 #if defined(__linux__)
 #include <sys/select.h>
+#include <sys/wait.h>
 #endif
 #include <set>
 #include <iostream>
@@ -249,18 +250,29 @@ void ListenLoopProc(common::TCPSocket sock,
           LOG(FATAL) << "Exception standard: " << e.what();
     }
 
-    // step 3: serving
-    std::future<void> server_proc(std::async(std::launch::async, ServerLoopProc, conn, addr));
-    // wait until server process finish or timeout
-    int timeout = GetTimeOutFromOpts(opts);
-    if (timeout) {
-      // Autoterminate after timeout
-      server_proc.wait_for(std::chrono::seconds(timeout));
-    } else {
-      // Wait for the result
-      server_proc.get();
-    }
+    #if defined(__linux__) || defined(__ANDROID__)
+      // step 3: serving
+      int timeout = GetTimeOutFromOpts(opts);
+      auto pid = fork();
+      if (pid == 0) {
+        ServerLoopProc(conn, addr);
+        return;
+      }
+      // wait until server process finish or timeout
+      if (timeout) {
+        sleep(timeout);
+        kill(pid, SIGTERM);  // Terminate after timeout
+      } else {
+        // Wait for the result
+        int status = 0;
+        wait(&status);
+        LOG(INFO) << "Child pid=" << pid << " exited, Process status =" << status;
+      }
+    #else
+      LOG(FATAL) << "Only support RPC in linux environment";
+    #endif
     // close from our side.
+    LOG(INFO) << "Socket Connection Closed";
     conn.Close();
   }
 }

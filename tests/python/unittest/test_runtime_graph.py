@@ -3,6 +3,7 @@ import numpy as np
 import json
 from tvm import rpc
 from tvm.contrib import util, graph_runtime
+import time
 
 def test_graph_simple():
     n = 4
@@ -64,6 +65,8 @@ def test_graph_simple():
         out = tvm.nd.empty((n,), ctx=ctx)
         out = mod.get_output(0, out)
         np.testing.assert_equal(out.asnumpy(), a + 1)
+        time.sleep(1)
+        server.terminate()
 
     check_verify()
     check_remote()
