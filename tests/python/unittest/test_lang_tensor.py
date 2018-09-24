@@ -104,9 +104,9 @@ def test_tensor_compute1():
 
     vadd = intrin_vadd(factor)
 
-    A = tvm.placeholder((m/factor, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((m/factor, factor), name="B", dtype=dtype)
-    C = tvm.compute((m/factor, factor),
+    A = tvm.placeholder((m//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((m//factor, factor), name="B", dtype=dtype)
+    C = tvm.compute((m//factor, factor),
           lambda i: vadd(A[i, 0:factor], B[i, 0:factor]))
 
     s = tvm.create_schedule(C.op)
@@ -146,10 +146,10 @@ def test_tensor_compute2():
 
     vgemm = intrin_gemm(factor1, factor2, factor)
 
-    A = tvm.placeholder((M/factor1, L/factor, factor1, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((N/factor2, L/factor, factor2, factor), name="B", dtype=dtype)
-    k = tvm.reduce_axis((0, L/factor), name='k')
-    C = tvm.compute((M/factor1, N/factor2, factor1, factor2),
+    A = tvm.placeholder((M//factor1, L//factor, factor1, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((N//factor2, L//factor, factor2, factor), name="B", dtype=dtype)
+    k = tvm.reduce_axis((0, L//factor), name='k')
+    C = tvm.compute((M//factor1, N//factor2, factor1, factor2),
           lambda i, j: vgemm(A[i, k, 0:factor1, 0:factor], B[j, k, 0:factor2, 0:factor], reduce_axis=k))
 
     s = tvm.create_schedule(C.op)

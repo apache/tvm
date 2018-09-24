@@ -311,12 +311,12 @@ def test_schedule_tensor_compute1():
     # basic: split, reorder, tile
     M, N, L = 2048, 1024, 512
     factor, rfactor = 16, 16
-    A = tvm.placeholder((N/factor, L/rfactor, factor, rfactor), name='A')
-    B = tvm.placeholder((M, L/rfactor, rfactor), name='B')
-    k = tvm.reduce_axis((0, L/rfactor), name='k')
+    A = tvm.placeholder((N//factor, L//rfactor, factor, rfactor), name='A')
+    B = tvm.placeholder((M, L//rfactor, rfactor), name='B')
+    k = tvm.reduce_axis((0, L//rfactor), name='k')
 
     gemv = intrin_gemv(factor, rfactor)
-    C = tvm.compute((N, M/factor, factor),
+    C = tvm.compute((N, M//factor, factor),
         lambda i, j: gemv(A[i, k, 0:factor, 0:factor], B[j, k, 0:rfactor], reduce_axis=k),
         name='C')
 
@@ -369,11 +369,11 @@ def test_schedule_tensor_compute2():
     dtype = 'float32'
     scope_ubuf = 'local'
 
-    A = tvm.placeholder((M/factor, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((M/factor, factor), name="B", dtype=dtype)
+    A = tvm.placeholder((M//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((M//factor, factor), name="B", dtype=dtype)
 
     vadd = intrin_vadd(factor, True, True)
-    C = tvm.compute((M/factor, factor),
+    C = tvm.compute((M//factor, factor),
         lambda i: vadd(A[i, 0:factor], B[i, 0:factor]), name='C')
 
     s = tvm.create_schedule(C.op)
@@ -390,12 +390,12 @@ def test_schedule_tensor_compute3():
     M = 1024
     factor = 16
     dtype = 'float32'
-    A = tvm.placeholder((M/factor, factor), name="A", dtype=dtype)
-    B = tvm.placeholder((M/factor, factor), name="B", dtype=dtype)
-    Bi = tvm.compute((M/factor, factor), lambda i, j: B[i, j] + 5, name="Bi")
+    A = tvm.placeholder((M//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((M//factor, factor), name="B", dtype=dtype)
+    Bi = tvm.compute((M//factor, factor), lambda i, j: B[i, j] + 5, name="Bi")
 
     vadd = intrin_vadd(factor)
-    C = tvm.compute((M/factor, factor),
+    C = tvm.compute((M//factor, factor),
         lambda i: vadd(A[i, 0:factor], Bi[i, 0:factor]), name='C')
     s = tvm.create_schedule(C.op)
     s[Bi].compute_at(s[C], C.op.axis[0])
