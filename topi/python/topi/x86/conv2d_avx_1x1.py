@@ -3,12 +3,13 @@
 from __future__ import absolute_import as _abs
 from collections import namedtuple
 import tvm
+import topi
 
 from ..util import get_const_tuple
 from ..nn.conv2d import _get_schedule, _get_workload
 from ..nn.util import infer_pad, infer_stride
 from ..nn.pad import pad
-from .tensor_intrin import reduce_4int8_1x1
+from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 
 AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
@@ -253,16 +254,21 @@ def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
 
     # Intel performs dot product of 2 "4" Int8 values
     n_elems = 4
-    assert sch.ic_bn%4 == 0
+    assert sch.ic_bn%n_elems == 0
     ic_outer = tvm.reduce_axis((0, wkl.in_filter//(sch.ic_bn)), name='ic_outer')
     ic_f_inner = tvm.reduce_axis((0, sch.ic_bn//n_elems), name='ic_f_inner')
-    ic_s_inner = tvm.reduce_axis((0, 4), name='ic_s_inner')
+    ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+
+    # Reshaping kernel as the last 2 dimensions are 1x1 (k_h x k_w)
+    k_shape = kernel.shape
+    kernel = topi.reshape(kernel, (k_shape[0], k_shape[1], k_shape[2], k_shape[3],
+                                   k_shape[4] * k_shape[5] * k_shape[6]))
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic_outer, oh*HSTR, ow*WSTR,
                                         ic_f_inner * n_elems + ic_s_inner].astype(out_dtype) *
                                kernel[oc_chunk, ic_outer, ic_f_inner,
-                                      oc_block, ic_s_inner, 0, 0].astype(out_dtype),
+                                      oc_block, ic_s_inner].astype(out_dtype),
                                axis=[ic_outer, ic_f_inner, ic_s_inner]),
                        name='conv2d_NCHWc_int8',
                        tag="conv2d_NCHWc_int8")
@@ -323,7 +329,7 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
                   ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
     s[CC].fuse(oc_chunk, oh_outer)
 
-    pc = reduce_4int8_1x1()
+    pc = dot_16x1x16_int8_int8_int32()
     s[CC].tensorize(oc_s_inner, pc)
     s[CC].unroll(ow_inner)
     s[CC].unroll(oh_inner)
