@@ -226,16 +226,12 @@ inline Expr ElemOffset(const BufferNode* n, Array<Expr> index) {
   Expr base = n->elem_offset;
   if (n->strides.size() == 0) {
     CHECK_EQ(n->shape.size(), index.size());
-    if (n->shape.size() != 0) {
-      if (is_zero(base)) {
-        base = index[0];
-      } else {
-        base = base + index[0];
+    if (index.size() > 0) {
+      Expr offset = index[0];
+      for (size_t i = 1; i < index.size(); ++i) {
+        offset = MergeMulMod(offset * n->shape[i] + index[i]);
       }
-    }
-    base = MergeMulMod(base);
-    for (size_t i = 1; i < index.size(); ++i) {
-      base = MergeMulMod(base * n->shape[i] + index[i]);
+      base = base + offset;
     }
   } else {
     CHECK_EQ(n->strides.size(), index.size());
