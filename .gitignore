@@ -183,6 +183,7 @@ docs.tgz
 cat.png
 *.mlmodel
 tvm_u.*
+tvm_t.*
 # Mac OS X
 .DS_Store
 build*
