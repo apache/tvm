@@ -3,90 +3,17 @@ import os
 import logging
 import time
 import multiprocessing
+import json
 
 import numpy as np
 from tvm import rpc
-from tvm.contrib import util
+from tvm.contrib import util, graph_runtime
 from tvm.rpc.tracker import Tracker
-
-
-def test_bigendian_rpc():
-    """Test big endian rpc when there is a PowerPC RPC server available"""
-    host = os.environ.get("TVM_POWERPC_TEST_HOST", None)
-    port = os.environ.get("TVM_POWERPC_TEST_PORT", 9090)
-    if host is None:
-        return
-    def verify_rpc(remote, target, shape, dtype):
-        A = tvm.placeholder(shape, dtype=dtype)
-        B = tvm.compute(A.shape, lambda i: A[i]+tvm.const(1, A.dtype))
-        s = tvm.create_schedule(B.op)
-        f = tvm.build(s, [A, B], target, name="myadd")
-
-        ctx = remote.cpu(0)
-        a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), ctx=ctx)
-        b = tvm.nd.array(np.zeros(shape).astype(A.dtype), ctx=ctx)
-        temp = util.tempdir()
-        path_dso = temp.relpath("dev_lib.o")
-        f.save(path_dso)
-        remote.upload(path_dso)
-        f = remote.load_module("dev_lib.o")
-        f(a, b)
-        tvm.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
-
-    print("Test RPC connection to PowerPC...")
-    remote = rpc.connect(host, port)
-    target = "llvm -mtriple=powerpc-linux-gnu"
-    for dtype in ["float32", "float64", "int32", "int8"]:
-        verify_rpc(remote, target, (10,), dtype)
-
-
-def test_rpc_simple():
-    if not tvm.module.enabled("rpc"):
-        return
-    @tvm.register_func("rpc.test.addone")
-    def addone(x):
-        return x + 1
-    @tvm.register_func("rpc.test.strcat")
-    def strcat(name, x):
-        return "%s:%d" % (name, x)
-
-    @tvm.register_func("rpc.test.except")
-    def remotethrow(name):
-        raise ValueError("%s" % name)
-
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
-    f1 = client.get_function("rpc.test.addone")
-    assert f1(10) == 11
-    f3 = client.get_function("rpc.test.except")
-    try:
-        f3("abc")
-        assert False
-    except tvm.TVMError as e:
-        assert "abc" in str(e)
-
-    f2 = client.get_function("rpc.test.strcat")
-    assert f2("abc", 11) == "abc:11"
-
-def test_rpc_array():
-    if not tvm.module.enabled("rpc"):
-        return
-    x = np.random.randint(0, 10, size=(3, 4))
-    @tvm.register_func("rpc.test.remote_array_func")
-    def remote_array_func(y):
-        np.testing.assert_equal(y.asnumpy(), x)
-    server = rpc.Server("localhost")
-    remote = rpc.connect(server.host, server.port)
-    r_cpu = tvm.nd.array(x, remote.cpu(0))
-    assert str(r_cpu.context).startswith("remote")
-    np.testing.assert_equal(r_cpu.asnumpy(), x)
-    fremote = remote.get_function("rpc.test.remote_array_func")
-    fremote(r_cpu)
 
 def test_rpc_file_exchange():
     if not tvm.module.enabled("rpc"):
         return
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", port=9191, use_popen=True, cpp_server=True)
     remote = rpc.connect(server.host, server.port)
     blob = bytearray(np.random.randint(0, 10, size=(10)))
     remote.upload(blob, "dat.bin")
@@ -96,7 +23,7 @@ def test_rpc_file_exchange():
 def test_rpc_remote_module():
     if not tvm.module.enabled("rpc"):
         return
-    server = rpc.Server("localhost")
+    server = rpc.Server("localhost", port=9193, use_popen=True, cpp_server=True)
     client = rpc.connect(server.host, server.port)
     # graph
     n = tvm.convert(1024)
@@ -172,73 +99,7 @@ def test_rpc_remote_module():
 
     check_remote(client)
     check_remote(rpc.LocalSession())
-
-
-def test_rpc_return_func():
-    @tvm.register_func("rpc.test.remote_func")
-    def addone(x):
-        return lambda y: x+y
-
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
-    f1 = client.get_function("rpc.test.remote_func")
-    fadd = f1(10)
-    assert fadd(12) == 22
-
-
-def test_rpc_return_ndarray():
-    # Use closure to check the ref counter correctness
-    nd = tvm.nd.array(np.zeros(10).astype("float32"))
-    @tvm.register_func("rpc.test.remote_return_nd")
-    def my_module(name):
-        if name == "get_arr":
-            return lambda : nd
-        elif name == "ref_count":
-            return lambda : tvm._api_internal._ndarray_use_count(nd)
-        elif name == "get_elem":
-            return lambda idx: nd.asnumpy()[idx]
-        elif name == "get_arr_elem":
-            return lambda arr, idx: arr.asnumpy()[idx]
-
-    # start server
-    server = rpc.Server("localhost", key="x1")
-    client = rpc.connect(server.host, server.port, key="x1")
-    m = client.get_function("rpc.test.remote_return_nd")
-    get_arr = m("get_arr")
-    ref_count = m("ref_count")
-    get_elem = m("get_elem")
-    get_arr_elem = m("get_arr_elem")
-    # array test
-    def run_arr_test():
-        arr = get_arr()
-        assert ref_count() == 2
-        arr2 = get_arr()
-        assert ref_count() == 3
-        assert arr.context == client.cpu(0)
-        arr.copyfrom(np.ones(10).astype(arr.dtype))
-        assert arr2.asnumpy()[0] == 1.0
-        assert get_elem(0) == 1.0
-        assert get_arr_elem(arr2, 0) == 1.0
-
-    assert ref_count() == 1
-    run_arr_test()
-    # check recycle correctness
-    assert ref_count() == 1
-
-
-def test_local_func():
-    @tvm.register_func("rpc.test.remote_func2")
-    def addone(x):
-        return lambda y: x+y
-    client = rpc.LocalSession()
-    f1 = client.get_function("rpc.test.remote_func2")
-    fadd = f1(10)
-    assert fadd(12) == 22
-
-    blob = bytearray(np.random.randint(0, 10, size=(10)))
-    client.upload(blob, "dat.bin")
-    rev = client.download("dat.bin")
-    assert rev == blob
+    server.terminate()
 
 def test_rpc_tracker_register():
     # test registration
@@ -246,7 +107,8 @@ def test_rpc_tracker_register():
     device_key = 'test_device'
     server = rpc.Server('localhost', port=9000, port_end=10000,
                         key=device_key,
-                        tracker_addr=(tracker.host, tracker.port))
+                        tracker_addr=(tracker.host, tracker.port),
+                 cpp_server=True)
     time.sleep(1)
     client = rpc.connect_tracker(tracker.host, tracker.port)
 
@@ -271,13 +133,13 @@ def test_rpc_tracker_register():
 
     tracker.terminate()
 
-def test_rpc_tracker_request():
+def test_rpc_tracker_request(cpp_server=True):
     # test concurrent request
     tracker = Tracker('localhost', port=9000, port_end=10000)
     device_key = 'test_device'
     server = rpc.Server('localhost', port=9000, port_end=10000,
                         key=device_key,
-                        tracker_addr=(tracker.host, tracker.port))
+                        tracker_addr=(tracker.host, tracker.port), cpp_server=cpp_server)
     client = rpc.connect_tracker(tracker.host, tracker.port)
 
     def target(host, port, device_key, timeout):
@@ -313,16 +175,76 @@ def test_rpc_tracker_request():
     server.terminate()
     tracker.terminate()
 
+def test_graph_simple():
+    n = 4
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute(A.shape, lambda *i: A(*i) + 1.0, name='B')
+    s = tvm.create_schedule(B.op)
+
+    node0 = {"op": "null", "name": "x", "inputs": []}
+    node1 = {"op": "tvm_op", "name": "add",
+             "inputs": [[0, 0, 0]],
+             "attrs": {"func_name": "myadd",
+                       "flatten_data": "1",
+                       "num_inputs" : "1",
+                    "num_outputs" : "1"}}
+    nodes = [node0, node1]
+    arg_nodes = [0]
+    node_row_ptr = [0, 1, 2]
+    outputs = [[1, 0, 0]]
+    shape = (4,)
+    attrs = {
+        "shape" : ["list_shape", [shape, shape]],
+        "dltype" : ["list_str", ["float32", "float32"]],
+        "storage_id" : ["list_int", [0, 1]],
+    }
+    graph = {"nodes": nodes,
+             "arg_nodes": arg_nodes,
+             "node_row_ptr": node_row_ptr,
+             "heads": outputs,
+             "attrs": attrs}
+    graph = json.dumps(graph)
+
+    def check_verify():
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+        mod = graph_runtime.create(graph, mlib, tvm.cpu(0))
+        a = np.random.uniform(size=(n,)).astype(A.dtype)
+        mod.run(x=a)
+        out = mod.get_output(0, tvm.nd.empty((n,)))
+        np.testing.assert_equal(out.asnumpy(), a + 1)
+
+    def check_remote():
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+        server = rpc.Server("localhost", port=9195, use_popen=True, cpp_server=True)
+        remote = rpc.connect(server.host, server.port)
+        temp = util.tempdir()
+        ctx = remote.cpu(0)
+        path_dso = temp.relpath("dev_lib.so")
+        mlib.export_library(path_dso)
+        remote.upload(path_dso)
+        mlib = remote.load_module("dev_lib.so")
+        mod = graph_runtime.create(graph, mlib, remote.cpu(0))
+        a = np.random.uniform(size=(n,)).astype(A.dtype)
+        mod.run(x=tvm.nd.array(a, ctx))
+        out = tvm.nd.empty((n,), ctx=ctx)
+        out = mod.get_output(0, out)
+        np.testing.assert_equal(out.asnumpy(), a + 1)
+        time.sleep(1)
+        server.terminate()
+
+    check_verify()
+    check_remote()
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    test_rpc_return_ndarray()
-    test_rpc_return_func()
-    test_bigendian_rpc()
+    test_graph_simple()
     test_rpc_remote_module()
     test_rpc_file_exchange()
-    test_rpc_array()
-    test_rpc_simple()
-    test_local_func()
     test_rpc_tracker_register()
     test_rpc_tracker_request()

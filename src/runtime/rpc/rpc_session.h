@@ -88,7 +88,7 @@ class RPCChannel {
    */
   virtual size_t Send(const void* data, size_t size) = 0;
   /*!
-e   * \brief Recv data from channel.
+   * \brief Recv data from channel.
    *
    * \param data The data pointer.
    * \param size The size fo the data.

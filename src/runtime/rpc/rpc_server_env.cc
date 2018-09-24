@@ -123,7 +123,7 @@ Module Load(std::string *fileIn, const std::string fmt) {
     *fileIn = file_name;
     return Module::LoadFromFile(file_name, fmt);
   #else
-    LOG(FATAL) << "Donot support creating shared library";
+    LOG(FATAL) << "Do not support creating shared library";
   #endif
 }
 

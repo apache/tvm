@@ -3,7 +3,6 @@ import numpy as np
 import json
 from tvm import rpc
 from tvm.contrib import util, graph_runtime
-import time
 
 def test_graph_simple():
     n = 4
@@ -46,12 +45,12 @@ def test_graph_simple():
         out = mod.get_output(0, tvm.nd.empty((n,)))
         np.testing.assert_equal(out.asnumpy(), a + 1)
 
-    def check_remote(cpp_server=False):
+    def check_remote():
         if not tvm.module.enabled("llvm"):
             print("Skip because llvm is not enabled")
             return
         mlib = tvm.build(s, [A, B], "llvm", name="myadd")
-        server = rpc.Server("localhost", cpp_server=cpp_server)
+        server = rpc.Server("localhost")
         remote = rpc.connect(server.host, server.port)
         temp = util.tempdir()
         ctx = remote.cpu(0)
@@ -65,12 +64,9 @@ def test_graph_simple():
         out = tvm.nd.empty((n,), ctx=ctx)
         out = mod.get_output(0, out)
         np.testing.assert_equal(out.asnumpy(), a + 1)
-        time.sleep(1)
-        server.terminate()
 
     check_verify()
     check_remote()
-    check_remote(cpp_server=True)
 
 if __name__ == "__main__":
     test_graph_simple()
