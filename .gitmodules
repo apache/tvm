@@ -1,9 +1,9 @@
 [submodule "dmlc-core"]
-	path = dmlc-core
+	path = third_party/dmlc-core
 	url = https://github.com/dmlc/dmlc-core
 [submodule "HalideIR"]
-	path = HalideIR
+	path = third_party/HalideIR
 	url = https://github.com/dmlc/HalideIR
 [submodule "dlpack"]
-	path = dlpack
+	path = third_party/dlpack
 	url = https://github.com/dmlc/dlpack

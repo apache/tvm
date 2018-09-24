@@ -50,8 +50,9 @@ tvm_option(USE_RANDOM "Build with random support" OFF)
 
 # include directories
 include_directories("include")
-include_directories("dlpack/include")
-include_directories("dmlc-core/include")
+include_directories("third_party/dlpack/include")
+include_directories("third_party/dmlc-core/include")
+include_directories("third_party/compiler-rt")
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -87,8 +88,8 @@ else(MSVC)
 endif(MSVC)
 
 # add source group
-FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "HalideIR/src/*.cpp" "nnvm/src/*.cc")
-FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "HalideIR/src/*.h"
+FILE(GLOB_RECURSE GROUP_SOURCE "src/*.cc" "third_party/HalideIR/src/*.cpp" "nnvm/src/*.cc")
+FILE(GLOB_RECURSE GROUP_INCLUDE "src/*.h" "include/*.h" "third_party/HalideIR/src/*.h"
                                 "nnvm/src/*.h" "nnvm/include/*.h")
 assign_source_group("Source" ${GROUP_SOURCE})
 assign_source_group("Include" ${GROUP_INCLUDE})
@@ -127,7 +128,7 @@ file(GLOB_RECURSE NNVM_COMPILER_SRCS
 file(GLOB TOPI_SRCS
     topi/src/*.cc
 )
-file(GLOB_RECURSE HALIDEIR_SRCS HalideIR/src/*.cpp)
+file(GLOB_RECURSE HALIDEIR_SRCS third_party/HalideIR/src/*.cpp)
 list(APPEND COMPILER_SRCS ${HALIDEIR_SRCS})
 file(GLOB RUNTIME_SRCS src/runtime/*.cc)
 
@@ -194,7 +195,7 @@ target_link_libraries(nnvm_compiler tvm)
 # Related headers
 target_include_directories(
   tvm
-  PUBLIC "HalideIR/src"
+  PUBLIC "third_party/HalideIR/src"
   PUBLIC "topi/include")
 target_include_directories(
   tvm_topi
@@ -244,12 +245,12 @@ if (INSTALL_DEV)
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "HalideIR/src/." DESTINATION "include/HalideIR"
+    DIRECTORY "third_party/HalideIR/src/." DESTINATION "include/HalideIR"
     FILES_MATCHING
     PATTERN "*.h"
   )
   install(
-    DIRECTORY "dlpack/include/." DESTINATION "include"
+    DIRECTORY "third_party/dlpack/include/." DESTINATION "include"
     FILES_MATCHING
     PATTERN "*.h"
     )
