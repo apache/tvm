@@ -171,7 +171,7 @@ Example::
    y = [[3,3],[4,4],[5,5]]
    z = [[6,6], [7,7],[8,8]]
 
-   concatenate(x,y,z,dim=0) = [[ 1.,  1.],
+   concatenate(x,y,z,axis=0) = [[ 1.,  1.],
                                [ 2.,  2.],
                                [ 3.,  3.],
                                [ 4.,  4.],
@@ -183,7 +183,7 @@ Example::
    Note that you cannot concat x,y,z along dimension 1 since dimension
    0 is not the same for all the input arrays.
 
-   concatenate(y,z,dim=1) = [[ 3.,  3.,  6.,  6.],
+   concatenate(y,z,axis=1) = [[ 3.,  3.,  6.,  6.],
                              [ 4.,  4.,  7.,  7.],
                              [ 5.,  5.,  8.,  8.]]
 
