@@ -32,4 +32,3 @@ Function = expr.Function
 Call = expr.Call
 Let = expr.Let
 If = expr.If
-Var = Var
