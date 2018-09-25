@@ -21,7 +21,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
 
     A = tvm.placeholder((batch, in_channel, in_height, in_width), name='A', dtype='int8')
     W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W', dtype='int8')
-    bias = tvm.placeholder((num_filter // oc_block_factor, 1, 1, oc_block_factor), name='bias', 
+    bias = tvm.placeholder((num_filter // oc_block_factor, 1, 1, oc_block_factor), name='bias',
                             dtype='int8')
 
     a_shape = get_const_tuple(A.shape)
@@ -57,6 +57,10 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
         if not ctx.exist:
             print("Skip because %s is not enabled" % device)
             return
+        if device == "cuda" and not tvm.contrib.nvcc.have_int8(ctx.compute_version):
+            print("Skip because int8 intrinsics are not available")
+            return
+
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             dW = topi.nn.dilate(W, (1, 1, dilation, dilation))
