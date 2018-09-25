@@ -19,6 +19,6 @@ type nativeGoString struct { p uintptr; n int32 }
 func goStringFromNative (s string) (retStr string) {
     p := *(*nativeGoString)(unsafe.Pointer(&s))
     retStr = string((*[0x7fffffff]byte)(unsafe.Pointer(p.p))[:p.n])
-    C._native_free(unsafe.Pointer(p.p))
+    C.free(unsafe.Pointer(p.p))
     return
 }

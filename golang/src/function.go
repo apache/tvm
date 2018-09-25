@@ -69,7 +69,7 @@ func (tvmfunction *Function) Invoke(args ...interface{}) (retVal *Value, err err
 // returns slice of string holding function names and error if any.
 func FuncListGlobalNames() (retVal []string, err error) {
     var str string
-    ret := (int32)(C._TVMFuncListGlobalNames(C.native_voidp(&str)))
+    ret := (int32)(C._TVMFuncListGlobalNames(unsafe.Pointer((&str))))
     if ret != 0 {
         err = errors.New(getTVMLastError())
         return
@@ -101,8 +101,12 @@ func FuncListGlobalNames() (retVal []string, err error) {
 // Variadic arguments can be any type which can be embed into Value.
 func GetGlobalFunction(funcname string) (retVal *Function, err error) {
     var funp uintptr
-    ret := (int32)(C._TVMFuncGetGlobal(C.CString(funcname),
-                                       C.native_voidp(&funp)))
+
+    cfuncname := C.CString(funcname)
+    ret := (int32)(C.TVMFuncGetGlobal(cfuncname,
+                                      (*_Ctype_TVMFunctionHandle)(unsafe.Pointer(&funp))))
+    C.free(unsafe.Pointer(cfuncname))
+
     if ret != 0 {
         err = errors.New(getTVMLastError())
         return
@@ -166,10 +170,10 @@ func nativeTVMFuncFree(funp *Function) (retVal int32) {
 // nativeToGoSlice converts native TVMValue array to Golang slice of TVMValue
 //
 //
-func nativeToGoSlice(nargValues C.native_voidp, argValues []*Value, typeCodes []int32) {
+func nativeToGoSlice(nargValues (*C.void), argValues []*Value, typeCodes []int32) {
     for ii := range argValues {
-        C._TVMValueNativeGet(C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
-                             C.native_voidp(unsafe.Pointer(nargValues)),
+        C._TVMValueNativeGet(unsafe.Pointer(argValues[ii].nativeCPtr()),
+                             unsafe.Pointer(nargValues),
                              C.int(int32(ii)))
         argValues[ii].dtype = typeCodes[ii]
     }
@@ -178,14 +182,14 @@ func nativeToGoSlice(nargValues C.native_voidp, argValues []*Value, typeCodes []
 // nativeFromGoSlice converts golang slice of TVMValue to native TVMValue array.
 //
 //
-func nativeFromGoSlice(argValues []*Value) (nptr C.native_voidp) {
+func nativeFromGoSlice(argValues []*Value) (nptr (*C.void)) {
     nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
     for ii := range argValues {
-        C._TVMValueNativeSet(C.native_voidp(unsafe.Pointer(nargValues)),
-                             C.native_voidp(unsafe.Pointer(argValues[ii].nativeCPtr())),
+        C._TVMValueNativeSet(unsafe.Pointer(nargValues),
+                             unsafe.Pointer(argValues[ii].nativeCPtr()),
                              C.int(int32(ii)))
     }
-    nptr = nargValues
+    nptr = (*C.void)(nargValues)
     return
 }
 
@@ -206,15 +210,16 @@ func nativeTVMFuncCall(funp *Function, argValues []*Value, typeCodes []int32,
                  retValues []*Value, retTypeCode *int32) (err error) {
     nargValues := nativeFromGoSlice(argValues)
     nretValues := nativeFromGoSlice(retValues)
-	result := (int32)(C._TVMFuncCall(C.uintptr_t(*funp),
-                                     C.uintptr_t((uintptr)(unsafe.Pointer(nargValues))),
-                                     C.native_voidp(&(typeCodes[0])), C.int(len(argValues)),
-                                     C.uintptr_t((uintptr)(unsafe.Pointer(nretValues))),
-                                     C.native_voidp(retTypeCode)))
+	result := (int32)(C.TVMFuncCall(_Ctype_TVMFunctionHandle(*funp),
+                                    (*_Ctype_TVMValue)(unsafe.Pointer(nargValues)),
+                                    (*_Ctype_int)(unsafe.Pointer(&(typeCodes[0]))),
+                                    C.int(len(argValues)),
+                                    (*_Ctype_TVMValue)(unsafe.Pointer(nretValues)),
+                                    (*_Ctype_int)(unsafe.Pointer(retTypeCode))))
     nativeToGoSlice(nargValues, argValues, typeCodes)
     nativeToGoSlice(nretValues, retValues, (*[1<<31] int32)(unsafe.Pointer(retTypeCode))[:1:1])
-    C._TVMValueNativeFree(nargValues)
-    C._TVMValueNativeFree(nretValues)
+    C._TVMValueNativeFree(unsafe.Pointer(nargValues))
+    C._TVMValueNativeFree(unsafe.Pointer(nretValues))
 
     if result != 0 {
 	    err = errors.New(getTVMLastError())
@@ -242,7 +247,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
     }
 
     // Prepare arguments for golang callback function
-    nativeToGoSlice(C.native_voidp(unsafe.Pointer(args)), argValues,
+    nativeToGoSlice((*C.void)(unsafe.Pointer(args)), argValues,
                     (*[1<<31] int32)(unsafe.Pointer(typeCodes))[:numArgs:numArgs])
     cbargs := argValues
 
@@ -250,14 +255,18 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
     retVal, err := fcb.cb(cbargs...)
     if err != nil {
         errStr := err.Error()
-        C._TVMAPISetLastError(C.CString(errStr))
+        setTVMLastError(errStr)
         return -1
     }
 
-    // It's possible a packed function directly return the return value of another packed function.
+    // It's possible a packed function directly return 
+    // the return value of another packed function.
+    //
     // Inside a packed func :
     //      ```return pfunc.Invoke(args)```
-    // In this case pfunc returns nil which is returned as an interface hilding nil *Value.
+    //
+    // In this case pfunc returns nil which is 
+    // returned as an interface holding nil *Value.
     // Which becomes a valid retVal holding nil *Value.
     isRetNull := false
     switch retVal.(type) {
@@ -276,20 +285,21 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         retTypeCode, err = retValues[0].setValue(retVal)
         if err != nil {
             errStr := err.Error()
-            C._TVMAPISetLastError(C.CString(errStr))
+            setTVMLastError(errStr)
             return -1
         }
         nretValues := nativeFromGoSlice(retValues)
 
         // Handle KStr, KBytes: Local finalizers shouldn't try freeing them.
         retValues[0].isLocal = false
-        apiRet := (int32) (C._TVMCFuncSetReturn(retArg,
-                                                C.native_voidp(unsafe.Pointer(nretValues)),
-                                                C.native_voidp(unsafe.Pointer(&retTypeCode)), 1))
-        C._TVMValueNativeFree(nretValues)
+
+        apiRet := (int32) (C.TVMCFuncSetReturn(_Ctype_TVMRetValueHandle(retArg),
+                                               (*_Ctype_TVMValue)(unsafe.Pointer(nretValues)),
+                                               (*_Ctype_int)(unsafe.Pointer(&retTypeCode)), 1))
+        C._TVMValueNativeFree(unsafe.Pointer(nretValues))
         if apiRet != 0 {
             errStr := string("TVMCFuncSetReturn failed ")
-            C._TVMAPISetLastError(C.CString(errStr))
+            setTVMLastError(errStr)
         }
     }
     return
@@ -305,8 +315,8 @@ func ConvertFunction(args ...interface{}) (retVal *Function, err error) {
     fcb := &goCallBack{cb:function}
     var funp uintptr
 
-    result := (int32) (C._ConvertFunction((C.native_voidp)(unsafe.Pointer(fcb)),
-                                          C.native_voidp(&funp)))
+    result := (int32) (C._ConvertFunction(unsafe.Pointer(fcb),
+                                          unsafe.Pointer(&funp)))
     if result != 0 {
 	    err = errors.New(getTVMLastError())
     }
@@ -341,8 +351,11 @@ func RegisterFunction(args ...interface{}) (err error) {
         funcname = args[1].(string)
     }
 
-    result := (int32) (C._RegisterFunction(C.CString(funcname),
-                                           C.uintptr_t(*fhandle)));
+    cfuncname := C.CString(funcname)
+    result := (int32) (C.TVMFuncRegisterGlobal(cfuncname,
+                                               _Ctype_TVMFunctionHandle(*fhandle),
+                                               0)); // Override = False
+    C.free(unsafe.Pointer(cfuncname))
     if result != 0 {
 	    err = errors.New(getTVMLastError())
     }

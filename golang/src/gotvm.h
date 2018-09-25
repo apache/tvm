@@ -15,6 +15,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <dlpack/dlpack.h>
 
@@ -27,36 +28,11 @@ typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } _tvmtype_;
 // golang TVMContext
 typedef struct { int device_type; int device_id; } _tvmcontext_;
 
-// native memory allocation and free routines
-extern void _native_free(void *ptr);
-extern void* _native_malloc(int len);
-
 // Version
 extern char* _TVM_VERSION(void);
 
 // Runtime C Intercafe API
-extern int _TVMFuncListGlobalNames(native_voidp);
-extern int _TVMFuncGetGlobal(char *funcname, native_voidp funp);
-extern int _TVMModLoadFromFile(char *modpath, char *modtype, native_voidp modp);
-extern int _TVMArrayAlloc(native_voidp shape, int ndim,
-                          int dtype_code, int dtype_bits, int dtype_lanes,
-                          int device_type, int device_id, native_voidp dltensor);
-extern int _TVMArrayFree(native_voidp dltensor);
-extern int _TVMModGetFunction(uintptr_t modp, char *funcname,
-                              int query_imports, native_voidp funp);
-extern int _TVMFuncCall(uintptr_t funp, uintptr_t arg_values,
-                        native_voidp type_codes, int num_args,
-                        uintptr_t ret_values, native_voidp ret_type_codes);
-extern int _TVMArrayCopyFromBytes(native_voidp dltensor, native_voidp data, int size);
-extern int _TVMArrayCopyToBytes(native_voidp dltensor, native_voidp data, int size);
-extern int _TVMCFuncSetReturn(native_voidp ret_handle,
-                              native_voidp ret_value,
-                              native_voidp type_code,
-                              int nu_args);
-
-// Error API
-extern const char* _TVMGetLastError(void);
-extern void _TVMAPISetLastError(char*);
+extern int _TVMFuncListGlobalNames(void*);
 
 // TVMValue API
 extern uintptr_t _NewTVMValue();
@@ -71,10 +47,10 @@ extern void _TVMValueSetStr(uintptr_t tvmval, char *val);
 extern char* _TVMValueGetStr(uintptr_t tvmval);
 extern void _TVMValueUnSetStr(uintptr_t tvmval);
 extern void _TVMValueCopyFrom(uintptr_t tvmval, uintptr_t fromval);
-extern native_voidp _TVMValueNativeAllocate(int len);
-extern void _TVMValueNativeSet(native_voidp to, native_voidp from, int index);
-extern void _TVMValueNativeGet(native_voidp to, native_voidp from, int index);
-extern void _TVMValueNativeFree(native_voidp ptr);
+extern void* _TVMValueNativeAllocate(int len);
+extern void _TVMValueNativeSet(void* to, void* from, int index);
+extern void _TVMValueNativeGet(void* to, void* from, int index);
+extern void _TVMValueNativeFree(void* ptr);
 
 // DLTensor API
 extern uintptr_t _NewDLTensor(void);
@@ -95,8 +71,7 @@ extern uintptr_t _NewTVMByteArray(void);
 extern void _DeleteTVMByteArray(uintptr_t tbytearray);
 
 // Callbacks
-extern int _ConvertFunction(native_voidp fptr, native_voidp funp);
-extern int _RegisterFunction(char *func_name, uintptr_t funp);
+extern int _ConvertFunction(void* fptr, void* funp);
 
 #ifdef __cplusplus
 }

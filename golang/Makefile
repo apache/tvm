@@ -7,7 +7,7 @@ NATIVE_SRC = tvm_runtime_pack.cc
 
 GOPATH=$(CURDIR)/gopath
 GOPATHDIR=${GOPATH}/src/${TARGET}/
-CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/dlpack/include/ -std=c++11"
+CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/3rdparty/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/3rdparty/dlpack/include/ -std=c++11"
 CGO_CFLAGS="-I${TVM_BASE}"
 CGO_LDFLAGS="-ldl -lm"
 

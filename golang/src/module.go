@@ -12,6 +12,7 @@ import "C"
 import (
     "errors"
     "runtime"
+    "unsafe"
 )
 
 // Module type in golang hold pointer for the TVMModule handle.
@@ -39,9 +40,16 @@ func LoadModuleFromFile(modpath string, args ...interface{}) (retVal *Module, er
     }
     var modp uintptr
 
-    ret := (int32)(C._TVMModLoadFromFile(C.CString(modpath),
-                                         C.CString(modtype),
-                                         C.native_voidp(&modp)))
+    cmodpath := C.CString(modpath)
+    cmodtype := C.CString(modtype)
+
+    ret := (int32)(C.TVMModLoadFromFile(cmodpath,
+                                        cmodtype,
+                                        (*_Ctype_TVMModuleHandle)(unsafe.Pointer(&modp))))
+
+    C.free(unsafe.Pointer(cmodpath))
+    C.free(unsafe.Pointer(cmodtype))
+
     if ret != 0 {
         err = errors.New(getTVMLastError())
         return
@@ -89,9 +97,12 @@ func (tvmmodule *Module) GetFunction (
     }
 
     var funp uintptr
-    ret := (int32)(C._TVMModGetFunction(C.uintptr_t(*tvmmodule),
-                                        C.CString(funcname),
-                                        C.int(queryImports), C.native_voidp(&funp)))
+    cfuncname := C.CString(funcname)
+    ret := (int32)(C.TVMModGetFunction((_Ctype_TVMModuleHandle)(*tvmmodule),
+                                       cfuncname,
+                                       C.int(queryImports),
+                                       (*_Ctype_TVMFunctionHandle)(unsafe.Pointer(&funp))))
+    C.free(unsafe.Pointer(cfuncname))
 
     if ret != 0 {
         err = errors.New(getTVMLastError())

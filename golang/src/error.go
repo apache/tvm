@@ -9,13 +9,23 @@ package gotvm
 //#include "gotvm.h"
 import "C"
 
+import (
+    "unsafe"
+)
+
 // getTVMLastError returns the detailed error string for any api called in TVM runtime.
 //
 // This is useful when any api returns non zero value.
 //
 // Returns golang string for the corresponding native error message.
 func getTVMLastError() (retVal string) {
-    errStr := C._TVMGetLastError()
+    errStr := C.TVMGetLastError()
     retVal = C.GoString(errStr)
     return
+}
+
+func setTVMLastError(errStr string) {
+    cstr := C.CString(errStr)
+    C.TVMAPISetLastError(cstr)
+    C.free(unsafe.Pointer(cstr))
 }
