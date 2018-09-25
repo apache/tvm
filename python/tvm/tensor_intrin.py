@@ -72,7 +72,7 @@ def decl_tensor_intrin(op,
     binds_list = []
     for t in inputs:
         if not isinstance(t.op, _tensor.PlaceholderOp):
-            raise ValueError("Donot yet support composition op")
+            raise ValueError("Do not yet support composition op")
 
     cfg = current_build_config()
     for t in tensors:
