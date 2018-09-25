@@ -11,7 +11,8 @@
 #include <tvm/node/node.h>
 #include <string>
 
-#include "./base.h"
+#include "base.h"
+#include "../attrs.h"
 
 namespace tvm {
 namespace relay {
@@ -116,10 +117,8 @@ class TypeParamNode : public TypeNode {
   /*! \brief possible kinds of TypeParam */
   enum Kind : int {
     /*! \brief template variable in shape expression */
-    kShapeVar = 0,
-    kShape = 1,
-    kBaseType = 2,
-    kType = 3
+    kType = 0,
+    kShapeVar = 1
   };
   /*!
    * \brief The variable itself is only meaningful when
@@ -142,6 +141,33 @@ class TypeParamNode : public TypeNode {
 };
 
 RELAY_DEFINE_NODE_REF(TypeParam, TypeParamNode, Type);
+
+/*!
+ * \brief IncompleteType.
+ * This is intermediate values that is used during type inference.
+ *
+ * If we view the type relations as "computational graph of types",
+ * then IncompleteType represents intermediate values of the graph,
+ * TypeParam represents the input to the graph.
+ */
+class IncompleteType;
+
+/*! \brief IncompleteType container node */
+class IncompleteTypeNode : public TypeNode {
+ public:
+  TypeParamNode::Kind kind;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("kind", &kind);
+  }
+
+  TVM_DLL static IncompleteType make(TypeParamNode::Kind kind);
+
+  static constexpr const char* _type_key = "relay.IncompleteType";
+  TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);
+};
+
+RELAY_DEFINE_NODE_REF(IncompleteType, IncompleteTypeNode, Type);
 
 /*!
  * \brief Potential Constraints in the type.
@@ -190,7 +216,8 @@ class FuncTypeNode : public TypeNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static FuncType make(tvm::Array<Type> arg_types, Type ret_type,
+  TVM_DLL static FuncType make(tvm::Array<Type> arg_types,
+                               Type ret_type,
                                tvm::Array<TypeParam> type_params,
                                tvm::Array<TypeConstraint> type_constraints);
 
@@ -199,45 +226,6 @@ class FuncTypeNode : public TypeNode {
 };
 
 RELAY_DEFINE_NODE_REF(FuncType, FuncTypeNode, Type);
-
-using TypeRelationFn =
-    TypedEnvFunc<Array<Type>(const Array<Type>&, int)>;
-
-/*!
- * \brief Opaque type relation, is an input-output relation on types.
- */
-class TypeRelation;
-/*!
- * \brief TypeRelation container.
- * \note This node is not directly serializable.
- * The type function need to be lookedup in the environment.
- */
-class TypeRelationNode : public TypeConstraintNode {
- public:
-  /*! \brief The name of the function */
-  std::string name;
-
-  /*!
-   * \brief The function on input and output variables which
-   *  this is not directly serializable,
-   *  need to be looked-up in the environment.
-   */
-  TypeRelationFn func_;
-
-  /*! \brief The type arguments to the type function. */
-  tvm::Array<Type> args;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name", &name);
-  }
-
-  TVM_DLL static TypeRelation make(std::string name, TypeRelationFn func_, Array<Type> args);
-
-  static constexpr const char* _type_key = "relay.TypeRelation";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, TypeConstraintNode);
-};
-
-RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
 
 /*!
  * \brief The type of tuple values.
@@ -262,6 +250,118 @@ class TupleTypeNode : public TypeNode {
 };
 
 RELAY_DEFINE_NODE_REF(TupleType, TupleTypeNode, Type);
+
+class TypeReporter;
+
+/*!
+ * \brief reporter that reports back to the
+ *  type resolution information.
+ */
+class TypeReporterNode : public Node {
+ public:
+  /*!
+   * \brief Create a type equality constraint.
+   *
+   *  The "assign direction" acts as a hint to the solver
+   *  showing that it is more likely to resolve dst by src.
+   *  But it is possible for the solver to resolve src by dst as well.
+   */
+  TVM_DLL virtual void Assign(const Type& dst, const Type& src) = 0;
+  /*!
+   * \brief assert shape expression equals each other.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   */
+  TVM_DLL virtual void AssertEQ(const ShapeExpr& lhs, const ShapeExpr& rhs) = 0;
+
+  // solver is not serializable.
+  void VisitAttrs(tvm::AttrVisitor* v) final {}
+
+  static constexpr const char* _type_key = "relay.TypeReporter";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeReporterNode, Node);
+};
+
+/*!
+ * \brief Container class of TypeReporter.
+ * \sa TypeReporterNode
+ */
+class TypeReporter : public NodeRef {
+ public:
+  TypeReporter() {}
+  explicit TypeReporter(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+  }
+  TypeReporterNode* operator->() const {
+    return static_cast<TypeReporterNode*>(node_.get());
+  }
+  using ContainerType = TypeReporterNode;
+};
+
+/*!
+ * \brief User defined type constraint function.
+ *
+ * If the input type information can be used to fully decide
+ * the IncompleteTypes, then the function should call
+ * reporter.Assign to report the new types, and return true.
+ * Otherwise, the function should return false.
+ *
+ * \param args The arguments to the relation.
+ *   The types are stored in the form of
+ *   [input_type_0, input_type_1, ... input_type_n,
+ *    output_type_0, output_type_1, ... output_type_m]
+ *
+ * \param num_inputs Number of input types in the args.
+ * \param attrs The additional attributes of the operator.
+ * \param reporter The reporter to report solution to.
+ * \return false if This relation cannot be resolved.
+ *   true if this relation has been resolved.
+ */
+using TypeRelationFn =
+    TypedEnvFunc<bool(const Array<Type>& args,
+                      int num_inputs,
+                      const Attrs& attrs,
+                      const TypeReporter& reporter)>;
+
+/*!
+ * \brief User defined type relation, is an input-output relation on types.
+ */
+class TypeRelation;
+/*!
+ * \brief TypeRelation container.
+ * \note This node is not directly serializable.
+ * The type function need to be lookedup in the environment.
+ */
+class TypeRelationNode : public TypeConstraintNode {
+ public:
+  /*!
+   * \brief The function on input and output variables which
+   *  this is not directly serializable,
+   *  need to be looked-up in the environment.
+   */
+  TypeRelationFn func;
+  /*! \brief The type arguments to the type function. */
+  tvm::Array<Type> args;
+  /*! \brief Number of inputs arguments */
+  int num_inputs;
+  /*! \brief Attributes to the relation function */
+  Attrs attrs;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("func", &func);
+    v->Visit("args", &args);
+    v->Visit("num_inputs", &num_inputs);
+    v->Visit("attrs", &attrs);
+  }
+
+  TVM_DLL static TypeRelation make(TypeRelationFn func,
+                                   Array<Type> args,
+                                   int num_args,
+                                   Attrs attrs);
+
+  static constexpr const char* _type_key = "relay.TypeRelation";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeRelationNode, TypeConstraintNode);
+};
+
+RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
 
 // The following fields contains advanced typing
 // Only keep the class name and reserved for future usage.

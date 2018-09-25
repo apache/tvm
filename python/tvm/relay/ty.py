@@ -52,10 +52,8 @@ class Kind(IntEnum):
        with. For example one's of kind BaseType can only be `float32`, `int32`,
        and so on.
     """
+    Type = 0
     ShapeVar = 0
-    Shape = 1
-    BaseType = 2
-    Type = 3
 
 
 @register_relay_node
@@ -68,7 +66,7 @@ class TypeParam(Type):
     functions which are generic over types.
     """
 
-    def __init__(self, var, kind):
+    def __init__(self, var, kind=Kind.Type):
         """Construct a TypeParam.
 
         Parameters
@@ -76,7 +74,7 @@ class TypeParam(Type):
         var: tvm.expr.Var
             The tvm.Var which backs the type parameter.
 
-        kind: Kind
+        kind: Kind, optional
             The kind of the type parameter.
 
         Returns
@@ -130,8 +128,7 @@ class FuncType(Type):
                  arg_types,
                  ret_type,
                  type_params,
-                 type_constraints
-                ):
+                 type_constraints):
         """Construct a function type.
 
         Parameters
@@ -153,6 +150,29 @@ class FuncType(Type):
 @register_relay_node
 class IncompleteType(Type):
     """An incomplete type."""
-
-    def __init__(self, kind):
+    def __init__(self, kind=Kind.Type):
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)
+
+
+@register_relay_node
+class TypeRelation(TypeConstraint):
+    """Type relation in relay.
+
+    Parameters
+    ----------
+    func : EnvFunc
+        User defined relation function.
+
+    args : list of types
+        List of types to the func.
+
+    num_inputs: int
+        Number of input arguments in args,
+        this act as a hint for type inference.
+
+    attrs : Attrs
+        The attribute attached to the relation information
+    """
+    def __init__(self, func, args, num_inputs, attrs):
+        self.__init_handle_by_constructor__(_make.TypeRelation,
+                                            func, args, num_inputs, attrs)

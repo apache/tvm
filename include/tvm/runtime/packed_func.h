@@ -175,7 +175,7 @@ class TypedPackedFunc<R(Args...)> {
    *
    * \param packed The packed function
    */
-  inline explicit TypedPackedFunc(PackedFunc packed);
+  inline TypedPackedFunc(PackedFunc packed);  // NOLINT(*)
   /*!
    * \brief construct from a lambda function with the same signature.
    *
@@ -196,7 +196,7 @@ class TypedPackedFunc<R(Args...)> {
              std::is_convertible<FLambda,
                                  std::function<R(Args...)>
                                  >::value>::type>
-  explicit TypedPackedFunc(const FLambda& typed_lambda) {
+  TypedPackedFunc(const FLambda& typed_lambda) {  // NOLINT(*)
     this->AssignTypedLambda(typed_lambda);
   }
   /*!

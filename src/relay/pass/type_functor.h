@@ -8,7 +8,6 @@
 
 #include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr.h>
-#include "./incomplete_type.h"
 
 namespace tvm {
 namespace relay {

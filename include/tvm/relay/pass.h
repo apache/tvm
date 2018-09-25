@@ -26,7 +26,7 @@ namespace relay {
  * \return A type checked expression with its checked_type field populated.
  */
 Expr InferType(const Environment& env, const Expr& e);
-Expr InferType(const Environment& env, const GlobalVar& v, const Function& e);
+Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
 
 /*!
  * \brief Check that types are well formed by applying "kinding rules".
@@ -69,7 +69,7 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  *
  * For example: `forall s, Tensor[f32, s]` is equal to
  * `forall w, Tensor[f32, w]`.
- * 
+ *
  * See https://en.wikipedia.org/wiki/Lambda_calculus#Alpha_equivalence
  * for more details.
  *
