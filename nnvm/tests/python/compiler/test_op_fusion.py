@@ -143,6 +143,44 @@ def test_concatenate_conv2d():
         np.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
 
 
+def test_residual_block_layout_transform():
+    ch = 16
+    size = 32
+    data = sym.Variable(name="data")
+    conv1 = sym.conv2d(data=data, kernel_size=(3,3), channels=ch, padding = (1, 1), use_bias=False, name="conv1")
+    layout_transform1 = sym.__layout_transform__(data=conv1, src_layout="NCHW", dst_layout="NCHW8c")
+    layout_transform2 = sym.__layout_transform__(data=layout_transform1, src_layout="NCHW8c", dst_layout="NCHW")
+    conv2 = sym.conv2d(data=conv1, kernel_size=(3,3), channels=ch, padding = (1, 1), use_bias=False, name="conv2")
+    elemwise_sum = sym.elemwise_add(layout_transform2, conv2)
+    out = sym.relu(elemwise_sum)
+
+    dtype="float32"
+    dshape = (1, ch, size, size)
+    kshape = (ch, ch, 3, 3)
+    oshape = (1, ch, size, size)
+    shape_dict = {"data": dshape}
+
+    target = "llvm" # only test on llvm since it involves NCHW8c layout
+    ctx = tvm.context(target, 0)
+    graph, lib, _ = nnvm.compiler.build(out, target, shape_dict)
+    # data, conv1 weight, conv1, layout transform + elemwise add + relu, conv2 weight, conv2 op
+    assert graph.index.num_nodes == 6
+
+    data = tvm.nd.array(np.random.uniform(size=dshape).astype(dtype))
+    kernel1 = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+    kernel2 = tvm.nd.array(np.random.uniform(size=kshape).astype(dtype))
+    m = graph_runtime.create(graph, lib, ctx)
+    m.run(data=data, conv1_weight=kernel1, conv2_weight=kernel2)
+    out = m.get_output(0, tvm.nd.empty(oshape, dtype))
+
+    conv1 = topi.testing.conv2d_nchw_python(
+        data.asnumpy(), kernel1.asnumpy(), (1,1), 'SAME')
+    conv2 = topi.testing.conv2d_nchw_python(
+        conv1, kernel2.asnumpy(), (1,1), 'SAME')
+    ref = np.maximum(conv1 + conv2, 0)
+    np.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
+
+
 def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
     with nnvm.compiler.build_config(opt_level=opt_level):
         graph, lib, params = nnvm.compiler.build(sym, target, shape={"data":data.shape}, params=params)
@@ -191,3 +229,4 @@ if __name__ == "__main__":
     test_fuse_conv2d_elu()
     test_injective_conv2d()
     test_concatenate_conv2d()
+    test_residual_block_layout_transform()

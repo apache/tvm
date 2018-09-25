@@ -109,13 +109,14 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       inputs.push_back(it->second);
     }
     // Find master idx in the subgraph.
-    int sub_master_idx = 0;
+    int sub_master_idx = -1;
     for (uint32_t i = 0; i < subidx.num_nodes(); i++) {
       if (subidx[i].source->op() == idx[master].source->op()) {
         sub_master_idx = i;
         break;
       }
     }
+    CHECK_NE(sub_master_idx, -1) << "A master node not found in the subgraph.";
     fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {
