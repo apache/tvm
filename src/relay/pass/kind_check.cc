@@ -28,7 +28,7 @@ struct KindChecker : TypeVisitor<> {
   KindChecker() : valid(true) {}
 
   // checks if t is an incomplete node of kind k or a type param of kind k
-  bool matchKind(const Type& t, Kind k) {
+  bool MatchKind(const Type& t, Kind k) {
     if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
       return tv->kind == k;
     }
@@ -40,8 +40,8 @@ struct KindChecker : TypeVisitor<> {
     return false;
   }
 
-  bool isTypeKind(const Type& t) {
-    if (matchKind(t, Kind::kType)) {
+  bool IsTypeKind(const Type& t) {
+    if (MatchKind(t, Kind::kType)) {
       return true;
     }
 
@@ -52,7 +52,7 @@ struct KindChecker : TypeVisitor<> {
     // tuples should only contain normal types
     for (const Type& t : op->fields) {
       this->VisitType(t);
-      valid = valid && isTypeKind(t);
+      valid = valid && IsTypeKind(t);
       if (!valid) {
         return;
       }
@@ -64,21 +64,21 @@ struct KindChecker : TypeVisitor<> {
     // and only return a normal type
     for (const Type& t : op->arg_types) {
       this->VisitType(t);
-      valid = valid && isTypeKind(t);
+      valid = valid && IsTypeKind(t);
       if (!valid) {
         return;
       }
     }
 
     this->VisitType(op->ret_type);
-    valid = valid && isTypeKind(op->ret_type);
+    valid = valid && IsTypeKind(op->ret_type);
   }
 
   void VisitType_(const TypeRelationNode* op) override {
     // arguments to type relation should be normal types
     for (const Type& t : op->args) {
       this->VisitType(t);
-      valid = valid && isTypeKind(t);
+      valid = valid && IsTypeKind(t);
       if (!valid) {
         return;
       }
