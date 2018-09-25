@@ -1,6 +1,6 @@
 # Minimum docker image for demo purposes
 # prebuilt-image: tvmai/demo-gpu
-FROM nvidia/cuda:8.0-cudnn7-devel
+FROM nvidia/cuda:9.0-cudnn7-devel
 
 RUN apt-get update --fix-missing
 
