@@ -4,11 +4,11 @@ ROOTDIR = $(CURDIR)
 	 cython cython2 cython3 web runtime vta
 
 ifndef DMLC_CORE_PATH
-  DMLC_CORE_PATH = $(ROOTDIR)/dmlc-core
+  DMLC_CORE_PATH = $(ROOTDIR)/3rdparty/dmlc-core
 endif
 
 ifndef DLPACK_PATH
-  DLPACK_PATH = $(ROOTDIR)/dlpack
+  DLPACK_PATH = $(ROOTDIR)/3rdparty/dlpack
 endif
 
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
@@ -50,10 +50,10 @@ build/libtvm_web_runtime.js: build/libtvm_web_runtime.bc
 
 # Lint scripts
 cpplint:
-	python3 dmlc-core/scripts/lint.py vta cpp vta/include vta/src
-	python3 dmlc-core/scripts/lint.py topi cpp topi/include;
-	python3 dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
-	python3 dmlc-core/scripts/lint.py tvm cpp include src verilog\
+	python3 3rdparty/dmlc-core/scripts/lint.py vta cpp vta/include vta/src
+	python3 3rdparty/dmlc-core/scripts/lint.py topi cpp topi/include;
+	python3 3rdparty/dmlc-core/scripts/lint.py nnvm cpp nnvm/include nnvm/src;
+	python3 3rdparty/dmlc-core/scripts/lint.py tvm cpp include src verilog\
 	 examples/extension/src examples/graph_executor/src
 
 pylint:
@@ -63,7 +63,7 @@ pylint:
 	python3 -m pylint vta/python/vta --rcfile=$(ROOTDIR)/tests/lint/pylintrc
 
 jnilint:
-	python3 dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
+	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
 
 lint: cpplint pylint jnilint
 

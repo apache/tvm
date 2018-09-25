@@ -23,7 +23,7 @@ uservice_library_name := sgx_uae_service$(sgx_sim)
 pkg_cflags := -std=c++11 -O2 -fPIC\
 	-I${TVM_ROOT}/include\
 	-I${DMLC_CORE}/include\
-	-I${TVM_ROOT}/dlpack/include\
+	-I${TVM_ROOT}/3rdparty/dlpack/include\
 	-I.\
 	-DDMLC_LOG_STACK_TRACE=0\
 	-fmax-errors=4
