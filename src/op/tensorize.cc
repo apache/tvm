@@ -52,10 +52,10 @@ size_t InferTensorizeRegion(
       const IterVarAttr& attr = (*iit).second;
       if (!found_point) {
         CHECK(!attr->bind_thread.defined())
-            << "Donot allow thread in tensorize scope";
+            << "Do not allow thread in tensorize scope";
       }
       if (attr->iter_type == kTensorized) {
-        CHECK(!found_point) << "Donot allow two tensorized point";
+        CHECK(!found_point) << "Do not allow two tensorized point";
         found_point = true;
         loc_scope = i - 1;
       }

@@ -168,7 +168,7 @@ inline PackedFunc PackFuncNonBufferArg_(
       switch (codes[i]) {
         case INT64_TO_INT64:
         case FLOAT64_TO_FLOAT64: {
-          LOG(FATAL) << "Donot support 64bit argument to device function"; break;
+          LOG(FATAL) << "Do not support 64bit argument to device function"; break;
         }
         case INT64_TO_INT32: {
           holder[i].v_int32 = static_cast<int32_t>(args.values[base + i].v_int64);

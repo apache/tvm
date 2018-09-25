@@ -217,7 +217,7 @@ Stmt NarrowChannelAccess(Stmt stmt);
  * \param auto_max_step The maximum step before stop attach automatic unroll
  * \param auto_max_depth The maximum depth before stop attach automatic unroll
  * \param auto_max_extent The maximum extent of the loop we can unroll,
- *                        this is an legacy option that donot take the loop total steps into account.
+ *                     this is an legacy option that do not take the loop total steps into account.
  * \param explicit_unroll Whether explicitly unroll the loop, or leave unroll annotation to codegen.
  * \return Transformed stmt.
  */

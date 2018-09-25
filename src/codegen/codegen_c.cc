@@ -207,7 +207,7 @@ std::string CodeGenC::GetStructRef(
     } else if (t.is_int()) {
       os << "v_int64";
     } else {
-      LOG(FATAL) << "donot know how to handle type" << t;
+      LOG(FATAL) << "Do not know how to handle type" << t;
     }
     os << ")";
     return os.str();
