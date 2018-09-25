@@ -250,9 +250,9 @@ class RPCSession::EventHandler : public dmlc::Stream {
           this->Write(arr->dtype);
           this->WriteArray(arr->shape, arr->ndim);
           CHECK(arr->strides == nullptr)
-              << "Donot support strided remote array";
+              << "Do not support strided remote array";
           CHECK_EQ(arr->byte_offset, 0)
-              << "Donot support send byte offset";
+              << "Do not support send byte offset";
           break;
         }
         case kNull: break;

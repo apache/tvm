@@ -362,7 +362,7 @@ class Stage(NodeBase):
         """
         if nparts is not None:
             if factor is not None:
-                raise ValueError("Donot need to provide both outer and nparts")
+                raise ValueError("Do not need to provide both outer and nparts")
             outer, inner = _api_internal._StageSplitByNParts(self, parent, nparts)
         else:
             if factor is None:

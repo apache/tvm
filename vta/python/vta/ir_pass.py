@@ -556,7 +556,7 @@ def inject_dma_intrin(stmt_in):
             return irb.get()
 
         else:
-            raise RuntimeError("Donot support copy %s->%s" % (src.scope, dst.scope))
+            raise RuntimeError("Do not support copy %s->%s" % (src.scope, dst.scope))
 
     return tvm.ir_pass.InjectCopyIntrin(stmt_in, "dma_copy", _inject_copy)
 

@@ -213,11 +213,11 @@ VerilogValue CodeGenVerilog::VisitExpr_(const UIntImm *op) {
   return IntConst(op, this);
 }
 VerilogValue CodeGenVerilog::VisitExpr_(const FloatImm *op) {
-  LOG(FATAL) << "Donot support float constant in Verilog";
+  LOG(FATAL) << "Do not support float constant in Verilog";
   return VerilogValue();
 }
 VerilogValue CodeGenVerilog::VisitExpr_(const StringImm *op) {
-  LOG(FATAL) << "Donot support string constant in Verilog";
+  LOG(FATAL) << "Do not support string constant in Verilog";
   return VerilogValue();
 }
 
