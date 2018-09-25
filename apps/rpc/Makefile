@@ -1,12 +1,12 @@
 # Makefile to compile RPC Server.
 TVM_ROOT=$(shell cd ../..; pwd)
-DMLC_CORE=${TVM_ROOT}/dmlc-core
+DMLC_CORE=${TVM_ROOT}/3rdparty/dmlc-core
 BUILD=${TVM_ROOT}/build
 
 PKG_CFLAGS = -std=c++11 -O2 -fPIC -g -Wall\
 	-I${TVM_ROOT}/include\
 	-I${DMLC_CORE}/include\
-	-I${TVM_ROOT}/dlpack/include
+	-I${TVM_ROOT}/3rdparty/dlpack/include
 
 PKG_LDFLAGS = -L${BUILD} -ldl -lpthread -ltvm -Wl,-R${BUILD}
 
