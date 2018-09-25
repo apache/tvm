@@ -183,13 +183,13 @@ func nativeToGoSlice(nargValues (*C.void), argValues []*Value, typeCodes []int32
 //
 //
 func nativeFromGoSlice(argValues []*Value) (nptr (*C.void)) {
-    nargValues := C._TVMValueNativeAllocate(C.int(int32(len(argValues))))
+    nargValues := ((uintptr)(C.malloc(C.ulong(C.sizeof_TVMValue * len(argValues)))))
     for ii := range argValues {
         C._TVMValueNativeSet(unsafe.Pointer(nargValues),
                              unsafe.Pointer(argValues[ii].nativeCPtr()),
                              C.int(int32(ii)))
     }
-    nptr = (*C.void)(nargValues)
+    nptr = (*C.void)(unsafe.Pointer(nargValues))
     return
 }
 
@@ -218,8 +218,8 @@ func nativeTVMFuncCall(funp *Function, argValues []*Value, typeCodes []int32,
                                     (*_Ctype_int)(unsafe.Pointer(retTypeCode))))
     nativeToGoSlice(nargValues, argValues, typeCodes)
     nativeToGoSlice(nretValues, retValues, (*[1<<31] int32)(unsafe.Pointer(retTypeCode))[:1:1])
-    C._TVMValueNativeFree(unsafe.Pointer(nargValues))
-    C._TVMValueNativeFree(unsafe.Pointer(nretValues))
+    C.free(unsafe.Pointer(nargValues))
+    C.free(unsafe.Pointer(nretValues))
 
     if result != 0 {
 	    err = errors.New(getTVMLastError())
@@ -296,7 +296,7 @@ func goTVMCallback(args C.native_voidp, typeCodes C.native_voidp, numArgs int32,
         apiRet := (int32) (C.TVMCFuncSetReturn(_Ctype_TVMRetValueHandle(retArg),
                                                (*_Ctype_TVMValue)(unsafe.Pointer(nretValues)),
                                                (*_Ctype_int)(unsafe.Pointer(&retTypeCode)), 1))
-        C._TVMValueNativeFree(unsafe.Pointer(nretValues))
+        C.free(unsafe.Pointer(nretValues))
         if apiRet != 0 {
             errStr := string("TVMCFuncSetReturn failed ")
             setTVMLastError(errStr)

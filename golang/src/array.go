@@ -47,7 +47,7 @@ func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error)
 func (parray Array) CopyFrom(val interface{}) (err error) {
     var data unsafe.Pointer
     var datalen int
-    dtype := C._DLTensorGetDType(C.uintptr_t(parray))
+    dtype := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
 
     switch val.(type) {
         case []int8:
@@ -131,7 +131,7 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
     for ii := range shape {
         size *= shape[ii]
     }
-    dtype := C._DLTensorGetDType(C.uintptr_t(parray))
+    dtype := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
 
     switch parray.GetDType() {
         case "int8":
@@ -203,16 +203,16 @@ func (parray Array) AsSlice() (retVal interface{}, err error) {
 
 // GetNdim returns the number of dimentions in Array
 func (parray Array) GetNdim() (retVal int32) {
-    retVal = (int32)(C._DLTensorGetNdim(C.uintptr_t(parray)))
+    retVal = int32(((*_Ctype_TVMArray)(unsafe.Pointer(parray))).ndim)
     return
 }
 
 // GetShape returns the number of dimentions in Array
 func (parray Array) GetShape() (retVal []int64) {
-    shapeArr :=  C._DLTensorGetShape(C.uintptr_t(parray))
+    shapePtr := (*C.int64_t)(((*_Ctype_TVMArray)(unsafe.Pointer(parray))).shape)
     ndim := parray.GetNdim()
 
-    shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapeArr))[:ndim:ndim]
+    shapeSlice := (*[1<<31] int64)(unsafe.Pointer(shapePtr))[:ndim:ndim]
     retVal = make([]int64, ndim)
     copy(retVal, shapeSlice)
     return
@@ -220,14 +220,14 @@ func (parray Array) GetShape() (retVal []int64) {
 
 // GetDType returns the number of dimentions in Array
 func (parray Array) GetDType() (retVal string) {
-    ret := C._DLTensorGetDType(C.uintptr_t(parray))
+    ret := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).dtype
     retVal, _ = dtypeFromTVMType(*(*pTVMType)(unsafe.Pointer(&ret)))
     return
 }
 
 // GetCtx returns the number of dimentions in Array
 func (parray Array) GetCtx() (retVal Context) {
-    ret := C._DLTensorGetCtx(C.uintptr_t(parray))
+    ret := ((*_Ctype_TVMArray)(unsafe.Pointer(parray))).ctx
     retVal = *(*Context)(unsafe.Pointer(&ret))
     return
 }

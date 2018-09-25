@@ -12,6 +12,7 @@ import "C"
 import (
     "fmt"
     "runtime"
+    "unsafe"
 )
 
 // KHandle is golang type code for TVM enum kHandle.
@@ -110,7 +111,10 @@ func (tvmval *Value) nativeCPtr() (ret uintptr) {
 
 // moveFrom copies the tvmval from other Value object.
 func (tvmval *Value) moveFrom(fromval *Value) () {
-    C._TVMValueCopyFrom(C.uintptr_t(tvmval.nativeCPtr()), C.uintptr_t(fromval.nativeCPtr()))
+    C.memcpy(unsafe.Pointer(tvmval.nativeCPtr()),
+             unsafe.Pointer(fromval.nativeCPtr()),
+             C.sizeof_TVMValue)
+
     // Move the dtype too.
     tvmval.dtype = fromval.dtype
     fromval.dtype = KNull
@@ -121,7 +125,8 @@ func (tvmval *Value) moveFrom(fromval *Value) () {
 //
 // `val` is the int64 value to initialize the Value
 func (tvmval *Value) setVInt64(val int64) {
-	C._TVMValueSetInt64(C.uintptr_t(tvmval.nativeCPtr()), C.int64_t(val))
+    valp := (*C.int64_t)(unsafe.Pointer(tvmval.nativeCPtr()))
+    *valp = C.int64_t(val)
     tvmval.dtype = KDLInt
     return
 }
@@ -129,7 +134,8 @@ func (tvmval *Value) setVInt64(val int64) {
 
 // getVInt64 returns the int64 value inside the Value.
 func (tvmval *Value) getVInt64() (retVal int64) {
-	retVal = (int64)(C._TVMValueGetInt64(C.uintptr_t(tvmval.nativeCPtr())))
+    valp := (*C.int64_t)(unsafe.Pointer(tvmval.nativeCPtr()))
+    retVal = int64(*valp)
     return
 }
 
@@ -137,14 +143,16 @@ func (tvmval *Value) getVInt64() (retVal int64) {
 //
 // `val` is the float64 value to initialize the Value.
 func (tvmval *Value) setVFloat64(val float64) {
-	C._TVMValueSetFloat64(C.uintptr_t(tvmval.nativeCPtr()), C.double(val))
+    valp := (*C.double)(unsafe.Pointer(tvmval.nativeCPtr()))
+    *valp = C.double(val)
     tvmval.dtype = KDLFloat
     return
 }
 
 // getVFloat64 returns the float64 value inside Value.
 func (tvmval *Value) getVFloat64() (retVal float64) {
-	retVal = (float64)(C._TVMValueGetFloat64(C.uintptr_t(tvmval.nativeCPtr())))
+    valp := (*C.double)(unsafe.Pointer(tvmval.nativeCPtr()))
+    retVal = float64(*valp)
     return
 }
 
@@ -155,12 +163,14 @@ func (tvmval *Value) getVFloat64() (retVal float64) {
 //
 // `val` is the uintptr type of given handle.
 func (tvmval *Value) setVHandle(val uintptr) {
-	C._TVMValueSetHandle(C.uintptr_t(tvmval.nativeCPtr()), C.uintptr_t(val))
+    valp := (**C.void)(unsafe.Pointer(tvmval.nativeCPtr()))
+    *valp = (*C.void)(unsafe.Pointer(val))
 }
 
 // getVHandle returns the uintptr handle
 func (tvmval *Value) getVHandle() (retVal uintptr) {
-	retVal = (uintptr)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
+    valp := (**C.void)(unsafe.Pointer(tvmval.nativeCPtr()))
+    retVal = uintptr(unsafe.Pointer(*valp))
     return
 }
 
@@ -168,7 +178,8 @@ func (tvmval *Value) getVHandle() (retVal uintptr) {
 //
 // `val` is the golang string object used to initialize the Value.
 func (tvmval *Value) setVStr(val string) {
-	C._TVMValueSetStr(C.uintptr_t(tvmval.nativeCPtr()), C.CString(val))
+    valp := (**C.char)(unsafe.Pointer(tvmval.nativeCPtr()))
+    *valp = C.CString(val)
     tvmval.dtype = KStr
     return
 }
@@ -176,14 +187,16 @@ func (tvmval *Value) setVStr(val string) {
 
 // getVStr returns the golang string for the native string inside Value.
 func (tvmval *Value) getVStr() (retVal string) {
-	str := C._TVMValueGetStr(C.uintptr_t(tvmval.nativeCPtr()))
-    retVal = C.GoString(str)
+    valp := (**C.char)(unsafe.Pointer(tvmval.nativeCPtr()))
+    retVal = C.GoString(*valp)
     return
 }
 
 // unSetVStr release the memory allocated in setVStr
 func (tvmval *Value) unSetVStr() {
-	C._TVMValueUnSetStr(C.uintptr_t(tvmval.nativeCPtr()))
+    valp := (**C.char)(unsafe.Pointer(tvmval.nativeCPtr()))
+	C.free(unsafe.Pointer(*valp))
+    tvmval.dtype = KNull
 }
 
 // setVAHandle is used to set Array handle in Value.
@@ -198,7 +211,7 @@ func (tvmval *Value) setVAHandle(ptvmarray Array) {
 
 // getVAHandle is used to get Array handle in Value.
 func (tvmval *Value) getVAHandle() (retVal Array) {
-	retVal = (Array)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
+	retVal = (Array)(tvmval.getVHandle())
     return
 }
 
@@ -214,7 +227,7 @@ func (tvmval *Value) setVMHandle(tvmmodule Module) {
 
 // getVMHandle is used to get Module handle in Value.
 func (tvmval *Value) getVMHandle() (retVal Module) {
-	retVal = (Module)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
+	retVal = (Module)(tvmval.getVHandle())
     return
 }
 
@@ -230,7 +243,7 @@ func (tvmval *Value) setVFHandle(tvmfunction Function) {
 
 // getVFHandle is used to get Function handle in Value.
 func (tvmval *Value) getVFHandle() (retVal Function) {
-	retVal = (Function)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
+	retVal = (Function)(tvmval.getVHandle())
     return
 }
 
@@ -246,7 +259,7 @@ func (tvmval *Value) setVBHandle(tbytearray ByteArray) {
 
 // getVBHandle is used to get ByteArray handle in Value.
 func (tvmval *Value) getVBHandle() (retVal ByteArray) {
-	retVal = (ByteArray)(C._TVMValueGetHandle(C.uintptr_t(tvmval.nativeCPtr())))
+	retVal = (ByteArray)(tvmval.getVHandle())
     return
 }
 
@@ -320,7 +333,7 @@ func (tvmval *Value) setValue(val interface{}) (retVal int32, err error) {
 func newTVMValue() (retVal *Value) {
     handle := new(Value)
 
-    handle.nptr = (uintptr(C._NewTVMValue()))
+    handle.nptr = (uintptr(C.malloc(C.sizeof_TVMValue)))
     handle.dtype = KNull
     handle.isLocal = true
     finalizer := func(vhandle *Value) {
@@ -343,5 +356,5 @@ func (tvmval Value) deleteTVMValue() {
         }
     }
 
-	C._DeleteTVMValue(C.uintptr_t(tvmval.nativeCPtr()))
+	C.free(unsafe.Pointer(tvmval.nativeCPtr()))
 }

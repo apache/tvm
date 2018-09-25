@@ -31,13 +31,19 @@ func (tbytearray ByteArray) nativeCPtr() (retVal uintptr) {
 //
 // `val` is the golang string object from which the ByteArray is initialized.
 func (tbytearray ByteArray) setData(val string) {
-	C._TVMByteArraySetData(C.uintptr_t(tbytearray), C.CString(val), C.int(len(val)))
+    bufPtr := ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).data
+    if bufPtr == (*_Ctype_char)(C.NULL) {
+        C.free(unsafe.Pointer(bufPtr))
+    }
+
+    ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).data = C.CString(val)
+    ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).size = C.ulong(len(val))
 }
 
 // getData returns the golang byte slice corresponding to the ByteArray.
 func (tbytearray ByteArray) getData() (retVal []byte) {
-	val := C._TVMByteArrayGetData(C.uintptr_t(tbytearray))
-	blen := C._TVMByteArrayGetDataLen(C.uintptr_t(tbytearray))
+	val := ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).data
+	blen := ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).size
 	retVal = C.GoBytes(unsafe.Pointer(val), C.int(blen))
     return
 }
@@ -48,7 +54,9 @@ func (tbytearray ByteArray) getData() (retVal []byte) {
 //
 // returns newly created ByteArray.
 func newByteArray(val []byte) (retVal ByteArray) {
-    handle := ByteArray(C._NewTVMByteArray())
+    handle := ByteArray(C.malloc(C.sizeof_TVMByteArray))
+    ((*C.TVMByteArray)(unsafe.Pointer(handle))).data = (*_Ctype_char)(C.NULL)
+    ((*C.TVMByteArray)(unsafe.Pointer(handle))).size = 0
     handle.setData(string(val))
     retVal = handle
     return
@@ -58,5 +66,7 @@ func newByteArray(val []byte) (retVal ByteArray) {
 //
 // This delete handles freeing of underlaying native data object too.
 func (tbytearray ByteArray) deleteTVMByteArray() {
-	C._DeleteTVMByteArray(C.uintptr_t(tbytearray.nativeCPtr()))
+    bufPtr := ((*C.TVMByteArray)(unsafe.Pointer(tbytearray))).data
+    C.free(unsafe.Pointer(bufPtr))
+	C.free(unsafe.Pointer(tbytearray.nativeCPtr()))
 }
