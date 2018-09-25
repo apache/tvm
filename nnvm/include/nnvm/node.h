@@ -106,6 +106,12 @@ struct NodeAttrs {
    * stateful operators.
    */
   std::vector<std::shared_ptr<Symbol> > subgraphs;
+  /*!
+   * \brief Device information of the node. It indicates the device that this
+   * node should be executed. By default, the node is not annotated with any
+   * device.
+   */
+  int device_type = 0;
 };
 
 /*!
