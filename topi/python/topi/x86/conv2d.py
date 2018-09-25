@@ -3,6 +3,8 @@
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.dispatcher import ApplyGraphBest
+from tvm.autotvm.task.nnvm_integration import deserialize_args
+from tvm.autotvm.task import register, get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
@@ -357,6 +359,53 @@ def schedule_conv2d_nhwc(outs):
 
     traverse(output_op)
     return s
+
+
+# Define template function for autotvm task
+# We define schedule template in this function instead of
+# declaration function since actual input arguments need
+# to be altered by the schedule selected.
+@register("topi_x86_conv2d_NCHWc")
+def _topi_nn_conv2d_NCHWc(*args, **kwargs):
+    assert not kwargs, "Do not support kwargs in template function call"
+    args = deserialize_args(args)
+    data, kernel = args[:2]
+    kernel_size = args[3]
+    strides = args[4]
+    padding = args[5]
+    layout = args[6]
+    kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) else \
+        (kernel_size, kernel_size)
+    is_kernel_1x1 = kh == 1 and kw == 1
+    raw_data_shape = get_const_tuple(data.shape)
+    raw_kernel_shape = get_const_tuple(kernel.shape)
+
+    # get config here
+    cfg = get_config()
+    _create_schedule_template(cfg, data, kernel, strides, padding, layout)
+
+    # change shape with the value in config
+    ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                           cfg["tile_ow"].size[-1])
+    new_data_shape = (raw_data_shape[0], raw_data_shape[1] // ic_bn,
+                      raw_data_shape[2], raw_data_shape[3], ic_bn)
+    data_layout = "NCHW%dc" % ic_bn
+    out_layout = "NCHW%dc" % oc_bn
+    if is_kernel_1x1:
+        new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
+                            ic_bn, oc_bn, raw_kernel_shape[2], raw_kernel_shape[3])
+    else:
+        new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
+                            raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
+    args[0] = tvm.placeholder(new_data_shape, data.dtype)
+    args[1] = tvm.placeholder(new_kernel_shape, kernel.dtype)
+    args[6] = data_layout
+    args[7] = out_layout
+
+    C = _declaration_conv_NCHWc(cfg, *args, **kwargs)
+    s = _schedule_conv2d_NCHWc(cfg, args[2], args[3], args[4], args[5],
+                               args[6], args[7], [C])
+    return s, [args[0], args[1], C]
 
 
 def conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,

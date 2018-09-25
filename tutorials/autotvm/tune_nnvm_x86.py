@@ -126,7 +126,7 @@ def tune_kernels(tasks,
         args = autotvm.task.nnvm_integration.serialize_args(args)
         task = autotvm.task.create("topi_x86_conv2d_NCHWc", args=args, target=target)
         task.workload = conv_NCHWc_arg_to_workload(data_plc, kernel_plc, kernel_size,
-                                                   strides, padding, layout, dtype)
+                                                   strides, padding, layout, layout, dtype)
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
@@ -189,4 +189,4 @@ def tune_and_evaluate(tuning_opt):
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-# tune_and_evaluate(tuning_option)
+#tune_and_evaluate(tuning_option)
