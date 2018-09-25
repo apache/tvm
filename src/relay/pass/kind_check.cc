@@ -45,7 +45,7 @@ struct KindChecker : TypeVisitor<> {
       return true;
     }
 
-    return t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+    return t.as<TensorTypeNode>() || t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
   }
 
   void VisitType_(const TupleTypeNode* op) override {
@@ -95,6 +95,15 @@ bool KindCheck(const Environment& env, const Type &t) {
   KindChecker kc;
   return kc.Check(t);
 }
+
+TVM_REGISTER_API("relay._ir_pass.check_kind")
+    .set_body([](TVMArgs args, TVMRetValue* ret) {
+      if (args.size() == 1) {
+        *ret = KindCheck(EnvironmentNode::make({}), args[0]);
+      } else {
+        *ret = KindCheck(args[0], args[1]);
+      }
+    });
 
 }  // namespace relay
 }  // namespace tvm
