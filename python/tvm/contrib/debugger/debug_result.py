@@ -5,7 +5,7 @@ import tvm
 
 GRAPH_DUMP_FILE_NAME = '_tvmdbg_graph_dump.json'
 
-class DebugResult():
+class DebugResult(object):
     """Graph debug data module.
 
     Data dump module manage all the debug data formatting.
