@@ -111,7 +111,6 @@ def transpose(a, axes=None):
         return a(*idx)
     return tvm.compute(new_shape, _compute)
 
-@tvm.tag_scope(tag=tag.INJECTIVE)
 def flip(a, axis=0):
     """Flip/reverse elements of an array in a particular axis.
 
@@ -129,7 +128,6 @@ def flip(a, axis=0):
     """
     return cpp.flip(a, axis)
 
-@tvm.tag_scope(tag=tag.INJECTIVE)
 def strided_slice(a, begin, end, strides=None):
     """Slice of an array.
 
@@ -315,7 +313,6 @@ def split(ary, indices_or_sections, axis=0):
     # pylint: enable=cell-var-from-loop
 
 
-@tvm.tag_scope(tag=tag.INJECTIVE)
 def take(a, indices, axis=None):
     """Take elements from an array along an axis.
 
@@ -339,7 +336,6 @@ def take(a, indices, axis=None):
         return cpp.take(a, indices)
     return cpp.take(a, indices, int(axis))
 
-@tvm.tag_scope(tag=tag.MATMUL)
 def matmul(a, b, transp_a=False, transp_b=False):
     """
     Creates an operation that calculates a matrix multiplication (row-major notation):
