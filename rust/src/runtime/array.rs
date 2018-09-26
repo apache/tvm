@@ -3,8 +3,7 @@ use std::{
   convert::TryFrom,
   mem,
   os::raw::{c_int, c_void},
-  ptr,
-  slice,
+  ptr, slice,
 };
 
 use ndarray;
@@ -172,8 +171,7 @@ impl<'a> Tensor<'a> {
                 expected_stride * (*shape as usize),
               )
             },
-          )
-          .0
+          ).0
       }
     }
   }
@@ -254,7 +252,11 @@ macro_rules! impl_ndarray_try_from_tensor {
           tensor.dtype
         );
         Ok(ndarray::Array::from_shape_vec(
-          tensor.shape.iter().map(|s| *s as usize).collect::<Vec<usize>>(),
+          tensor
+            .shape
+            .iter()
+            .map(|s| *s as usize)
+            .collect::<Vec<usize>>(),
           tensor.to_vec::<$type>(),
         )?)
       }
@@ -347,12 +349,12 @@ macro_rules! make_dtype_const {
       bits: $bits,
       lanes: $lanes,
     };
-  }
+  };
 }
 
 make_dtype_const!(DTYPE_INT32, DLDataTypeCode_kDLInt, 32, 1);
 make_dtype_const!(DTYPE_UINT32, DLDataTypeCode_kDLUInt, 32, 1);
-make_dtype_const!(DTYPE_FLOAT16, DLDataTypeCode_kDLFloat, 16, 1);
+// make_dtype_const!(DTYPE_FLOAT16, DLDataTypeCode_kDLFloat, 16, 1);
 make_dtype_const!(DTYPE_FLOAT32, DLDataTypeCode_kDLFloat, 32, 1);
 make_dtype_const!(DTYPE_FLOAT64, DLDataTypeCode_kDLFloat, 64, 1);
 

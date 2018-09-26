@@ -7,7 +7,7 @@ use ffi::runtime::{
 
 use errors::*;
 
-pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue>;
+pub type PackedFunc = Box<Fn(&[TVMArgValue]) -> TVMRetValue + Send + Sync>;
 
 /// Calls a packed function and returns a `TVMRetValue`.
 ///
@@ -19,6 +19,9 @@ macro_rules! call_packed {
   ($fn:expr, $($args:expr),+) => {
     $fn(&[$($args.into(),)+])
   };
+  ($fn:expr) => {
+    $fn(&Vec::new())
+  };
 }
 
 /// A borrowed TVMPODValue. Can be constructed using `into()` but the preferred way
@@ -26,8 +29,18 @@ macro_rules! call_packed {
 #[derive(Clone, Copy)]
 pub struct TVMArgValue<'a> {
   _lifetime: PhantomData<&'a ()>,
-  value: TVMValue,
-  type_code: i64,
+  pub(crate) value: TVMValue,
+  pub(crate) type_code: i64,
+}
+
+impl<'a> TVMArgValue<'a> {
+  pub fn new(value: TVMValue, type_code: i64) -> Self {
+    TVMArgValue {
+      _lifetime: PhantomData,
+      value: value,
+      type_code: type_code,
+    }
+  }
 }
 
 /// Creates a conversion to a `TVMArgValue` for a primitive type and DLDataTypeCode.
@@ -134,6 +147,25 @@ pub struct TVMRetValue {
   box_value: Box<Any>,
   /// The DLDataTypeCode which determines whether `prim_value` or `box_value` is in use.
   type_code: i64,
+}
+
+impl TVMRetValue {
+  #[cfg(target_env = "sgx")]
+  pub(crate) fn from_tvm_value(value: TVMValue, type_code: i64) -> Self {
+    unsafe {
+      Self {
+        prim_value: match type_code {
+          0 | 1 => value.v_int64 as u64,
+          2 => value.v_float64 as u64,
+          3 | 7 | 8 | 9 | 10 => value.v_handle as u64,
+          11 | 12 => value.v_str as u64,
+          _ => 0,
+        } as u64,
+        box_value: box (),
+        type_code: type_code,
+      }
+    }
+  }
 }
 
 impl Default for TVMRetValue {

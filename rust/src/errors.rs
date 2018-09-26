@@ -1,4 +1,8 @@
-use std::{alloc, num};
+#[cfg(target_env = "sgx")]
+use alloc::alloc;
+#[cfg(not(target_env = "sgx"))]
+use std::alloc;
+use std::num;
 
 use ndarray;
 use serde_json;
@@ -22,9 +26,14 @@ error_chain! {
   }
   foreign_links {
     Alloc(alloc::AllocErr);
-    Layout(alloc::LayoutErr);
     GraphDeserialize(serde_json::Error);
     ParseInt(num::ParseIntError);
     ShapeError(ndarray::ShapeError);
+  }
+}
+
+impl From<alloc::LayoutErr> for Error {
+  fn from(_err: alloc::LayoutErr) -> Error {
+    Error::from_kind(ErrorKind::Msg("Layout error".to_string()))
   }
 }

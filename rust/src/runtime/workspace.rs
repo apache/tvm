@@ -1,7 +1,6 @@
 use std::{
   cell::RefCell,
   os::raw::{c_int, c_void},
-  ptr,
 };
 
 use super::allocator::Allocation;
@@ -22,24 +21,40 @@ impl WorkspacePool {
     }
   }
 
-  fn alloc(&mut self, size: usize) -> Result<*mut u8> {
+  fn alloc_new(&mut self, size: usize, align: usize) -> Result<*mut u8> {
+    self.workspaces.push(Allocation::new(size, Some(align))?);
+    self.in_use.push(self.workspaces.len() - 1);
+    Ok(self.workspaces[self.workspaces.len() - 1].as_mut_ptr())
+  }
+
+  fn alloc(&mut self, size: usize, align: usize) -> Result<*mut u8> {
     if self.free.len() == 0 {
-      self.workspaces.push(Allocation::new(size, None)?);
-      self.free.push(self.workspaces.len() - 1);
-      Ok(self.workspaces[self.workspaces.len() - 1].as_mut_ptr())
-    } else {
-      let i = self.free.iter().fold(0, |cur_ws_idx, &idx| {
-        let cur_size = self.workspaces[cur_ws_idx].size();
+      return self.alloc_new(size, align);
+    }
+    let idx = self
+      .free
+      .iter()
+      .fold(None, |cur_ws_idx: Option<usize>, &idx| {
         let ws_size = self.workspaces[idx].size();
-        if ws_size < size || ws_size > cur_size {
-          cur_ws_idx
-        } else {
-          idx
+        let ws_ok = ws_size >= size && self.workspaces[idx].align() == align;
+        if !ws_ok {
+          return cur_ws_idx;
         }
+        cur_ws_idx.or(Some(idx)).and_then(|cur_idx| {
+          let cur_size = self.workspaces[cur_idx].size();
+          Some(match ws_size <= cur_size {
+            true => idx,
+            false => cur_idx,
+          })
+        })
       });
-      let idx = self.free.remove(i);
-      self.in_use.push(idx.clone());
-      Ok(self.workspaces[idx].as_mut_ptr())
+    match idx {
+      Some(idx) => {
+        self.free.remove_item(&idx).unwrap();
+        self.in_use.push(idx);
+        Ok(self.workspaces[idx].as_mut_ptr())
+      }
+      None => self.alloc_new(size, align),
     }
   }
 
@@ -71,7 +86,7 @@ pub extern "C" fn TVMBackendAllocWorkspace(
   _device_id: c_int,
   size: u64,
   _dtype_code_hint: c_int,
-  _dtype_bits_hint: c_int,
+  dtype_bits_hint: c_int,
 ) -> *mut c_void {
   let nbytes = if size == 0 {
     WORKSPACE_PAGE_SIZE
@@ -79,12 +94,11 @@ pub extern "C" fn TVMBackendAllocWorkspace(
     size as usize
   };
   WORKSPACE_POOL.with(|pool_cell| {
-    (match pool_cell.borrow_mut().alloc(nbytes as usize) {
-      Ok(ptr) => ptr,
-      Err(_) => ptr::null_mut(),
-    }) as *mut c_void
-  });
-  return ptr::null_mut();
+    pool_cell
+      .borrow_mut()
+      .alloc(nbytes as usize, dtype_bits_hint as usize)
+      .unwrap() as *mut c_void
+  })
 }
 
 #[no_mangle]

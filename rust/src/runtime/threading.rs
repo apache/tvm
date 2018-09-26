@@ -2,8 +2,7 @@ use std::{
   os::raw::{c_int, c_void},
   sync::{
     atomic::{AtomicUsize, Ordering, ATOMIC_USIZE_INIT},
-    Arc,
-    Barrier,
+    Arc, Barrier,
   },
 };
 
@@ -16,12 +15,15 @@ use std::{
 };
 
 #[cfg(target_env = "sgx")]
-use std::{collections::VecDeque, sync::Mutex};
+use std::{collections::VecDeque, ptr, sync::Mutex};
 
 use bounded_spsc_queue::{self, Producer};
 
 use super::super::errors::*;
 use ffi::runtime::TVMParallelGroupEnv;
+
+#[cfg(target_env = "sgx")]
+use super::{TVMArgValue, TVMRetValue};
 
 type FTVMParallelLambda =
   extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;
@@ -56,8 +58,7 @@ impl Job {
         },
         cdata: self.cdata,
         pending: Arc::clone(&self.pending),
-      })
-      .collect()
+      }).collect()
   }
 
   /// Waits for all tasks in this `Job` to be completed.
@@ -109,8 +110,7 @@ impl<'a> Threads {
         let (p, c) = bounded_spsc_queue::make(2);
         let handle = thread::spawn(move || cb(c.into()));
         (handle, p)
-      })
-      .unzip();
+      }).unzip();
     Threads {
       handles: handles,
       queues: queues,
@@ -118,15 +118,18 @@ impl<'a> Threads {
   }
 
   #[cfg(target_env = "sgx")]
-  fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(num: usize, _cb: F) -> Self {
+  fn launch<F: Sync + Send + FnOnce(Consumer<Task>) + 'static + Copy>(
+    num_threads: usize,
+    _cb: F,
+  ) -> Self {
     let mut consumer_queues = SGX_QUEUES.lock().unwrap();
-    let queues = (0..num)
+    let queues = (0..num_threads)
       .map(|_| {
         let (p, c) = bounded_spsc_queue::make(2);
         consumer_queues.push_back(c.into());
         p
-      })
-      .collect();
+      }).collect();
+    ocall_packed!("__sgx_thread_group_launch__", num_threads as u64);
     Threads { queues: queues }
   }
 }
@@ -149,21 +152,23 @@ impl ThreadPool {
   }
 
   fn launch(&self, job: Job) {
-    let tasks = job.tasks(self.num_workers);
+    let mut tasks = job.tasks(self.num_workers + 1);
 
-    let _: Vec<()> = tasks
-      .into_iter()
-      .zip(self.threads.queues.iter())
-      .map(|(task, q)| q.push(task))
-      .collect();
+    for (i, task) in tasks.split_off(1).into_iter().enumerate() {
+      self.threads.queues[i].push(task);
+    }
 
+    tasks.pop().unwrap()();
     job.wait().unwrap();
   }
 
   fn run_worker(queue: Consumer<Task>) {
     loop {
       let task = queue.pop();
-      if task() != 0 {
+      let result = task();
+      if result == <i32>::min_value() {
+        break;
+      } else if result != 0 {
         panic!("Error running task.");
       }
     }
@@ -214,11 +219,16 @@ fn max_concurrency() -> usize {
 }
 
 #[cfg(target_env = "sgx")]
-#[no_mangle]
-pub extern "C" fn tvm_ecall_run_worker() {
-  if let Some(q) = SGX_QUEUES.lock().unwrap().pop_front() {
+pub fn tvm_run_worker(_args: &[TVMArgValue]) -> TVMRetValue {
+  let q = {
+    let mut qs = SGX_QUEUES.lock().unwrap();
+    qs.pop_front()
+    // `qs: MutexGuard` needs to be dropped here since `run_worker` won't return
+  };
+  if let Some(q) = q {
     ThreadPool::run_worker(q);
   }
+  TVMRetValue::default()
 }
 
 #[no_mangle]
@@ -233,9 +243,6 @@ pub extern "C" fn TVMBackendParallelLaunch(
       num_task: 1,
     };
     cb(0, &penv as *const _, cdata);
-
-    #[cfg(feature = "par-launch-alloc")]
-    let break_the_heap: Vec<u8> = Vec::new(); // TODO: why does allocating break?
   } else {
     THREAD_POOL.with(|pool| {
       pool.launch(Job {
@@ -247,6 +254,27 @@ pub extern "C" fn TVMBackendParallelLaunch(
     });
   }
   return 0;
+}
+
+#[cfg(target_env = "sgx")]
+pub(crate) fn sgx_join_threads() -> () {
+  extern "C" fn poison_pill(
+    _task_id: usize,
+    _penv: *const TVMParallelGroupEnv,
+    _cdata: *const c_void,
+  ) -> i32 {
+    <i32>::min_value()
+  }
+
+  THREAD_POOL.with(|pool| {
+    pool.launch(Job {
+      cb: poison_pill,
+      cdata: ptr::null(),
+      req_num_tasks: 0,
+      pending: Arc::new(ATOMIC_USIZE_INIT),
+    });
+  });
+  ocall_packed!("__sgx_thread_group_join__", 0);
 }
 
 // @see https://github.com/dmlc/tvm/issues/988 for information on why this function is used.

@@ -1,3 +1,6 @@
+#[cfg(target_env = "sgx")]
+use alloc::alloc::{self, Layout};
+#[cfg(not(target_env = "sgx"))]
 use std::alloc::{self, Layout};
 
 use errors::*;

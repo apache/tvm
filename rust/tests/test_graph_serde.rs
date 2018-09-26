@@ -18,10 +18,9 @@ fn test_load_graph() {
     .unwrap();
   let params = tvm::runtime::load_param_dict(&params_bytes);
 
-  let graph =
-    Graph::try_from(
-      &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),
-    ).unwrap();
+  let graph = Graph::try_from(
+    &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),
+  ).unwrap();
 
   assert_eq!(graph.nodes[3].op, "tvm_op");
   assert_eq!(
