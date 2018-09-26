@@ -6,7 +6,6 @@ import logging
 import tvm
 
 from tvm.contrib import graph_runtime
-from tvm._ffi import runtime_ctypes
 from tvm import autotvm
 from . import graph_attr, graph_util
 from .. import graph as _graph
@@ -119,10 +118,10 @@ def _lower(sch, inputs, func_name, graph):
 
 
 @tvm.register_func("nnvm.compiler.build_target")
-def _build(target_funcs, target_host):
+def _build(funcs, target, target_host):
     if target_host == "":
         target_host = None
-    return tvm.build(target_funcs, target_host=target_host)
+    return tvm.build(funcs, target=target, target_host=target_host)
 
 
 def _update_shape_dtype(shape, dtype, params):
@@ -292,16 +291,7 @@ def build(graph, target=None, shape=None, dtype="float32",
         graph = graph_attr.set_shape_inputs(graph, shape)
         graph = graph.apply("InferShape")
         graph = graph_attr.set_dtype_inputs(graph, dtype)
-        targets = []
-        if isinstance(target, (str, tvm.target.Target)):
-            targets = [str(target)]
-        elif isinstance(target, dict):
-            device_types = [runtime_ctypes.STR2MASK(dev) for dev in
-                            target.keys()]
-            graph._set_json_attr("device_type", device_types, "list_int")
-            targets = [str(tar) for tar in target.values()]
-        graph._set_json_attr("target", targets, "list_str")
-
+        graph._set_json_attr("target", str(target), "str")
         if target_host is not None:
             graph._set_json_attr("target_host", str(target_host), "str")
         if cfg.pass_enabled("OpFusion"):

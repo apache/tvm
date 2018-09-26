@@ -7,7 +7,6 @@
 #define NNVM_COMPILER_GRAPH_FUSE_H_
 
 #include <nnvm/graph.h>
-#include <string>
 #include <vector>
 
 #include "compile_engine.h"
@@ -61,8 +60,6 @@ struct FuseEntry {
   bool flatten_data;
   // The corresponding function.
   GraphFunc compiled_func;
-  // The device that the fused op lowered to.
-  int device_type;
 };
 
 // GroupVec stores the root node ids of the fused nodes.
@@ -77,8 +74,6 @@ using FuseEntryVec = std::vector<FuseEntry>;
 // PatternVec stores operator patterns.
 using PatternVec = std::vector<TOpPattern>;
 
-// DeviceTargetMap stores the device type to compilation target mapping info.
-using DeviceTargetMap = std::unordered_map<int, std::string>;
 }  // namespace compiler
 }  // namespace nnvm
 
