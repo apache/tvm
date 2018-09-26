@@ -21,7 +21,6 @@ class Type(NodeBase):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
-
 @register_relay_node
 class TensorType(Type):
     """A concrete TensorType in Relay, see tvm/relay/type.h for more details.
@@ -92,6 +91,27 @@ class TypeParam(Type):
 class TypeConstraint(Type):
     """Abstract class representing a type constraint."""
     pass
+
+
+@register_relay_node
+class TupleType(Type):
+    """A tuple type in Relay, see tvm/relay/type.h for more details.
+
+    Lists the type of each field in the tuple.
+    """
+
+    def __init__(self, fields):
+        """Constructs a tuple type
+
+        Parameters
+        ----------
+        fields: list of tvm.Type
+
+        Returns
+        -------
+        tuple_type: the tuple type
+        """
+        self.__init_handle_by_constructor__(_make.TupleType, fields)
 
 
 @register_relay_node

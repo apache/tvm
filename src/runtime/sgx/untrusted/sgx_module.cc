@@ -4,11 +4,11 @@
  * \brief SGX enclave module.
  */
 #include <dmlc/logging.h>
+#include <sgx_urts.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
-#include <sgx_urts.h>
 #include <algorithm>
 #include <fstream>
 #include <iostream>
@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include "../common.h"
 #include "../../file_util.h"
+#include "./tvm_u.h"
 
 namespace tvm {
 namespace runtime {

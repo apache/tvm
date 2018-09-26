@@ -88,7 +88,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     return output_data
 
 
-def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False):
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False):
     """Generic function to generate and compare tensorflow and TVM output"""
 
     out_node = out_name.split(':')[0] if ":" in out_name else out_name
@@ -116,6 +116,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False)
             if not ctx.exist:
                 print("Skip because %s is not enabled" % device)
                 continue
+            if no_gpu and device == 'cuda':
+                continue
 
             tvm_output = run_tvm_graph(final_graph_def, in_data,
                                        in_node, tf_output.shape, tf_output.dtype, target=device)
@@ -123,10 +125,20 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False)
 
         sess.close()
 
+def is_gpu_available():
+    from tensorflow.python.client import device_lib
+    local_device_protos = device_lib.list_local_devices()
+    gpu_list = [x.name for x in local_device_protos if x.device_type == 'GPU']
+    if len(gpu_list) < 0:
+        print("Tensorflow GPU:", gpu_list)
+        return True
+    else:
+        return False
+
 #######################################################################
 # Pooling
 # -------
-def _test_pooling(input_shape, **kwargs):
+def _test_pooling_iteration(input_shape, **kwargs):
     """ One iteration of pool operation with given shapes and attributes """
 
     x = -np.arange(
@@ -143,61 +155,45 @@ def _test_pooling(input_shape, **kwargs):
 
         compare_tf_with_tvm(x, 'Placeholder:0', out_name)
 
+def _test_pooling(input_shape, **kwargs):
+    _test_pooling_iteration(input_shape, **kwargs)
+
+    if is_gpu_available():
+        input_shape = [input_shape[ii] for ii in (0, 3, 1, 2)]
+        kwargs['data_layout'] = 'NCHW'
+        _test_pooling_iteration(input_shape, **kwargs)
+
 def test_forward_pooling():
     """ Pooling """
 
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
+    for pool_type in ['AVG', 'MAX']:
+            _test_pooling(input_shape=[2, 9, 10, 2],
+                         window_shape=[1, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[1, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
+            _test_pooling(input_shape=[2, 10, 9, 2],
+                         window_shape=[1, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[2, 1],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[1, 1])
-    _test_pooling(input_shape=[2, 9, 10, 2],
-                 window_shape=[2, 1],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[2, 1])
+            _test_pooling(input_shape=[2, 9, 10, 2],
+                         window_shape=[2, 1],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[1, 1])
 
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[2, 3],
-                 padding='SAME',
-                 pooling_type='MAX',
-                 dilation_rate=[1, 1],
-                 strides=[2, 1])
-    _test_pooling(input_shape=[2, 10, 9, 2],
-                 window_shape=[2, 3],
-                 padding='SAME',
-                 pooling_type='AVG',
-                 dilation_rate=[1, 1],
-                 strides=[1, 2])
-
+            _test_pooling(input_shape=[2, 10, 9, 2],
+                         window_shape=[2, 3],
+                         padding='SAME',
+                         pooling_type=pool_type,
+                         dilation_rate=[1, 1],
+                         strides=[2, 1])
 
 #######################################################################
 # Convolution
@@ -234,6 +230,12 @@ def _test_convolution(tensor_in_sizes, filter_in_sizes,
                             'Placeholder:0', 'Conv2D:0')
 
 def test_forward_convolution():
+    if is_gpu_available():
+        _test_convolution([4, 176, 8, 8], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution([4, 19, 17, 17], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NCHW')
+        _test_convolution([4, 124, 17, 17], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NCHW')
+        _test_convolution([4, 12, 17, 17], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NCHW')
+
     _test_convolution([4, 8, 8, 176], [1, 1, 176, 32], [1, 1], [1, 1], 'SAME', 'NHWC')
     _test_convolution([4, 17, 17, 19], [3, 3, 19, 19], [1, 1], [2, 2], 'VALID', 'NHWC')
     _test_convolution([4, 17, 17, 124], [1, 1, 124, 19], [1, 1], [1, 1], 'SAME', 'NHWC')
@@ -712,6 +714,25 @@ def test_forward_mobilenet():
             np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
+# ResnetV2
+# ---------
+def test_forward_resnetv2():
+    '''test resnet model'''
+    if is_gpu_available():
+        with tf.Graph().as_default():
+            graph_def = nnvm.testing.tf.get_workload("ResnetV2/resnet-20180601_resnet_v2_imagenet-shapes.pb")
+            # Call the utility to import the graph definition into default graph.
+            graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
+
+            data = np.random.uniform(size=(128, 224, 224, 3)).astype('float32')
+            out_node = 'ArgMax'
+
+            with tf.Session() as sess:
+                tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
+                tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
+                np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
+
+#######################################################################
 # PTB
 # ---
 dir(tf.contrib)
@@ -947,37 +968,69 @@ def test_forward_tanh():
         compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Tanh:0')
 
 #######################################################################
+# Mean
+# ----
+def test_forward_mean():
+    def check_mean(ishape, **kwargs):
+        inp_array = np.random.uniform(size=ishape).astype(np.float32)
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.keras.backend.mean(in1, **kwargs)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'Mean:0', no_gpu=True)
+
+    check_mean((10, 8, 16, 32))
+    check_mean((10, 8, 16, 32), axis=(2,3))
+    check_mean((10, 8, 16, 32), axis=(1,2), keepdims=True)
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+    # Transforms
     test_forward_transpose()
-    test_forward_convolution()
-    test_forward_pooling()
     test_forward_reshape()
     test_forward_squeeze()
-    test_forward_sigmoid()
-    test_forward_argminmax()
-    test_forward_reduce()
-    if tf.__version__ == '1.4.1':
-        _test_forward_concat_v2()
-    test_forward_multi_input()
     test_forward_pack()
-    test_forward_inception_v3()
-    test_forward_inception_v1()
-    test_forward_mobilenet()
-    test_forward_variable()
     test_forward_resize_bilinear()
     test_forward_pad()
-    #test_forward_lstm()
-    #test_forward_stridedslice()
     test_forward_gather()
-    test_forward_ptb()
-    test_forward_lrn()
-    test_forward_l2_normalize()
-    test_forward_ceil()
-    test_forward_floor()
+    #test_forward_stridedslice()
+
+    # Activations
+    test_forward_sigmoid()
     test_forward_relu()
     test_forward_leaky_relu()
     test_forward_elu()
     test_forward_selu()
     test_forward_tanh()
+
+    # Reductions
+    test_forward_argminmax()
+    test_forward_reduce()
+    test_forward_mean()
+
+    # NN
+    test_forward_convolution()
+    test_forward_pooling()
+    if tf.__version__ == '1.4.1':
+        _test_forward_concat_v2()
+    test_forward_lrn()
+    test_forward_l2_normalize()
+
+    # General
+    test_forward_multi_input()
+    test_forward_variable()
+
+    # End to End
+    test_forward_inception_v3()
+    test_forward_inception_v1()
+    test_forward_mobilenet()
+    test_forward_resnetv2()
+    test_forward_ptb()
+
+    # RNN
+    #test_forward_lstm()
+
+    # Elementwise
+    test_forward_ceil()
+    test_forward_floor()
