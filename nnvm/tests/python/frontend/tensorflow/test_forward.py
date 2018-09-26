@@ -379,7 +379,7 @@ def test_forward_reduce():
     data = np.random.uniform(size=(8,4,9)).astype('float32')
     _test_reduce(tf.reduce_sum, data=data)
     _test_reduce(tf.reduce_sum, data=data, axis=0)
-    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))    
+    _test_reduce(tf.reduce_sum, data=data, axis=(0,1))
 
 
 #######################################################################
@@ -983,6 +983,28 @@ def test_forward_mean():
     check_mean((10, 8, 16, 32), axis=(1,2), keepdims=True)
 
 #######################################################################
+# Relational operators
+# --------------------
+def _test_forward_rel_op(data, func):
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(shape=data[0].shape, dtype=data[0].dtype, name='in1')
+        in2 = tf.placeholder(shape=data[1].shape, dtype=data[1].dtype, name='in2')
+        op = func(in1, in2, name='op')
+        out = tf.cast(op, tf.int32, name='out1')
+        compare_tf_with_tvm([data[0], data[1]], ['in1:0', 'in2:0'], 'out1:0')
+
+def test_forward_rel_ops():
+    t1 = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    t2 = np.array([[9, 8, 7], [6, 5, 4], [3, 2, 1]])
+    _test_forward_rel_op([t1, t2], math_ops.less)
+    _test_forward_rel_op([t1, t2], math_ops.greater)
+    _test_forward_rel_op([t1, t2], math_ops.less_equal)
+    _test_forward_rel_op([t1, t2], math_ops.greater_equal)
+    _test_forward_rel_op([t1, t2], math_ops.equal)
+    _test_forward_rel_op([t1, t2], math_ops.not_equal)
+
+
+#######################################################################
 # Main
 # ----
 if __name__ == '__main__':
@@ -1034,3 +1056,6 @@ if __name__ == '__main__':
     # Elementwise
     test_forward_ceil()
     test_forward_floor()
+
+    # Relational ops
+    test_forward_rel_ops()

@@ -759,6 +759,15 @@ def _mean():
                        extras={'axis': tuple(axis.asnumpy())})(inputs[0], attr)
     return _impl
 
+def _broadcast(name):
+    def _impl(inputs, attr, params):
+        op_name = _math_name_picker(name)(attr)
+        return AttrCvt(
+            op_name=op_name,
+            ignores=['name', 'Tidx']
+        )(inputs, attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -819,6 +828,12 @@ _convert_map = {
     'Transpose'                         : _transpose(),
     'Tanh'                              : AttrCvt('tanh'),
     'Mean'                              : _mean(),
+    'Less'                              : _broadcast('less'),
+    'Greater'                           : _broadcast('greater'),
+    'LessEqual'                         : _broadcast('less_equal'),
+    'GreaterEqual'                      : _broadcast('greater_equal'),
+    'Equal'                             : _broadcast('equal'),
+    'NotEqual'                          : _broadcast('not_equal'),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
