@@ -51,6 +51,16 @@ def test_invalid_func_kind():
     tf = relay.FuncType(arg_types, ret_type, type_params, type_constraints)
     assert not check_kind(tf)
 
+def test_func_with_invalid_ret_type():
+    tp1 = relay.TypeParam('tp1', relay.Kind.Type)
+    tp2 = relay.TypeParam('tp2', relay.Kind.Shape)
+    tf = relay.FuncType(tvm.convert([tp1]), tp2, tvm.convert([tp1, tp2]), tvm.convert([]))
+
+def test_func_with_invalid_arg_types():
+    tp1 = relay.TypeParam('tp1', relay.Kind.Shape)
+    tp2 = relay.TypeParam('tp2', relay.Kind.Type)
+    tf = relay.FuncType(tvm.convert([tp1]), tp2, tvm.convert([tp1, tp2]), tvm.convert([]))
+
 def test_func_with_invalid_tuple():
     tp1 = relay.TypeParam('tp1', relay.Kind.Shape)
 
