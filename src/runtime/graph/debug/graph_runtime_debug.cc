@@ -23,8 +23,9 @@ class GraphRuntimeDebug : public GraphRuntime {
      * \brief Run each operation and get the output.
      * \param index The index of op which needs to be run.
      */
-  double DebugRun(int index) {
-    TVMContext ctx = GetCtx();
+  double DebugRun(size_t index) {
+    CHECK(index < op_execs().size());
+    TVMContext ctx = data_entry()[GetEntryId(index, 0)].operator->()->ctx;
     auto tbegin = std::chrono::high_resolution_clock::now();
     if (op_execs()[index]) {
       op_execs()[index]();
@@ -81,24 +82,23 @@ PackedFunc GraphRuntimeDebug::GetFunction(
  * \brief GraphRuntimeDebugCreate Get the function based on input.
  * \param sym_json The graph symbol in json format.
  * \param m Compiled module which will be loaded.
- * \param device_type The device type.
- * \param device_id The device id.
+ * \param ctxs All devices contexts.
  */
-Module GraphRuntimeDebugCreate(std::string sym_json,
-                               tvm::runtime::Module m,
-                               int device_type,
-                               int device_id) {
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id   = device_id;
+  Module GraphRuntimeDebugCreate(const std::string& sym_json,
+                                 const tvm::runtime::Module& m,
+                                 const std::vector<TVMContext>& ctxs) {
   std::shared_ptr<GraphRuntimeDebug> exec = std::make_shared<GraphRuntimeDebug>();
-  exec->Init(sym_json, m, ctx);
+  exec->Init(sym_json, m, ctxs);
   return Module(exec);
 }
 
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-    *rv = GraphRuntimeDebugCreate(args[0], args[1], args[2], args[3]);
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    CHECK_GE(args.num_args, 4)
+        << "The expected number of arguments for graph_runtime.create is "
+           "at least 4, but it has "
+        << args.num_args;
+    *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
   });
 TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug._save_param_dict")
 .set_body([](TVMArgs args, TVMRetValue *rv) {

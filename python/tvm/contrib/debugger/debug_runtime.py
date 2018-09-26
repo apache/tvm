@@ -40,16 +40,18 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
             graph_json_str = graph_json_str._tvm_graph_json()
         except AttributeError:
             raise ValueError("Type %s is not supported" % type(graph_json_str))
-    device_type = ctx.device_type
-    device_id = ctx.device_id
     try:
         fcreate = get_global_func("tvm.graph_runtime_debug.create")
     except ValueError:
         raise ValueError("Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in " \
                          "config.cmake and rebuild TVM to enable debug mode")
-    func_obj = fcreate(graph_json_str, libmod, device_type, device_id)
-    return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 
+    ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
+    if num_rpc_ctx == len(ctx):
+        raise NotSupportedError("Remote graph debugging is not supported.")
+
+    func_obj = fcreate(graph_json_str, libmod, *device_type_id)
+    return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 
 class GraphModuleDebug(graph_runtime.GraphModule):
     """Graph debug runtime module.
@@ -75,16 +77,15 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         None will make a temp folder in /tmp/tvmdbg<rand_string> and does the dumping
     """
     def __init__(self, module, ctx, graph_json_str, dump_root):
-        #self.ui_obj = None
         self._dump_root = dump_root
         self._dump_path = None
         self._debug_run = module["debug_run"]
         self._get_output_by_layer = module["get_output_by_layer"]
-        graph_runtime.GraphModule.__init__(self, module, ctx)
+        graph_runtime.GraphModule.__init__(self, module)
         self._create_debug_env(graph_json_str, ctx)
 
     def _format_context(self, ctx):
-        return str(ctx).upper().replace("(", ":").replace(")", "")
+        return str(ctx[0]).upper().replace("(", ":").replace(")", "")
 
     def _ensure_dir(self, directory):
         """Create a directory if not exists

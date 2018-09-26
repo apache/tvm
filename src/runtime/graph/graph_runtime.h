@@ -12,6 +12,7 @@
 #include <dmlc/memory_io.h>
 #include <dmlc/json.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <vector>
 #include <string>
@@ -168,14 +169,6 @@ class GraphRuntime : public ModuleNode {
   uint32_t GetEntryId(uint32_t nid, uint32_t index) const {
     return node_row_ptr_[nid] + index;
   }
-
-  /*!
-   * \brief Get the TVMContext.
-   * \return The TVMContext is returned.
-   */
-  //TVMContext GetCtx() {
-   // return ctx_;
-  //}
 
  private:
   // Memory pool entry.
@@ -413,6 +406,7 @@ class GraphRuntime : public ModuleNode {
   std::vector<std::function<void()> > op_execs_;
 };
 
+std::vector<TVMContext> GetAllContext(const TVMArgs& args);
 }  // namespace runtime
 }  // namespace tvm
 
