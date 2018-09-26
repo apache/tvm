@@ -72,15 +72,14 @@ def _get_box(data, biases, n, location, lw, lh, w, h):
     bh = np.exp(data[location[0]][3][location[1]][location[2]]) * biases[2*n+1] / h
     return Box(bx, by, bw, bh)
 
-def _get_yolo_detections(l, im_w, im_h, netw, neth, thresh, relative, dets):
+def _get_yolo_detections(l, im_shape, net_shape, thresh, relative, dets):
     data = l['output']
-    np.set_printoptions(threshold=np.nan)
     active_data_loc = np.asarray(np.where(data[:, 4, :, :] > thresh))
     before_correct_dets = []
     for i in range(active_data_loc.shape[1]):
         location = [active_data_loc[0][i], active_data_loc[1][i], active_data_loc[2][i]]
         box_b = _get_box(data, l['biases'], np.asarray(l['mask'])[location[0]], location,
-                         data.shape[2], data.shape[3], netw, neth)
+                         data.shape[2], data.shape[3], net_shape[0], net_shape[1])
         objectness = data[location[0]][4][location[1]][location[2]]
         classes = l['classes']
         prob = objectness*data[location[0], 5:5 + 1 + classes, location[1], location[2]]
@@ -91,10 +90,11 @@ def _get_yolo_detections(l, im_w, im_h, netw, neth, thresh, relative, dets):
         detection['prob'] = prob
         detection['objectness'] = objectness
         before_correct_dets.append(detection)
-    dets.extend(_correct_boxes(before_correct_dets, im_w, im_h, netw, neth, relative))
+    dets.extend(_correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
+                               net_shape[0], net_shape[1], relative))
     return
 
-def _get_region_detections(l, im_w, im_h, netw, neth, thresh, relative, dets):
+def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
     data = l['output']
     before_correct_dets = []
     for row in range(data.shape[2]):
@@ -115,18 +115,19 @@ def _get_region_detections(l, im_w, im_h, netw, neth, thresh, relative, dets):
                 detection['prob'] = prob
                 detection['objectness'] = objectness
                 before_correct_dets.append(detection)
-    _correct_boxes(before_correct_dets, im_w, im_h, netw, neth, relative)
+    _correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
+                   net_shape[0], net_shape[1], relative)
     dets.extend(before_correct_dets)
     return
 
-def fill_network_boxes(netw, neth, im_w, im_h,
+def fill_network_boxes(net_shape, im_shape,
                        thresh, hier_thresh, relative, tvm_out):
     dets = []
     for layer in tvm_out:
         if layer['type'] == 'Yolo':
-            _get_yolo_detections(layer, im_w, im_h, netw, neth, thresh, relative, dets)
+            _get_yolo_detections(layer, im_shape, net_shape, thresh, relative, dets)
         elif layer['type'] == 'Region':
-            _get_region_detections(layer, im_w, im_h, netw, neth, thresh, relative, dets)
+            _get_region_detections(layer, im_shape, net_shape, thresh, relative, dets)
     return dets
 
 def do_nms_sort(dets, classes, thresh):
@@ -152,7 +153,7 @@ def do_nms_sort(dets, classes, thresh):
                 continue
             a = dets[i]['bbox']
             for j in range(i+1, total):
-                b = dets[i]['bbox']
+                b = dets[j]['bbox']
                 if _box_iou(a, b) > thresh:
                     dets[j]['prob'][k] = 0
 

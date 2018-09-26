@@ -440,11 +440,13 @@ class GraphProto(object):
         self._state_ctr['cell_state'] = 0
         self._state_ctr['gru'] = 0
 
-    def _read_memory_buffer(self, shape, data):
+    def _read_memory_buffer(self, shape, data, dtype=None):
+        if dtype is None:
+            dtype = self.dtype
         length = 1
         for x in shape:
             length *= x
-        data_np = np.zeros(length, dtype=self.dtype)
+        data_np = np.zeros(length, dtype=dtype)
         for i in range(length):
             data_np[i] = data[i]
         return data_np.reshape(shape)
@@ -496,17 +498,27 @@ class GraphProto(object):
     def _get_region_weights(self, layer, opname):
         """Parse the biases for region layer."""
         biases = self._read_memory_buffer((layer.n*2, ), layer.biases)
+        attributes = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
+                               layer.classes, layer.coords, layer.background],
+                              dtype=np.int32)
         k = self._get_tvm_params_name(opname, 'bias')
         self._tvmparams[k] = tvm.nd.array(biases)
+        k = self._get_tvm_params_name(opname, 'attr')
+        self._tvmparams[k] = tvm.nd.array(attributes)
 
     def _get_yolo_weights(self, layer, opname):
         """Parse the biases and mask for yolo layer."""
         biases = self._read_memory_buffer((layer.total*2, ), layer.biases)
-        mask = self._read_memory_buffer((layer.n, ), layer.mask)
+        mask = self._read_memory_buffer((layer.n, ), layer.mask, dtype='int32')
+        attributes = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
+                               layer.classes, layer.total],
+                              dtype=np.int32)
         k = self._get_tvm_params_name(opname, 'bias')
         self._tvmparams[k] = tvm.nd.array(biases)
         k = self._get_tvm_params_name(opname, 'mask')
         self._tvmparams[k] = tvm.nd.array(mask)
+        k = self._get_tvm_params_name(opname, 'attr')
+        self._tvmparams[k] = tvm.nd.array(attributes)
 
     def _get_batchnorm_weights(self, layer, opname, size):
         """Parse the weights for batchnorm, which includes, scales, moving mean
@@ -870,23 +882,17 @@ class GraphProto(object):
 
         return processed, sym
 
-    def _make_outlist(self, sym, op_name, layer, layer_num):
+    def _make_outlist(self, sym, op_name, layer):
         if layer.type == LAYERTYPE.REGION:
-            l_param = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
-                                layer.classes, layer.coords, layer.background],
-                               dtype=np.int32)
-            self._outs.append(_sym.Variable(name='region'+str(layer_num)+'_attribute',
-                                            init=l_param))
+            k = self._get_tvm_params_name(op_name, 'attr')
+            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'bias')
             self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             self._outs.append(sym)
 
         elif layer.type == LAYERTYPE.YOLO:
-            l_param = np.array([layer.n, layer.out_c, layer.out_h, layer.out_w,
-                                layer.classes, layer.total],
-                               dtype=np.int32)
-            self._outs.append(_sym.Variable(name='yolo'+str(layer_num)+'_attribute',
-                                            init=l_param))
+            k = self._get_tvm_params_name(op_name, 'attr')
+            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'bias')
             self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'mask')
@@ -912,7 +918,7 @@ class GraphProto(object):
             layer_name, sym = _darknet_convert_symbol(op_name, _as_list(sym), attr)
             self._get_darknet_params(self.net.layers[i], layer_name)
             self._sym_array[i] = sym
-            self._make_outlist(sym, layer_name, layer, i)
+            self._make_outlist(sym, layer_name, layer)
 
         self._outs = _as_list(sym) + self._outs
         if isinstance(self._outs, list):
