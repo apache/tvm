@@ -221,12 +221,8 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     # this is the scope to attach global config inside this kernel
     kernel_scope, n = s[output].split(n, nparts=1)
 
-    max_block_z = 128
-    if batch > max_block_z:
-        _, n = s[output].split(n, factor=max_block_z)
-    s[output].bind(n, tvm.thread_axis("blockIdx.z"))
-
-    s[output].bind(bf, tvm.thread_axis("blockIdx.y"))
+    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
+    s[output].bind(by, tvm.thread_axis("blockIdx.y"))
     s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
     s[output].bind(vf, tvm.thread_axis("vthread"))
     s[output].bind(vy, tvm.thread_axis("vthread"))
