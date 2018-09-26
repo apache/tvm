@@ -15,6 +15,7 @@ Span = base.Span
 
 # Type
 Type = ty.Type
+TupleType = ty.TupleType
 TensorType = ty.TensorType
 Kind = ty.Kind
 TypeParam = ty.TypeParam

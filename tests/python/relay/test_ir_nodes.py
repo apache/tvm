@@ -28,8 +28,8 @@ def test_tensor_type():
 
 def test_type_param():
     tp = relay.TypeParam('name', relay.Kind.Shape)
-    tp.kind == relay.Kind.Shape
-    tp.span  # TODO allow us to set span
+    assert tp.kind == relay.Kind.Shape
+    # assert tp.span  # TODO allow us to set span
     str(tp)
 
 
@@ -46,6 +46,16 @@ def test_func_type():
     assert tf.span == None
     # TODO make sure we can set
     str(tf)
+
+
+def test_tuple_type():
+    tp = relay.TypeParam('tp', relay.Kind.Type)
+    tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
+    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    fields = tvm.convert([tp, tf, tt])
+
+    tup_ty = relay.TupleType(fields)
+    assert tup_ty.fields == fields
 
 
 def test_constant():
