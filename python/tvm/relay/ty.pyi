@@ -95,6 +95,27 @@ class TypeConstraint(Type):
 
 
 @register_relay_node
+class TupleType(Type):
+    """A tuple type in Relay, see tvm/relay/type.h for more details.
+
+    Lists the type of each field in the tuple.
+    """
+
+    def __init__(self, fields):
+        """Constructs a tuple type
+
+        Parameters
+        ----------
+        fields: list of tvm.Type
+
+        Returns
+        -------
+        tuple_type: the tuple type
+        """
+        self.__init_handle_by_constructor__(_make.TupleType, fields)
+
+
+@register_relay_node
 class FuncType(Type):
     """A function type in Relay, see tvm/relay/type.h for more details.
 
