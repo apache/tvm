@@ -45,7 +45,8 @@ struct KindChecker : TypeVisitor<> {
       return true;
     }
 
-    return t.as<TensorTypeNode>() || t.as<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+    return t.as<TensorTypeNode>() || t.as<BaseTensorTypeNode>()
+      || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
   }
 
   void VisitType_(const TupleTypeNode* op) override {
