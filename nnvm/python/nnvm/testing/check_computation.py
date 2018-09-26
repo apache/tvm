@@ -54,22 +54,19 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
         The inferred dtypes of outputs.
     """
     # Preprocess input parameters
-    provided_shapes = shape
-    provided_dtypes = dtype
-
-    if provided_shapes is None:
+    if shape is None:
         provided_shapes = {}
+    elif isinstance(shape, dict):
+        provided_shapes = shape
+    else:
+        provided_shapes = {x: shape for x in graph.symbol.list_input_variables()}
 
-    if provided_dtypes is None:
+    if dtype is None:
         provided_dtypes = {}
-
-    if not isinstance(provided_shapes, dict):
-        provided_shapes = {x: provided_shapes
-                           for x in graph.symbol.list_input_variables()}
-
-    if not isinstance(provided_dtypes, dict):
-        provided_dtypes = {x: provided_dtypes
-                           for x in graph.symbol.list_input_variables()}
+    elif isinstance(dtype, dict):
+        provided_dtypes = dtype
+    else:
+        provided_dtypes = {x: dtype for x in graph.symbol.list_input_variables()}
 
     provided_shapes = _dict_var_to_dict_str(provided_shapes)
     provided_dtypes = _dict_var_to_dict_str(provided_dtypes)
@@ -100,14 +97,12 @@ def infer_shapes_dtypes(graph, shape=None, dtype=None, fallback_dtype=None):
     inferred_shapes = graph.json_attr('shape')
     inferred_dtypes = graph.json_attr('dtype')
 
-    out_len = len(graph.symbol.list_output_names())
-
     index = graph.index
 
-    output_shapes = [tuple(inferred_shapes[index.entry_id(index.output_entries[i])])
-                     for i in range(out_len)]
-    output_dtypes = [TCODE_TO_DTYPE[inferred_dtypes[index.entry_id(index.output_entries[i])]]
-                     for i in range(out_len)]
+    output_shapes = [tuple(inferred_shapes[index.entry_id(entry)])
+                     for entry in index.output_entries]
+    output_dtypes = [TCODE_TO_DTYPE[inferred_dtypes[index.entry_id(entry)]]
+                     for entry in index.output_entries]
 
     # Postprocess the results
     input_shapes = provided_shapes.copy()
