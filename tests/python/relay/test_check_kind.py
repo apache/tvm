@@ -29,10 +29,6 @@ def test_func_kind():
     tf = relay.FuncType(arg_types, ret_type, type_params, type_constraints)
     assert check_kind(tf)
 
-# type relations only have type kinds of args
-def test_relation_kinds():
-    pass
-
 def test_invalid_tuple_kinds():
     tp1 = relay.TypeParam('tp1', relay.Kind.Shape)
     tp2 = relay.TypeParam('tp2', relay.Kind.BaseType)
@@ -71,6 +67,3 @@ def test_tuple_with_invalid_func():
 
     tup_ty = relay.TupleType(tvm.convert([tensor_type, tf]))
     assert not check_kind(tup_ty)
-
-def test_invalid_relation_kinds():
-    pass
