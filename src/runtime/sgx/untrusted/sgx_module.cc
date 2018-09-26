@@ -110,15 +110,18 @@ class SGXModuleNode : public ModuleNode {
     int func_id = exported->second;
     return PackedFunc([this, func_id](TVMArgs args, TVMRetValue* rv) {
         sgx::EnclaveContext ctx(this);
+        TVMValue ret_value;
+        int ret_type_code;
         TVM_SGX_CHECKED_CALL(tvm_ecall_packed_func(eid_, func_id,
-              args.values, args.type_codes, args.num_args, rv));
+              args.values, args.type_codes, args.num_args, &ret_value, &ret_type_code));
+        *rv = TVMArgValue(ret_value, ret_type_code);
       });
   }
 
-  void RunWorkers(int num_tasks, void* tg) {
-    std::function<void(int)> runner = [this, tg](int _worker_id) {
+  void RunWorkers(int num_tasks) {
+    std::function<void(int)> runner = [this](int _worker_id) {
       this->GetFunction("__tvm_run_worker__",
-                        std::shared_ptr<SGXModuleNode>(nullptr))(tg);
+                        std::shared_ptr<SGXModuleNode>(nullptr))();
     };
     thread_group_.reset(new tvm::runtime::threading::ThreadGroup(
           num_tasks, runner, false /* include_main_thread */));
@@ -144,7 +147,7 @@ namespace sgx {
 
 TVM_REGISTER_GLOBAL("__sgx_thread_group_launch__")
 .set_body([](TVMArgs args, TVMRetValue* rv) {
-  EnclaveContext::GetModule()->RunWorkers(args[0], args[1]);
+  EnclaveContext::GetModule()->RunWorkers(args[0]);
 });
 
 TVM_REGISTER_GLOBAL("__sgx_thread_group_join__")
@@ -213,16 +216,6 @@ void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment) {
   buf_align = alignment;
 
   return buf;
-}
-
-void tvm_ocall_set_return(TVMRetValueHandle ret,
-                           const TVMValue* value,
-                           const int* type_code,
-                           int num_ret) {
-  CHECK_EQ(num_ret, 1) << "Only one return value is currently supported.";
-  CHECK(type_code[0] != kStr) << "Return kBytes, not kStr.";
-  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value[0], type_code[0]);
 }
 
 }  // extern "C"
