@@ -9,7 +9,7 @@
 namespace tvm {
 
 Expr sum(Expr source, Array<IterVar> rdom) {
-  Var x("x"), y("y");
+  Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Add::make(x, y);
   Expr identity_element = make_zero(source.type());
   ir::CommReducer combiner =
@@ -18,7 +18,7 @@ Expr sum(Expr source, Array<IterVar> rdom) {
 }
 
 Expr max(Expr source, Array<IterVar> rdom) {
-  Var x("x"), y("y");
+  Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Max::make(x, y);
   Expr identity_element = source.type().min();
   ir::CommReducer combiner =
@@ -27,7 +27,7 @@ Expr max(Expr source, Array<IterVar> rdom) {
 }
 
 Expr min(Expr source, Array<IterVar> rdom) {
-  Var x("x"), y("y");
+  Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Min::make(x, y);
   Expr identity_element = source.type().max();
   ir::CommReducer combiner =
@@ -36,7 +36,7 @@ Expr min(Expr source, Array<IterVar> rdom) {
 }
 
 Expr prod(Expr source, Array<IterVar> rdom) {
-  Var x("x"), y("y");
+  Var x("x", source.type()), y("y", source.type());
   Expr result = ir::Mul::make(x, y);
   Expr identity_element = make_one(source.type());
   ir::CommReducer combiner =
