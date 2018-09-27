@@ -95,7 +95,7 @@ class TypeConstraint(Type):
 
 
 @register_relay_node
-class TypeRelation(Type):
+class TypeRelation(TypeConstraint):
     """A class representing an opaque input-output relation on types, see
     tvm/relay/type.h for more details.
 
