@@ -177,6 +177,16 @@ class TypedPackedFunc<R(Args...)> {
    */
   inline TypedPackedFunc(PackedFunc packed);  // NOLINT(*)
   /*!
+   * \brief constructor from TVMRetValue
+   * \param value The TVMRetValue
+   */
+  inline TypedPackedFunc(const TVMRetValue& value);  // NOLINT(*)
+  /*!
+   * \brief constructor from TVMArgValue
+   * \param value The TVMArgValue
+   */
+  inline TypedPackedFunc(const TVMArgValue& value);  // NOLINT(*)
+  /*!
    * \brief construct from a lambda function with the same signature.
    *
    * Example usage:
@@ -1142,6 +1152,14 @@ struct typed_packed_call_dispatcher<void> {
 template<typename R, typename ...Args>
 TypedPackedFunc<R(Args...)>::TypedPackedFunc(PackedFunc packed)
   : packed_(packed) {}
+
+template<typename R, typename ...Args>
+TypedPackedFunc<R(Args...)>::TypedPackedFunc(const TVMRetValue& value)
+    : packed_(value.operator PackedFunc()) {}
+
+template<typename R, typename ...Args>
+TypedPackedFunc<R(Args...)>::TypedPackedFunc(const TVMArgValue& value)
+    : packed_(value.operator PackedFunc()) {}
 
 template<typename R, typename ...Args>
 template<typename FType>

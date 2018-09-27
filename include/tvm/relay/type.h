@@ -118,7 +118,9 @@ class TypeParamNode : public TypeNode {
   enum Kind : int {
     /*! \brief template variable in shape expression */
     kType = 0,
-    kShapeVar = 1
+    kShapeVar = 1,
+    kBaseType = 2,
+    kShape = 3
   };
   /*!
    * \brief The variable itself is only meaningful when

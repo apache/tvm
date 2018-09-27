@@ -53,8 +53,9 @@ class Kind(IntEnum):
        and so on.
     """
     Type = 0
-    ShapeVar = 0
-
+    ShapeVar = 1
+    BaseType = 2
+    Shape = 3
 
 @register_relay_node
 class TypeParam(Type):

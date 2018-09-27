@@ -199,7 +199,7 @@ bool ConcatRel(const Array<Type>& types,
                const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
-  if (auto tuple_node = types[0].as<TupleTypeNode>()) {
+  if (types[0].as<TupleTypeNode>()) {
     reporter->Assign(types[1], ConcreteConcatRel(types[0]));
     return true;
   }
