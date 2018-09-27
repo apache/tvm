@@ -611,6 +611,46 @@ class Softmax(OnnxOpConverter):
                 'axis': ('axis', 1),
             })(inputs, attr, params)
 
+class ConstantFill(OnnxOpConverter):
+    """ Operator converter for ConstantFill.
+    """
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        is_full = True
+        num_inputs = len(inputs)
+        if 'shape' in attr:
+            if num_inputs > 0:
+                raise ImportError(
+                    "Can't set shape and input tensor at a time")
+            shape = attr.pop('shape')
+        else:
+            if num_inputs == 0:
+                raise ImportError(
+                    "Either shape attribute or input should be set")
+            if 'input_as_shape' in attr and attr['input_as_shape']:
+                shape = params[inputs[0].list_output_names()[0]].asnumpy()
+            else:
+                is_full = False
+
+        if not is_full:
+            if 'extra_shape' in attr:
+                raise ImportError(
+                    "Extra Shape not supported with fill_like")
+
+            out = AttrCvt(
+                op_name='full_like',
+                transforms={'value': 'fill_value'},
+                ignores=['dtype'])(inputs, attr)
+            return _sym.cast(out, dtype=attr['dtype'].decode("utf-8"))
+        else:
+            if 'extra_shape' in attr:
+                shape = shape + attr.pop('extra_shape')
+
+            return AttrCvt(
+                op_name='full',
+                transforms={'value': 'fill_value'},
+                extras={'shape':shape})(inputs, attr)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -628,7 +668,7 @@ def _get_convert_map(opset):
         'ThresholdedRelu': ThresholdedRelu.get_converter(opset),
         'ScaledTanh': ScaledTanh.get_converter(opset),
         'ParametricSoftplus': ParametricSoftPlus.get_converter(opset),
-        # 'ConstantFill'
+        'ConstantFill': ConstantFill.get_converter(opset),
         # 'GivenTensorFill'
         'FC': AttrCvt('dense', ignores=['axis', 'axis_w']),
         'Scale': Scale.get_converter(opset),
