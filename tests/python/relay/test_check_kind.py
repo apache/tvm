@@ -21,8 +21,10 @@ def test_func_kind():
     dtype = 'float32'
     tensor_type = relay.TensorType(shape, dtype)
 
+    tr = relay.TypeRelation('relation', None, tvm.convert([tp1, tensor_type]))
+
     type_params = tvm.convert([tp1, tp2])
-    type_constraints = tvm.convert([])
+    type_constraints = tvm.convert([tr])
     arg_types = tvm.convert([tp1, tensor_type])
     ret_type = relay.TupleType(tvm.convert([tp2, tensor_type]))
 
@@ -86,6 +88,15 @@ def test_func_with_invalid_tuple():
     ret_type = relay.TupleType(tvm.convert([tp1, tp1, tp1]))
 
     tf = relay.FuncType(tvm.convert([]), ret_type, tvm.convert([tp1]), tvm.convert([]))
+    assert not check_kind(tf)
+
+def test_func_with_invalid_relation():
+    tp1 = relay.TypeParam('tp1', relay.Kind.Type)
+    tp2 = relay.TypeParam('tp2', relay.Kind.Shape)
+
+    tr = relay.TypeRelation('relation', None, tvm.convert([tp2]))
+
+    tf = relay.FuncType(tvm.convert([tp1]), tp1, tvm.convert([tp1, tp2]), tvm.convert([tr]))
     assert not check_kind(tf)
 
 def test_tuple_with_invalid_func():
