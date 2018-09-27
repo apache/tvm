@@ -221,16 +221,20 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     # this is the scope to attach global config inside this kernel
     kernel_scope, n = s[output].split(n, nparts=1)
 
-    s[output].bind(bf, tvm.thread_axis("blockIdx.z"))
-    s[output].bind(by, tvm.thread_axis("blockIdx.y"))
-    s[output].bind(bx, tvm.thread_axis("blockIdx.x"))
+    max_block_z = 128
+    if batch > max_block_z:
+        _, n = s[output].split(n, factor=max_block_z)
+    s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
+    fused_byx = s[output].fuse(by, bx)
+    s[output].bind(n, tvm.thread_axis("blockIdx.z"))
+    s[output].bind(bf, tvm.thread_axis("blockIdx.y"))
+    s[output].bind(fused_byx, tvm.thread_axis("blockIdx.x"))
     s[output].bind(vf, tvm.thread_axis("vthread"))
     s[output].bind(vy, tvm.thread_axis("vthread"))
     s[output].bind(vx, tvm.thread_axis("vthread"))
     s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
     s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
     s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
-    s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
 
     s[conv].compute_at(s[output], tx)
 
