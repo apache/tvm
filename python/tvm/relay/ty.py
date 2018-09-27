@@ -94,6 +94,34 @@ class TypeConstraint(Type):
 
 
 @register_relay_node
+class TypeRelation(Type):
+    """A class representing an opaque input-output relation on types, see
+    tvm/relay/type.h for more details.
+
+    The relation takes as arguments types that must satisfy the intended
+    relation: Since some of the types may be incomplete, the fact that
+    the types satisfy the given relation may be used in later phases of
+    type checking to produce a concrete type.
+    """
+
+    def __init__(self, name, func, args):
+        """Constructs a TypeRelation.
+
+        Parameters
+        ----------
+        name: the name of the relation
+
+        func: a function on types describing the relation,
+              which takes a list of argument types and
+              the number of argument types and returns
+              a new list of types satisfying the relation
+
+        args: the type arguemnts to the type function
+        """
+        self.__init_handle_by_constructor__(_make.TypeRelation, name, func, args)
+
+
+@register_relay_node
 class TupleType(Type):
     """A tuple type in Relay, see tvm/relay/type.h for more details.
 

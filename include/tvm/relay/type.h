@@ -229,6 +229,8 @@ class TypeRelationNode : public TypeConstraintNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name", &name);
+    v->Visit("func_", &name);
+    v->Visit("args", &args);
   }
 
   TVM_DLL static TypeRelation make(std::string name, TypeRelationFn func_, Array<Type> args);
