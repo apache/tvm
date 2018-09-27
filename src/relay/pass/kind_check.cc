@@ -1,7 +1,7 @@
 /*!
  * Copyright (c) 2018 by Contributors
  *
- * \file kindchecker.cc
+ * \file kind_check.cc
  *
  * \brief Check that types are well formed by applying "kinding rules".
  *

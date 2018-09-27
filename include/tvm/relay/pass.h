@@ -122,6 +122,20 @@ tvm::Array<TypeParam> FreeTypeVariables(const Expr & e);
  */
 tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
 
+/*! \brief Transform a program, such that every definition is, directly nested lambda, with the inner body having no more lambda.
+ *
+ * \example (\x -> \y -> z) is fine, but (\x -> map (\y -> z)) is not.
+ *
+ * It is achieved by generating a global definition for every lambda, with bounded variables transformed into function parameters.
+ *
+ * \param env the Environment the definitions get inserted into.
+ *
+ * \param e the Expression to lambda lift.
+ *
+ * \return the transformed expression.
+ */
+Expr LambdaLift(const Environment & env, const Expr & e);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_
