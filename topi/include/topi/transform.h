@@ -627,6 +627,37 @@ inline Tensor where(const Tensor& condition,
   return out;
 }
 
+/*!
+ * \brief Creates an operation that calculates a matrix multiplication
+ *  (row-major notation):
+ *      A(i, k) * B(k, j), if trans_a == trans_b
+ *          the usual transposed combinations, otherwise
+ *
+ * \param A The matrix A
+ * \param B The matrix B
+ * \param trans_a Is A's layout transposed?
+ * \param trans_b Is B's layout transposed?
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the matmul operation
+ */
+inline tvm::Tensor matmul(const tvm::Tensor& A,
+                           const tvm::Tensor& B,
+                           bool trans_a = false,
+                           bool trans_b = false,
+                           std::string name = "tensor",
+                           std::string tag = kMatMul) {
+  tvm::Array<tvm::Expr> output_shape{A->shape[trans_a ? 1 : 0],
+                                     B->shape[trans_b ? 0 : 1]};
+  auto k = tvm::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
+  auto l = [&](tvm::Var i, tvm::Var j) {
+    return tvm::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]),
+                    {k});
+  };
+  return tvm::compute(output_shape, l, name, tag);
+}
+
 
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_

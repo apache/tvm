@@ -292,6 +292,15 @@ TVM_REGISTER_GLOBAL("topi.where")
   *rv = where(args[0], args[1], args[2]);
 });
 
+TVM_REGISTER_GLOBAL("topi.matmul")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  switch ( args.size() ) {
+    case 2: *rv = matmul(args[0], args[1]); break;
+    case 3: *rv = matmul(args[0], args[1], args[2]); break;
+    case 4: *rv = matmul(args[0], args[1], args[2], args[3]); break;
+    default: CHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
+  }});
+
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = strided_slice(args[0], args[1], args[2], args[3]);

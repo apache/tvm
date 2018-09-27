@@ -1,9 +1,7 @@
 # pylint: disable=redefined-builtin,consider-using-enumerate,no-member
 """Reduce operators"""
 from __future__ import absolute_import as _abs
-import tvm
 from . import cpp
-from . import tag
 
 def _get_real_axis(ndim, axis):
     if axis is None:
@@ -26,7 +24,6 @@ def _get_real_axis(ndim, axis):
     return real_axis
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def sum(data, axis=None, keepdims=False):
     """Sum of array elements over a given axis or a list of axes
 
@@ -52,7 +49,6 @@ def sum(data, axis=None, keepdims=False):
     return cpp.sum(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def max(data, axis=None, keepdims=False):
     """Maximum of array elements over a given axis or a list of axes
 
@@ -78,7 +74,6 @@ def max(data, axis=None, keepdims=False):
     return cpp.max(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def min(data, axis=None, keepdims=False):
     """Minimum of array elements over a given axis or a list of axes
 
@@ -104,7 +99,6 @@ def min(data, axis=None, keepdims=False):
     return cpp.min(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
 def argmax(data, axis=None, keepdims=False):
     """Returns the indices of the maximum values along an axis.
 
@@ -130,7 +124,6 @@ def argmax(data, axis=None, keepdims=False):
     return cpp.argmax(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE_IDX)
 def argmin(data, axis=None, keepdims=False):
     """Returns the indices of the minimum values along an axis.
 
@@ -156,7 +149,6 @@ def argmin(data, axis=None, keepdims=False):
     return cpp.argmin(data, axis, keepdims)
 
 
-@tvm.tag_scope(tag=tag.COMM_REDUCE)
 def prod(data, axis=None, keepdims=False):
     """Product of array elements over a given axis or a list of axes
 

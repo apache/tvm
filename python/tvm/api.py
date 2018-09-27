@@ -238,10 +238,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     tensor: Tensor
         The created tensor
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
     ndim = len(shape)
     code = fcompute.__code__
@@ -311,10 +311,10 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
       s_update = tvm.compute((m, n), lambda t, i: s_state[t-1, i] + X[t, i])
       res = tvm.scan(s_init, s_update, s_state, X)
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     if isinstance(init, _tensor.Tensor):
         init = [init]
     if isinstance(update, _tensor.Tensor):
@@ -407,10 +407,10 @@ def extern(shape,
                           "tvm.contrib.cblas.matmul",
                             ins[0], ins[1], outs[0], 0, 0), name="C")
     """
-    if _tag.TagScope.current is not None:
+    if _tag.TagScope.get_current() is not None:
         if tag != "":
             raise ValueError("nested tag is not allowed for now")
-        tag = _tag.TagScope.current.tag
+        tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, (_expr.Expr, _Integral)) else shape
     shape = [shape] if isinstance(shape[0], (_expr.Expr, _Integral)) else shape
     if in_buffers is not None:
