@@ -38,7 +38,8 @@ namespace relay {
 class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
  public:
   // constructors
-  TypeInferencer() {
+  TypeInferencer()
+      : env_(EnvironmentNode::make({})) {
   }
   explicit TypeInferencer(Environment env)
       : env_(env) {
@@ -98,7 +99,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const GlobalVarNode* op) final {
-    CHECK(env_.defined()) << "DO not have environment to lookup GlobalVar";
     GlobalVar var = GetRef<GlobalVar>(op);
     Expr e = env_->Lookup(var);
     return e->checked_type();
