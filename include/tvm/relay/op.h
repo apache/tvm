@@ -387,7 +387,14 @@ inline OpRegistry& OpRegistry::add_type_rel(
   ty_call_args.push_back(out_param);
 
   // The attributes of primitive op is nullptr
-  // which means it can match any attribute.
+  //
+  // The attributes of primitive operator can vary at the call site.
+  // The type of sum is also dependent on Attrs being passed.
+  // So puting nullptr in the Attrs a special meaning,
+  // that the operator is polymorphic on Attrs.
+  //
+  // A common example is sum(x, axis), where the choice of axis
+  // can affect the type of the function.
   TypeConstraint type_rel =
       TypeRelationNode::make(env_type_rel_func,
                              ty_call_args,

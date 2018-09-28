@@ -66,6 +66,9 @@ class TypeSolver {
   class Reporter;
   struct TypeNode;
   struct RelationNode;
+  // Internally the solver maintains a bipartite graph of Relation and Types.
+  // All the object in the structure is managed by a arena allocator
+  // which releases the memory upon distruction of the type solver.
   /*!
    * \brief Link list node
    * \tparam T the content data type
@@ -103,8 +106,11 @@ class TypeSolver {
   };
   /*!
    * \brief type node struct
-   *  TypeNode implements a union-find data structure
+   *  TypeNode implements a union-find data structure(via parent)
    *  that can unifies the same types to the name resolved_type.
+   *
+   *  It also contains collection of links to related Relations,
+   *  which is stored in rel_list.
    */
   struct TypeNode {
     /*! \brief The final resolved type */

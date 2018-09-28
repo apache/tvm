@@ -118,9 +118,9 @@ TVM_REGISTER_API("relay._make.TypeRelation")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TypeRelationNode>([](const TypeRelationNode *node, tvm::IRPrinter *p) {
-    p->stream << "TypeRelationNode(";
-    p->print(node->func);
-    p->stream << ", " << node->args << ")";
+    p->stream << "TypeRelationNode("
+              << node->func->name
+              << ", " << node->args << ")";
 });
 
 TupleType TupleTypeNode::make(Array<Type> fields) {

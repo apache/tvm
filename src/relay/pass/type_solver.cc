@@ -45,7 +45,7 @@ TypeSolver::~TypeSolver() {
 // Add equality constraint
 Type TypeSolver::Unify(const Type& dst, const Type& src) {
   // Known limitation
-  // - handle recursive type
+  // - handle composite types whose component can be unknown.
   // - handle shape pattern matching
   TypeNode* lhs = GetTypeNode(dst);
   TypeNode* rhs = GetTypeNode(src);
