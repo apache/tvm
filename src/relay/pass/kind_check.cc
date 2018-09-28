@@ -45,8 +45,7 @@ struct KindChecker : TypeVisitor<> {
       return true;
     }
 
-    return t.as<TensorTypeNode>() || t.as<BaseTensorTypeNode>()
-      || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
+    return t.as_derived<BaseTensorTypeNode>() || t.as<TupleTypeNode>() || t.as<FuncTypeNode>();
   }
 
   void VisitType_(const TupleTypeNode* op) override {
@@ -61,11 +60,19 @@ struct KindChecker : TypeVisitor<> {
   }
 
   void VisitType_(const FuncTypeNode* op) override {
-    // func types should only take normal types for arguments
-    // and only return a normal type
+    // Func types should only take normal types for arguments
+    // and only return a normal type. They should also have
+    // well-formed constraints
     for (const Type& t : op->arg_types) {
       this->VisitType(t);
       valid = valid && IsTypeKind(t);
+      if (!valid) {
+        return;
+      }
+    }
+
+    for (const TypeConstraint& tc : op->type_constraints) {
+      this->VisitType(tc);
       if (!valid) {
         return;
       }

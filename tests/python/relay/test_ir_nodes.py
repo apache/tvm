@@ -58,6 +58,17 @@ def test_tuple_type():
     assert tup_ty.fields == fields
 
 
+def test_type_relation():
+    name = 'relation'
+    func = None # not clear if this can be specified in the Python end
+    args = tvm.convert([relay.TypeParam('tp', relay.Kind.Type),
+                        relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    ])
+
+    tr = relay.TypeRelation(name, func, args)
+    assert tr.name == name
+    assert tr.args == args
+
 def test_constant():
     arr = tvm.nd.array(10)
     const = relay.Constant(arr)
