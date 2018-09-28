@@ -92,7 +92,7 @@ class IndexedGraph {
     /*! \brief the source node id in the computation graph */
     uint32_t node_id;
     /*! \brief index of output from the source. */
-    uint32_t index;
+    int64_t index;
     /*! \brief version of the node */
     uint32_t version;
   };
