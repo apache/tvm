@@ -380,7 +380,81 @@ def lower(sch,
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
 
 
-def build(sch,
+def _build_for_device(flist, target, target_host):
+    """Build the lowered functions for a device with the given compilation
+    target.
+
+    Parameters
+    ----------
+    flist : list of LoweredFunc
+        The schedule to be built.
+
+    target : str or :any:`tvm.target.Target`
+        The target and option of the compilation.
+
+    target_host : str or :any:`tvm.target.Target`
+        The host compilation target.
+
+    Returns
+    -------
+    fhost : list of LoweredFunc
+        A list of lowered functions for the host.
+
+    mdev : tvm.module
+        A module that contains device code.
+    """
+    target = _target.create(target)
+    device_type = ndarray.context(target.target_name, 0).device_type
+    fhost = []
+    fdevice = []
+    for func in flist:
+        if not ir_pass.VerifyMemory(func, device_type):
+            raise ValueError(
+                "Direct host side access to device memory is detected in %s. "
+                "Did you forget to bind?" % func.name)
+        if func.func_type == container.LoweredFunc.MixedFunc:
+            if current_build_config().detect_global_barrier:
+                func = ir_pass.ThreadSync(func, "global")
+            func = ir_pass.ThreadSync(func, "shared")
+            func = ir_pass.ThreadSync(func, "warp")
+            warp_size = target.thread_warp_size
+            func = ir_pass.LowerThreadAllreduce(func, warp_size)
+            fsplits = [s for s in ir_pass.SplitHostDevice(func)]
+            fhost.append(fsplits[0])
+            for x in fsplits[1:]:
+                fdevice.append(x)
+        elif func.func_type == container.LoweredFunc.HostFunc:
+            fhost.append(func)
+        elif func.func_type == container.LoweredFunc.DeviceFunc:
+            fdevice.append(func)
+        else:
+            raise ValueError("unknown function type %d" % func.func_type)
+
+    for i, func in enumerate(fdevice):
+        warp_size = target.thread_warp_size
+        fdevice[i] = ir_pass.LowerWarpMemory(func, warp_size)
+
+    if "gpu" in target.keys and not fdevice:
+        warnings.warn(
+            "Specified target %s, but cannot find device code, did you do "
+            "bind?" % target)
+
+    fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
+    fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
+
+    if device_type == ndarray.cpu(0).device_type and target_host == target:
+        assert not fdevice
+
+    target_host = _target.create(target_host)
+    fdevice = [ir_pass.LowerIntrin(x, target.target_name) for x in fdevice]
+    fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
+    fhost = [ir_pass.CombineContextCall(x) for x in fhost]
+    mdev = codegen.build_module(fdevice, str(target)) if fdevice else None
+
+    return fhost, mdev
+
+
+def build(inputs,
           args=None,
           target=None,
           target_host=None,
@@ -389,29 +463,9 @@ def build(sch,
     """Build a function with arguments as signature. Code will be generated
     for devices coupled with target information.
 
-    There are two typical uses of this functioin:
-        1. For backward compatibility
-            n = 2
-            A = tvm.placeholder((n,), name='A')
-            B = tvm.placeholder((n,), name='B')
-            C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-            s = tvm.create_schedule(C.op)
-            f = tvm.lower(s, [A, B, C], name="test_add")
-            m = tvm.build(f, target="llvm")
-
-        2. For multi-device execution:
-            A = tvm.placeholder((n,), name='A')
-            B = tvm.placeholder((n,), name='B')
-            C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
-            s1 = tvm.create_schedule(C.op)
-            s2 = topi.cpp.cuda.schedule_injective("cuda", [C])
-            f1 = tvm.lower(s1, [A, B, C], name="test_add1")
-            f2 = tvm.lower(s2, [A, B, C], name="test_add2")
-            m = tvm.build({"llvm":[f1], "cuda":[f2]}, target_host="llvm")
-
     Parameters
     ----------
-    sch : tvm.Schedule, LoweredFunc, or dict of target to LoweredFunc list
+    inputs : tvm.Schedule, LoweredFunc, or dict of target to LoweredFunc list
         The schedule to be built
 
     args : list of Buffer or Tensor or Var, optional
@@ -438,117 +492,106 @@ def build(sch,
 
     Returns
     -------
-    ret : tvm.module, or (list of LoweredFunc, tvm.module) tuple
+    ret : tvm.module
         A module that combines both host and device code.
+
+    Examples
+    ________
+    There are two typical example uses of this function depending on the type
+    of the argument `inputs`:
+    1. it is a list of lowered functions:
+
+    .. code-block:: python
+
+        n = 2
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.placeholder((n,), name='B')
+        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s = tvm.create_schedule(C.op)
+        f = tvm.lower(s, [A, B, C], name="test_add")
+        m = tvm.build(f, target="llvm")
+
+    2. it is a dict of compilation target to list of lowered functions:
+
+    .. code-block:: python
+
+        n = 2
+        A = tvm.placeholder((n,), name='A')
+        B = tvm.placeholder((n,), name='B')
+        C = tvm.compute(A.shape, lambda *i: A(*i) + B(*i), name='C')
+        s1 = tvm.create_schedule(C.op)
+        s2 = topi.cpp.cuda.schedule_injective("cuda", [C])
+        f1 = tvm.lower(s1, [A, B, C], name="test_add1")
+        f2 = tvm.lower(s2, [A, B, C], name="test_add2")
+        m = tvm.build({"llvm": [f1], "cuda": [f2]}, target_host="llvm")
 
     Note
     ----
     See the note on :any:`tvm.target` on target string format.
     """
-    if isinstance(sch, schedule.Schedule):
+    if isinstance(inputs, schedule.Schedule):
         if args is None:
             raise ValueError("args must be given for build from schedule")
-        flist = lower(sch, args,
+        flist = lower(inputs, args,
                       name=name,
                       binds=binds)
         if isinstance(flist, container.LoweredFunc):
             flist = [flist]
-    elif isinstance(sch, container.LoweredFunc):
+    elif isinstance(inputs, container.LoweredFunc):
         if args:
-            raise ValueError("args must be done when build from LoweredFunc")
-        flist = [sch]
-    elif isinstance(sch, (list, tuple, container.Array)):
-        flist = sch
-    elif not isinstance(sch, (dict, container.Map)):
-        raise ValueError("sch have to be Schedule, LoweredFunc, list of "
+            raise ValueError("args must be done when build from LoweredFunc.")
+        flist = [inputs]
+    elif isinstance(inputs, (list, tuple, container.Array)):
+        flist = inputs
+    elif not isinstance(inputs, (dict, container.Map)):
+        raise ValueError("inputs must be Schedule, LoweredFunc, list of "
                          "LoweredFunc, or dict of target to list of "
-                         "LoweredFunct")
+                         "LoweredFunc.")
 
-    if not isinstance(sch, (dict, container.Map)):
+    if not isinstance(inputs, (dict, container.Map)):
         target = _target.current_target() if target is None else target
         target = target if target else "llvm"
         target_flist = {target: flist}
     else:
-        target_flist = sch
+        target_flist = inputs
 
     for tar, flist in target_flist.items():
         if not isinstance(tar, (str, _target.Target)):
-            raise ValueError("The key of sch must be str or "
-                             "_target.Target when sch is dict.")
+            raise ValueError("The key of inputs must be str or "
+                             "_target.Target when inputs is dict.")
         fname_set = set()
         for x in flist:
             if not isinstance(x, container.LoweredFunc):
-                raise ValueError("sch have to be Schedule, LoweredFunc, list "
+                raise ValueError("inputs must be Schedule, LoweredFunc, list "
                                  "of LoweredFunc, or dict of str to list of "
                                  "LoweredFunc.")
             if x.name in fname_set:
                 raise ValueError("Duplicate function name %s" % x.name)
             fname_set.add(x.name)
 
-    fhost_all = []
-    device_modules = []
-    for tar, flist in target_flist.items():
-        tar = _target.create(tar)
-        device_type = ndarray.context(tar.target_name, 0).device_type
-        fhost = []
-        fdevice = []
-        for func in flist:
-            if not ir_pass.VerifyMemory(func, device_type):
-                raise ValueError(
-                    "Direct host side access to device memory is detected in %s. "
-                    "Did you forget to bind?" % func.name)
-            if func.func_type == container.LoweredFunc.MixedFunc:
-                if current_build_config().detect_global_barrier:
-                    func = ir_pass.ThreadSync(func, "global")
-                func = ir_pass.ThreadSync(func, "shared")
-                func = ir_pass.ThreadSync(func, "warp")
-                warp_size = tar.thread_warp_size
-                func = ir_pass.LowerThreadAllreduce(func, warp_size)
-                fsplits = [s for s in ir_pass.SplitHostDevice(func)]
-                fhost.append(fsplits[0])
-                for x in fsplits[1:]:
-                    fdevice.append(x)
-            elif func.func_type == container.LoweredFunc.HostFunc:
-                fhost.append(func)
-            elif func.func_type == container.LoweredFunc.DeviceFunc:
-                fdevice.append(func)
-            else:
-                raise ValueError("unknown function type %d" % func.func_type)
-
-        for i, func in enumerate(fdevice):
-            warp_size = tar.thread_warp_size
-            fdevice[i] = ir_pass.LowerWarpMemory(func, warp_size)
-
-        if "gpu" in tar.keys and not fdevice:
-            warnings.warn(
-                "Specified target %s, but cannot find device code, did you do bind?" % tar)
-
-        fhost = [ir_pass.BindDeviceType(x, device_type) for x in fhost]
-        fhost = [ir_pass.LowerTVMBuiltin(x) for x in fhost]
-
-        if not target_host:
+    if not target_host:
+        for tar, _ in target_flist.items():
+            tar = _target.create(tar)
             device_type = ndarray.context(tar.target_name, 0).device_type
             if device_type == ndarray.cpu(0).device_type:
                 target_host = tar
-                assert not fdevice
-            else:
-                target_host = "llvm" if module.enabled("llvm") else "stackvm"
+                break
+    if not target_host:
+        target_host = "llvm" if module.enabled("llvm") else "stackvm"
 
-        target_host = _target.create(target_host)
-        fdevice = [ir_pass.LowerIntrin(x, tar.target_name) for x in fdevice]
-        fhost = [ir_pass.LowerIntrin(x, target_host.target_name) for x in fhost]
-        fhost = [ir_pass.CombineContextCall(x) for x in fhost]
-
+    fhost_all = []
+    device_modules = []
+    for tar, flist in target_flist.items():
+        fhost, mdev = _build_for_device(flist, tar, target_host)
         # Save the current lowered functions of the host and the device module.
         fhost_all += fhost
-        if fdevice:
-            mdev = codegen.build_module(fdevice, str(tar))
-            device_modules.append(mdev)
+        device_modules.append(mdev)
 
     # Generate a unified host module.
     mhost = codegen.build_module(fhost_all, str(target_host))
 
     # Import all modules.
     for mdev in device_modules:
-        mhost.import_module(mdev)
+        if mdev:
+            mhost.import_module(mdev)
     return mhost
