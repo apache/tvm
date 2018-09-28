@@ -390,8 +390,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   //
   // The attributes of primitive operator can vary at the call site.
   // The type of sum is also dependent on Attrs being passed.
-  // So puting nullptr in the Attrs a special meaning,
-  // that the operator is polymorphic on Attrs.
+  // So puting nullptr in the Attrs means that the operator is polymorphic on Attrs.
   //
   // A common example is sum(x, axis), where the choice of axis
   // can affect the type of the function.
