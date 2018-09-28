@@ -92,6 +92,36 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr & e);
 
+/*! \brief Get free variables from expression e.
+ *
+ * Free variables are variables that are not bound by a let or a function parameter in the context
+ *
+ * \param e the expression.
+ *
+ * \return the set of free variable.
+ */
+std::unordered_set<Var, NodeHash, NodeEqual> FreeVariables(const Expr & e);
+
+/*! \brief Get free type parameters from expression e.
+ *
+ * Free type parameters are type parameters that are not bound by a function type in the context
+ *
+ * \param e the expression.
+ *
+ * \return the set of free type variables.
+ */
+std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Expr & e);
+
+/*! \brief Get free type parameters from type t.
+ *
+ * Free type parameters are type parameters that are not bound by a function type in the context
+ *
+ * \param t the type.
+ *
+ * \return the set of free type variables.
+ */
+std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Type & t);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_
