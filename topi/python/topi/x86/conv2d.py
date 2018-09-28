@@ -246,6 +246,8 @@ def conv2d_x86(data, kernel, strides, padding, layout, out_dtype):
 @conv2d_x86.register(["direct"])
 def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
+    padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     if layout == 'NCHW':
         _create_schedule_template(cfg, data, kernel, strides, padding, layout)
         args = [cfg, data, kernel, strides, padding, layout, out_dtype]
@@ -476,10 +478,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
         return None
 
-    import ast
-    kernel_size = ast.literal_eval(attrs["kernel_size"])
-    padding = ast.literal_eval(attrs["padding"])
-    strides = ast.literal_eval(attrs["strides"])
+    kernel_size = attrs.get_int_tuple("kernel_size")
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
     layout = attrs['layout']
     out_layout = layout if attrs["out_layout"] == "__undef__" else attrs["out_layout"]
 

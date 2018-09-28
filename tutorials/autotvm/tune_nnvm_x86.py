@@ -6,7 +6,7 @@ Auto-tuning a convolutional network for x86 CPU
 This is a tutorial about how to tune convolution neural network
 for x86 cpu.
 """
-
+import os
 import numpy as np
 
 import nnvm.testing
@@ -79,6 +79,7 @@ log_file = "%s.log" % model_name
 # Set number of threads used for tuning based on the number of
 # physical cpu cores on your machine.
 num_threads = 1
+os.environ["TVM_NUM_THREADS"] = num_threads
 
 
 #################################################################
@@ -100,7 +101,7 @@ tuning_option = {
     'early_stopping': None,
 
     'measure_option': autotvm.measure_option(
-        builder=autotvm.LocalBuilder(n_parallel=1),
+        builder=autotvm.LocalBuilder(),
         runner=autotvm.LocalRunner(number=10, repeat=1,
                                    min_repeat_ms=1000),
     ),
