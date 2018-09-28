@@ -136,6 +136,14 @@ tvm::Array<TypeParam> FreeTypeVariables(const Type& t);
  */
 Expr DeadCodeElimination(const Expr& e);
 
+/*! \brief Convert the expression into A Normal Form (ANF).
+ *  A Normal Form restrict the program,
+ *  such that all compound expression are bound to variables via let.
+ *  A compound expression is an expression made from smaller expression.
+ *  For example, Tuple, Call, Function are all compound expression, while Op, Var, GlobalVar are not.
+ */
+Expr ANormalForm(const Expr& e);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_

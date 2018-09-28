@@ -134,3 +134,20 @@ def alpha_equal(lhs, rhs):
       True iff lhs is alpha equal to rhs.
     """
     return bool(_make._alpha_equal(lhs, rhs))
+
+def a_normal_form(e):
+    """Transform the expression into A Normal Form(ANF),
+    which assign every compound expression with a let binding.
+
+    Parameters
+    ----------
+    e: relay.Expr
+      The input Expression
+
+    Returns
+    -------
+    result: relay.Expr
+      An expression which is semantically equal to the input expression,
+      but in A Normal Form.
+    """
+    return _ir_pass.a_normal_form(e)
