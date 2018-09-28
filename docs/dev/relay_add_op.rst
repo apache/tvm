@@ -54,7 +54,7 @@ supported externally)
 The below example is from ``elemwise.cc`` and uses a broadcasting
 add for tensors:
 
-.. code:: python
+.. code:: c
 
     RELAY_REGISTER_OP("add")
         .set_num_inputs(2)
@@ -77,7 +77,7 @@ are not supported, so it suffices to use ``Op::Get`` to fetch
 the operator's information from the operator registry and pass in
 the arguments to the call node, as below.
 
-.. code:: python
+.. code:: c
 
     TVM_REGISTER_API("relay.op._make.add")
         .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
