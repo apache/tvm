@@ -138,12 +138,11 @@ elif MODEL_NAME == 'yolov3':
 
 # do the detection and bring up the bounding boxes
 thresh = 0.5
-hier_thresh = 0.5
+nms_thresh = 0.45
 img = nnvm.testing.darknet.load_image_color(test_image)
 _, im_h, im_w = img.shape
-nms_thresh = 0.45
 dets = nnvm.testing.yolo_detection.fill_network_boxes((net.w, net.h), (im_w, im_h), thresh,
-                                                      hier_thresh, 1, tvm_out)
+                                                      1, tvm_out)
 last_layer = net.layers[net.n - 1]
 nnvm.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 

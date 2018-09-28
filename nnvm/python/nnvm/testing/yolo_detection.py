@@ -121,7 +121,7 @@ def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
     return
 
 def fill_network_boxes(net_shape, im_shape,
-                       thresh, hier_thresh, relative, tvm_out):
+                       thresh, relative, tvm_out):
     dets = []
     for layer in tvm_out:
         if layer['type'] == 'Yolo':

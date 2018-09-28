@@ -55,10 +55,10 @@ def _letterbox_image(img, w_in, h_in):
     imc, imh, imw = img.shape
     if (w_in / imw) < (h_in / imh):
         new_w = w_in
-        new_h = imh * w_in / imw
+        new_h = imh * w_in // imw
     else:
         new_h = h_in
-        new_w = imw * h_in/imh
+        new_w = imw * h_in // imh
     resized = _resize_image(img, new_w, new_h)
     boxed = np.full((imc, h_in, w_in), 0.5, dtype=float)
     _, resizedh, resizedw = resized.shape
