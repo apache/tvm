@@ -188,7 +188,7 @@ class IRBuilder(object):
 
             ib = tvm.ir_builder.create()
             x = ib.pointer("float32")
-            with ib.for_range(0, 10, name="i") as i:
+            with ib.for_range(1, 10, name="i") as i:
                 x[i] = x[i - 1] + 1
         """
         if name == 'i':

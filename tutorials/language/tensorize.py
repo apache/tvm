@@ -1,18 +1,17 @@
 """
 Use Tensorize to Leverage Hardware Intrinsics
-=========
+=============================================
 **Author**: `Yizhi Liu <https://github.com/yzhliu>`_
 
-This is an introduction material on how to do tensorization in TVM.
+This is an introduction material on how to perform tensorization in TVM.
 
 By using schedule primitive :code:`tensorize`,
 people can replace a unit of computation with the corresponding intrinsics,
 making it easy to leverage handcrafted micro-kernels,
 as well as extend TVM to support new hardware architectures.
 
-In this tutorial, we will demonstrate the usage of tensorization.
-Notice that the examples are more for showing the functionality,
-rather than providing an efficient solution.
+The purpose of this tutorial is to show the functionality
+and usage of tensorize instead of providing an efficient solution.
 
 """
 from __future__ import absolute_import, print_function
@@ -26,7 +25,7 @@ import numpy as np
 # Take matrix multiplication as our example.
 # Matmul first multiply the corresponding elements between two matrix,
 # then accumulate across a certain axis.
-# The following lines describe the computation in TVM.
+# The following lines describe the computation :code:`A * B^T` in TVM.
 #
 N, M, L = 1024, 512, 64
 A = tvm.placeholder((N, L), name='A')
@@ -34,15 +33,18 @@ B = tvm.placeholder((M, L), name='B')
 k = tvm.reduce_axis((0, L), name='k')
 C = tvm.compute((N, M), lambda i, j:
                 tvm.sum(A[i, k] * B[j, k], axis=k), name='C')
+s = tvm.create_schedule(C.op)
+print(tvm.lower(s, [A, B, C], simple_mode=True))
 
 ######################################################################
 # Schedule the Matmul
 # -------------------
-# Now suppose we had an accelerator supports matrix-vector multiplication (GEMV) as a hardware primitive,
-# which can take arbitrary size of reduce axis, but another axis needs to be no larger than 16.
+# Now, suppose we have an accelerator that supports
+# matrix-vector multiplication (GEMV) as a hardware primitive,
+# which can take arbitrary size of reduce axis,
+# but another axis needs to be no larger than 16.
 # Thus we break down the matmul loops to make the innermost loops a (16x64) GEMV.
 #
-s = tvm.create_schedule(C.op)
 factor = 16
 x, y = C.op.axis
 z, = C.op.reduce_axis
@@ -56,15 +58,16 @@ print(tvm.lower(s, [A, B, C], simple_mode=True))
 # - within the inner most two loops, the index :code:`i` is fixed,
 # the access to the matrix :code:`A` only varies by :code:`k`,
 # which makes the access pattern of :code:`A` a "vector".
-# In order to leverage our "virtual" hardware's GEMV instruction,
+# In order to leverage our hypothetical hardware's GEMV instruction,
 # we can tensorize over :code:`j.inner`.
 #
 # Define GEMV Tensorization Intrinsic
 # -----------------------------------
 # Before scheduling the tensorization, we need to first define the intrinsic function for GEMV.
-# It includes two parts, the first is computing definition of GEMV,
+# It includes two parts, the first is a compute definition of GEMV.
 # TVM uses it to match the computing pattern in the original Matmul schedule.
-# The second is the definition of how to execute GEMV on the device.
+# The second is to specify how to execute GEMV on the device,
+# which is done in :code:`intrin_func` below.
 #
 def intrin_gemv(m, l):
     a = tvm.placeholder((l,), name='a')
@@ -88,7 +91,9 @@ def intrin_gemv(m, l):
         aa, bb = ins
         cc = outs[0]
         ib.emit(tvm.call_extern("int32", "gemv_update",
-                                cc.access_ptr("w"), aa.access_ptr("r"), bb.access_ptr("r"),
+                                cc.access_ptr("w"),
+                                aa.access_ptr("r"),
+                                bb.access_ptr("r"),
                                 m, l, bb.strides[0]))
         return ib.get()
     with tvm.build_config(offset_factor=1):
@@ -158,7 +163,7 @@ a = np.random.uniform(size=get_const_tuple(A.shape)).astype(dtype)
 b = np.random.uniform(size=get_const_tuple(B.shape)).astype(dtype)
 c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=dtype), ctx)
 func(tvm.nd.array(a, ctx), tvm.nd.array(b, ctx), c)
-np.testing.assert_array_almost_equal(c.asnumpy(), np.dot(a, b.T), decimal=2)
+np.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
 
 ######################################################################
 # We compare the tensorize version with that :code:`numpy.dot` produces,
@@ -223,18 +228,23 @@ def intrin_gemv(m, l):
                          offset_factor=1,
                          strides=[1])
     def intrin_func(ins, outs):
-        def _instrin(index):
+        aa, bb = ins
+        cc = outs[0]
+        def _body():
             ib = tvm.ir_builder.create()
-            aa, bb = ins
-            cc = outs[0]
-            if index == 1:
-                ib.emit(tvm.call_extern("int32", "gemv_reset", cc.access_ptr("w"), m))
-            else:
-                ib.emit(tvm.call_extern("int32", "gemv_update",
-                                        cc.access_ptr("w"), aa.access_ptr("r"), bb.access_ptr("r"),
-                                        m, l, bb.strides[0]))
+            ib.emit(tvm.call_extern("int32", "gemv_update",
+                                    cc.access_ptr("w"),
+                                    aa.access_ptr("r"),
+                                    bb.access_ptr("r"),
+                                    m, l, bb.strides[0]))
             return ib.get()
-        return _instrin(0), _instrin(1), _instrin(2)
+        def _reduce_reset():
+            ib = tvm.ir_builder.create()
+            ib.emit(tvm.call_extern("int32", "gemv_reset", cc.access_ptr("w"), m))
+            return ib.get()
+        def _reduce_update():
+            return _body()
+        return _body(), _reduce_reset(), _reduce_update()
     with tvm.build_config(offset_factor=1):
         return tvm.decl_tensor_intrin(c.op, intrin_func, binds={a: Ab, b: Bb, c: Cb})
 
@@ -244,7 +254,7 @@ def intrin_gemv(m, l):
 # If tensorization includes all the reduce axes, function :code:`body()` will be invoked,
 # otherwise :code:`reduce_reset()` and :code:`reduce_update()` together will be used.
 # In our example :code:`body()` and :code:`reduce_update()`
-# use the same implementation as :code:`gemv_update()`,
+# share the same implementation,
 # while in other cases, hardware may have different instructions for these two functions.
 # Moreover, we can see now :code:`bb.strides[0]` is different from :code:`l`
 # due to the tiling.
@@ -260,7 +270,7 @@ a = np.random.uniform(size=get_const_tuple(A.shape)).astype(dtype)
 b = np.random.uniform(size=get_const_tuple(B.shape)).astype(dtype)
 c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=dtype), ctx)
 func(tvm.nd.array(a, ctx), tvm.nd.array(b, ctx), c)
-np.testing.assert_array_almost_equal(c.asnumpy(), np.dot(a, b.T), decimal=2)
+np.testing.assert_allclose(c.asnumpy(), np.dot(a, b.T), rtol=1e-3)
 
 ######################################################################
 # Summary
@@ -269,8 +279,8 @@ np.testing.assert_array_almost_equal(c.asnumpy(), np.dot(a, b.T), decimal=2)
 # Tensorize provides a way for users to get fully optimized schedule via micro-kernels.
 # For example, INT8 quantization on Intel CPUs uses tensorization
 # to invoke AVX instruction directly.
-# It also enables TVM to compile to ASICs,
-# one can be checkout `VTA <https://docs.tvm.ai/vta/index.html>`_ for details.
+# It also enables TVM to compile to ASICs -
+# checkout `VTA <https://docs.tvm.ai/vta/index.html>`_ for details.
 # We also demonstrates how to use inline assembly importing,
 # which helps users inject asm easily into the schedule.
 #
