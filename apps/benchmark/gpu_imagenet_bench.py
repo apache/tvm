@@ -19,7 +19,7 @@ if __name__ == "__main__":
     parser.add_argument("--network", type=str, choices=
                         ['resnet-18', 'resnet-34', 'resnet-50',
                          'vgg-16', 'vgg-19', 'densenet-121', 'inception_v3',
-                         'mobilenet', 'mobilenet_v2', 'squeezenet v1.1', 'squeezenet v1.1'],
+                         'mobilenet', 'mobilenet_v2', 'squeezenet_v1.0', 'squeezenet_v1.1'],
                         help='The name of neural network')
     parser.add_argument("--model", type=str,
                         choices=['1080ti', 'titanx', 'gfx900'], default='1080ti',

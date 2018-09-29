@@ -412,7 +412,10 @@ def _schedule_winograd(cfg, s, op):
 
 @conv2d_alter_layout.register(["mali"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
-    return _alter_conv2d_layout_arm(attrs, inputs, tinfos)
+    try:
+        return _alter_conv2d_layout_arm(attrs, inputs, tinfos)
+    except KeyError:  # to filter out fallback opencl templates
+        return None
 
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @conv2d_winograd_without_weight_transform.register(['mali'])

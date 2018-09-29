@@ -38,7 +38,7 @@ def _alias(name):
         'vtacpu': 'vta',
 
         'metal': 'opencl',
-        'nvptx': 'cuda'
+        'nvptx': 'cuda',
     }
     return table.get(name, name)
 
@@ -61,11 +61,12 @@ def context(target, extra_files=None):
     if isinstance(target, str):
         target = _target.create(target)
 
-    possible_names = [str(target).split()[0]]
+    possible_names = []
     for opt in target.options:
         if opt.startswith("-device"):
             device = _alias(opt[8:])
             possible_names.append(device)
+    possible_names.append(target.target_name)
 
     all_packages = list(PACKAGE_VERSION.keys())
     for name in possible_names:
@@ -75,6 +76,7 @@ def context(target, extra_files=None):
 
             filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
             best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
+            break   # only load one file to avoid some fallback template mismatch problem
 
     if extra_files:
         for filename in extra_files:
