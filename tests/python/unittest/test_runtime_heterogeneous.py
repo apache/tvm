@@ -124,9 +124,6 @@ def test_simplex_data_transferring():
         schedule_add = topi.cpp.cuda.schedule_injective(target, [elemwise_add])
         lower_add = tvm.lower(schedule_add, [tensor_a, tensor_b, elemwise_add],
                               name="elemwise_add")
-        host_funcs_add, lib_add = tvm.build(lower_add, target=target_device,
-                                            name="elemwise_add",
-                                            postpone_host_codegen=True)
 
         # Insert copy. Neither compute nor schedule is required for the copy
         # node. The compute will be performed at runtime which is just data
@@ -142,16 +139,8 @@ def test_simplex_data_transferring():
                                              elemwise_sub],
                               name="elemwise_sub")
 
-        host_funcs_sub, lib_sub = tvm.build(lower_sub, target=target_host,
-                                            name="elemwise_sub",
-                                            postpone_host_codegen=True)
-        host_funcs = host_funcs_add + host_funcs_sub
-        mhost = tvm.codegen.build_module(host_funcs, target_host)
-        if lib_add:
-            mhost.import_module(lib_add)
-        if lib_sub:
-            mhost.import_module(lib_sub)
-
+        target_flist = {target_device: [lower_add], target_host: [lower_sub]}
+        mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         mod = graph_runtime.create(graph, mhost, ctx)
         params = {}
@@ -338,10 +327,6 @@ def test_duplex_data_transferring():
         lower_add1 = tvm.lower(
             add_schedule1, [tensor_d, copy_sub_add, elemwise_add1],
             name="elemwise_add1")
-        host_funcs_add, lib_add = tvm.build([lower_add0, lower_add1],
-                                            target=target_device,
-                                            postpone_host_codegen=True)
-
         # Create module for sub whose target is the host.
         tensor_c = tvm.placeholder(shape, name="C")
         elemwise_sub = tvm.compute(shape, lambda *i: copy_add_sub(*i)
@@ -350,15 +335,10 @@ def test_duplex_data_transferring():
         lower_sub = tvm.lower(sub_schedule, [copy_add_sub, tensor_c,
                                              elemwise_sub],
                               name="elemwise_sub")
-        host_funcs_sub, lib_sub = tvm.build(lower_sub, target=target_host,
-                                            postpone_host_codegen=True)
-        host_funcs = host_funcs_add + host_funcs_sub
-        mhost = tvm.codegen.build_module(host_funcs, target_host)
-        if lib_add:
-            mhost.import_module(lib_add)
-        if lib_sub:
-            mhost.import_module(lib_sub)
 
+        target_flist = {target_device: [lower_add0, lower_add1], target_host:
+                        [lower_sub]}
+        mhost = tvm.build(target_flist, target_host=target_host)
         ctx = [host_ctx, device_ctx]
         params = {}
         params["A"] = tensor_a = np.random.uniform(
