@@ -9,11 +9,11 @@ from tvm.autotvm.task.space import get_factors
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform
 from ..util import traverse_inline, get_const_int, get_const_tuple, const_matrix
 from ..nn import conv2d, conv2d_winograd_without_weight_transform, \
-    get_pad_tuple, pad
+    get_pad_tuple, pad, conv2d_alter_layout
 
 # reuse some compute declarations from ARM CPU
 from ..arm_cpu.conv2d import _conv_arg_to_workload, _decl_spatial_pack,\
-    _winograd_conv_arg_to_workload
+    _winograd_conv_arg_to_workload, _alter_conv2d_layout_arm
 
 
 @conv2d.register('mali')
@@ -410,6 +410,9 @@ def _schedule_winograd(cfg, s, op):
 
     s[Y].compute_at(s[output], tt)
 
+@conv2d_alter_layout.register(["mali"])
+def _alter_conv2d_layout(attrs, inputs, tinfos):
+    return _alter_conv2d_layout_arm(attrs, inputs, tinfos)
 
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @conv2d_winograd_without_weight_transform.register(['mali'])

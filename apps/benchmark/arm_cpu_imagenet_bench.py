@@ -58,8 +58,10 @@ def evaluate_network(network, target, target_host, number):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--network", type=str, choices=
-                        ['resnet-18', 'resnet-34', 'vgg-16',
-                         'mobilenet', 'mobilenet_v2', 'squeezenet v1.0', 'squeezenet v1.1'])
+                        ['resnet-18', 'resnet-34', 'resnet-50',
+                         'vgg-16', 'vgg-19', 'densenet-121', 'inception_v3',
+                         'mobilenet', 'mobilenet_v2', 'squeezenet v1.1', 'squeezenet v1.1'],
+                        help='The name of neural network')
     parser.add_argument("--model", type=str, choices=
                         ['rk3399', 'mate10', 'mate10pro', 'p20', 'p20pro',
                          'pixel2', 'rasp3b', 'pynq'], default='rk3399',
