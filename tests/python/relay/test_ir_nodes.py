@@ -27,8 +27,8 @@ def test_tensor_type():
 
 
 def test_type_param():
-    tp = relay.TypeParam('name', relay.Kind.Shape)
-    assert tp.kind == relay.Kind.Shape
+    tp = relay.TypeParam('name', relay.Kind.Type)
+    assert tp.kind == relay.Kind.Type
     # assert tp.span  # TODO allow us to set span
     str(tp)
 

@@ -13,10 +13,9 @@
 #include <utility>
 #include <vector>
 
-#include "../attrs.h"
-#include "./base.h"
-#include "./expr.h"
-#include "./type.h"
+#include "base.h"
+#include "expr.h"
+#include "type.h"
 
 namespace tvm {
 namespace relay {
@@ -45,7 +44,7 @@ class OpNode : public relay::ExprNode {
   Array<AttrFieldInfo> arguments;
   /*!
    * \brief The type key of the attribute field
-   *  This can be empty, in which case it defaults to
+   *  This can be empty, in which case it defaults to anything.
    */
   std::string attrs_type_key;
   /*!
@@ -156,11 +155,13 @@ class OpRegistry {
    */
   inline OpRegistry& add_type_rel(
       const std::string& rel_name,
-      std::function<Array<Type>(const Array<Type>&, int)> type_rel_func);
-
+      runtime::TypedPackedFunc<bool(const Array<Type>&,
+                                    int,
+                                    const Attrs&,
+                                    const TypeReporter&)> type_rel_func);
   /*!
    * \brief Set the type key of attributes.
-   * \param type_key The type of of the attrs field.x
+   * \param type_key The type of of the attrs field.
    * \return reference to self.
    */
   inline OpRegistry& set_attrs_type_key(const std::string& type_key);
@@ -348,23 +349,25 @@ inline OpRegistry& OpRegistry::add_argument(const std::string& name,
 
 inline OpRegistry& OpRegistry::add_type_rel(
     const std::string& rel_name,
-    std::function<Array<Type>(const Array<Type>&, int)> type_rel_func) {
+    runtime::TypedPackedFunc<bool(const Array<Type>&,
+                                  int,
+                                  const Attrs&,
+                                  const TypeReporter&)> type_rel_func) {
   auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
-
-  TypedEnvFunc<Array<Type>(const Array<Type>&, int)> env_type_rel_func;
+  TypeRelationFn env_type_rel_func;
 
   if (runtime::Registry::Get(func_name)) {
     auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   } else {
     runtime::Registry::Register(func_name)
-        .set_body_typed<Array<Type>(const Array<Type>&, int)>(type_rel_func);
+        .set_body(type_rel_func.packed());
     auto env_func = EnvFunc::Get(func_name);
     env_type_rel_func = env_func;
   }
 
-  std::vector<TypeParam> type_params;
-  std::vector<Type> arg_types;
+  Array<TypeParam> type_params;
+  Array<Type> arg_types;
 
   // Add inputs.
   std::string input_name_prefix = "in";
@@ -375,15 +378,27 @@ inline OpRegistry& OpRegistry::add_type_rel(
     arg_types.push_back(param);
   }
 
-  auto ty_call_args = Array<Type>(arg_types);
+  Array<Type> ty_call_args = arg_types;
 
   // Add output type.
   auto out_param = TypeParamNode::make("out", TypeParamNode::Kind::kType);
   type_params.push_back(out_param);
+  // this will trigger copy on write.
   ty_call_args.push_back(out_param);
 
+  // The attributes of primitive op is nullptr
+  //
+  // The attributes of primitive operator can vary at the call site.
+  // The type of sum is also dependent on Attrs being passed.
+  // So puting nullptr in the Attrs means that the operator is polymorphic on Attrs.
+  //
+  // A common example is sum(x, axis), where the choice of axis
+  // can affect the type of the function.
   TypeConstraint type_rel =
-      TypeRelationNode::make(rel_name, env_type_rel_func, ty_call_args);
+      TypeRelationNode::make(env_type_rel_func,
+                             ty_call_args,
+                             arg_types.size(),
+                             Attrs());
 
   auto func_type =
       FuncTypeNode::make(arg_types, out_param, type_params, {type_rel});
