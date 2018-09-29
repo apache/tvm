@@ -6,7 +6,6 @@
 #include <tvm/relay/environment.h>
 #include <tvm/relay/pass.h>
 #include <sstream>
-#include "./../pass/resolve.h"
 
 namespace tvm {
 namespace relay {
@@ -49,7 +48,7 @@ void EnvironmentNode::Add(const GlobalVar &var,
     auto checked_func = GetRef<Function>(func_node);
     auto type = checked_func->checked_type();
 
-    CHECK(IsFullyResolved(type));
+    CHECK(type.as<IncompleteTypeNode>() == nullptr);
 
     if (functions.find(var) != functions.end()) {
       if (!update) {
@@ -68,7 +67,7 @@ void EnvironmentNode::Add(const GlobalVar &var,
       this->functions.Set(var, checked_func);
     }
   } else {
-    throw Error("internal error: unknown item type, unreachable code");
+    LOG(FATAL) << "internal error: unknown item type, unreachable code";
   }
 }
 
