@@ -24,42 +24,72 @@ struct TypeRelationError : Error {
       : Error(msg) {}
 };
 
-/*! \brief The identity type relation maps a single input variable
- * to the output variable.
+/*!
+ * \brief The identity type relation, all the types are equal.
  *
  * \param types The input and output types to the relation.
- * \param num_args The number of input arguments.
- * \return The (potentially partial) solution to the relation.
+ * \param num_inputs The number of input arguments.
+ * \param attrs The attributes
+ * \param reporter The reporter.
+ * \return true whether relation has been resolved.
  */
-Array<Type> IdentityRel(const Array<Type>& types, int num_args);
-/*! \brief The broadcast type relation, implements the broadcasting
+bool IdentityRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter);
+
+/*!
+ * \brief The broadcast type relation, implements the broadcasting
  * rule over the two input types producing the broadcasted type.
  *
  * \param types The input and output types to the relation.
- * \param num_args The number of input arguments.
- * \return The (potentially partial) solution to the relation.
+ * \param num_inputs The number of input arguments.
+ * \param attrs The attributes
+ * \param reporter The reporter.
+ * \return true whether relation has been resolved.
  */
-Array<Type> BroadcastRel(const Array<Type>& types, int num_args);
-/*! \brief The broadcast type relation, implements the broadcasting
- * rule over the two input types producing the broadcasted type.
+bool BroadcastRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter);
+
+/*!
+ * \brief The broadcast type relation, implements the broadcasting
+ *  rule over the two input types producing the broadcasted type.
  *
  * This differs from BroadcastRel in the return dtype,
- * it instead returns bool, for use in comparsion operators
+ * it instead returns bool(uint8), for use in comparsion operators
  * such as equal, not_equal, lt, and so on.
  *
  * \param types The input and output types to the relation.
- * \param num_args The number of input arguments.
- * \return The (potentially partial) solution to the relation.
+ * \param num_inputs The number of input arguments.
+ * \param attrs The attributes
+ * \param reporter The reporter.
+ * \return true whether relation has been resolved.
  */
-Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args);
+bool BroadcastCompRel(const Array<Type>& types,
+                      int num_inputs,
+                      const Attrs& attrs,
+                      const TypeReporter& reporter);
 
-/*! \brief The concat relation.
+/*!
+ * \brief The The concat relation, implements the broadcasting
+ *  rule over the two input types producing the broadcasted type.
  *
- * This relation takes a single input which must be a single tensor
- * or an arbitrary sized tuple. It combines these input dimensions
- * together to produce the output example.
+ * This differs from BroadcastRel in the return dtype,
+ * it instead returns bool(uint8), for use in comparsion operators
+ * such as equal, not_equal, lt, and so on.
+ *
+ * \param types The input and output types to the relation.
+ * \param num_inputs The number of input arguments.
+ * \param attrs The attributes
+ * \param reporter The reporter.
+ * \return true whether relation has been resolved.
  */
-Array<Type> ConcatRel(const Array<Type>& types, int num_args);
+bool ConcatRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter);
 
 }  // namespace relay
 }  // namespace tvm

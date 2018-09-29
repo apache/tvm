@@ -2,16 +2,18 @@
 """The expression nodes of Relay."""
 from __future__ import absolute_import
 from .base import NodeBase, register_relay_node
-from ._ir_pass import _get_checked_type
 from . import _make
 from .. import convert
 
 
 class Expr(NodeBase):
     """The base type for all Relay expressions."""
-
     def checked_type(self):
-        return _get_checked_type(self)
+        ret = self._checked_type_
+        if ret is None:
+            raise ValueError("The type checker has not populated"
+                             " the checked_type for this node")
+        return ret
 
     def __call__(self, *args):
         converted_args = []

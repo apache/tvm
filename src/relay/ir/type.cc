@@ -55,7 +55,27 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     << node->kind << ")";
 });
 
-FuncType FuncTypeNode::make(tvm::Array<Type> arg_types, Type ret_type,
+IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
+  auto n = make_node<IncompleteTypeNode>();
+  n->kind = std::move(kind);
+  return IncompleteType(n);
+}
+
+TVM_REGISTER_API("relay._make.IncompleteType")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    int kind = args[0];
+    *ret = IncompleteTypeNode::make(static_cast<TypeParamNode::Kind>(kind));
+  });
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<IncompleteTypeNode>(
+    [](const IncompleteTypeNode* node,
+       tvm::IRPrinter* p) {
+      p->stream << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
+    });
+
+FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
+                            Type ret_type,
                             tvm::Array<TypeParam> type_params,
                             tvm::Array<TypeConstraint> type_constraints) {
   NodePtr<FuncTypeNode> n = make_node<FuncTypeNode>();
@@ -79,24 +99,28 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << node->type_constraints << ")";
 });
 
-TypeRelation TypeRelationNode::make(std::string name, TypeRelationFn func, Array<Type> args) {
+TypeRelation TypeRelationNode::make(TypeRelationFn func,
+                                    Array<Type> args,
+                                    int num_inputs,
+                                    Attrs attrs) {
   NodePtr<TypeRelationNode> n = make_node<TypeRelationNode>();
-  n->name = std::move(name);
-  n->func_ = std::move(func);
+  n->func = std::move(func);
   n->args = std::move(args);
+  n->num_inputs = num_inputs;
+  n->attrs = std::move(attrs);
   return TypeRelation(n);
 }
 
 TVM_REGISTER_API("relay._make.TypeRelation")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-  *ret = TypeRelationNode::make(args[0], args[1], args[2]);
+    *ret = TypeRelationNode::make(args[0], args[1], args[2], args[3]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const TypeRelationNode *node,
-                                       tvm::IRPrinter *p) {
-  p->stream << "TypeRelationNode(" << node->name << ", " << node->args
-    << ")";
+.set_dispatch<TypeRelationNode>([](const TypeRelationNode *node, tvm::IRPrinter *p) {
+    p->stream << "TypeRelationNode("
+              << node->func->name
+              << ", " << node->args << ")";
 });
 
 TupleType TupleTypeNode::make(Array<Type> fields) {

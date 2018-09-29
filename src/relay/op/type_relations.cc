@@ -8,7 +8,6 @@
 #include <tvm/relay/logging.h>
 #include <tvm/relay/op.h>
 #include <numeric>
-#include "../pass/incomplete_type.h"
 #include "./type_relations.h"
 
 namespace tvm {
@@ -30,18 +29,19 @@ int ToInt(const tvm::Expr& e) {
   return imm->value;
 }
 
-Array<Type> IdentityRel(const Array<Type>& types, int num_args) {
-  CHECK_EQ(types.size(), 2);
-  auto t1 = ToTensorType(types[0]);
-  if (t1 && types[1].as<IncompleteTypeNode>()) {
-    return {t1, t1};
-  } else {
-    return types;
+bool IdentityRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  for (size_t i = 1; i < types.size(); ++i) {
+    reporter->Assign(types[i], types[0]);
   }
+  return true;
 }
 
-static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
-                              DataType output_dtype) {
+Type ConcreteBroadcast(const TensorType& t1,
+                       const TensorType& t2,
+                       DataType output_dtype) {
   RELAY_LOG(INFO) << "ConcreteBroadcast: t1=" << t1 << " t2=" << t2
                   << std::endl;
   auto sh1 = t1->shape;
@@ -73,7 +73,7 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
     Array<ShapeExpr> smaller;
 
     for (int i = 0; i < (full_len - suffix_len); i++) {
-      smaller.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), 1));
+      smaller.push_back(make_const(tvm::Int(64), 1));
     }
 
     if (sh1.size() < sh2.size()) {
@@ -93,46 +93,52 @@ static Type ConcreteBroadcast(const TensorType& t1, const TensorType& t2,
 
     CHECK_EQ(larger.size(), smaller.size());
 
-    Array<HalideIR::Expr> out_shape;
+    Array<ShapeExpr> out_shape;
     for (size_t i = 0; i < smaller.size(); i++) {
       auto left = smaller[i].as<tvm::ir::IntImm>();
       auto right = larger[i].as<tvm::ir::IntImm>();
       CHECK(left);
       CHECK(right);
       int64_t dim = std::max(left->value, right->value);
-      out_shape.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), dim));
+      out_shape.push_back(make_const(tvm::Int(64), dim));
     }
 
     return TensorTypeNode::make(out_shape, output_dtype);
   }
 }
 
-Array<Type> BroadcastRel(const Array<Type>& types, int num_args) {
+bool BroadcastRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
                   << "Out: " << types[2] << std::endl;
-  if (auto t1 = ToTensorType(types[0])) {
-    if (auto t2 = ToTensorType(types[1])) {
-      CHECK_EQ(t1->dtype, t2->dtype);
-      return {t1, t2, ConcreteBroadcast(t1, t2, t1->dtype)};
+  if (auto t0 = ToTensorType(types[0])) {
+    if (auto t1 = ToTensorType(types[1])) {
+      CHECK_EQ(t0->dtype, t1->dtype);
+      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, t0->dtype));
+      return true;
     }
   }
-
-  return types;
+  return false;
 }
 
-/* A relation which specifies broadcasting rules for operations which
-   compute boolean results.
-*/
-Array<Type> BroadcastCompRel(const Array<Type>& types, int num_args) {
+bool BroadcastCompRel(const Array<Type>& types,
+                      int num_inputs,
+                      const Attrs& attrs,
+                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
-  if (auto t1 = ToTensorType(types[0])) {
-    if (auto t2 = ToTensorType(types[1])) {
-      return {t1, t2, ConcreteBroadcast(t1, t2, HalideIR::Bool())};
+  RELAY_LOG(INFO) << "In1: " << types[0] << "In2: " << types[1]
+                  << "Out: " << types[2] << std::endl;
+  if (auto t0 = ToTensorType(types[0])) {
+    if (auto t1 = ToTensorType(types[1])) {
+      CHECK_EQ(t0->dtype, t1->dtype);
+      reporter->Assign(types[2], ConcreteBroadcast(t0, t1, ::tvm::Bool()));
+      return true;
     }
   }
-
-  return types;
+  return false;
 }
 
 /*! \brief Handle concrete concat case from known input to output. */
@@ -175,10 +181,10 @@ inline Type ConcreteConcatRel(const Type& input_type) {
 
     auto out_axis_dim = std::accumulate(axis_dims.begin(), axis_dims.end(), 0);
 
-    Array<tvm::Expr> out_shape = { tvm::ir::IntImm::make(HalideIR::Int(64), out_axis_dim) };
+    Array<tvm::Expr> out_shape = { make_const(Int(64), out_axis_dim) };
 
     for (auto dim : dims) {
-      out_shape.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), dim));
+      out_shape.push_back(make_const(Int(64), dim));
     }
 
     return TensorTypeNode::make(out_shape, dtype);
@@ -188,19 +194,18 @@ inline Type ConcreteConcatRel(const Type& input_type) {
   }
 }
 
-Array<Type> ConcatRel(const Array<Type>& types, int num_args) {
+bool ConcatRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
-
-  if (types[0].as<IncompleteTypeNode>() && types[1].as<IncompleteTypeNode>()) {
-    return types;
-  } else if (types[1].as<IncompleteTypeNode>()) {
-    return { types[0], ConcreteConcatRel(types[0]) };
-  } else {
-    throw TypeRelationError(
-      "can not deduce relationship between the " \
-      "type of concat's input and output");
+  if (types[0].as<TupleTypeNode>()) {
+    reporter->Assign(types[1], ConcreteConcatRel(types[0]));
+    return true;
   }
+  return false;
 }
+
 
 }  // namespace relay
 }  // namespace tvm

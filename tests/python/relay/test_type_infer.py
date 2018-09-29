@@ -76,10 +76,10 @@ def test_add_broadcast_op():
     assert_has_type(func.to_func(), expected_ty)
 
 def test_dual_op():
-    """Program: 
-       fn (x : Tensor[f32, (10, 10)]) { 
-         let t1 = log(x); 
-         let t2 = add(t1, x); 
+    """Program:
+       fn (x : Tensor[f32, (10, 10)]) {
+         let t1 = log(x);
+         let t2 = add(t1, x);
          return t1;
        }
     """
@@ -93,8 +93,8 @@ def test_dual_op():
 
 
 def test_decl():
-    """Program: 
-       def f(x : Tensor[f32, (10, 10)]) { 
+    """Program:
+       def f(x : Tensor[f32, (10, 10)]) {
            let lx = log(x);
            return lx;
        }
@@ -125,7 +125,7 @@ def test_recursion():
     n = b.param('n', ty='int32')
     data = b.param('data', ty='float32')
     with b.decl(f, n, data):
-        with b.if_scope(equal(n, convert(0.0))):
+        with b.if_scope(equal(n, convert(0))):
             b.ret(f(subtract(n, convert(1)), log(data)))
         with b.else_scope():
             b.ret(data)
@@ -152,11 +152,12 @@ def test_concat():
     assert_decl_has_type(ib.env, try_concat2, fn_ty)
 
 if __name__ == "__main__":
-    # test_monomorphic_let()
-    # test_single_op()
-    # test_add_op()
-    # test_add_broadcast_op()
-    # test_dual_op()
-    # test_decl()
-    # test_recursion()
+    test_recursion()
+
+    test_monomorphic_let()
+    test_single_op()
+    test_add_op()
+    test_add_broadcast_op()
+    test_dual_op()
+    test_decl()
     test_concat()

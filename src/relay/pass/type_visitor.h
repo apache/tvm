@@ -108,11 +108,14 @@ struct TypeMutator : TypeFunctor<Type(const Type& n)> {
     for (const Type& t : type_rel->args) {
       new_args.push_back(this->VisitType(t));
     }
-    return TypeRelationNode::make(type_rel->name, type_rel->func_, new_args);
+    return TypeRelationNode::make(type_rel->func,
+                                  new_args,
+                                  type_rel->num_inputs,
+                                  type_rel->attrs);
   }
 
   Type VisitType_(const IncompleteTypeNode* op) override {
-    return GetRef<IncompleteType>(op);
+    return GetRef<Type>(op);
   }
 };
 
