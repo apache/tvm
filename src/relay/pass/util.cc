@@ -99,7 +99,20 @@ tvm::Array<TypeParam> FreeTypeVariables(const Type & t) {
   return tvm::Array<TypeParam>(fv.free_type.begin(), fv.free_type.end());
 }
 
-// not exposed to python for now, as tvm ffi does not support unordered_set
+TVM_REGISTER_API("relay._ir_pass.free_vars")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = FreeVariables(args[0]);
+  });
+
+TVM_REGISTER_API("relay._ir_pass.free_type_vars")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    NodeRef x = args[0];
+    if (x.as<TypeNode>()) {
+      *ret = FreeTypeVariables(Downcast<Type>(x));
+    } else {
+      *ret = FreeTypeVariables(Downcast<Expr>(x));
+    }
+  });
 
 }  // namespace relay
 }  // namespace tvm
