@@ -158,6 +158,8 @@ class RelayNode : public Node {
   TVM_DECLARE_BASE_NODE_INFO(RelayNode, Node);
 };
 
+struct Environment;
+
 }  // namespace relay
 }  // namespace tvm
 
