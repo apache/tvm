@@ -323,7 +323,13 @@ def schedule_conv2d(cfg, outs):
             is_kernel_1x1 = kh == 1 and kw == 1
             current_cfg = cfg
             if cfg.is_fallback:
-                workload = op.attrs["workload"]
+                workload_attr = op.attrs["workload"]
+                strides = (workload_attr[3][0].value, workload_attr[3][1].value)
+                padding = (workload_attr[4][0].value, workload_attr[4][1].value)
+                layout = workload_attr[5].value
+                out_dtype = workload_attr[6].value
+                workload = conv_arg_to_workload(data, kernel, strides, padding,
+                                                layout, out_dtype)
                 current_cfg = _get_default_sch(workload)
             args = [s, current_cfg, data, data_pad, data_vec, kernel_vec, conv_out,
                     output, outs[0]]
