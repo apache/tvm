@@ -94,7 +94,7 @@ bool WellFormed(const Expr & e);
 
 /*! \brief Get free variables from expression e.
  *
- * Free variables are variables that are not bound by a let or a function parameter in the context
+ * Free variables are variables that are not bound by a let or a function parameter in the context.
  *
  * \param e the expression.
  *
@@ -104,7 +104,7 @@ tvm::Array<Var> FreeVariables(const Expr & e);
 
 /*! \brief Get free type parameters from expression e.
  *
- * Free type parameters are type parameters that are not bound by a function type in the context
+ * Free type parameters are type parameters that are not bound by a function type in the context.
  *
  * \param e the expression.
  *
@@ -114,7 +114,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Expr & e);
 
 /*! \brief Get free type parameters from type t.
  *
- * Free type parameters are type parameters that are not bound by a function type in the context
+ * Free type parameters are type parameters that are not bound by a function type in the context.
  *
  * \param t the type.
  *
