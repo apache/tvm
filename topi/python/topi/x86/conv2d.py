@@ -198,6 +198,28 @@ def _get_schedule_NCHWc_x86_int8(wkl, layout, out_layout):
 def _get_alter_layout_schedule_x86(wkl):
     return _get_schedule_conv(wkl)
 
+
+def _get_fp32_len():
+    fp32_vec_len = 8
+    target = tvm.target.current_target()
+    if target is not None:
+        for opt in target.options:
+            if opt == '-mcpu=skylake-avx512':
+                fp32_vec_len = 16
+    return fp32_vec_len
+
+
+def _get_default_sch(workload):
+    fp32_vec_len = _get_fp32_len()
+    _, _, kh, kw, _ = workload[2]
+    is_kernel_1x1 = kh == 1 and kw == 1
+    if is_kernel_1x1:
+        cfg = conv2d_avx_1x1._fallback_schedule(workload, fp32_vec_len)
+    else:
+        cfg = conv2d_avx_common._fallback_schedule(workload, fp32_vec_len)
+    return cfg
+
+
 def _create_schedule_template(cfg, data, kernel, strides, padding, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
@@ -250,6 +272,10 @@ def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     if layout == 'NCHW':
         _create_schedule_template(cfg, data, kernel, strides, padding, layout)
+        if cfg.is_fallback:
+            workload = conv_arg_to_workload(data, kernel, strides, padding,
+                                            layout, out_dtype)
+            cfg = _get_default_sch(workload)
         args = [cfg, data, kernel, strides, padding, layout, out_dtype]
         _, _, kh, kw = get_const_tuple(kernel.shape)
         is_kernel_1x1 = kh == 1 and kw == 1
@@ -295,7 +321,11 @@ def schedule_conv2d(cfg, outs):
 
             _, _, kh, kw = get_const_tuple(kernel.shape)
             is_kernel_1x1 = kh == 1 and kw == 1
-            args = [s, cfg, data, data_pad, data_vec, kernel_vec, conv_out,
+            current_cfg = cfg
+            if cfg.is_fallback:
+                workload = op.attrs["workload"]
+                current_cfg = _get_default_sch(workload)
+            args = [s, current_cfg, data, data_pad, data_vec, kernel_vec, conv_out,
                     output, outs[0]]
             if is_kernel_1x1:
                 conv2d_avx_1x1._schedule_conv(*args)
@@ -437,16 +467,6 @@ def conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
          out_dtype])
 
 
-def _get_fp32_len():
-    fp32_vec_len = 8
-    target = tvm.target.current_target()
-    if target is not None:
-        for opt in target.options:
-            if opt == '-mcpu=skylake-avx512':
-                fp32_vec_len = 16
-    return fp32_vec_len
-
-
 def _query_dispatcher(workload, in_alter_op=False):
     dispatch_ctx = autotvm.task.DispatchContext.current
     if isinstance(dispatch_ctx, ApplyGraphBest):
@@ -458,13 +478,7 @@ def _query_dispatcher(workload, in_alter_op=False):
         target = tvm.target.current_target()
         cfg = dispatch_ctx.query(target, workload)
         if cfg.is_fallback:
-            fp32_vec_len = _get_fp32_len()
-            _, _, kh, kw, _ = workload[2]
-            is_kernel_1x1 = kh == 1 and kw == 1
-            if is_kernel_1x1:
-                cfg = conv2d_avx_1x1._fallback_schedule(workload, fp32_vec_len)
-            else:
-                cfg = conv2d_avx_common._fallback_schedule(workload, fp32_vec_len)
+            cfg = _get_default_sch(workload)
     return cfg
 
 
