@@ -81,22 +81,22 @@ class FreeVar : public ExprVisitor {
   }
 };
 
-std::unordered_set<Var, NodeHash, NodeEqual> FreeVariables(const Expr & e) {
+tvm::Array<Var> FreeVariables(const Expr & e) {
   FreeVar fv;
   fv.VisitExpr(e);
-  return fv.free;
+  return tvm::Array<Var>(fv.free.begin(), fv.free.end());
 }
 
-std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Expr & e) {
+tvm::Array<TypeParam> FreeTypeVariables(const Expr & e) {
   FreeVar fv;
   fv.VisitExpr(e);
-  return fv.free_type;
+  return tvm::Array<TypeParam>(fv.free_type.begin(), fv.free_type.end());
 }
 
-std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Type & t) {
+tvm::Array<TypeParam> FreeTypeVariables(const Type & t) {
   FreeVar fv;
   fv.VisitType(t);
-  return fv.free_type;
+  return tvm::Array<TypeParam>(fv.free_type.begin(), fv.free_type.end());
 }
 
 // not exposed to python for now, as tvm ffi does not support unordered_set

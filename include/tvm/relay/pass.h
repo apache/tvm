@@ -100,7 +100,7 @@ bool WellFormed(const Expr & e);
  *
  * \return the set of free variable.
  */
-std::unordered_set<Var, NodeHash, NodeEqual> FreeVariables(const Expr & e);
+tvm::Array<Var> FreeVariables(const Expr & e);
 
 /*! \brief Get free type parameters from expression e.
  *
@@ -110,7 +110,7 @@ std::unordered_set<Var, NodeHash, NodeEqual> FreeVariables(const Expr & e);
  *
  * \return the set of free type variables.
  */
-std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Expr & e);
+tvm::Array<TypeParam> FreeTypeVariables(const Expr & e);
 
 /*! \brief Get free type parameters from type t.
  *
@@ -120,7 +120,7 @@ std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Expr 
  *
  * \return the set of free type variables.
  */
-std::unordered_set<TypeParam, NodeHash, NodeEqual> FreeTypeVariables(const Type & t);
+tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
 
 }  // namespace relay
 }  // namespace tvm
