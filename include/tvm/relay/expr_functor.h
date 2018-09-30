@@ -11,6 +11,7 @@
 #include <string>
 #include "./expr.h"
 #include "./op.h"
+#include "./error.h"
 
 namespace tvm {
 namespace relay {
@@ -89,7 +90,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const OpNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExprDefault_(const Node* op, Args...) {
-    throw dmlc::Error(std::string("Do not have a default for ") + op->type_key());
+    throw Error(std::string("Do not have a default for ") + op->type_key());
   }
 
  private:
