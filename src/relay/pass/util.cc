@@ -53,10 +53,10 @@ class FreeVar : public ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode *f) final {
-    for (const auto & tp : f->type_params) {
+    for (const auto& tp : f->type_params) {
       bound_types.insert(tp);
     }
-    for (const auto & p : f->params) {
+    for (const auto& p : f->params) {
       bound_vars.insert(p->var);
     }
     VisitExpr(f->body);
