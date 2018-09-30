@@ -14,22 +14,22 @@ namespace relay {
 
 class FreeVar;
 class FreeTypeVar : private TypeVisitor<> {
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * free;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound;
-  FreeTypeVar(std::unordered_set<TypeParam, NodeHash, NodeEqual> * free,
-              std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound) :
-    free(free), bound(bound) { }
+  std::unordered_set<TypeParam, NodeHash, NodeEqual> * free_vars;
+  std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound_vars;
+  FreeTypeVar(std::unordered_set<TypeParam, NodeHash, NodeEqual> * free_vars,
+              std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound_vars) :
+    free_vars(free_vars), bound_vars(bound_vars) { }
 
   void VisitType_(const TypeParamNode* tp) final {
     auto var = GetRef<TypeParam>(tp);
-    if (bound->count(var) == 0) {
-      free->insert(var);
+    if (bound_vars->count(var) == 0) {
+      free_vars->insert(var);
     }
   }
 
   void VisitType_(const FuncTypeNode* f) final {
     for (auto type_param : f->type_params) {
-      bound->insert(type_param);
+      bound_vars->insert(type_param);
     }
 
     for (auto type_cs : f->type_constraints) {
@@ -47,56 +47,56 @@ class FreeTypeVar : private TypeVisitor<> {
 class FreeVar : public ExprVisitor {
   void VisitExpr_(const VarNode *v) final {
     auto var = GetRef<Var>(v);
-    if (bound.count(var) == 0) {
-      free.insert(var);
+    if (bound_vars.count(var) == 0) {
+      free_vars.insert(var);
     }
   }
 
   void VisitExpr_(const FunctionNode *f) final {
     for (const auto & tp : f->type_params) {
-      bound_type.insert(tp);
+      bound_types.insert(tp);
     }
     for (const auto & p : f->params) {
-      bound.insert(p->var);
+      bound_vars.insert(p->var);
     }
     VisitExpr(f->body);
     VisitType(f->ret_type);
   }
 
   void VisitExpr_(const LetNode *l) final {
-    bound.insert(l->var);
+    bound_vars.insert(l->var);
     VisitExpr(l->value);
     VisitExpr(l->body);
     VisitType(l->value_type);
   }
 
  public:
-  std::unordered_set<Var, NodeHash, NodeEqual> free;
-  std::unordered_set<Var, NodeHash, NodeEqual> bound;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> free_type;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> bound_type;
+  std::unordered_set<Var, NodeHash, NodeEqual> free_vars;
+  std::unordered_set<Var, NodeHash, NodeEqual> bound_vars;
+  std::unordered_set<TypeParam, NodeHash, NodeEqual> free_types;
+  std::unordered_set<TypeParam, NodeHash, NodeEqual> bound_types;
 
   void VisitType(const Type& t) final {
-    FreeTypeVar(&free_type, &bound_type)(t);
+    FreeTypeVar(&free_types, &bound_types)(t);
   }
 };
 
-tvm::Array<Var> FreeVariables(const Expr & e) {
+tvm::Array<Var> FreeVariables(const Expr& e) {
   FreeVar fv;
   fv.VisitExpr(e);
-  return tvm::Array<Var>(fv.free.begin(), fv.free.end());
+  return tvm::Array<Var>(fv.free_vars.begin(), fv.free_vars.end());
 }
 
-tvm::Array<TypeParam> FreeTypeVariables(const Expr & e) {
+tvm::Array<TypeParam> FreeTypeVariables(const Expr& e) {
   FreeVar fv;
   fv.VisitExpr(e);
-  return tvm::Array<TypeParam>(fv.free_type.begin(), fv.free_type.end());
+  return tvm::Array<TypeParam>(fv.free_types.begin(), fv.free_types.end());
 }
 
-tvm::Array<TypeParam> FreeTypeVariables(const Type & t) {
+tvm::Array<TypeParam> FreeTypeVariables(const Type& t) {
   FreeVar fv;
   fv.VisitType(t);
-  return tvm::Array<TypeParam>(fv.free_type.begin(), fv.free_type.end());
+  return tvm::Array<TypeParam>(fv.free_types.begin(), fv.free_types.end());
 }
 
 TVM_REGISTER_API("relay._ir_pass.free_vars")
