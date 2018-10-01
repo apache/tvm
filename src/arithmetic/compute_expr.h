@@ -38,9 +38,9 @@ template<typename Op>
 inline Expr ComputeReduce(
     const Array<Expr>& values, Expr empty_value);
 
-inline bool GetConst(Expr e, int64_t *out) {
+inline bool GetConst(Expr e, int64_t* out) {
   if (e.type().is_vector()) return false;
-  const int64_t *v = as_const_int(e);
+  const int64_t* v = as_const_int(e);
   if (v) {
     *out = *v; return true;
   } else {

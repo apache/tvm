@@ -11,7 +11,7 @@ namespace tvm {
 /*!
  * \brief Check whether type is used to represent index.
  *
- * Index type are frequently used in shape computation
+ * Index types are frequently used in shape computation
  * and need to be aggressively constant-folded.
  *
  * \param type The type to represent index.
@@ -29,7 +29,7 @@ inline Expr SimpleCast(const Type& t, Expr value) {
 }
 
 // The public function with a quick checking path.
-void BinaryOpMatchTypes(Expr &lhs, Expr &rhs) {  // NOLINT(*)
+void BinaryOpMatchTypes(Expr& lhs, Expr& rhs) {  // NOLINT(*)
   if (lhs.type() == rhs.type()) return;
   Type ltype = lhs.type();
   Type rtype = rhs.type();
@@ -135,7 +135,7 @@ Expr reinterpret(const Type& t, Expr value) {
   const IntImm* pa = a.as<IntImm>();                                    \
   const IntImm* pb = b.as<IntImm>();                                    \
   const Type& ta = a.type();                                            \
-  const Type& tb = a.type();                                            \
+  const Type& tb = b.type();                                            \
   if (IsIndexType(ta) && IsIndexType(tb)) {                             \
     BODY;                                                               \
   }                                                                     \
