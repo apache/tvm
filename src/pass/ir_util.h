@@ -7,6 +7,7 @@
 #define TVM_PASS_IR_UTIL_H_
 
 #include <tvm/ir.h>
+#include <tvm/ir_operator.h>
 #include <tvm/runtime/device_api.h>
 #include <vector>
 
@@ -75,7 +76,7 @@ inline Expr TVMStructGet(
   Array<Expr> args ={
     handle,
     make_const(Int(32), index),
-    make_const(Int(32), kind)};
+    make_const(Int(32), static_cast<int>(kind))};
   return Call::make(dtype, intrinsic::tvm_struct_get, args, Call::PureIntrinsic);
 }
 
@@ -125,7 +126,7 @@ inline Stmt TVMStructSet(
   Array<Expr> args ={
     handle,
     make_const(Int(32), index),
-    make_const(Int(32), kind),
+    make_const(Int(32), static_cast<int>(kind)),
     value};
   return Evaluate::make(
       Call::make(Int(32), intrinsic::tvm_struct_set, args, Call::Intrinsic));

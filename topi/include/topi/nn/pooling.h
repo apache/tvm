@@ -94,10 +94,10 @@ inline Tensor pool_impl(const Tensor& x,
   out_shape.Set(height_axis, out_height);
   out_shape.Set(width_axis, out_width);
 
-  const int64_t *padding_h0 = HalideIR::Internal::as_const_int(pad_top);
-  const int64_t *padding_w0 = HalideIR::Internal::as_const_int(pad_left);
-  const int64_t *padding_h1 = HalideIR::Internal::as_const_int(pad_bottom);
-  const int64_t *padding_w1 = HalideIR::Internal::as_const_int(pad_right);
+  const int64_t *padding_h0 = as_const_int(pad_top);
+  const int64_t *padding_w0 = as_const_int(pad_left);
+  const int64_t *padding_h1 = as_const_int(pad_bottom);
+  const int64_t *padding_w1 = as_const_int(pad_right);
   const bool do_pad = ((padding_h0 && *padding_h0) || (padding_w0 && *padding_w0)) ||
                       ((padding_h1 && *padding_h1) || (padding_w1 && *padding_w1));
 
@@ -192,7 +192,7 @@ inline bool find_height_width(const std::string& layout,
 *        Since pooling does not care about the factor size of dimensions
 *        other than `H` and `W`, one can pass `NCHWc` as well.
 * \param  count_include_pad Whether include padding in the calculation when pool_type is 'avg'
-*        
+*
 *
 * \return The output tensor in the same layout
 */

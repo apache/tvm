@@ -1,6 +1,7 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir_mutator.h>
+#include <tvm/ir_operator.h>
 
 namespace {
 using namespace tvm::ir;

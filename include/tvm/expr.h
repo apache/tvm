@@ -7,7 +7,6 @@
 #define TVM_EXPR_H_
 
 #include <ir/Expr.h>
-#include <ir/IROperator.h>
 #include <ir/IRPrinter.h>
 #include <string>
 #include <algorithm>
@@ -33,15 +32,6 @@ using HalideIR::IR::FunctionBaseNode;
 using HalideIR::Internal::Stmt;
 using HalideIR::Internal::IRPrinter;
 using HalideIR::Internal::Variable;
-
-using HalideIR::Internal::make_const;
-using HalideIR::Internal::make_zero;
-using HalideIR::Internal::make_one;
-using HalideIR::Internal::as_const_int;
-using HalideIR::Internal::as_const_uint;
-using HalideIR::Internal::const_true;
-using HalideIR::Internal::const_false;
-using HalideIR::Internal::is_no_op;
 
 inline Type TVMShapeIndexType() {
   if (std::is_signed<tvm_index_t>::value) {

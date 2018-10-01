@@ -5,7 +5,7 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
-#include <ir/IROperator.h>
+#include <tvm/ir_operator.h>
 #include <tvm/api_registry.h>
 #include <tvm/ir_operator.h>
 
@@ -117,6 +117,50 @@ TVM_REGISTER_API("make.CommReducer")
       *ret = Node::make(args[0], args[1], args[2], args[3], args[4]);   \
     })                                                                  \
 
+
+REGISTER_MAKE5(Reduce);
+REGISTER_MAKE4(AttrStmt);
+
+REGISTER_MAKE2(IntImm);
+REGISTER_MAKE2(UIntImm);
+REGISTER_MAKE2(FloatImm);
+REGISTER_MAKE1(StringImm);
+
+REGISTER_MAKE2(Add);
+REGISTER_MAKE2(Sub);
+REGISTER_MAKE2(Mul);
+REGISTER_MAKE2(Div);
+REGISTER_MAKE2(Mod);
+REGISTER_MAKE2(Min);
+REGISTER_MAKE2(Max);
+REGISTER_MAKE2(EQ);
+REGISTER_MAKE2(NE);
+REGISTER_MAKE2(LT);
+REGISTER_MAKE2(LE);
+REGISTER_MAKE2(GT);
+REGISTER_MAKE2(GE);
+REGISTER_MAKE2(And);
+REGISTER_MAKE2(Or);
+
+REGISTER_MAKE1(Not);
+REGISTER_MAKE3(Select);
+REGISTER_MAKE3(Ramp);
+REGISTER_MAKE2(Cast);
+REGISTER_MAKE2(Broadcast);
+REGISTER_MAKE2(Shuffle);
+REGISTER_MAKE3(Let);
+REGISTER_MAKE3(LetStmt);
+REGISTER_MAKE3(AssertStmt);
+REGISTER_MAKE3(ProducerConsumer);
+REGISTER_MAKE5(Allocate);
+REGISTER_MAKE4(Provide);
+REGISTER_MAKE4(Prefetch);
+REGISTER_MAKE1(Free);
+REGISTER_MAKE2(Block);
+REGISTER_MAKE3(IfThenElse);
+REGISTER_MAKE1(Evaluate);
+
+// operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                  \
   TVM_REGISTER_API("make."#Node)                             \
   .set_body([](TVMArgs args,  TVMRetValue *ret) {            \
@@ -138,50 +182,27 @@ TVM_REGISTER_API("make.CommReducer")
       }                                                                 \
     })
 
-REGISTER_MAKE5(Reduce);
-REGISTER_MAKE4(AttrStmt);
 
-REGISTER_MAKE2(IntImm);
-REGISTER_MAKE2(UIntImm);
-REGISTER_MAKE2(FloatImm);
-REGISTER_MAKE1(StringImm);
-REGISTER_MAKE_BINARY_OP(Add, operator+);
-REGISTER_MAKE_BINARY_OP(Sub, operator-);
-REGISTER_MAKE_BINARY_OP(Mul, operator*);
-REGISTER_MAKE_BINARY_OP(Div, operator/);
-REGISTER_MAKE_BINARY_OP(Mod, operator%);
-REGISTER_MAKE_BINARY_OP(Min, min);
-REGISTER_MAKE_BINARY_OP(Max, max);
-REGISTER_MAKE_BINARY_OP(EQ, operator==);
-REGISTER_MAKE_BINARY_OP(NE, operator!=);
-REGISTER_MAKE_BINARY_OP(LT, operator<); // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(LE, operator<=); // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(GT, operator>);  // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(GE, operator>=);
-REGISTER_MAKE_BINARY_OP(And, operator&&);
-REGISTER_MAKE_BINARY_OP(Or, operator||);
+REGISTER_MAKE_BINARY_OP(_OpAdd, operator+);
+REGISTER_MAKE_BINARY_OP(_OpSub, operator-);
+REGISTER_MAKE_BINARY_OP(_OpMul, operator*);
+REGISTER_MAKE_BINARY_OP(_OpDiv, operator/);
+REGISTER_MAKE_BINARY_OP(_OpMod, operator%);
+REGISTER_MAKE_BINARY_OP(_OpMin, min);
+REGISTER_MAKE_BINARY_OP(_OpMax, max);
+REGISTER_MAKE_BINARY_OP(_OpEQ, operator==);
+REGISTER_MAKE_BINARY_OP(_OpNE, operator!=);
+REGISTER_MAKE_BINARY_OP(_OpLT, operator<); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpLE, operator<=); // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpGT, operator>);  // NOLINT(*)
+REGISTER_MAKE_BINARY_OP(_OpGE, operator>=);
+REGISTER_MAKE_BINARY_OP(_OpAnd, operator&&);
+REGISTER_MAKE_BINARY_OP(_OpOr, operator||);
 REGISTER_MAKE_BIT_OP(bitwise_and, operator&);
 REGISTER_MAKE_BIT_OP(bitwise_or, operator|);
 REGISTER_MAKE_BIT_OP(bitwise_xor, operator^);
 REGISTER_MAKE_BIT_OP(left_shift, operator<<); // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, operator>>);
-REGISTER_MAKE1(Not);
-REGISTER_MAKE3(Select);
-REGISTER_MAKE3(Ramp);
-REGISTER_MAKE2(Cast);
-REGISTER_MAKE2(Broadcast);
-REGISTER_MAKE2(Shuffle);
-REGISTER_MAKE3(Let);
-REGISTER_MAKE3(LetStmt);
-REGISTER_MAKE3(AssertStmt);
-REGISTER_MAKE3(ProducerConsumer);
-REGISTER_MAKE5(Allocate);
-REGISTER_MAKE4(Provide);
-REGISTER_MAKE4(Prefetch);
-REGISTER_MAKE1(Free);
-REGISTER_MAKE2(Block);
-REGISTER_MAKE3(IfThenElse);
-REGISTER_MAKE1(Evaluate);
 
 }  // namespace ir
 }  // namespace tvm

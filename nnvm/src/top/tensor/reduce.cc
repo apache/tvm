@@ -354,7 +354,7 @@ Example::
     if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
     auto axis = ShapeToArray(r_axes);
 
-    Expr count = make_one(inputs[0]->dtype);
+    Expr count = make_const(inputs[0]->dtype, 1);
     for (auto& i : r_axes) {
       count *= inputs[0]->shape[i];
     }
