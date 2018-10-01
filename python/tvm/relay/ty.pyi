@@ -158,3 +158,26 @@ class IncompleteType(Type):
 
     def __init__(self, kind):
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)
+
+@register_relay_node
+class TypeRelation(TypeConstraint):
+    """Type relation in relay.
+
+    Parameters
+    ----------
+    func : EnvFunc
+        User defined relation function.
+
+    args : list of types
+        List of types to the func.
+
+    num_inputs: int
+        Number of input arguments in args,
+        this act as a hint for type inference.
+
+    attrs : Attrs
+        The attribute attached to the relation information
+    """
+    def __init__(self, func, args, num_inputs, attrs):
+        self.__init_handle_by_constructor__(_make.TypeRelation,
+                                            func, args, num_inputs, attrs)
