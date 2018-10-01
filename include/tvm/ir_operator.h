@@ -121,8 +121,11 @@ inline bool is_const(const Expr& x);
 
 /*!
  * \brief Check whether x is a constant power of two
- * \note This only return true for integer types.
- * \return whether x is constant
+ * If x is power of two, write the power to the shift.
+ *
+ * \param x The input expression.
+ * \param shift The output shift if x is power of two.
+ * \return whether x is constant power of two
  */
 TVM_DLL bool is_const_power_of_two_integer(const Expr& x, int* shift);
 

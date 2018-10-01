@@ -189,7 +189,7 @@ Expr operator*(Expr a, Expr b) {
 Expr operator/(Expr a, Expr b) {
   TVM_CONST_PROPAGATION({
       Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      // due to division and mode can have different modes
+      // due to division and mod can have different modes
       // only constant fold positive number where rule is fixed.
       if (pa && pb && pa->value >= 0 && pb->value > 0) {
         return IntImm::make(rtype, pa->value / pb->value);
@@ -199,6 +199,7 @@ Expr operator/(Expr a, Expr b) {
       }
       if (pb) {
         if (pb->value == 1) return SimpleCast(rtype, a);
+        CHECK_NE(pb->value, 0) << "Divide by zero";
       }
     });
   return ir::Div::make(a, b);
@@ -207,7 +208,7 @@ Expr operator/(Expr a, Expr b) {
 Expr operator%(Expr a, Expr b) {
   TVM_CONST_PROPAGATION({
       Type rtype = ta.bits() >= tb.bits() ? ta : tb;
-      // due to division and mode can have different modes
+      // due to division and mod can have different modes
       // only constant fold positive number where rule is fixed.
       if (pa && pb && pa->value >= 0 && pb->value > 0) {
         return IntImm::make(rtype, pa->value % pb->value);
@@ -217,6 +218,7 @@ Expr operator%(Expr a, Expr b) {
       }
       if (pb) {
         if (pb->value == 1) return make_zero(rtype);
+        CHECK_NE(pb->value, 0) << "Divide by zero";
       }
     });
   return ir::Mod::make(a, b);
@@ -241,6 +243,7 @@ Expr max(Expr a, Expr b) {
 Expr select(Expr cond, Expr true_value, Expr false_value) {
   using ir::IntImm;
   using ir::UIntImm;
+  CHECK(cond.type().is_bool());
   BinaryOpMatchTypes(true_value, false_value);
   if (const UIntImm* op = cond.as<UIntImm>()) {
     if (op->value != 0) {
@@ -255,7 +258,6 @@ Expr select(Expr cond, Expr true_value, Expr false_value) {
       return false_value;
     }
   }
-  CHECK(cond.type().is_bool());
   return ir::Select::make(cond, true_value, false_value);
 }
 
@@ -400,8 +402,8 @@ Expr abs(Expr x) {
   } else if (x.type().is_uint()) {
     return x;
   } else {
-    LOG(WARNING) << "Warning: Data type " << x.type()
-      <<" not supported for absolute op. Skipping absolute op...";
+    LOG(FATAL) << "Data type " << x.type()
+               <<" not supported for absolute op. Skipping absolute op...";
     return x;
   }
 }

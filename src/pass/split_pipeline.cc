@@ -104,7 +104,6 @@ class MarkChannelAccess : public IRMutator {
       for (size_t i = 1; i < op->extents.size(); ++i) {
         alloc_size = alloc_size * op->extents[i];
       }
-      alloc_size = alloc_size;
     }
 
     if (rw.write_count) {
