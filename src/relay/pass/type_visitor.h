@@ -18,39 +18,39 @@ namespace relay {
  * We recursively visit each type contained inside the visitor.
  */
 template <typename... Args>
-struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
-  void VisitType_(const TypeParamNode* op, Args... args) override {}
+struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, const Args& ...)> {
+  void VisitType_(const TypeParamNode* op, const Args& ... args) override {}
 
-  void VisitType_(const FuncTypeNode* op, Args... args) override {
+  void VisitType_(const FuncTypeNode* op, const Args& ... args) override {
     for (auto type_param : op->type_params) {
-      this->VisitType(type_param, std::forward<Args>(args)...);
+      this->VisitType(type_param, args ...);
     }
 
     for (auto type_cs : op->type_constraints) {
-      this->VisitType(type_cs, std::forward<Args>(args)...);
+      this->VisitType(type_cs, args ...);
     }
 
     for (auto arg_type : op->arg_types) {
-      this->VisitType(arg_type, std::forward<Args>(args)...);
+      this->VisitType(arg_type, args ...);
     }
-    this->VisitType(op->ret_type, std::forward<Args>(args)...);
+    this->VisitType(op->ret_type, args ...);
   }
 
-  void VisitType_(const TensorTypeNode* op, Args... args) override {}
+  void VisitType_(const TensorTypeNode* op, const Args& ... args) override {}
 
-  void VisitType_(const TupleTypeNode* op, Args... args) override {
+  void VisitType_(const TupleTypeNode* op, const Args& ... args) override {
     for (const Type& t : op->fields) {
-      this->VisitType(t, std::forward<Args>(args)...);
+      this->VisitType(t, args ...);
     }
   }
 
-  void VisitType_(const TypeRelationNode* op, Args... args) override {
+  void VisitType_(const TypeRelationNode* op, const Args& ... args) override {
     for (const Type& t : op->args) {
-      this->VisitType(t, std::forward<Args>(args)...);
+      this->VisitType(t, args ...);
     }
   }
 
-  void VisitType_(const IncompleteTypeNode* op, Args... args) override {}
+  void VisitType_(const IncompleteTypeNode* op, const Args& ... args) override {}
 };
 
 // A functional visitor for rebuilding an AST in place.
