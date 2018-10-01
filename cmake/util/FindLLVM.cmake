@@ -11,7 +11,7 @@
 # - LLVM_INCLUDE_DIRS
 # - LLVM_LIBS
 # - LLVM_DEFINITIONS
-# - TVM_LLVM_VERISON
+# - TVM_LLVM_VERSION
 #
 macro(find_llvm use_llvm)
   set(LLVM_CONFIG ${use_llvm})
@@ -55,5 +55,10 @@ macro(find_llvm use_llvm)
     set(LLVM_LIBS "${__llvm_libfiles} ${__llvm_system_libs}")
     separate_arguments(LLVM_LIBS)
     string(STRIP ${TVM_LLVM_VERSION} TVM_LLVM_VERSION)
+  endif()
+  if(NOT LLVM_CONFIG STREQUAL "OFF")
+    message(STATUS "Found LLVM_INCLUDE_DIRS=" ${LLVM_INCLUDE_DIRS})
+    message(STATUS "Found LLVM_DEFINITIONS=" ${LLVM_DEFINITIONS})
+    message(STATUS "Found TVM_LLVM_VERSION=" ${TVM_LLVM_VERSION})
   endif()
 endmacro(find_llvm)
