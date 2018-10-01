@@ -495,8 +495,6 @@ using HalideIR::Internal::Block;
 using HalideIR::Internal::IfThenElse;
 using HalideIR::Internal::Evaluate;
 using HalideIR::Internal::Shuffle;
-// ir functions
-using HalideIR::Internal::is_const_power_of_two_integer;
 
 /*!
  * \brief Create a type annotation expression

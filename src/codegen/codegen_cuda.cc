@@ -42,7 +42,7 @@ std::string CodeGenCUDA::Finish() {
 }
 
 void CodeGenCUDA::VisitStmt_(const ir::For* op) {
-  CHECK(is_zero(op->min));
+  CHECK(is_const_int(op->min, 0));
   if (op->for_type == ir::ForType::Unrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";

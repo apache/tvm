@@ -60,7 +60,7 @@ class ExprOp(object):
         return self.__rdiv__(other)
 
     def __mod__(self, other):
-        return _make.Mod(self, other)
+        return _make._OpMod(self, other)
 
     def __neg__(self):
         neg_one = _api_internal._const(-1, self.dtype)
@@ -85,10 +85,10 @@ class ExprOp(object):
         return _make.Call(self.dtype, "bitwise_not", [self], Call.PureIntrinsic, None, 0)
 
     def __lt__(self, other):
-        return _make.LT(self, other)
+        return _make._OpLT(self, other)
 
     def __le__(self, other):
-        return _make.LE(self, other)
+        return _make._OpLE(self, other)
 
     def __eq__(self, other):
         return EqualOp(self, other)
@@ -97,10 +97,10 @@ class ExprOp(object):
         return NotEqualOp(self, other)
 
     def __gt__(self, other):
-        return _make.GT(self, other)
+        return _make._OpGT(self, other)
 
     def __ge__(self, other):
-        return _make.GE(self, other)
+        return _make._OpGE(self, other)
 
     def __nonzero__(self):
         raise ValueError("Cannot use and / or / not operator to Expr, hint: " +
@@ -122,7 +122,7 @@ class ExprOp(object):
         ret : Expr
             The equality expression.
         """
-        return _make.EQ(self, other)
+        return _make._OpEQ(self, other)
 
     def astype(self, dtype):
         """Cast the expression to other type.
@@ -169,7 +169,7 @@ class EqualOp(NodeGeneric, ExprOp):
 
     def asnode(self):
         """Convert node."""
-        return _make.EQ(self.a, self.b)
+        return _make._OpEQ(self.a, self.b)
 
 
 class NotEqualOp(NodeGeneric, ExprOp):
@@ -201,7 +201,7 @@ class NotEqualOp(NodeGeneric, ExprOp):
 
     def asnode(self):
         """Convert node."""
-        return _make.NE(self.a, self.b)
+        return _make._OpNE(self.a, self.b)
 
 
 class Expr(ExprOp, NodeBase):

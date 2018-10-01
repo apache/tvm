@@ -194,7 +194,7 @@ bool DetectClipBound(
   if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
   ret.coeff = Simplify(ret.coeff);
   IntervalEntry& p = (*bmap)[var.get()];
-  if (is_one(ret.coeff)) {
+  if (is_const_int(ret.coeff, 1)) {
     // var + shift >=0 -> var >= -shift
     if (p.min_value.defined()) {
       p.min_value = ir::Max::make(p.min_value, -ret.base);
@@ -203,7 +203,7 @@ bool DetectClipBound(
     }
     return true;
   }
-  if (is_const(ret.coeff, -1)) {
+  if (is_const_int(ret.coeff, -1)) {
     // -var + shift >=0 -> var <= shift
     if (p.max_value.defined()) {
       p.max_value = ir::Min::make(p.max_value, ret.base);
