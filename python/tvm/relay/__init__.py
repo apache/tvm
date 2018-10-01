@@ -21,6 +21,7 @@ Kind = ty.Kind
 TypeParam = ty.TypeParam
 TypeConstraint = ty.TypeConstraint
 FuncType = ty.FuncType
+TypeRelation = ty.TypeRelation
 
 # Expr
 Constant = expr.Constant
