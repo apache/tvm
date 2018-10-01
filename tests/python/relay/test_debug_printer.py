@@ -78,7 +78,7 @@ def test_call():
 
 def test_let():
     lv = relay.Var('x')
-    ty = None
+    ty = relay.ty.TensorType((10, 20), "float32")
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
     let = relay.Let(lv, value, lv, ty)
