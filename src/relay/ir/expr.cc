@@ -190,7 +190,7 @@ TVM_REGISTER_API("relay._make.If").set_body([](TVMArgs args, TVMRetValue *ret) {
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<IfNode>([](const IfNode *node, tvm::IRPrinter *p) {
   p->stream << "IfNode(" << node->cond << ", " << node->true_branch
-            << node->false_branch << ")";
+            << ", " << node->false_branch << ")";
 });
 
 }  // namespace relay
