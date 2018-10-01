@@ -58,6 +58,21 @@ def test_tuple_type():
     assert tup_ty.fields == fields
 
 
+def test_type_relation():
+    tp = relay.TypeParam('tp', relay.Kind.Type)
+    tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
+    tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
+    args = tvm.convert([tf, tt, tp])
+
+    num_inputs = 2
+    func = None
+    attrs = None
+
+    tr = relay.TypeRelation(func, args, num_inputs, attrs)
+    assert tr.args == args
+    assert tr.num_inputs == num_inputs
+
+
 def test_constant():
     arr = tvm.nd.array(10)
     const = relay.Constant(arr)
@@ -158,6 +173,8 @@ if __name__ == "__main__":
     test_tensor_type()
     test_type_param()
     test_func_type()
+    test_tuple_type()
+    test_type_relation()
     test_constant()
     test_tuple()
     test_local_var()
