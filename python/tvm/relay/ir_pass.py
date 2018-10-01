@@ -14,3 +14,7 @@ check_expr = _ir_pass.check_expr
 well_formed = _ir_pass.well_formed
 
 check_kind = _ir_pass.check_kind
+
+free_vars = _ir_pass.free_vars
+
+free_type_vars = _ir_pass.free_type_vars
