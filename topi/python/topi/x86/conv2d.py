@@ -324,8 +324,8 @@ def schedule_conv2d(cfg, outs):
             current_cfg = cfg
             if cfg.is_fallback:
                 workload_attr = op.attrs["workload"]
-                strides = (workload_attr[3][0].value, workload_attr[3][1].value)
-                padding = (workload_attr[4][0].value, workload_attr[4][1].value)
+                strides = (int(workload_attr[3][0].value), int(workload_attr[3][1].value))
+                padding = (int(workload_attr[4][0].value), int(workload_attr[4][1].value))
                 layout = workload_attr[5].value
                 out_dtype = workload_attr[6].value
                 workload = conv_arg_to_workload(data, kernel, strides, padding,
