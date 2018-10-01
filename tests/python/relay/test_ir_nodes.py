@@ -173,6 +173,8 @@ if __name__ == "__main__":
     test_tensor_type()
     test_type_param()
     test_func_type()
+    test_tuple_type()
+    test_type_relation()
     test_constant()
     test_tuple()
     test_local_var()
