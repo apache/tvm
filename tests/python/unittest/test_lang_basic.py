@@ -8,7 +8,7 @@ def test_const():
 
 def test_make():
     x = tvm.const(1)
-    y = tvm.make.IntImm('int32', 1)
+    y = tvm.var("x")
     z = x + y
     assert isinstance(tvm.max(x, y), tvm.expr.Max)
     assert isinstance(tvm.min(x, y), tvm.expr.Min)

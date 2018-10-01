@@ -437,7 +437,6 @@ class LoopVectorizer : public IRMutator {
   Stmt Mutate_(const For* op, const Stmt& s) final {
     if (op->for_type == ForType::Vectorized) {
       CHECK(is_zero(op->min));
-      CHECK(is_positive_const(op->extent));
       int lanes = 0;
       bool succ = arith::GetConstInt(op->extent, &lanes);
       if (!succ || lanes < 1) {
