@@ -13,6 +13,7 @@
 
 #include "base.h"
 #include "expr.h"
+#include "ir_operator.h"
 #include "arithmetic.h"
 #include "node/container.h"
 

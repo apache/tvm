@@ -24,7 +24,7 @@ def add(lhs, rhs):
     op : tvm.Expr
         The result Expr of add operaton.
     """
-    return _make.Add(lhs, rhs)
+    return _make._OpAdd(lhs, rhs)
 
 
 def subtract(lhs, rhs):
@@ -42,7 +42,7 @@ def subtract(lhs, rhs):
     op : tvm.Expr
         The result Expr of subtract operaton.
     """
-    return _make.Sub(lhs, rhs)
+    return _make._OpSub(lhs, rhs)
 
 
 def multiply(lhs, rhs):
@@ -60,7 +60,7 @@ def multiply(lhs, rhs):
     op : tvm.Expr
         The result Expr of multiply operaton.
     """
-    return _make.Mul(lhs, rhs)
+    return _make._OpMul(lhs, rhs)
 
 
 def divide(lhs, rhs):
@@ -78,7 +78,7 @@ def divide(lhs, rhs):
     op : tvm.Expr
         The result Expr of divide operaton.
     """
-    return _make.Div(lhs, rhs)
+    return _make._OpDiv(lhs, rhs)
 
 
 def cast(src, dtype):

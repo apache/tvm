@@ -195,7 +195,7 @@ class PipelineExtractor: public IRVisitor {
       ChannelEntry& cb = cmap_.at(ch->handle_var.get());
       trigger->signal_index = static_cast<int>(cb.node->ctrl_signals.size());
       // Grab the advance constant size.
-      int trigger_size;
+      int trigger_size = 0;
       if (attr->attr_key == attr::pipeline_stage_scope) {
         cb.node->ctrl_signals.push_back(
             ControlSignalNode::make(kComputeFinish, 0));

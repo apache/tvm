@@ -163,7 +163,7 @@ inline Tensor full(const Array<Expr>& shape,
                    const Expr fill_value,
                    std::string name = "tensor",
                    std::string tag = kElementWise) {
-  Expr ev = lossless_cast(dtype, fill_value);
+  Expr ev = cast(dtype, fill_value);
   if (!ev.defined()) {
     LOG(ERROR) << "Can't cast fill_value to " << dtype;
   }
@@ -173,7 +173,7 @@ inline Tensor full(const Array<Expr>& shape,
 }
 
 /*!
-* \brief Creates an operation that construct a tensor with same shape as input tensor, 
+* \brief Creates an operation that construct a tensor with same shape as input tensor,
 * then fill a tensor with fill_value
 *
 * \param x The input tensor
@@ -187,10 +187,7 @@ inline Tensor full_like(const Tensor& x,
                         const Expr fill_value,
                         std::string name = "tensor",
                         std::string tag = kElementWise) {
-  Expr ev = lossless_cast(x->dtype, fill_value);
-  if (!ev.defined()) {
-    LOG(ERROR) << "Can't cast fill_value to " << x->dtype;
-  }
+  Expr ev = cast(x->dtype, fill_value);
   return compute(x->shape, [&](const Array<Var>& i) {
       return ev;
   }, name, tag);

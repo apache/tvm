@@ -15,7 +15,7 @@ def test_make_smap():
     # save load json
     x = tvm.const(1)
     y = tvm.const(10)
-    z = x + y
+    z = tvm.expr.Add(x, y)
     smap = tvm.convert({"z": z, "x": x})
     json_str = tvm.save_json(tvm.convert([smap]))
     arr = tvm.load_json(json_str)
