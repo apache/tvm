@@ -53,13 +53,19 @@ void BinaryOpMatchTypes(Expr &lhs, Expr &rhs) {  // NOLINT(*)
   } else if (lhs.type().is_float() && !rhs.type().is_float()) {
     // int->float
     rhs = ir::Cast::make(lhs.type(), rhs);
-  } else if (lhs.type().is_int() && rhs.type().is_int()) {
+  } else if ((lhs.type().is_int() && rhs.type().is_int()) ||
+             (lhs.type().is_uint() && rhs.type().is_uint())) {
     // promote int to higher bits
     if (lhs.type().bits() < rhs.type().bits()) {
       lhs = ir::Cast::make(rhs.type(), lhs);
     } else {
       rhs = ir::Cast::make(lhs.type(), rhs);
     }
+  } else if ((lhs.type().is_int() && rhs.type().is_uint()) ||
+             (lhs.type().is_uint() && rhs.type().is_int())) {
+    int bits = std::max(lhs.type().bits(), rhs.type().bits());
+    lhs = SimpleCast(Int(bits, lhs.type().lanes()), lhs);
+    rhs = SimpleCast(Int(bits, rhs.type().lanes()), rhs);
   } else {
     LOG(FATAL) << "Cannot match type " << ltype << " vs " << rtype;
   }
@@ -235,6 +241,7 @@ Expr max(Expr a, Expr b) {
 Expr select(Expr cond, Expr true_value, Expr false_value) {
   using ir::IntImm;
   using ir::UIntImm;
+  BinaryOpMatchTypes(true_value, false_value);
   if (const UIntImm* op = cond.as<UIntImm>()) {
     if (op->value != 0) {
       return true_value;

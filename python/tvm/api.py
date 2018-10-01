@@ -773,5 +773,5 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
 _init_api("tvm.api")
 #pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x+y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _expr.Min(x, y), max_value, name='min')
-max = comm_reducer(lambda x, y: _expr.Max(x, y), min_value, name='max')
+min = comm_reducer(lambda x, y: _make._OpMin(x, y), max_value, name='min')
+max = comm_reducer(lambda x, y: _make._OpMax(x, y), min_value, name='max')
