@@ -8,6 +8,8 @@
 
 #include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/error.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -68,7 +70,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
 
   virtual R VisitTypeDefault_(const Node* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->type_key();
-    return R();
+    throw;  // unreachable, written to stop compiler warning
   }
 
  private:

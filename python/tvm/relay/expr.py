@@ -2,6 +2,7 @@
 """The expression nodes of Relay."""
 from __future__ import absolute_import
 from .base import NodeBase, register_relay_node
+from . import _expr
 from . import _make
 from .. import convert
 
@@ -115,3 +116,5 @@ class If(Expr):
     def __init__(self, cond, true_value, false_value):
         self.__init_handle_by_constructor__(
             _make.If, cond, true_value, false_value)
+
+debug_print = _expr._debug_print
