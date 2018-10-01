@@ -35,7 +35,7 @@ def test_deduce():
 
     e1 = (a*4+b < c)
     res1 = tvm.arith.DeduceBound(a, e1, {b: b_s, c: c_s, d: d_s}, {})
-    ans1 = (((c - b) + -1)/4) 
+    ans1 = (((c - b) + -1)/4)
     assert str(tvm.ir_pass.Simplify(res1.max())) == str(ans1)
 
     e2 = (tvm.max(5, a * 4) < 0)
@@ -63,7 +63,7 @@ def test_check():
     assert res1.is_nothing()
 
     # multiple compare operators
-    res2 = tvm.arith.DeduceBound(a, (a+b>3)>c , {b: b_s, c: c_s}, {})
+    res2 = tvm.arith.DeduceBound(a, (a+b>3).astype(c.dtype)>c , {b: b_s, c: c_s}, {})
     assert res2.is_nothing()
 
     # multiple target variable
@@ -88,11 +88,11 @@ def test_deduce_basic():
         res1 = tvm.arith.DeduceBound(a, e0<=17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max(), b_s.max()] if coff > 0 else [res1.min(), b_s.min()]
         assert (tvm.ir_pass.Simplify((x * coff + 3 + y) <= 17)).value == 1
-      
+
         res1 = tvm.arith.DeduceBound(a, e0>=17, {b: b_s}, {b: b_s})
         [x, y] = [res1.max(), b_s.max()] if coff < 0 else [res1.min(), b_s.min()]
         assert (tvm.ir_pass.Simplify((x * coff + 3 + y) >= 17)).value == 1
-       
+
     test_basic(0, 4, 4)
     test_basic(1, 5, 4)
     test_basic(2, 6, 4)
@@ -137,4 +137,3 @@ if __name__ == "__main__":
     test_check()
     test_deduce_basic()
     test_deduce_complex()
-
