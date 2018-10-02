@@ -12,6 +12,7 @@
 #ifndef TVM_RELAY_IR_DOC_H_
 #define TVM_RELAY_IR_DOC_H_
 
+#include <tvm/relay/error.h>
 #include <unordered_map>
 #include <utility>
 #include <string>
@@ -20,7 +21,6 @@
 #include <memory>
 #include <ostream>
 #include <map>
-#include <tvm/relay/error.h>
 
 namespace tvm {
 namespace relay {
