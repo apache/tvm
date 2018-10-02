@@ -9,9 +9,10 @@ from ..util import get_const_int, get_const_tuple, traverse_inline
 
 from .conv2d_direct import schedule_direct_cuda
 from .conv2d_winograd import winograd_cuda, schedule_winograd_cuda
+from .conv2d_int8 import conv2d_NCHWc_int8, schedule_conv2d_NCHWc_int8
 
 
-@autotvm.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd'])
+@autotvm.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd', 'int8'])
 def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for cuda backend.
 
@@ -21,10 +22,13 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
         The config for this template
 
     data : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+        4-D with shape [batch, in_channel, in_height, in_width] or
+        5-D with shape [batch, ic_chunk, in_height, in_width, ic_block]
 
     kernel : tvm.Tensor
-        4-D with shape [num_filter, in_channel, filter_height, filter_width]
+        4-D with shape [num_filter, in_channel, filter_height, filter_width] or
+        6-D with shape [num_filter_chunk, in_channel_chunk, filter_height,
+        filter_width, num_filter_block, in_channel_block]
 
     strides : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]
@@ -98,6 +102,9 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
     if cfg.template_key == 'winograd':
         return winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype,
                              pre_computed=False)
+    if cfg.template_key == 'int8':
+        return conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, layout, out_dtype,
+                                 pre_computed=False)
 
     if layout == 'NCHW':
         return nn.conv2d_nchw(data, kernel, strides, padding, out_dtype)
@@ -108,7 +115,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='f
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, ["cuda", "gpu"],
-                                ["direct", 'winograd'])
+                                ["direct", 'winograd', "int8"])
 def schedule_conv2d_nchw_cuda(cfg, outs):
     """TOPI schedule callback of conv2d for cuda gpu
 
@@ -138,6 +145,8 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
             schedule_direct_cuda(cfg, s, op.output(0))
         if op.tag == 'conv2d_nchw_winograd':
             schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=False)
+        if op.tag == "conv2d_NCHWc_int8":
+            schedule_conv2d_NCHWc_int8(cfg, s, op.output(0), pre_computed=False)
 
     traverse_inline(s, outs[0].op, _callback)
     return s

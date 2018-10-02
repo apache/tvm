@@ -90,10 +90,12 @@ def compute_conv2d(attrs, inputs, _):
     kernel_layout = attrs["kernel_layout"]
     out_dtype = attrs["out_dtype"]
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
-    assert layout == "NCHW" or layout == "NHWC"
+    assert layout in ["NCHW", "NHWC", "NCHW4c"]
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
+    elif layout == "NCHW4c" and (dilation_h > 1 or dilation_w > 1):
+        raise ValueError("not support dilate now")
     elif dilation == (1, 1):
         kernel = inputs[1]
     elif layout == "NCHW":
@@ -101,7 +103,12 @@ def compute_conv2d(attrs, inputs, _):
     else: #layout == NHWC
         kernel = topi.nn.dilate(inputs[1], [1, dilation_h, dilation_w, 1])
 
-    if groups == 1:
+    if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
+        # pylint: disable=assignment-from-no-return
+        out = topi.nn.conv2d_NCHWc_int8_prepacked(inputs[0], kernel, strides, padding,
+                                                  layout, out_dtype=out_dtype)
+        # pylint: enable=assignment-from-no-return
+    elif groups == 1:
         out = topi.nn.conv2d(
             inputs[0], kernel, strides, padding, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
@@ -120,7 +127,7 @@ def compute_conv2d(attrs, inputs, _):
 
     if attrs.get_bool("use_bias"):
         bias = inputs[2]
-        expand_axis = 1 if layout == "NCHW" else 0
+        expand_axis = 1 if layout in ["NCHW", "NCHW4c"] else 0
         bias = topi.expand_dims(bias, axis=expand_axis, num_newaxis=2)
         out = topi.add(out, bias)
     return out
@@ -136,6 +143,8 @@ def schedule_conv2d(attrs, outs, target):
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
+        elif groups == 1 and layout == "NCHW4c":
+            return topi.generic.schedule_conv2d_NCHWc_int8_prepacked(outs)
         elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
         elif groups == channels and layout == "NCHW":
