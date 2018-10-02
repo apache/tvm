@@ -20,7 +20,7 @@
 #include <memory>
 #include <ostream>
 #include <map>
-#include "error.h"
+#include <tvm/relay/error.h>
 
 namespace tvm {
 namespace relay {
