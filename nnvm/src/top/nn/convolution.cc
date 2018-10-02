@@ -344,7 +344,6 @@ NNVM_REGISTER_OP(_contrib_conv2d_NCHWc)
 .set_num_inputs(UseBiasNumInputs<Conv2DParam>)
 .set_support_level(2);
 
-
 NNVM_REGISTER_OP(_contrib_conv2d_winograd_weight_transform)
 .describe(R"code(Weight transformation of winograd fast convolution algorithm.
 Separate this into another nnvm symbol in order to enable Precompute Pass to compute the

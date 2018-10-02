@@ -423,3 +423,37 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     raise ValueError("missing register for topi.nn.conv2d_winograd_without_weight_transform")
+
+
+@tvm.target.generic_func
+def conv2d_NCHWc_int8_prepacked(data, kernel, stride, padding, layout, out_dtype):
+    """Convolution operator in NCHW[x]c layout for int8. Data and kernel should be packed in
+    advance.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+
+    kernel : tvm.Tensor
+        6-D with shape [num_filter_chunk, in_channel_chunk, filter_height,
+        filter_width, num_filter_block, in_channel_block]
+
+    stride : int or a list/tuple of two ints
+        stride size, or [stride_height, stride_width]
+
+    padding: int or a list/tuple of two ints
+        padding size, or [pad_height, pad_width]
+
+    layout : str
+        layout of data
+
+    out_dtype: str
+        The output type. This is used for mixed precision.
+
+    Returns
+    -------
+    output : tvm.Tensor
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
+    """
+    raise ValueError("missing register for topi.nn.conv2d_NCHWc_int8_prepacked")
