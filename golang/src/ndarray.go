@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \brief gotvm package source for TVMArray aka DLTensor
- * \file array.go
+ * \file ndarray.go
  */
 
 package gotvm
@@ -29,7 +29,7 @@ func (parray Array) nativeCPtr() (retVal uintptr) {
 }
 
 func (parray Array) nativeCopyFrom(data unsafe.Pointer, datalen int) (err error) {
-    ret := C.TVMArrayCopyFromBytes((*_Ctype_struct___0)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyFromBytes((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
                                    data,
                                    C.ulong(datalen))
     if ret != 0 {
@@ -108,7 +108,7 @@ func (parray Array) CopyFrom(val interface{}) (err error) {
 }
 
 func (parray Array) nativeCopyTo (data unsafe.Pointer, datalen int) (err error){
-    ret := C.TVMArrayCopyToBytes((*_Ctype_struct___0)(unsafe.Pointer(parray.nativeCPtr())),
+    ret := C.TVMArrayCopyToBytes((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr())),
                                   unsafe.Pointer(data),
                                   C.ulong(datalen))
 
@@ -324,6 +324,6 @@ func Empty(shape []int64, args ...interface{}) (parray *Array, err error) {
 //
 // `ret` indicates the status of this api execution.
 func nativeTVMArrayFree(parray Array) (retVal int32) {
-    retVal = (int32)(C.TVMArrayFree((*_Ctype_struct___0)(unsafe.Pointer(parray.nativeCPtr()))))
+    retVal = (int32)(C.TVMArrayFree((*_Ctype_TVMArray)(unsafe.Pointer(parray.nativeCPtr()))))
     return
 }

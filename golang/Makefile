@@ -36,12 +36,13 @@ samples: all
 	make -C sample
 
 tests: all
+	@(cd sample; python3 deploy.py)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) \
-	&& cp ../../../test/data/deploy.so . \
+	&& cp ../../../sample/deploy.so . \
 	&& go test -v)
 
 clean:
