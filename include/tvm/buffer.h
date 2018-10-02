@@ -11,7 +11,7 @@
 #include "base.h"
 #include "expr.h"
 #include "ir_operator.h"
-#include "node/container.h"
+#include "tvm/node/container.h"
 
 namespace tvm {
 

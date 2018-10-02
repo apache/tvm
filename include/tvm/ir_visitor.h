@@ -7,7 +7,7 @@
 #define TVM_IR_VISITOR_H_
 
 #include "ir.h"
-#include "node/ir_functor.h"
+#include "tvm/node/ir_functor.h"
 
 namespace tvm {
 namespace ir {
