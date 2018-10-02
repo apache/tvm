@@ -69,7 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
-    parser.add_argument("--number", type=int, default=20)
+    parser.add_argument("--number", type=int, default=30)
     args = parser.parse_args()
 
     dtype = 'float32'
