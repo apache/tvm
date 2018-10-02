@@ -7,6 +7,7 @@
 #define TVM_TENSOR_H_
 
 #include <ir/FunctionBase.h>
+#include <tvm/node/container.h>
 #include <string>
 #include <vector>
 #include <type_traits>
@@ -15,7 +16,6 @@
 #include "expr.h"
 #include "ir_operator.h"
 #include "arithmetic.h"
-#include "node/container.h"
 
 namespace tvm {
 
