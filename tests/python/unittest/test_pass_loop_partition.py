@@ -177,6 +177,70 @@ def test_everything_during_deduction():
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(isinstance(stmt.body.body, tvm.stmt.IfThenElse))
 
+def test_single_likely():
+    n = 60
+    A = tvm.placeholder((n, ), name='A')
+    B = tvm.placeholder((n, ), name='B')
+
+    T = tvm.compute((n, ), lambda i: A[i]+B[i])
+    s = tvm.create_schedule(T.op)
+    x = T.op.axis[0]
+    xo, xi = s[T].split(x, factor=16)
+
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
+def test_multi_likely():
+    n = 94
+    m = 62
+    A = tvm.placeholder((n, m), name='A')
+    B = tvm.placeholder((n, m), name='B')
+
+    T = tvm.compute((n, m), lambda i, j: A[i, j]+B[i, j])
+    s = tvm.create_schedule(T.op)
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    x, y = T.op.axis
+    xo, xi = s[T].split(x, factor=16)
+    yo, yi = s[T].split(y, factor=16)
+    s[T].reorder(xo, yo, xi, yi)
+
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
+def test_oneD_pool():
+    m = tvm.var('m')
+    ib = tvm.ir_builder.create()
+    #data = tvm.placeholder((16,), name = 'data')
+    data = ib.pointer("float32", name="A")
+    out = ib.pointer("float32", name="A")
+    with ib.for_range(0, 16, 'ow') as ow:
+        with ib.for_range(0, 3, 'kw') as kw:
+            with ib.if_scope(ib.likely(ow > 0)):
+                with ib.if_scope(ib.likely(ow < 15)):
+                    out[ow] = tvm.max(out[ow], data[ow + kw - 1])
+    with ib.for_range(0, 16, 'ow') as ow:
+        with ib.for_range(0, 3, 'kw') as kw:
+            with ib.if_scope(ib.likely(ow < 1)):
+                with ib.if_scope(ib.likely(kw > 0)):
+                    out[ow] = tvm.max(out[ow], data[ow + kw - 1])
+    with ib.for_range(0, 16, 'ow') as ow:
+        with ib.for_range(0, 3, 'kw') as kw:
+            with ib.if_scope(ib.likely(ow > 14)):
+                with ib.if_scope(ib.likely(kw < 2)):
+                    out[ow] = tvm.max(out[ow], data[ow + kw - 1])
+
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -187,3 +251,6 @@ if __name__ == "__main__":
     test_select()
     test_thread_axis2()
     test_everything_during_deduction()
+    test_single_likely()
+    test_multi_likely()
+    test_oneD_pool()
