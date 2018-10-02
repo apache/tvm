@@ -102,7 +102,8 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     for device in get_all_backend():
-        check_device(device)
+        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
+            check_device(device)
 
 
 def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_multiplier, filter_height, stride_h, padding, dilation=1):
@@ -201,16 +202,11 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     for device in get_all_backend():
-        check_device(device)
+        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
+            check_device(device)
 
 
 def test_depthwise_conv2d():
-    # load tophub
-    ctx = autotvm.apply_history_best([])
-    for device in get_all_backend():
-        context = autotvm.tophub.context(device)
-        context.__enter__()
-
     # mobilenet workloads
     depthwise_conv2d_with_workload_nchw(1, 32, 112, 1, 3, 1, "SAME")
     depthwise_conv2d_with_workload_nchw(1, 64, 112, 1, 3, 2, "SAME")

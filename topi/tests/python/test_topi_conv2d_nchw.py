@@ -69,16 +69,11 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
         np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in get_all_backend():
-        check_device(device)
+        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
+            check_device(device)
 
 
 def test_conv2d_nchw():
-    # load tophub
-    ctx = autotvm.apply_history_best([])
-    for device in get_all_backend():
-        context = autotvm.tophub.context(device)
-        context.__enter__()
-
     # ResNet18 workloads
     verify_conv2d_nchw(1,   3, 224,  64, 7, 2, 3)
     verify_conv2d_nchw(1,  64,  56,  64, 3, 1, 1)
