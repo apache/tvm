@@ -13,7 +13,7 @@
 #include "base.h"
 #include "expr.h"
 #include "tensor.h"
-#include "node/container.h"
+#include "tvm/node/container.h"
 
 namespace tvm {
 
