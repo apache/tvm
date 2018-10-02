@@ -81,7 +81,7 @@ def intrin_gemv(m, l):
     Bb = tvm.decl_buffer(b.shape, b.dtype,
                          name="B",
                          offset_factor=1,
-                         strides=[tvm.var("ldw"), 1])
+                         strides=[tvm.var("s1"), 1])
     Cb = tvm.decl_buffer(c.shape, c.dtype,
                          name="C",
                          offset_factor=1,
@@ -116,7 +116,7 @@ def intrin_gemv(m, l):
 # For now :code:`bb.strides[0] == l`,
 # but later we will see how they can differ with more complicated schedules.
 #
-# Note that we use :code:`tvm.var("ldw")` as the first stride dimension for :code:`B`.
+# Note that we use :code:`tvm.var("s1")` as the first stride dimension for :code:`B`.
 # If the strides can be inferred
 # - in this case, TVM knows tensor B is compact thus the strides are :code:`[L, 1]` -
 # such placeholder can be put to let TVM automatically bind the inferred value for us.
@@ -222,7 +222,7 @@ def intrin_gemv(m, l):
     Bb = tvm.decl_buffer(b.shape, b.dtype,
                          name="B",
                          offset_factor=1,
-                         strides=[tvm.var("ldw"), 1])
+                         strides=[tvm.var("s1"), 1])
     Cb = tvm.decl_buffer(c.shape, c.dtype,
                          name="C",
                          offset_factor=1,
