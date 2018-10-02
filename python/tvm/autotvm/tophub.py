@@ -25,7 +25,7 @@ PACKAGE_VERSION = {
     'cuda':    "v0.02",
     'rocm':    "v0.01",
     'opencl':  "v0.01",
-    'mali':    "v0.01",
+    'mali':    "v0.02",
 
     'vta':     "v0.01",
 }
