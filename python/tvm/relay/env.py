@@ -11,17 +11,19 @@ class Environment(NodeBase):
     options and more.
     """
 
-    def __init__(self, funcs):
+    def __init__(self, funcs=None):
         """Construct an environment.
 
         Parameters
         ------
-        funcs: list of relay.Function
+        funcs : optional, dict
+            Map of global var to Function
 
         Returns
         ------
         env: A new environment containing :py:class:`~relay.env.Environment`.
         """
+        funcs = funcs if funcs else {}
         self.__init_handle_by_constructor__(_make.Environment, funcs)
 
     def add(self, var, func):

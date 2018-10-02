@@ -11,7 +11,7 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
-TensorType TensorTypeNode::make(Array<ShapeExpr> shape, DataType dtype) {
+TensorType TensorTypeNode::make(Array<IndexExpr> shape, DataType dtype) {
   NodePtr<TensorTypeNode> n = make_node<TensorTypeNode>();
   n->shape = std::move(shape);
   n->dtype = std::move(dtype);
@@ -24,7 +24,7 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
 
 TVM_REGISTER_API("relay._make.TensorType")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-  Array<ShapeExpr> shape = args[0];
+  Array<IndexExpr> shape = args[0];
   *ret = TensorTypeNode::make(shape, args[1]);
 });
 

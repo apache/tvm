@@ -21,7 +21,7 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
   void DataTypeEqual(const DataType& dt1, const DataType& dt2) {
     equal = equal && dt1 == dt2;
   }
-  void ShapeEqual(Array<ShapeExpr> s1, Array<ShapeExpr> s2) {}
+  void ShapeEqual(Array<IndexExpr> s1, Array<IndexExpr> s2) {}
 
   void VisitType_(const TensorTypeNode *tt1, const Type& t2) final {
     if (const TensorTypeNode *tt2 = t2.as<TensorTypeNode>()) {

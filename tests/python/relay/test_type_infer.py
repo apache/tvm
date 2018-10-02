@@ -3,7 +3,7 @@
 """
 import tvm
 import numpy as np
-from tvm.relay.ir_pass import check_expr
+from tvm.relay.ir_pass import infer_type
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 from tvm.relay.env import Environment
@@ -11,7 +11,7 @@ from tvm.relay.op import log, add, equal, subtract, concat
 from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
-    checked_expr = check_expr(env, expr)
+    checked_expr = infer_type(env, expr)
     assert checked_expr.checked_type() == typ
 
 
@@ -47,6 +47,7 @@ def test_add_op():
         }
     """
     b = IRBuilder()
+
     x = b.param('x', tensor_type(5, 5, 5))
     y = b.param('y', tensor_type(5, 5, 5))
     with b.function(x, y) as func:

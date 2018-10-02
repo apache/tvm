@@ -69,8 +69,8 @@ Type ConcreteBroadcast(const TensorType& t1,
       rev_sh2++;
     }
 
-    Array<ShapeExpr> larger;
-    Array<ShapeExpr> smaller;
+    Array<IndexExpr> larger;
+    Array<IndexExpr> smaller;
 
     for (int i = 0; i < (full_len - suffix_len); i++) {
       smaller.push_back(make_const(tvm::Int(64), 1));
@@ -93,7 +93,7 @@ Type ConcreteBroadcast(const TensorType& t1,
 
     CHECK_EQ(larger.size(), smaller.size());
 
-    Array<ShapeExpr> out_shape;
+    Array<IndexExpr> out_shape;
     for (size_t i = 0; i < smaller.size(); i++) {
       auto left = smaller[i].as<tvm::ir::IntImm>();
       auto right = larger[i].as<tvm::ir::IntImm>();

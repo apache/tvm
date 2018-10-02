@@ -286,7 +286,9 @@ class CallNode : public ExprNode {
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Call make(Expr op, Array<Expr> args, Attrs attrs = Attrs(),
+  TVM_DLL static Call make(Expr op,
+                           Array<Expr> args,
+                           Attrs attrs = Attrs(),
                            Array<Type> ty_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
