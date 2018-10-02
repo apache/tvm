@@ -506,8 +506,8 @@ def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
 
 
 ##### REGISTER ALTER OP LAYOUT #####
-@conv2d_alter_layout.register(["arm_cpu", "mali"])
-def _alter_conv2d_layout(attrs, inputs, tinfos):
+@conv2d_alter_layout.register(["arm_cpu"])
+def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     """Alter op layout for pre-computing kernel transformation"""
     import nnvm.symbol as sym
     copy_inputs = [s for s in inputs]
