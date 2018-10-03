@@ -124,7 +124,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
 
 /*! \brief Transform a program, such that every definition is, directly nested lambda, with the inner body having no more lambda.
  *
- * \example (x -> y -> z) is fine, but (x -> map (y -> z)) is not.
+ * for example (x -> y -> z) is fine, but (x -> map (y -> z)) is not.
  *
  * It is achieved by generating a global definition for every lambda, with bound variables transformed into function parameters.
  *
