@@ -51,32 +51,35 @@ def context(target, extra_files=None):
 
     Parameters
     ----------
-    target: Target
+    target: Target or List of Target
         The compilation target
     extra_files: list of str, optional
         Extra log files to load
     """
     best_context = ApplyHistoryBest([])
 
-    if isinstance(target, str):
-        target = _target.create(target)
+    targets = target if isinstance(target, (list, tuple)) else [target]
 
-    possible_names = []
-    for opt in target.options:
-        if opt.startswith("-device"):
-            device = _alias(opt[8:])
-            possible_names.append(device)
-    possible_names.append(target.target_name)
+    for target in targets:
+        if isinstance(target, str):
+            target = _target.create(target)
 
-    all_packages = list(PACKAGE_VERSION.keys())
-    for name in possible_names:
-        name = _alias(name)
-        if name in all_packages:
-            check_backend(name)
+        possible_names = []
+        for opt in target.options:
+            if opt.startswith("-device"):
+                device = _alias(opt[8:])
+                possible_names.append(device)
+        possible_names.append(target.target_name)
 
-            filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
-            best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
-            break   # only load one file to avoid some fallback template mismatch problem
+        all_packages = list(PACKAGE_VERSION.keys())
+        for name in possible_names:
+            name = _alias(name)
+            if name in all_packages:
+                check_backend(name)
+
+                filename = "%s_%s.log" % (name, PACKAGE_VERSION[name])
+                best_context.load(os.path.join(AUTOTVM_TOPHUB_ROOT_PATH, filename))
+                break   # only load one file to avoid some fallback template mismatch problem
 
     if extra_files:
         for filename in extra_files:
