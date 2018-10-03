@@ -179,6 +179,7 @@ perf
 *.h5
 synset.txt
 cat.jpg
+cat.png
 docs.tgz
 cat.png
 *.mlmodel

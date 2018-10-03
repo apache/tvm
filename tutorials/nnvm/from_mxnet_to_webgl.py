@@ -148,7 +148,7 @@ def download_image():
     from PIL import Image
 
     url = "https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true"
-    img_name = "cat.jpg"
+    img_name = "cat.png"
 
     gluon.utils.download(url, img_name)
     image = Image.open(img_name).resize((224, 224))
