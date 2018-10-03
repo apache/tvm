@@ -24,7 +24,7 @@ from mxnet.model import load_checkpoint
 ######################################################################
 # Preliminary and Set parameters
 # ------------------------------
-# We should built TVM with sort support, in TVM root directory
+# We should build TVM with sort support, in TVM root directory
 #
 # .. code-block:: bash
 #
