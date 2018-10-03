@@ -12,12 +12,14 @@
 namespace tvm {
 namespace relay {
 
-Expr LambdaLift(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename, const Environment& env, const Expr& e);
+Expr LambdaLift(std::unordered_map<Var, Expr, NodeHash, NodeEqual>* rename,
+                const Environment& env, const Expr& e);
 
 struct LiftAllLambda : ExprMutator {
   std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename;
   Environment env;
-  explicit LiftAllLambda(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename, const Environment& env) :
+  explicit LiftAllLambda(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename,
+                         const Environment& env) :
     rename(rename), env(env) { }
 
   Expr copy(const Expr& e) {  // remake all var so they dont clash
@@ -48,12 +50,15 @@ struct LiftAllLambda : ExprMutator {
     CHECK(rename->count(self) == 0) << "rename already contains self";
     rename->insert(std::pair<Var, Expr>(self, ret));
     auto wrapped = FunctionNode::make(p, IncompleteTypeNode::make(TypeParamNode::kType), func, tp);
-    env->Add(gv, Downcast<Function, Expr>(copy(LambdaLift(rename, env, wrapped)))); // copy is called before LambdaLift, or rename will stop working
+    env->Add(gv, Downcast<Function, Expr>(copy(LambdaLift(rename, env, wrapped))));
+    // copy is called before LambdaLift, or rename will stop working
     return ret;
   }
 
   Expr VisitExpr_(const FunctionNode *f) final {
-    return LiftFunction(VarNode::make("unused"), GlobalVarNode::make("lifted"), GetRef<Function>(f));
+    return LiftFunction(VarNode::make("unused"),
+                        GlobalVarNode::make("lifted"),
+                        GetRef<Function>(f));
   }
 
   // what about mutual recursion? a clean version probably involve tying the knot.
@@ -61,17 +66,24 @@ struct LiftAllLambda : ExprMutator {
   // mutual recursion is not supported yet, so no worry for now.
   Expr VisitExpr_(const LetNode *l) final {
     if (auto f = Downcast<Function, Expr>(l->value)) {
-      return LetNode::make(l->var, LiftFunction(l->var, GlobalVarNode::make("lifted"), f), l->body, l->value_type);
-      throw Error("still thinking about the recursion case");
+      return LetNode::make(l->var,
+                           LiftFunction(l->var, GlobalVarNode::make("lifted"), f),
+                           l->body,
+                           l->value_type);
     } else {
       return LetNode::make(l->var, VisitExpr(l->value), VisitExpr(l->body), l->value_type);
     }
   }
 };
 
-Expr LambdaLift(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename, const Environment& env, const Expr& e) {
+Expr LambdaLift(std::unordered_map<Var, Expr, NodeHash, NodeEqual>* rename,
+                const Environment& env,
+                const Expr& e) {
   if (auto f = e.as<FunctionNode>()) {
-    return FunctionNode::make(f->params, f->ret_type, LambdaLift(rename, env, f->body), f->type_params);
+    return FunctionNode::make(f->params,
+                              f->ret_type,
+                              LambdaLift(rename, env, f->body),
+                              f->type_params);
   } else {
     return LiftAllLambda(rename, env)(e);
   }
