@@ -50,14 +50,16 @@ DARKNETLIB_URL = 'https://github.com/siju-samuel/darknet/blob/master/lib/' \
 _download(DARKNETLIB_URL, DARKNET_LIB)
 LIB = __darknetffi__.dlopen('./' + DARKNET_LIB)
 
-def _get_tvm_output(net, data):
+def _get_tvm_output(net, data, build_dtype=None):
     '''Compute TVM output'''
+    if build_dtype is None:
+        build_dtype = 'float32'
     dtype = 'float32'
     sym, params = frontend.darknet.from_darknet(net, dtype)
 
     target = 'llvm'
     shape_dict = {'data': data.shape}
-    graph, library, params = nnvm.compiler.build(sym, target, shape_dict, dtype, params=params)
+    graph, library, params = nnvm.compiler.build(sym, target, shape_dict, build_dtype, params=params)
     # Execute on TVM
     ctx = tvm.cpu(0)
     m = graph_runtime.create(graph, library, ctx)
@@ -66,14 +68,16 @@ def _get_tvm_output(net, data):
     m.set_input(**params)
     m.run()
     # get outputs
-    out_shape = (net.outputs,)
-    tvm_out = m.get_output(0, tvm.nd.empty(out_shape, dtype)).asnumpy()
+    tvm_out = m.get_output(0).asnumpy().flatten()
     return tvm_out
 
-def test_forward(net):
+def test_forward(net, build_dtype=None):
     '''Test network with given input image on both darknet and tvm'''
     def get_darknet_output(net, img):
         return LIB.network_predict_image(net, img)
+
+    if build_dtype is None:
+        build_dtype = 'float32'
     dtype = 'float32'
 
     test_image = 'dog.jpg'
@@ -94,7 +98,7 @@ def test_forward(net):
                 data[0][c][h][k] = img.data[i]
                 i = i + 1
 
-    tvm_out = _get_tvm_output(net, data)
+    tvm_out = _get_tvm_output(net, data, build_dtype)
     np.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-3, atol=1e-3)
 
 def test_rnn_forward(net):
@@ -152,8 +156,8 @@ def test_forward_resnet50():
     test_forward(net)
     LIB.free_network(net)
 
-def test_forward_yolo():
-    '''test yolo model'''
+def test_forward_yolov2():
+    '''test yolov2 model'''
     model_name = 'yolov2'
     cfg_name = model_name + '.cfg'
     weights_name = model_name + '.weights'
@@ -162,7 +166,22 @@ def test_forward_yolo():
     _download(cfg_url, cfg_name)
     _download(weights_url, weights_name)
     net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
-    test_forward(net)
+    build_dtype = {}
+    test_forward(net, build_dtype)
+    LIB.free_network(net)
+
+def test_forward_yolov3():
+    '''test yolov3 model'''
+    model_name = 'yolov3'
+    cfg_name = model_name + '.cfg'
+    weights_name = model_name + '.weights'
+    cfg_url = 'https://github.com/pjreddie/darknet/blob/master/cfg/' + cfg_name + '?raw=true'
+    weights_url = 'http://pjreddie.com/media/files/' + weights_name + '?raw=true'
+    _download(cfg_url, cfg_name)
+    _download(weights_url, weights_name)
+    net = LIB.load_network(cfg_name.encode('utf-8'), weights_name.encode('utf-8'), 0)
+    build_dtype = {}
+    test_forward(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_convolutional():
@@ -271,7 +290,8 @@ def test_forward_region():
     net.layers[1] = layer_2
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    build_dtype = {}
+    test_forward(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_yolo_op():
@@ -284,7 +304,8 @@ def test_forward_yolo_op():
     net.layers[1] = layer_2
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
-    test_forward(net)
+    build_dtype = {}
+    test_forward(net, build_dtype)
     LIB.free_network(net)
 
 def test_forward_upsample():
@@ -313,7 +334,7 @@ def test_forward_softmax():
     '''test softmax layer'''
     net = LIB.make_network(1)
     layer_1 = LIB.make_softmax_layer(1, 75, 1)
-    layer_1.temperature=1
+    layer_1.temperature = 1
     net.layers[0] = layer_1
     net.w = net.h = 5
     LIB.resize_network(net, net.w, net.h)
@@ -324,7 +345,7 @@ def test_forward_softmax_temperature():
     '''test softmax layer'''
     net = LIB.make_network(1)
     layer_1 = LIB.make_softmax_layer(1, 75, 1)
-    layer_1.temperature=0.8
+    layer_1.temperature = 0.8
     net.layers[0] = layer_1
     net.w = net.h = 5
     LIB.resize_network(net, net.w, net.h)
@@ -441,7 +462,8 @@ if __name__ == '__main__':
     test_forward_resnet50()
     test_forward_alexnet()
     test_forward_extraction()
-    test_forward_yolo()
+    test_forward_yolov2()
+    test_forward_yolov3()
     test_forward_convolutional()
     test_forward_maxpooling()
     test_forward_avgpooling()

@@ -19,16 +19,12 @@ def nms_comparator(a, b):
         diff = a['prob'][b['sort_class']] - b['prob'][b['sort_class']]
     else:
         diff = a['objectness'] - b['objectness']
-    if diff < 0:
-        return 1
-    elif diff > 0:
-        return -1
-    return 0
+    return diff
 
 def _correct_boxes(dets, w, h, netw, neth, relative):
     new_w, new_h = (netw, (h*netw)//w) if (netw/w < neth/h) else ((w*neth//h), neth)
-    for i, _ in enumerate(dets):
-        b = dets[i]['bbox']
+    for det in dets:
+        b = det['bbox']
         b = b._replace(x=(b.x - (netw - new_w)/2/netw) / (new_w/netw))
         b = b._replace(y=(b.y - (neth - new_h)/2/neth) / (new_h/neth))
         b = b._replace(w=b.w * netw/new_w)
@@ -38,7 +34,7 @@ def _correct_boxes(dets, w, h, netw, neth, relative):
             b = b._replace(w=b.w * w)
             b = b._replace(y=b.y * h)
             b = b._replace(h=b.h * h)
-        dets[i]['bbox'] = b
+        det['bbox'] = b
     return dets
 
 def _overlap(x1, w1, x2, w2):
@@ -136,18 +132,16 @@ def do_nms_sort(dets, classes, thresh):
     cnt = 0
     while cnt < k:
         if dets[cnt]['objectness'] == 0:
-            temp = dets[cnt]
-            dets[cnt] = dets[k]
-            dets[k] = temp
+            dets[k], dets[cnt] = dets[cnt], dets[k]
             k = k - 1
-            cnt = cnt - 1
-        cnt = cnt +1
+        else:
+            cnt = cnt + 1
     total = k+1
     for k in range(classes):
         for i in range(total):
             dets[i]['sort_class'] = k
         dets[0:total] = sorted(dets[0:total],
-                               key=cmp_to_key(nms_comparator), reverse=False)
+                               key=cmp_to_key(nms_comparator), reverse=True)
         for i in range(total):
             if dets[i]['prob'][k] == 0:
                 continue
@@ -159,11 +153,11 @@ def do_nms_sort(dets, classes, thresh):
 
 def draw_detections(im, dets, thresh, names, classes):
     "Draw the markings around the detected region"
-    for i, _ in enumerate(dets):
+    for det in dets:
         labelstr = []
         category = -1
         for j in range(classes):
-            if dets[i]['prob'][j] > thresh:
+            if det['prob'][j] > thresh:
                 if category == -1:
                     category = j
                 labelstr.append(names[j])
@@ -175,7 +169,7 @@ def draw_detections(im, dets, thresh, names, classes):
             green = _get_color(1, offset, classes)
             blue = _get_color(0, offset, classes)
             rgb = [red, green, blue]
-            b = dets[i]['bbox']
+            b = det['bbox']
             left = int((b.x-b.w/2.)*imw)
             right = int((b.x+b.w/2.)*imw)
             top = int((b.y-b.h/2.)*imh)
