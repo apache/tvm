@@ -84,7 +84,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
- * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice, although x is not shadowed.
+ * `let f = (x -> x) in let g = (x -> x + 1) in f(g(2))` also bound x twice, although x is not shadowed.
  *
  * \param e the expression to check.
  *
@@ -124,7 +124,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
 
 /*! \brief Transform a program, such that every definition is, directly nested lambda, with the inner body having no more lambda.
  *
- * \example (\x -> \y -> z) is fine, but (\x -> map (\y -> z)) is not.
+ * \example (x -> y -> z) is fine, but (x -> map (y -> z)) is not.
  *
  * It is achieved by generating a global definition for every lambda, with bound variables transformed into function parameters.
  *
