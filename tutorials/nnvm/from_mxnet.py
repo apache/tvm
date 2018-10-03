@@ -33,7 +33,7 @@ from mxnet.gluon.utils import download
 from PIL import Image
 from matplotlib import pyplot as plt
 block = get_model('resnet18_v1', pretrained=True)
-img_name = 'cat.jpg'
+img_name = 'cat.png'
 synset_url = ''.join(['https://gist.githubusercontent.com/zhreshold/',
                       '4d0b62f3d01426887599d4f7ede23ee5/raw/',
                       '596b27d23537e5a1b5751d2b0481ef172f58b539/',
