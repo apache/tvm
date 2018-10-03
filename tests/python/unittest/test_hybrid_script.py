@@ -87,7 +87,7 @@ def test_outer_product():
     func = tvm.lower(ir, [n, m, a, b, c])
     func = tvm.build(func)
 
-    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 999, m: 1001})
+    run_and_check(outer_product, [n, m, a, b, c], [c], {n: 99, m: 101})
 
     for key, _ in HYBRID_GLOBALS.items():
         assert key not in globals().keys()
