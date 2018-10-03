@@ -51,6 +51,9 @@ Operation ScanOpNode::make(std::string name,
                            Array<Tensor> update,
                            Array<Tensor> state_placeholder,
                            Array<Tensor> inputs) {
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
   auto n = make_node<ScanOpNode>();
   CHECK_EQ(init.size(), update.size());
   CHECK_EQ(init.size(), state_placeholder.size());
