@@ -60,16 +60,16 @@ def context(target, extra_files=None):
 
     targets = target if isinstance(target, (list, tuple)) else [target]
 
-    for target in targets:
-        if isinstance(target, str):
-            target = _target.create(target)
+    for tgt in targets:
+        if isinstance(tgt, str):
+            tgt = _target.create(tgt)
 
         possible_names = []
-        for opt in target.options:
+        for opt in tgt.options:
             if opt.startswith("-device"):
                 device = _alias(opt[8:])
                 possible_names.append(device)
-        possible_names.append(target.target_name)
+        possible_names.append(tgt.target_name)
 
         all_packages = list(PACKAGE_VERSION.keys())
         for name in possible_names:
