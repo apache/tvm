@@ -91,7 +91,7 @@ block = get_model('resnet18_v1', pretrained=True)
 ######################################################################
 # In order to test our model, here we download an image of cat and
 # transform its format.
-img_name = 'cat.jpg'
+img_name = 'cat.png'
 download('https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true', img_name)
 image = Image.open(img_name).resize((224, 224))
 

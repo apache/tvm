@@ -56,8 +56,8 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from keras.applications.resnet50 import preprocess_input
 img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'
-download(img_url, 'cat.jpg')
-img = Image.open('cat.jpg').resize((224, 224))
+download(img_url, 'cat.png')
+img = Image.open('cat.png').resize((224, 224))
 plt.imshow(img)
 plt.show()
 # input preprocess
