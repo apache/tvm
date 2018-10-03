@@ -12,48 +12,6 @@
 namespace tvm {
 namespace relay {
 
-struct FreeTypeVar : TypeVisitor<> {
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * free;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound;
-  FreeTypeVar(std::unordered_set<TypeParam, NodeHash, NodeEqual> * free,
-                  std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound) : free(free), bound(bound) { }
-};
-
-struct FreeVar : ExprVisitor {
-  std::unordered_set<Var, NodeHash, NodeEqual> free;
-  std::unordered_set<Var, NodeHash, NodeEqual> bound;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> freeType;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> boundType;
-
-  void VisitExpr_(const VarNode *v) final {
-    auto var = GetRef<Var>(v);
-    if (bound.count(var) == 0) {
-      free.insert(var);
-    }
-  }
-
-  void VisitExpr_(const FunctionNode *f) final {
-    for (const auto & tp : f->type_params) {
-      boundType.insert(tp);
-    }
-    for (const auto & p : f->params) {
-      bound.insert(p->var);
-    }
-    VisitExpr(f->body);
-    VisitType(f->ret_type);
-  }
-
-  void VisitExpr_(const LetNode *l) final {
-    bound.insert(l->var);
-    VisitExpr(l->value);
-    VisitExpr(l->body);
-    VisitType(l->value_type);
-  }
-
-  void VisitType(const Type& t) final {
-    FreeTypeVar(&freeType, &boundType)(t);
-  }
-};
 Expr LambdaLift(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename, const Environment& env, const Expr& e);
 
 struct LiftAllLambda : ExprMutator {
@@ -62,7 +20,7 @@ struct LiftAllLambda : ExprMutator {
   explicit LiftAllLambda(std::unordered_map<Var, Expr, NodeHash, NodeEqual> * rename, const Environment& env) :
     rename(rename), env(env) { }
 
-  Expr copy(const Expr& e) {
+  Expr copy(const Expr& e) {  // remake all var so they dont clash
     return e;
   }
 
@@ -71,25 +29,26 @@ struct LiftAllLambda : ExprMutator {
     return rename->count(var) == 0 ? var : rename->at(var);
   }
 
-  // jared we should sit down and review this, I am scared
   Expr LiftFunction(const Var & self, const GlobalVar& gv, const Function& func) {
-    FreeVar fv;
-    fv.bound.insert(self);
-    fv(func);
+    tvm::Array<Var> free_vars = FreeVariables(func);
+    tvm::Array<TypeParam> free_type_vars = FreeTypeVariables(func);
     std::vector<Param> p;
-    std::vector<Expr> e;
+    std::vector<Expr> args;
     std::vector<TypeParam> tp;
-    for (const auto & v : fv.free) {
-      p.push_back(ParamNode::make(v, IncompleteTypeNode::make(TypeParamNode::kType)));
-      e.push_back(v);
+    for (const auto & v : free_vars) {
+      if (v != self) {
+        p.push_back(ParamNode::make(v, IncompleteTypeNode::make(TypeParamNode::kType)));
+        args.push_back(v);
+      }
     }
-    for (const auto & t : fv.freeType) {
+    for (const auto & t : free_type_vars) {
       tp.push_back(t);
     }
-    auto ret = CallNode::make(gv, e);
+    auto ret = CallNode::make(gv, args);
+    CHECK(rename->count(self) == 0) << "rename already contains self";
     rename->insert(std::pair<Var, Expr>(self, ret));
     auto wrapped = FunctionNode::make(p, IncompleteTypeNode::make(TypeParamNode::kType), func, tp);
-    env->Add(gv, Downcast<Function, Expr>(copy(LambdaLift(rename, env, wrapped)))); // copy is called before wrapped, or rename will stop working
+    env->Add(gv, Downcast<Function, Expr>(copy(LambdaLift(rename, env, wrapped)))); // copy is called before LambdaLift, or rename will stop working
     return ret;
   }
 

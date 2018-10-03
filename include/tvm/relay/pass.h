@@ -126,7 +126,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
  *
  * \example (\x -> \y -> z) is fine, but (\x -> map (\y -> z)) is not.
  *
- * It is achieved by generating a global definition for every lambda, with bounded variables transformed into function parameters.
+ * It is achieved by generating a global definition for every lambda, with bound variables transformed into function parameters.
  *
  * \param env the Environment the definitions get inserted into.
  *
