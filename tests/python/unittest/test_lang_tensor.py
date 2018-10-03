@@ -111,6 +111,7 @@ def test_tensor_compute1():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
+    print(stmt)
     assert isinstance(stmt.body.body, tvm.stmt.Evaluate)
 
 def test_tensor_compute2():
@@ -154,6 +155,7 @@ def test_tensor_compute2():
 
     s = tvm.create_schedule(C.op)
     stmt = tvm.lower(s, [A, B, C], simple_mode=True)
+    print(stmt)
     assert isinstance(stmt.body.body.body.first, tvm.stmt.Evaluate)
     assert isinstance(stmt.body.body.body.rest.body, tvm.stmt.Evaluate)
 

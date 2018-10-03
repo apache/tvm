@@ -292,7 +292,10 @@ TVM_REGISTER_API("_TensorComputeOp")
                                      args[1],
                                      args[2],
                                      args[3],
-                                     args[4]);
+                                     args[4],
+                                     args[5],
+                                     args[6],
+                                     args[7]);
   });
 
 TVM_REGISTER_API("_ExternOp")

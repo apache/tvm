@@ -29,10 +29,7 @@ int TensorComputeOpNode::num_outputs() const {
 }
 
 Array<IterVar> TensorComputeOpNode::root_iter_vars() const {
-  Array<IterVar> ret = out_axis;
-  for (IterVar iv : tensor_axis) {
-    ret.push_back(iv);
-  }
+  Array<IterVar> ret = axis;
   for (IterVar iv : reduce_axis) {
     ret.push_back(iv);
   }
@@ -45,57 +42,45 @@ Type TensorComputeOpNode::output_dtype(size_t i) const {
 
 Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
   Array<Expr> shape;
-  for (const auto& ivar : this->out_axis) {
+  for (const auto& ivar : this->axis) {
     shape.push_back(ivar->dom->extent);
-  }
-  size_t index = this->inputs.size() + i;
-  for (const auto& dim : this->intrin->buffers[index]->shape) {
-    shape.push_back(dim);
   }
   return shape;
 }
 
 
-Operation TensorComputeOpNode::make(std::string name,
-                                    std::string tag,
-                                    Array<IterVar> out_axis,
-                                    Array<IterVar> tensor_axis,
-                                    TensorIntrinCall intrin_call) {
-  return TensorComputeOpNode::make(name,
-                                   tag,
-                                   out_axis,
-                                   tensor_axis,
-                                   intrin_call->reduce_axis,
-                                   intrin_call->tensors,
-                                   intrin_call->regions,
-                                   intrin_call->intrin);
-}
+// Operation TensorComputeOpNode::make(std::string name,
+//                                     std::string tag,
+//                                     Array<IterVar> out_axis,
+//                                     Array<IterVar> tensor_axis,
+//                                     TensorIntrinCall intrin_call) {
+//   return TensorComputeOpNode::make(name,
+//                                    tag,
+//                                    out_axis,
+//                                    tensor_axis,
+//                                    intrin_call->reduce_axis,
+//                                    intrin_call->tensors,
+//                                    intrin_call->regions,
+//                                    intrin_call->intrin);
+// }
 
 Operation TensorComputeOpNode::make(std::string name,
                                     std::string tag,
-                                    Array<IterVar> out_axis,
-                                    Array<IterVar> tensor_axis,
+                                    Array<IterVar> axis,
                                     Array<IterVar> reduce_axis,
+                                    int sch_ndim,
                                     Array<Tensor> tensors,
                                     Array<Region> regions,
                                     TensorIntrin intrin) {
   auto n = make_node<TensorComputeOpNode>();
-  n->name = name;
-  n->tag = tag;
-  Array<IterVar> axis;
-  for (auto iv : out_axis) {
-    axis.push_back(iv);
-  }
-  for (auto iv : tensor_axis) {
-    axis.push_back(iv);
-  }
-  n->axis = axis;
-  n->out_axis = out_axis;
-  n->tensor_axis = tensor_axis;
-  n->reduce_axis = reduce_axis;
-  n->inputs = tensors;
-  n->input_regions = regions;
-  n->intrin = intrin;
+  n->name = std::move(name);
+  n->tag = std::move(tag);
+  n->axis = std::move(axis);
+  n->reduce_axis = std::move(reduce_axis);
+  n->sch_ndim = sch_ndim;
+  n->inputs = std::move(tensors);
+  n->input_regions = std::move(regions);
+  n->intrin = std::move(intrin);
   return Operation(n);
 }
 
@@ -156,11 +141,12 @@ void TensorComputeOpNode::GatherBound(
     const std::unordered_map<Tensor, TensorDom>& tensor_dom,
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   const TensorDom& tdom = tensor_dom.at(self.output(0));
-  for (size_t i = 0; i < this->out_axis.size(); ++i) {
-    Range r = arith::Union(tdom.data.at(i)).cover_range(this->out_axis[i]->dom);
-    CHECK(!out_dom_map->count(this->out_axis[i]));
-    (*out_dom_map)[this->out_axis[i]] = r;
+  for (size_t i = 0; i < this->axis.size(); ++i) {
+    Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
+    CHECK(!out_dom_map->count(this->axis[i]));
+    (*out_dom_map)[this->axis[i]] = r;
   }
+  // should I add dom of tensor_vars
   for (size_t i = 0; i < this->reduce_axis.size(); ++i) {
     CHECK(!out_dom_map->count(this->reduce_axis[i]));
     (*out_dom_map)[this->reduce_axis[i]] = this->reduce_axis[i]->dom;
@@ -173,12 +159,8 @@ Stmt TensorComputeOpNode::BuildRealize(
     const Stmt& body) const {
   CHECK_EQ(stage->op.get(), this);
   HalideIR::Internal::Region bounds;
-  for (IterVar iv : this->out_axis) {
+  for (IterVar iv : this->axis) {
     bounds.push_back(realize_map.at(iv));
-  }
-  size_t out_buff_idx = this->intrin->buffers.size();
-  for (const Expr extent : this->intrin->buffers[out_buff_idx - 1]->shape) {
-    bounds.push_back(Range(0, extent));
   }
   Stmt realize = body;
   for (int i = this->num_outputs(); i > 0; --i) {
@@ -186,8 +168,8 @@ Stmt TensorComputeOpNode::BuildRealize(
     realize = ir::Realize::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
-    for (size_t i = 0; i < this->out_axis.size(); ++i) {
-      auto it = stage->iter_var_attrs.find(this->out_axis[i]);
+    for (int i = 0; i < sch_ndim; ++i) {
+      auto it = stage->iter_var_attrs.find(this->axis[i]);
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
         if (attr->dim_align_factor != 0) {
@@ -232,8 +214,8 @@ ComputeLoopNest MakeLoopNest(
     for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
-    for (IterVar iv : self->out_axis) {
-      update_state[iv] = 1;
+    for (int i = 0; i < self->sch_ndim; ++i) {
+      update_state[self->axis[i]] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
     schedule::PassDownBitMaskOr(stage, &update_state);
@@ -308,13 +290,16 @@ Stmt TensorComputeOpNode::BuildProvide(
     Array<NodeRef> bind_spec{buffer, tensor};
 
     Array<Expr> tuple;
-    for (const IterVar ivar : this->out_axis) {
-      tuple.push_back(ivar->var);
-      tuple.push_back(1);
-    }
-    for (const Expr extent : buffer->shape) {
-      tuple.push_back(0);
-      tuple.push_back(extent);
+    for (size_t i = 0; i < this->axis.size(); ++i) {
+      auto ivar = this->axis[i];
+      if (i < static_cast<size_t>(this->sch_ndim)) {
+        tuple.push_back(ivar->var);
+        tuple.push_back(1);
+      } else {
+        Range dom = ivar->dom;
+        tuple.push_back(dom->min);
+        tuple.push_back(dom->extent);
+      }
     }
 
     output_bind_nest.emplace_back(AttrStmt::make(

@@ -387,6 +387,7 @@ def test_schedule_tensor_compute2():
 
 
 def test_schedule_tensor_compute3():
+    # compute_at
     M = 1024
     factor = 16
     dtype = 'float32'

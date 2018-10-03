@@ -262,15 +262,17 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
     body = fcompute(*[v.var for v in dim_var])
 
     if isinstance(body, _tensor.TensorIntrinCall):
-        tensor_var = []
         for i, s in enumerate(shape[out_ndim:]):
             var_name = "ax" + str(i)
-            tensor_var.append(_IterVar((0, s), var_name, 4))
+            dim_var.append(_IterVar((0, s), var_name, 4))
         op_node = _api_internal._TensorComputeOp(name,
                                                  tag,
                                                  dim_var,
-                                                 tensor_var,
-                                                 body)
+                                                 body.reduce_axis,
+                                                 out_ndim,
+                                                 body.tensors,
+                                                 body.regions,
+                                                 body.intrin)
     else:
         if not isinstance(body, (list, tuple)):
             body = [body]
