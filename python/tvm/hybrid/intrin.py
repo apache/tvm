@@ -48,6 +48,7 @@ def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-ar
     """
     return numpy.zeros(shape).astype(dtype)
 
+output_tensor = allocate #pylint: disable=invalid-name
 
 def popcount(x):
     """

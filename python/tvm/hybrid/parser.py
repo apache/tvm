@@ -81,7 +81,6 @@ class HybridParser(ast.NodeVisitor):
         self.var_consts = {} # Variables that are determined as readonly in previous stage
         self.func_name = func_name # The name of the function to be lowered
         self.parsed_body = [] # The parsed HalideIR body
-        self.outputs = [] # Outputs of this function, i.e. the placeholders written by this function
 
 
     def wrap_up_realize(self, node, body):
@@ -205,7 +204,6 @@ class HybridParser(ast.NodeVisitor):
                 raise ValueError("An array access's LHS is expected to be a expr.Call!")
             #TODO: support slice later
             buf = self._get_buffer_from_id(lhs.name)
-            self.outputs.append(lhs.name)
             return _make.Provide(buf.op, 0, rhs, lhs.args)
 
 

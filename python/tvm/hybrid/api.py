@@ -6,7 +6,8 @@ import types
 from .._ffi.base import decorate
 from .._api_internal import _ExternOp
 from ..api import decl_buffer
-from ..expr import Call, Var
+from ..expr import Call
+from ..stmt import Provide
 from ..ir_pass import PostOrderVisit
 from ..tensor import Tensor
 from .parser import parse_python
@@ -66,10 +67,15 @@ def lower(func, args, simple_mode=False):
         return body
 
     input_tensors = set()
+    output_tensors = set()
     def find_inputs(op):
-        if isinstance(op, Call):
+        if isinstance(op, Provide):
             for i in args:
-                if op.name == i.name:
+                if op.func.name == i.name:
+                    output_tensors.add(i.name)
+        elif isinstance(op, Call):
+            for i in args:
+                if op.name == i.name and (i.name not in output_tensors):
                     input_tensors.add(i)
     PostOrderVisit(body, find_inputs)
     input_tensors = list(input_tensors)
@@ -82,7 +88,7 @@ def lower(func, args, simple_mode=False):
             buf_ = decl_buffer(i.shape, i.dtype, i.name)
             if i in input_tensors:
                 input_buffers.append(buf_)
-            if i.name in parser.outputs:
+            if i.name in output_tensors:
                 output_buffers.append(buf_)
         attrs[i.name] = i
 
