@@ -321,7 +321,9 @@ class HybridParser(ast.NodeVisitor):
             return iter_var, low, ext, for_type
         elif func_id in MATH_INTRIN:
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
-        elif func_id == 'allocate':
+        elif func_id == ['allocate', 'output_tensor']:
+            if func_id == 'output_tensor' and self.loops_above:
+                raise ValueError("Do you really want a output tensor be defined multiple times?")
             if not isinstance(node.args[0], ast.Tuple):
                 raise ValueError("allocate's first argument should be a tuple of shape!")
             shape = tuple(self.visit(i) for i in node.args[0].elts)
