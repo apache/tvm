@@ -19,11 +19,12 @@ namespace runtime {
  */
 class GraphRuntimeDebug : public GraphRuntime {
  public:
-    /*!
-     * \brief Run each operation and get the output.
-     * \param index The index of op which needs to be run.
-     */
-  double DebugRun(size_t index) {
+  /*!
+   * \brief Run each operation and get the output.
+   * \param index The index of op which needs to be run.
+   * \return the elapsed time.
+   */
+  double DebugRun(int64_t index) {
     CHECK(index < op_execs().size());
     TVMContext ctx = data_entry()[GetEntryId(index, 0)].operator->()->ctx;
     auto tbegin = std::chrono::high_resolution_clock::now();
@@ -129,9 +130,9 @@ PackedFunc GraphRuntimeDebug::GetFunction(
  * \param m Compiled module which will be loaded.
  * \param ctxs All devices contexts.
  */
-  Module GraphRuntimeDebugCreate(const std::string& sym_json,
-                                 const tvm::runtime::Module& m,
-                                 const std::vector<TVMContext>& ctxs) {
+Module GraphRuntimeDebugCreate(const std::string& sym_json,
+                               const tvm::runtime::Module& m,
+                               const std::vector<TVMContext>& ctxs) {
   std::shared_ptr<GraphRuntimeDebug> exec = std::make_shared<GraphRuntimeDebug>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
