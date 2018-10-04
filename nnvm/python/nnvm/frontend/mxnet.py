@@ -273,12 +273,6 @@ def _lrn(inputs, attrs):
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
-def _l2_noralize(inputs, attrs):
-    op_name, new_attrs = "l2_Normalize", {}
-    if attrs.get('mode') != 'instance':
-        raise RuntimeError("Only support instance mode.")
-    # eps is what?
-
 def _ones(_, attrs):
     op_name = "ones"
     return _get_nnvm_op(op_name)(**attrs)
