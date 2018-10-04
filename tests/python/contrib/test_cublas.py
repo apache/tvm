@@ -16,7 +16,7 @@ def test_matmul_add():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.cublas.matmul", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.gpu(0)
         f = tvm.build(s, [A, B, C], target)
