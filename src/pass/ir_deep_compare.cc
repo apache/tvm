@@ -418,6 +418,13 @@ bool Equal(const Stmt& lhs, const Stmt& rhs) {
 }
 
 bool Equal(const Expr& lhs, const Expr& rhs) {
+  // quick pass for constant expressions.
+  if (const int64_t *a = as_const_int(lhs)) {
+    if (const int64_t *b = as_const_int(rhs)) {
+      return a[0] == b[0];
+    }
+  }
+  // deep comparison.
   return IRDeepCompare().Equal(lhs, rhs);
 }
 

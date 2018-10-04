@@ -41,7 +41,7 @@ class Layout {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  inline Layout(const std::string& layout) { // NOLINT(*)
+  Layout(const std::string& layout) { // NOLINT(*)
     if (layout.length() != 0) {
       parse(layout);
     } else {
@@ -52,14 +52,14 @@ class Layout {
    * \brief copy constructor from another layout
    * \param s the source layout
    */
-  inline Layout(const Layout& s) { // NOLINT(*)
+  Layout(const Layout& s) { // NOLINT(*)
     this->parse(s.name_);
   }
   /*!
    * \brief move constructor from Layout
    * \param src the source layout
    */
-  inline Layout(Layout&& src) { // NOLINT(*)
+  Layout(Layout&& src) { // NOLINT(*)
     this->swap(src);
   }
   /*!
@@ -67,7 +67,7 @@ class Layout {
    * \param src source layout
    * \return reference of self
    */
-  inline Layout& operator=(const Layout& src) {
+  Layout& operator=(const Layout& src) {
     this->parse(src.name_);
     return *this;
   }
@@ -76,7 +76,7 @@ class Layout {
    * \param src source layout
    * \return reference of self
    */
-  inline Layout& operator=(Layout&& src) {
+  Layout& operator=(Layout&& src) {
     Layout(std::move(src)).swap(*this); // NOLINT(*)
     return *this;
   }
@@ -85,7 +85,7 @@ class Layout {
    * \param src source layout
    * \return reference of self
    */
-  inline Layout& operator=(const std::string& src) {
+  Layout& operator=(const std::string& src) {
     this->parse(src);
     return *this;
   }
@@ -93,14 +93,14 @@ class Layout {
    * \return whether two layout equals
    * \param s the layout to compare against
    */
-  inline bool operator==(const Layout& s) const {
+  bool operator==(const Layout& s) const {
     return name_ == s.name_;
   }
   /*!
    * \return whether two layout not equal
    * \param s the layout to compare against
    */
-  inline bool operator!=(const Layout& s) const {
+  bool operator!=(const Layout& s) const {
     return !(*this == s);
   }
 
@@ -109,7 +109,7 @@ class Layout {
    * @param other the layout to be appended
    * @return a new layout
    */
-  inline Layout operator+(const Layout& other) const {
+  Layout operator+(const Layout& other) const {
     if (!this->defined() && !other.defined()) {
       return Layout::Undef();
     } else if (!this->defined()) {
@@ -125,7 +125,7 @@ class Layout {
    * \param dim input dimension
    * \return Whether a given dimension is a super-dimension.
    */
-  static inline bool is_superdim(LayoutDim dim) {
+  static bool is_superdim(LayoutDim dim) {
     return dim >= 'A' && dim <= 'Z';
   }
 
@@ -134,7 +134,7 @@ class Layout {
    * \param dim input dimension
    * \return Whether a given dimension is a sub-dimension.
    */
-  static inline bool is_subdim(LayoutDim dim) {
+  static bool is_subdim(LayoutDim dim) {
     return dim >= 'a' && dim <= 'z';
   }
 
@@ -143,7 +143,7 @@ class Layout {
    * \param dim input dimension
    * \return The converted description.
    */
-  static inline LayoutDim to_superdim(LayoutDim dim) {
+  static LayoutDim to_superdim(LayoutDim dim) {
     if (is_subdim(dim)) {
       return dim - 'a' + 'A';
     }
@@ -155,7 +155,7 @@ class Layout {
    * \param dim input dimension
    * \return The converted description.
    */
-  static inline LayoutDim to_subdim(LayoutDim dim) {
+  static LayoutDim to_subdim(LayoutDim dim) {
     if (is_superdim(dim)) {
       return dim - 'A' + 'a';
     }
@@ -166,7 +166,7 @@ class Layout {
    * \brief Return an undefined layout.
    * \return a (global) undefined layout.
    */
-  static inline const Layout& Undef() {
+  static const Layout& Undef() {
     static Layout undef;
     return undef;
   }
@@ -175,7 +175,7 @@ class Layout {
    * \brief Swap current object with other
    * \param other another object to be swapped.
    */
-  inline void swap(Layout& other) {  // NOLINT(*)
+  void swap(Layout& other) {  // NOLINT(*)
     std::swap(name_, other.name_);
     std::swap(superdim_pos_, other.superdim_pos_);
     std::swap(subdim_pos_, other.subdim_pos_);
@@ -191,7 +191,7 @@ class Layout {
    * \param dst the target layout
    * \return Whether can be converted to dst layout.
    */
-  inline bool convertible(const Layout &dst) const {
+  bool convertible(const Layout &dst) const {
     if (!this->defined() || !dst.defined()) return false;
     for (size_t i = 0; i < kUniqueDim; ++i) {
       if ((superdim_pos_[i] >= 0 && dst.superdim_pos_[i] < 0) ||
@@ -210,7 +210,7 @@ class Layout {
    * \param len The length of the sub-layout.
    * \return A newly constructed Layout object.
    */
-  inline Layout sublayout(size_t pos, size_t len) const {
+  Layout sublayout(size_t pos, size_t len) const {
     if (pos > ndim()) return Layout::Undef();
     if (pos + len > ndim()) len = ndim() - pos;
     if (len == 0) return Layout::Undef();
@@ -227,7 +227,7 @@ class Layout {
   }
 
   /*! \return A newly constructed reversed Layout object. */
-  inline Layout reverse() const {
+  Layout reverse() const {
     if (!this->defined()) return Layout::Undef();
     std::ostringstream new_layout;
     for (int64_t i = this->ndim() - 1; i >= 0; --i) {
@@ -248,7 +248,7 @@ class Layout {
    * \param size size of the sub-dimension.
    * \return A newly constructed Layout object.
    */
-  inline Layout split(LayoutDim dim, size_t target_pos, uint32_t size) const {
+  Layout split(LayoutDim dim, size_t target_pos, uint32_t size) const {
     CHECK(target_pos <= this->ndim()) << "Invalid split position "
                                       << target_pos << " for layout " << name_;
     CHECK(is_superdim(dim)) << "Cannot split a sub-dimension " << dim;
@@ -273,24 +273,24 @@ class Layout {
   using reverse_iterator = std::vector<LayoutDim>::const_reverse_iterator;
 
   /*! \return begin iterator */
-  inline iterator begin() const {
+  iterator begin() const {
     return layout_simplified_.begin();
   }
   /*! \return end iterator */
-  inline iterator end() const {
+  iterator end() const {
     return layout_simplified_.end();
   }
   /*! \return rbegin iterator */
-  inline reverse_iterator rbegin() const {
+  reverse_iterator rbegin() const {
     return layout_simplified_.rbegin();
   }
   /*! \return rend iterator */
-  inline reverse_iterator rend() const {
+  reverse_iterator rend() const {
     return layout_simplified_.rend();
   }
 
   /*! \return number of dimensions */
-  inline size_t ndim() const {
+  size_t ndim() const {
     return layout_simplified_.size();
   }
 
@@ -301,7 +301,7 @@ class Layout {
    * \param i The position
    * \return the description of the dimension.
    */
-  inline std::string at(size_t i) const {
+  std::string at(size_t i) const {
     CHECK_LT(i, this->ndim()) << "position " << i
                               << " exceeds ndim=" << this->ndim();
     std::ostringstream repr;
@@ -321,7 +321,7 @@ class Layout {
    * \param dim the input dimension.
    * \return the index or -1 if not found.
    */
-  inline int32_t indexof(LayoutDim dim) const {
+  int32_t indexof(LayoutDim dim) const {
     if (!this->defined()) return -1;
     else if (is_superdim(dim)) return superdim_pos_[dim - 'A'];
     else if (is_subdim(dim)) return subdim_pos_[dim - 'a'];
@@ -334,7 +334,7 @@ class Layout {
    *         or the size of \p dim itself (if \p dim is a sub-dimension).
    *         Return -1 if \p dim is not in the layout or the layout is undefined.
    */
-  inline int64_t subsizeof(LayoutDim dim) const {
+  int64_t subsizeof(LayoutDim dim) const {
     CHECK(is_superdim(dim) || is_subdim(dim)) << "Invalid dim " << dim;
     if (!this->defined() || !this->contains(to_subdim(dim))) {
       return -1;
@@ -348,7 +348,7 @@ class Layout {
    * \param dim dimension to be checked.
    * \return Whether the layout contains the dimension.
    */
-  inline bool contains(LayoutDim dim) const {
+  bool contains(LayoutDim dim) const {
     if (is_superdim(dim)) {
       return superdim_pos_[dim-'A'] >= 0;
     } else if (is_subdim(dim)) {
@@ -357,17 +357,17 @@ class Layout {
     return false;
   }
 
-  inline LayoutDim operator[](size_t i) const {
+  LayoutDim operator[](size_t i) const {
     return layout_simplified_[i];
   }
 
   /*! \return whether the layout is defined */
-  inline bool defined() const {
+  bool defined() const {
     return name_ != "__undef__";
   }
 
   /*! \return the string description of the layout */
-  inline const std::string& name() const {
+  const std::string& name() const {
     return name_;
   }
 
@@ -375,7 +375,7 @@ class Layout {
    * \brief Write layout in JSON format.
    * \param writer JSONWriter
    */
-  inline void Save(dmlc::JSONWriter* writer) const {
+  void Save(dmlc::JSONWriter* writer) const {
     writer->Write(name_);
   }
 
@@ -383,7 +383,7 @@ class Layout {
    * \brief Load layout from JSON.
    * \param reader JSONReader
    */
-  inline void Load(dmlc::JSONReader* reader) {
+  void Load(dmlc::JSONReader* reader) {
     std::string tmp;
     reader->Read(&tmp);
     this->parse(tmp);
@@ -428,7 +428,7 @@ class Layout {
                             << ": invalid factor size " << factor
                             << " before dimension " << c;
         CHECK_EQ(superdim_pos_[pos], -1) << "Invalid layout " << layout
-                                           << ": duplicate dimension " << c;
+                                         << ": duplicate dimension " << c;
         superdim_pos_[pos] = curr++;
         layout_simplified_.push_back(c);
       } else if (is_subdim(c)) {
@@ -436,9 +436,9 @@ class Layout {
         CHECK_GT(factor, 0) << "Invalid layout " << layout << ": invalid factor size "
                             << factor << " for dimension " << c;
         CHECK_EQ(subdim_pos_[pos], -1) << "Invalid layout " << layout
-                                           << ": duplicate dimension " << c;
+                                       << ": duplicate dimension " << c;
         CHECK_EQ(subdim_size_[pos], -1) << "Invalid layout " << layout
-                                         << ": duplicate dimension " << c;
+                                        << ": duplicate dimension " << c;
         subdim_pos_[pos] = curr++;
         subdim_size_[pos] = factor;
         layout_simplified_.push_back(c);
@@ -523,7 +523,7 @@ inline std::vector<IndexExpr> ConvertLayout(
 }
 
 inline std::vector<IndexExpr> ConvertLayout(
-    Array<IndexExpr> src,
+    const Array<IndexExpr>& src,
     const Layout& src_layout,
     const Layout& dst_layout) {
   std::vector<IndexExpr> ret(src.size());
