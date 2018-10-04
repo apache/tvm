@@ -17,7 +17,8 @@ def conv2d(data,
            out_dtype=""):
     r"""2D convolution.
 
-    This operator takes the weight as the convolution kernel                                                                                                                                , and convolves it with data to produce a tensor of output.
+    This operator takes the weight as the convolution kernel
+    and convolves it with data to produce an output.
 
 
     In the default case, where the data_layout is `NCHW`
