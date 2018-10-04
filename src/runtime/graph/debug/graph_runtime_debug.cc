@@ -19,10 +19,11 @@ namespace runtime {
  */
 class GraphRuntimeDebug : public GraphRuntime {
  public:
-    /*!
-     * \brief Run each operation and get the output.
-     * \param index The index of op which needs to be run.
-     */
+  /*!
+   * \brief Run each operation and get the output.
+   * \param index The index of op which needs to be run.
+   * \return the elapsed time.
+   */
   double DebugRun(size_t index) {
     CHECK(index < op_execs().size());
     TVMContext ctx = data_entry()[GetEntryId(index, 0)].operator->()->ctx;
@@ -104,7 +105,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
   // return member functions during query.
   if (name == "debug_run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->DebugRun(args[0]);
+        *rv = this->DebugRun(static_cast<size_t>(args[0].operator int64_t()));
       });
   } else if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
@@ -129,9 +130,9 @@ PackedFunc GraphRuntimeDebug::GetFunction(
  * \param m Compiled module which will be loaded.
  * \param ctxs All devices contexts.
  */
-  Module GraphRuntimeDebugCreate(const std::string& sym_json,
-                                 const tvm::runtime::Module& m,
-                                 const std::vector<TVMContext>& ctxs) {
+Module GraphRuntimeDebugCreate(const std::string& sym_json,
+                               const tvm::runtime::Module& m,
+                               const std::vector<TVMContext>& ctxs) {
   std::shared_ptr<GraphRuntimeDebug> exec = std::make_shared<GraphRuntimeDebug>();
   exec->Init(sym_json, m, ctxs);
   return Module(exec);
