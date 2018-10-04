@@ -19,7 +19,7 @@ def test_fully_connected_output():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_output", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
@@ -49,7 +49,7 @@ def test_fully_connected_inference():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
@@ -128,7 +128,7 @@ def test_convolution_inference():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [data, kernel, bias, output], target)
@@ -173,7 +173,7 @@ def test_convolution_output():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [data, kernel, bias, output], target)
