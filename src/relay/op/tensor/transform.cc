@@ -23,16 +23,17 @@ bool ExpandDimsRel(const Array<Type>& types,
   if (data == nullptr) {
     return false;
   }
-  // `param` contains: axis, num_newaxis
   const ExpandDimsAttrs* param = attrs.as<ExpandDimsAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
   const int axis = param->axis;
   const int num_newaxis = param->num_newaxis;
-  // TODO(Junru): check if we really support negative indexing
+  CHECK(num_newaxis >= 0)
+    << "expand_dims only accepts `num_newaxis >= 0`"
+    << ", but got num_newaxis = " << num_newaxis;
   CHECK(-ndim - 1 <= axis && axis <= ndim)
-    << "expand_dims allows only `axis` in [-ndim - 1, ndim]"
-    << " But got axis = " << axis
-    << " and ndim = " << ndim;
+    << "expand_dims only accepts `axis` in [-data.ndim - 1, data.ndim]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
   const int pivot = axis < 0 ? ndim + axis + 1 : axis;
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim + num_newaxis);
@@ -64,9 +65,11 @@ TVM_REGISTER_API("relay.op._make.expand_dims")
     runtime::detail::unpack_call<Expr, 3>(MakeExpandDims, args, rv);
 });
 
-// TODO(Junru)
 RELAY_REGISTER_OP("expand_dims")
-.describe(R"code(TODO(Junru)
+.describe(R"code(Insert `num_newaxis` axises at the position given by `axis`
+
+- **data**: The input data to the operator.
+
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")

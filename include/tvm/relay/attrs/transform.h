@@ -14,16 +14,18 @@ namespace relay {
 
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
-  // TODO(Junru): docstring
   int axis;
   int num_newaxis;
 
   TVM_DECLARE_ATTRS(ExpandDimsAttrs, "relay.attrs.ExpandDimsAttrs") {
     TVM_ATTR_FIELD(axis)
-        .describe("Position in the expanded axes where the new axis is placed.")
-        .set_default(0);
+        .describe("The axis at which the input array is expanded."
+                  "Should lie in range `[-data.ndim - 1, data.ndim]`."
+                  "If `axis < 0`, it is the first axis inserted;"
+                  "If `axis >= 0`, it is the last axis inserted in Python's negative indexing.");
     TVM_ATTR_FIELD(num_newaxis)
-        .describe("Number of new axis to be inserted.")
+        .describe("Number of axises to be inserted. Should be >= 0.")
+        .set_lower_bound(0)
         .set_default(1);
   }
 };  // struct ExpandDimsAttrs
