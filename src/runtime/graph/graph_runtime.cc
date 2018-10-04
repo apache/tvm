@@ -4,10 +4,6 @@
  */
 #include "graph_runtime.h"
 
-#include <dlpack/dlpack.h>
-#include <dmlc/json.h>
-#include <dmlc/memory_io.h>
-#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -17,431 +13,125 @@
 #include <functional>
 #include <numeric>
 #include <vector>
+#include <string>
 
 namespace tvm {
 namespace runtime {
 
-/*! \brief Macro to do C API call. */
-#define TVM_CCALL(func)                                            \
-  {                                                                \
-    int ret = (func);                                              \
-    CHECK_EQ(ret, 0)                                               \
-        << TVMGetLastError();                                      \
+/*!
+ * \brief Run all the operations one by one.
+ */
+void GraphRuntime::Run() {
+  // setup the array and requirements.
+  for (size_t i = 0; i < op_execs_.size(); ++i) {
+    if (op_execs_[i]) op_execs_[i]();
   }
+}
+/*!
+ * \brief Initialize the graph executor with graph and context.
+ * \param graph_json The execution graph.
+ * \param module The module containing the compiled functions for the host
+ * processor.
+ * \param ctxs The context of the host and devices where graph nodes will be
+ * executed on.
+ */
+void GraphRuntime::Init(const std::string& graph_json,
+                        tvm::runtime::Module module,
+                        const std::vector<TVMContext>& ctxs) {
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
+  std::istringstream is(graph_json);
+#else
+  std::string is = graph_json;
+#endif
+  dmlc::JSONReader reader(&is);
+  this->Load(&reader);
+  module_ = module;
+  ctxs_ = ctxs;
+  this->SetupStorage();
+  this->SetupOpExecs();
+}
+/*!
+ * \brief Get the input index given the name of input.
+ * \param name The name of the input.
+ * \return The index of input.
+ */
+int GraphRuntime::GetInputIndex(const std::string& name) {
+  for (size_t i = 0; i< input_nodes_.size(); ++i) {
+    uint32_t nid = input_nodes_[i];
+    if (nodes_[nid].name == name) {
+      return static_cast<int>(i);
+    }
+  }
+  LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
+  return -1;
+}
+/*!
+ * \brief set index-th input to the graph.
+ * \param index The input index.
+ * \param data_in The input data.
+ */
+void GraphRuntime::SetInput(int index, DLTensor* data_in) {
+  CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+  uint32_t eid = this->entry_id(input_nodes_[index], 0);
+  data_entry_[eid].CopyFrom(data_in);
+}
+/*!
+ * \brief Get the number of outputs
+ *
+ * \return The number of outputs from graph.
+ */
+int GraphRuntime::NumOutputs() const {
+  return outputs_.size();
+}
+/*!
+ * \brief Return NDArray for given input index.
+ * \param index The input index.
+ *
+ * \return NDArray corresponding to given input node index.
+ */
+NDArray GraphRuntime::GetInput(int index) const {
+  CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+  uint32_t eid = this->entry_id(input_nodes_[index], 0);
+  return data_entry_[eid];
+}
+/*!
+ * \brief Return NDArray for given output index.
+ * \param index The output index.
+ *
+ * \return NDArray corresponding to given output node index.
+ */
+NDArray GraphRuntime::GetOutput(int index) const {
+  CHECK_LT(static_cast<size_t>(index), outputs_.size());
+  uint32_t eid = this->entry_id(outputs_[index]);
+  return data_entry_[eid];
+}
+/*!
+ * \brief Copy index-th output to data_out.
+ * \param index The output index.
+ * \param data_out the output data.
+ */
+void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
+  CHECK_LT(static_cast<size_t>(index), outputs_.size());
+  uint32_t eid = this->entry_id(outputs_[index]);
+
+  // Check the shapes to avoid receiving in different dimension but same size.
+  const NDArray& data = data_entry_[eid];
+  CHECK_EQ(data->ndim, data_out->ndim);
+  for (int32_t j = 0; j < data->ndim; ++j) {
+    CHECK_EQ(data->shape[j], data_out->shape[j]);
+  }
+
+  data_entry_[eid].CopyTo(data_out);
+}
 
 /*!
- * \brief Tiny graph runtime.
- *
- *  This runtime can be acccesibly in various language via
- *  TVM runtime PackedFunc API.
+ * \brief Load parameters from parameter blob.
+ * \param param_blob A binary blob of parameter.
  */
-class GraphRuntime : public ModuleNode {
- public:
-  /*!
-   * \brief Get member function to front-end.
-   * \param name The name of the function.
-   * \param sptr_to_self The pointer to the module node.
-   * \return The corresponding member function.
-   */
-  PackedFunc GetFunction(
-      const std::string& name,
-      const std::shared_ptr<ModuleNode>& sptr_to_self) final;
-
-  /*!
-   * \return The type key of the executor.
-   */
-  const char* type_key() const final {
-    return "GraphRuntime";
-  }
-  void Run() {
-    // setup the array and requirements.
-    for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (op_execs_[i]) op_execs_[i]();
-    }
-  }
-  /*!
-   * \brief Initialize the graph executor with graph and context.
-   * \param graph_json The execution graph.
-   * \param module The module containing the compiled functions for the host
-   * processor.
-   * \param ctxs The context of the host and devices where graph nodes will be
-   * executed on.
-   */
-  void Init(const std::string& graph_json, const tvm::runtime::Module& module,
-            const std::vector<TVMContext>& ctxs) {
-#ifndef _LIBCPP_SGX_NO_IOSTREAMS
-    std::istringstream is(graph_json);
-#else
-    std::string is = graph_json;
-#endif
-    dmlc::JSONReader reader(&is);
-    this->Load(&reader);
-    module_ = module;
-    ctxs_ = ctxs;
-    this->SetupStorage();
-    this->SetupOpExecs();
-  }
-
-  /*!
-   * \brief Get the input index given the name of input.
-   * \param name The name of the input.
-   * \return The index of input.
-   */
-  int GetInputIndex(const std::string& name) {
-    for (size_t i = 0; i< input_nodes_.size(); ++i) {
-      uint32_t nid = input_nodes_[i];
-      if (nodes_[nid].name == name) {
-        return static_cast<int>(i);
-      }
-    }
-    LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
-    return -1;
-  }
-  /*!
-   * \brief Set index-th input to the graph.
-   * \param index The input index.
-   * \param data_in The input data.
-   */
-  void SetInput(int index, DLTensor* data_in) {
-    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
-    uint32_t eid = this->entry_id(input_nodes_[index], 0);
-    data_entry_[eid].CopyFrom(data_in);
-  }
-  /*!
-   * \brief Get the number of outputs
-   *
-   * \return The number of outputs from graph.
-   */
-  int NumOutputs() const {
-    return outputs_.size();
-  }
-  /*!
-   * \brief Return NDArray for given input index.
-   * \param index The input index.
-   *
-   * \return NDArray corresponding to given input node index.
-   */
-  NDArray GetInput(int index) {
-    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
-    uint32_t eid = this->entry_id(input_nodes_[index], 0);
-    return data_entry_[eid];
-  }
-  /*!
-   * \brief Return NDArray for given output index.
-   * \param index The output index.
-   *
-   * \return NDArray corresponding to given output node index.
-   */
-  NDArray GetOutput(int index) {
-    CHECK_LT(static_cast<size_t>(index), outputs_.size());
-    uint32_t eid = this->entry_id(outputs_[index]);
-    return data_entry_[eid];
-  }
-  /*!
-   * \brief Copy index-th output to data_out.
-   * \param index The output index.
-   * \param data_out The output data.
-   */
-  void CopyOutputTo(int index, DLTensor* data_out) {
-    CHECK_LT(static_cast<size_t>(index), outputs_.size());
-    uint32_t eid = this->entry_id(outputs_[index]);
-
-    // Check the shapes to avoid receiving in different dimension but same size.
-    const NDArray& data = data_entry_[eid];
-    CHECK_EQ(data->ndim, data_out->ndim);
-    for (int32_t j = 0; j < data->ndim; ++j) {
-      CHECK_EQ(data->shape[j], data_out->shape[j]);
-    }
-
-    data_entry_[eid].CopyTo(data_out);
-  }
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  /*!
-   * \brief Get the node index given the name of node.
-   * \param name The name of the node.
-   * \return The index of node.
-   */
-  int GetNodeIndex(const std::string& name) {
-    for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
-      if (nodes_[nid].name == name) {
-        return static_cast<int>(nid);
-      }
-    }
-    LOG(FATAL) << "cannot find " << name << " among nodex";
-    return -1;
-  }
-
-  /*!
-   * \brief Copy index-th node to data_out.
-   *
-   * This method will do a partial run of the the graph
-   * from begining upto the index-th node and return output of index-th node.
-   * This is costly operation and suggest to use only for debug porpose.
-   *
-   * \param index The index of the node.
-   * \param data_out The node data.
-   */
-  void DebugGetNodeOutput(int index, DLTensor* data_out) {
-    CHECK_LT(static_cast<size_t>(index), nodes_.size());
-    uint32_t eid = index;
-
-    for (size_t i = 0; i < op_execs_.size(); ++i) {
-      if (op_execs_[i]) op_execs_[i]();
-      if (static_cast<int>(i) == index) break;
-    }
-
-    data_entry_[eid].CopyTo(data_out);
-  }
-#endif
-  /*!
-   * \brief Load parameters from binary stream.
-   * \param strm The input stream.
-   */
-  void LoadParams(dmlc::Stream* strm);
-  /*!
-   * \brief Load parameters from parameter blob.
-   * \param param_blob A binary blob of parameter.
-   */
-  void LoadParams(const std::string& param_blob) {
-    dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
-    this->LoadParams(&strm);
-  }
-
- private:
-  // Memory pool entry.
-  struct PoolEntry {
-    size_t size;
-    int device_type;
-    PoolEntry(int s, int dev_type) : size(s), device_type(dev_type) {}
-  };
-  // Node entry
-  struct NodeEntry {
-    uint32_t node_id;
-    uint32_t index;
-    uint32_t version;
-    // JSON Loader
-    void Load(dmlc::JSONReader *reader) {
-      reader->BeginArray();
-      CHECK(reader->NextArrayItem()) << "invalid json format";
-      reader->Read(&node_id);
-      CHECK(reader->NextArrayItem()) << "invalid json format";
-      reader->Read(&index);
-      if (reader->NextArrayItem()) {
-        reader->Read(&version);
-        CHECK(!reader->NextArrayItem()) << "invalid json format";
-      } else {
-        version = 0;
-      }
-    }
-  };
-  // Node
-  struct Node {
-    // operator type in string
-    std::string op_type;
-    // name of the op
-    std::string name;
-    // parameters
-    TVMOpParam param;
-    // inputs
-    std::vector<NodeEntry> inputs;
-    // control deps
-    std::vector<uint32_t> control_deps;
-    // JSON Loader
-    void LoadAttrs(dmlc::JSONReader *reader, TVMOpParam* param) {
-      int bitmask = 0;
-      std::string key, value;
-      reader->BeginObject();
-      while (reader->NextObjectItem(&key)) {
-        reader->Read(&value);
-        if (key == "func_name") {
-          param->func_name = value;
-          bitmask |= 1;
-        } else if (key == "num_inputs") {
-          param->num_inputs = strtoul(value.c_str(), nullptr, 10);
-          bitmask |= 2;
-        } else if (key == "num_outputs") {
-          param->num_outputs = strtoul(value.c_str(), nullptr, 10);
-          bitmask |= 4;
-        } else if (key == "flatten_data") {
-          param->flatten_data = strtoul(value.c_str(), nullptr, 10);
-          bitmask |= 8;
-        }
-      }
-      CHECK_EQ(bitmask, 1|2|4|8) << "invalid format";
-    }
-    // JSON Loader
-    void Load(dmlc::JSONReader *reader) {
-      reader->BeginObject();
-      int bitmask = 0;
-      std::string key;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "op") {
-          reader->Read(&op_type);
-          bitmask |= 1;
-        } else if (key == "name") {
-          reader->Read(&name);
-          bitmask |= 2;
-        } else if (key == "inputs") {
-          reader->Read(&inputs);
-          bitmask |= 4;
-        } else if (key == "attr" || key == "attrs") {
-          this->LoadAttrs(reader, &param);
-        } else if (key == "control_deps") {
-          reader->Read(&control_deps);
-        } else {
-          LOG(FATAL) << "do not support key " << key;
-        }
-      }
-      CHECK_EQ(bitmask, 1|2|4) << "invalid format";
-    }
-  };
-  struct GraphAttr {
-    size_t storage_num_not_alloctaed{0};
-    std::vector<int> storage_id;
-    std::vector<int> device_index;
-    std::vector<std::string> dltype;
-    std::vector<std::vector<int64_t> > shape;
-    // The graph attribute fields.
-    void Load(dmlc::JSONReader *reader) {
-      reader->BeginObject();
-      int bitmask = 0;
-      std::string key, type;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "dltype") {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          CHECK_EQ(type, "list_str");
-          CHECK(reader->NextArrayItem());
-          reader->Read(&dltype);
-          CHECK(!reader->NextArrayItem());
-          bitmask |= 1;
-        } else if (key == "storage_id") {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
-          reader->Read(&storage_id);
-          CHECK(!reader->NextArrayItem());
-          bitmask |= 2;
-        } else if (key == "shape") {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          CHECK_EQ(type, "list_shape");
-          CHECK(reader->NextArrayItem());
-          reader->Read(&shape);
-          CHECK(!reader->NextArrayItem());
-          bitmask |= 4;
-        } else if (key == "device_index") {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          CHECK_EQ(type, "list_int");
-          CHECK(reader->NextArrayItem());
-          reader->Read(&device_index);
-          CHECK(!reader->NextArrayItem());
-        } else {
-          reader->BeginArray();
-          CHECK(reader->NextArrayItem());
-          reader->Read(&type);
-          if (type == "list_int") {
-            CHECK(reader->NextArrayItem());
-            std::vector<int> temp;
-            reader->Read(&temp);
-          } else if (type == "size_t") {
-            CHECK(reader->NextArrayItem());
-            size_t temp;
-            reader->Read(&temp);
-          } else {
-            LOG(FATAL) << "cannot skip graph attr " << key;
-          }
-          CHECK(!reader->NextArrayItem());
-        }
-      }
-      CHECK_EQ(bitmask, 1|2|4) << "invalid format";
-    }
-  };
-  // The graph attribute fields.
-  void Load(dmlc::JSONReader *reader) {
-      reader->BeginObject();
-      int bitmask = 0;
-      std::string key;
-      while (reader->NextObjectItem(&key)) {
-        if (key == "nodes") {
-          reader->Read(&nodes_);
-          bitmask |= 1;
-        } else if (key == "arg_nodes") {
-          reader->Read(&input_nodes_);
-          bitmask |= 2;
-        } else if (key == "node_row_ptr") {
-          reader->Read(&node_row_ptr_);
-          bitmask |= 4;
-        } else if (key == "heads") {
-          reader->Read(&outputs_);
-          bitmask |= 8;
-        } else if (key == "attrs") {
-          reader->Read(&attrs_);
-          bitmask |= 16;
-        } else {
-          LOG(FATAL) << "key " << key << " is not supported";
-        }
-      }
-      CHECK_EQ(bitmask, 1|2|4|8|16) << "invalid format";
-  }
-  /*! \brief Setup the temporal storage */
-  void SetupStorage();
-  /*! \brief Setup the executors. */
-  void SetupOpExecs();
-  /*!
-   * \brief Create a executtion function given input.
-   * \param attrs The node attributes.
-   * \param args The arguments to the functor, including inputs and outputs.
-   * \param num_inputs Number of inputs.
-   * \param dev_type The device type of the tvm_op.
-   * \return The created executor.
-   */
-  std::function<void()> CreateTVMOp(const TVMOpParam& attrs,
-                                    const std::vector<DLTensor>& args,
-                                    size_t num_inputs);
-  // Get node entry index.
-  uint32_t entry_id(uint32_t nid, uint32_t index) const {
-    return node_row_ptr_[nid] + index;
-  }
-  // Get node entry index.
-  uint32_t entry_id(const NodeEntry& e) const {
-    return entry_id(e.node_id, e.index);
-  }
-  // Number of node entries.
-  uint32_t num_node_entries() const {
-    return node_row_ptr_.back();
-  }
-  // Number of nodes.
-  uint32_t num_nodes() const {
-    return static_cast<uint32_t>(nodes_.size());
-  }
-  /*! \brief The graph nodes. */
-  std::vector<Node> nodes_;
-  /*! \brief The argument nodes. */
-  std::vector<uint32_t> input_nodes_;
-  /*! \brief Used for quick entry indexing. */
-  std::vector<uint32_t> node_row_ptr_;
-  /*! \brief Output entries. */
-  std::vector<NodeEntry> outputs_;
-  /*! \brief Additional graph attributes. */
-  GraphAttr attrs_;
-  /*! \brief The code module that contains both host and device code. */
-  tvm::runtime::Module module_;
-  /*! \brief Execution context of all devices including the host. */
-  std::vector<TVMContext> ctxs_;
-  /*! \brief Common storage pool for all devices. */
-  std::vector<NDArray> storage_pool_;
-  /*! \brief Data entry of each node. */
-  std::vector<NDArray> data_entry_;
-  /*! \brief Operator on each node. */
-  std::vector<std::function<void()> > op_execs_;
-};
+void GraphRuntime::LoadParams(const std::string& param_blob) {
+  dmlc::MemoryStringStream strm(const_cast<std::string*>(&param_blob));
+  this->LoadParams(&strm);
+}
 
 void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   uint64_t header, reserved;
@@ -540,9 +230,9 @@ void GraphRuntime::SetupStorage() {
 }
 
 void GraphRuntime::SetupOpExecs() {
-  op_execs_.resize(this->num_nodes());
+  op_execs_.resize(this->GetNumOfNodes());
   // setup the array and requirements.
-  for (uint32_t nid = 0; nid < this->num_nodes(); ++nid) {
+  for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<DLTensor> args;
@@ -653,16 +343,6 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->NumOutputs();
       });
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  } else if (name == "debug_get_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        if (args[0].type_code() == kStr) {
-          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
-        } else {
-          this->DebugGetNodeOutput(args[0], args[1]);
-        }
-      });
-#endif
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();

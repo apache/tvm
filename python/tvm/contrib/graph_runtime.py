@@ -31,6 +31,31 @@ def create(graph_json_str, libmod, ctx):
             graph_json_str = graph_json_str._tvm_graph_json()
         except AttributeError:
             raise ValueError("Type %s is not supported" % type(graph_json_str))
+
+    ctx, num_rpc_ctx, device_type_id = get_device_ctx(libmod, ctx)
+
+    if num_rpc_ctx == len(ctx):
+        hmod = rpc_base._ModuleHandle(libmod)
+        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
+        return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
+
+    fcreate = get_global_func("tvm.graph_runtime.create")
+    return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
+
+def get_device_ctx(libmod, ctx):
+    """Parse and validate all the device context(s).
+    Parameters
+    ----------
+    libmod : tvm.Module
+        The module of the corresponding function
+    ctx : TVMContext or list of TVMContext
+    Returns
+    -------
+    ctx : list of TVMContext
+    num_rpc_ctx : Number of rpc contexts
+    device_type_id : List of device type and device id
+    """
+
     if isinstance(ctx, TVMContext):
         ctx = [ctx]
     elif not isinstance(ctx, (list, tuple)):
@@ -59,14 +84,7 @@ def create(graph_json_str, libmod, ctx):
 
     if 0 < num_rpc_ctx < len(ctx):
         raise ValueError("Either all or none of the contexts should be rpc.")
-
-    if num_rpc_ctx == len(ctx):
-        hmod = rpc_base._ModuleHandle(libmod)
-        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
-        return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
-
-    fcreate = get_global_func("tvm.graph_runtime.create")
-    return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
+    return ctx, num_rpc_ctx, device_type_id
 
 
 class GraphModule(object):
