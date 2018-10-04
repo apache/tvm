@@ -64,7 +64,7 @@ inline tvm::Tensor relu(const tvm::Tensor& t,
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
-* \return A Tensor whose op member is the relu operation
+* \return A Tensor whose op member is the leaky relu operation
 */
 inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
                               double alpha = 0.1,
@@ -90,7 +90,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
- * \return A Tensor whose op member is the relu operation
+ * \return A Tensor whose op member is the parametric relu operation
  */
 inline tvm::Tensor prelu(const tvm::Tensor &x,
                          const tvm::Tensor &slope,

@@ -13,7 +13,7 @@ def test_randint():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.randint", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A], target)
@@ -37,7 +37,7 @@ def test_uniform():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.uniform", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A], target)
@@ -61,7 +61,7 @@ def test_normal():
             print("skip because %s is not enabled..." % target)
             return
         if not tvm.get_global_func("tvm.contrib.random.normal", True):
-            print("skip because extern function is not avalable")
+            print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A], target)
