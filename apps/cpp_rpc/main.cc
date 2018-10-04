@@ -12,12 +12,16 @@
 #include <vector>
 #include <sstream>
 
-#include "../../src/runtime/rpc/rpc_base.h"
-#include "../../src/runtime/rpc/rpc_server.h"
+#include <dmlc/logging.h>
+#include "../../src/common/util.h"
+#include "../../src/common/socket.h"
+#include "rpc_server.h"
 
+using namespace std;
 using namespace tvm::runtime;
+using namespace tvm::common;
 
-#define USAGE \
+static const string kUSAGE = \
 "Command line usage\n" \
 " server       - Start the server\n" \
 "--host        - The hostname of the server, Default=0.0.0.0\n" \
@@ -31,7 +35,7 @@ using namespace tvm::runtime;
 "\n" \
 "  Example\n" \
 "  ./tvm_rpc server --host=0.0.0.0 --port=9000 --port-end=9090 --tracker=127.0.0.1:9190 --key=rasp" \
-"\n"
+"\n";
 
 /*!
  * \brief RpcServerArgs.
@@ -45,12 +49,12 @@ using namespace tvm::runtime;
  * \arg isProxy Whether to run in proxy mode. Default=False
  */
 struct RpcServerArgs {
-  std::string host = "0.0.0.0";
+  string host = "0.0.0.0";
   int port = 9090;
   int port_end = 9099;
-  std::string tracker = "";
-  std::string key = "";
-  std::string custom_addr = "";
+  string tracker = "";
+  string key = "";
+  string custom_addr = "";
   bool silent = false;
   bool isProxy = false;
 };
@@ -60,14 +64,14 @@ struct RpcServerArgs {
  * \param args RpcServerArgs structure
  */
 void PrintArgs(struct RpcServerArgs args) {
-  printf("host        = %s\n", args.host.c_str());
-  printf("port        = %d\n", args.port);
-  printf("port_end    = %d\n", args.port_end);
-  printf("tracker     = %s\n", args.tracker.c_str());
-  printf("key         = %s\n", args.key.c_str());
-  printf("custom_addr = %s\n", args.custom_addr.c_str());
-  printf("silent      = %s\n", ((args.silent) ? ("True"): ("False")));
-  printf("proxy       = %s\n", ((args.isProxy) ? ("True"): ("False")));
+  LOG(INFO) << "host        = " << args.host;
+  LOG(INFO) << "port        = " << args.port;
+  LOG(INFO) << "port_end    = " << args.port_end;
+  LOG(INFO) << "tracker     = " << args.tracker;
+  LOG(INFO) << "key         = " << args.key;
+  LOG(INFO) << "custom_addr = " << args.custom_addr;
+  LOG(INFO) << "silent      = " << ((args.silent) ? ("True"): ("False"));
+  LOG(INFO) << "proxy       = " << ((args.isProxy) ? ("True"): ("False"));
 }
 
 /*!
@@ -75,7 +79,7 @@ void PrintArgs(struct RpcServerArgs args) {
  * \param s signal
  */
 void CtrlCHandler(int s){
-  printf("\nUser pressed Ctrl+C, Exiting\n");
+  LOG(INFO) << "\nUser pressed Ctrl+C, Exiting";
   exit(1);
 }
 
@@ -99,17 +103,16 @@ void HandleCtrlC() {
  * \param key whether the option itself is key
  * \return value corresponding to option.
  */
-std::string GetCmdOption(int argc, char* argv[], std::string option, bool key=false) {
-  std::string cmd;
+string GetCmdOption(int argc, char* argv[], string option, bool key=false) {
+  string cmd;
   for (int i = 1; i < argc; ++i) {
-    std::string arg = argv[i];
+    string arg = argv[i];
     if (arg.find(option) == 0) {
       if (key) {
         cmd = argv[i];
         return cmd;
       }
       cmd = arg.substr(arg.find_last_of(option) + 1);
-      printf("cmd =%s\n", cmd.c_str());
       return cmd;
     }
   }
@@ -121,12 +124,12 @@ std::string GetCmdOption(int argc, char* argv[], std::string option, bool key=fa
  * \param tracker The tracker input.
  * \return result of operation.
  */
-bool ValidateTracker(std::string &tracker) {
-  std::vector<std::string> list = SplitString(tracker, ':');
+bool ValidateTracker(string &tracker) {
+  vector<string> list = Split(tracker, ':');
   if ((list.size() != 2) || (!ValidateIP(list[0])) || (!IsNumber(list[1]))) {
     return false;
   }
-  std::ostringstream ss;
+  ostringstream ss;
   ss << "('" << list[0] << "', " << list[1] << ")";
   tracker = ss.str();
   return true;
@@ -139,64 +142,66 @@ bool ValidateTracker(std::string &tracker) {
  * \param args, the output structure which holds the parsed values
  */
 void ParseCmdArgs(int argc, char * argv[], struct RpcServerArgs &args){
-  std::string host = GetCmdOption(argc, argv, "--host=");
+  string silent = GetCmdOption(argc, argv, "--silent", true);
+  if (!silent.empty()) {
+    args.silent = true;
+    //Only errors and fatal is logged
+    dmlc::InitLogging("--minloglevel=2");
+  }
+
+  string host = GetCmdOption(argc, argv, "--host=");
   if (!host.empty()) {
     if (!ValidateIP(host)) {
-      printf("Wrong host address format.\n");
-      printf("%s", USAGE);
+      LOG(WARNING) << "Wrong host address format.";
+      LOG(INFO) << kUSAGE;
       exit(1);
     }
     args.host = host;
   }
 
-  std::string port = GetCmdOption(argc, argv, "--port=");
+  string port = GetCmdOption(argc, argv, "--port=");
   if (!port.empty()) {
-    if (!IsNumber(port) || std::stoi(port) > 65535) {
-      printf("Wrong port number.\n");
-      printf("%s", USAGE);
+    if (!IsNumber(port) || stoi(port) > 65535) {
+      LOG(WARNING) << "Wrong port number.";
+      LOG(INFO) << kUSAGE;
       exit(1);
     }
-    args.port = std::stoi(port);
+    args.port = stoi(port);
   }
 
-  std::string port_end = GetCmdOption(argc, argv, "--port_end=");
+  string port_end = GetCmdOption(argc, argv, "--port_end=");
   if (!port_end.empty()) {
-    if (!IsNumber(port_end) || std::stoi(port_end) > 65535) {
-      printf("Wrong port_end number.\n");
-      printf("%s", USAGE);
+    if (!IsNumber(port_end) || stoi(port_end) > 65535) {
+      LOG(WARNING) << "Wrong port_end number.";
+      LOG(INFO) << kUSAGE;
       exit(1);
     }
-    args.port_end = std::stoi(port_end);
+    args.port_end = stoi(port_end);
   }
 
-  std::string tracker = GetCmdOption(argc, argv, "--tracker=");
+  string tracker = GetCmdOption(argc, argv, "--tracker=");
   if (!tracker.empty()) {
     if (!ValidateTracker(tracker)) {
-      printf("Wrong tracker address format.\n");
-      printf("%s", USAGE);
+      LOG(WARNING) << "Wrong tracker address format.";
+      LOG(INFO) << kUSAGE;
       exit(1);
     }
     args.tracker = tracker;
   }
 
-  std::string key = GetCmdOption(argc, argv, "--key=");
+  string key = GetCmdOption(argc, argv, "--key=");
   if (!key.empty()) {
     args.key = key;
   }
 
-  std::string custom_addr = GetCmdOption(argc, argv, "--custom_addr=");
+  string custom_addr = GetCmdOption(argc, argv, "--custom_addr=");
   if (!custom_addr.empty()) {
     if (!ValidateIP(custom_addr)) {
-      printf("Wrong custom address format.\n");
-      printf("%s", USAGE);
+      LOG(WARNING) << "Wrong custom address format.";
+      LOG(INFO) << kUSAGE;
       exit(1);
     }
     args.custom_addr = custom_addr;
-  }
-
-  std::string silent = GetCmdOption(argc, argv, "--silent", true);
-  if (!silent.empty()) {
-    args.silent = true;
   }
 }
 
@@ -214,7 +219,7 @@ int RpcServer(int argc, char * argv[]) {
   PrintArgs(args);
 
   //Ctrl+C handler
-  printf("Starting CPP Server, Press Ctrl+C to stop.\n");
+  LOG(INFO) << "Starting CPP Server, Press Ctrl+C to stop.";
   HandleCtrlC();
   tvm::runtime::RPCServerCreate(args.host, args.port, args.port_end, args.tracker,
                                 args.key, args.custom_addr, args.silent);
@@ -229,14 +234,14 @@ int RpcServer(int argc, char * argv[]) {
  */
 int main(int argc, char * argv[]) {
   if (argc <= 1) {
-      printf("%s", USAGE);
+      LOG(INFO) << kUSAGE;
       return 0;
    }
 
   if (0 == strcmp(argv[1], "server")){
     RpcServer(argc, argv);
   } else {
-    printf("%s", USAGE);
+    LOG(INFO) << kUSAGE;
   }
 
   return 0;

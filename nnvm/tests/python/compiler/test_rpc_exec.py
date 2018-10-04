@@ -6,10 +6,10 @@ import nnvm.compiler
 import numpy as np
 import time
 
-def _test_rpc_executor(cpp_server=False):
+def test_rpc_executor():
     host = "localhost"
     port = 9021
-    server = rpc.Server(host, port, use_popen=True, cpp_server=cpp_server)
+    server = rpc.Server(host, port, use_popen=True)
     time.sleep(1)
     x = sym.Variable("x")
     y = sym.Variable("y")
@@ -46,10 +46,6 @@ def _test_rpc_executor(cpp_server=False):
     tvm.testing.assert_allclose(
         out.asnumpy(), np.exp(na.asnumpy() + nb.asnumpy()))
     server.terminate()
-
-def test_rpc_executor():
-    _test_rpc_executor(cpp_server=False)
-    _test_rpc_executor(cpp_server=True)
 
 if __name__ == "__main__":
     test_rpc_executor()

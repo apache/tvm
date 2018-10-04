@@ -28,8 +28,7 @@ def main(args):
                         tracker_addr=tracker_addr,
                         load_library=args.load_library,
                         custom_addr=args.custom_addr,
-                        silent=args.silent,
-                        cpp_server=args.cpp_server)
+                        silent=args.silent)
     server.proc.join()
 
 
@@ -56,8 +55,6 @@ if __name__ == "__main__":
                          and ROCM compilers.")
     parser.add_argument('--custom-addr', type=str,
                         help="Custom IP Address to Report to RPC Tracker")
-    parser.add_argument('--c++', dest='cpp_server', action='store_true',
-                        help="Creates a c++ rpc server")
 
     parser.set_defaults(fork=True)
     args = parser.parse_args()

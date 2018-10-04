@@ -3,8 +3,8 @@
  * \file rpc_server.h
  * \brief RPC Server implementation.
  */
-#ifndef TVM_RUNTIME_RPC_RPC_SERVER_H_
-#define TVM_RUNTIME_RPC_RPC_SERVER_H_
+#ifndef TVM_APPS_CPP_RPC_SERVER_H_
+#define TVM_APPS_CPP_RPC_SERVER_H_
 
 #include <string>
 #include "tvm/runtime/c_runtime_api.h"
@@ -33,4 +33,4 @@ TVM_DLL void RPCServerCreate(std::string host = "",
                              bool is_proxy = false);
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_RPC_RPC_SERVER_H_
+#endif  // TVM_APPS_CPP_RPC_SERVER_H_
