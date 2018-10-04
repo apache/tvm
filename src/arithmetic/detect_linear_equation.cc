@@ -111,8 +111,9 @@ class LinearEqDetector
     return ComputeExpr<Add>(a, b);
   }
   Expr SubCombine(Expr a, Expr b) {
-    if (!a.defined()) return -b;
+    // Check b first in case they are both undefined
     if (!b.defined()) return a;
+    if (!a.defined()) return -b;
     return ComputeExpr<Sub>(a, b);
   }
   Expr MulCombine(Expr a, Expr b) {

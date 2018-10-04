@@ -38,6 +38,10 @@ def test_multivariate():
     assert(m[2].value == 2)
     assert(m[len(m)-1].value == 2)
 
+    m = tvm.arith.DetectLinearEquation((v[0] - v[1]), [v[2]])
+    assert(m[0].value == 0)
+    assert(tvm.ir_pass.Simplify(m[1] - (v[0] - v[1])).value == 0)
+
 if __name__ == "__main__":
     test_basic()
     test_multivariate()
