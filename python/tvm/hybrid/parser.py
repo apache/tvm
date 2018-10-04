@@ -2,6 +2,7 @@
 
 import ast
 import operator
+import logging
 import sys
 from .util import make_nop, halide_imm_types, is_docstring
 from .intrin import LOOP_INTRIN, MATH_INTRIN
@@ -72,7 +73,7 @@ class HybridParser(ast.NodeVisitor):
             The name of the function to be lowered; if not provided,
             the compiler will use the name in the AST
         """
-        self.args = args[:]
+        self.args = list(args)
         self.usage = usage.copy()
         self._args = {} # Dict maps arg name to actual arg instance (either a var or a buffer)
         self.var_buffers = {} # Buffers formed by mutatble variables
@@ -80,7 +81,8 @@ class HybridParser(ast.NodeVisitor):
         self.loops_above = {} # State variable that indicates loop levels above the current node
         self.var_consts = {} # Variables that are determined as readonly in previous stage
         self.func_name = func_name # The name of the function to be lowered
-        self.parsed_body = [] # The parsed HalideIR body
+        self.outputs = [] # Output tensors
+        self.parsed_body = None # The parsed HalideIR body
 
 
     def wrap_up_realize(self, node, body):
@@ -93,6 +95,8 @@ class HybridParser(ast.NodeVisitor):
                 if key in self.var_buffers.keys():
                     _buf = self.var_buffers[key]
                     _scope = 'global'
+                elif key in self._args.keys():
+                    continue
                 else:
                     _buf, _scope = self.alloc_buffers[key]
                 _domain = [_make.range_by_min_extent(0, i) for i in _buf.shape]
@@ -185,7 +189,11 @@ class HybridParser(ast.NodeVisitor):
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
                     ph = _api.placeholder(shape, dtype=dtype, name=lhs)
-                    self.alloc_buffers[lhs] = (ph, scope)
+                    if scope != 'output':
+                        self.alloc_buffers[lhs] = (ph, scope)
+                    else:
+                        self._args[lhs] = ph
+                        self.outputs.append(lhs)
                     return make_nop()
                 if isinstance(rhs, halide_imm_types) and ast.Store not in rw:
                     self.var_consts[lhs] = rhs
@@ -322,26 +330,37 @@ class HybridParser(ast.NodeVisitor):
         elif func_id in MATH_INTRIN:
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
         elif func_id in ['allocate', 'output_tensor']:
-            if func_id == 'output_tensor' and self.loops_above:
-                raise ValueError("Do you really want a output tensor be defined multiple times?")
             if not isinstance(node.args[0], ast.Tuple):
                 raise ValueError("allocate's first argument should be a tuple of shape!")
             shape = tuple(self.visit(i) for i in node.args[0].elts)
+            if func_id == 'output_tensor' and self.loops_above:
+                raise ValueError("Are you sure to allocate a output buffer multiple times?")
             for i in shape:
                 if not isinstance(i, _expr.Expr):
                     raise ValueError("The shape should be an expression")
             if n > 1:
-                if not isinstance(node.args[1], ast.Str):
+                if isinstance(node.args[1], ast.Str):
+                    dtype = node.args[1].s
+                elif isinstance(node.args[1], ast.Attribute):
+                    to_eval = node.args[1]
+                    if isinstance(to_eval.value, ast.Name):
+                        if to_eval.attr != 'dtype':
+                            raise ValueError("Only dtype attribute is supported so far")
+                        dtype = self._get_buffer_from_id(to_eval.value.id).dtype
+                    else:
+                        raise ValueError("Unable to evaluate the attribute to get data type")
+                else:
                     raise ValueError("The data type should be an string")
-                dtype = node.args[1].s
             else:
                 dtype = 'float32'
             if n > 2:
                 if not isinstance(node.args[2], ast.Str):
                     raise ValueError("The data type should be an string")
+                if func_id == 'output_tensor':
+                    raise ValueError("Output tensor cannot specify scope")
                 scope = node.args[2].s
             else:
-                scope = 'global'
+                scope = 'global' if func_id != 'output_tensor' else 'output'
             return (shape, dtype, scope)
         elif func_id == 'max' or func_id == 'min':
             if n != 2:
@@ -376,6 +395,26 @@ class HybridParser(ast.NodeVisitor):
             res = _make.For(iter_var, _api.const(0, dtype='int32'), ext, for_type, 0, _body)
         self.loops_above.pop(_name)
         return res
+
+
+    def visit_Return(self, node):
+        ids = []
+        if isinstance(node.value, ast.Name):
+            ids.append(node.value.id)
+        elif isinstance(node.value, ast.Tuple):
+            for i in node.value.elts:
+                if not isinstance(i, ast.Name):
+                    raise ValueError("What do you return?")
+                ids.append(i.id)
+        else:
+            raise ValueError("You should return either a single tensor or a tuple")
+        if len(set(ids)) != len(ids):
+            raise ValueError("Duplicated tensors in the return tuples")
+        if len(ids) != len(self.outputs):
+            logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
+        for i in ids:
+            self.args.append(self._args[i])
+        return make_nop()
 
 
 def parse_python(src, args):

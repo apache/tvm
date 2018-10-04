@@ -64,7 +64,8 @@ def lower(func, args, simple_mode=False):
     parser = parse_python(src, args)
     body = parser.parsed_body
     if simple_mode:
-        return body
+        outs = [parser._args[i] for i in parser.outputs]
+        return outs, body
 
     input_tensors = set()
     output_tensors = set()
