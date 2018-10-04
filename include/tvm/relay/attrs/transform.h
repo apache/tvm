@@ -3,8 +3,8 @@
  * \file tvm/relay/attrs/nn.h
  * \brief Auxiliary attributes for nn operators.
  */
-#ifndef TVM_RELAY_ATTRS_NN_H_
-#define TVM_RELAY_ATTRS_NN_H_
+#ifndef TVM_RELAY_ATTRS_TRANSFORM_H_
+#define TVM_RELAY_ATTRS_TRANSFORM_H_
 
 #include <tvm/attrs.h>
 #include <string>
@@ -30,4 +30,4 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
 
 }  // namespace relay
 }  // namespace tvm
-#endif  // TVM_RELAY_ATTRS_NN_H_
+#endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
