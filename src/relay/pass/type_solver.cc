@@ -18,8 +18,13 @@ class TypeSolver::Reporter : public TypeReporterNode {
     solver_->Unify(dst, src);
   }
 
-  void AssertEQ(const ShapeExpr& lhs, const ShapeExpr& rhs) final {
-    // TODO(tqchen)
+  bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) final {
+    // early warning constant case.
+    IndexExpr diff = lhs - rhs;
+    if (const int64_t* pdiff = as_const_int(diff)) {
+      return pdiff[0] == 0;
+    }
+    return true;
   }
 
  private:

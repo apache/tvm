@@ -56,6 +56,22 @@ namespace tvm {
   __fvisit__(#FieldName, &FieldName)
 
 
+/*!
+ * \brief Create a NodeRef type that represents null.
+ * \tparam TNodeRef the type to be created.
+ * \return A instance that will represent None.
+ */
+template<typename TNodeRef>
+inline TNodeRef NullValue() {
+  return TNodeRef(NodePtr<Node>(nullptr));
+}
+
+template<>
+inline Type NullValue<Type>() {
+  return Type(Type::Handle, 0, 0);
+}
+
+
 /*! \brief Error thrown during attribute checking. */
 struct AttrError : public dmlc::Error {
   /*!

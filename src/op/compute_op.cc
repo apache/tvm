@@ -117,6 +117,9 @@ Operation ComputeOpNode::make(std::string name,
                               Map<std::string, NodeRef> attrs,
                               Array<IterVar> axis,
                               Array<Expr> body) {
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
   auto n = make_node<ComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);

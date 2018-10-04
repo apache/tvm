@@ -354,8 +354,8 @@ Expr TypeInferencer::Infer(Expr expr) {
   return Resolver(type_map_, &solver_).VisitExpr(expr);
 }
 
-Expr InferType(const Environment& env, const Expr& e) {
-  return TypeInferencer(env).Infer(e);
+Expr InferType(const Environment& env, const Expr& expr) {
+  return TypeInferencer(env).Infer(expr);
 }
 
 Expr InferType(const Environment& env,
@@ -370,11 +370,9 @@ Expr InferType(const Environment& env,
   return func_ret;
 }
 
-TVM_REGISTER_API("relay._ir_pass.check_expr")
+TVM_REGISTER_API("relay._ir_pass.infer_type")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    Environment env = args[0];
-    Expr e = args[1];
-    *ret = InferType(env, e);
+    *ret = InferType(args[0], args[1]);
   });
 
 }  // namespace relay

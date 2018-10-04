@@ -6,10 +6,26 @@ Exposes an interface for configuring the passes and scripting
 them in Python.
 """
 from . import _ir_pass
-
-# Expose checking expression, should rename to infer_type.
 # pylint: disable=invalid-name
-check_expr = _ir_pass.check_expr
+
+def infer_type(env, expr):
+    """Infer the type of expr under the context of env
+
+    Parameters
+    ----------
+    env : relay.Environment
+        The global environmemt.
+
+    expr : relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    checked_expr : relay.Expr
+         The checked expression.
+    """
+    return _ir_pass.infer_type(env, expr)
+
 
 well_formed = _ir_pass.well_formed
 

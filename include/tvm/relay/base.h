@@ -37,7 +37,7 @@ using DataType = ::tvm::Type;
 /*!
  * \brief Symbolic expression for tensor shape.
  */
-using ShapeExpr = ::tvm::Expr;
+using IndexExpr = ::tvm::Expr;
 
 /*!
  * \brief Hash function for nodes.

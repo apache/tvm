@@ -59,6 +59,7 @@ inline int64_t GetConstInt(Expr expr) {
  */
 inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& var_name) {
   std::vector<int> result;
+  if (!exprs.defined()) return result;
   for (auto expr : exprs) {
     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));
@@ -77,6 +78,7 @@ inline std::vector<int> GetConstIntValues(Array<Expr> exprs, const std::string& 
  */
 inline std::vector<int64_t> GetConstInt64Values(Array<Expr> exprs, const std::string& var_name) {
   std::vector<int64_t> result;
+  if (!exprs.defined()) return result;
   for (auto expr : exprs) {
     CHECK(IsConstInt(expr)) << "All elements of " << var_name << " must be constant integers";
     result.push_back(GetConstInt(expr));

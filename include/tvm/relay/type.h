@@ -70,9 +70,9 @@ class TensorTypeNode : public BaseTensorTypeNode {
  public:
   /*!
    * \brief The shape of the tensor,
-   *  represented by ShapeExpr(tvm::Expr).
+   *  represented by IndexExpr(tvm::Expr).
    */
-  Array<ShapeExpr> shape;
+  Array<IndexExpr> shape;
   /*! \brief The content data type */
   DataType dtype;
 
@@ -82,7 +82,7 @@ class TensorTypeNode : public BaseTensorTypeNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static TensorType make(Array<ShapeExpr> shape, DataType dtype);
+  TVM_DLL static TensorType make(Array<IndexExpr> shape, DataType dtype);
 
   /*! \brief Construct an scalar containing elements of dtype.  */
   TVM_DLL static TensorType Scalar(DataType dtype);
@@ -273,8 +273,10 @@ class TypeReporterNode : public Node {
    * \brief assert shape expression equals each other.
    * \param lhs The left operand.
    * \param rhs The right operand.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
    */
-  TVM_DLL virtual void AssertEQ(const ShapeExpr& lhs, const ShapeExpr& rhs) = 0;
+  TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
 
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}

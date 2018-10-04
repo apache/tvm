@@ -1,8 +1,9 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file src/tvm/relay/pass/alpha_eq.cc
- * \brief Compute the set of variables not bound in the expression.
+ * \brief The structral equivalence comparison.
  */
+#include <tvm/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
 #include "./type_visitor.h"
 #include "tvm/relay/pass.h"
@@ -19,9 +20,23 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
   TypeAlphaEq() : eq_map(), equal(true) {}
 
   void DataTypeEqual(const DataType& dt1, const DataType& dt2) {
-    equal = equal && dt1 == dt2;
+    if (dt1 != dt2) {
+      equal = false;
+    }
   }
-  void ShapeEqual(Array<ShapeExpr> s1, Array<ShapeExpr> s2) {}
+
+  void ShapeEqual(const Array<IndexExpr>& s1, const Array<IndexExpr>& s2) {
+    if (s1.size() != s2.size()) {
+      equal = false;
+      return;
+    }
+    for (size_t i = 0; i < s1.size(); ++i) {
+      if (!tvm::ir::Equal(s1[i], s2[i])) {
+        equal = false;
+        return;
+      }
+    }
+  }
 
   void VisitType_(const TensorTypeNode *tt1, const Type& t2) final {
     if (const TensorTypeNode *tt2 = t2.as<TensorTypeNode>()) {

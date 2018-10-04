@@ -521,6 +521,12 @@ class TVMArgValue : public TVMPODValue_ {
     if (type_code_ == kStr) {
       return String2TVMType(operator std::string());
     }
+    // None type
+    if (type_code_ == kNull) {
+      TVMType t;
+      t.code = kHandle; t.bits = 0; t.lanes = 0;
+      return t;
+    }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMType);
     return value_.v_type;
   }
@@ -878,6 +884,7 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
 #endif
 
 inline std::string TVMType2String(TVMType t) {
+  if (t.bits == 0) return "";
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
   std::ostringstream os;
   os << t;
@@ -896,6 +903,11 @@ inline std::string TVMType2String(TVMType t) {
 
 inline TVMType String2TVMType(std::string s) {
   TVMType t;
+  // handle None type
+  if (s.length() == 0) {
+    t.bits = 0; t.lanes = 0; t.code = kHandle;
+    return t;
+  }
   t.bits = 32; t.lanes = 1;
   const char* scan;
   if (s.substr(0, 3) == "int") {

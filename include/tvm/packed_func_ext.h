@@ -114,7 +114,7 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
   static_assert(
       std::is_base_of<NodeRef, TNodeRef>::value,
       "Conversion only works for NodeRef");
-  if (type_code_ == kNull) return TNodeRef();
+  if (type_code_ == kNull) return TNodeRef(NodePtr<Node>(nullptr));
   TVM_CHECK_TYPE_CODE(type_code_, kNodeHandle);
   NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
   CHECK(NodeTypeChecker<TNodeRef>::Check(sptr.get()))
