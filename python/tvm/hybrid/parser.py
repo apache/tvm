@@ -76,7 +76,6 @@ class HybridParser(ast.NodeVisitor):
         self.args = list(args)
         self.usage = usage.copy()
         self._args = {} # Dict maps arg name to actual arg instance (either a var or a buffer)
-        self.var_buffers = {} # Buffers formed by mutatble variables
         self.alloc_buffers = {} # Buffers formed by allocate instructions
         self.loops_above = {} # State variable that indicates loop levels above the current node
         self.var_consts = {} # Variables that are determined as readonly in previous stage
@@ -92,10 +91,7 @@ class HybridParser(ast.NodeVisitor):
                 continue
             _, level, _ = val
             if level == node:
-                if key in self.var_buffers.keys():
-                    _buf = self.var_buffers[key]
-                    _scope = 'global'
-                elif key in self._args.keys():
+                if key in self._args.keys():
                     continue
                 else:
                     _buf, _scope = self.alloc_buffers[key]
@@ -154,8 +150,8 @@ class HybridParser(ast.NodeVisitor):
         if _id  not in self.usage.keys():
             raise ValueError("This id %s is expected to be a defined variable!" % _id)
         # Buffer
-        if _id in self.var_buffers.keys():
-            _buf = self.var_buffers[_id]
+        if _id in self.alloc_buffers.keys():
+            _buf = self.alloc_buffers[_id]
             return _make.Call(_buf.dtype, _id, [_api.const(0)], _expr.Call.Halide, _buf.op, 0)
         # Compilation time constant
         if _id not in self.var_consts.keys():
@@ -184,7 +180,7 @@ class HybridParser(ast.NodeVisitor):
             if decl == lhs_:
                 if lhs in self.var_consts.keys():
                     raise ValueError("BUG: A constant cannot be overwritten!")
-                if lhs in self.var_buffers.keys() or lhs in self.alloc_buffers.keys():
+                if lhs in self.alloc_buffers.keys():
                     raise ValueError("BUG: This value should not be defined before this point!")
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
@@ -198,13 +194,14 @@ class HybridParser(ast.NodeVisitor):
                 if isinstance(rhs, halide_imm_types) and ast.Store not in rw:
                     self.var_consts[lhs] = rhs
                 else:
-                    self.var_buffers[lhs] = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+                    ph = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
+                    self.alloc_buffers[lhs] = (ph, 'global')
             if lhs in self.var_consts.keys():
                 return make_nop()
             else:
-                if lhs not in self.var_buffers.keys():
+                if lhs not in self.alloc_buffers.keys():
                     raise ValueError("BUG: This variable should be defined before!")
-                tgt = self.var_buffers[lhs]
+                tgt, _ = self.alloc_buffers[lhs]
                 return _make.Provide(tgt.op, 0, rhs, [_api.const(0, dtype=rhs.dtype)])
         else:
             lhs = self.visit(lhs)
