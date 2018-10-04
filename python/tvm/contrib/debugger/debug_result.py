@@ -9,7 +9,7 @@ class DebugResult(object):
     """Graph debug data module.
 
     Data dump module manage all the debug data formatting.
-    Output data and input graphs are formatted and the dump to files.
+    Output data and input graphs are formatted and dumped to file.
     Frontend read these data and graph for visualization.
 
     Parameters
@@ -93,29 +93,8 @@ class DebugResult(object):
         """
         return self._dtype_list
 
-    def set_output_tensor(self, out_tensor):
-        """Set the output tensor of a node to the list, the list is appended in the same order as
-        node list
-
-        Parameters
-        ----------
-        out_tensor : ndarray
-            The output tensor in ndarray format
-        """
-        self._output_tensor_list.append(out_tensor)
-
-    def set_time(self, time):
-        """set the timestamp to the timelist, the list is appended in the same order as node list
-
-        Parameters
-        ----------
-        time : float
-            The time for a particular operation, added to the list
-        """
-        self._time_list.append(time)
-
     def dump_output_tensor(self):
-        """Dump the outputs to a temporary folder, the tensors is in numpy format
+        """Dump the outputs to a temporary folder, the tensors are in numpy format
         """
         #cleanup existing tensors before dumping
         self._cleanup_tensors()
@@ -125,7 +104,7 @@ class DebugResult(object):
         for node, time in zip(self._nodes_list, self._time_list):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
-                order += time
+                order += time[0]
                 key = node['name'] + "_" + str(j) + "__" + str(order)
                 output_tensors[key] = self._output_tensor_list[eid]
                 eid += 1
@@ -149,11 +128,13 @@ class DebugResult(object):
     def display_debug_result(self):
         """Displays the debugger result"
         """
-        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Shape", "Inputs", "Outputs"]
-        lines = ["---------", "---", "--------", "-------", "-----", "------", "-------"]
+        header = ["Node Name", "Ops", "Time(us)", "Time(%)", "Start Time", \
+                    "End Time", "Shape", "Inputs", "Outputs"]
+        lines = ["---------", "---", "--------", "-------", "----------", \
+                    "--------", "-----", "------", "-------"]
         eid = 0
         data = []
-        total_time = sum(time for time in self._time_list)
+        total_time = sum(time[0] for time in self._time_list)
         for node, time in zip(self._nodes_list, self._time_list):
             num_outputs = self.get_graph_node_output_num(node)
             for j in range(num_outputs):
@@ -162,11 +143,12 @@ class DebugResult(object):
                     continue
                 name = node['name']
                 shape = str(self._output_tensor_list[eid].shape)
-                time_us = round(time * 1000000, 2)
-                time_percent = round(((time / total_time) * 100), 2)
+                time_us = round(time[0] * 1000000, 2)
+                time_percent = round(((time[0] / total_time) * 100), 2)
                 inputs = str(node['attrs']['num_inputs'])
                 outputs = str(node['attrs']['num_outputs'])
-                node_data = [name, op, time_us, time_percent, shape, inputs, outputs]
+                node_data = [name, op, time_us, time_percent, str(time[1]), str(time[2]), \
+                             shape, inputs, outputs]
                 data.append(node_data)
                 eid += 1
         fmt = ""
@@ -176,7 +158,7 @@ class DebugResult(object):
                 item_len = len(str(data[j][i]))
                 if item_len > max_len:
                     max_len = item_len
-            fmt = fmt + "{:<" + str(max_len + 3) + "}"
+            fmt = fmt + "{:<" + str(max_len + 2) + "}"
         print(fmt.format(*header))
         print(fmt.format(*lines))
         for row in data:
@@ -198,7 +180,7 @@ def save_tensors(params):
     param_bytes: bytearray
         Serialized parameters.
     """
-    _save_tensors = tvm.get_global_func("tvm.graph_runtime_debug._save_param_dict")
+    _save_tensors = tvm.get_global_func("_save_param_dict")
 
     args = []
     for k, v in params.items():

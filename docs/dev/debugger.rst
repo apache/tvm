@@ -43,10 +43,11 @@ node\_row\_ptr stores the history of forward path, so you can skip constructing 
 5. ``attrs``
 attrs can contain version numbers or similar helpful information.
 
-- ``storage_id`` - memory slot id for each node in the storage layout
-- ``dtype`` - Datatype of each node (enum value)
-- ``dltype`` - Datatype of each node in order
-- ``shape`` - Shape of each node k order
+- ``storage_id`` - Memory slot id for each node in the storage layout.
+- ``dtype`` - Datatype of each node (enum value).
+- ``dltype`` - Datatype of each node in order.
+- ``shape`` - Shape of each node k order.
+- ``device_index`` - Device assignment for each entry in the graph.
 
 Example of dumped graph:
 
@@ -82,7 +83,8 @@ Example of dumped graph:
             "float32"]],
         "shape": ["list_shape", [                   # Shape of each node k order
             [1, 3, 20, 20],
-            [1, 3, 20, 20]]]
+            [1, 3, 20, 20]]],
+        "device_index": ["list_int", [1, 1]],       # Device assignment for each node in order
       }
     }
 
@@ -140,10 +142,14 @@ The below is the output of running  ``tvm/nnvm/tutorials/from_onnnx.py`` with de
 
 ::
 
-    Node Name        Ops                                Time(us)    Time(%)   Shape               Inputs   Outputs
-    ---------        ---                                --------    -------   -----               ------   -------
-    relu0            fuse_conv2d_broadcast_add_relu     14568.25    3.84      (1, 1, 224, 224)    3        1
-    relu1            fuse_conv2d_broadcast_add_relu_1   224888.2    59.32     (64, 1, 5, 5)       3        1
-    relu2            fuse_conv2d_broadcast_add_relu_2   112520.85   29.68     (64, 1, 1)          3        1
-    broadcast_add3   fuse_conv2d_broadcast_add          25811.21    6.81      (1, 64, 224, 224)   3        1
-    reshape1         fuse_reshape_transpose_reshape     1328.47     0.35      (64, 64, 3, 3)      1        1
+    Node Name               Ops                                                                  Time(us)   Time(%)  Start Time       End Time         Shape                Inputs  Outputs
+    ---------               ---                                                                  --------   -------  ----------       --------         -----                ------  -------
+    1_NCHW1c                fuse___layout_transform___4                                          56.52      0.02     15:24:44.177475  15:24:44.177534  (1, 1, 224, 224)     1       1
+    _contrib_conv2d_nchwc0  fuse__contrib_conv2d_NCHWc                                           12436.11   3.4      15:24:44.177549  15:24:44.189993  (1, 1, 224, 224, 1)  2       1
+    relu0_NCHW8c            fuse___layout_transform___broadcast_add_relu___layout_transform__    4375.43    1.2      15:24:44.190027  15:24:44.194410  (8, 1, 5, 5, 1, 8)   2       1
+    _contrib_conv2d_nchwc1  fuse__contrib_conv2d_NCHWc_1                                         213108.6   58.28    15:24:44.194440  15:24:44.407558  (1, 8, 224, 224, 8)  2       1
+    relu1_NCHW8c            fuse___layout_transform___broadcast_add_relu___layout_transform__    2265.57    0.62     15:24:44.407600  15:24:44.409874  (64, 1, 1)           2       1
+    _contrib_conv2d_nchwc2  fuse__contrib_conv2d_NCHWc_2                                         104623.15  28.61    15:24:44.409905  15:24:44.514535  (1, 8, 224, 224, 8)  2       1
+    relu2_NCHW2c            fuse___layout_transform___broadcast_add_relu___layout_transform___1  2004.77    0.55     15:24:44.514567  15:24:44.516582  (8, 8, 3, 3, 8, 8)   2       1
+    _contrib_conv2d_nchwc3  fuse__contrib_conv2d_NCHWc_3                                         25218.4    6.9      15:24:44.516628  15:24:44.541856  (1, 8, 224, 224, 8)  2       1
+    reshape1                fuse___layout_transform___broadcast_add_reshape_transpose_reshape    1554.25    0.43     15:24:44.541893  15:24:44.543452  (64, 1, 1)           2       1

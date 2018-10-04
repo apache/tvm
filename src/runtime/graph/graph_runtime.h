@@ -102,40 +102,20 @@ class GraphRuntime : public ModuleNode {
    *
    * \return NDArray corresponding to given input node index.
    */
-  NDArray GetInput(int index);
+  NDArray GetInput(int index) const;
   /*!
    * \brief Return NDArray for given output index.
    * \param index The output index.
    *
    * \return NDArray corresponding to given output node index.
    */
-  NDArray GetOutput(int index);
+  NDArray GetOutput(int index) const;
   /*!
    * \brief Copy index-th output to data_out.
    * \param index The output index.
    * \param data_out the output data.
    */
   void CopyOutputTo(int index, DLTensor* data_out);
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  /*!
-   * \brief Get the node index given the name of node.
-   * \param name The name of the node.
-   * \return The index of node.
-   */
-  int GetNodeIndex(const std::string& name);
-
-  /*!
-   * \brief Copy index-th node to data_out.
-   *
-   * This method will do a partial run of the the graph
-   * from begining upto the index-th node and return output of index-th node.
-   * This is costly operation and suggest to use only for debug porpose.
-   *
-   * \param index: The  index of the node.
-   * \param data_out the node data.
-   */
-  void DebugGetNodeOutput(int index, DLTensor* data_out);
-#endif
   /*!
    * \brief Load parameters from binary stream
    * \param strm The input stream.
@@ -169,6 +149,19 @@ class GraphRuntime : public ModuleNode {
   uint32_t GetEntryId(uint32_t nid, uint32_t index) const {
     return node_row_ptr_[nid] + index;
   }
+
+ /*!
+  * \brief Get total number of nodes.
+  * \return Total number of nodes.
+  */
+  uint32_t GetNumOfNodes() const {
+    return static_cast<uint32_t>(nodes_.size());
+  }
+
+  std::string GetNodeName(uint32_t nid) const {
+    return nodes_[nid].name;
+  }
+
 
  private:
   // Memory pool entry.
@@ -379,10 +372,6 @@ class GraphRuntime : public ModuleNode {
   // Number of node entries.
   uint32_t num_node_entries() const {
     return node_row_ptr_.back();
-  }
-  // Number of nodes.
-  uint32_t num_nodes() const {
-    return static_cast<uint32_t>(nodes_.size());
   }
   /*! \brief The graph nodes. */
   std::vector<Node> nodes_;

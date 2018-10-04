@@ -3,6 +3,7 @@
 import os
 import tempfile
 import shutil
+from datetime import datetime
 from tvm._ffi.base import string_types
 from tvm.contrib import graph_runtime
 from tvm._ffi.function import get_global_func
@@ -52,6 +53,7 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
 
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
+
 
 class GraphModuleDebug(graph_runtime.GraphModule):
     """Graph debug runtime module.
@@ -137,14 +139,14 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         ctx : TVMContext
             The context this module is under.
         """
-        #make the dump folder if not given
+        # make the dump folder if not given
         if not self._dump_root:
             self._dump_root = tempfile.mktemp(prefix=_DUMP_ROOT_PREFIX)
 
-        #format the context
+        # format the context
         ctx = self._format_context(ctx)
 
-        #updates the dumping directories
+        # updates the dumping directories
         self._dump_path = self._get_dump_path(ctx)
 
         # init the debug dumping environment
@@ -158,13 +160,14 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         """
 
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
+            start_time = datetime.now().time()
             time_stamp = self._debug_run(i)
-            self.debug_datum.set_time(time_stamp)
+            end_time = datetime.now().time()
+            self.debug_datum._time_list.append([time_stamp, start_time, end_time])
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
                 out_tensor = self._get_output_by_layer(i, j)
-                self.debug_datum.set_output_tensor(out_tensor)
-
+                self.debug_datum._output_tensor_list.append(out_tensor)
     def run(self, **input_dict):
         """Run forward execution of the graph with debug
 

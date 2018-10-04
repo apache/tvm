@@ -53,7 +53,7 @@ def get_device_ctx(libmod, ctx):
     -------
     ctx : list of TVMContext
     num_rpc_ctx : Number of rpc contexts
-    device_type_id : List of device type
+    device_type_id : List of device type and device id
     """
 
     if isinstance(ctx, TVMContext):
@@ -85,6 +85,7 @@ def get_device_ctx(libmod, ctx):
     if 0 < num_rpc_ctx < len(ctx):
         raise ValueError("Either all or none of the contexts should be rpc.")
     return ctx, num_rpc_ctx, device_type_id
+
 
 class GraphModule(object):
     """Wrapper runtime module.

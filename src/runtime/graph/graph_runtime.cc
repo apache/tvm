@@ -89,7 +89,7 @@ int GraphRuntime::NumOutputs() const {
  *
  * \return NDArray corresponding to given input node index.
  */
-NDArray GraphRuntime::GetInput(int index) {
+NDArray GraphRuntime::GetInput(int index) const {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
   return data_entry_[eid];
@@ -100,7 +100,7 @@ NDArray GraphRuntime::GetInput(int index) {
  *
  * \return NDArray corresponding to given output node index.
  */
-NDArray GraphRuntime::GetOutput(int index) {
+NDArray GraphRuntime::GetOutput(int index) const {
   CHECK_LT(static_cast<size_t>(index), outputs_.size());
   uint32_t eid = this->entry_id(outputs_[index]);
   return data_entry_[eid];
@@ -123,44 +123,7 @@ void GraphRuntime::CopyOutputTo(int index, DLTensor* data_out) {
 
   data_entry_[eid].CopyTo(data_out);
 }
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-/*!
- * \brief Get the node index given the name of node.
- * \param name The name of the node.
- * \return The index of node.
- */
-int GraphRuntime::GetNodeIndex(const std::string& name) {
-  for (uint32_t nid = 0; nid< nodes_.size(); ++nid) {
-    if (nodes_[nid].name == name) {
-      return static_cast<int>(nid);
-    }
-  }
-  LOG(FATAL) << "cannot find " << name << " among nodex";
-  return -1;
-}
 
-/*!
- * \brief Copy index-th node to data_out.
- *
- * This method will do a partial run of the the graph
- * from begining upto the index-th node and return output of index-th node.
- * This is costly operation and suggest to use only for debug porpose.
- *
- * \param index: The  index of the node.
- * \param data_out the node data.
- */
-void GraphRuntime::DebugGetNodeOutput(int index, DLTensor* data_out) {
-  CHECK_LT(static_cast<size_t>(index), nodes_.size());
-  uint32_t eid = index;
-
-  for (size_t i = 0; i < op_execs_.size(); ++i) {
-    if (op_execs_[i]) op_execs_[i]();
-    if (static_cast<int>(i) == index) break;
-  }
-
-  data_entry_[eid].CopyTo(data_out);
-}
-#endif
 /*!
  * \brief Load parameters from parameter blob.
  * \param param_blob A binary blob of parameter.
@@ -267,9 +230,9 @@ void GraphRuntime::SetupStorage() {
 }
 
 void GraphRuntime::SetupOpExecs() {
-  op_execs_.resize(this->num_nodes());
+  op_execs_.resize(this->GetNumOfNodes());
   // setup the array and requirements.
-  for (uint32_t nid = 0; nid < this->num_nodes(); ++nid) {
+  for (uint32_t nid = 0; nid < this->GetNumOfNodes(); ++nid) {
     const auto& inode = nodes_[nid];
     if (inode.op_type == "null") continue;
     std::vector<DLTensor> args;
@@ -380,16 +343,6 @@ PackedFunc GraphRuntime::GetFunction(
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->NumOutputs();
       });
-#ifdef TVM_GRAPH_RUNTIME_DEBUG
-  } else if (name == "debug_get_output") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        if (args[0].type_code() == kStr) {
-          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
-        } else {
-          this->DebugGetNodeOutput(args[0], args[1]);
-        }
-      });
-#endif
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         this->Run();

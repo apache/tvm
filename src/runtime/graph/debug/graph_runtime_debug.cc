@@ -53,6 +53,43 @@ class GraphRuntimeDebug : public GraphRuntime {
    */
   PackedFunc GetFunction(const std::string& name,
                          const std::shared_ptr<ModuleNode>& sptr_to_self);
+
+  /*!
+   * \brief Get the node index given the name of node.
+   * \param name The name of the node.
+   * \return The index of node.
+   */
+  int GetNodeIndex(const std::string& name) const {
+    for (size_t nid = 0; nid < GetNumOfNodes(); ++nid) {
+      if (GetNodeName(nid) == name) {
+        return static_cast<int>(nid);
+      }
+    }
+    LOG(FATAL) << "cannot find " << name << " among nodex";
+    return -1;
+}
+
+/*!
+ * \brief Copy index-th node to data_out.
+ *
+ * This method will do a partial run of the the graph
+ * from begining upto the index-th node and return output of index-th node.
+ * This is costly operation and suggest to use only for debug porpose.
+ *
+ * \param index: The  index of the node.
+ * \param data_out the node data.
+ */
+void DebugGetNodeOutput(int index, DLTensor* data_out) {
+  CHECK_LT(static_cast<size_t>(index), op_execs().size());
+  uint32_t eid = index;
+
+  for (size_t i = 0; i < op_execs().size(); ++i) {
+    if (op_execs()[i]) op_execs()[i]();
+    if (static_cast<int>(i) == index) break;
+  }
+
+  data_entry()[eid].CopyTo(data_out);
+}
 };
 
 
@@ -72,6 +109,14 @@ PackedFunc GraphRuntimeDebug::GetFunction(
   } else if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->GetOutputByLayer(args[0], args[1]);
+      });
+  } else if (name == "debug_get_output") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        if (args[0].type_code() == kStr) {
+          this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+        } else {
+          this->DebugGetNodeOutput(args[0], args[1]);
+        }
       });
   } else {
     return GraphRuntime::GetFunction(name, sptr_to_self);
@@ -99,37 +144,6 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
            "at least 4, but it has "
         << args.num_args;
     *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
-  });
-TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug._save_param_dict")
-.set_body([](TVMArgs args, TVMRetValue *rv) {
-    CHECK_EQ(args.size() % 2, 0u);
-    size_t num_params = args.size() / 2;
-    std::vector<std::string> names;
-    names.reserve(num_params);
-    std::vector<DLTensor*> arrays;
-    arrays.reserve(num_params);
-    for (size_t i = 0; i < num_params * 2; i += 2) {
-      names.emplace_back(args[i].operator std::string());
-      arrays.emplace_back(args[i + 1].operator DLTensor*());
-    }
-    std::string bytes;
-    dmlc::MemoryStringStream strm(&bytes);
-    dmlc::Stream* fo = &strm;
-    uint64_t header = kTVMNDArrayListMagic, reserved = 0;
-    fo->Write(header);
-    fo->Write(reserved);
-    fo->Write(names);
-    {
-      uint64_t sz = static_cast<uint64_t>(arrays.size());
-      fo->Write(sz);
-      for (size_t i = 0; i < sz; ++i) {
-        tvm::runtime::SaveDLTensor(fo, arrays[i]);
-      }
-    }
-    TVMByteArray arr;
-    arr.data = bytes.c_str();
-    arr.size = bytes.length();
-    *rv = arr;
   });
 }  // namespace runtime
 }  // namespace tvm
