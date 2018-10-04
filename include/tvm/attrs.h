@@ -329,6 +329,10 @@ inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
   }
 }
 template<>
+inline void SetValue(Type* ptr, const TVMArgValue& val) {
+  *ptr = val.operator Type();
+}
+template<>
 inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
     *ptr = val.operator double();
