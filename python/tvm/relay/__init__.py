@@ -9,6 +9,7 @@ from . import ir_builder
 # Operators
 from .op import Op
 from .op.tensor import *
+from .op import nn
 
 # Span
 Span = base.Span

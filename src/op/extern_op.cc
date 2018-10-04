@@ -43,6 +43,9 @@ Operation ExternOpNode::make(std::string name,
                              Array<Buffer> input_placeholders,
                              Array<Buffer> output_placeholders,
                              Stmt body) {
+  if (!attrs.defined()) {
+    attrs = Map<std::string, NodeRef>();
+  }
   auto n = make_node<ExternOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);

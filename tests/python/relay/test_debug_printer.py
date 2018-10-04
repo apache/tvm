@@ -8,7 +8,6 @@ ib = IRBuilder()
 def show(e):
     r = debug_print(ib.env, e)
     assert r is not None
-    # print(r) # uncomment this line to debug
 
 
 def test_constant():
