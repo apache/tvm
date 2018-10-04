@@ -24,7 +24,7 @@ class GraphRuntimeDebug : public GraphRuntime {
    * \param index The index of op which needs to be run.
    * \return the elapsed time.
    */
-  double DebugRun(int64_t index) {
+  double DebugRun(size_t index) {
     CHECK(index < op_execs().size());
     TVMContext ctx = data_entry()[GetEntryId(index, 0)].operator->()->ctx;
     auto tbegin = std::chrono::high_resolution_clock::now();
@@ -105,7 +105,7 @@ PackedFunc GraphRuntimeDebug::GetFunction(
   // return member functions during query.
   if (name == "debug_run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        *rv = this->DebugRun(args[0]);
+        *rv = this->DebugRun(static_cast<size_t>(args[0].operator int64_t()));
       });
   } else if (name == "get_output_by_layer") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
