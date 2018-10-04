@@ -8,6 +8,10 @@ def test_type_alpha_eq():
     assert t1 == t2
     assert t1 != t3
 
+    t1 = relay.ty.TensorType((), "float32")
+    t2 = relay.ty.TensorType((), "float32")
+    assert t1 == t2
+
 
 if __name__ == "__main__":
     test_type_alpha_eq()

@@ -12,7 +12,10 @@ from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
     checked_expr = infer_type(env, expr)
-    assert checked_expr.checked_type() == typ
+    checked_type = checked_expr.checked_type()
+    if checked_type != typ:
+        raise RuntimeError("Type mismatch %s vs %s" % (
+            checked_type, typ))
 
 
 def assert_decl_has_type(env, name, typ):
@@ -72,8 +75,9 @@ def test_add_broadcast_op():
         b.ret(add(x.var, y.var))
     b.ret(func)
     prog, env = b.get()
-    ttype = tensor_type(5, 5, 5)
-    expected_ty = func_type([ttype, ttype], ttype)
+
+    expected_ty = func_type([tensor_type(10, 4), tensor_type(5, 10, 1)],
+                            tensor_type(5, 10, 4))
     assert_has_type(func.to_func(), expected_ty)
 
 def test_dual_op():
@@ -90,7 +94,9 @@ def test_dual_op():
         t1 = b.let('t1', log(x))
         t2 = b.let('t2', add(t1, x))
         b.ret(t2)
-    assert_has_type(func.to_func(), func_type(['float32'], 'float32'))
+
+    assert_has_type(func.to_func(),
+                    func_type([tensor_type(10, 10)], tensor_type(10, 10)))
 
 
 def test_decl():
@@ -153,12 +159,12 @@ def test_concat():
     assert_decl_has_type(ib.env, try_concat2, fn_ty)
 
 if __name__ == "__main__":
-    test_recursion()
+    test_dual_op()
 
+    test_recursion()
     test_monomorphic_let()
     test_single_op()
     test_add_op()
     test_add_broadcast_op()
-    test_dual_op()
     test_decl()
     test_concat()

@@ -36,7 +36,13 @@ bool Conv2DRel(const Array<Type>& types,
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
-  IndexExpr dilated_ksize_y, dilated_ksize_x;
+  Layout out_layout(param->out_layout);
+  if (!out_layout.defined()) out_layout = in_layout;
+  CHECK(out_layout.convertible(kNCHW))
+      << "Conv only support output layouts that are convertible from NCHW."
+      << " But got " << out_layout;
+
+  IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     CHECK_EQ(param->kernel_size.size(), 2);
@@ -48,6 +54,7 @@ bool Conv2DRel(const Array<Type>& types,
               param->kernel_size[1]});
     wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
     wshape[kernel_layout.indexof('O')] *= param->groups;
+    channels = param->channels;
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
     // assign result to reporter
@@ -72,11 +79,12 @@ bool Conv2DRel(const Array<Type>& types,
           << " wshape=" << Array<IndexExpr>(wshape);
     }
     CHECK(reporter->AssertEQ(data->shape[1] / param->groups, wshape[1]));
+    channels = wshape[0];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
   }
   // dilation
-  std::vector<IndexExpr> oshape({data->shape[0], param->channels, 0, 0});
+  std::vector<IndexExpr> oshape({data->shape[0], channels, 0, 0});
 
   oshape[2] = (data->shape[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1;
   oshape[3] = (data->shape[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1;
@@ -84,6 +92,7 @@ bool Conv2DRel(const Array<Type>& types,
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
+  oshape = ConvertLayout(oshape, kNCHW, out_layout);
   // assign output type
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;

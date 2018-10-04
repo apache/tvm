@@ -424,6 +424,12 @@ bool Equal(const Expr& lhs, const Expr& rhs) {
       return a[0] == b[0];
     }
   }
+  if (!lhs.defined()) {
+    if (rhs.defined()) return false;
+    if (!rhs.defined()) return true;
+  } else {
+    if (!rhs.defined()) return false;
+  }
   // deep comparison.
   return IRDeepCompare().Equal(lhs, rhs);
 }
