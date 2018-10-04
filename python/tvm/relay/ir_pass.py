@@ -18,3 +18,5 @@ check_kind = _ir_pass.check_kind
 free_vars = _ir_pass.free_vars
 
 free_type_vars = _ir_pass.free_type_vars
+
+bad = _ir_pass.bad
