@@ -49,38 +49,23 @@ Array<Expr> TensorComputeOpNode::output_shape(size_t i) const {
 }
 
 
-// Operation TensorComputeOpNode::make(std::string name,
-//                                     std::string tag,
-//                                     Array<IterVar> out_axis,
-//                                     Array<IterVar> tensor_axis,
-//                                     TensorIntrinCall intrin_call) {
-//   return TensorComputeOpNode::make(name,
-//                                    tag,
-//                                    out_axis,
-//                                    tensor_axis,
-//                                    intrin_call->reduce_axis,
-//                                    intrin_call->tensors,
-//                                    intrin_call->regions,
-//                                    intrin_call->intrin);
-// }
-
 Operation TensorComputeOpNode::make(std::string name,
                                     std::string tag,
                                     Array<IterVar> axis,
                                     Array<IterVar> reduce_axis,
-                                    int sch_ndim,
+                                    int schedulable_ndim,
+                                    TensorIntrin intrin,
                                     Array<Tensor> tensors,
-                                    Array<Region> regions,
-                                    TensorIntrin intrin) {
+                                    Array<Region> regions) {
   auto n = make_node<TensorComputeOpNode>();
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->axis = std::move(axis);
   n->reduce_axis = std::move(reduce_axis);
-  n->sch_ndim = sch_ndim;
+  n->schedulable_ndim = std::move(schedulable_ndim);
+  n->intrin = std::move(intrin);
   n->inputs = std::move(tensors);
   n->input_regions = std::move(regions);
-  n->intrin = std::move(intrin);
   return Operation(n);
 }
 
@@ -146,7 +131,6 @@ void TensorComputeOpNode::GatherBound(
     CHECK(!out_dom_map->count(this->axis[i]));
     (*out_dom_map)[this->axis[i]] = r;
   }
-  // should I add dom of tensor_vars
   for (size_t i = 0; i < this->reduce_axis.size(); ++i) {
     CHECK(!out_dom_map->count(this->reduce_axis[i]));
     (*out_dom_map)[this->reduce_axis[i]] = this->reduce_axis[i]->dom;
@@ -168,7 +152,7 @@ Stmt TensorComputeOpNode::BuildRealize(
     realize = ir::Realize::make(t->op, t->value_index,
       t->dtype, bounds, const_true(), realize);
     // alignment requirement, only useful for compute
-    for (int i = 0; i < sch_ndim; ++i) {
+    for (int i = 0; i < schedulable_ndim; ++i) {
       auto it = stage->iter_var_attrs.find(this->axis[i]);
       if (it != stage->iter_var_attrs.end()) {
         IterVarAttr attr = (*it).second;
@@ -214,7 +198,7 @@ ComputeLoopNest MakeLoopNest(
     for (IterVar iv : self->reduce_axis) {
       update_state[iv] = 2;
     }
-    for (int i = 0; i < self->sch_ndim; ++i) {
+    for (int i = 0; i < self->schedulable_ndim; ++i) {
       update_state[self->axis[i]] = 1;
     }
     // find which iter var is related to reduction and which is related to axis.
@@ -292,7 +276,7 @@ Stmt TensorComputeOpNode::BuildProvide(
     Array<Expr> tuple;
     for (size_t i = 0; i < this->axis.size(); ++i) {
       auto ivar = this->axis[i];
-      if (i < static_cast<size_t>(this->sch_ndim)) {
+      if (i < static_cast<size_t>(this->schedulable_ndim)) {
         tuple.push_back(ivar->var);
         tuple.push_back(1);
       } else {

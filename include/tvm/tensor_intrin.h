@@ -91,10 +91,10 @@ inline const TensorIntrinNode* TensorIntrin::operator->() const {
 }
 
 
-// Internal node container of tensor intrinsics.
+// Internal node container of tensor intrinsic calling.
 class TensorIntrinCallNode;
 
-/*! \brief Tensor intrinsic node. */
+/*! \brief Tensor intrinsic calling node. */
 class TensorIntrinCall : public NodeRef {
  public:
   TensorIntrinCall() {}
@@ -111,9 +111,16 @@ class TensorIntrinCall : public NodeRef {
 
 class TensorIntrinCallNode : public Node {
  public:
+  /*! \brief the tensor intrinsic */
   TensorIntrin intrin;
+  /*! \brief input tensors of the intrinsic */
   Array<Tensor> tensors;
+  /*! \brief regions of input tensors */
   Array<Region> regions;
+  /*!
+   * \brief IterVar on each reduction axis, if the
+   * intrin will use the reduce axis
+   */
   Array<IterVar> reduce_axis;
 
   void VisitAttrs(AttrVisitor* v) final {
@@ -122,7 +129,6 @@ class TensorIntrinCallNode : public Node {
     v->Visit("regions", &regions);
     v->Visit("reduce_axis", &reduce_axis);
   }
-
   static TensorIntrinCall make(TensorIntrin intrin,
                                Array<Tensor> tensors,
                                Array<Region> regions,

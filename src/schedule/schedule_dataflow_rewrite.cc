@@ -340,7 +340,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
     &red_axis, &new_axis, &dom_map, &vsub, &vsub2newvar, &predicates);
 
 
-  for (int i = tensor_op->sch_ndim; i < static_cast<int>(tensor_op->axis.size()); ++i) {
+  for (int i = tensor_op->schedulable_ndim; i < static_cast<int>(tensor_op->axis.size()); ++i) {
     IterVar iv = tensor_op->axis[i];
     IterVar new_iv = IterVarNode::make(
       iv->dom, iv->var.copy_with_suffix(".c"), iv->iter_type);
@@ -359,12 +359,12 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
 
   Operation cache_op = TensorComputeOpNode::make(
       tensor_op->name + "." + scope, tensor_op->tag, new_axis,
-      tensor_op->reduce_axis, tensor_op->sch_ndim,
-      tensor_op->inputs, new_regions, tensor_op->intrin);
+      tensor_op->reduce_axis, tensor_op->schedulable_ndim,
+      tensor_op->intrin, tensor_op->inputs, new_regions);
 
   // axis will be used in generating compute op
   Array<IterVar> compute_axis = tensor_op->axis;
-  for (size_t i = tensor_op->sch_ndim; i < tensor_op->axis.size(); ++i) {
+  for (size_t i = tensor_op->schedulable_ndim; i < tensor_op->axis.size(); ++i) {
     IterVar iv = tensor_op->axis[i];
     IterVar aiv = IterVarNode::make(iv->dom, iv->var, kDataPar);
     compute_axis.Set(i, aiv);
@@ -384,7 +384,7 @@ Array<Tensor> CacheWriteWithReLayoutTensor(Schedule sch,
       args.push_back(value_map.at(iv));
     }
     // tensorized region axis
-    for (size_t i = tensor_op->sch_ndim; i < tensor_op->axis.size(); ++i) {
+    for (size_t i = tensor_op->schedulable_ndim; i < tensor_op->axis.size(); ++i) {
       IterVar iv = compute_axis[i];
       args.push_back(value_map.at(iv));
     }

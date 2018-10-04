@@ -326,7 +326,6 @@ def test_schedule_tensor_compute1():
     s[C].reorder(aio, aj, aii)
     aioo, ajo, aioi, aji = s[C].tile(aio, aj, 16, 4)
 
-    print(tvm.lower(s, [A, B, C], simple_mode=True))
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -380,7 +379,6 @@ def test_schedule_tensor_compute2():
     AL = s.cache_read(A, scope_ubuf, C)
     BL = s.cache_read(B, scope_ubuf, C)
     CL = s.cache_write(C, scope_ubuf)
-    print(tvm.lower(s, [A, B, C], simple_mode=True))
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
@@ -400,7 +398,6 @@ def test_schedule_tensor_compute3():
         lambda i: vadd(A[i, 0:factor], Bi[i, 0:factor]), name='C')
     s = tvm.create_schedule(C.op)
     s[Bi].compute_at(s[C], C.op.axis[0])
-    print(tvm.lower(s, [A, B, C], simple_mode=True))
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
