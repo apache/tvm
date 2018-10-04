@@ -28,6 +28,7 @@ using ssize_t = int;
 #include <dmlc/logging.h>
 #include <string>
 #include <cstring>
+#include <vector>
 #include "../common/util.h"
 
 
@@ -82,11 +83,11 @@ struct SockAddr {
    * \param tracker The url containing the ip and port number. Format is ('192.169.1.100', 9090)
    * \return SockAddr parsed from url.
    */
-  SockAddr(std::string url) {
+  explicit SockAddr(const std::string &url) {
     size_t sep = url.find(",");
     std::string host = url.substr(2, sep - 3);
     std::string port = url.substr(sep + 1, url.length() - 1);
-    CHECK(ValidateIP(host)) << "tracker url is not valid " << url;
+    CHECK(ValidateIP(host)) << "Url address is not valid " << url;
     if (host == "localhost") {
       host = "127.0.0.1";
     }
@@ -574,6 +575,7 @@ struct SelectHelper {
     }
     return ret;
   }
+
  private:
   inline static int Select_(int maxfd, fd_set *rfds,
                             fd_set *wfds, fd_set *efds, long timeout) { // NOLINT(*)

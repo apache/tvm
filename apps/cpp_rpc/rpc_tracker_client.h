@@ -85,16 +85,16 @@ class TrackerClient {
   * \param matchkey Random match key output.
  */
   void ReportResourceAndGetKey(int port,
-                               std::string &matchkey) {
+                               std::string *matchkey) {
     if (!tracker_sock_.IsClosed()) {
-      matchkey = RandomKey(key_ + ":", old_keyset_);
+      *matchkey = RandomKey(key_ + ":", old_keyset_);
       if (custom_addr_.empty()) {
         custom_addr_ = "null";
       }
 
       std::ostringstream ss;
       ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-         << port << ", \"" << matchkey << "\"], " << custom_addr_ << "]";
+         << port << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
 
       tracker_sock_.SendBytes(ss.str());
 
@@ -102,14 +102,21 @@ class TrackerClient {
       std::string remote_status = tracker_sock_.RecvBytes();
       CHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
     } else {
-        matchkey = key_;
+        *matchkey = key_;
     }
   }
 
+  /*!
+   * \brief ReportResourceAndGetKey Report resource to tracker.
+   * \param listen_sock Listen socket details for select.
+   * \param port listening port.
+   * \param ping_period Select wait time.
+   * \param matchkey Random match key output.
+  */
   void WaitConnectionAndUpdateKey(common::TCPSocket listen_sock,
                                   int port,
                                   int ping_period,
-                                  std::string &matchkey) {
+                                  std::string *matchkey) {
     int unmatch_period_count = 0;
     int unmatch_timeout = 4;
     while (1) {
@@ -125,11 +132,11 @@ class TrackerClient {
 
           // Receive status and validate
           std::string pending_keys = tracker_sock_.RecvBytes();
-          old_keyset_.insert(matchkey);
+          old_keyset_.insert(*matchkey);
 
           // if match key not in pending key set
           // it means the key is acquired by a client but not used.
-          if (pending_keys.find(matchkey) == std::string::npos) {
+          if (pending_keys.find(*matchkey) == std::string::npos) {
               unmatch_period_count += 1;
           } else {
               unmatch_period_count = 0;
@@ -138,11 +145,11 @@ class TrackerClient {
           if (unmatch_period_count * ping_period > unmatch_timeout + ping_period) {
             LOG(INFO) << "no incoming connections, regenerate key ...";
 
-            matchkey = RandomKey(key_ + ":", old_keyset_);
+            *matchkey = RandomKey(key_ + ":", old_keyset_);
 
             std::ostringstream ss;
             ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-               << port << ", \"" << matchkey << "\"], " << custom_addr_ << "]";
+               << port << ", \"" << *matchkey << "\"], " << custom_addr_ << "]";
             tracker_sock_.SendBytes(ss.str());
 
             std::string remote_status = tracker_sock_.RecvBytes();

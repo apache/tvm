@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file rpc_server_env.cc
+ * \file rpc_env.cc
  * \brief Server environment of the RPC.
  */
 #include <tvm/runtime/registry.h>

@@ -15,8 +15,6 @@
 #include <future>
 #include <thread>
 #include <chrono>
-#include <random>
-#include <vector>
 #include <string>
 
 #include "rpc_server.h"
@@ -80,7 +78,7 @@ class RPCServer {
       listen_sock_.Listen(1);
       std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
       proc.get();
-      //Close the listen socket
+      // Close the listen socket
       listen_sock_.Close();
   }
 
@@ -166,10 +164,10 @@ class RPCServer {
     std::string matchkey;
 
     // Report resource to tracker and get key
-    tracker->ReportResourceAndGetKey(my_port_, matchkey);
+    tracker->ReportResourceAndGetKey(my_port_, &matchkey);
 
     while (1) {
-      tracker->WaitConnectionAndUpdateKey(listen_sock_, my_port_, ping_period, matchkey);
+      tracker->WaitConnectionAndUpdateKey(listen_sock_, my_port_, ping_period, &matchkey);
       common::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
