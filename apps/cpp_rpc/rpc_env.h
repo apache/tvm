@@ -1,10 +1,10 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file rpc_server_env.h
+ * \file rpc_env.h
  * \brief Server environment of the RPC.
  */
-#ifndef TVM_APPS_CPP_RPC_SERVER_ENV_H_
-#define TVM_APPS_CPP_RPC_SERVER_ENV_H_
+#ifndef TVM_APPS_CPP_RPC_ENV_H_
+#define TVM_APPS_CPP_RPC_ENV_H_
 
 #include <tvm/runtime/registry.h>
 #if defined(__linux__)
@@ -88,4 +88,4 @@ struct RPCEnv {
 
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_APPS_CPP_RPC_SERVER_ENV_H_
+#endif  // TVM_APPS_CPP_RPC_ENV_H_

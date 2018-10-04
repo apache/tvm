@@ -20,7 +20,8 @@
 #include <string>
 
 #include "rpc_server.h"
-#include "rpc_server_env.h"
+#include "rpc_env.h"
+#include "rpc_tracker_client.h"
 #include "../../src/runtime/rpc/rpc_session.h"
 #include "../../src/runtime/rpc/rpc_socket_impl.h"
 #include "../../src/common/socket.h"
@@ -29,81 +30,79 @@ namespace tvm {
 namespace runtime {
 
 /*!
- * \brief RPCServerCreate Creates the RPC Server.
+ * \brief RPCServer RPC Server class.
  * \param host The hostname of the server, Default=0.0.0.0
  * \param port The port of the RPC, Default=9090
  * \param port_end The end search port of the RPC, Default=9199
  * \param tracker The address of RPC tracker in host:port format e.g. 10.77.1.234:9190 Default=""
  * \param key The key used to identify the device type in tracker. Default=""
  * \param custom_addr Custom IP Address to Report to RPC Tracker. Default=""
- * \param silent Whether run in silent mode. Default=True
  * \param isProxy Whether to run in proxy mode. Default=False
  */
 class RPCServer {
-  public:
-  RPCServer(std::string host, int port, int port_end, std::string tracker_addr, std::string key,
-            std::string custom_addr, bool silent, bool is_proxy) {
+ public:
+  /*!
+   * \brief Constructor.
+  */
+  RPCServer(const std::string &host,
+            int port,
+            int port_end,
+            const std::string &tracker_addr,
+            const std::string &key,
+            const std::string &custom_addr,
+            bool is_proxy) {
+    // Init the values
     host_ = host;
     port_ = port;
     port_end_ = port_end;
     tracker_addr_ = tracker_addr;
     key_ = key;
     custom_addr_ = custom_addr;
-    silent_ = silent;
     is_proxy_ = is_proxy;
   }
 
   /*!
-   * \brief Start Creates the RPC Server.
+   * \brief Destructor.
   */
-  void Start() {
-      //common::SockAddr addr(host_.c_str(), port_);
-      sock_.Create();
-      my_port_ = sock_.TryBindHost(host_, port_, port_end_);
-      LOG(INFO) << "bind to " << host_ << ":" << my_port_;
-      sock_.Listen(1);
-      std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
-      proc.get();
-      sock_.Close();
+  ~RPCServer() {
+    // Free the resources
+    tracker_sock_.Close();
+    listen_sock_.Close();
   }
 
-  private:
+  /*!
+   * \brief Start Creates the RPC listen process and execution.
+  */
+  void Start() {
+      listen_sock_.Create();
+      my_port_ = listen_sock_.TryBindHost(host_, port_, port_end_);
+      LOG(INFO) << "bind to " << host_ << ":" << my_port_;
+      listen_sock_.Listen(1);
+      std::future<void> proc(std::async(std::launch::async, &RPCServer::ListenLoopProc, this));
+      proc.get();
+      //Close the listen socket
+      listen_sock_.Close();
+  }
+
+ private:
   /*!
    * \brief ListenLoopProc The listen process.
    */
   void ListenLoopProc() {
-    common::TCPSocket tracker_conn;
+    TrackerClient tracker(tracker_addr_, key_, custom_addr_);
     while (1) {
       common::TCPSocket conn;
       common::SockAddr addr("0.0.0.0", 0);
       std::string opts;
       try {
         // step 1: setup tracker and report to tracker
-        if (!tracker_addr_.empty() && (tracker_conn.IsClosed())) {
-          tracker_conn = ConnectWithRetry();
-
-          int code = kRPCTrackerMagic;
-          CHECK_EQ(tracker_conn.SendAll(&code, sizeof(code)), sizeof(code));
-          CHECK_EQ(tracker_conn.RecvAll(&code, sizeof(code)), sizeof(code));
-          CHECK_EQ(code, kRPCTrackerMagic) << tracker_addr_.c_str() << " is not RPC Tracker";
-
-          std::ostringstream ss;
-          ss << "[" << static_cast<int>(TrackerCode::kUpdateInfo)
-             << ", {\"key\": \"server:"<< key_ << "\"}]";
-          tracker_conn.SendBytes(ss.str());
-
-          // Receive status and validate
-          std::string remote_status = tracker_conn.RecvBytes();
-          CHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
-        }
+        tracker.TryConnect();
         // step 2: wait for in-coming connections
-        AcceptConnection(tracker_conn, &conn, &addr, &opts);
+        AcceptConnection(&tracker, &conn, &addr, &opts);
       }
       catch (const char* msg) {
-        // retry when tracker is dropped
-        if (!tracker_conn.IsClosed()) {
-          tracker_conn.Close();
-        }
+        // close tracker resource
+        tracker.Close();
         continue;
       }
       catch (std::exception& e) {
@@ -146,90 +145,32 @@ class RPCServer {
       LOG(INFO) << "Socket Connection Closed";
       conn.Close();
     }
+    tracker.Close();
   }
 
 
   /*!
    * \brief AcceptConnection Accepts the RPC Server connection.
-   * \param tracker_conn The tracker connection information.
+   * \param tracker Tracker details.
    * \param conn New connection information.
    * \param addr New connection address information.
    * \param opts Parsed options for socket
    * \param ping_period Timeout for select call waiting
    */
-  void AcceptConnection(common::TCPSocket tracker_conn,
+  void AcceptConnection(TrackerClient *tracker,
                         common::TCPSocket *conn_sock,
                         common::SockAddr *addr,
                         std::string *opts,
                         int ping_period = 2) {
     std::set <std::string> old_keyset;
-
     std::string matchkey;
 
-    // Report resource to tracker
-    if (!tracker_conn.IsClosed()) {
-      matchkey = RandomKey(key_ + ":", old_keyset);
-      if (custom_addr_.empty()) {
-        custom_addr_ = "null";
-      }
+    // Report resource to tracker and get key
+    tracker->ReportResourceAndGetKey(my_port_, matchkey);
 
-      std::ostringstream ss;
-      ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-         << my_port_ << ", \"" << matchkey << "\"], " << custom_addr_ << "]";
-
-      tracker_conn.SendBytes(ss.str());
-
-      // Receive status and validate
-      std::string remote_status = tracker_conn.RecvBytes();
-      CHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
-    } else {
-        matchkey = key_;
-    }
-
-    int unmatch_period_count = 0;
-    int unmatch_timeout = 4;
     while (1) {
-      if (!tracker_conn.IsClosed()) {
-        common::SelectHelper selecter;
-        selecter.WatchRead(sock_.sockfd);
-
-        int ready = selecter.Select(ping_period * 1000);
-        if ((ready <= 0) || (!selecter.CheckRead(sock_.sockfd))) {
-          std::ostringstream ss;
-          ss << "[" << int(TrackerCode::kGetPendingMatchKeys) << "]";
-          tracker_conn.SendBytes(ss.str());
-
-          // Receive status and validate
-          std::string pending_keys = tracker_conn.RecvBytes();
-          old_keyset.insert(matchkey);
-
-          // if match key not in pending key set
-          // it means the key is acquired by a client but not used.
-          if (pending_keys.find(matchkey) == std::string::npos) {
-              unmatch_period_count += 1;
-          } else {
-              unmatch_period_count = 0;
-          }
-          // regenerate match key if key is acquired but not used for a while
-          if (unmatch_period_count * ping_period > unmatch_timeout + ping_period) {
-            LOG(INFO) << "no incoming connections, regenerate key ...";
-
-            matchkey = RandomKey(key_ + ":", old_keyset);
-
-            std::ostringstream ss;
-            ss << "[" << static_cast<int>(TrackerCode::kPut) << ", \"" << key_ << "\", ["
-               << my_port_ << ", \"" << matchkey << "\"], " << custom_addr_ << "]";
-            tracker_conn.SendBytes(ss.str());
-
-            std::string remote_status = tracker_conn.RecvBytes();
-            CHECK_EQ(std::stoi(remote_status), static_cast<int>(TrackerCode::kSuccess));
-            unmatch_period_count = 0;
-          }
-          continue;
-        }
-      }
-
-      common::TCPSocket conn = sock_.Accept(addr);
+      tracker->WaitConnectionAndUpdateKey(listen_sock_, my_port_, ping_period, matchkey);
+      common::TCPSocket conn = listen_sock_.Accept(addr);
 
       int code = kRPCMagic;
       CHECK_EQ(conn.RecvAll(&code, sizeof(code)), sizeof(code));
@@ -310,62 +251,6 @@ class RPCServer {
     return 0;
   }
 
-  /*!
-   * \brief Connect to a TPC address with retry.
-            This function is only reliable to short period of server restart.
-   * \param url The ipadress and port number
-   * \param timeout Timeout during retry
-   * \param retry_period Number of seconds before we retry again.
-   * \return TCPSocket The socket information if connect is success.
-   */
-  common::TCPSocket ConnectWithRetry(int timeout = 60, int retry_period = 5) {
-    auto tbegin = std::chrono::system_clock::now();
-    while (1) {
-      common::SockAddr addr(tracker_addr_);
-      common::TCPSocket sock;
-      sock.Create();
-      LOG(INFO) << "Tracker connecting to " << addr.AsString();
-      if (sock.Connect(addr)) {
-        return sock;
-      }
-
-      auto period = (std::chrono::duration_cast<std::chrono::seconds>(
-                  std::chrono::system_clock::now() - tbegin)).count();
-      CHECK(period < timeout) << "Failed to connect to server" << addr.AsString();
-      LOG(WARNING) << "Cannot connect to tracker " << addr.AsString()
-                   << " retry in " << retry_period << " seconds.";
-      std::this_thread::sleep_for(std::chrono::seconds(retry_period));
-    }
-  }
-
-  /*!
-  * \brief Random Generate a random number between 0 and 1.
-  * \return random float value.
-  */
-  float Random() {
-    std::random_device rd;  // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd());  // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(0.0, 1.0);
-    return dis(gen);
-  }
-
-  /*!
-   * \brief Generate a random key.
-   * \param prefix The string prefix.
-   * \return cmap The conflict map set.
-   */
-  std::string RandomKey(std::string prefix, const std::set <std::string> &cmap) {
-    if (!cmap.empty()) {
-      while (1) {
-        std::string key = prefix + std::to_string(Random());
-        if (cmap.find(key) == cmap.end()) {
-          return key;
-        }
-      }
-    }
-    return prefix + std::to_string(Random());
-  }
-
   std::string host_;
   int port_;
   int my_port_;
@@ -373,9 +258,9 @@ class RPCServer {
   std::string tracker_addr_;
   std::string key_;
   std::string custom_addr_;
-  bool silent_;
   bool is_proxy_;
-  common::TCPSocket sock_;
+  common::TCPSocket listen_sock_;
+  common::TCPSocket tracker_sock_;
 };
 
 /*!
@@ -397,9 +282,13 @@ void RPCServerCreate(std::string host,
                      std::string custom_addr,
                      bool silent,
                      bool is_proxy) {
-
-    RPCServer rpc(host, port, port_end, tracker_addr, key, custom_addr, silent, is_proxy);
-    rpc.Start();
+  if (silent) {
+    // Only errors and fatal is logged
+    dmlc::InitLogging("--minloglevel=2");
+  }
+  // Start the rpc server
+  RPCServer rpc(host, port, port_end, tracker_addr, key, custom_addr, is_proxy);
+  rpc.Start();
 }
 
 TVM_REGISTER_GLOBAL("rpc._ServerCreate")
