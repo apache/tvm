@@ -50,7 +50,7 @@ bool PadRel(const Array<Type>& types,
       << "Param width elements should be positive but first pad width at "
       << "index " << i << " is " << *width2 << ".";
 
-    int padding = (int)(*width1 + *width2);
+    int padding = static_cast<int>(*width1 + *width2);
     CHECK(padding >= 0)
       << "Overflow when attempting padding";
 
