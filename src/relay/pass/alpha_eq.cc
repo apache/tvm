@@ -128,7 +128,7 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const TypeRelationNode *tr1, const Type& t2) final {
     if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
-      equal = tr1 == tr2;
+      equal = equal && (tr1 == tr2);
     } else {
       equal = false;
     }
