@@ -218,6 +218,9 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
     // rebuild attribute parser
     if (!no_parse && n.node->op() != nullptr && n.node->op()->attr_parser != nullptr) {
       n.node->op()->attr_parser(&(n.node->attrs));
+    } else if (!no_parse && n.node->is_variable()) {
+      n.node->attrs.parsed =
+        Symbol::CreateVariable(n.node->attrs.name).outputs[0].node->attrs.parsed;
     }
     for (const JSONGraph &subgraph : n.subgraphs) {
       // The "no_parse" option here, is to be compatible with
