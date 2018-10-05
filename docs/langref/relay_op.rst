@@ -52,6 +52,7 @@ This level enables typical convnet models.
    tvm.relay.greater_equal
    tvm.relay.less
    tvm.relay.less_equal
+   tvm.relay.minimum
 
 **Level 5: Vision/Image Operators**
 

@@ -21,7 +21,8 @@ def test_cmp_type():
 
 
 def test_binary_broadcast():
-    for op in [relay.right_shift, relay.minimum]:
+    for op in (relay.right_shift,
+               relay.minimum):
         ib = relay.ir_builder.IRBuilder()
         x = ib.param("x", relay.TensorType((10, 4), "int32"))
         y = ib.param("y", relay.TensorType((5, 10, 1), "int32"))
