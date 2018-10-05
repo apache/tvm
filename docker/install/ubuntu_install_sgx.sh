@@ -19,3 +19,10 @@ git clone https://github.com/baidu/rust-sgx-sdk.git /opt/rust-sgx-sdk
 cd /opt/rust-sgx-sdk
 git checkout bdd75ca05f66d1f5df637182ec335970f769b03a
 cd -
+
+curl -sSo rustup.sh 'https://sh.rustup.rs'
+# rustc nightly-2018-08-25 is the version supported by the above version of rust-sgx-sdk
+bash rustup.sh -y --no-modify-path --default-toolchain nightly-2018-08-25
+rustup component add rust-src
+cargo install rustfmt-nightly --force
+cargo install xargo
