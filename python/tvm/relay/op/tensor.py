@@ -106,7 +106,7 @@ def subtract(lhs, rhs):
 
 
 def equal(lhs, rhs):
-    """Elementwise test for (lhs == rhs).
+    """Broadcasted elementwise test for (lhs == rhs).
 
     Parameters
     ----------
@@ -124,7 +124,7 @@ def equal(lhs, rhs):
 
 
 def not_equal(lhs, rhs):
-    """Elementwise test for (lhs != rhs).
+    """Broadcasted elementwise test for (lhs != rhs).
 
     Parameters
     ----------
@@ -142,7 +142,7 @@ def not_equal(lhs, rhs):
 
 
 def less(lhs, rhs):
-    """Elementwise test for (lhs < rhs).
+    """Broadcasted elementwise test for (lhs < rhs).
 
     Parameters
     ----------
@@ -160,7 +160,7 @@ def less(lhs, rhs):
 
 
 def less_equal(lhs, rhs):
-    """Elementwise test for (lhs <= rhs).
+    """Broadcasted elementwise test for (lhs <= rhs).
 
     Parameters
     ----------
@@ -178,7 +178,7 @@ def less_equal(lhs, rhs):
 
 
 def greater(lhs, rhs):
-    """Elementwise test for (lhs > rhs).
+    """Broadcasted elementwise test for (lhs > rhs).
 
     Parameters
     ----------
@@ -196,7 +196,7 @@ def greater(lhs, rhs):
 
 
 def greater_equal(lhs, rhs):
-    """Elementwise test for (lhs >= rhs).
+    """Broadcasted elementwise test for (lhs >= rhs).
 
     Parameters
     ----------
