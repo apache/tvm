@@ -18,7 +18,7 @@ CFLAGS += -I$(TVMPATH)/include -I$(TVMPATH)/3rdparty/dlpack/include -I$(TVMPATH)
 ifdef DMLC_CORE_PATH
   CFLAGS += -I$(DMLC_CORE_PATH)/include
 else
-  CFLAGS += -I$(ROOTDIR)/../dmlc-core/include
+  CFLAGS += -I$(TVMPATH)/3rdparty/dmlc-core/include
 endif
 
 ifneq ($(ADD_CFLAGS), NONE)
