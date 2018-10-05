@@ -41,6 +41,12 @@ This level enables typical convnet models.
 
 **Level 3: Additional Math And Transform Operators**
 
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.zeros_like
+   tvm.relay.ones_like
+
 **Level 4: Broadcast and Reductions**
 
 .. autosummary::
