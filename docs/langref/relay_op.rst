@@ -26,6 +26,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.sqrt
    tvm.relay.exp
    tvm.relay.add
+   tvm.relay.expand_dims
 
 **Level 2: Convolutions**
 

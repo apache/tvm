@@ -19,5 +19,10 @@ def expand_dims(data, axis, num_newaxis=1):
 
     num_newaxis : int
         Number of axises to be inserted. Should be >= 0.
+
+    Returns
+    -------
+    result : relay.Expr
+        The reshaped result.
     """
     return _make.expand_dims(data, axis, num_newaxis)
