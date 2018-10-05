@@ -5,8 +5,8 @@
  *  using it, one can treat AST as value instead of expression,
  *  and pass them around freely without fear of AST explosion (or effect duplication).
  *  for example, if one write 'b = a + a; c = b + b; d = c + c', the AST will contain 8 'a'.
- *  if one instead write 'b = ll.Let(a + a); c = ll.Let(b + b); d = ll.Let(c + c)',
- *  the AST will contain 2 'a', as b, c, d are all variables.
+ *  if one instead write 'b = ll.Push(a + a); c = ll.Push(b + b); d = ll.Get(c + c);',
+ *  the AST will contain 2 'a', as b and c are now variables.
  */
 #ifndef TVM_RELAY_PASS_LET_LIST_H_
 #define TVM_RELAY_PASS_LET_LIST_H_
@@ -21,13 +21,10 @@ namespace tvm {
 namespace relay {
 
 /*! \brief LetList allow you to transform expression into variables, so you can copy them around.
- *  one can insert into the LetList by calling Let, and wrap an expression with bindings with Plug.
- *  additionally, there is the 'With' function, which automatically call Plug.
+ *  one can insert into the LetList by calling Push, and wrap an expression with bindings with Get.
+ *  additionally, there is the 'With' function, which automatically call Get.
  */
 class LetList {
- private:
-  std::vector<std::tuple<Var, Type, Expr> > lets_;
-
  public:
   /*! \brief insert a binding.
    *
@@ -81,10 +78,12 @@ class LetList {
 
   /*! \brief wrap an expr around the LetList.
    *
+   *  \param body the Expression to be wrapped around.
+   *
    *  \return the wrapped expr.
    */
-  Expr Get(const Expr& expr) const {
-    Expr ret = expr;
+  Expr Get(const Expr& body) const {
+    Expr ret = body;
     for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
       ret = LetNode::make(std::get<0>(*rit), std::get<2>(*rit), ret, std::get<1>(*rit));
     }
@@ -117,6 +116,9 @@ class LetList {
     LetList ll;
     return ll.Get(f(&ll));
   }
+
+ private:
+  std::vector<std::tuple<Var, Type, Expr> > lets_;
 };
 
 }  // namespace relay
