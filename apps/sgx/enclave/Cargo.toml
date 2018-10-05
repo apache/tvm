@@ -1,0 +1,16 @@
+[package]
+name = "model-enclave"
+version = "0.1.0"
+authors = ["Nick Hynes <nhynes@berkeley.edu>"]
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+lazy_static = "1.1.0"
+# tvm = { path = "../../../rust", default-features = false, features = ["sgx"] }
+tvm = { path = "/home/nhynes/myelin/deps/tvm-rs", default-features = false, features = ["sgx"] }
+
+[profile.release]
+lto = true
+opt-level = 3

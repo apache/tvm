@@ -1,0 +1,17 @@
+[dependencies]
+alloc = {}
+panic_unwind = {}
+panic_abort = {}
+
+[dependencies.std]
+features = ["backtrace", "stdio", "untrusted_time"]
+path = "/home/nhynes/myelin/deps/rust-sgx-sdk/xargo/sgx_tstd"
+# git = "https://github.com/oasislabs/rust-sgx-sdk"
+# rev = "7334c30d85cb1752577998705110b7b27c69b570"
+stage = 2
+
+[dependencies.xargo_sgx_rand]
+# git = "https://github.com/oasislabs/rust-sgx-sdk"
+path = "/home/nhynes/myelin/deps/rust-sgx-sdk/xargo/sgx_rand"
+# rev = "7334c30d85cb1752577998705110b7b27c69b570"
+stage = 3
