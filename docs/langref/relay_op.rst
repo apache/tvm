@@ -53,6 +53,7 @@ This level enables typical convnet models.
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
    tvm.relay.nn.batch_flatten
+   tvm.relay.nn.pad
 
 
 **Level 3: Additional Math And Transform Operators**
