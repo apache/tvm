@@ -214,7 +214,7 @@ def greater_equal(lhs, rhs):
 
 
 def maximum(lhs, rhs):
-    """maximum with numpy-style broadcasting.
+    """Maximum with numpy-style broadcasting.
 
     Parameters
     ----------
