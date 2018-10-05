@@ -11,10 +11,10 @@
 #ifndef TVM_RELAY_PASS_LET_LIST_H_
 #define TVM_RELAY_PASS_LET_LIST_H_
 
+#include <tvm/relay/expr.h>
 #include <utility>
 #include <vector>
 #include <tuple>
-#include <tvm/relay/expr.h>
 #include "tvm/relay/type.h"
 
 namespace tvm {
