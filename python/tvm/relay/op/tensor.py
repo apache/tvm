@@ -345,3 +345,34 @@ def ones_like(data):
         The computed result.
     """
     return _make.ones_like(data)
+
+def clip(a, a_min, a_max):
+    """Clip the elements in `a` between `min` and `max`.
+
+    Parameters
+    ----------
+    a : relay.Expr
+        The input tensor.
+    a_min : relay.Constant
+        The clip minimum.
+    a_max : relay.Constant
+        The clip maximum.
+
+    Returns
+    -------
+    result : relay.Expr
+        `a` with elements clipped between `a_min` and `a_max`.
+
+    Examples
+    --------
+    .. code:: python
+      x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
+
+      relay.clip(
+        x,
+        relay.Constant(tvm.nd.array(1)),
+        relay.Constant(tvm.nd.array(4))
+      )
+      # [1, 1, 4, 3, 4, 2]
+    """
+    return _make.clip(a, a_min, a_max)
