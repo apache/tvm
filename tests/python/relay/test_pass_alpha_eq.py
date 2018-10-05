@@ -136,20 +136,26 @@ def test_type_relation_alpha_eq():
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
-    same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
-    diff_func = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, None)
-    diff_order = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, None)
-    diff_args = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, None)
+    # attrs are also compared only by pointer equality
+    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
 
-    bigger = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, None)
-    diff_num_inputs = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, None)
+    tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
+    same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
+    diff_func = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, attr1)
+    diff_order = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, attr1)
+    diff_args = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, attr1)
+    diff_attr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr2)
+
+    bigger = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, attr1)
+    diff_num_inputs = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, attr2)
 
     # func, number of args, input count, and order should be the same
     assert tr == same
     assert tr != diff_func
     assert tr != diff_order
     assert tr != diff_args
+    assert tr != diff_attr
     assert tr != bigger
 
     assert bigger != diff_num_inputs
