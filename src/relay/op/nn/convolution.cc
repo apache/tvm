@@ -124,18 +124,18 @@ Expr MakeConv2D(Expr data,
   attrs->weight_layout = std::move(weight_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = std::move(out_dtype);
-  static const Op& op = Op::Get("conv2d");
+  static const Op& op = Op::Get("nn.conv2d");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
 
 
-TVM_REGISTER_API("relay.op._make.conv2d")
+TVM_REGISTER_API("relay.op.nn._make.conv2d")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 12>(MakeConv2D, args, rv);
   });
 
 
-RELAY_REGISTER_OP("conv2d")
+RELAY_REGISTER_OP("nn.conv2d")
 .describe(R"code(2D convolution layer (e.g. spatial convolution over images).
 
 This layer creates a convolution kernel that is convolved

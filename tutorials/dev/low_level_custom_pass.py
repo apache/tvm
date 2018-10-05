@@ -8,8 +8,8 @@ Sometimes users may want customize some analysis and IR transformations
 to adapt TVM to their own specialized hardware. This tutorial helps users write
 a customized pass in TVM.
 
- Prerequisites
---------------
+Prerequisites
+-------------
 
 Before reading this tutorial, we assume readers have already known these topics well:
 
@@ -31,7 +31,7 @@ import numpy as np
 
 ######################################################################
 # We first write a very simple vector add and build it with the default schedule. Then, we use
-# our customized lowering pass to manipulate the IR directly instead of using schedule premitives.  
+# our customized lowering pass to manipulate the IR directly instead of using schedule premitives.
 #
 
 n = tvm.const(128)
@@ -83,7 +83,7 @@ def find_width8(op):
 # post-order callback. If you want to keep the origin IR node, just return None. If you want to
 # change the current node to some node, use TVM IR maker interface to build it and return
 # this value.
-# 
+#
 # .. note::
 #
 #     If the pre-order function is called and returns a value which is not None, the post-order
@@ -113,7 +113,7 @@ def vectorize(stmt):
     # The last list arugment indicates what kinds of nodes will be transformed.
     # Thus, in this case only `For` nodes will call `vectorize8`
     stmt = tvm.ir_pass.IRTransform(stmt, None, vectorize8, ['For'])
-    
+
     return stmt
 
 #####################################################################
@@ -154,4 +154,3 @@ with tvm.build_config(add_lower_pass=[(1, vectorize)]) as cfg:
 # - Wrap up two above to write an IR-transformation function.
 # - Use ``tvm.build_config`` to put this function to TVM lowering pass
 #
-
