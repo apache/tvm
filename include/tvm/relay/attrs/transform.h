@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file tvm/relay/attrs/nn.h
- * \brief Auxiliary attributes for nn operators.
+ * \file tvm/relay/attrs/transform.h
+ * \brief Transform operators.
  */
 #ifndef TVM_RELAY_ATTRS_TRANSFORM_H_
 #define TVM_RELAY_ATTRS_TRANSFORM_H_

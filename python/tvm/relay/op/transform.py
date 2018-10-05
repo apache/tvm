@@ -1,4 +1,4 @@
-"""Reshaping tensor operations."""
+"""Transform operators."""
 
 from . import _make
 

@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file reshape.cc
- * \brief Reshape-related operators
+ * \file transform.cc
+ * \brief Transform operators.
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
