@@ -46,6 +46,7 @@ This level enables typical convnet models.
    :nosignatures:
 
    tvm.relay.right_shift
+   tvm.relay.left_shift
    tvm.relay.equal
    tvm.relay.not_equal
    tvm.relay.greater
@@ -72,6 +73,7 @@ Level 2 Definitions
 Level 4 Definitions
 -------------------
 .. autofunction:: tvm.relay.right_shift
+.. autofunction:: tvm.relay.left_shift
 .. autofunction:: tvm.relay.equal
 .. autofunction:: tvm.relay.not_equal
 .. autofunction:: tvm.relay.greater
