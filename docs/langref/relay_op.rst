@@ -42,6 +42,15 @@ This level enables typical convnet models.
 
 **Level 4: Broadcast and Reductions**
 
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.equal
+   tvm.relay.not_equal
+   tvm.relay.greater
+   tvm.relay.greater_equal
+   tvm.relay.less
+   tvm.relay.less_equal
 
 **Level 5: Vision/Image Operators**
 
