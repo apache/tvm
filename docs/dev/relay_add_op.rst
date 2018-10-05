@@ -13,7 +13,7 @@ register the operator's arity and type information
 operator and registering a Python API hook for the function
 - Wrapping the above Python API hook in a neater interface
 
-The file ``src/relay/op/tensor/elemwise.cc`` provides
+The file ``src/relay/op/tensor/binary.cc`` provides
 examples of the first two steps, while
 ``python/tvm/relay/op/tensor.py`` gives examples of the
 last.
@@ -53,7 +53,7 @@ indicating operators that are not as integral to the framework or are
 supported externally)
 - A type relation for the operator
 
-The below example is from ``elemwise.cc`` and uses a broadcasting
+The below example is from ``binary.cc`` and uses a broadcasting
 add for tensors:
 
 .. code:: c
