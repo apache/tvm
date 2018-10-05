@@ -61,6 +61,7 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.log
 .. autofunction:: tvm.relay.sqrt
 .. autofunction:: tvm.relay.exp
+.. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.add
 
 
