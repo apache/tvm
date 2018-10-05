@@ -78,3 +78,4 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.greater_equal
 .. autofunction:: tvm.relay.less
 .. autofunction:: tvm.relay.less_equal
+.. autofunction:: tvm.relay.minimum

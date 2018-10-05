@@ -35,6 +35,10 @@ RELAY_REGISTER_BINARY_OP("right_shift")
 .describe("Elementwise right shift with broadcasting")
 .set_support_level(4);
 
+RELAY_REGISTER_BINARY_OP("minimum")
+.describe("Elementwise minimum of two tensors with broadcasting")
+.set_support_level(4);
+
 // Comparisons
 #define RELAY_REGISTER_CMP_OP(OpName, SupportLevel)                 \
   TVM_REGISTER_API("relay.op._make." OpName)                        \

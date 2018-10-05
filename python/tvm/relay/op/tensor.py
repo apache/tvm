@@ -231,6 +231,24 @@ def right_shift(lhs, rhs):
     return _make.right_shift(lhs, rhs)
 
 
+def minimum(lhs, rhs):
+    """Elementwise minimum of two tensors with broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.minimum(lhs, rhs)
+
+
 def concat(*args):
     """Concatenate the input tensors along the zero axis.
 
