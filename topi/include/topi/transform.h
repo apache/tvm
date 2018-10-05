@@ -37,10 +37,18 @@ inline Tensor expand_dims(const Tensor& x,
                           int num_newaxis = 1,
                           std::string name = "tensor",
                           std::string tag = kBroadcast) {
+  int ndim = static_cast<int>(x->shape.size());
   if (axis < 0) {
     // Calculate offset from last dimension
-    axis = static_cast<int>(x->shape.size()) + axis + 1;
+    axis = ndim + axis + 1;
   }
+  CHECK(-ndim - 1 <= axis && axis <= ndim)
+    << "expand_dims only accepts `axis` in [-data.ndim - 1, data.ndim]"
+    << ", but got axis = " << axis
+    << ", and data.ndim = " << ndim;
+  CHECK(num_newaxis >= 0)
+    << "expand_dims only accepts `num_newaxis >= 0`"
+    << ", but got num_newaxis = " << num_newaxis;
 
   Array<Expr> new_shape;
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {

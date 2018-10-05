@@ -11,6 +11,7 @@ from . import ir_builder
 from .op import Op
 from .op.tensor import *
 from . import nn
+from .op.transform import *
 
 # Span
 Span = base.Span
