@@ -104,8 +104,113 @@ def subtract(lhs, rhs):
     return _make.subtract(lhs, rhs)
 
 
+
 def equal(lhs, rhs):
+    """Elementwise test for (lhs == rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
     return _make.equal(lhs, rhs)
+
+
+def not_equal(lhs, rhs):
+    """Elementwise test for (lhs != rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.not_equal(lhs, rhs)
+
+
+def less(lhs, rhs):
+    """Elementwise test for (lhs < rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.less(lhs, rhs)
+
+
+def less_equal(lhs, rhs):
+    """Elementwise test for (lhs <= rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.less_equal(lhs, rhs)
+
+
+def greater(lhs, rhs):
+    """Elementwise test for (lhs > rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.greater(lhs, rhs)
+
+
+def greater_equal(lhs, rhs):
+    """Elementwise test for (lhs >= rhs).
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.greater_equal(lhs, rhs)
 
 
 def concat(*args):
