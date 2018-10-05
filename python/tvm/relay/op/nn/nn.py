@@ -429,6 +429,34 @@ def batch_flatten(data):
     """
     return _make.batch_flatten(data)
 
+
+def dense(data, weight, units=None):
+    """Dense operator.
+    Applies a linear transformation
+
+    .. math::
+
+    `Y = X * W`
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    weight : relay.Expr
+        The weight expressions.
+
+    units : int, optional
+        Number of hidden units of the dense transformation.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.dense(data, weight, units)
+
+
 def relu(data):
     """Rectified linear unit.
 
@@ -446,6 +474,30 @@ def relu(data):
         The computed result.
     """
     return _make.relu(data)
+
+
+def leaky_relu(data, alpha):
+    """This operator takes data as input and does Leaky version
+    of a Rectified Linear Unit.
+
+    .. math::
+
+        `y = x > 0 ? x : alpha * x`
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    alpha : float
+        Slope coefficient for the negative half axis.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.leaky_relu(data, alpha)
 
 
 def pad(data,
