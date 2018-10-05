@@ -1,11 +1,11 @@
-#![feature(fs_read_write, try_from)]
+#![feature(try_from)]
 
 extern crate serde;
 extern crate serde_json;
 
 extern crate tvm;
 
-use std::{collections::HashMap, convert::TryFrom, fs, io::Read};
+use std::{convert::TryFrom, fs, io::Read};
 
 use tvm::runtime::Graph;
 
@@ -13,10 +13,10 @@ use tvm::runtime::Graph;
 fn test_load_graph() {
   let mut params_bytes = Vec::new();
   fs::File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.params"))
-    .unwrap()
+    .expect("Could not find TVM graph. Did you run `tests/build_model.py`?")
     .read_to_end(&mut params_bytes)
     .unwrap();
-  let params = tvm::runtime::load_param_dict(&params_bytes);
+  let _params = tvm::runtime::load_param_dict(&params_bytes);
 
   let graph = Graph::try_from(
     &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),

@@ -1,3 +1,14 @@
+//! This crate is an implementation of the TVM runtime for modules compiled with `--system-lib`.
+//! It's mainly useful for compiling to WebAssembly and SGX,
+//! but also native if you prefer Rust to C++.
+//!
+//! For TVM graphs, the entrypoint to this crate is `runtime::GraphExecutor`.
+//! Single-function modules are used via the `packed_func!` macro after obtaining
+//! the function from `runtime::SystemLibModule`
+//!
+//! The main entrypoints to this crate are `GraphExecutor`
+//! For examples of use, please refer to the multi-file tests in the `tests` directory.
+
 #![feature(
   alloc,
   allocator_api,

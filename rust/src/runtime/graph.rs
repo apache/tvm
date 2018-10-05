@@ -131,7 +131,7 @@ impl<'a> TryFrom<&'a str> for Graph {
 ///
 /// ```
 /// use ndarray::Array;
-
+///
 /// let syslib = SystemLibModule::default(); // a provider of TVM functions
 ///
 /// let mut params_bytes = Vec::new();
@@ -142,7 +142,7 @@ impl<'a> TryFrom<&'a str> for Graph {
 ///
 /// let mut exec = GraphExecutor::new(graph, &syslib).unwrap();
 /// exec.load_params(params);
-
+///
 /// let x = Array::from_vec(vec![1f32, 2., 3., 4.]);
 /// exec.set_input("data", x.into());
 /// exec.run();
@@ -189,7 +189,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         }
       }).collect::<Result<Vec<DataType>>>()?;
 
-    let align = dtypes.iter().map(|dtype| dtype.bits as usize).max();
+    let align = dtypes.iter().map(|dtype| dtype.bits as usize >> 3).max();
     let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
     for (i, &storage_id) in storage_ids.iter().enumerate() {
       let dtype_size = dtypes[i].bits * dtypes[i].lanes >> 3;

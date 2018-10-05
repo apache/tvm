@@ -1,4 +1,4 @@
-#![feature(fs_read_write, try_from)]
+#![feature(try_from)]
 
 #[macro_use]
 extern crate ndarray;
@@ -14,10 +14,18 @@ use tvm::runtime::{Graph, GraphExecutor, SystemLibModule, Tensor};
 const BATCH_SIZE: usize = 4;
 const IN_DIM: usize = 8;
 
-macro_rules! assert_sum_eq {
-  ($a:expr, $b:expr) => {
-    let a_sum = $a.scalar_sum();
-    let b_sum = $b.scalar_sum();
+macro_rules! check_sum {
+  ($e:expr, $a:ident, $b:ident) => {
+    let a = Array::try_from($e.get_input(stringify!($a)).unwrap()).unwrap();
+    check_sum!(a, $b);
+  };
+  ($e:expr, $a:expr, $b:ident) => {
+    let a = Array::try_from($e.get_output($a).unwrap()).unwrap();
+    check_sum!(a, $b);
+  };
+  ($a:ident, $b:ident) => {
+    let a_sum: f32 = $a.scalar_sum();
+    let b_sum: f32 = $b.scalar_sum();
     assert!((a_sum - b_sum).abs() < 1e-2, "{} != {}", a_sum, b_sum);
   };
 }
@@ -60,25 +68,13 @@ fn main() {
   exec.load_params(params);
   exec.set_input("data", x.clone().into());
 
-  assert_sum_eq!(Array::try_from(exec.get_input("data").unwrap()).unwrap(), x);
-  assert_sum_eq!(
-    Array::try_from(exec.get_input("dense0_weight").unwrap()).unwrap(),
-    w
-  );
-  assert_sum_eq!(
-    Array::try_from(exec.get_input("dense0_bias").unwrap()).unwrap(),
-    b
-  );
+  check_sum!(exec, data, x);
+  check_sum!(exec, dense0_weight, w);
+  check_sum!(exec, dense0_bias, b);
 
   exec.run();
 
-  assert_sum_eq!(
-    Array::try_from(exec.get_output(0).unwrap()).unwrap(),
-    expected_o0
-  );
-  assert_sum_eq!(
-    Array::try_from(exec.get_output(1).unwrap()).unwrap(),
-    expected_o1
-  );
-  assert_sum_eq!(Array::try_from(exec.get_output(2).unwrap()).unwrap(), dense);
+  check_sum!(exec, 0, expected_o0);
+  check_sum!(exec, 1, expected_o1);
+  check_sum!(exec, 2, dense);
 }
