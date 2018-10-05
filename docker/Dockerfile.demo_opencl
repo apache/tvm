@@ -13,14 +13,14 @@ RUN apt-get update
 RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 
 RUN echo "Installing utility libraries"
-RUN apt-get install -y apt-utils
+RUN apt-get install -y apt-utils sudo
 RUN apt-get install -y cmake g++ llvm
 RUN apt-get install -y git
 # make wget unzip libtinfo-dev libz-dev libcurl4-openssl-dev
 RUN apt-get install -y libopenblas-dev
 
 # RUN echo "Installing gtest"
-# RUN apt-get install -y libgtest-dev 
+# RUN apt-get install -y libgtest-dev
 # RUN cd /usr/src/gtest && cmake CMakeLists.txt && make && cp *.a /usr/lib
 
 RUN echo "Installing Python"
@@ -35,7 +35,7 @@ RUN apt-get install -y libviennacl-dev mesa-opencl-icd ocl-icd-opencl-dev clinfo
 RUN apt-get install -y libclblas-dev libclfft-dev libclsparse-dev
 
 RUN echo "Installing OpenGL libraries"
-RUN apt-get install -y libcogl-dev libegl1 libgles1 libglfw3-dev 
+RUN apt-get install -y libcogl-dev libegl1 libgles1 libglfw3-dev
 # libglew-dev
 
 RUN echo "Upgrading dependencies"
