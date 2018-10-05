@@ -69,10 +69,14 @@ macro_rules! ocall_packed {
   }
 }
 
+pub fn shutdown() {
+  if env!("TVM_NUM_THREADS") != "0" {
+    sgx_join_threads()
+  }
+}
+
 impl Drop for SystemLibModule {
   fn drop(&mut self) {
-    if env!("TVM_NUM_THREADS") != "0" {
-      sgx_join_threads()
-    }
+    shutdown()
   }
 }

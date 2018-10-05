@@ -42,10 +42,9 @@ impl WorkspacePool {
         if !ws_size >= size {
           return cur_ws_idx;
         }
-        cur_ws_idx.and_then(|cur_idx| {
+        cur_ws_idx.or(Some(idx)).and_then(|cur_idx| {
           let cur_size = self.workspaces[cur_idx].size();
-          Some(match ws_size < cur_size {
-            // is already ok
+          Some(match ws_size <= cur_size {
             true => idx,
             false => cur_idx,
           })

@@ -156,6 +156,8 @@ pub struct GraphExecutor<'m, 't> {
   tensors: Vec<Tensor<'t>>,
 }
 
+unsafe impl<'m, 't> Send for GraphExecutor<'m, 't> {}
+
 impl<'m, 't> GraphExecutor<'m, 't> {
   pub fn new<M: 'm + Module>(graph: Graph, lib: &'m M) -> Result<Self> {
     let tensors = Self::setup_storages(&graph)?;
@@ -189,7 +191,7 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         }
       }).collect::<Result<Vec<DataType>>>()?;
 
-    let align = dtypes.iter().map(|dtype| dtype.bits as usize >> 3).max();
+    let align = dtypes.iter().map(|dtype| dtype.bits as usize).max();
     let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
     for (i, &storage_id) in storage_ids.iter().enumerate() {
       let dtype_size = dtypes[i].bits * dtypes[i].lanes >> 3;

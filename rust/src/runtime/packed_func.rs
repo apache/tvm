@@ -149,8 +149,8 @@ pub struct TVMRetValue {
   type_code: i64,
 }
 
+#[cfg(target_env = "sgx")]
 impl TVMRetValue {
-  #[cfg(target_env = "sgx")]
   pub(crate) fn from_tvm_value(value: TVMValue, type_code: i64) -> Self {
     unsafe {
       Self {
@@ -165,6 +165,25 @@ impl TVMRetValue {
         type_code: type_code,
       }
     }
+  }
+
+  pub fn into_tvm_value(self) -> (TVMValue, i64) {
+    let val = match self.type_code {
+      0 | 1 => TVMValue {
+        v_int64: self.prim_value.clone() as i64,
+      },
+      2 => TVMValue {
+        v_float64: self.prim_value.clone() as f64,
+      },
+      3 | 7 | 8 | 9 | 10 => TVMValue {
+        v_handle: Box::into_raw(self.box_value) as *mut c_void,
+      },
+      11 | 12 => TVMValue {
+        v_str: Box::into_raw(self.box_value) as *const _,
+      },
+      _ => unreachable!(),
+    };
+    (val, self.type_code)
   }
 }
 

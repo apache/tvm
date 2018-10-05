@@ -257,7 +257,7 @@ pub extern "C" fn TVMBackendParallelLaunch(
 }
 
 #[cfg(target_env = "sgx")]
-pub(crate) fn sgx_join_threads() -> () {
+pub(crate) fn sgx_join_threads() {
   extern "C" fn poison_pill(
     _task_id: usize,
     _penv: *const TVMParallelGroupEnv,

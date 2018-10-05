@@ -129,6 +129,8 @@ pub struct Tensor<'a> {
   pub(super) size: usize,
 }
 
+unsafe impl<'a> Send for Tensor<'a> {}
+
 impl<'a> Tensor<'a> {
   pub fn shape(&self) -> Vec<i64> {
     self.shape.clone()
