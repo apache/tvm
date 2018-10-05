@@ -12,9 +12,8 @@ from ..expr import Tuple
 # - Not put too much burden on FFI to support complicated features
 #   like default value and keyword arguments
 
-
 def log(data):
-    """Take log of data.
+    """Compute elementwise log of data.
 
     Parameters
     ----------
@@ -30,7 +29,7 @@ def log(data):
 
 
 def exp(data):
-    """Take exp of data.
+    """Compute elementwise exp of data.
 
     Parameters
     ----------
@@ -46,7 +45,7 @@ def exp(data):
 
 
 def sqrt(data):
-    """Take sqrt of data.
+    """Compute elementwise sqrt of data.
 
     Parameters
     ----------
@@ -62,7 +61,7 @@ def sqrt(data):
 
 
 def add(lhs, rhs):
-    """Elementwise addition.
+    """Addition with numpy-style broadcasting.
 
     Parameters
     ----------
@@ -75,12 +74,20 @@ def add(lhs, rhs):
     -------
     result : relay.Expr
         The computed result.
+
+    Examples
+    --------
+    .. code:: python
+
+      x = relay.Var("a") # shape is [2, 3]
+      y = relay.Var("b") # shape is [2, 1]
+      z = relay.add(x, y)  # result shape is [2, 3]
     """
     return _make.add(lhs, rhs)
 
 
 def subtract(lhs, rhs):
-    """Elementwise subtraction.
+    """Elementwise subtraction with broadcasting.
 
     Parameters
     ----------
@@ -94,10 +101,12 @@ def subtract(lhs, rhs):
     result : relay.Expr
         The computed result.
     """
-    return _make.add(lhs, rhs)
+    return _make.subtract(lhs, rhs)
+
 
 def equal(lhs, rhs):
     return _make.equal(lhs, rhs)
+
 
 def concat(*args):
     """Concatenate the input tensors along the zero axis.

@@ -6,10 +6,11 @@ from . import expr
 from . import env
 from . import ir_pass
 from . import ir_builder
-# Operators
+
+# Root operators
 from .op import Op
 from .op.tensor import *
-from .op import nn
+from . import nn
 
 # Span
 Span = base.Span
