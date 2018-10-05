@@ -213,6 +213,24 @@ def greater_equal(lhs, rhs):
     return _make.greater_equal(lhs, rhs)
 
 
+def maximum(lhs, rhs):
+    """Right shift with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.maximum(lhs, rhs)
+
+
 def right_shift(lhs, rhs):
     """Right shift with numpy-style broadcasting.
 
@@ -244,3 +262,4 @@ def concat(*args):
     """
     tup = Tuple(list(args))
     return _make.concat(tup)
+
