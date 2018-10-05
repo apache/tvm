@@ -61,7 +61,7 @@ def sqrt(data):
 
 
 def add(lhs, rhs):
-    """Elementwise sum of two arguments with broadcasting.
+    """Addition with numpy-style broadcasting.
 
     Parameters
     ----------
@@ -79,14 +79,9 @@ def add(lhs, rhs):
     --------
     .. code:: python
 
-        x = [[ 1.,  1.,  1.],
-             [ 1.,  1.,  1.]]
-
-        y = [[ 0.],
-             [ 1.]]
-
-        add(x, y) = [[ 1.,  1.,  1.],
-                     [ 2.,  2.,  2.]]
+      x = relay.Var("a") # shape is [2, 3]
+      y = relay.Var("b") # shape is [2, 1]
+      z = relay.add(x, y)  # result shape is [2, 3]
     """
     return _make.add(lhs, rhs)
 
