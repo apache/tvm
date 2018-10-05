@@ -1,6 +1,7 @@
 import tvm
 from tvm import relay
 
+
 def test_tensor_type_alpha_eq():
     t1 = relay.TensorType((3, 4), "float32")
     t2 = relay.TensorType((3, 4), "float32")
@@ -56,41 +57,55 @@ def test_func_type_alpha_eq():
     tp3 = relay.TypeParam("v3", relay.Kind.Shape)
     tp4 = relay.TypeParam("v3", relay.Kind.Shape)
 
-    tr1 = relay.TypeRelation(None, tvm.convert([tp1, tp3]), 1, None)
-    tr2 = relay.TypeRelation(None, tvm.convert([tp2, tp4]), 1, None)
+    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
+    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    ft1 = relay.FuncType(tvm.convert([t1, t2]), tp1,
+    tr1 = relay.TypeRelation(broadcast, tvm.convert([tp1, tp3]), 1, None)
+    tr2 = relay.TypeRelation(broadcast, tvm.convert([tp2, tp4]), 1, None)
+    tr3 = relay.TypeRelation(identity, tvm.convert([tp1, tp3]), 1, None)
+
+    ft = relay.FuncType(tvm.convert([t1, t2]), tp1,
                          tvm.convert([tp1, tp3]),
                          tvm.convert([tr1]))
-    ft2 = relay.FuncType(tvm.convert([t1, t2]), tp1,
+    translate_vars = relay.FuncType(tvm.convert([t1, t2]), tp1,
                          tvm.convert([tp2, tp4]),
                          tvm.convert([tr2]))
-    assert ft1 == ft2
+    assert ft == translate_vars
 
-    ft3 = relay.FuncType(tvm.convert([t1]), tp1,
+    different_args = relay.FuncType(tvm.convert([t1]), tp1,
                          tvm.convert([tp1, tp3]),
                          tvm.convert([tr1]))
-    assert ft1 != ft3
+    assert ft != different_args
 
-    ft4 = relay.FuncType(tvm.convert([t2, t1]), tp1,
+    different_order = relay.FuncType(tvm.convert([t2, t1]), tp1,
                          tvm.convert([tp1, tp3]),
                          tvm.convert([tr1]))
-    assert ft1 != ft4
+    assert ft != different_order
 
-    ft5 = relay.FuncType(tvm.convert([t1, t2]), tp1,
+    no_rel = relay.FuncType(tvm.convert([t1, t2]), tp1,
                          tvm.convert([tp1, tp3]),
                          tvm.convert([]))
-    assert ft1 != ft5
+    assert ft != no_rel
 
-    ft6 = relay.FuncType(tvm.convert([t1, t2]), tp2,
+    more_vars = relay.FuncType(tvm.convert([t1, t2]), tp2,
                          tvm.convert([tp1, tp2, tp3]),
                          tvm.convert([tr1]))
-    assert ft1 != ft6
+    assert ft != more_vars
 
-    ft7 = relay.FuncType(tvm.convert([t1, t2]), tp1,
+    all_the_vars = relay.FuncType(tvm.convert([t1, t2]), tp1,
                          tvm.convert([tp1, tp2, tp3, tp4]),
                          tvm.convert([tr1, tr2]))
-    assert ft1 != ft7
+    assert ft != all_the_vars
+
+    different_rel = relay.FuncType(tvm.convert([t1, t2]), tp1,
+                                   tvm.convert([tp1, tp3]),
+                                   tvm.convert([tr3]))
+    assert ft != different_rel
+
+    more_rels = relay.FuncType(tvm.convert([t1, t2]), tp1,
+                                   tvm.convert([tp1, tp3]),
+                                   tvm.convert([tr1, tr3]))
+    assert ft != more_rels
 
 
 def test_tuple_type_alpha_eq():
@@ -116,14 +131,21 @@ def test_type_relation_alpha_eq():
     t2 = relay.TensorType((1, 2, 3), "float32")
     t3 = relay.TensorType((1, 2, 3, 4), "float32")
 
-    tr1 = relay.TypeRelation(None, tvm.convert([t1, t2]), 1, None)
-    tr2 = relay.TypeRelation(None, tvm.convert([t1, t2]), 1, None)
-    tr3 = relay.TypeRelation(None, tvm.convert([t2, t1]), 1, None)
-    tr4 = relay.TypeRelation(None, tvm.convert([t2, t3]), 1, None)
-    tr5 = relay.TypeRelation(None, tvm.convert([t1, t3, t2]), 2, None)
-    tr6 = relay.TypeRelation(None, tvm.convert([t1, t3, t2]), 1, None)
+    # functions are compared only by pointer equality so
+    # we need to be sure to use the same pointers
+    broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
+    identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    # number of args, input count, and order should be the same
+    tr1 = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
+    tr2 = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
+    tr3 = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, None)
+    tr4 = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, None)
+    tr5 = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, None)
+
+    tr6 = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, None)
+    tr7 = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, None)
+
+    # func, number of args, input count, and order should be the same
     assert tr1 == tr2
     assert tr1 != tr3
     assert tr1 != tr4
