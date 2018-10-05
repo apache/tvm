@@ -26,7 +26,7 @@ namespace relay {
  */
 class LetList {
  private:
-  std::vector<std::tuple<Var, Type, Expr> > lets;
+  std::vector<std::tuple<Var, Type, Expr> > lets_;
 
  public:
   /*! \brief insert a binding.
@@ -41,7 +41,7 @@ class LetList {
    */
   Var Push(const Var& pv, const Type& ty, const Expr& expr) {
     std::tuple<Var, Type, Expr> tuple(pv, ty, expr);
-    lets.push_back(tuple);
+    lets_.push_back(tuple);
     return pv;
   }
 
@@ -85,7 +85,7 @@ class LetList {
    */
   Expr Get(const Expr& expr) const {
     Expr ret = expr;
-    for (auto rit = lets.rbegin(); rit != lets.rend(); ++rit) {
+    for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
       ret = LetNode::make(std::get<0>(*rit), std::get<2>(*rit), ret, std::get<1>(*rit));
     }
     return ret;
