@@ -6,7 +6,7 @@ from .op import get, register, Op
 # Operators
 from .tensor import *
 from . import nn
-from . import transform
+from .transform import *
 
 
 # operator registry
