@@ -67,3 +67,8 @@ Level 1 Definitions
 Level 2 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.conv2d
+
+
+Level 4 Definitions
+-------------------
+.. autofunction:: tvm.relay.maximum

@@ -262,4 +262,3 @@ def concat(*args):
     """
     tup = Tuple(list(args))
     return _make.concat(tup)
-
