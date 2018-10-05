@@ -22,3 +22,7 @@ RUN bash /install/ubuntu_install_redis.sh
 # Golang environment
 COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
+
+# SGX deps
+COPY install/ubuntu_install_sgx.sh /install/ubuntu_install_sgx.sh
+RUN bash /install/ubuntu_install_sgx.sh
