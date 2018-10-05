@@ -106,90 +106,26 @@ RELAY_REGISTER_OP("subtract")
   // input2: Tensor[dtype, s2]
   // output: Tensor[dtype, broadcast(s1, s2)]
 
-// Comparisons   TODO(Junru): check support level
-// Comparison: ==
-TVM_REGISTER_API("relay.op._make.equal")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("equal");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
+// Comparisons
+#define RELAY_REGISTER_CMP_OP(OpName, SupportLevel)                 \
+  TVM_REGISTER_API("relay.op._make." OpName)                        \
+  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {        \
+      static const Op& op = Op::Get(OpName);                        \
+    return CallNode::make(op, {lhs, rhs}, Attrs(), {});             \
+  });                                                               \
+  RELAY_REGISTER_OP(OpName)                                         \
+    .set_num_inputs(2)                                              \
+    .add_argument("lhs", "Tensor", "The left hand side tensor.")    \
+    .add_argument("rhs", "Tensor", "The right hand side tensor.")   \
+    .set_support_level(SupportLevel)                                \
+    .add_type_rel("BroadcastComp", BroadcastCompRel);
 
-RELAY_REGISTER_OP("equal")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
-
-// Comparison: !=
-TVM_REGISTER_API("relay.op._make.not_equal")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("not_equal");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("not_equal")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
-
-// Comparison: <
-TVM_REGISTER_API("relay.op._make.less")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("less");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("less")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
-
-// Comparison: <=
-TVM_REGISTER_API("relay.op._make.less_equal")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("less_equal");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("less_equal")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
-
-// Comparison: >
-TVM_REGISTER_API("relay.op._make.greater")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("greater");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("greater")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
-
-// Comparison: >=
-TVM_REGISTER_API("relay.op._make.greater_equal")
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {
-      static const Op& op = Op::Get("greater_equal");
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("greater_equal")
-  .set_num_inputs(2)
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")
-  .set_support_level(1)
-  .add_type_rel("BroadcastComp", BroadcastCompRel);
+RELAY_REGISTER_CMP_OP("equal", 4);
+RELAY_REGISTER_CMP_OP("not_equal", 4);
+RELAY_REGISTER_CMP_OP("less", 4);
+RELAY_REGISTER_CMP_OP("less_equal", 4);
+RELAY_REGISTER_CMP_OP("greater", 4);
+RELAY_REGISTER_CMP_OP("greater_equal", 4);
 
 // Concat
 TVM_REGISTER_API("relay.op._make.concat")
