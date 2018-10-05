@@ -136,22 +136,23 @@ def test_type_relation_alpha_eq():
     broadcast = tvm.get_env_func("tvm.relay.type_relation.Broadcast")
     identity = tvm.get_env_func("tvm.relay.type_relation.Identity")
 
-    tr1 = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
-    tr2 = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
-    tr3 = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, None)
-    tr4 = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, None)
-    tr5 = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, None)
+    tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
+    same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, None)
+    diff_func = relay.TypeRelation(identity, tvm.convert([t1, t2]), 1, None)
+    diff_order = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, None)
+    diff_args = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, None)
 
-    tr6 = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, None)
-    tr7 = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, None)
+    bigger = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, None)
+    diff_num_inputs = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, None)
 
     # func, number of args, input count, and order should be the same
-    assert tr1 == tr2
-    assert tr1 != tr3
-    assert tr1 != tr4
-    assert tr1 != tr5
-    assert tr1 != tr6
-    assert tr5 != tr6
+    assert tr == same
+    assert tr != diff_func
+    assert tr != diff_order
+    assert tr != diff_args
+    assert tr != bigger
+
+    assert bigger != diff_num_inputs
 
 
 if __name__ == "__main__":
