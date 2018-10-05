@@ -88,7 +88,9 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const FuncTypeNode *op, const Type& t2) final {
     if (const FuncTypeNode *ta2 = t2.as<FuncTypeNode>()) {
-      if (op->arg_types.size() != ta2->arg_types.size()) {
+      if (op->arg_types.size() != ta2->arg_types.size()
+          || op->type_params.size() != ta2->type_params.size()
+          || op->type_constraints.size() != ta2->type_constraints.size()) {
         equal = false;
         return;
       }
@@ -101,6 +103,24 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
       }
 
       this->VisitType(op->ret_type, ta2->ret_type);
+      if (!equal) {
+        return;
+      }
+
+      for (size_t i = 0; i < op->type_params.size(); i++) {
+        eq_map.Set(op->type_params[i], ta2->type_params[i]);
+        this->VisitType(op->type_params[i], ta2->type_params[i]);
+        if (!equal) {
+          return;
+        }
+      }
+
+      for (size_t i = 0; i < op->type_constraints.size(); i++) {
+        this->VisitType(op->type_constraints[i], ta2->type_constraints[i]);
+        if (!equal) {
+          return;
+        }
+      }
     } else {
       equal = false;
     }
