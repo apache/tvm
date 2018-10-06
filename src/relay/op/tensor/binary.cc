@@ -40,7 +40,7 @@ RELAY_REGISTER_BINARY_OP("right_shift")
 RELAY_REGISTER_BINARY_OP("left_shift")
 .describe("Elementwise left shift with broadcasting")
 .set_support_level(4);
-  
+
 RELAY_REGISTER_BINARY_OP("maximum")
 .describe("Elementwise maximum of two tensors with broadcasting")
 .set_support_level(4);
