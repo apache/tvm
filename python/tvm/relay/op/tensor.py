@@ -343,9 +343,26 @@ def concatenate(data, axis=0):
 
     Returns
     -------
-    tensor: The concatenated tensor.
+    result: relay.Expr
+        The concatenated tensor.
     """
     data = list(data)
     if not data:
         raise ValueError("relay.concatenate requires data to be non-empty.")
     return _make.concatenate(Tuple(data), axis)
+
+
+def copy(data):
+    """Copy a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The tensor to be copied.
+
+    Returns
+    -------
+    result: relay.Expr
+        The copied result.
+    """
+    return _make.copy(data)
