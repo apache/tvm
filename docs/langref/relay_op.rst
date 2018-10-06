@@ -54,6 +54,7 @@ This level enables typical convnet models.
    tvm.relay.greater_equal
    tvm.relay.less
    tvm.relay.less_equal
+   tvm.relay.maximum
 
 **Level 5: Vision/Image Operators**
 
@@ -82,3 +83,4 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.greater_equal
 .. autofunction:: tvm.relay.less
 .. autofunction:: tvm.relay.less_equal
+.. autofunction:: tvm.relay.maximum
