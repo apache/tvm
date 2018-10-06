@@ -98,7 +98,7 @@ bool ConcatenateRel(const Array<Type>& types,
   // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
   const DataType dtype = first->dtype;
-  for (const Type& ele: tensor_tuple->fields) {
+  for (const Type& ele : tensor_tuple->fields) {
     const auto& e = Downcast<TensorType>(ele);
     int e_ndim = static_cast<int>(e->shape.size());
     const DataType& e_dtype = e->dtype;
@@ -113,9 +113,9 @@ bool ConcatenateRel(const Array<Type>& types,
     << ", and ndim = " << ndim;
   axis = axis < 0 ? ndim + axis : axis;
   // Calculate shape
-  std::vector<IndexExpr> oshape; // weird that I cannot directly construct.
+  std::vector<IndexExpr> oshape;
   oshape.reserve(ndim);
-  for (const IndexExpr& dim: first->shape) {
+  for (const IndexExpr& dim : first->shape) {
     oshape.push_back(dim);
   }
   IndexExpr &concat_dim = oshape[axis];
@@ -181,7 +181,7 @@ bool TransposeRel(const Array<Type>& types,
     }
   } else {
     std::vector<int> axis_used(ndim, 0);
-    for (const IndexExpr& e: axes) {
+    for (const IndexExpr& e : axes) {
       const int64_t *axis_ptr = as_const_int(e);
       CHECK(axis_ptr != nullptr);
       int axis = *axis_ptr;
@@ -199,7 +199,7 @@ bool TransposeRel(const Array<Type>& types,
   }
   std::vector<IndexExpr> oshape;
   oshape.reserve(ndim);
-  for (int axis: int_axes) {
+  for (int axis : int_axes) {
     oshape.push_back(data->shape[axis]);
   }
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
