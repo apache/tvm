@@ -4,13 +4,22 @@ This application demonstrates the use of a simple TVM model in the [Intel SGX](h
 
 ## Prerequisites
 
+1. The TVM premade Docker image
+
+or
+
 1. A GNU/Linux environment
 2. TVM compiled with LLVM and SGX; and the `tvm` Python module
 3. The [Linux SGX SDK](https://github.com/intel/linux-sgx) [link to pre-built libraries](https://01.org/intel-software-guard-extensions/downloads)
+4. [Rust](https://rustup.sh)
+5. The [rust-sgx-sdk](https://github.com/baidu/rust-sgx-sdk)
+6. [xargo](https://github.com/japaric/xargo)
+
+Check out the `/tvm/install/ubuntu_install_sgx.sh` for the commands to get these dependencies.
 
 ## Running the example
 
-`SGX_SDK=/path/to/sgxsdk bash run_example.sh`
+`bash run_example.sh`
 
 If everything goes well, you should see a lot of build messages and below them
 the text `It works!`.
@@ -24,10 +33,9 @@ In this library, one can use other libraries like TVM.
 Building this example performs the following steps:
 
 1. Creates a simple TVM module that computes `x + 1` and save it as a system library.
-2. Builds a minimal TVM runtime pack that can load the module.
-3. Links the TVM module into an SGX enclave along with some code that runs the module.
-4. Compiles and runs an executable that loads the enclave and calls a function
-   which invokes the TVM module.
+2. Builds a TVM runtime that links the module and allows running it using the TVM Python runtime.
+3. Packages the bundle into an SGX enclave
+4. Runs the enclave using the usual TVM Python `module` API
 
 For more information on building, please refer to the `Makefile`.  
 For more information on the TVM module, please refer to `../howto_deploy`.  

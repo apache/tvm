@@ -1,5 +1,4 @@
 if(NOT USE_SGX STREQUAL "OFF")
-  message(STATUS "Build with SGX support")
 
   set(_sgx_src ${CMAKE_CURRENT_SOURCE_DIR}/src/runtime/sgx)
   set(_tvm_u_h ${_sgx_src}/untrusted/tvm_u.h)
@@ -9,8 +8,11 @@ if(NOT USE_SGX STREQUAL "OFF")
   set(_sgx_ustdc ${RUST_SGX_SDK}/sgx_ustdc)
 
   set(_urts_lib "sgx_urts")
-  if(SGX_MODE STREQUAL "SIM")
+  if(NOT SGX_MODE STREQUAL "HW")
+    message(STATUS "Build with SGX support (SIM)")
     set(_urts_lib "${_urts_lib}_sim")
+  else()
+    message(STATUS "Build with SGX support (HW)")
   endif()
 
   # build edge routines
