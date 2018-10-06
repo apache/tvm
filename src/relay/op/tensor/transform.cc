@@ -404,5 +404,51 @@ Examples::
 .set_support_level(2)
 .add_type_rel("Take", TakeRel);
 
+TVM_REGISTER_NODE_TYPE(FullAttrs);
+
+bool FullRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // we only have an output type
+  CHECK_EQ(types.size(), 2);
+  const FullAttrs* param = attrs.as<FullAttrs>();
+  const auto* fill_value = types[0].as<TensorTypeNode>();
+  if (fill_value == nullptr) {
+    return false;
+  }
+
+  CHECK_EQ(fill_value->shape.size(), 0)
+    << "Fill value should be a scalar but has dimension "
+    << fill_value->shape.size() << ".";
+
+  reporter->Assign(types[1], TensorTypeNode::make(param->shape, param->dtype));
+  return true;
+}
+
+Expr MakeFull(Expr fill_value,
+              Array<IndexExpr> shape,
+              DataType dtype) {
+  auto attrs = make_node<FullAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("full");
+  return CallNode::make(op, {fill_value}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.full")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeFull, args, rv);
+});
+
+RELAY_REGISTER_OP("full")
+.describe(R"code(Fill array with scalar value.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("fill_value", "double", "The value to fill.")
+.set_support_level(3)
+.add_type_rel("Full", FullRel);
+
 }  // namespace relay
 }  // namespace tvm
