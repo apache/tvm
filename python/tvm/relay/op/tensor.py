@@ -295,3 +295,35 @@ def concat(*args):
     """
     tup = Tuple(list(args))
     return _make.concat(tup)
+
+
+def zeros_like(data):
+    """Returns an array of zeros, with same type and shape as the input.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.zeros_like(data)
+
+
+def ones_like(data):
+    """Returns an array of ones, with same type and shape as the input.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.ones_like(data)
