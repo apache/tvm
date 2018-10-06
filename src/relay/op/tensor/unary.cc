@@ -119,7 +119,7 @@ TVM_REGISTER_API("relay.op._make.clip")
 
 RELAY_REGISTER_OP("clip")
   .describe(R"code(Clip tensor values.
-  This function takes a tensor, a minimum value `a_min`, and a maximum value `a_max`, and returns a clipped tensor where all values below `a_min` are set to `a_min` and all values above `a_max` are set to `a_max`.
+  This function takes a tensor, a minimum value `a_min`, and a maximum value `a_max`, and returns a clipped tensor where all values below `a_min` are set to `a_min` and all values above `a_max` are set to `a_max`. `a_min` and `a_max` are cast to the tensor's dtype.
   )code" TVM_ADD_FILELINE)
   .set_num_inputs(1)
   .add_argument("tensor", "Tensor", "The input tensor.")

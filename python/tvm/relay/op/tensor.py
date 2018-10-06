@@ -347,7 +347,7 @@ def ones_like(data):
     return _make.ones_like(data)
 
 def clip(a, a_min, a_max):
-    """Clip the elements in `a` between `min` and `max`.
+    """Clip the elements in `a` between `a_min` and `a_max`. `a_min` and `a_max` are cast to `a`'s dtype.
 
     Parameters
     ----------
@@ -368,6 +368,6 @@ def clip(a, a_min, a_max):
     .. code:: python
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
       relay.clip(x, 1., 4.)
-      # [1.0, 1.0, 4.0, 3.0, 4.0, 2.0]
+      # [1, 1, 4, 3, 4, 2]
     """
     return _make.clip(a, a_min, a_max)
