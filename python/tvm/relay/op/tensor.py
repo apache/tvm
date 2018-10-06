@@ -349,6 +349,8 @@ def concatenate(data, axis=0):
     data = list(data)
     if not data:
         raise ValueError("relay.concatenate requires data to be non-empty.")
+    if not isinstance(axis, int):
+        raise ValueError("For now, we only support integer axis")
     return _make.concatenate(Tuple(data), axis)
 
 

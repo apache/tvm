@@ -5,21 +5,12 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
+#include <tvm/ir_operator.h>
 #include <vector>
 
 
 namespace tvm {
 namespace relay {
-namespace _helper {
-  int ToInt(const tvm::Expr& e) {
-    // Copied from jroesch's example code.
-    // TODO(@jroesch) what size value do we extract, 64bit or 32bit?
-    CHECK(e.defined());
-    auto imm = e.as<tvm::ir::IntImm>();
-    CHECK(imm) << "TYPE: " << imm << imm->type << std::endl;
-    return imm->value;
-  }
-} // namespace _helper
 
 /* relay.expand_dims */
 
@@ -191,7 +182,9 @@ bool TransposeRel(const Array<Type>& types,
   } else {
     std::vector<int> axis_used(ndim, 0);
     for (const IndexExpr& e: axes) {
-      int axis = _helper::ToInt(e);
+      const int64_t *axis_ptr = as_const_int(e);
+      CHECK(axis_ptr != nullptr);
+      int axis = *axis_ptr;
       // sanity check for axis and ndim
       CHECK(-ndim <= axis && axis < ndim)
         << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
