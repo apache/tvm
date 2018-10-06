@@ -1,6 +1,30 @@
 import tvm
+import numpy as np
 from tvm import relay
+from tvm.relay.ir_pass import infer_type
+from tvm.relay.ir_builder import IRBuilder, func_type
+from tvm.relay.env import Environment
 
+def assert_has_type(expr, typ, env=Environment({})):
+    checked_expr = infer_type(env, expr)
+    checked_type = checked_expr.checked_type()
+    if checked_type != typ:
+        raise RuntimeError("Type mismatch %s vs %s" % (
+            checked_type, typ))
+
+def test_single_op():
+    def check_single_op(opfunc):
+        "Program: fn (x : float32) { let t1 = f(x); t1 }"
+        b = IRBuilder()
+        with b.function(('x', 'float32')) as func:
+            x, = func.param_ids()
+            t1 = b.let('t1', opfunc(x))
+            b.ret(t1)
+        assert_has_type(func.to_func(), func_type(['float32'], 'float32'))
+
+    for opfunc in [tvm.relay.log, tvm.relay.exp, tvm.relay.sqrt,
+                   tvm.relay.sigmoid, tvm.relay.tanh]:
+        check_single_op(opfunc)
 
 def test_expand_dims_infer_type():
     ib = relay.ir_builder.IRBuilder()
@@ -83,7 +107,8 @@ def test_concatenate_infer_type():
 
 
 if __name__ == "__main__":
-    test_expand_dims_infer_type()
     test_unary_op()
+    test_single_op()
+    test_expand_dims_infer_type()
     test_concatenate_infer_type()
     test_softmax()

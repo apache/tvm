@@ -77,6 +77,102 @@ struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {
   }
 };
 
+/*! \brief Attributes for max pool operator */
+struct MaxPool2DAttrs : public tvm::AttrsNode<MaxPool2DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+
+  TVM_DECLARE_ATTRS(MaxPool2DAttrs, "relay.attrs.MaxPool2DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+  }
+};
+
+/*! \brief Attributes for avg pool operator */
+struct AvgPool2DAttrs : public tvm::AttrsNode<AvgPool2DAttrs> {
+  Array<IndexExpr> pool_size;
+  Array<IndexExpr> strides;
+  Array<IndexExpr> padding;
+  std::string layout;
+  bool ceil_mode;
+  bool count_include_pad;
+
+  TVM_DECLARE_ATTRS(AvgPool2DAttrs, "relay.attrs.AvgPool2DAttrs") {
+    TVM_ATTR_FIELD(pool_size)
+      .describe("Size of the pooling windows.");
+    TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
+      .describe("Specifies the strides of the convolution.");
+    TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
+      .describe("If padding is non-zero, then the input is implicitly zero-padded"
+                "Padding support both symmetric and asymmetric as"
+                "one int : same padding used on all sides"
+                "two int : bottom, right will use same padding as top, left"
+                "four int : padding width in the order of (top, left, bottom, right)");
+    TVM_ATTR_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+    TVM_ATTR_FIELD(ceil_mode).set_default(false)
+      .describe("When true, will use ceil instead of floor to compute the output shape.");
+    TVM_ATTR_FIELD(count_include_pad).set_default(false)
+      .describe("When true, will include padding to compute the average");
+  }
+};
+
+/*! \brief Attributes for global pool operator */
+struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
+  std::string layout;
+
+  TVM_DECLARE_ATTRS(GlobalPool2DAttrs, "relay.attrs.GlobalPool2DAttrs") {
+    TVM_ATTR_FIELD(layout).set_default("NCHW")
+      .describe("Dimension ordering of data and weight. Can be 'NCHW', 'NHWC', etc."
+                "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                "dimensions respectively. Convolution is applied on the 'H' and"
+                "'W' dimensions.");
+  }
+};
+
+/*! \brief Attributes for upsampling operator */
+struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
+  int scale;
+  std::string layout;
+  std::string method;
+
+  TVM_DECLARE_ATTRS(UpSamplingAttrs, "relay.attrs.UpSamplingAttrs") {
+    TVM_ATTR_FIELD(scale)
+        .describe("Should be true to preserve the values at the corner pixels");
+    TVM_ATTR_FIELD(layout).set_default("NCHW")
+        .describe("Dimension ordering of input data. Can be 'NCHW', 'NHWC', etc."
+                  "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                  "dimensions respectively. Upsampling is applied on the 'H' and"
+                  "'W' dimensions.");
+    TVM_ATTR_FIELD(method).set_default("NEAREST_NEIGHBOR")
+        .describe("Specify the mode to use for scaling."
+                  "NEAREST_NEIGHBOR -  Nearest Neighbor"
+                  "BILINEAR - Bilinear Interpolation");
+  }
+};
+
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_
