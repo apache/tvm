@@ -60,6 +60,22 @@ def sqrt(data):
     return _make.sqrt(data)
 
 
+def sigmoid(data):
+    """Compute elementwise sigmoid of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sigmoid(data)
+
+
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -102,7 +118,6 @@ def subtract(lhs, rhs):
         The computed result.
     """
     return _make.subtract(lhs, rhs)
-
 
 
 def equal(lhs, rhs):
@@ -247,6 +262,24 @@ def right_shift(lhs, rhs):
         The computed result.
     """
     return _make.right_shift(lhs, rhs)
+
+
+def left_shift(lhs, rhs):
+    """Left shift with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.left_shift(lhs, rhs)
 
 
 def concat(*args):

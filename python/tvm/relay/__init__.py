@@ -25,6 +25,7 @@ TypeParam = ty.TypeParam
 TypeConstraint = ty.TypeConstraint
 FuncType = ty.FuncType
 TypeRelation = ty.TypeRelation
+IncompleteType = ty.IncompleteType
 
 # Expr
 Constant = expr.Constant

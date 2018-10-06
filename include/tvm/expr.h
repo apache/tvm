@@ -108,6 +108,8 @@ class Range : public HalideIR::IR::Range {
   TVM_DLL static Range make_by_min_extent(Expr min, Expr extent);
 };
 
+using Region = Array<Range>;
+
 /*!
  * \brief Type of iteration variable.
  *  Each IterVar have a specific type.

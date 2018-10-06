@@ -243,24 +243,43 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None):
             raise ValueError("nested tag is not allowed for now")
         tag = _tag.TagScope.get_current().tag
     shape = (shape,) if isinstance(shape, _expr.Expr) else shape
+    # for python3
+    shape = tuple([int(s) if isinstance(s, float) else s for s in shape])
     ndim = len(shape)
     code = fcompute.__code__
 
-    if fcompute.__code__.co_argcount == 0:
+    out_ndim = ndim
+    if code.co_argcount == 0:
         arg_names = ["i%d" % i for i in range(ndim)]
     else:
         arg_names = code.co_varnames[:code.co_argcount]
+        out_ndim = code.co_argcount
 
-    if ndim != len(arg_names):
+    if out_ndim != len(arg_names):
         raise ValueError("fcompute do not match dimension, ndim=%d" % ndim)
 
-    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape)]
+    dim_var = [_IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
-    if not isinstance(body, (list, tuple)):
-        body = [body]
-    body = convert(body)
-    op_node = _api_internal._ComputeOp(
-        name, tag, attrs, dim_var, body)
+
+    if isinstance(body, _tensor.TensorIntrinCall):
+        for i, s in enumerate(shape[out_ndim:]):
+            var_name = "ax" + str(i)
+            dim_var.append(_IterVar((0, s), var_name, 4))
+        op_node = _api_internal._TensorComputeOp(name,
+                                                 tag,
+                                                 dim_var,
+                                                 body.reduce_axis,
+                                                 out_ndim,
+                                                 body.intrin,
+                                                 body.tensors,
+                                                 body.regions)
+    else:
+        if not isinstance(body, (list, tuple)):
+            body = [body]
+        body = convert(body)
+        op_node = _api_internal._ComputeOp(
+            name, tag, attrs, dim_var, body)
+
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
     return outputs[0] if num == 1 else outputs
@@ -529,13 +548,13 @@ def decl_buffer(shape,
     dtype = float32 if dtype is None else dtype
     strides = () if strides is None else strides
     if offset_factor != 0 and elem_offset is None:
-        elem_offset = var('%s_elem_offset' % name, shape[0].dtype)
+        shape_dtype = shape[0].dtype if hasattr(shape[0], "dtype") else "int32"
+        elem_offset = var('%s_elem_offset' % name, shape_dtype)
     if data is None:
         data = var(name, "handle")
     return _api_internal._Buffer(
         data, dtype, shape, strides, elem_offset, name, scope,
         data_alignment, offset_factor)
-
 
 def _IterVar(dom, name, iter_type, thread_tag=''):
     """Internal function to create IterVar

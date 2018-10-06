@@ -88,9 +88,21 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const FuncTypeNode *op, const Type& t2) final {
     if (const FuncTypeNode *ta2 = t2.as<FuncTypeNode>()) {
-      if (op->arg_types.size() != ta2->arg_types.size()) {
+      if (op->arg_types.size() != ta2->arg_types.size()
+          || op->type_params.size() != ta2->type_params.size()
+          || op->type_constraints.size() != ta2->type_constraints.size()) {
         equal = false;
         return;
+      }
+
+      // must visit params first so they are appropriate entered
+      // into equality map
+      for (size_t i = 0; i < op->type_params.size(); i++) {
+        eq_map.Set(op->type_params[i], ta2->type_params[i]);
+        this->VisitType(op->type_params[i], ta2->type_params[i]);
+        if (!equal) {
+          return;
+        }
       }
 
       for (size_t i = 0; i < op->arg_types.size(); i++) {
@@ -101,6 +113,16 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
       }
 
       this->VisitType(op->ret_type, ta2->ret_type);
+      if (!equal) {
+        return;
+      }
+
+      for (size_t i = 0; i < op->type_constraints.size(); i++) {
+        this->VisitType(op->type_constraints[i], ta2->type_constraints[i]);
+        if (!equal) {
+          return;
+        }
+      }
     } else {
       equal = false;
     }
@@ -108,7 +130,24 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const TypeRelationNode *tr1, const Type& t2) final {
     if (const TypeRelationNode *tr2 = t2.as<TypeRelationNode>()) {
-      equal = tr1 == tr2;
+      if (tr1->func != tr2->func
+          || tr1->num_inputs != tr2->num_inputs
+          || tr1->attrs != tr2->attrs) {
+        equal = false;
+        return;
+      }
+
+      if (tr1->args.size() != tr2->args.size()) {
+        equal = false;
+        return;
+      }
+
+      for (size_t i = 0; i < tr1->args.size(); i++) {
+        this->VisitType(tr1->args[i], tr2->args[i]);
+        if (!equal) {
+          return;
+        }
+      }
     } else {
       equal = false;
     }
