@@ -7,9 +7,9 @@
 #ifndef TVM_RELAY_OP_OP_COMMON_H_
 #define TVM_RELAY_OP_OP_COMMON_H_
 
-#include <vector>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <vector>
 
 namespace tvm {
 namespace relay {

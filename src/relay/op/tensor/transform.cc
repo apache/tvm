@@ -3,11 +3,11 @@
  * \file transform.cc
  * \brief Transform operators.
  */
-#include <vector>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
 #include "../op_common.h"
+#include <vector>
 
 
 namespace tvm {
