@@ -12,6 +12,7 @@ curl 'https://gist.github.com/nhynes/c770b0e91610f8c020a8d1a803a1e7cb' | git am
 make -j sdk && make -j sdk_install_pkg
 ./linux/installer/bin/sgx_linux_x64_sdk_2.2.100.45311.bin --prefix /opt
 cd -
+rm -rf linux-sgx
 
 git clone https://github.com/baidu/rust-sgx-sdk.git /opt/rust-sgx-sdk
 cd /opt/rust-sgx-sdk

@@ -7,3 +7,4 @@ bash rustup.sh -y --no-modify-path --default-toolchain nightly-2018-08-25
 rustup component add rust-src
 cargo install rustfmt-nightly --force
 cargo install xargo
+rm rustup.sh
