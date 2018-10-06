@@ -19,6 +19,21 @@ Check out the `/tvm/install/ubuntu_install_sgx.sh` for the commands to get these
 
 ## Running the example
 
+If using Docker, start by running
+
+```
+git clone https://github.com/dmlc/tvm.git
+docker run --rm -it -v $(pwd)/tvm:/mnt tvmai/ci-cpu /bin/bash
+```
+then, in the container
+```
+cd /mnt
+mkdir build && cd build
+cmake .. -DUSE_LLVM=ON -DUSE_SGX=/opt/sgxsdk -DRUST_SGX_SDK=/opt/rust-sgx-sdk
+make -j4
+cd ../apps/sgx
+```
+
 `bash run_example.sh`
 
 If everything goes well, you should see a lot of build messages and below them
