@@ -7,7 +7,8 @@ NATIVE_SRC = tvm_runtime_pack.cc
 
 GOPATH=$(CURDIR)/gopath
 GOPATHDIR=${GOPATH}/src/${TARGET}/
-CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/3rdparty/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/3rdparty/dlpack/include/ -std=c++11"
+CGO_CPPFLAGS="-I. -I${TVM_BASE}/ -I${TVM_BASE}/3rdparty/dmlc-core/include -I${TVM_BASE}/include -I${TVM_BASE}/3rdparty/dlpack/include/"
+CGO_CXXFLAGS="-std=c++11"
 CGO_CFLAGS="-I${TVM_BASE}"
 CGO_LDFLAGS="-ldl -lm"
 
@@ -21,9 +22,10 @@ all:
 	@cp src/*.go gopath/src/$(TARGET)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
+	export CGO_CXXFLAGS=$(CGO_CXXFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
-	(cd $(GOPATHDIR) && go clean \
+	(cd $(GOPATHDIR) && go clean -cache \
 	&& golint && go build -o $(TARGET).a \
 	&& go install)
 	@find . -name gotvm.a
@@ -51,7 +53,7 @@ clean:
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
-	(cd $(GOPATHDIR) && go clean); fi
+	(cd $(GOPATHDIR) && go clean -cache); fi
 	@rm -rf gopath
 	@make -C sample clean
 

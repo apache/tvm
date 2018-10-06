@@ -9,7 +9,7 @@ This folder contain golang interface for TVM runtime. It brings TVM runtime to G
 
 ### Requirements
 
-- go compiler (https://golang.org/)
+- go compiler (https://golang.org/) version 0.10 or above.
 
 ### Modules
 
