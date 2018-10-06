@@ -10,6 +10,8 @@
 
 namespace tvm {
 
+// Tensor
+
 Expr Tensor::operator()(Array<Var> indices) const {
   Array<Expr> arr(indices.begin(), indices.end());
   return operator()(arr);
@@ -24,6 +26,15 @@ Expr Tensor::operator()(Array<Expr> indices) const {
       (*this)->dtype, (*this)->op->name, indices, Call::Halide,
       (*this)->op, (*this)->value_index);
   return n;
+}
+
+Tensor Operation::output(size_t i) const {
+  auto node = make_node<TensorNode>();
+  node->op = *this;
+  node->value_index = i;
+  node->dtype = (*this)->output_dtype(i);
+  node->shape = (*this)->output_shape(i);
+  return Tensor(node);
 }
 
 Tensor TensorNode::make(Array<Expr> shape,
@@ -46,14 +57,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
-Tensor Operation::output(size_t i) const {
-  auto node = make_node<TensorNode>();
-  node->op = *this;
-  node->value_index = i;
-  node->dtype = (*this)->output_dtype(i);
-  node->shape = (*this)->output_shape(i);
-  return Tensor(node);
-}
+
+// TensorIntrin
 
 TensorIntrin TensorIntrinNode::make(std::string name,
                                     Operation op,
@@ -79,4 +84,27 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   });
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
+
+
+// TensorIntrinCall
+
+TensorIntrinCall TensorIntrinCallNode::make(TensorIntrin intrin,
+                                            Array<Tensor> tensors,
+                                            Array<Region> regions,
+                                            Array<IterVar> reduce_axis) {
+  auto n = make_node<TensorIntrinCallNode>();
+  n->intrin = std::move(intrin);
+  n->tensors = std::move(tensors);
+  n->regions = std::move(regions);
+  n->reduce_axis = std::move(reduce_axis);
+  return TensorIntrinCall(n);
+}
+
+TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
+.set_dispatch<TensorIntrinCallNode>([](const TensorIntrinCallNode *n, IRPrinter *p) {
+    p->stream << "TensorIntrinCall(intrin=" << n->intrin << ", " << n << ")";
+  });
+
+TVM_REGISTER_NODE_TYPE(TensorIntrinCallNode);
+
 }  // namespace tvm
