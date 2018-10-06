@@ -2,6 +2,9 @@
 from __future__ import absolute_import as _abs
 from . import _make
 
+import tvm
+from tvm import relay
+
 
 def conv2d(data,
            weight,
@@ -385,7 +388,7 @@ def relu(data):
 
 def pad(data,
         pad_width,
-        pad_value=0.0):
+        pad_value=None):
     r"""Padding
 
     This operator takes in a tensor and pads each axis by the specified
@@ -398,7 +401,7 @@ def pad(data,
     pad_width: tuple of <tuple of <int>>, required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float, optional, default=0.0
+    pad_value: relay.Expr, optional, default=0.0
         The value used for padding
 
     Returns
@@ -406,4 +409,4 @@ def pad(data,
     result : relay.Expr
         The computed result.
     """
-    return _make.pad(data, pad_width, pad_value)
+    return _make.pad(data, pad_width, pad_value if pad_value is not None else relay.Constant(tvm.nd.array(0)))

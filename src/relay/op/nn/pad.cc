@@ -18,9 +18,17 @@ bool PadRel(const Array<Type>& types,
             int num_inputs,
             const Attrs& attrs,
             const TypeReporter& reporter) {
-  CHECK_EQ(types.size(), 2);
+  CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
+
+  // fill value should be a scalar
+  const auto* fill_value = types[1].as<TensorTypeNode>();
+  if (fill_value == nullptr) return false;
+
+  CHECK_EQ(fill_value->shape.size(), 0)
+    << "The fill value should be a scalar yet here it has dimension "
+    << fill_value->shape.size() << ".";
 
   const PadAttrs* param = attrs.as<PadAttrs>();
   CHECK(param != nullptr);
@@ -57,18 +65,17 @@ bool PadRel(const Array<Type>& types,
     oshape.push_back(data->shape[i] + padding);
   }
 
-  reporter->Assign(types[1], TensorTypeNode::make(Array<IndexExpr>(oshape),
+  reporter->Assign(types[2], TensorTypeNode::make(Array<IndexExpr>(oshape),
                                                   data->dtype));
   return true;
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-  Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
+Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, Expr pad_value) {
   auto attrs = make_node<PadAttrs>();
-  attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);
   static const Op& op = Op::Get("nn.pad");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
+  return CallNode::make(op, {data, pad_value}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_API("relay.op.nn._make.pad")
@@ -80,8 +87,9 @@ RELAY_REGISTER_OP("nn.pad")
 .describe(R"code(Pad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
+.set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
+.add_argument("pad_value", "double", "The value used for padding.")
 .set_support_level(2)
 .add_type_rel("Pad", PadRel);
 
