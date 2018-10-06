@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """ Support level3 operator test cases.
 """
 import tvm
