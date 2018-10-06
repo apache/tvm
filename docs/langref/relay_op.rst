@@ -93,6 +93,11 @@ This level enables additional math and transform operators.
 
 **Level 5: Vision/Image Operators**
 
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.image.resize
+
 
 Level 1 Definitions
 -------------------

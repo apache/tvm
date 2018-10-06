@@ -13,7 +13,7 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 
-template <typename T>
+template <typename AttrTtype>
 bool Pool2DRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
@@ -22,11 +22,11 @@ bool Pool2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
 
   CHECK(data != nullptr);
-  auto dshape = data->shape;
+  const auto dshape = data->shape;
   CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
-  auto param = attrs.as<T>();
+  const auto param = attrs.as<AttrTtype>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
@@ -185,11 +185,11 @@ bool GlobalPool2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
 
   CHECK(data != nullptr);
-  auto dshape = data->shape;
+  const auto dshape = data->shape;
   CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
       << "Pool2D only support input >= 2-D: input must have height and width";
-  auto param = attrs.as<GlobalPool2DAttrs>();
+  const auto param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
 
   Layout layout(param->layout);

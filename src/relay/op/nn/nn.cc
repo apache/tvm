@@ -7,8 +7,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
-#include "../type_relations.h"
 #include <vector>
+#include "../type_relations.h"
 #include "layout.h"
 
 namespace tvm {

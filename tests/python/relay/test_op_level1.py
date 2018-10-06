@@ -8,7 +8,7 @@ from tvm.relay.env import Environment
 
 def assert_has_type(expr, typ, env=Environment({})):
     checked_expr = infer_type(env, expr)
-    checked_type = checked_expr.checked_type()
+    checked_type = checked_expr.checked_type
     if checked_type != typ:
         raise RuntimeError("Type mismatch %s vs %s" % (
             checked_type, typ))
@@ -50,7 +50,7 @@ def test_softmax():
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, d), "float32")
 
 

@@ -65,7 +65,7 @@ def test_upsampling_infer_type():
         ib.ret(relay.nn.upsampling(x.var, scale=2, layout="NCHW", method="BILINEAR"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c, h*2, w*2), "float32")
 
     ib = relay.ir_builder.IRBuilder()
@@ -75,7 +75,7 @@ def test_upsampling_infer_type():
         ib.ret(relay.nn.upsampling(x.var, scale=2, layout="NCHW", method="BILINEAR"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c, 200, 400), "float32")
 
 def _test_pool2d_infer_type(opfunc):
@@ -86,7 +86,7 @@ def _test_pool2d_infer_type(opfunc):
         ib.ret(opfunc(x.var, pool_size=(1, 1)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, 10, 224, 224), "float32")
 
     ph, pw = tvm.var("ph"), tvm.var("pw")
@@ -99,7 +99,7 @@ def _test_pool2d_infer_type(opfunc):
         ib.ret(opfunc(x.var, pool_size=(ph, pw), strides=(sh, sw)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, 10, (((224 - ph)/sh) + 1), (((224 - pw)/sw) + 1)), "float32")
 
@@ -111,7 +111,7 @@ def _test_global_pool2d_infer_type(opfunc):
         ib.ret(opfunc(x.var, layout="NHWC"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, 1, 1, c), "float32")
 
     ib = relay.ir_builder.IRBuilder()
@@ -121,7 +121,7 @@ def _test_global_pool2d_infer_type(opfunc):
         ib.ret(opfunc(x.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c, 1, 1), "float32")
 
 def test_pool2d_infer_type():
@@ -139,7 +139,7 @@ def test_flatten_infer_type():
         ib.ret(relay.nn.batch_flatten(x.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((d1, ((d2*d3)*d4)), "float32")
 
     ib = relay.ir_builder.IRBuilder()
@@ -148,7 +148,7 @@ def test_flatten_infer_type():
         ib.ret(relay.nn.batch_flatten(x.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((3, 24), "float32")
 
     ib = relay.ir_builder.IRBuilder()
@@ -157,7 +157,7 @@ def test_flatten_infer_type():
         ib.ret(relay.nn.batch_flatten(x.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((d1, ((2*d3)*3)), "float32")
 
 

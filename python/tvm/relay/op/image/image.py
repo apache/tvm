@@ -7,7 +7,7 @@ def resize(data,
            layout="NCHW",
            method="BILINEAR",
            align_corners=False):
-    """Resize.
+    """Image resize operator.
 
     This operator takes data as input and does 2D scaling to the given scale factor.
     In the default case, where the data_layout is `NCHW`
@@ -36,7 +36,7 @@ def resize(data,
 
     Returns
     -------
-    tensor: The resized tensor.
+    result: relay.Expr
+        The resized result.
     """
-
     return _make.resize(data, size, layout, method, align_corners)

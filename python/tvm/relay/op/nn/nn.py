@@ -87,7 +87,6 @@ def conv2d(data,
                         groups, channels, kernel_size, data_layout,
                         weight_layout, out_layout, out_dtype)
 
-<<<<<<< HEAD
 
 def softmax(data, axis):
     r"""Computes softmax.
@@ -107,14 +106,15 @@ def softmax(data, axis):
     """
 
     return _make.softmax(data, axis)
-=======
+
+
 def max_pool2d(data,
                pool_size=(1, 1),
                strides=(1, 1),
                padding=(0, 0),
                layout="NCHW",
                ceil_mode=False):
-    r"""MaxPool2D.
+    r"""2D maximum pooling operator.
 
     This operator takes data as input and does 2D max value calculation
     with in pool_size sized window by striding defined by stride
@@ -151,6 +151,11 @@ def max_pool2d(data,
 
     ceil_mode : bool, optional
         To enable or disable ceil while pooling.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
     """
     return _make.max_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode)
@@ -162,7 +167,7 @@ def avg_pool2d(data,
                layout="NCHW",
                ceil_mode=False,
                count_include_pad=False):
-    r"""AvgPool2D.
+    r"""2D average pooling operator.
 
     This operator takes data as input and does 2D average value calculation
     with in pool_size sized window by striding defined by stride
@@ -203,13 +208,18 @@ def avg_pool2d(data,
 
     count_include_pad : bool, optional
         To include padding to compute the average.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
     """
     return _make.avg_pool2d(data, pool_size, strides, padding,
                             layout, ceil_mode, count_include_pad)
 
 def global_max_pool2d(data,
                       layout="NCHW"):
-    r"""GlobalMaxPool2D.
+    r"""2D global maximum pooling operator.
 
     This operator takes data as input and does 2D max value calculation
     across each window represented by WxH.
@@ -234,12 +244,16 @@ def global_max_pool2d(data,
     layout : str, optional
         Layout of the input.
 
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
     """
     return _make.global_max_pool2d(data, layout)
 
 def global_avg_pool2d(data,
                       layout="NCHW"):
-    r"""GlobalAvgPool2D.
+    r"""2D global average pooling operator.
 
     This operator takes data as input and does 2D average value calculation
     across each window represented by WxH.
@@ -264,6 +278,10 @@ def global_avg_pool2d(data,
     layout : str, optional
         Layout of the input.
 
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
     """
     return _make.global_avg_pool2d(data, layout)
 
@@ -295,13 +313,18 @@ def upsampling(data,
 
     method : str, optional
         Scale method to used [NEAREST_NEIGHBOR, BILINEAR].
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
     """
     return _make.upsampling(data, scale, layout, method)
 
 def batch_flatten(data):
     """BatchFlatten.
 
-    This operator flattens the given input data on first dimention
+    This operator flattens all the dimensions except for the batch dimension.
     which results a 2D output.
 
     For data with shape ``(d1, d2, ..., dk)``
@@ -315,8 +338,7 @@ def batch_flatten(data):
 
     Returns
     -------
-    tensor: The Flattened  tensor.
+    result: relay.Expr
+        The Flattened result.
     """
-
     return _make.batch_flatten(data)
->>>>>>> [RELAY][OP] Operators.
