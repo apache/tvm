@@ -32,4 +32,4 @@ COPY install/ubuntu_install_sgx.sh /install/ubuntu_install_sgx.sh
 RUN bash /install/ubuntu_install_sgx.sh
 
 
-ENV PATH $PATH:/root/.cargo/bin
+ENV PATH $PATH:/root/.cargo/bin:/usr/lib/go-1.10/bin
