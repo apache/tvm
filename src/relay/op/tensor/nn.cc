@@ -13,6 +13,7 @@ namespace relay {
 
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
+
 bool DenseRel(const Array<Type>& types,
               int num_inputs,
               const Attrs& attrs,
@@ -27,15 +28,20 @@ bool DenseRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   CHECK(static_cast<int>(data->shape.size()) != 0);
+  Array<tvm::Expr> wshape = weight->shape;
+
+  if (param->units != 0) {
+    // CHECK_EQ(param->units == wshape[wshape.size() - 1])
+  }
+
   Array<tvm::Expr> oshape = data->shape;
-  oshape.Set((oshape.size() - 1), make_const(Int(64), param->units));
+  oshape.Set((oshape.size() - 1), wshape[wshape.size() - 1]);
 
   // assign output type
-  reporter->Assign(types[2],
-                   TensorTypeNode::make(oshape,
-                                        data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }
+
 
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
@@ -46,6 +52,7 @@ Expr MakeDense(Expr data,
   static const Op& op = Op::Get("nn.dense");
   return CallNode::make(op, {data, weight}, Attrs(attrs), {});
 }
+
 
 TVM_REGISTER_API("relay.op.nn._make.dense")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
@@ -75,6 +82,7 @@ Expr MakeLeakyRelu(Expr data,
   static const Op& op = Op::Get("nn.leaky_relu");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
+
 
 TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
