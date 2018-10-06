@@ -1,0 +1,28 @@
+[package]
+name = "tvm"
+version = "0.1.0"
+license = "Apache-2.0"
+description = "TVM Rust runtime"
+repository = "https://github.com/dmlc/tvm"
+readme = "README.md"
+keywords = ["tvm", "nnvm"]
+categories = ["api-bindings", "science"]
+authors = ["Nick Hynes <nhynes@berkeley.edu>"]
+
+[features]
+default = ["nom/std"]
+sgx = ["nom/alloc"]
+
+[dependencies]
+bounded-spsc-queue = "0.4.0"
+error-chain = { version = "0.12.0", default-features = false }
+itertools = "0.7.8"
+lazy_static = "1.1.0"
+ndarray = "0.11.2"
+nom = {version = "4.0.0", default-features = false }
+serde = "1.0.59"
+serde_derive = "1.0.79"
+serde_json = "1.0.17"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies]
+num_cpus = "1.8.0"

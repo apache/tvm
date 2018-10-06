@@ -1,0 +1,5 @@
+language: rust
+rust:
+  - nightly
+matrix:
+  fast_finish: true
