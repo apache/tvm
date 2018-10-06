@@ -364,3 +364,22 @@ def batch_flatten(data):
         The Flattened result.
     """
     return _make.batch_flatten(data)
+
+
+def relu(data):
+    """Rectified linear unit.
+
+    .. math::
+       out = max(x, 0)
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.relu(data)

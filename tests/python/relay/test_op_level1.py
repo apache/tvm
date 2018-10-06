@@ -70,7 +70,8 @@ def test_unary_op():
     for op in [relay.exp,
                relay.log,
                relay.sqrt,
-               relay.sigmoid]:
+               relay.sigmoid,
+               relay.nn.relu]:
         ib = relay.ir_builder.IRBuilder()
         x = ib.param("x", relay.TensorType((10, 4), "int32"))
         with ib.function(x) as func:

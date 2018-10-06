@@ -9,6 +9,7 @@
 #include <tvm/relay/attrs/image.h>
 #include <vector>
 #include "../type_relations.h"
+#include "../op_common.h"
 #include "layout.h"
 
 namespace tvm {
@@ -131,6 +132,16 @@ Example::
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("BatchFlatten", BatchFlattenRel);
+
+RELAY_REGISTER_UNARY_OP("relay.op.nn._make.", "relu")
+.describe(R"code(Returns the relu input array, computed element-wise.
+
+.. math::
+   max(x, 0)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel);
 
 }  // namespace relay
 }  // namespace tvm
