@@ -82,5 +82,11 @@ RELAY_REGISTER_UNARY_OP("sigmoid")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
+RELAY_REGISTER_UNARY_OP("copy")
+.describe(R"code(Copy a tensor.
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
 }  // namespace relay
 }  // namespace tvm
