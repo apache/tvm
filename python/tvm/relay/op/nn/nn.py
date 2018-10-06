@@ -409,4 +409,5 @@ def pad(data,
     result : relay.Expr
         The computed result.
     """
-    return _make.pad(data, pad_width, pad_value if pad_value is not None else relay.Constant(tvm.nd.array(0)))
+    return _make.pad(data, pad_width,
+                     pad_value if pad_value is not None else relay.Constant(tvm.nd.array(0)))
