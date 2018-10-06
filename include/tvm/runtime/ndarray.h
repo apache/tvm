@@ -282,6 +282,21 @@ inline void NDArray::reset() {
   }
 }
 
+/*! \brief return the size of data the DLTensor hold, in term of number of bytes
+ *
+ *  \param arr the input DLTensor
+ *
+ *  \return number of  bytes of data in the DLTensor.
+ */
+inline size_t GetDataSize(const DLTensor& arr) {
+  size_t size = 1;
+  for (tvm_index_t i = 0; i < arr.ndim; ++i) {
+    size *= static_cast<size_t>(arr.shape[i]);
+  }
+  size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
+  return size;
+}
+
 inline void NDArray::CopyFrom(DLTensor* other) {
   CHECK(data_ != nullptr);
   CopyFromTo(other, &(data_->dl_tensor));

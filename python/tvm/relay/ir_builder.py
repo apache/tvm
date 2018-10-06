@@ -16,12 +16,12 @@ def _convert_to_value(arg, ctxt=tvm.cpu(0)):
     """Convert Python values into the appropriate types
        for the Relay evaluator.
     """
-    if isinstance(arg, int):
+    if isinstance(arg, bool): # bool is subclass of int
+        return tvm.nd.array(np.array(arg, dtype='uint8'), ctxt)
+    elif isinstance(arg, int):
         return tvm.nd.array(np.array(arg, dtype='int32'), ctxt)
     elif isinstance(arg, float):
         return tvm.nd.array(arg, ctxt)
-    elif isinstance(arg, bool):
-        return tvm.nd.array(np.array(arg, dtype='float32'), ctxt)
     elif isinstance(arg, np.ndarray):
         return tvm.nd.array(arg, ctxt)
     elif isinstance(arg, tvm.ndarray.NDArray):
