@@ -10,6 +10,16 @@
 
 namespace tvm {
 namespace relay {
+namespace _helper {
+  int ToInt(const tvm::Expr& e) {
+    // Copied from jroesch's example code.
+    // TODO(@jroesch) what size value do we extract, 64bit or 32bit?
+    CHECK(e.defined());
+    auto imm = e.as<tvm::ir::IntImm>();
+    CHECK(imm) << "TYPE: " << imm << imm->type << std::endl;
+    return imm->value;
+  }
+} // namespace _helper
 
 /* relay.expand_dims */
 
@@ -25,7 +35,7 @@ bool ExpandDimsRel(const Array<Type>& types,
   if (data == nullptr) {
     return false;
   }
-  const ExpandDimsAttrs* param = attrs.as<ExpandDimsAttrs>();
+  const auto* param = attrs.as<ExpandDimsAttrs>();
   const int ndim = static_cast<int>(data->shape.size());
   const int axis = param->axis;
   const int num_newaxis = param->num_newaxis;
@@ -92,7 +102,7 @@ bool ConcatenateRel(const Array<Type>& types,
   if (tensor_tuple == nullptr) {
     return false;
   }
-  const ConcatenateAttrs* param = attrs.as<ConcatenateAttrs>();
+  const auto* param = attrs.as<ConcatenateAttrs>();
   const auto& first = Downcast<TensorType>(tensor_tuple->fields[0]);
   // Sanity check: ndim and dtype.
   const int ndim = static_cast<int>(first->shape.size());
@@ -152,6 +162,82 @@ RELAY_REGISTER_OP("concatenate")
 .set_support_level(1)
 .add_type_rel("Concatenate", ConcatenateRel);
 
+/* relay.transpose */
+
+bool TransposeRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  // types: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* param = attrs.as<TransposeAttrs>();
+  const int ndim = data->shape.size();
+  const Array<IndexExpr>& axes = param->axes;
+  // check dimension match
+  CHECK(axes.empty() || static_cast<int>(axes.size()) == ndim)
+    << "Dimension mismatch: axes has " << axes.size() << " elements"
+    << ", but data.ndim = " << ndim;
+  // construct int_axes
+  std::vector<int> int_axes;
+  int_axes.reserve(ndim);
+  if (axes.empty()) {
+    for (int i = ndim - 1; i >= 0; --i) {
+      int_axes.push_back(i);
+    }
+  } else {
+    std::vector<int> axis_used(ndim, 0);
+    for (const IndexExpr& e: axes) {
+      int axis = _helper::ToInt(e);
+      // sanity check for axis and ndim
+      CHECK(-ndim <= axis && axis < ndim)
+        << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
+        << ", but got axis = " << axis
+        << ", and data.ndim = " << ndim;
+      axis = axis < 0 ? axis + ndim : axis;
+      // sanity check for duplication
+      CHECK(!axis_used[axis]) << "Duplicate axes in transpose: " << axis;
+      axis_used[axis] = 1;
+      int_axes.push_back(axis);
+    }
+  }
+  std::vector<IndexExpr> oshape;
+  oshape.reserve(ndim);
+  for (int axis: int_axes) {
+    oshape.push_back(data->shape[axis]);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeTranspose(Expr data,
+                   Array<IndexExpr> axes) {
+  auto attrs = make_node<TransposeAttrs>();
+  attrs->axes = std::move(axes);
+  static const Op& op = Op::Get("transpose");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.transpose")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeTranspose, args, rv);
+});
+
+RELAY_REGISTER_OP("transpose")
+.describe(R"code(Permutes the dimensions of an array.
+
+- **data**: The input data to the operator.
+
+- **axes**: The target axes order, reverse order if not specified.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Transpose", TransposeRel);
 
 }  // namespace relay
 }  // namespace tvm

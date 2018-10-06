@@ -27,6 +27,20 @@ def test_copy_infer_type():
         (n, t, 100), "float32")
 
 
+def test_transpose_infer_type():
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = tvm.var("n"), tvm.var("t"), 100
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.transpose(x, axes=(1, 0, 2)))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type()
+    assert ftype.ret_type == relay.ty.TensorType(
+        (t, n, 100), "float32")
+ 
+
 if __name__ == "__main__":
     test_unary_identity()
     test_copy_infer_type()
+    test_transpose_infer_type()

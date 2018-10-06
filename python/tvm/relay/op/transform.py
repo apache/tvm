@@ -26,3 +26,23 @@ def expand_dims(data, axis, num_newaxis=1):
         The reshaped result.
     """
     return _make.expand_dims(data, axis, num_newaxis)
+
+
+def transpose(data, axes=None):
+    """Permutes the dimensions of an array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axes : None or List[int]
+        The target axes order, reverse order if not specified.
+
+    Returns
+    -------
+    result : relay.Expr
+        The reshaped result.
+    """
+    axes = axes or []
+    return _make.transpose(data, axes)

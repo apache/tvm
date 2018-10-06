@@ -41,6 +41,15 @@ struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
   }
 };  // struct ConcatenateAttrs
 
+/*! \brief Attributes used in transpose operators */
+struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
+  Array<IndexExpr> axes;
+  TVM_DECLARE_ATTRS(TransposeAttrs, "relay.attrs.TransposeAttrs") {
+    TVM_ATTR_FIELD(axes)
+        .describe("The target axes order, reverse order if not specified.");
+  }
+};  // struct TransposeAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
