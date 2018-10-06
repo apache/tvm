@@ -82,6 +82,8 @@ cdef class NodeBase:
         So the return handle is directly set into the Node object
         instead of creating a new Node.
         """
+        # avoid error raised during construction.
+        self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
             (<FunctionBase>fconstructor).chandle,

@@ -9,7 +9,15 @@ from .. import convert
 
 class Expr(NodeBase):
     """The base type for all Relay expressions."""
+    @property
     def checked_type(self):
+        """Get the checked type of relay.
+
+        Returns
+        -------
+        checked_type : relay.Type
+            The checked type.
+        """
         ret = self._checked_type_
         if ret is None:
             raise ValueError("The type checker has not populated"
