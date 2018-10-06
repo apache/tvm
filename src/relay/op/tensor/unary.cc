@@ -56,14 +56,21 @@ RELAY_REGISTER_UNARY_OP("exp")
 
 RELAY_REGISTER_UNARY_OP("sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.
-
-.. math::
-   sqrt(x)
-
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
+RELAY_REGISTER_UNARY_OP("zeros_like")
+.describe(R"code(Returns an array of zeros, with same type and shape as the input.
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("ones_like")
+.describe(R"code(Returns an array of ones, with same type and shape as the input.
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel);
 
 RELAY_REGISTER_UNARY_OP("sigmoid")
 .describe(R"code(Returns the sigmoid input array, computed element-wise.
@@ -74,7 +81,6 @@ RELAY_REGISTER_UNARY_OP("sigmoid")
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
-
 
 // Concat
 TVM_REGISTER_API("relay.op._make.concat")
