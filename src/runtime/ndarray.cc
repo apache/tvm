@@ -25,15 +25,6 @@ inline void VerifyDataType(DLDataType dtype) {
   CHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-inline size_t GetDataSize(const DLTensor& arr) {
-  size_t size = 1;
-  for (tvm_index_t i = 0; i < arr.ndim; ++i) {
-    size *= arr.shape[i];
-  }
-  size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
-  return size;
-}
-
 inline size_t GetDataAlignment(const DLTensor& arr) {
   size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
   if (align < kAllocAlignment) return kAllocAlignment;
@@ -129,8 +120,8 @@ DLManagedTensor* NDArray::ToDLPack() const {
 }
 
 NDArray NDArray::Empty(std::vector<int64_t> shape,
-                        DLDataType dtype,
-                        DLContext ctx) {
+                       DLDataType dtype,
+                       DLContext ctx) {
   NDArray ret = Internal::Create(shape, dtype, ctx);
   // setup memory content
   size_t size = GetDataSize(ret.data_->dl_tensor);
