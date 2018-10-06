@@ -40,7 +40,7 @@ def test_concatenate_infer_type():
         ib.ret(relay.concatenate((x, y), axis=-1))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 200), "float32")
 
@@ -52,7 +52,7 @@ def test_concatenate_infer_type():
         ib.ret(relay.concatenate((x, y), axis=2))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 200), "float32")
 
@@ -64,7 +64,7 @@ def test_concatenate_infer_type():
         ib.ret(relay.concatenate((x, y), axis=1))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t + t, 100), "float32")
 

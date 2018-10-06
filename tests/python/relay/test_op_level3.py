@@ -22,7 +22,7 @@ def test_copy_infer_type():
         ib.ret(relay.copy(x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 100), "float32")
 
@@ -35,7 +35,7 @@ def test_transpose_infer_type():
         ib.ret(relay.transpose(x, axes=(1, 0, 2)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (t, n, 100), "float32")
 
@@ -48,7 +48,7 @@ def test_reshape_infer_type():
         ib.ret(relay.reshape(x, newshape=(n, t, 2000)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 2000), "float32")
 
