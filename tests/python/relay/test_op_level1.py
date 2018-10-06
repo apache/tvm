@@ -11,7 +11,7 @@ def test_expand_dims_infer_type():
         ib.ret(relay.expand_dims(x, axis=2))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 1, 100), "float32")
 
@@ -27,7 +27,7 @@ def test_unary_op():
             ib.ret(op(x.var))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
-        ftype = func.checked_type()
+        ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((10, 4), "int32")
 
 

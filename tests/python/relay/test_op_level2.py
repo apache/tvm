@@ -16,7 +16,7 @@ def test_conv2d_infer_type():
                                channels=2))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, 2, 224, 224), "float32")
     assert ftype.arg_types[1] == relay.ty.TensorType(
@@ -31,7 +31,7 @@ def test_conv2d_infer_type():
         ib.ret(relay.nn.conv2d(x.var, w.var, out_dtype="int32"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (n, 2, 222, 222), "int32")
 
@@ -50,7 +50,7 @@ def test_conv2d_infer_type():
                                out_dtype="int32"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (1, 4, 224, 224, 4, 4), "int32")
     assert ftype.arg_types[1] == relay.ty.TensorType(

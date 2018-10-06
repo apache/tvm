@@ -12,7 +12,7 @@ from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
     checked_expr = infer_type(env, expr)
-    checked_type = checked_expr.checked_type()
+    checked_type = checked_expr.checked_type
     if checked_type != typ:
         raise RuntimeError("Type mismatch %s vs %s" % (
             checked_type, typ))
@@ -20,7 +20,7 @@ def assert_has_type(expr, typ, env=Environment({})):
 
 def assert_decl_has_type(env, name, typ):
     func = env[name]
-    assert func.checked_type() == typ
+    assert func.checked_type == typ
 
 
 def test_monomorphic_let():

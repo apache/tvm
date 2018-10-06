@@ -16,7 +16,7 @@ def test_cmp_type():
             ib.ret(op(x.var, y.var))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
-        ftype = func.checked_type()
+        ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((5, 10, 4), "uint1")
 
 
@@ -32,7 +32,7 @@ def test_binary_broadcast():
             ib.ret(op(x.var, y.var))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
-        ftype = func.checked_type()
+        ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((5, 10, 4), "int32")
 
 
