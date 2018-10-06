@@ -1,7 +1,11 @@
 """ Support level3 operator test cases.
 """
 import tvm
+import numpy as np
 from tvm import relay
+from tvm.relay.ir_pass import infer_type
+from tvm.relay.ir_builder import IRBuilder, func_type
+from tvm.relay.env import Environment
 
 def test_zeros_ones():
     for op in [relay.zeros, relay.ones]:

@@ -31,7 +31,7 @@ bool DenseRel(const Array<Type>& types,
   Array<tvm::Expr> wshape = weight->shape;
 
   if (param->units != 0) {
-    // CHECK_EQ(param->units == wshape[wshape.size() - 1])
+    CHECK(reporter->AssertEQ(param->units, wshape[wshape.size()-1]));
   }
 
   Array<tvm::Expr> oshape = data->shape;
@@ -58,6 +58,7 @@ TVM_REGISTER_API("relay.op.nn._make.dense")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 3>(MakeDense, args, rv);
   });
+
 
 RELAY_REGISTER_OP("nn.dense")
 .describe(R"code(Applies a linear transformation: :math:`Y = XW^T`.
@@ -88,6 +89,7 @@ TVM_REGISTER_API("relay.op.nn._make.leaky_relu")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 2>(MakeLeakyRelu, args, rv);
   });
+
 
 RELAY_REGISTER_OP("nn.leaky_relu")
 .describe(R"code(Leaky version of a Rectified Linear Unit.
