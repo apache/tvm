@@ -30,6 +30,17 @@ struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   }
 };  // struct ExpandDimsAttrs
 
+/*! \brief Attributes used in concatenate operators */
+struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
+  int axis;
+  TVM_DECLARE_ATTRS(ConcatenateAttrs, "relay.attrs.ConcatenateAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .describe("The axis at which the input arrays are concatenated."
+                  "Should lie in range `[-ndim, ndim)`.")
+        .set_default(0);
+  }
+};  // struct ConcatenateAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

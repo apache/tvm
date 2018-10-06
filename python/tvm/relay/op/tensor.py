@@ -300,21 +300,6 @@ def left_shift(lhs, rhs):
     return _make.left_shift(lhs, rhs)
 
 
-def concat(*args):
-    """Concatenate the input tensors along the zero axis.
-
-    Parameters
-    ----------
-    args: list of Tensor
-
-    Returns
-    -------
-    tensor: The concatenated tensor.
-    """
-    tup = Tuple(list(args))
-    return _make.concat(tup)
-
-
 def zeros_like(data):
     """Returns an array of zeros, with same type and shape as the input.
 
@@ -345,3 +330,22 @@ def ones_like(data):
         The computed result.
     """
     return _make.ones_like(data)
+
+def concatenate(data, axis=0):
+    """Concatenate the input tensors along the given axis.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors.
+    axis : int
+        The axis along which the tensors are concatenated.
+
+    Returns
+    -------
+    tensor: The concatenated tensor.
+    """
+    data = list(data)
+    if not data:
+        raise ValueError("relay.concatenate requires data to be non-empty.")
+    return _make.concatenate(Tuple(data), axis)
