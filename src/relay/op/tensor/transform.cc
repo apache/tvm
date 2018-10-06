@@ -239,5 +239,91 @@ RELAY_REGISTER_OP("transpose")
 .set_support_level(3)
 .add_type_rel("Transpose", TransposeRel);
 
+/* relay.reshape */
+
+bool ReshapeRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  // types: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* param = attrs.as<ReshapeAttrs>();
+  reporter->Assign(types[1], TensorTypeNode::make(param->newshape, data->dtype));
+  return true;
+}
+
+Expr MakeReshape(Expr data,
+                 Array<IndexExpr> newshape) {
+  auto attrs = make_node<ReshapeAttrs>();
+  attrs->newshape = std::move(newshape);
+  static const Op& op = Op::Get("reshape");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.reshape")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReshape, args, rv);
+});
+
+RELAY_REGISTER_OP("reshape")
+.describe(R"code(Reshapes the input array.
+
+Example::
+
+To give user more convenience in without doing manual shape inference,
+some dimensions of the shape can take special values from the set {0, -1, -2, -3, -4}.
+The significance of each is explained below:
+
+- ``0``  copy this dimension from the input to the output shape.
+
+Example::
+
+- data.shape = (2,3,4), newshape = (4,0,2), result.shape = (4,3,2)
+- data.shape = (2,3,4), newshape = (2,0,0), result.shape = (2,3,4)
+
+- ``-1`` infers the dimension of the output shape by using the remainder of the input dimensions
+keeping the size of the new array same as that of the input array.
+At most one dimension of shape can be -1.
+
+Example::
+
+- data.shape = (2,3,4), newshape = (6,1,-1), result.shape = (6,1,4)
+- data.shape = (2,3,4), newshape = (3,-1,8), result.shape = (3,1,8)
+- data.shape = (2,3,4), newshape = (-1,), result.shape = (24,)
+
+- ``-2`` copy all/remainder of the input dimensions to the output shape.
+
+Example::
+
+- data.shape = (2,3,4), newshape = (-2,), result.shape = (2,3,4)
+- data.shape = (2,3,4), newshape = (2,-2), result.shape = (2,3,4)
+- data.shape = (2,3,4), newshape = (-2,1,1), result.shape = (2,3,4,1,1)
+
+- ``-3`` use the product of two consecutive dimensions of the input shape as the output dimension.
+
+Example::
+
+- data.shape = (2,3,4), newshape = (-3,4), result.shape = (6,4)
+- data.shape = (2,3,4,5), newshape = (-3,-3), result.shape = (6,20)
+- data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
+- data.shape = (2,3,4), newshape = (-3,-2), result.shape = (6,4)
+
+- ``-4`` split one dimension of the input into two dimensions passed subsequent to -4 in shape (can contain -1).
+
+Example::
+
+- data.shape = (2,3,4), newshape = (-4,1,2,-2), result.shape =(1,2,3,4)
+- data.shape = (2,3,4), newshape = (2,-4,-1,3,-2), result.shape = (2,1,3,4)
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Reshape", ReshapeRel);
+
 }  // namespace relay
 }  // namespace tvm

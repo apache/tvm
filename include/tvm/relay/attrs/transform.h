@@ -50,6 +50,15 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
   }
 };  // struct TransposeAttrs
 
+/*! \brief Attributes used in reshape operators */
+struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
+  Array<IndexExpr> newshape;
+  TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
+    TVM_ATTR_FIELD(newshape)
+        .describe("The new shape. Should be compatible with the original shape.");
+  }
+};  // struct ReshapeAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
