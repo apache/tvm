@@ -3,10 +3,11 @@
  * \file transform.cc
  * \brief Transform operators.
  */
+#include <vector>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
-#include <vector>
+#include "../op_common.h"
 
 
 namespace tvm {
@@ -113,11 +114,7 @@ bool ConcatenateRel(const Array<Type>& types,
     << ", and ndim = " << ndim;
   axis = axis < 0 ? ndim + axis : axis;
   // Calculate shape
-  std::vector<IndexExpr> oshape;
-  oshape.reserve(ndim);
-  for (const IndexExpr& dim : first->shape) {
-    oshape.push_back(dim);
-  }
+  std::vector<IndexExpr>&& oshape = AsVector(first->shape);
   IndexExpr &concat_dim = oshape[axis];
   for (int i = 1; i < static_cast<int>(tensor_tuple->fields.size()); ++i) {
     const auto& e = Downcast<TensorType>(tensor_tuple->fields[i]);

@@ -34,7 +34,6 @@ def test_unary_op():
 def test_concatenate_infer_type():
     ib = relay.ir_builder.IRBuilder()
     n, t, d = tvm.var("n"), tvm.var("t"), 100
-    # let's mimic a batch of sequences
     x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
     y = ib.param("y", relay.ty.TensorType((n, t, d), "float32"))
     with ib.function(x, y) as func:
@@ -44,6 +43,30 @@ def test_concatenate_infer_type():
     ftype = func.checked_type()
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 200), "float32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = tvm.var("n"), tvm.var("t"), 100
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    y = ib.param("y", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x, y) as func:
+        ib.ret(relay.concatenate((x, y), axis=2))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type()
+    assert ftype.ret_type == relay.ty.TensorType(
+        (n, t, 200), "float32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = tvm.var("n"), tvm.var("t"), 100
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    y = ib.param("y", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x, y) as func:
+        ib.ret(relay.concatenate((x, y), axis=1))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type()
+    assert ftype.ret_type == relay.ty.TensorType(
+        (n, t + t, 100), "float32")
 
 
 if __name__ == "__main__":

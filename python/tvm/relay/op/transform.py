@@ -82,7 +82,8 @@ def reshape(data, newshape):
     - data.shape = (2,3,4), newshape = (2,-2), result.shape = (2,3,4)
     - data.shape = (2,3,4), newshape = (-2,1,1), result.shape = (2,3,4,1,1)
 
-    - ``-3`` use the product of two consecutive dimensions of the input shape as the output dimension.
+    - ``-3`` use the product of two consecutive dimensions of the input shape
+    as the output dimension.
 
     Example::
 
@@ -91,7 +92,8 @@ def reshape(data, newshape):
     - data.shape = (2,3,4), newshape = (0,-3), result.shape = (2,12)
     - data.shape = (2,3,4), newshape = (-3,-2), result.shape = (6,4)
 
-    - ``-4`` split one dimension of the input into two dimensions passed subsequent to -4 in shape (can contain -1).
+    - ``-4`` split one dimension of the input into two dimensions passed subsequent
+    to -4 in shape (can contain -1).
 
     Example::
 

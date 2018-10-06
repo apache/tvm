@@ -331,7 +331,7 @@ def ones_like(data):
     """
     return _make.ones_like(data)
 
-def concatenate(data, axis=0):
+def concatenate(data, axis):
     """Concatenate the input tensors along the given axis.
 
     Parameters
