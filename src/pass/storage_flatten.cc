@@ -191,10 +191,16 @@ class StorageFlattener : public IRMutator {
       buf_map_[key].released = true;
       Stmt ret;
 
+      Type storage_type = e.buffer->dtype;
+      // specially handle bool, lower its storage
+      // type to be Int(8)(byte)
+      if (storage_type == Bool()) {
+        storage_type = Int(8);
+      }
       if (strides.size() != 0) {
         int first_dim = 0;
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype,
+            e.buffer->data, storage_type,
             {arith::ComputeExpr<Mul>(e.buffer->strides[first_dim], e.buffer->shape[first_dim])},
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       } else {
@@ -203,7 +209,7 @@ class StorageFlattener : public IRMutator {
           shape.push_back(make_const(Int(32), 1));
         }
         ret = Allocate::make(
-            e.buffer->data, e.buffer->dtype, shape,
+            e.buffer->data, storage_type, shape,
             make_const(Bool(e.buffer->dtype.lanes()), true), body);
       }
       ret = AttrStmt::make(

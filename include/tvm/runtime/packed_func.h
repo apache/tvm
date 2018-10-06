@@ -873,6 +873,9 @@ inline const char* TypeCode2Str(int type_code) {
 
 #ifndef _LIBCPP_SGX_NO_IOSTREAMS
 inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
+  if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
+    os << "bool"; return os;
+  }
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
@@ -890,7 +893,9 @@ inline std::string TVMType2String(TVMType t) {
   os << t;
   return os.str();
 #else
-  std::string repr = "";
+  if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
+    return "bool";
+  }
   repr += TypeCode2Str(t.code);
   if (t.code == kHandle) return repr;
   repr += std::to_string(static_cast<int>(t.bits));
@@ -920,6 +925,11 @@ inline TVMType String2TVMType(std::string s) {
     t.code = kHandle;
     t.bits = 64;  // handle uses 64 bit by default.
     scan = s.c_str() + 6;
+  } else if (s == "bool") {
+    t.code = kDLUInt;
+    t.bits = 1;
+    t.lanes = 1;
+    return t;
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;

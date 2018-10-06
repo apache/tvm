@@ -48,6 +48,13 @@ class TVMType(ctypes.Structure):
         super(TVMType, self).__init__()
         if isinstance(type_str, np.dtype):
             type_str = str(type_str)
+
+        if type_str == "bool":
+            self.bits = 1
+            self.type_code = 1
+            self.lanes = 1
+            return
+
         arr = type_str.split("x")
         head = arr[0]
         self.lanes = int(arr[1]) if len(arr) > 1 else 1
@@ -73,6 +80,8 @@ class TVMType(ctypes.Structure):
 
 
     def __repr__(self):
+        if self.bits == 1 and self.lanes == 1:
+            return "bool"
         x = "%s%d" % (TVMType.CODE2STR[self.type_code], self.bits)
         if self.lanes != 1:
             x += "x%d" % self.lanes
