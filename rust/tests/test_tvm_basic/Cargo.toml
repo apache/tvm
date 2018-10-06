@@ -1,0 +1,12 @@
+[package]
+name = "test-tvm-basic"
+version = "0.0.0"
+license = "Apache-2.0"
+authors = ["Nick Hynes <nhynes@berkeley.edu>"]
+
+[dependencies]
+ndarray = "0.11.2"
+tvm = { path = "../../" }
+
+[build-dependencies]
+ar = "0.6.0"
