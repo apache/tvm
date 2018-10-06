@@ -97,9 +97,8 @@ RELAY_REGISTER_OP("concat")
 
 // Clip
 struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
-  // TODO: should I enforce these be 0 dim?
-  Constant a_min;
-  Constant a_max;
+  double a_min;
+  double a_max;
 
   TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
   TVM_ATTR_FIELD(a_min)
@@ -110,7 +109,7 @@ struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
 };
 
 TVM_REGISTER_API("relay.op._make.clip")
-  .set_body_typed<Expr(Expr, Constant, Constant)>([](Expr a, Constant a_min, Constant a_max) {
+  .set_body_typed<Expr(Expr, double, double)>([](Expr a, double a_min, double a_max) {
       auto attrs = make_node<ClipAttrs>();
       attrs->a_min = a_min;
       attrs->a_max = a_max;
