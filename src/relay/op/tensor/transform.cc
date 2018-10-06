@@ -6,8 +6,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
-#include "../op_common.h"
 #include <vector>
+#include "../op_common.h"
 
 
 namespace tvm {

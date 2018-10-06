@@ -18,7 +18,7 @@ template<typename T>
 std::vector<T> AsVector(const Array<T> &array) {
     std::vector<T> result;
     result.reserve(array.size());
-    for (const T& ele: array) {
+    for (const T& ele : array) {
         result.push_back(ele);
     }
     return result;
