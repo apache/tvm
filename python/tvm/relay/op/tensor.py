@@ -120,7 +120,6 @@ def subtract(lhs, rhs):
     return _make.subtract(lhs, rhs)
 
 
-
 def equal(lhs, rhs):
     """Broadcasted elementwise test for (lhs == rhs).
 
@@ -245,6 +244,24 @@ def right_shift(lhs, rhs):
         The computed result.
     """
     return _make.right_shift(lhs, rhs)
+
+
+def left_shift(lhs, rhs):
+    """Left shift with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.left_shift(lhs, rhs)
 
 
 def concat(*args):
