@@ -201,3 +201,11 @@ build*
 
 # tmp file
 .nfs*
+
+# keys
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
