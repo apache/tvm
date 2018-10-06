@@ -17,7 +17,7 @@ struct ResizeAttrs : public tvm::AttrsNode<ResizeAttrs> {
   Array<IndexExpr> size;
   std::string layout;
   std::string method;
-  IndexExpr align_corners;
+  bool align_corners;
 
   TVM_DECLARE_ATTRS(ResizeAttrs, "relay.attrs.ResizeAttrs") {
     TVM_ATTR_FIELD(size).set_default(NullValue<Array<IndexExpr> >())

@@ -47,7 +47,7 @@ Expr MakeResize(Expr data,
                 Array<IndexExpr> size,
                 std::string layout,
                 std::string method,
-                IndexExpr align_corners) {
+                bool align_corners) {
   auto attrs = make_node<ResizeAttrs>();
   attrs->size = std::move(size);
   attrs->layout = std::move(layout);

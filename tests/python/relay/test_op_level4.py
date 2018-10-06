@@ -13,6 +13,38 @@ def assert_has_type(expr, typ, env=Environment({})):
         raise RuntimeError("Type mismatch %s vs %s" % (
             checked_type, typ))
 
+def test_cmp_type():
+    for op in (relay.greater,
+               relay.greater_equal,
+               relay.less,
+               relay.less_equal,
+               relay.equal,
+               relay.not_equal):
+        ib = relay.ir_builder.IRBuilder()
+        x = ib.param("x", relay.TensorType((10, 4), "float32"))
+        y = ib.param("y", relay.TensorType((5, 10, 1), "float32"))
+        with ib.function(x, y) as func:
+            ib.ret(op(x.var, y.var))
+        ib.ret(func)
+        func = relay.ir_pass.infer_type(ib.env, func.to_func())
+        ftype = func.checked_type()
+        assert ftype.ret_type == relay.TensorType((5, 10, 4), "uint1")
+
+
+def test_binary_broadcast():
+    for op in [relay.right_shift,
+               relay.left_shift,
+               relay.maximum]:
+        ib = relay.ir_builder.IRBuilder()
+        x = ib.param("x", relay.TensorType((10, 4), "int32"))
+        y = ib.param("y", relay.TensorType((5, 10, 1), "int32"))
+        with ib.function(x, y) as func:
+            ib.ret(op(x.var, y.var))
+        ib.ret(func)
+        func = relay.ir_pass.infer_type(ib.env, func.to_func())
+        ftype = func.checked_type()
+        assert ftype.ret_type == relay.TensorType((5, 10, 4), "int32")
+
 def test_binary_op():
     def check_binary_op(opfunc):
         """
@@ -33,8 +65,7 @@ def test_binary_op():
         expected_ty = func_type([ttype, ttype], ttype)
         assert_has_type(func.to_func(), expected_ty)
 
-    for opfunc in [tvm.relay.op.add, tvm.relay.op.subtract, tvm.relay.op.mod,
-                   tvm.relay.op.multiply, tvm.relay.op.divide, tvm.relay.op.pow]:
+    for opfunc in [relay.pow]:
         check_binary_op(opfunc)
 
 
@@ -58,8 +89,7 @@ def test_binary_broadcast_op():
                                 tensor_type(5, 10, 4))
         assert_has_type(func.to_func(), expected_ty)
 
-    for opfunc in [tvm.relay.op.add, tvm.relay.op.subtract, tvm.relay.op.mod,
-                   tvm.relay.op.multiply, tvm.relay.op.divide, tvm.relay.op.pow]:
+    for opfunc in [relay.pow]:
         check_binary_broadcast_op(opfunc)
 
 def test_cmp_type():
@@ -78,7 +108,6 @@ def test_cmp_type():
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((5, 10, 4), "uint1")
-
 
 def test_binary_broadcast():
     for op in [relay.right_shift,
