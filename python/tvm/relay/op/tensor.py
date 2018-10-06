@@ -353,9 +353,9 @@ def clip(a, a_min, a_max):
     ----------
     a : relay.Expr
         The input tensor.
-    a_min : relay.Constant
+    a_min : float
         The clip minimum.
-    a_max : relay.Constant
+    a_max : float
         The clip maximum.
 
     Returns
@@ -367,12 +367,7 @@ def clip(a, a_min, a_max):
     --------
     .. code:: python
       x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
-
-      relay.clip(
-        x,
-        relay.Constant(tvm.nd.array(1)),
-        relay.Constant(tvm.nd.array(4))
-      )
-      # [1, 1, 4, 3, 4, 2]
+      relay.clip(x, 1., 4.)
+      # [1.0, 1.0, 4.0, 3.0, 4.0, 2.0]
     """
     return _make.clip(a, a_min, a_max)
