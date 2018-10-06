@@ -6,13 +6,14 @@ operators need to be registered in Relay in order to ensure
 that they will be integrated into Relay's type system.
 
 Registering an operator requires three steps:
+
 - Using the ``RELAY_REGISTER_OP`` macro in C++ to
 register the operator's arity and type information
 - Defining a C++ function to produce a call node for the
 operator and registering a Python API hook for the function
 - Wrapping the above Python API hook in a neater interface
 
-The file ``src/relay/op/tensor/elemwise.cc`` provides
+The file ``src/relay/op/tensor/binary.cc`` provides
 examples of the first two steps, while
 ``python/tvm/relay/op/tensor.py`` gives examples of the
 last.
@@ -35,7 +36,7 @@ output type.
 
 For example, see ``src/relay/op/type_relations.h`` and their
 implementations. E.g., ``BroadcastRel`` takes two input types and an
-output type, checks that they are all tensor types with the same underlyin
+output type, checks that they are all tensor types with the same underlying
 data type, and finally ensures that the shape of the output type is the
 broadcast of the input types' shapes.
 
@@ -44,6 +45,7 @@ if the existing ones do not capture the behavior of the desired operator.
 
 The ``RELAY_REGISTER_OP`` macro in C++ allows a developer
 to specify the following information about an operator in Relay:
+
 - Arity (number of arguments)
 - Names and descriptions for positional arguments
 - Support level (1 indicating an internal intrinsic, higher numbers
@@ -51,7 +53,7 @@ indicating operators that are not as integral to the framework or are
 supported externally)
 - A type relation for the operator
 
-The below example is from ``elemwise.cc`` and uses a broadcasting
+The below example is from ``binary.cc`` and uses a broadcasting
 add for tensors:
 
 .. code:: c
@@ -141,6 +143,7 @@ before producing the call node:
 
 Summary
 -------
+
 - A TVM operator can be registered in Relay using a relation to express
 the appropriate type information.
 - Using an operator in Relay requires a function to produce a

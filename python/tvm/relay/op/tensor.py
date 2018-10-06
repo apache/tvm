@@ -60,6 +60,22 @@ def sqrt(data):
     return _make.sqrt(data)
 
 
+def sigmoid(data):
+    """Compute elementwise sigmoid of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.sigmoid(data)
+
+
 def add(lhs, rhs):
     """Addition with numpy-style broadcasting.
 
@@ -102,7 +118,6 @@ def subtract(lhs, rhs):
         The computed result.
     """
     return _make.subtract(lhs, rhs)
-
 
 
 def equal(lhs, rhs):
@@ -213,6 +228,42 @@ def greater_equal(lhs, rhs):
     return _make.greater_equal(lhs, rhs)
 
 
+def maximum(lhs, rhs):
+    """Maximum with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.maximum(lhs, rhs)
+
+
+def minimum(lhs, rhs):
+    """Minimum with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.minimum(lhs, rhs)
+
+
 def right_shift(lhs, rhs):
     """Right shift with numpy-style broadcasting.
 
@@ -231,6 +282,24 @@ def right_shift(lhs, rhs):
     return _make.right_shift(lhs, rhs)
 
 
+def left_shift(lhs, rhs):
+    """Left shift with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.left_shift(lhs, rhs)
+
+
 def concat(*args):
     """Concatenate the input tensors along the zero axis.
 
@@ -244,3 +313,35 @@ def concat(*args):
     """
     tup = Tuple(list(args))
     return _make.concat(tup)
+
+
+def zeros_like(data):
+    """Returns an array of zeros, with same type and shape as the input.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.zeros_like(data)
+
+
+def ones_like(data):
+    """Returns an array of ones, with same type and shape as the input.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.ones_like(data)

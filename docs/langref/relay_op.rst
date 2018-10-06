@@ -25,6 +25,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.log
    tvm.relay.sqrt
    tvm.relay.exp
+   tvm.relay.sigmoid
    tvm.relay.add
    tvm.relay.expand_dims
    tvm.relay.nn.softmax
@@ -41,17 +42,27 @@ This level enables typical convnet models.
 
 **Level 3: Additional Math And Transform Operators**
 
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.zeros_like
+   tvm.relay.ones_like
+
 **Level 4: Broadcast and Reductions**
 
 .. autosummary::
    :nosignatures:
 
+   tvm.relay.right_shift
+   tvm.relay.left_shift
    tvm.relay.equal
    tvm.relay.not_equal
    tvm.relay.greater
    tvm.relay.greater_equal
    tvm.relay.less
    tvm.relay.less_equal
+   tvm.relay.maximum
+   tvm.relay.minimum
 
 **Level 5: Vision/Image Operators**
 
@@ -61,9 +72,24 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.log
 .. autofunction:: tvm.relay.sqrt
 .. autofunction:: tvm.relay.exp
+.. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.add
 
 
 Level 2 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.conv2d
+
+
+Level 4 Definitions
+-------------------
+.. autofunction:: tvm.relay.right_shift
+.. autofunction:: tvm.relay.left_shift
+.. autofunction:: tvm.relay.equal
+.. autofunction:: tvm.relay.not_equal
+.. autofunction:: tvm.relay.greater
+.. autofunction:: tvm.relay.greater_equal
+.. autofunction:: tvm.relay.less
+.. autofunction:: tvm.relay.less_equal
+.. autofunction:: tvm.relay.maximum
+.. autofunction:: tvm.relay.minimum

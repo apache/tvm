@@ -30,6 +30,11 @@ class TensorSlice(NodeGeneric, _expr.ExprOp):
         """Data content of the tensor."""
         return self.tensor.dtype
 
+@register_node
+class TensorIntrinCall(NodeBase):
+    """Intermediate structure for calling a tensor intrinsic."""
+    pass
+
 
 itervar_cls = None
 
@@ -106,6 +111,7 @@ class Tensor(NodeBase, _expr.ExprOp):
         return "%s.v%d" % (op.name, self.value_index)
 
 
+
 class Operation(NodeBase):
     """Represent an operation that generate a tensor"""
 
@@ -153,6 +159,12 @@ class ComputeOp(Operation):
     def reduce_axis(self):
         """Represent axis of reductions, only defined when it is a ComputeOp"""
         return self.__getattr__("reduce_axis")
+
+
+@register_node
+class TensorComputeOp(Operation):
+    """Tensor operation."""
+    pass
 
 
 @register_node

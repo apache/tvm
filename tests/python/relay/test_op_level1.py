@@ -28,6 +28,23 @@ def test_softmax():
     ftype = func.checked_type()
     assert ftype.ret_type == relay.ty.TensorType((n, d), "float32")
 
+
+def test_unary_op():
+    for op in [relay.exp,
+               relay.log,
+               relay.sqrt,
+               relay.sigmoid]:
+        ib = relay.ir_builder.IRBuilder()
+        x = ib.param("x", relay.TensorType((10, 4), "int32"))
+        with ib.function(x) as func:
+            ib.ret(op(x.var))
+        ib.ret(func)
+        func = relay.ir_pass.infer_type(ib.env, func.to_func())
+        ftype = func.checked_type()
+        assert ftype.ret_type == relay.TensorType((10, 4), "int32")
+
+
 if __name__ == "__main__":
     test_expand_dims_infer_type()
+    test_unary_op()
     test_softmax()

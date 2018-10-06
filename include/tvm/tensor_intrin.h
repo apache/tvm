@@ -89,5 +89,58 @@ class TensorIntrinNode : public Node {
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
   return static_cast<const TensorIntrinNode*>(node_.get());
 }
+
+
+// Internal node container of tensor intrinsic calling.
+class TensorIntrinCallNode;
+
+/*! \brief Tensor intrinsic calling node. */
+class TensorIntrinCall : public NodeRef {
+ public:
+  TensorIntrinCall() {}
+  explicit TensorIntrinCall(NodePtr<Node> n) : NodeRef(n) {}
+  /*!
+   * \brief access the internal node container
+   * \return the pointer to the internal node container
+   */
+  inline const TensorIntrinCallNode* operator->() const;
+
+  /*! \brief specify container node */
+  using ContainerType = TensorIntrinCallNode;
+};
+
+class TensorIntrinCallNode : public Node {
+ public:
+  /*! \brief the tensor intrinsic */
+  TensorIntrin intrin;
+  /*! \brief input tensors of the intrinsic */
+  Array<Tensor> tensors;
+  /*! \brief regions of input tensors */
+  Array<Region> regions;
+  /*!
+   * \brief IterVar on each reduction axis, if the
+   * intrin will use the reduce axis
+   */
+  Array<IterVar> reduce_axis;
+
+  void VisitAttrs(AttrVisitor* v) final {
+    v->Visit("intrin", &intrin);
+    v->Visit("tensors", &tensors);
+    v->Visit("regions", &regions);
+    v->Visit("reduce_axis", &reduce_axis);
+  }
+  static TensorIntrinCall make(TensorIntrin intrin,
+                               Array<Tensor> tensors,
+                               Array<Region> regions,
+                               Array<IterVar> reduce_axis);
+
+  static constexpr const char* _type_key = "TensorIntrinCall";
+  TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinCallNode, Node);
+};
+
+inline const TensorIntrinCallNode* TensorIntrinCall::operator->() const {
+  return static_cast<const TensorIntrinCallNode*>(node_.get());
+}
+
 }  // namespace tvm
 #endif  // TVM_TENSOR_INTRIN_H_

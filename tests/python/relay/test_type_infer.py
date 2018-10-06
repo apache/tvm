@@ -120,9 +120,9 @@ def test_recursion():
     Program:
        def f(n: i32, data: f32) -> f32 {
           if (n == 0) {
-              return f(n - 1, log(data));
-          } else {
               return data;
+          } else {
+              return f(n - 1, log(data));
           }
        }
        f(2, 10000);
@@ -133,9 +133,9 @@ def test_recursion():
     data = b.param('data', ty='float32')
     with b.decl(f, n, data):
         with b.if_scope(equal(n, convert(0))):
-            b.ret(f(subtract(n, convert(1)), log(data)))
-        with b.else_scope():
             b.ret(data)
+        with b.else_scope():
+            b.ret(f(subtract(n, convert(1)), log(data)))
     b.ret(f(convert(2.0), convert(10000.0)))
     assert_decl_has_type(b.env, 'f', func_type(
         ['int32', 'float32'], 'float32'))
@@ -160,11 +160,11 @@ def test_concat():
 
 if __name__ == "__main__":
     test_dual_op()
-
     test_recursion()
     test_monomorphic_let()
     test_single_op()
     test_add_op()
     test_add_broadcast_op()
     test_decl()
+    test_recursion()
     test_concat()

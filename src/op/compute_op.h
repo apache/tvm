@@ -14,7 +14,7 @@
 
 namespace tvm {
 // loop nest structure for general compute
-// This the the loop nest structured used in compute.
+// This the loop nest structured used in compute.
 // Does not include the loop body.
 struct ComputeLoopNest {
   // The common number of loops between init and main
@@ -73,6 +73,21 @@ Stmt MakeTensorize(const ComputeOpNode* self,
                    const Stage& stage,
                    const std::unordered_map<IterVar, Range>& dom_map,
                    bool debug_keep_trivial_loop);
+
+/*!
+ * \brief Transform the update part when there is no init func in tensorizing
+ * \param stage The stage for tensorizing.
+ * \param dom_map The range of each iter var.
+ * \param n The loop nest structured used in compute.
+ * \param body The body func in tensorize intrin
+ * \param update The update func in tensorize intrin
+ * \return Transformed result.
+ */
+Stmt TransformUpdate(const Stage& stage,
+                     const std::unordered_map<IterVar, Range>& dom_map,
+                     const ComputeLoopNest& n,
+                     Stmt body,
+                     Stmt update);
 }  // namespace tvm
 
 #endif  // TVM_OP_COMPUTE_OP_H_

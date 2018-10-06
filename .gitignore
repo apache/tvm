@@ -91,10 +91,8 @@ ENV/
 *~
 *.pyc
 *~
-build
 config.mk
 config.cmake
-build_*
 Win32
 *.dir
 perf
@@ -187,7 +185,6 @@ tvm_u.*
 tvm_t.*
 # Mac OS X
 .DS_Store
-build*
 
 # Jetbrain
 .idea
@@ -201,3 +198,11 @@ build*
 
 # tmp file
 .nfs*
+
+# keys
+*.pem
+*.p12
+*.pfx
+*.cer
+*.crt
+*.der
