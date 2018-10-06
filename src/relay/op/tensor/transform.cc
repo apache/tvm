@@ -410,7 +410,6 @@ bool FullRel(const Array<Type>& types,
              int num_inputs,
              const Attrs& attrs,
              const TypeReporter& reporter) {
-  // we only have an output type
   CHECK_EQ(types.size(), 2);
   const FullAttrs* param = attrs.as<FullAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
@@ -449,6 +448,50 @@ RELAY_REGISTER_OP("full")
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
 .add_type_rel("Full", FullRel);
+
+bool FullLikeRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* fill_value = types[1].as<TensorTypeNode>();
+  if (fill_value == nullptr) {
+    return false;
+  }
+
+  CHECK_EQ(fill_value->shape.size(), 0)
+    << "The fill value should be a scalar but here it has dimension "
+    << fill_value->shape.size() << ".";
+
+  reporter->Assign(types[2], TensorTypeNode::make(data->shape, data->dtype));
+  return true;
+}
+
+Expr MakeFullLike(Expr data,
+              Expr fill_value) {
+  static const Op& op = Op::Get("full_like");
+  return CallNode::make(op, {data, fill_value}, Attrs(), {});
+}
+
+TVM_REGISTER_API("relay.op._make.full_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeFullLike, args, rv);
+  });
+
+RELAY_REGISTER_OP("full_like")
+.describe(R"code(Return an scalar value array with the same shape
+and type as the input array.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("fill_value", "double", "Scalar value to fill.")
+.set_support_level(3)
+.add_type_rel("FullLike", FullLikeRel);
 
 }  // namespace relay
 }  // namespace tvm

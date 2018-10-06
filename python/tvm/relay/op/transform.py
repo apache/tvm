@@ -144,9 +144,9 @@ def take(data, indices, axis=None):
 def full(fill_value, shape=(), dtype='float32'):
     """Fill array with scalar value.
 
-    Paramters
-    ---------
-    fill_value: relay.Expr
+    Parameters
+    ----------
+    fill_value : relay.Expr
         The value to fill. Must be a scalar.
 
     shape : tuple of int, optional (default: ())
@@ -161,3 +161,21 @@ def full(fill_value, shape=(), dtype='float32'):
         The resulting tensor.
     """
     return _make.full(fill_value, shape, dtype)
+
+def full_like(data, fill_value):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    fill_value : relay.Expr
+        The scalar value to fill.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.full_like(data, fill_value)
