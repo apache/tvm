@@ -12,7 +12,7 @@ class Type(NodeBase):
         """Compare two Relay types for structural equivalence using
            alpha equivalence.
         """
-        return bool(_make._type_alpha_eq(self, other))
+        return bool(_make._type_alpha_equal(self, other))
 
     def __ne__(self, other):
         return not self.__eq__(other)

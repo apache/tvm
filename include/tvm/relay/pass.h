@@ -80,7 +80,7 @@ bool AlphaEqual(const Expr& e1, const Expr& e2);
  */
 bool AlphaEqual(const Type& t1, const Type& t2);
 
-/*! brief Check that each Var is only bind once.
+/*! \brief Check that each Var is only bound once.
  *
  * For example, the expression `let x = 1 in let x = 2 in 3` bound x twice.
  *
@@ -88,9 +88,9 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  *
  * \param e the expression to check.
  *
- * \return true iff all Var in e is bind at most once.
+ * \return true iff all Var in e is bound at most once.
  */
-bool WellFormed(const Expr & e);
+bool WellFormed(const Expr& e);
 
 /*! \brief Get free variables from expression e.
  *
@@ -100,7 +100,7 @@ bool WellFormed(const Expr & e);
  *
  * \return the set of free variable.
  */
-tvm::Array<Var> FreeVariables(const Expr & e);
+tvm::Array<Var> FreeVariables(const Expr& e);
 
 /*! \brief Get free type parameters from expression e.
  *
@@ -110,7 +110,7 @@ tvm::Array<Var> FreeVariables(const Expr & e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Expr & e);
+tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
 
 /*! \brief Get free type parameters from type t.
  *
@@ -120,7 +120,20 @@ tvm::Array<TypeParam> FreeTypeVariables(const Expr & e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Type & t);
+tvm::Array<TypeParam> FreeTypeVariables(const Type& t);
+
+/*! \brief Remove expressions which does not effect the program result.
+ *
+ * It will remove let binding that are not referenced, and if branch that are not entered.
+ *
+ * For example, this pass should turn `let a = 1 in 2` into `2`, as the value of the expression does not depend on a.
+ * Another example is `if (true) then 1 else 2` will be optimized into 1.
+ *
+ * \param e the expression to optimize.
+ *
+ * \return the optimized expression.
+ */
+Expr DeadCodeElimination(const Expr& e);
 
 }  // namespace relay
 }  // namespace tvm

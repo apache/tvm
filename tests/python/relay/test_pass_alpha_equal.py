@@ -1,8 +1,9 @@
 import tvm
 from tvm import relay
+from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.ir_builder import convert
 
-
-def test_tensor_type_alpha_eq():
+def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
     t2 = relay.TensorType((3, 4), "float32")
     t3 = relay.TensorType((3, 4, 5), "float32")
@@ -13,8 +14,14 @@ def test_tensor_type_alpha_eq():
     t2 = relay.TensorType((), "float32")
     assert t1 == t2
 
+def test_constant_alpha_equal():
+    x = convert(1)
+    y = convert(2)
+    assert alpha_equal(x, x)
+    assert not alpha_equal(x, y)
+    assert alpha_equal(x, convert(1))
 
-def test_incomplete_type_alpha_eq():
+def test_incomplete_type_alpha_equal():
     t1 = relay.IncompleteType(relay.Kind.Shape)
     t2 = relay.IncompleteType(relay.Kind.Type)
     t3 = relay.IncompleteType(relay.Kind.Type)
@@ -26,7 +33,7 @@ def test_incomplete_type_alpha_eq():
     assert t2 != t3
 
 
-def test_type_param_alpha_eq():
+def test_type_param_alpha_equal():
     t1 = relay.TypeParam("v1", relay.Kind.Type)
     t2 = relay.TypeParam("v2", relay.Kind.Shape)
     t3 = relay.TypeParam("v3", relay.Kind.Type)
@@ -48,7 +55,7 @@ def test_type_param_alpha_eq():
     assert ft1 != ft3 # kinds still do not match
 
 
-def test_func_type_alpha_eq():
+def test_func_type_alpha_equal():
     t1 = relay.TensorType((1, 2), "float32")
     t2 = relay.TensorType((1, 2, 3), "float32")
 
@@ -108,7 +115,7 @@ def test_func_type_alpha_eq():
     assert ft != more_rels
 
 
-def test_tuple_type_alpha_eq():
+def test_tuple_type_alpha_equal():
     t1 = relay.TensorType((1, 2, 3), "float32")
     t2 = relay.TensorType((1, 2, 3, 4), "float32")
     tp1 = relay.TypeParam("v1", relay.Kind.Type)
@@ -126,7 +133,7 @@ def test_tuple_type_alpha_eq():
     assert tup1 != tup4
 
 
-def test_type_relation_alpha_eq():
+def test_type_relation_alpha_equal():
     t1 = relay.TensorType((1, 2), "float32")
     t2 = relay.TensorType((1, 2, 3), "float32")
     t3 = relay.TensorType((1, 2, 3, 4), "float32")
@@ -162,9 +169,9 @@ def test_type_relation_alpha_eq():
 
 
 if __name__ == "__main__":
-    test_tensor_type_alpha_eq()
-    test_incomplete_type_alpha_eq()
-    test_type_param_alpha_eq()
-    test_func_type_alpha_eq()
-    test_tuple_type_alpha_eq()
-    test_type_relation_alpha_eq()
+    test_tensor_type_alpha_equal()
+    test_incomplete_type_alpha_equal()
+    test_type_param_alpha_equal()
+    test_func_type_alpha_equal()
+    test_tuple_type_alpha_equal()
+    test_type_relation_alpha_equal()
