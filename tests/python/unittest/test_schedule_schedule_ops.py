@@ -276,6 +276,133 @@ def test_schedule_bound_condition():
    stmt = tvm.ir_pass.Simplify(stmt)
    assert (isinstance(stmt.body.body.first.body.body.then_case, tvm.stmt.IfThenElse))
 
+
+def intrin_gemv(m, n):
+    w = tvm.placeholder((m, n), name='w')
+    x = tvm.placeholder((n,), name='x')
+    k = tvm.reduce_axis((0, n), name='k')
+    z = tvm.compute((m,), lambda i:
+                    tvm.sum(w[i, k] * x[k], axis=k), name='z')
+    Wb = tvm.decl_buffer(w.shape, w.dtype,
+                         name="W",
+                         offset_factor=16,
+                         strides=[tvm.var('ldw'), 1])
+    def intrin_func(ins, outs):
+        ww, xx = ins
+        zz = outs[0]
+        ww_ptr = ww.access_ptr("r")
+        xx_ptr = xx.access_ptr("r")
+        zz_ptr = zz.access_ptr("w")
+        body = tvm.call_packed(
+            "gemm", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        reset = tvm.call_packed(
+            "fill_zero", zz_ptr, n)
+        update = tvm.call_packed(
+            "gemv_add", ww_ptr, xx_ptr, zz_ptr, n, ww.strides[0])
+        return body, reset, update
+
+    with tvm.build_config(data_alignment=16,
+                          offset_factor=16):
+        return tvm.decl_tensor_intrin(z.op, intrin_func,
+                                      binds={w: Wb})
+
+
+def test_schedule_tensor_compute1():
+    # basic: split, reorder, tile
+    M, N, L = 2048, 1024, 512
+    factor, rfactor = 16, 16
+    A = tvm.placeholder((N//factor, L//rfactor, factor, rfactor), name='A')
+    B = tvm.placeholder((M, L//rfactor, rfactor), name='B')
+    k = tvm.reduce_axis((0, L//rfactor), name='k')
+
+    gemv = intrin_gemv(factor, rfactor)
+    C = tvm.compute((N, M//factor, factor),
+        lambda i, j: gemv(A[i, k, 0:factor, 0:factor], B[j, k, 0:rfactor], reduce_axis=k),
+        name='C')
+
+    s = tvm.create_schedule(C.op)
+    ai, aj, ax = s[C].op.axis
+    aio, aii = s[C].split(ai, 16)
+    s[C].reorder(aio, aj, aii)
+    aioo, ajo, aioi, aji = s[C].tile(aio, aj, 16, 4)
+
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
+def intrin_vadd(n, cache_read=False, cache_write=False):
+    scope_ubuf = 'local'
+    dtype = 'float32'
+    x = tvm.placeholder((n,), dtype=dtype, name='vx')
+    y = tvm.placeholder((n,), dtype=dtype, name='vy')
+    z = tvm.compute(x.shape, lambda i: x[i] + y[i], name='z')
+    s = tvm.create_schedule(z.op)
+
+    def create_buffer(t):
+        return tvm.decl_buffer(t.shape, t.dtype,
+                               name='W'+t.name,
+                               scope=scope_ubuf,
+                               offset_factor=16)
+
+    binds = {}
+    if cache_read:
+        binds[x] = create_buffer(x)
+        binds[y] = create_buffer(y)
+    if cache_write:
+        binds[z] = create_buffer(z)
+
+    def intrin_func(ins, outs):
+        ib = tvm.ir_builder.create()
+        ib.emit(tvm.call_extern(outs[0].dtype, 'vadd', ins[0].access_ptr("r"), ins[1].access_ptr('r'), outs[0].access_ptr('wr')))
+        return ib.get()
+
+    with tvm.build_config(offset_factor=16):
+        return tvm.decl_tensor_intrin(z.op, intrin_func, binds=binds)
+
+
+def test_schedule_tensor_compute2():
+    # cache_read, cache_write
+    M = 1024
+    factor = 16
+    dtype = 'float32'
+    scope_ubuf = 'local'
+
+    A = tvm.placeholder((M//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((M//factor, factor), name="B", dtype=dtype)
+
+    vadd = intrin_vadd(factor, True, True)
+    C = tvm.compute((M//factor, factor),
+        lambda i: vadd(A[i, 0:factor], B[i, 0:factor]), name='C')
+
+    s = tvm.create_schedule(C.op)
+    AL = s.cache_read(A, scope_ubuf, C)
+    BL = s.cache_read(B, scope_ubuf, C)
+    CL = s.cache_write(C, scope_ubuf)
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
+def test_schedule_tensor_compute3():
+    # compute_at
+    M = 1024
+    factor = 16
+    dtype = 'float32'
+    A = tvm.placeholder((M//factor, factor), name="A", dtype=dtype)
+    B = tvm.placeholder((M//factor, factor), name="B", dtype=dtype)
+    Bi = tvm.compute((M//factor, factor), lambda i, j: B[i, j] + 5, name="Bi")
+
+    vadd = intrin_vadd(factor)
+    C = tvm.compute((M//factor, factor),
+        lambda i: vadd(A[i, 0:factor], Bi[i, 0:factor]), name='C')
+    s = tvm.create_schedule(C.op)
+    s[Bi].compute_at(s[C], C.op.axis[0])
+    s = s.normalize()
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+
+
 if __name__ == "__main__":
     test_schedule_middle_cache()
     test_inline_multi_reduce()
@@ -294,3 +421,6 @@ if __name__ == "__main__":
     test_schedule2()
     test_schedule_cache()
     test_schedule_bound_condition()
+    test_schedule_tensor_compute1()
+    test_schedule_tensor_compute2()
+    test_schedule_tensor_compute3()
