@@ -246,6 +246,24 @@ def maximum(lhs, rhs):
     return _make.maximum(lhs, rhs)
 
 
+def minimum(lhs, rhs):
+    """Minimum with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.minimum(lhs, rhs)
+
+
 def right_shift(lhs, rhs):
     """Right shift with numpy-style broadcasting.
 

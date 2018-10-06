@@ -45,6 +45,10 @@ RELAY_REGISTER_BINARY_OP("maximum")
 .describe("Elementwise maximum of two tensors with broadcasting")
 .set_support_level(4);
 
+RELAY_REGISTER_BINARY_OP("minimum")
+.describe("Elementwise minimum of two tensors with broadcasting")
+.set_support_level(4);
+
 // Comparisons
 #define RELAY_REGISTER_CMP_OP(OpName)                               \
   TVM_REGISTER_API("relay.op._make." OpName)                        \
