@@ -173,7 +173,8 @@ impl<'a> Tensor<'a> {
                 expected_stride * (*shape as usize),
               )
             },
-          ).0
+          )
+          .0
       }
     }
   }
