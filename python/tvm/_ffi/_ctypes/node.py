@@ -76,6 +76,8 @@ class NodeBase(object):
         So the return handle is directly set into the Node object
         instead of creating a new Node.
         """
+        # assign handle first to avoid error raising
+        self.handle = None
         handle = __init_by_constructor__(fconstructor, args)
         if not isinstance(handle, NodeHandle):
             handle = NodeHandle(handle)

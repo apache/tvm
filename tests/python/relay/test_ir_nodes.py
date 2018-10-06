@@ -3,6 +3,13 @@ import tvm
 from tvm import relay
 from tvm.expr import *
 
+def test_bad_constructor():
+    try:
+        x = relay.ty.TensorType("xx", "xx")
+    except tvm.TVMError:
+        pass
+
+
 # Span
 def test_span():
     span = relay.Span(None, 1, 1)
@@ -169,6 +176,7 @@ def test_if():
 
 
 if __name__ == "__main__":
+    test_bad_constructor()
     test_span()
     test_tensor_type()
     test_type_param()
