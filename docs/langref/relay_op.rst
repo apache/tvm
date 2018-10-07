@@ -30,6 +30,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.expand_dims
    tvm.relay.concatenate
    tvm.relay.nn.softmax
+   tvm.relay.nn.log_softmax
    tvm.relay.subtract
    tvm.relay.multiply
    tvm.relay.divide
@@ -114,6 +115,7 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.nn.softmax
+.. autofunction:: tvm.relay.nn.log_softmax
 
 
 Level 2 Definitions
