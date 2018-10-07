@@ -79,7 +79,7 @@ def test_dtype():
     x = tvm.var('x')
     assert x.dtype == 'int32'
     y = tvm.var('y')
-    assert (x > y).dtype == 'uint1'
+    assert (x > y).dtype == 'bool'
 
 
 def test_any():

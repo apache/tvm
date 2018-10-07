@@ -80,6 +80,9 @@ void CodeGenOpenCL::PrintType(Type t, std::ostream& os) {  // NOLINT(*)
         << "do not yet support vector types";
     os << "void*"; return;
   }
+  if (t == Bool()) {
+    os << "bool"; return;
+  }
   bool fail = false;
   if (t.is_float()) {
     switch (t.bits()) {
