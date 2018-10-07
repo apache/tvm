@@ -25,7 +25,7 @@ def test_softmax():
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, d), "float32")
 
 
