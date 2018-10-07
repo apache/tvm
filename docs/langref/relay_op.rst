@@ -28,6 +28,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.sigmoid
    tvm.relay.add
    tvm.relay.expand_dims
+   tvm.relay.nn.softmax
 
 **Level 2: Convolutions**
 
