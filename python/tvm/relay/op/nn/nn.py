@@ -86,3 +86,23 @@ def conv2d(data,
     return _make.conv2d(data, weight, strides, padding, dilation,
                         groups, channels, kernel_size, data_layout,
                         weight_layout, out_layout, out_dtype)
+
+
+def softmax(data, axis):
+    r"""Computes softmax.
+
+    .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+    .. note::
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis to sum over when computing softmax
+    """
+
+    return _make.softmax(data, axis)

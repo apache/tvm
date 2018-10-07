@@ -2,7 +2,7 @@ import tvm
 from tvm import relay
 from tvm.relay.ir_pass import dead_code_elimination, alpha_equal
 from tvm.relay.ir_builder import convert, IRBuilder
-from tvm.relay.op import log, add, equal, subtract, concat
+from tvm.relay.op import log, add, equal, subtract
 
 class env:
     def __init__(self):

@@ -28,6 +28,8 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.sigmoid
    tvm.relay.add
    tvm.relay.expand_dims
+   tvm.relay.concatenate
+   tvm.relay.nn.softmax
 
 **Level 2: Convolutions**
 
@@ -46,6 +48,9 @@ This level enables typical convnet models.
 
    tvm.relay.zeros_like
    tvm.relay.ones_like
+   tvm.relay.reshape
+   tvm.relay.copy
+   tvm.relay.transpose
 
 **Level 4: Broadcast and Reductions**
 

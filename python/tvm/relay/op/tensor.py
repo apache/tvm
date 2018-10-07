@@ -300,21 +300,6 @@ def left_shift(lhs, rhs):
     return _make.left_shift(lhs, rhs)
 
 
-def concat(*args):
-    """Concatenate the input tensors along the zero axis.
-
-    Parameters
-    ----------
-    args: list of Tensor
-
-    Returns
-    -------
-    tensor: The concatenated tensor.
-    """
-    tup = Tuple(list(args))
-    return _make.concat(tup)
-
-
 def zeros_like(data):
     """Returns an array of zeros, with same type and shape as the input.
 
@@ -346,6 +331,7 @@ def ones_like(data):
     """
     return _make.ones_like(data)
 
+
 def clip(a, a_min, a_max):
     """Clip the elements in `a` between `a_min` and `a_max`. `a_min` and `a_max` are cast to `a`'s dtype.
 
@@ -371,3 +357,43 @@ def clip(a, a_min, a_max):
       # [1, 1, 4, 3, 4, 2]
     """
     return _make.clip(a, a_min, a_max)
+
+
+def concatenate(data, axis):
+    """Concatenate the input tensors along the given axis.
+
+    Parameters
+    ----------
+    data : Union(List[relay.Expr], Tuple[relay.Expr])
+        A list of tensors.
+    axis : int
+        The axis along which the tensors are concatenated.
+
+    Returns
+    -------
+    result: relay.Expr
+        The concatenated tensor.
+    """
+    data = list(data)
+    if not data:
+        raise ValueError("relay.concatenate requires data to be non-empty.")
+    if not isinstance(axis, int):
+        raise ValueError("For now, we only support integer axis")
+    return _make.concatenate(Tuple(data), axis)
+
+
+def copy(data):
+    """Copy a tensor.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The tensor to be copied.
+
+    Returns
+    -------
+    result: relay.Expr
+        The copied result.
+    """
+    return _make.copy(data)
+
