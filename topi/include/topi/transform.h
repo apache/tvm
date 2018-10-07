@@ -38,10 +38,6 @@ inline Tensor expand_dims(const Tensor& x,
                           std::string name = "tensor",
                           std::string tag = kBroadcast) {
   int ndim = static_cast<int>(x->shape.size());
-  if (axis < 0) {
-    // Calculate offset from last dimension
-    axis = ndim + axis + 1;
-  }
   CHECK(-ndim - 1 <= axis && axis <= ndim)
     << "expand_dims only accepts `axis` in [-data.ndim - 1, data.ndim]"
     << ", but got axis = " << axis
@@ -49,7 +45,10 @@ inline Tensor expand_dims(const Tensor& x,
   CHECK(num_newaxis >= 0)
     << "expand_dims only accepts `num_newaxis >= 0`"
     << ", but got num_newaxis = " << num_newaxis;
-
+  if (axis < 0) {
+    // Calculate offset from last dimension
+    axis = ndim + axis + 1;
+  }
   Array<Expr> new_shape;
   for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
     new_shape.push_back(x->shape[i]);
@@ -265,8 +264,13 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
                           int axis = 0,
                           std::string name = "tensor",
                           std::string tag = kInjective) {
+  int ndim = static_cast<int>(inputs[0]->shape.size());
+  CHECK(-ndim <= axis && axis < ndim)
+    << "concatenate only accepts `axis` in [-ndim, ndim)"
+    << ", but got axis = " << axis
+    << ", and ndim = " << ndim;
   if (axis < 0) {
-    axis += static_cast<int>(inputs[0]->shape.size());
+    axis += ndim;
   }
   CHECK_LT(axis, inputs[0]->shape.size()) <<
     "axis out of bounds";
