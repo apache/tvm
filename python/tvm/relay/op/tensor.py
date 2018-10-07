@@ -333,7 +333,8 @@ def ones_like(data):
 
 
 def clip(a, a_min, a_max):
-    """Clip the elements in `a` between `a_min` and `a_max`. `a_min` and `a_max` are cast to `a`'s dtype.
+    """Clip the elements in `a` between `a_min` and `a_max`.
+    `a_min` and `a_max` are cast to `a`'s dtype.
 
     Parameters
     ----------
@@ -396,4 +397,3 @@ def copy(data):
         The copied result.
     """
     return _make.copy(data)
-
