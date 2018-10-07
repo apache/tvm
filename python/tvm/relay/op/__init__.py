@@ -1,13 +1,14 @@
-#pylint: disable=wildcard-import
+#pylint: disable=wildcard-import, redefined-builtin
 """Relay core operators."""
 # operator defs
 from .op import get, register, Op
 
 # Operators
 from .tensor import *
-from . import nn
 from .transform import *
-
+from . import nn
+from . import image
+from . import vision
 
 # operator registry
 from . import _tensor
