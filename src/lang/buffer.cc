@@ -260,25 +260,42 @@ inline Expr BufferOffset(const BufferNode* n, Array<Expr> index, Type dtype) {
 }
 
 Expr Buffer::vload(Array<Expr> begin, Type dtype) const {
+  // specially handle bool, stored as Int(8)
   const BufferNode* n = operator->();
   CHECK(dtype.element_of() == n->dtype.element_of() &&
         dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
-  return ir::Load::make(
-      dtype, n->data, BufferOffset(n, begin, dtype),
-      const_true(dtype.lanes()));
+  if (dtype == Bool()) {
+    return ir::Cast::make(
+        Bool(),
+        ir::Load::make(
+            Int(8), n->data, BufferOffset(n, begin, Int(8)),
+            const_true()));
+  } else {
+    return ir::Load::make(
+        dtype, n->data, BufferOffset(n, begin, dtype),
+        const_true(dtype.lanes()));
+  }
 }
 
 Stmt Buffer::vstore(Array<Expr> begin, Expr value) const {
+  // specially handle bool, stored as Int(8)
   const BufferNode* n = operator->();
   Type dtype = value.type();
   CHECK(dtype.element_of() == n->dtype.element_of() &&
         dtype.lanes() % n->dtype.lanes() == 0)
       << "Cannot load " << dtype
       << " from buffer of " << n->dtype;
-  return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
-                         const_true(dtype.lanes()));
+  if (value.type() == Bool()) {
+    return ir::Store::make(n->data,
+                           ir::Cast::make(Int(8), value),
+                           BufferOffset(n, begin, Int(8)),
+                           const_true());
+  } else {
+    return ir::Store::make(n->data, value, BufferOffset(n, begin, dtype),
+                           const_true(dtype.lanes()));
+  }
 }
 
 Buffer Buffer::MakeStrideView() const {
