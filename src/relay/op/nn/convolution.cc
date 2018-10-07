@@ -49,9 +49,9 @@ bool Conv2DRel(const Array<Type>& types,
     CHECK_EQ(param->dilation.size(), 2);
     std::vector<IndexExpr> wshape(
         {param->channels / param->groups,
-              data->shape[1] / param->groups,
-              param->kernel_size[0],
-              param->kernel_size[1]});
+         data->shape[1] / param->groups,
+         param->kernel_size[0],
+         param->kernel_size[1]});
     wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
     wshape[kernel_layout.indexof('O')] *= param->groups;
     channels = param->channels;
