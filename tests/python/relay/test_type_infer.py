@@ -32,54 +32,6 @@ def test_monomorphic_let():
     prog, env = b.get()
     assert_has_type(prog, scalar_type('float64'))
 
-
-def test_single_op():
-    "Program: fn (x : float32) { let t1 = f(x); t1 }"
-    b = IRBuilder()
-    with b.function(('x', 'float32')) as func:
-        x, = func.param_ids()
-        t1 = b.let('t1', log(x))
-        b.ret(t1)
-    assert_has_type(func.to_func(), func_type(['float32'], 'float32'))
-
-def test_add_op():
-    """
-    Program:
-        fn (x, y) {
-            return x + y;
-        }
-    """
-    b = IRBuilder()
-
-    x = b.param('x', tensor_type(5, 5, 5))
-    y = b.param('y', tensor_type(5, 5, 5))
-    with b.function(x, y) as func:
-        b.ret(add(x.var, y.var))
-    b.ret(func)
-    prog, env = b.get()
-    ttype = tensor_type(5, 5, 5)
-    expected_ty = func_type([ttype, ttype], ttype)
-    assert_has_type(func.to_func(), expected_ty)
-
-def test_add_broadcast_op():
-    """
-    Program:
-        fn (x: Tensor[(10, 4), f32], y: Tensor[(5, 10, 1), f32]) -> Tensor[(5, 10, 4), f32] {
-            return x + y;
-        }
-    """
-    b = IRBuilder()
-    x = b.param('x', tensor_type(10, 4))
-    y = b.param('y', tensor_type(5, 10, 1))
-    with b.function(x, y) as func:
-        b.ret(add(x.var, y.var))
-    b.ret(func)
-    prog, env = b.get()
-
-    expected_ty = func_type([tensor_type(10, 4), tensor_type(5, 10, 1)],
-                            tensor_type(5, 10, 4))
-    assert_has_type(func.to_func(), expected_ty)
-
 def test_dual_op():
     """Program:
        fn (x : Tensor[f32, (10, 10)]) {
@@ -162,9 +114,6 @@ if __name__ == "__main__":
     test_dual_op()
     test_recursion()
     test_monomorphic_let()
-    test_single_op()
-    test_add_op()
-    test_add_broadcast_op()
     test_decl()
     test_recursion()
     test_concat()
