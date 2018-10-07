@@ -438,8 +438,25 @@ Value IRBuilder::Cast(const SType& dst_type, spirv::Value value) {
   const tvm::Type& from = value.stype.type;
   const tvm::Type& to = dst_type.type;
   CHECK_EQ(from.lanes(), to.lanes());
-
-  if (from.is_int() && to.is_int()) {
+  if (from == Bool()) {
+    if (to.is_int()) {
+      return Select(value, IntImm(dst_type, 1), IntImm(dst_type, 0));
+    } else if (to.is_uint()) {
+      return Select(value, UIntImm(dst_type, 1), UIntImm(dst_type, 0));
+    } else {
+      LOG(FATAL) << "cannot cast from " << from << " to " << to;
+      return Value();
+    }
+  } else if (to == Bool()) {
+    if (from.is_int()) {
+      return NE(value, IntImm(value.stype, 0));
+    } else if (to.is_uint()) {
+      return NE(value, UIntImm(value.stype, 0));
+    } else {
+      LOG(FATAL) << "cannot cast from " << from << " to " << to;
+      return Value();
+    }
+  } else if (from.is_int() && to.is_int()) {
     return MakeValue(spv::OpSConvert, dst_type, value);
   } else if (from.is_uint() && to.is_uint()) {
     return MakeValue(spv::OpUConvert, dst_type, value);
