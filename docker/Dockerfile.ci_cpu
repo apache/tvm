@@ -26,6 +26,8 @@ RUN bash /install/ubuntu_install_golang.sh
 # Rust env
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
+ENV RUSTUP_HOME /opt/rust
+ENV CARGO_HOME /opt/rust
 
 # SGX deps
 COPY install/ubuntu_install_sgx.sh /install/ubuntu_install_sgx.sh
@@ -33,4 +35,4 @@ RUN bash /install/ubuntu_install_sgx.sh
 ENV LD_LIBRARY_PATH /opt/sgxsdk/lib64:${LD_LIBRARY_PATH}
 
 
-ENV PATH $PATH:/root/.cargo/bin:/usr/lib/go-1.10/bin
+ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
