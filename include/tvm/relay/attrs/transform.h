@@ -82,6 +82,20 @@ struct FullAttrs : public tvm::AttrsNode<FullAttrs> {
   }
 };  // struct FullAttrs
 
+/*! \brief Attributes used in squeeze operators */
+struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
+  Array<IndexExpr> axes;
+
+  TVM_DECLARE_ATTRS(SqueezeAttrs, "relay.attrs.SqueezeAttrs") {
+    TVM_ATTR_FIELD(axes)
+        .describe("The axes to squeeze in the input tensor."
+                  "If `axes = []`, all axis of dimension 1 get squeezed;"
+                  "Else, the dimension in axes get squeezed."
+                  "It is an error if an axes does not has dimension 1.")
+        .set_default(Array<IndexExpr>({}));
+  }
+};  // struct SqueezeAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

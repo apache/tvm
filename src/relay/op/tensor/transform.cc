@@ -80,8 +80,6 @@ RELAY_REGISTER_OP("expand_dims")
 .set_support_level(1)
 .add_type_rel("ExpandDims", ExpandDimsRel);
 
-/* relay.concatenate */
-
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
 bool ConcatenateRel(const Array<Type>& types,
@@ -577,6 +575,75 @@ Examples::
 .set_num_inputs(3)
 .set_support_level(4)
 .add_type_rel("Where", WhereRel);
+
+Expr MakeSqueeze(Expr data,
+                 Array<IndexExpr> axes) {
+  auto attrs = make_node<SqueezeAttrs>();
+  attrs->axes = std::move(axes);
+  static const Op& op = Op::Get("squeeze");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.squeeze")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeSqueeze, args, rv);
+  });
+
+bool SqueezeRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* param = attrs.as<SqueezeAttrs>();
+  std::vector<IndexExpr> result_shape;
+  // if axes is empty, squeeze all axes of dimension 1
+  if (param->axes.size() == 0) {
+    for (const auto& e : data->shape) {
+      const int64_t* axis_ptr = as_const_int(e);
+      CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
+      if (*axis_ptr != 1) {
+        result_shape.push_back(e);
+      }
+    }
+  } else {
+    // pair up original shape with a boolean which control whether it will be in the final shape.
+    std::vector<std::pair<IndexExpr, bool> > original_shape;
+    for (const auto& e : data->shape) {
+      original_shape.push_back(std::pair<IndexExpr, bool>(e, true));
+    }
+    for (const auto& e : param->axes) {
+      const int64_t* axis_ptr = as_const_int(e);
+      CHECK(axis_ptr != nullptr);
+      original_shape.at(*axis_ptr).second = false;
+    }
+    for (const auto p : original_shape) {
+      if (p.second) {
+        result_shape.push_back(p.first);
+      } else {
+        const int64_t* axis_ptr = as_const_int(p.first);
+        CHECK(axis_ptr != nullptr) << "cannot get concrete shape of input tensor";
+        CHECK_EQ(*axis_ptr, 1) << "cannot squeeze axis with dimension not equal to 1";
+      }
+    }
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(result_shape, data->dtype));
+  return true;
+}
+
+RELAY_REGISTER_OP("squeeze")
+.describe(R"code(Squeeze the input tensor at the dimensions given by axes
+
+- **data**: The input data to the operator.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Squeeze", SqueezeRel);
 
 }  // namespace relay
 }  // namespace tvm
