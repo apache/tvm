@@ -67,6 +67,16 @@ struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
   }
 };
 
+/*! \brief Attributes used in softmax operators */
+struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SoftmaxAttrs, "relay.attrs.SoftmaxAttrs") {
+      TVM_ATTR_FIELD(axis).set_default(1)
+          .describe("The axis to sum over when computing softmax.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_NN_H_
