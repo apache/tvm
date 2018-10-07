@@ -21,7 +21,7 @@ def test_clip_type():
         ib.ret(relay.clip(a.var, 1., 4.))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((10, 4), "float32")
 
 
