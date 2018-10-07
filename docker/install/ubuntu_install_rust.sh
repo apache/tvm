@@ -9,6 +9,7 @@ rustup toolchain add nightly
 rustup component add rust-src
 cargo +nightly install rustfmt-nightly --version 0.99.5 --force
 cargo +nightly install xargo
+cargo +nightly install sccache
 
 # make rust usable by all users
 chmod a+w /opt/rust
