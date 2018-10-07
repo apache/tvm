@@ -82,18 +82,11 @@ RELAY_REGISTER_UNARY_OP("sigmoid")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-// Concat
-TVM_REGISTER_API("relay.op._make.concat")
-  .set_body_typed<Expr(Expr)>([](Expr tuple) {
-      static const Op& op = Op::Get("concat");
-    return CallNode::make(op, { tuple }, Attrs(), {});
-  });
-
-RELAY_REGISTER_OP("concat")
-.set_num_inputs(1)
-.add_argument("tuple", "Tuple", "The tupled tensor arguments.")
-.set_support_level(1)
-.add_type_rel("Concat", ConcatRel);
+RELAY_REGISTER_UNARY_OP("copy")
+.describe(R"code(Copy a tensor.
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
 
 }  // namespace relay
 }  // namespace tvm

@@ -7,7 +7,7 @@ from tvm.relay.ir_pass import infer_type
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 from tvm.relay.env import Environment
-from tvm.relay.op import log, add, equal, subtract, concat
+from tvm.relay.op import log, add, equal, subtract, concatenate
 from tvm.relay.expr import Function
 
 def assert_has_type(expr, typ, env=Environment({})):
@@ -146,7 +146,7 @@ def test_concat():
     """
     Program:
         def try_concat2(x: Float(3, 2), y: Float(2, 2)) -> Float(5, 2) {
-            return concat(x, y);
+            return concatenate((x, y), axis=0);
         }
     """
     ib = IRBuilder()
@@ -154,7 +154,7 @@ def test_concat():
     x = ib.param('x', ty=tensor_type(3, 2))
     y = ib.param('y', ty=tensor_type(2, 2))
     with ib.decl(try_concat2, x, y):
-        ib.ret(concat(x, y))
+        ib.ret(concatenate((x, y), axis=0))
     fn_ty = func_type([tensor_type(3, 2), tensor_type(2, 2)], tensor_type(5, 2))
     assert_decl_has_type(ib.env, try_concat2, fn_ty)
 
