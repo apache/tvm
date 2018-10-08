@@ -223,7 +223,6 @@ class ExprDocifier : private ExprFunctor<Doc(const Expr& n)> {
   }
 
   Doc VisitExpr_(const CallNode* c) final {
-    auto args = DocifyExprArray(c->args);
     return Docify(c->op) + Seq("<", DocifyExprArray(c->args), ">");
   }
 
@@ -242,6 +241,10 @@ class ExprDocifier : private ExprFunctor<Doc(const Expr& n)> {
 
   Doc VisitExpr_(const OpNode* o) final {
     return DocOfStr(o->name);
+  }
+
+  Doc VisitExpr_(const GetItemNode* g) final {
+    return Docify(g->tuple) + DocOfStr(std::string(".") + std::to_string(g->field));
   }
 
  public:
@@ -291,7 +294,6 @@ std::string PrintType(const Environment& env, const Type& t) {
 TVM_REGISTER_API("relay._expr._debug_print")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef x = args[1];
-    std::cout << x << std::endl;
     if (x.as<TypeNode>()) {
       *ret = PrintType(args[0], Downcast<Type>(x));
     } else {

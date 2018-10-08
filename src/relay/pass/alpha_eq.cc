@@ -335,6 +335,15 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
       equal = false;
     }
   }
+
+  void VisitExpr_(const GetItemNode* op, const Expr& e2) final {
+    if (const GetItemNode* proj = e2.as<GetItemNode>()) {
+      this->VisitExpr(op->tuple, proj->tuple);
+      equal = equal && (op->field == proj->field);
+    } else {
+      equal = false;
+    }
+  }
 };
 
 bool AlphaEqual(const Expr& e1, const Expr& e2) {

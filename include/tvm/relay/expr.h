@@ -360,8 +360,6 @@ class IfNode : public ExprNode {
   /*! \brief The expression evaluated when condition is false */
   Expr false_branch;
 
-  IfNode() {}
-
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
@@ -377,6 +375,23 @@ class IfNode : public ExprNode {
 };
 
 RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
+
+/*! \brief Get a field out of a tuple. */
+class GetItem;
+class GetItemNode : public ExprNode {
+  public:
+  /*! \brief The tuple */
+  Expr tuple;
+  /*! \brief which value to get */
+  size_t field;
+
+  TVM_DLL static GetItem make(Expr tuple, int field);
+
+  static constexpr const char * _type_key = "relay.GetItem";
+  TVM_DECLARE_NODE_TYPE_INFO(GetItemNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(GetItem, GetItemNode, Expr);
 
 /*! \brief Print a debug representation of the expression to the stream.
  *  \param env The environment.

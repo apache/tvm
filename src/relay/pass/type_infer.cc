@@ -119,6 +119,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return TupleTypeNode::make(fields);
   }
 
+  Type VisitExpr_(const GetItemNode* op) final {
+    // TODO(M.K.)
+    // handle case where field type is not known
+    Type tuple_type = GetType(op->tuple);
+    auto tuple_ty_node = tuple_type.as<TupleTypeNode>();
+    if (!tuple_ty_node) {
+      LOG(FATAL) << "only expressions with tuple types is accepted" << GetRef<GetItem>(op);
+    }
+    if (tuple_ty_node->fields.size() <= op->field) {
+      LOG(FATAL) << "tuple not big enough" << GetRef<GetItem>(op);
+    }
+    return tuple_ty_node->fields[op->field];
+  }
+
   Type VisitExpr_(const OpNode* op) final {
     return op->op_type;
   }
@@ -290,6 +304,10 @@ class TypeInferencer::Resolver : public ExprMutator {
   }
 
   Expr VisitExpr_(const TupleNode* op) final {
+    return AttachCheckedType(op);
+  }
+
+  Expr VisitExpr_(const GetItemNode* op) final {
     return AttachCheckedType(op);
   }
 

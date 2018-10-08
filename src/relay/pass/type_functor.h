@@ -8,7 +8,6 @@
 
 #include <tvm/node/ir_functor.h>
 #include <tvm/relay/expr.h>
-#include <tvm/relay/error.h>
 #include <string>
 
 namespace tvm {
@@ -21,11 +20,11 @@ class TypeFunctor;
 #define TYPE_FUNCTOR_DEFAULT \
   { return VisitTypeDefault_(op, std::forward<Args>(args)...); }
 
-#define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                       \
-  vtable.template set_dispatch<OP>(                           \
-      [](const NodeRef& n, TSelf* self, Args... args) {       \
+#define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                                   \
+  vtable.template set_dispatch<OP>(                                       \
+      [](const NodeRef& n, TSelf* self, Args... args) {                   \
         return self->VisitType_(static_cast<const OP*>(n.node_.get()),    \
-                                std::forward<Args>(args)...); \
+                                std::forward<Args>(args)...);             \
       });
 
 template <typename R, typename... Args>

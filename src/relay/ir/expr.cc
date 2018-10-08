@@ -193,5 +193,21 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
             << ", " << node->false_branch << ")";
 });
 
+GetItem GetItemNode::make(Expr tuple, int field) {
+  NodePtr<GetItemNode> n = make_node<GetItemNode>();
+  n->tuple = std::move(tuple);
+  n->field = static_cast<size_t>(field);
+  return GetItem(n);
+}
+
+TVM_REGISTER_API("relay._make.GetItem").set_body([](TVMArgs args, TVMRetValue * ret) {
+  *ret = GetItemNode::make(args[0], args[1]);
+});
+
+TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
+.set_dispatch<GetItemNode>([](const GetItemNode *node, tvm::IRPrinter *p) {
+  p->stream << "GetItemNode(" << node->tuple << ", " << node->field << ")";
+});
+
 }  // namespace relay
 }  // namespace tvm
