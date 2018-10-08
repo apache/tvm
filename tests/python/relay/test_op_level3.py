@@ -19,6 +19,18 @@ def test_unary_identity():
         ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((8, 9, 4), "int32")
 
+
+def test_clip_type():
+    ib = relay.ir_builder.IRBuilder()
+    a = ib.param("a", relay.TensorType((10, 4), "float32"))
+    with ib.function(a) as func:
+        ib.ret(relay.clip(a.var, 1., 4.))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((10, 4), "float32")
+
+
 def test_copy_infer_type():
     ib = relay.ir_builder.IRBuilder()
     n, t, d = tvm.var("n"), tvm.var("t"), 100
@@ -57,6 +69,7 @@ def test_reshape_infer_type():
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t, 2000), "float32")
 
+
 def assert_has_type(expr, typ, env=Environment({})):
     checked_expr = infer_type(env, expr)
     checked_type = checked_expr.checked_type
@@ -78,9 +91,11 @@ def test_single_op():
                    tvm.relay.round, tvm.relay.abs, tvm.relay.negative]:
         check_single_op(opfunc)
 
+
 if __name__ == "__main__":
     test_single_op()
     test_unary_identity()
+    test_clip_type()
     test_copy_infer_type()
     test_transpose_infer_type()
     test_reshape_infer_type()

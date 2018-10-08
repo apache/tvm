@@ -515,6 +515,35 @@ def ones_like(data):
     """
     return _make.ones_like(data)
 
+
+def clip(a, a_min, a_max):
+    """Clip the elements in `a` between `a_min` and `a_max`.
+    `a_min` and `a_max` are cast to `a`'s dtype.
+
+    Parameters
+    ----------
+    a : relay.Expr
+        The input tensor.
+    a_min : float
+        The clip minimum.
+    a_max : float
+        The clip maximum.
+
+    Returns
+    -------
+    result : relay.Expr
+        `a` with elements clipped between `a_min` and `a_max`.
+
+    Examples
+    --------
+    .. code:: python
+      x = relay.Constant(tvm.nd.array([0, 1, 5, 3, 4, 2]))
+      relay.clip(x, 1., 4.)
+      # [1, 1, 4, 3, 4, 2]
+    """
+    return _make.clip(a, a_min, a_max)
+
+
 def concatenate(data, axis):
     """Concatenate the input tensors along the given axis.
 
