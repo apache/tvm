@@ -36,6 +36,7 @@ IncompleteType = ty.IncompleteType
 scalar_type = ty.scalar_type
 
 # Expr
+Expr = expr.Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var
@@ -49,3 +50,6 @@ TupleGetItem = expr.TupleGetItem
 # helper functions
 var = expr.var
 const = expr.const
+
+# Environment
+Environment = env.Environment

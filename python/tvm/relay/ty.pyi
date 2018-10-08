@@ -156,7 +156,7 @@ class FuncType(Type):
 class IncompleteType(Type):
     """An incomplete type."""
 
-    def __init__(self, kind):
+    def __init__(self, kind=Kind.Type):
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)
 
 @register_relay_node
