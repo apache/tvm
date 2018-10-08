@@ -47,6 +47,7 @@ This level enables typical convnet models.
    :nosignatures:
 
    tvm.relay.nn.conv2d
+   tvm.relay.nn.conv2d_transpose
    tvm.relay.nn.max_pool2d
    tvm.relay.nn.avg_pool2d
    tvm.relay.nn.global_max_pool2d
@@ -121,6 +122,7 @@ Level 1 Definitions
 Level 2 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.conv2d
+.. autofunction:: tvm.relay.nn.conv2d_transpose
 .. autofunction:: tvm.relay.nn.max_pool2d
 .. autofunction:: tvm.relay.nn.avg_pool2d
 .. autofunction:: tvm.relay.nn.global_max_pool2d
