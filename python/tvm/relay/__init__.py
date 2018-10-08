@@ -41,6 +41,7 @@ IncompleteType = ty.IncompleteType
 scalar_type = ty.scalar_type
 
 # Expr
+Expr = expr.Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var
@@ -50,7 +51,6 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
-
 
 # helper functions
 var = expr.var
