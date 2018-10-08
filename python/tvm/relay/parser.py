@@ -16,8 +16,8 @@ else:
     from .grammar.py3.RelayLexer import RelayLexer
 
 BINARY_OPS = {
-    # RelayParser.MUL: relay.multiply,
-    # RelayParser.DIV: relay.divide,
+    RelayParser.MUL: relay.multiply,
+    RelayParser.DIV: relay.divide,
     RelayParser.ADD: relay.add,
     RelayParser.SUB: relay.subtract,
     RelayParser.LT: relay.less,
@@ -156,8 +156,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             # fold Neg in for scalars
             return relay.Constant(tvm.nd.array(-val.data.asnumpy().item()))
         else:
-            raise ParseError("Unimplemented")
-            # return relay.negative(val)
+            return relay.negative(val)
 
     def visitTuple(self, ctx):
         # type: (RelayParser.TupleContext) -> relay.Tuple
