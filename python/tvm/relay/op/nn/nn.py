@@ -108,6 +108,28 @@ def softmax(data, axis):
     return _make.softmax(data, axis)
 
 
+def log_softmax(data, axis):
+    r"""Computes log softmax.
+
+    .. math::
+
+        \text{log_softmax}(x)_i = \log \frac{exp(x_i)}{\sum_j exp(x_j)}
+
+    .. note::
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The input data to the operator.
+
+    axis: int
+        The axis to sum over when computing softmax
+    """
+
+    return _make.log_softmax(data, axis)
+
+
 def max_pool2d(data,
                pool_size=(1, 1),
                strides=(1, 1),
