@@ -169,7 +169,7 @@ def test_pad_infer_type():
         ib.ret(relay.nn.pad(t.var, ((1, 1), (2, 2), (3, 3), (4, 4))))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((3, 6, 9, 12), "float32")
 
     # some symbolic values
@@ -180,10 +180,10 @@ def test_pad_infer_type():
         ib.ret(relay.nn.pad(t.var, ((1, 1), (2, 2), (3, 3), (4, 4))))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
-    
+
 if __name__ == "__main__":
     test_conv2d_infer_type()
     test_pool2d_infer_type()
