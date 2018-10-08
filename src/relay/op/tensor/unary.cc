@@ -71,6 +71,38 @@ RELAY_REGISTER_UNARY_OP("relay.op._make.", "copy")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
+// Clip
+struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
+  double a_min;
+  double a_max;
+
+  TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
+  TVM_ATTR_FIELD(a_min)
+    .describe("The minimum clip value.");
+  TVM_ATTR_FIELD(a_max)
+    .describe("The maximum clip value.");
+  }
+};
+
+TVM_REGISTER_API("relay.op._make.clip")
+  .set_body_typed<Expr(Expr, double, double)>([](Expr a, double a_min, double a_max) {
+      auto attrs = make_node<ClipAttrs>();
+      attrs->a_min = a_min;
+      attrs->a_max = a_max;
+      static const Op& op = Op::Get("clip");
+    return CallNode::make(op, {a}, Attrs(attrs), {});
+  });
+
+RELAY_REGISTER_OP("clip")
+  .describe(R"code(Clip tensor values.
+  This function takes a tensor, a minimum value `a_min`, and a maximum value `a_max`, and returns a clipped tensor where all values below `a_min` are set to `a_min` and all values above `a_max` are set to `a_max`. `a_min` and `a_max` are cast to the tensor's dtype.
+  )code" TVM_ADD_FILELINE)
+  .set_num_inputs(1)
+  .add_argument("tensor", "Tensor", "The input tensor.")
+  .set_support_level(3)
+  .add_type_rel("Clip", IdentityRel);
+
+
 RELAY_REGISTER_UNARY_OP("relay.op._make.", "floor")
 .describe(R"code(Returns the floor of input array, computed element-wise.
 )code" TVM_ADD_FILELINE)
