@@ -175,9 +175,12 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
 
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
+  double pad_value;
   Array<Array<IndexExpr> > pad_width;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
+    TVM_ATTR_FIELD(pad_value).set_default(0.0)
+      .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(pad_width)
       .describe("Number of values padded to the edges of each axis, "
                 "in the format of ((before_1, after_1), ..., (before_N, after_N))");
