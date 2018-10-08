@@ -1,4 +1,5 @@
 """Basic tensor operations."""
+# pylint: disable=redefined-builtin
 from __future__ import absolute_import as _abs
 from . import _make
 from ..expr import Tuple
@@ -59,7 +60,6 @@ def sqrt(data):
     """
     return _make.sqrt(data)
 
-
 def sigmoid(data):
     """Compute elementwise sigmoid of data.
 
@@ -74,6 +74,118 @@ def sigmoid(data):
         The computed result.
     """
     return _make.sigmoid(data)
+
+
+def floor(data):
+    """Compute element-wise floor of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.floor(data)
+
+
+def ceil(data):
+    """Compute element-wise ceil of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.ceil(data)
+
+
+def trunc(data):
+    """Compute element-wise trunc of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.trunc(data)
+
+
+def round(data):
+    """Compute element-wise round of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.round(data)
+
+
+def abs(data):
+    """Compute element-wise absolute of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.abs(data)
+
+
+def tanh(data):
+    """Compute element-wise tanh of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.tanh(data)
+
+
+def negative(data):
+    """Compute element-wise negative of data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.negative(data)
 
 
 def add(lhs, rhs):
@@ -102,8 +214,80 @@ def add(lhs, rhs):
     return _make.add(lhs, rhs)
 
 
+def multiply(lhs, rhs):
+    """Multiplication with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.multiply(lhs, rhs)
+
+
+def divide(lhs, rhs):
+    """Division with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.divide(lhs, rhs)
+
+
+def pow(lhs, rhs):
+    """Power with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.pow(lhs, rhs)
+
+
+def mod(lhs, rhs):
+    """Mod with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.mod(lhs, rhs)
+
+
 def subtract(lhs, rhs):
-    """Elementwise subtraction with broadcasting.
+    """Subtraction with numpy-style broadcasting.
 
     Parameters
     ----------

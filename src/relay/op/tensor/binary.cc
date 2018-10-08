@@ -22,7 +22,6 @@ namespace relay {
   .add_argument("rhs", "Tensor", "The right hand side tensor.")        \
   .add_type_rel("Broadcast", BroadcastRel)
 
-// Addition
 RELAY_REGISTER_BINARY_OP("add")
 .describe("Elementwise add with with broadcasting")
 .set_support_level(1);
@@ -48,6 +47,22 @@ RELAY_REGISTER_BINARY_OP("maximum")
 RELAY_REGISTER_BINARY_OP("minimum")
 .describe("Elementwise minimum of two tensors with broadcasting")
 .set_support_level(4);
+
+RELAY_REGISTER_BINARY_OP("divide")
+.describe("Elementwise divide with broadcasting")
+.set_support_level(1);
+
+RELAY_REGISTER_BINARY_OP("multiply")
+.describe("Elementwise multiply with broadcasting")
+.set_support_level(1);
+
+RELAY_REGISTER_BINARY_OP("pow")
+.describe("Elementwise power with broadcasting")
+.set_support_level(4);
+
+RELAY_REGISTER_BINARY_OP("mod")
+.describe("Elementwise mod with broadcasting")
+.set_support_level(1);
 
 // Comparisons
 #define RELAY_REGISTER_CMP_OP(OpName)                               \

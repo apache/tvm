@@ -28,9 +28,8 @@ namespace relay {
   .set_num_inputs(1)                                  \
   .add_argument("data", "Tensor", "The input tensor.")
 
-
 RELAY_REGISTER_UNARY_OP("log")
-.describe(R"code(Returns the log input array, computed element-wise.
+.describe(R"code(Returns the log of input array, computed element-wise.
 
 .. math::
    log(x)
@@ -39,12 +38,8 @@ RELAY_REGISTER_UNARY_OP("log")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-// data : Tensor[shape, dtype]
-// result: Tensor[shape, dtype]
-
-
 RELAY_REGISTER_UNARY_OP("exp")
-.describe(R"code(Returns the exp input array, computed element-wise.
+.describe(R"code(Returns the exp of input array, computed element-wise.
 
 .. math::
    \exp(x)
@@ -56,6 +51,10 @@ RELAY_REGISTER_UNARY_OP("exp")
 
 RELAY_REGISTER_UNARY_OP("sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.
+
+.. math::
+   sqrt(x)
+
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
@@ -118,6 +117,72 @@ RELAY_REGISTER_OP("clip")
   .add_argument("tensor", "Tensor", "The input tensor.")
   .set_support_level(3)
   .add_type_rel("Clip", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("floor")
+.describe(R"code(Returns the floor of input array, computed element-wise.
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("ceil")
+.describe(R"code(Returns the ceil of input array, computed element-wise.
+
+.. math::
+   ceil(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("trunc")
+.describe(R"code(Returns the trunc of input array, computed element-wise.
+
+.. math::
+   trunc(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("round")
+.describe(R"code(Returns the round of input array, computed element-wise.
+
+.. math::
+   round(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("abs")
+.describe(R"code(Returns the abs of input array, computed element-wise.
+
+.. math::
+   abs(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("tanh")
+.describe(R"code(Returns the tanh of input array, computed element-wise.
+
+.. math::
+   Y = sinh(X) / cosh(X)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel);
+
+RELAY_REGISTER_UNARY_OP("negative")
+.describe(R"code(Returns the numeric negative of input array, computed element-wise.
+
+.. math::
+   -(x)
+
+)code" TVM_ADD_FILELINE)
+.set_support_level(3)
+.add_type_rel("Identity", IdentityRel);
 
 }  // namespace relay
 }  // namespace tvm
