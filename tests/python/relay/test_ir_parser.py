@@ -1,6 +1,6 @@
 import tvm
 from tvm import relay
-from tvm.relay.parser import parse_expr, ParseError
+from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
 from nose.tools import nottest, raises
 
 def get_scalar(x):
@@ -110,3 +110,7 @@ def test_func():
     assert id_func.params[0].var == id_func.body
 
     assert isinstance(parse_expr("fn (%x, %y) => { %x + %y }"), relay.Function)
+
+def test_defn():
+    id_defn = parse_prog("def @id(%x) => { %x }")
+    assert isinstance(id_defn, Program)

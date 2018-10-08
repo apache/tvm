@@ -2,7 +2,7 @@
 from antlr4 import ParserRuleContext, InputStream, CommonTokenStream
 from antlr4.tree.Tree import TerminalNode
 from collections import deque
-from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List
+from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable
 import tvm
 from tvm import relay
 import sys
@@ -129,6 +129,17 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             return self.visit(ctx)
 
+    def visitProg(self, ctx):
+        # type: (RelayParser.ProgContext) -> Program
+        if ctx.option():
+            raise ParseError("Compiler options are unimplemented.")
+
+        self.visit_list(ctx.defn())
+
+        expr = self.visit(ctx.expr())
+
+        return Program(ast=expr, env=self.env)
+
     # Exprs
 
     # pass through
@@ -175,7 +186,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         else:
             ident = ctx.ident().VAR()
             if ident is None:
-                raise ParseError('Only local ids may be used in lets.')
+                raise ParseError('Only local ids may be used in `let`s.')
             ident = self.mk_var(ident.getText()[1:])
 
         type_ = self.getType_(ctx.type_())
@@ -231,9 +242,39 @@ class ParseTreeToRelayIR(RelayVisitor):
         body = self.visit(ctx.body())
         self.exit_var_scope()
 
-        return relay.Function(param_list, ret_type, body, type_params)
+        return relay.Function(param_list, ret_type, body, type_params) # type: ignore
+
+    def visitDefn(self, ctx):
+        # type: (RelayParser.DefnContext) -> None
+        ident = ctx.ident().GLOBAL_VAR()
+        if ident is None:
+            raise ParseError('Only global ids may be used in `def`s.')
+        ident = relay.GlobalVar(ident.getText()[1:])
+
+        self.enter_var_scope()
+        self.enter_type_param_scope()
+        param_list = self.visit(ctx.paramList())
+        ret_type = self.getType_(ctx.type_())
+
+        type_params = list(self.exit_type_param_scope())
+        if type_params:
+            _, type_params = zip(*type_params)
+
+        body = self.visit(ctx.body())
+        self.exit_var_scope()
+
+        self.env.add(
+            ident,
+            relay.Function(param_list, ret_type, body, type_params)) # type: ignore
 
     # Types
+
+def make_parser(data):
+    # type: (str) -> RelayParser
+    input_stream = InputStream(data)
+    lexer = RelayLexer(input_stream)
+    token_stream = CommonTokenStream(lexer)
+    return RelayParser(token_stream)
 
 def parse_expr(data):
     # type: (str) -> relay.Expr
@@ -241,13 +282,8 @@ def parse_expr(data):
 
     # try:
     # TODO add error handling here
-    input_stream = InputStream(data)
-    lexer = RelayLexer(input_stream)
-    token_stream = CommonTokenStream(lexer)
-    parser = RelayParser(token_stream)
-    tree = parser.expr()
-    visitor = ParseTreeToRelayIR()
-    return visitor.visit(tree)
+    tree = make_parser(data).expr()
+    return ParseTreeToRelayIR().visit(tree)
     # except Exception as exn:
     #     raise ParseError("parser error: {}".format(exn))
 
@@ -257,14 +293,8 @@ def parse_prog(data):
 
     # try:
     # TODO add error handling here
-    input_stream = InputStream(data)
-    lexer = RelayLexer(input_stream)
-    token_stream = CommonTokenStream(lexer)
-    parser = RelayParser(token_stream)
-    tree = parser.prog()
-    visitor = ParseTreeToRelayIR()
-    relay_ast = visitor.visit(tree)
-    return Program(ast=relay_ast, env=visitor.env)
+    tree = make_parser(data).prog()
+    return ParseTreeToRelayIR().visit(tree)
     # except Exception as exn:
     #     raise ParseError("parser error: {}".format(exn))
 
