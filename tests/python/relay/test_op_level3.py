@@ -121,7 +121,7 @@ def test_full():
         ib.ret(relay.full(x.var, ()))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((), "int8")
 
     # change the shape and dtype
@@ -131,7 +131,7 @@ def test_full():
         ib.ret(relay.full(x.var, (1, 2), "int8"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((1, 2), "int8")
 
 
@@ -144,7 +144,7 @@ def test_full_like():
         ib.ret(relay.full_like(base.var, fill.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((1, 2, 3), "float32")
 
     # symbolic shape
@@ -156,7 +156,7 @@ def test_full_like():
         ib.ret(relay.full_like(base.var, fill.var))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type()
+    ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((n, c, h, w), "float32")
 
 

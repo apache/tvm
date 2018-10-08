@@ -141,7 +141,7 @@ def take(data, indices, axis=None):
     return _make.take(data, indices, axis)
 
 
-def full(fill_value, shape=(), dtype='float32'):
+def full(fill_value, shape=(), dtype=""):
     """Fill array with scalar value.
 
     Parameters
@@ -161,6 +161,7 @@ def full(fill_value, shape=(), dtype='float32'):
         The resulting tensor.
     """
     return _make.full(fill_value, shape, dtype)
+
 
 def full_like(data, fill_value):
     """Return an scalar value array with the same shape and type as the input array.
