@@ -111,6 +111,7 @@ def test_func():
 
     assert isinstance(parse_expr("fn (%x, %y) => { %x + %y }"), relay.Function)
 
+@nottest
 def test_defn():
     id_defn = parse_prog("def @id(%x) => { %x }")
     assert isinstance(id_defn, Program)
