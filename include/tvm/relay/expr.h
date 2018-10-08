@@ -379,7 +379,7 @@ RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
 /*! \brief Get a field out of a tuple. */
 class GetItem;
 class GetItemNode : public ExprNode {
-  public:
+ public:
   /*! \brief The tuple */
   Expr tuple;
   /*! \brief which value to get */
