@@ -22,9 +22,14 @@ def test_float_literal():
     assert get_scalar(parse_expr("0.0")) == 0.0
     assert get_scalar(parse_expr("-10.0")) == -10.0
 
+def test_negative():
+    assert isinstance(parse_expr("let %x = 1; -%x").body, relay.Call)
+    assert get_scalar(parse_expr("--10")) == 10
+    assert get_scalar(parse_expr("---10")) == -10
+
 def test_bin_op():
-    # assert isinstance(parse_expr("1 * 1"), relay.Call)
-    # assert isinstance(parse_expr("1 / 1"), relay.Call)
+    assert isinstance(parse_expr("1 * 1"), relay.Call)
+    assert isinstance(parse_expr("1 / 1"), relay.Call)
     assert isinstance(parse_expr("1 + 1"), relay.Call)
     assert isinstance(parse_expr("1 - 1"), relay.Call)
     assert isinstance(parse_expr("1 < 1"), relay.Call)
