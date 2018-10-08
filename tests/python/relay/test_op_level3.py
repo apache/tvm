@@ -114,15 +114,15 @@ def test_take_infer_type():
 
 
 def test_full():
-    # default settings: makes a scalar
+    # default settings: match input dtype
     ib = relay.ir_builder.IRBuilder()
-    x = ib.param("x", relay.TensorType((), "float32"))
+    x = ib.param("x", relay.TensorType((), "int8"))
     with ib.function(x) as func:
-        ib.ret(relay.full(x.var))
+        ib.ret(relay.full(x.var, ()))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type()
-    assert ftype.ret_type == relay.TensorType((), "float32")
+    assert ftype.ret_type == relay.TensorType((), "int8")
 
     # change the shape and dtype
     ib = relay.ir_builder.IRBuilder()
