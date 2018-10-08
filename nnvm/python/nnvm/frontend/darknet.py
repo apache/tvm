@@ -882,22 +882,24 @@ class GraphProto(object):
 
         return processed, sym
 
-    def _make_outlist(self, sym, op_name, layer):
+    def _make_outlist(self, sym, op_name, layer, layer_num):
         if layer.type == LAYERTYPE.REGION:
             k = self._get_tvm_params_name(op_name, 'attr')
-            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            self._outs.insert(0, _sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'bias')
-            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
-            self._outs.append(sym)
+            self._outs.insert(0, _sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            if layer_num != self.net.n-1:
+                self._outs.insert(0, sym)
 
         elif layer.type == LAYERTYPE.YOLO:
             k = self._get_tvm_params_name(op_name, 'attr')
-            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            self._outs.insert(0, _sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'bias')
-            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            self._outs.insert(0, _sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
             k = self._get_tvm_params_name(op_name, 'mask')
-            self._outs.append(_sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
-            self._outs.append(sym)
+            self._outs.insert(0, _sym.Variable(name=k, init=self._tvmparams[k].asnumpy()))
+            if layer_num != self.net.n-1:
+                self._outs.insert(0, sym)
 
         return
 
@@ -918,7 +920,7 @@ class GraphProto(object):
             layer_name, sym = _darknet_convert_symbol(op_name, _as_list(sym), attr)
             self._get_darknet_params(self.net.layers[i], layer_name)
             self._sym_array[i] = sym
-            self._make_outlist(sym, layer_name, layer)
+            self._make_outlist(sym, layer_name, layer, i)
 
         self._outs = _as_list(sym) + self._outs
         if isinstance(self._outs, list):

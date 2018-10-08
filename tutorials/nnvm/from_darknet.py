@@ -80,6 +80,7 @@ dtype_dict = {}
 with nnvm.compiler.build_config(opt_level=2):
     graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype_dict, params)
 
+[neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
 # Load a test image
 # --------------------------------------------------------------------
@@ -89,8 +90,7 @@ img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
           test_image + '?raw=true'
 download(img_url, test_image)
 
-data = nnvm.testing.darknet.load_image(test_image, net.w, net.h)
-
+data = nnvm.testing.darknet.load_image(test_image, netw, neth)
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
@@ -112,11 +112,11 @@ if MODEL_NAME == 'yolov2':
     layer_out = {}
     layer_out['type'] = 'Region'
     # Get the region layer attributes (n, out_c, out_h, out_w, classes, coords, background)
-    layer_attr = m.get_output(1).asnumpy()
-    layer_out['biases'] = m.get_output(2).asnumpy()
+    layer_attr = m.get_output(2).asnumpy()
+    layer_out['biases'] = m.get_output(1).asnumpy()
     out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
                  layer_attr[2], layer_attr[3])
-    layer_out['output'] = m.get_output(3).asnumpy().reshape(out_shape)
+    layer_out['output'] = m.get_output(0).asnumpy().reshape(out_shape)
     layer_out['classes'] = layer_attr[4]
     layer_out['coords'] = layer_attr[5]
     layer_out['background'] = layer_attr[6]
@@ -127,12 +127,12 @@ elif MODEL_NAME == 'yolov3':
         layer_out = {}
         layer_out['type'] = 'Yolo'
         # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
-        layer_attr = m.get_output(i*4+1).asnumpy()
+        layer_attr = m.get_output(i*4+3).asnumpy()
         layer_out['biases'] = m.get_output(i*4+2).asnumpy()
-        layer_out['mask'] = m.get_output(i*4+3).asnumpy()
+        layer_out['mask'] = m.get_output(i*4+1).asnumpy()
         out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
                      layer_attr[2], layer_attr[3])
-        layer_out['output'] = m.get_output(i*4+4).asnumpy().reshape(out_shape)
+        layer_out['output'] = m.get_output(i*4).asnumpy().reshape(out_shape)
         layer_out['classes'] = layer_attr[4]
         tvm_out.append(layer_out)
 
@@ -141,7 +141,7 @@ thresh = 0.5
 nms_thresh = 0.45
 img = nnvm.testing.darknet.load_image_color(test_image)
 _, im_h, im_w = img.shape
-dets = nnvm.testing.yolo_detection.fill_network_boxes((net.w, net.h), (im_w, im_h), thresh,
+dets = nnvm.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
                                                       1, tvm_out)
 last_layer = net.layers[net.n - 1]
 nnvm.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
