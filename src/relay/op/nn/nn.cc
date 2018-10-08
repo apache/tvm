@@ -34,7 +34,7 @@ bool DenseRel(const Array<Type>& types,
   CHECK(static_cast<int>(data->shape.size()) != 0);
   Array<tvm::Expr> wshape = weight->shape;
 
-  if (param->units != 0) {
+  if (param->units.defined()) {
     CHECK(reporter->AssertEQ(param->units, wshape[wshape.size()-1]));
   }
 
@@ -50,7 +50,7 @@ bool DenseRel(const Array<Type>& types,
 // Positional relay function to create dense operator used by frontend FFI.
 Expr MakeDense(Expr data,
                Expr weight,
-               int units) {
+               IndexExpr units) {
   auto attrs = make_node<DenseAttrs>();
   attrs->units = units;
   static const Op& op = Op::Get("nn.dense");
