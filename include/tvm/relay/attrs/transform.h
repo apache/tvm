@@ -75,10 +75,10 @@ struct FullAttrs : public tvm::AttrsNode<FullAttrs> {
 
   TVM_DECLARE_ATTRS(FullAttrs, "relay.attrs.FullAttrs") {
     TVM_ATTR_FIELD(shape)
-      .describe("Target shape.")
-      .set_default(Array<IndexExpr>({}));
+      .describe("Target shape.");
     TVM_ATTR_FIELD(dtype)
-      .describe("Target data type.");
+      .describe("Target data type.")
+      .set_default(Int(0));
   }
 };  // struct FullAttrs
 

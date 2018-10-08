@@ -463,11 +463,16 @@ bool FullLikeRel(const Array<Type>& types,
     return false;
   }
 
+  DataType out_dtype = param->dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = data->dtype;
+  }
+
   CHECK_EQ(fill_value->shape.size(), 0)
     << "The fill value should be a scalar but here it has dimension "
     << fill_value->shape.size() << ".";
 
-  reporter->Assign(types[2], TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make(data->shape, out_dtype));
   return true;
 }
 

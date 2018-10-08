@@ -149,10 +149,10 @@ def full(fill_value, shape=(), dtype='float32'):
     fill_value : relay.Expr
         The value to fill. Must be a scalar.
 
-    shape : tuple of int, optional (default: ())
+    shape : tuple of int
         The shape of the target.
 
-    dtype : data type, optional (default: 'float32')
+    dtype : data type, optional (defaults to data type of the fill value)
         The data type of the target.
 
     Returns
