@@ -97,7 +97,7 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 
 tuning_option = {
     'log_filename': log_file,
-    'tuner': 'gridsearch',
+    'tuner': 'random',
     'early_stopping': None,
 
     'measure_option': autotvm.measure_option(
@@ -190,7 +190,7 @@ def tune_and_evaluate(tuning_opt):
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-#tune_and_evaluate(tuning_option)
+# tune_and_evaluate(tuning_option)
 
 ######################################################################
 # Sample Output
