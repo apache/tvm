@@ -450,9 +450,9 @@ RELAY_REGISTER_OP("full")
 .add_type_rel("Full", FullRel);
 
 bool FullLikeRel(const Array<Type>& types,
-             int num_inputs,
-             const Attrs& attrs,
-             const TypeReporter& reporter) {
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
@@ -472,7 +472,7 @@ bool FullLikeRel(const Array<Type>& types,
 }
 
 Expr MakeFullLike(Expr data,
-              Expr fill_value) {
+                  Expr fill_value) {
   static const Op& op = Op::Get("full_like");
   return CallNode::make(op, {data, fill_value}, Attrs(), {});
 }
