@@ -244,5 +244,135 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
+// batch_norm
+TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
+
+bool CheckVectorLength(int64_t dim, const DataType& dtype, Type vector, std::string name) {
+  const auto* candidate = vector.as<TensorTypeNode>();
+  CHECK(candidate != nullptr)
+    << name << " should be a vector but is not a tensor type,";
+  CHECK_EQ(dtype, candidate->dtype)
+    << name << " should be of the same data type as the original but it is not.";
+  CHECK_EQ(candidate->shape.size(), 1)
+    << name << " should be a vector but has a shape of "
+    << candidate->shape.size() << " dimensions instead of 1.";
+
+  auto length = as_const_int(candidate->shape[0]);
+  if (length == nullptr) return false;
+  CHECK(*length == dim)
+    << name << " should be as long as the channel but has length "
+    << *length << " instead of " << dim << ".";
+  return true;
+}
+
+bool BatchNormRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 6);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  if (data->shape.size() == 0) return false;
+
+  const BatchNormAttrs* param = attrs.as<BatchNormAttrs>();
+
+  // axis of -1 means use the last dimension
+  CHECK(param->axis == -1 || param->axis < (int)data->shape.size());
+  int axis = (param->axis != -1) ? param->axis : data->shape.size() - 1;
+
+  auto dim = as_const_int(data->shape[axis]);
+  if (dim == nullptr) return false;
+
+  // if we are using beta and gamma, they need to be of shape (dim,)
+  if (param->scale && !CheckVectorLength(*dim, data->dtype, types[1], "The gamma scale factor")) {
+    return false;
+  }
+
+  if (param->center && !CheckVectorLength(*dim, data->dtype, types[2], "The beta offset factor")) {
+    return false;
+  }
+
+  // the two running averages must also be vectors of length dim
+  if (!CheckVectorLength(*dim, data->dtype, types[3], "The moving mean")) {
+    return false;
+  }
+  if (!CheckVectorLength(*dim, data->dtype, types[4], "The moving variance")) {
+    return false;
+  }
+
+  // output is a tuple of the normed data (same shape as input), new running mean,
+  // and new running average (the latter two are both vectors of length dim)
+  std::vector<Type> fields;
+  auto vec_ty = TensorTypeNode::make(Array<IndexExpr>({data->shape[axis]}),
+                                     data->dtype);
+  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
+  fields.push_back(vec_ty);
+  fields.push_back(vec_ty);
+  reporter->Assign(types[5], TupleTypeNode::make(Array<Type>(fields)));
+  return true;
+}
+
+Expr MakeBatchNorm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,
+                   int axis, double epsilon, bool center, bool scale) {
+  auto attrs = make_node<BatchNormAttrs>();
+  attrs->axis = axis;
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+  static const Op& op = Op::Get("nn.batch_norm");
+  return CallNode::make(op, {data, gamma, beta, moving_mean, moving_var}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.batch_norm")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 9>(MakeBatchNorm, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.batch_norm")
+.describe(R"code(Batch normalization layer (Ioffe and Szegedy, 2014).
+Normalizes the input at each batch, i.e. applies a transformation
+that maintains the mean activation close to 0 and the activation
+standard deviation close to 1.
+
+.. math::
+
+  data\_mean[i] = mean(data[:,i,:,...]) \\
+  data\_var[i] = var(data[:,i,:,...])
+
+Then compute the normalized output, which has the same shape as input, as following:
+
+.. math::
+
+  out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}} \
+* gamma[i] + beta[i]
+
+Both *mean* and *var* returns a scalar by treating the input as a vector.
+
+Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta`` have shape *(k,)*.
+
+Besides the inputs and the outputs, this operator accepts two auxiliary
+states, ``moving_mean`` and ``moving_var``, which are *k*-length
+vectors. They are global statistics for the whole dataset, which are updated
+by::
+
+  moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+  moving_var = moving_var * momentum + data_var * (1 - momentum)
+
+The parameter ``axis`` specifies which axis of the input shape denotes
+the 'channel' (separately normalized groups).  The default is 1.  Specifying -1 sets the channel
+axis to be the last item in the input shape.
+
+.. note::
+    This operator can be optimized away for inference.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(5)
+.add_argument("data", "Tensor", "Input to which dropout will be applied.")
+.add_argument("gamma", "Tensor", "The gamma scale factor.")
+.add_argument("beta", "Tensor", "The beta offset factor.")
+.add_argument("moving_mean", "Tensor", "Running mean of input.")
+.add_argument("moving_var", "Tensor", "Running variance of input.")
+.set_support_level(1)
+.add_type_rel("BatchNorm", BatchNormRel);
+
 }  // namespace relay
 }  // namespace tvm

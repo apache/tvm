@@ -558,3 +558,75 @@ def dropout(data, rate=0.5):
         The result after dropping elements and rescaling.
     """
     return _make.dropout(data, rate)
+
+def batch_norm(data, gamma, beta, moving_mean, moving_var,
+               axis=0, epsilon=1e-5, center=True, scale=True):
+    """
+    Batch normalization layer (Ioffe and Szegedy, 2014).
+    Normalizes the input at each batch, i.e. applies a transformation
+    that maintains the mean activation close to 0 and the activation
+    standard deviation close to 1.
+
+    .. math::
+
+    data\_mean[i] = mean(data[:,i,:,...]) \\
+    data\_var[i] = var(data[:,i,:,...])
+
+    Then compute the normalized output, which has the same shape as input, as following:
+
+    .. math::
+
+    out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}\
+    * gamma[i] + beta[i]
+
+    Both *mean* and *var* returns a scalar by treating the input as a vector.
+
+    Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
+    have shape *(k,)*.
+
+    Besides the inputs and the outputs, this operator accepts two auxiliary
+    states, ``moving_mean`` and ``moving_var``, which are *k*-length
+    vectors. They are global statistics for the whole dataset, which are updated by::
+
+    moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+    moving_var = moving_var * momentum + data_var * (1 - momentum)
+
+    The parameter ``axis`` specifies which axis of the input shape denotes
+    the 'channel' (separately normalized groups).  The default is 1.
+    Specifying -1 sets the channel axis to be the last item in the input shape.
+
+    .. note::
+    This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input to which batch_norm will be applied.
+    gamma : relay.Expr
+        The gamma scale factor.
+    beta : relay.Expr
+        The beta offset factor.
+    moving_mean : relay.Expr
+        Running mean of input,
+    moving_var : relay.Expr
+        Running variance of input.
+    axis : int, optional, default=0
+        Specify along which shape axis the channel is specified.
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid diving by zero.
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+    scale : boolean, optional, default=True
+        If true, multiply by gamma. If False, gamma is not used.
+        When the next layer is piecewise linear (also e.g. nn.relu),
+        this can be disabled since the scalingwill be done by the next layer.
+
+    Returns
+    -------
+    result : relay.Tuple([relay.Expr, relay.Expr, relay.Expr])
+        Tuple of normed data (same shape as input), new running mean (k-length vector),
+        and new running variance (k-length vector)
+    """
+    return _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                            axis, epsilon, center, scale);
