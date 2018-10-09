@@ -27,6 +27,42 @@ class TypeSolver::Reporter : public TypeReporterNode {
     return true;
   }
 
+  bool AssertLT(const IndexExpr& lhs, const IndexExpr& rhs) final {
+    // early warning constant case.
+    IndexExpr diff = lhs - rhs;
+    if (const int64_t* pdiff = as_const_int(diff)) {
+      return pdiff[0] < 0;
+    }
+    return true;
+  }
+
+  bool AssertLE(const IndexExpr& lhs, const IndexExpr& rhs) final {
+    // early warning constant case.
+    IndexExpr diff = lhs - rhs;
+    if (const int64_t* pdiff = as_const_int(diff)) {
+      return pdiff[0] <= 0;
+    }
+    return true;
+  }
+
+  bool AssertGT(const IndexExpr& lhs, const IndexExpr& rhs) final {
+    // early warning constant case.
+    IndexExpr diff = lhs - rhs;
+    if (const int64_t* pdiff = as_const_int(diff)) {
+      return pdiff[0] > 0;
+    }
+    return true;
+  }
+
+  bool AssertGE(const IndexExpr& lhs, const IndexExpr& rhs) final {
+    // early warning constant case.
+    IndexExpr diff = lhs - rhs;
+    if (const int64_t* pdiff = as_const_int(diff)) {
+      return pdiff[0] >= 0;
+    }
+    return true;
+  }
+
  private:
   TypeSolver* solver_;
 };

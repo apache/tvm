@@ -277,6 +277,38 @@ class TypeReporterNode : public Node {
    *      true if solver can still proceed.
    */
   TVM_DLL virtual bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
+  /*!
+   * \brief assert shape expression less than other.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
+   */
+  TVM_DLL virtual bool AssertLT(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
+  /*!
+   * \brief assert shape expression less than or equals each other.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
+   */
+  TVM_DLL virtual bool AssertLE(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
+  /*!
+   * \brief assert shape expression greater than each other.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
+   */
+  TVM_DLL virtual bool AssertGT(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
+  /*!
+   * \brief assert shape expression greater than or equals each other.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
+   */
+  TVM_DLL virtual bool AssertGE(const IndexExpr& lhs, const IndexExpr& rhs) = 0;
 
   // solver is not serializable.
   void VisitAttrs(tvm::AttrVisitor* v) final {}
