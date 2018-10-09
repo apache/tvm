@@ -187,7 +187,7 @@ struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
     TVM_ATTR_FIELD(size).set_default(5)
       .describe("The size of the local region to be considered for normalization.");
     TVM_ATTR_FIELD(axis).set_default(1)
-      .describe("Input data layout channel axis");
+      .describe("Axis of input data layout channel.");
     TVM_ATTR_FIELD(bias).set_default(2)
       .describe("The offset parameter to avoid division by 0.");
     TVM_ATTR_FIELD(alpha).set_default(0.0001)
@@ -207,7 +207,7 @@ struct L2NormalizeAttrs : public tvm::AttrsNode<L2NormalizeAttrs> {
     TVM_ATTR_FIELD(eps)
       .describe("A lower bound value for the norm, to avoid division by 0.");
     TVM_ATTR_FIELD(axis)
-      .describe("axis over the normalization applied");
+      .describe("Axis over the normalization applied.");
   }
 };
 
