@@ -25,21 +25,21 @@ bool DenseRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
-  const auto* weight = types[1].as<TensorTypeNode>();
-  if (weight == nullptr) return false;
 
   const DenseAttrs* param = attrs.as<DenseAttrs>();
   CHECK(param != nullptr);
 
   CHECK(static_cast<int>(data->shape.size()) != 0);
-  Array<tvm::Expr> wshape = weight->shape;
-
-  if (param->units.defined()) {
-    CHECK(reporter->AssertEQ(param->units, wshape[wshape.size()-1]));
-  }
 
   Array<tvm::Expr> oshape = data->shape;
-  oshape.Set((oshape.size() - 1), wshape[wshape.size() - 1]);
+  if (param->units.defined()) {
+    oshape.Set((oshape.size() - 1), param->units);
+  } else {
+    const auto* weight = types[1].as<TensorTypeNode>();
+    if (weight == nullptr) return false;
+    Array<tvm::Expr> wshape = weight->shape;
+    oshape.Set((oshape.size() - 1), wshape[wshape.size() - 1]);
+  }
 
   // assign output type
   reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));

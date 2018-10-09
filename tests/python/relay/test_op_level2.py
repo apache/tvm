@@ -260,6 +260,7 @@ def test_dense_infer_type():
     ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c, h, 2), "float32")
 
+
 if __name__ == "__main__":
     test_conv2d_infer_type()
     test_pool2d_infer_type()
