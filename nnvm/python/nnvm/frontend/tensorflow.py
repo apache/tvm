@@ -387,12 +387,14 @@ def _reshape():
     def _impl(inputs, attr, params):
         try:
             pop_node = inputs[1]
-            shape_arg = params.pop(pop_node.list_output_names()[0])
+            if pop_node.list_output_names()[0] in params.keys():
+                shape_arg = params.pop(pop_node.list_output_names()[0]).asnumpy()
+            elif '_output_shapes' in attr:
+                shape_arg = np.asarray(attr['_output_shapes'][0])
             inputs.pop(1)
-
             return AttrCvt(
                 op_name="reshape",
-                extras={'shape':tuple(shape_arg.asnumpy())},
+                extras={'shape':tuple(shape_arg)},
                 ignores=['Tshape'])(inputs, attr)
         except KeyError:
             return AttrCvt(
@@ -465,13 +467,6 @@ def _batch_norm():
 def _relu6():
     def _impl(inputs, attr, params):
         return _sym.clip(inputs[0], a_min=0, a_max=6, name=attr['_node_name'])
-    return _impl
-
-def _shape():
-    def _impl(inputs, attr, params):
-        # Result of this operator is prominently used by reshape operator.
-        # Just pass the input as it is so that reshape_like can be used there.
-        return inputs[0]
     return _impl
 
 def _fill():
@@ -815,7 +810,6 @@ _convert_map = {
     'FusedBatchNormV2'                  : _fused_batch_norm(),
     'Relu6'                             : _relu6(),
     'DepthwiseConv2dNative'             : _conv('depthwise'),
-    'Shape'                             : _shape(),
     'Sigmoid'                           : AttrCvt('sigmoid'),
     'Fill'                              : _fill(),
     'GatherV2'                          : _gather_v2(),
@@ -1030,7 +1024,7 @@ class GraphProto(object):
         self._num_param = 0
         self._num_rnn_layer = False
 
-    def from_tensorflow(self, graph, layout="NHWC"):
+    def from_tensorflow(self, graph, layout="NHWC", shape_dict=None):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
@@ -1059,6 +1053,9 @@ class GraphProto(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
+        if shape_dict is not None:
+            self._params.update(shape_dict)
+            self._num_param = len(shape_dict)
 
         try:
             from tensorflow.python.framework import tensor_util
@@ -1111,6 +1108,19 @@ class GraphProto(object):
 
                 attr = self._parse_attr(node.attr)
 
+            elif node.op == "Shape":
+                inputs = [self._nodes[i] for i in node.input]
+                if node.input[0] in self._output_shapes:
+                    input_shape = self._output_shapes[node.input[0]][0]
+                elif shape_dict is not None:
+                    input_shape = _infer_out_shapes(inputs[0], params)[0]
+                else:
+                    raise NotImplementedError("Shape not supported by NNVM")
+                self._params[node.name] = tvm.nd.array(np.asarray(input_shape))
+                self._num_param += 1
+                self._nodes[node.name] = _sym.Variable(name=node.name,
+                                                       shape=np.asarray(input_shape).shape)
+
             else:
                 # Pass the parsed shapes instead
                 attr["_output_shapes"] = self._output_shapes[node.name]
@@ -1141,7 +1151,6 @@ class GraphProto(object):
                     pass
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
-
                 op = self._convert_operator(node.op, inputs, attr, graph)
                 # Assuming only one output.
                 self._nodes[node.name] = op
@@ -1173,7 +1182,8 @@ class GraphProto(object):
             elif node.op == "Const":
                 pass
             else:
-                if any([node.op in t for t in [_identity_list, _convert_map, _convert_map_rnn]]):
+                if any([node.op in t for t in [_identity_list, _convert_map,
+                                               _convert_map_rnn, 'Shape']]):
                     pass
                 else:
                     missing_operators.add(node.op)
@@ -1206,7 +1216,7 @@ class GraphProto(object):
             self._nodes[name] = _sym.Variable(name=name,
                                               shape=self._params[name].shape)
         else:
-            if key != 'dtype' and key != '_output_shapes' and key != '_class':
+            if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 
@@ -1350,7 +1360,7 @@ class GraphProto(object):
 
         return inputs
 
-def from_tensorflow(graph, layout="NHWC"):
+def from_tensorflow(graph, layout="NHWC", shape_dict=None):
     """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
     The companion parameters will be handled automatically.
 
@@ -1368,5 +1378,5 @@ def from_tensorflow(graph, layout="NHWC"):
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph, layout)
+    sym, params = g.from_tensorflow(graph, layout, shape_dict)
     return sym, params
