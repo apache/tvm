@@ -240,6 +240,23 @@ def test_tuple_alpha_equal():
     assert not alpha_equal(tup, longer_at_end)
 
 
+def test_param_alpha_equal():
+    # only checks equality of the types
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+
+    p1 = relay.Param(v1, relay.TensorType((1, 2, 3), "float32"))
+    p2 = relay.Param(v2, relay.TensorType((1, 2, 3), "float32"))
+    assert alpha_equal(p1, p2)
+
+    p3 = relay.Param(v1, relay.TensorType((4, 5, 6), "int8"))
+    assert not alpha_equal(p1, p3)
+
+    p4 = relay.Param(v1, relay.TupleType([relay.TensorType((1, 2, 3),
+                                                           "float32")]))
+    assert not alpha_equal(p1, p4)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -253,3 +270,4 @@ if __name__ == "__main__":
     test_global_var_alpha_equal()
     test_tuple_alpha_equal()
     test_tuple_get_item_alpha_equal()
+    test_param_alpha_equal()
