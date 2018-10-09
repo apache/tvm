@@ -4,8 +4,27 @@ from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
 from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
 
+BINARY_OPS = {
+    "*": relay.multiply,
+    "/": relay.divide,
+    "+": relay.add,
+    "-": relay.subtract,
+    "<": relay.less,
+    ">": relay.greater,
+    "<=": relay.less_equal,
+    ">=": relay.greater_equal,
+    "==": relay.equal,
+    "!=": relay.not_equal,
+}
+
 def get_scalar(x):
     return x.data.asnumpy().item()
+
+def to_constant(x):
+    return relay.Constant(tvm.nd.array(x))
+
+UNIT = relay.Tuple([])
+TYPE_HOLE = relay.IncompleteType()
 
 def test_int_literal():
     assert isinstance(parse_expr("1"), relay.Constant)
@@ -39,16 +58,11 @@ def test_negative():
     assert get_scalar(parse_expr("---10")) == -10
 
 def test_bin_op():
-    assert isinstance(parse_expr("1 * 1"), relay.Call)
-    assert isinstance(parse_expr("1 / 1"), relay.Call)
-    assert isinstance(parse_expr("1 + 1"), relay.Call)
-    assert isinstance(parse_expr("1 - 1"), relay.Call)
-    assert isinstance(parse_expr("1 < 1"), relay.Call)
-    assert isinstance(parse_expr("1 > 1"), relay.Call)
-    assert isinstance(parse_expr("1 <= 1"), relay.Call)
-    assert isinstance(parse_expr("1 >= 1"), relay.Call)
-    assert isinstance(parse_expr("1 == 1"), relay.Call)
-    assert isinstance(parse_expr("1 != 1"), relay.Call)
+    for bin_op in BINARY_OPS.keys():
+        assert alpha_equal(
+            parse_expr("1 {} 1".format(bin_op)),
+            BINARY_OPS.get(bin_op)(to_constant(1), to_constant(1))
+        )
 
 def test_parens():
     assert alpha_equal(parse_expr("1 * 1 + 1"), parse_expr("(1 * 1) + 1"))
@@ -83,22 +97,41 @@ def test_vars():
     assert op.name == "foo"
 
 def test_let():
-    let = parse_expr("let %x = 1; ()")
-    assert isinstance(let, relay.Let)
-    assert isinstance(let.var, relay.Var)
-    assert isinstance(let.value, relay.Constant)
-    assert get_scalar(let.value) == 1
-    assert isinstance(let.body, relay.Tuple)
+    assert alpha_equal(
+        parse_expr("let %x = 1; ()"),
+
+        relay.Let(
+            relay.Var("x"),
+            to_constant(1),
+            UNIT,
+            TYPE_HOLE
+        )
+    )
 
 def test_seq():
-    assert isinstance(parse_expr("(); ()"), relay.Let)
-    assert parse_expr("(); ()").var.name_hint == "_"
+    assert alpha_equal(
+        parse_expr("(); ()"),
 
-    assert isinstance(parse_expr("{ let %x = 1; () }; ()"), relay.Let)
-    assert parse_expr("{ let %x = 1; () }; ()").var.name_hint == "_"
+        relay.Let(
+            relay.Var("_"),
+            UNIT,
+            UNIT,
+            TYPE_HOLE)
+    )
 
-    assert isinstance(parse_expr("{ (); () }; ()"), relay.Let)
-    assert parse_expr("{ (); () }; ()").var.name_hint == "_"
+    assert alpha_equal(
+        parse_expr("{ (); () }; ()"),
+
+        relay.Let(
+            relay.Var("_"),
+            relay.Let(relay.Var("_"), UNIT, UNIT, TYPE_HOLE),
+            UNIT,
+            TYPE_HOLE)
+    )
+
+@raises(ParseError)
+def test_seq_scope():
+    parse_expr("{ let %x = 1; %x }; %x")
 
 @raises(ParseError)
 def test_let_global_var():
@@ -109,19 +142,38 @@ def test_let_op():
     parse_expr("let x = 1; ()")
 
 def test_tuple():
-    assert isinstance(parse_expr("()"), relay.Tuple)
-    assert len(parse_expr("()").fields) == 0
+    assert alpha_equal(parse_expr("()"), relay.Tuple([]))
 
-    assert isinstance(parse_expr("(0,)"), relay.Tuple)
-    assert len(parse_expr("(0,)").fields) == 1
+    assert alpha_equal(parse_expr("(0,)"), relay.Tuple([to_constant(0)]))
 
-    assert isinstance(parse_expr("(0, 1)"), relay.Tuple)
-    assert len(parse_expr("(0, 1)").fields) == 2
+    assert alpha_equal(parse_expr("(0, 1)"), relay.Tuple([to_constant(0), to_constant(1)]))
 
-    assert isinstance(parse_expr("(0, 1, 2)"), relay.Tuple)
-    assert len(parse_expr("(0, 1, 2)").fields) == 3
+    assert alpha_equal(parse_expr("(0, 1, 2)"), relay.Tuple([to_constant(0), to_constant(1), to_constant(2)]))
 
 def test_func():
+    # TODO(@jmp): get function alpha eqs to work
+
+    # assert alpha_equal(
+    #     parse_expr("fn (%x) => { %x }"),
+    #     relay.Function(
+    #         [relay.Param(relay.Var("x"), TYPE_HOLE)],
+    #         TYPE_HOLE,
+    #         relay.Var("x"),
+    #         []
+    #     )
+    # )
+
+    # assert alpha_equal(
+    #     parse_expr("fn (%x, %y) => { %x + %y }"),
+    #     relay.Function(
+    #         [relay.Param(relay.Var("x"), TYPE_HOLE),
+    #          relay.Param(relay.Var("y"), TYPE_HOLE)],
+    #         TYPE_HOLE,
+    #         relay.add(relay.Var("x"), relay.Var("y")),
+    #         []
+    #     )
+    # )
+
     id_func = parse_expr("fn (%x) => { %x }")
     assert isinstance(id_func, relay.Function)
     assert id_func.params[0].var.name_hint == "x"
@@ -136,7 +188,8 @@ def test_defn():
     assert isinstance(id_defn, Program)
 
 def test_ifelse():
-    simple_if = parse_expr(
+    assert alpha_equal(
+        parse_expr(
         """
         if (true) {
             0
@@ -144,25 +197,23 @@ def test_ifelse():
             1
         }
         """
+        ),
+        relay.If(
+            to_constant(True),
+            to_constant(0),
+            to_constant(1)
+        )
     )
 
-    assert isinstance(simple_if, relay.If)
-    assert isinstance(simple_if.cond, relay.Constant)
-    assert isinstance(simple_if.true_branch, relay.Constant)
-    assert isinstance(simple_if.false_branch, relay.Constant)
-
-    # scoping
-    try:
-        parse_expr(
-            """
-            if (true) {
-                let %x = ();
-                ()
-            } else {
-                %x
-            }
-            """
-        )
-        assert False
-    except ParseError:
-        assert True
+@raises(ParseError)
+def test_ifelse_scope():
+    parse_expr(
+        """
+        if (true) {
+            let %x = ();
+            ()
+        } else {
+            %x
+        }
+        """
+    )
