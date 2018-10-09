@@ -322,6 +322,57 @@ def test_function_alpha_equal():
     assert not alpha_equal(func, tupled_example)
 
 
+def test_call_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+
+    # attrs are compared only by pointer equality
+    attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+
+    tt1 = relay.TensorType((1, 2, 3), "float32")
+    tt2 = relay.TensorType((), "int8")
+
+    basic_args = [convert(1), convert(2), v2, relay.Tuple([])]
+
+    # manually writing out args to ensure that args does not rely on
+    # pointer equality
+    call = relay.Call(v1, [convert(1), convert(2), v2, relay.Tuple([])],
+                      attr1, [tt1])
+    same = relay.Call(v1, basic_args, attr1, [tt1])
+    assert alpha_equal(call, same)
+
+    different_fn = relay.Call(v2, basic_args, attr1, [tt1])
+    assert not alpha_equal(call, different_fn)
+
+    fewer_args = relay.Call(v1, [convert(1), convert(2), v2], attr1, [tt1])
+    assert not alpha_equal(call, fewer_args)
+
+    reordered_args = relay.Call(v1, [convert(2), convert(1),
+                                     relay.Tuple([]), v2], attr1, [tt1])
+    assert not alpha_equal(call, reordered_args)
+
+    different_args = relay.Call(v1, [convert(1), convert(2), convert(3)],
+                                attr1, [tt1])
+    assert not alpha_equal(call, different_args)
+
+    more_args = relay.Call(v1, [convert(1), convert(2), v2, relay.Tuple([]),
+                                convert(3), convert(4)], attr1, [tt1])
+    assert not alpha_equal(call, more_args)
+
+    different_attrs = relay.Call(v1, basic_args, attr2, [tt1])
+    assert not alpha_equal(call, different_attrs)
+
+    no_type_args = relay.Call(v1, basic_args, attr1)
+    assert not alpha_equal(call, no_type_args)
+
+    more_type_args = relay.Call(v1, basic_args, attr1, [tt1, tt2])
+    assert not alpha_equal(call, more_type_args)
+
+    different_type_arg = relay.Call(v1, basic_args, attr1, [tt2])
+    assert not alpha_equal(call, different_type_arg)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -337,3 +388,4 @@ if __name__ == "__main__":
     test_tuple_get_item_alpha_equal()
     test_param_alpha_equal()
     test_function_alpha_equal()
+    test_call_alpha_equal()
