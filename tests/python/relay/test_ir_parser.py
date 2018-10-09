@@ -217,3 +217,63 @@ def test_ifelse_scope():
         }
         """
     )
+
+def test_call():
+    # 0 args
+    parse_expr(
+        """
+        let %constant = fn () => { 0 };
+        %constant()
+        """
+    )
+    # assert alpha_equal(
+    #     parse_expr(
+    #     """
+    #     let %constant = fn () => { 0 };
+    #     %constant()
+    #     """
+    #     ),
+    #     relay.Let(
+    #         relay.Var("constant"),
+    #         relay.Function([], TYPE_HOLE, to_constant(0), []),
+    #         relay.Call(relay.Var("constant"), [], None, None),
+    #         TYPE_HOLE
+    #     )
+    # )
+
+    # 1 arg
+    parse_expr(
+        """
+        let %id = fn (%x) => { %x };
+        %id(1)
+        """
+    )
+
+    # 2 args
+    parse_expr(
+        """
+        let %multiply = fn (%x, %y) => { %x * %y };
+        %multiply(0, 0)
+        """
+    )
+
+    # anonymous function
+    parse_expr(
+        """
+        (fn (%x) => { %x })(0)
+        """
+    )
+
+    # curried function
+    parse_expr(
+        """
+        let %curried_mult =
+            fn (%x) => {
+            fn (%y) => {
+                %x * %y
+            }
+            };
+        %curried_mult(0);
+        %curried_mult(0)(0)
+        """
+    )
