@@ -484,6 +484,7 @@ def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
 
     .. math::
         (data / (bias + (alpha * sum_data ^2 /size))^beta)
+
     Parameters
     ----------
     data : relay.Expr
@@ -535,3 +536,25 @@ def l2_normalize(data, eps, axis=None):
         The computed result.
     """
     return _make.l2_normalize(data, eps, axis)
+
+def dropout(data, rate=0.5):
+    """Applies the dropout operation to the input array.
+
+    During training, each element of the input is set to zero with
+    probability ``p``. The whole array is rescaled by ``1/(1-p)``
+    to keep the expected sum of the input unchanged.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    rate : float, optional (default=0.5)
+        The probability for an element to be reset to 0.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result after dropping elements and rescaling.
+    """
+    return _make.dropout(data, rate)

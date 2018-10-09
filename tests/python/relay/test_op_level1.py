@@ -197,7 +197,7 @@ def test_dropout():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.ty.TensorType((3, 4, 5), "int8"))
     with ib.function(x) as func:
-        ib.ret(relay.dropout(x))
+        ib.ret(relay.nn.dropout(x))
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
@@ -208,7 +208,7 @@ def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
     x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.dropout(x, rate=0.75))
+        ib.ret(relay.nn.dropout(x, rate=0.75))
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())

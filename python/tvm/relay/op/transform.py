@@ -219,25 +219,3 @@ def where(condition, x, y):
     Note that the shape of condition, x, and y needs to be the same.
     """
     return _make.where(condition, x, y)
-
-def dropout(data, rate=0.5):
-    """Applies the dropout operation to the input array.
-
-    During training, each element of the input is set to zero with
-    probability ``p``. The whole array is rescaled by ``1/(1-p)``
-    to keep the expected sum of the input unchanged.
-
-    Parameters
-    ----------
-    data : relay.Expr
-        The input data to the operator.
-
-    rate : float, optional (default=0.5)
-        The probability for an element to be reset to 0.
-
-    Returns
-    -------
-    result : relay.Expr
-        The result after dropping elements and rescaling.
-    """
-    return _make.dropout(data, rate)
