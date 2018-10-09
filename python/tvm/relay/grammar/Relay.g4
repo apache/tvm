@@ -69,7 +69,7 @@ expr
   | '(' expr (',' expr)+ ')'              # tuple
   | '[' (expr (',' expr)*)? ']'           # tensor
 
-  | 'if' expr body 'else' body            # ifElse
+  | 'if' '(' expr ')' body 'else' body    # ifElse
 
   // sequencing
   | 'let' MUT? ident (':' type_)? '=' expr ';' expr  # seq
