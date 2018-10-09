@@ -14,12 +14,6 @@ def test_tensor_type_alpha_equal():
     t2 = relay.TensorType((), "float32")
     assert t1 == t2
 
-def test_constant_alpha_equal():
-    x = convert(1)
-    y = convert(2)
-    assert alpha_equal(x, x)
-    assert not alpha_equal(x, y)
-    assert alpha_equal(x, convert(1))
 
 def test_incomplete_type_alpha_equal():
     t1 = relay.IncompleteType(relay.Kind.Shape)
@@ -174,6 +168,14 @@ def test_tuple_get_item_alpha_equal():
     assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 2))
     assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
+def test_constant_alpha_equal():
+    x = convert(1)
+    y = convert(2)
+    assert alpha_equal(x, x)
+    assert not alpha_equal(x, y)
+    assert alpha_equal(x, convert(1))
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -182,4 +184,5 @@ if __name__ == "__main__":
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
+    test_constant_alpha_equal()
     test_tuple_get_item_alpha_equal()
