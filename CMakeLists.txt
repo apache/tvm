@@ -213,7 +213,7 @@ target_include_directories(
 # Tests
 set(TEST_EXECS "")
 file(GLOB TEST_SRCS tests/cpp/*.cc)
-find_library(GTEST_LIB gtest)
+find_library(GTEST_LIB gtest "$ENV{GTEST_LIB}")
 
 if(GTEST_LIB)
   foreach(__srcpath ${TEST_SRCS})
