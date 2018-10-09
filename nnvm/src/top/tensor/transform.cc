@@ -1135,7 +1135,7 @@ Examples::
 .set_attr<FCorrectLayout>("FCorrectLayout", TakeCorrectLayout)
 .set_num_inputs(2)
 .set_num_outputs(1)
-.set_support_level(1)
+.set_support_level(3)
 .set_attr<FTVMCompute>(
     "FTVMCompute", [](const NodeAttrs& attrs,
                       const Array<Tensor>& inputs,

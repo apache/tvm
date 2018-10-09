@@ -315,5 +315,94 @@ Example::
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel);
 
+// Take
+TVM_REGISTER_NODE_TYPE(TakeAttrs);
+
+bool TakeRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  // `types` contains: [data, indices, result]
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  const auto* indices = types[1].as<TensorTypeNode>();
+  CHECK(indices != nullptr);
+  const auto param = attrs.as<TakeAttrs>();
+  CHECK(param != nullptr);
+
+  if (!param->axis.defined()) {
+    std::vector<IndexExpr>&& oshape = AsVector(indices->shape);
+    reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+    return true;
+  }
+
+  std::vector<IndexExpr> oshape;
+  const auto ndim_data = static_cast<int>(data->shape.size());
+  const auto ndim_indices = static_cast<int>(indices->shape.size());
+  auto axis = (*as_const_int(param->axis));
+  if (axis < 0) axis += ndim_data;
+  CHECK_LE(axis, ndim_data)
+    << "axis should be with in data shape"
+    << ", but got = " << axis;
+
+  oshape.reserve(ndim_data - 1 + ndim_indices);
+  for (int i = 0; i < axis; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+  for (int i = 0; i < ndim_indices; ++i) {
+    oshape.emplace_back(indices->shape[i]);
+  }
+  for (int i = axis+1; i < ndim_data; ++i) {
+    oshape.emplace_back(data->shape[i]);
+  }
+
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+Expr MakeTake(Expr data,
+              Expr indices,
+              IndexExpr axis) {
+  auto attrs = make_node<TakeAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("take");
+  return CallNode::make(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.take")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeTake, args, rv);
+});
+
+RELAY_REGISTER_OP("take")
+.describe(R"code(Take elements from an array along an axis.
+
+When axis is not None, this function does the same thing as 'fancy' indexing
+(indexing arrays using arrays); however, it can be easier to use if you need
+elements along a given axis.
+
+**Note** that when axis is none the flattened input array is used.
+
+Examples::
+
+  a = [[ 1, 2],
+       [ 3, 4]]
+  indices = [3, 0, 2]
+  take(a, indices) = [ 4, 1, 3]
+
+  a = [[ 1., 2.],
+       [ 3., 4.]]
+  indices = [1, 0]
+  take(a, indices, axis=1) = [[ 2., 1.],
+                              [ 4., 3.]]
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("indices", "Tensor", "The indices tensor.")
+.set_support_level(2)
+.add_type_rel("Take", TakeRel);
+
 }  // namespace relay
 }  // namespace tvm

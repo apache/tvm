@@ -73,6 +73,7 @@ This level enables additional math and transform operators.
    tvm.relay.round
    tvm.relay.abs
    tvm.relay.negative
+   tvm.relay.take
 
 
 
@@ -143,6 +144,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.reshape
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
+.. autofunction:: tvm.relay.take
 
 Level 3 Definitions
 -------------------
