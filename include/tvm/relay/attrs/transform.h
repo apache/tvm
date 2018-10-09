@@ -82,6 +82,16 @@ struct FullAttrs : public tvm::AttrsNode<FullAttrs> {
   }
 };  // struct FullAttrs
 
+/*! \brief Attributes used in dropout operator */
+struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
+  double rate;
+  TVM_DECLARE_ATTRS(DropoutAttrs, "relay.attrs.DropoutAttrs") {
+    TVM_ATTR_FIELD(rate)
+      .describe("Fraction of the input that gets dropped out during training time")
+      .set_default(0.5);
+  }
+};  // struct DropoutAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

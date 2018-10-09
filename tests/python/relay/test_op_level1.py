@@ -193,6 +193,29 @@ def test_l2_normalize():
     ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c , h, w), "float32")
 
+def test_dropout():
+    ib = relay.ir_builder.IRBuilder()
+    x = ib.param("x", relay.ty.TensorType((3, 4, 5), "int8"))
+    with ib.function(x) as func:
+        ib.ret(relay.dropout(x))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((3, 4, 5), "int8")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.dropout(x, rate=0.75))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, t, d), "float32")
+
+
 if __name__ == "__main__":
     test_unary_op()
     test_single_op()
@@ -204,3 +227,4 @@ if __name__ == "__main__":
     test_binary_broadcast_op()
     test_lrn()
     test_l2_normalize()
+    test_dropout()

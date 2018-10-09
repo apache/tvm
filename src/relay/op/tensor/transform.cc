@@ -8,6 +8,7 @@
 #include <tvm/ir_operator.h>
 #include <vector>
 #include "../op_common.h"
+#include "../type_relations.h"
 
 
 namespace tvm {
@@ -577,6 +578,33 @@ Examples::
 .set_num_inputs(3)
 .set_support_level(4)
 .add_type_rel("Where", WhereRel);
+
+/* relay.dropout */
+TVM_REGISTER_NODE_TYPE(DropoutAttrs);
+
+Expr MakeDropout(Expr data, double rate) {
+  auto attrs = make_node<DropoutAttrs>();
+  attrs->rate = rate;
+  static const Op& op = Op::Get("dropout");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.dropout")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeDropout, args, rv);
+  });
+
+RELAY_REGISTER_OP("dropout")
+.describe(R"code(Applies the dropout operation to the input array.
+
+During training, each element of the input is set to zero with probability ``p``.
+The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input unchanged.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "Input to which dropout will be applied.")
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel);
 
 }  // namespace relay
 }  // namespace tvm
