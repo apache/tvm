@@ -304,10 +304,27 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         return;
       }
 
+      if (op->type_args.size() != call->type_args.size()) {
+        equal = false;
+        return;
+      }
+
+      // checking attrs by pointer equality for now
+      equal = equal && (op->attrs == call->attrs);
+      if (!equal) {
+        return;
+      }
+
       for (size_t i = 0U; i < op->args.size(); i++) {
         this->VisitExpr(op->args[i], call->args[i]);
       }
 
+      for (size_t i = 0U; i < op->type_args.size(); i++) {
+        equal = equal && AlphaEqual(op->type_args[i], call->type_args[i]);
+        if (!equal) {
+          return;
+        }
+      }
     } else {
       equal = false;
     }
