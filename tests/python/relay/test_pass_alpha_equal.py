@@ -193,6 +193,15 @@ def test_var_alpha_equal():
     assert not alpha_equal(l1, l3)
 
 
+def test_global_var_alpha_equal():
+    v1 = relay.GlobalVar("v1")
+    v2 = relay.GlobalVar("v2")
+
+    # only pointer equality suffices (smoke test)
+    assert alpha_equal(v1, v1)
+    assert not alpha_equal(v1, v2)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -203,4 +212,5 @@ if __name__ == "__main__":
     test_type_relation_alpha_equal()
     test_constant_alpha_equal()
     test_var_alpha_equal()
+    test_global_var_alpha_equal()
     test_tuple_get_item_alpha_equal()
