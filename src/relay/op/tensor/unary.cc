@@ -6,30 +6,14 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include "../type_relations.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relay {
 
-// Quick helper macro
-// - Expose a positional make function to construct the node.
-// - Register op to the registry.
-//
-// We make the decision to always only expose positional argument.
-// We will do rewrapping in the frontend to support language
-// sugars such as keyword arguments and default value.
-//
-#define RELAY_REGISTER_UNARY_OP(OpName)               \
-  TVM_REGISTER_API("relay.op._make." OpName)          \
-  .set_body_typed<Expr(Expr)>([](Expr data) {         \
-      static const Op& op = Op::Get(OpName);          \
-    return CallNode::make(op, {data}, Attrs(), {});   \
-    });                                               \
-  RELAY_REGISTER_OP(OpName)                           \
-  .set_num_inputs(1)                                  \
-  .add_argument("data", "Tensor", "The input tensor.")
 
-RELAY_REGISTER_UNARY_OP("log")
-.describe(R"code(Returns the log of input array, computed element-wise.
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "log")
+.describe(R"code(Returns the log input array, computed element-wise.
 
 .. math::
    log(x)
@@ -38,8 +22,8 @@ RELAY_REGISTER_UNARY_OP("log")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("exp")
-.describe(R"code(Returns the exp of input array, computed element-wise.
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "exp")
+.describe(R"code(Returns the exp input array, computed element-wise.
 
 .. math::
    \exp(x)
@@ -49,7 +33,7 @@ RELAY_REGISTER_UNARY_OP("exp")
 .add_type_rel("Identity", IdentityRel);
 
 
-RELAY_REGISTER_UNARY_OP("sqrt")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "sqrt")
 .describe(R"code(Returns the sqrt input array, computed element-wise.
 
 .. math::
@@ -59,19 +43,19 @@ RELAY_REGISTER_UNARY_OP("sqrt")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("zeros_like")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "zeros_like")
 .describe(R"code(Returns an array of zeros, with same type and shape as the input.
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("ones_like")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "ones_like")
 .describe(R"code(Returns an array of ones, with same type and shape as the input.
 )code" TVM_ADD_FILELINE)
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("sigmoid")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "sigmoid")
 .describe(R"code(Returns the sigmoid input array, computed element-wise.
 
 .. math::
@@ -81,7 +65,7 @@ RELAY_REGISTER_UNARY_OP("sigmoid")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("copy")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "copy")
 .describe(R"code(Copy a tensor.
 )code" TVM_ADD_FILELINE)
 .set_support_level(3)
@@ -118,13 +102,14 @@ RELAY_REGISTER_OP("clip")
   .set_support_level(3)
   .add_type_rel("Clip", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("floor")
+
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "floor")
 .describe(R"code(Returns the floor of input array, computed element-wise.
 )code" TVM_ADD_FILELINE)
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("ceil")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "ceil")
 .describe(R"code(Returns the ceil of input array, computed element-wise.
 
 .. math::
@@ -134,7 +119,7 @@ RELAY_REGISTER_UNARY_OP("ceil")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("trunc")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "trunc")
 .describe(R"code(Returns the trunc of input array, computed element-wise.
 
 .. math::
@@ -144,7 +129,7 @@ RELAY_REGISTER_UNARY_OP("trunc")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("round")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "round")
 .describe(R"code(Returns the round of input array, computed element-wise.
 
 .. math::
@@ -154,7 +139,7 @@ RELAY_REGISTER_UNARY_OP("round")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("abs")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "abs")
 .describe(R"code(Returns the abs of input array, computed element-wise.
 
 .. math::
@@ -164,7 +149,7 @@ RELAY_REGISTER_UNARY_OP("abs")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("tanh")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "tanh")
 .describe(R"code(Returns the tanh of input array, computed element-wise.
 
 .. math::
@@ -174,7 +159,7 @@ RELAY_REGISTER_UNARY_OP("tanh")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
-RELAY_REGISTER_UNARY_OP("negative")
+RELAY_REGISTER_UNARY_OP("relay.op._make.", "negative")
 .describe(R"code(Returns the numeric negative of input array, computed element-wise.
 
 .. math::
