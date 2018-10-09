@@ -629,4 +629,4 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
         and new running variance (k-length vector)
     """
     return _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                            axis, epsilon, center, scale);
+                            axis, epsilon, center, scale)
