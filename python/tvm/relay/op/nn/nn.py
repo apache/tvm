@@ -561,7 +561,7 @@ def dropout(data, rate=0.5):
 
 def batch_norm(data, gamma, beta, moving_mean, moving_var,
                axis=0, epsilon=1e-5, center=True, scale=True):
-    """
+    r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
     Normalizes the input at each batch, i.e. applies a transformation
     that maintains the mean activation close to 0 and the activation
@@ -576,8 +576,8 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
 
     .. math::
 
-    out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}\
-    * gamma[i] + beta[i]
+    out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
+        * gamma[i] + beta[i]
 
     Both *mean* and *var* returns a scalar by treating the input as a vector.
 
