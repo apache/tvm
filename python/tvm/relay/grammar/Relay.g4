@@ -102,8 +102,8 @@ type_
   | '(' type_ ',' ')'                       # tupleType
   | '(' type_ (',' type_)+ ')'              # tupleType
   | identType                               # identTypeType
-  | identType '(' type_ (',' type_)* ')'    # funcType
-  | identType '[' type_ (',' type_)* ']'    # funcType
+  | identType '(' type_ (',' type_)* ')'    # callType
+  | identType '[' type_ (',' type_)* ']'    # callType
   // Mut, Int, UInt, Float, Bool, Tensor
   | type_ '.' INT                           # projectType
   | INT                                     # dimLitType
