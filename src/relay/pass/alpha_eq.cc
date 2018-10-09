@@ -268,8 +268,25 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         return;
       }
 
+      if (func1->type_params.size() != func2->type_params.size()) {
+        equal = false;
+        return;
+      }
+
       for (size_t i = 0U; i < func1->params.size(); i++) {
         this->VisitExpr(func1->params[i], func2->params[i]);
+      }
+
+      for (size_t i = 0U; i < func1->type_params.size(); i++) {
+        equal = equal && AlphaEqual(func1->type_params[i], func2->type_params[i]);
+        if (!equal) {
+          return;
+        }
+      }
+
+      equal = equal && AlphaEqual(func1->ret_type, func2->ret_type);
+      if (!equal) {
+        return;
       }
 
       this->VisitExpr(func1->body, func2->body);
