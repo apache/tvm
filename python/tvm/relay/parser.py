@@ -113,6 +113,13 @@ class ParseTreeToRelayIR(RelayVisitor):
             return int(node.getText())
         elif node_type == RelayLexer.FLOAT:
             return float(node.getText())
+        elif node_type == RelayLexer.BOOL_LIT:
+            if node.getText() == "true":
+                return True
+            elif node.getText() == "false":
+                return False
+            else:
+                assert False
 
         else:
             raise ParseError("todo: {}".format(node.getText()))
@@ -157,8 +164,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitScalarBool(self, ctx):
         # type: (RelayParser.ScalarBoolContext) -> relay.Constant
-        # return relay.Constant(tvm.nd.array(self.visit(ctx.BOOL_LIST())))
-        raise ParseError("Unimplemented")
+        return relay.Constant(tvm.nd.array(self.visit(ctx.BOOL_LIT())))
 
     def visitNeg(self, ctx):
         # type: (RelayParser.NegContext) -> Union[relay.Constant, relay.Call]
@@ -266,6 +272,20 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.env.add(
             ident,
             relay.Function(param_list, ret_type, body, type_params)) # type: ignore
+
+    def visitIfElse(self, ctx):
+        # type: (RelayParser.IfElseContext) -> relay.If
+        cond = self.visit(ctx.expr())
+
+        self.enter_var_scope()
+        true_branch = self.visit(ctx.body(0))
+        self.exit_var_scope()
+
+        self.enter_var_scope()
+        false_branch = self.visit(ctx.body(1))
+        self.exit_var_scope()
+
+        return relay.If(cond, true_branch, false_branch)
 
     # Types
 

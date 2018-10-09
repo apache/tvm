@@ -22,6 +22,10 @@ def test_float_literal():
     assert get_scalar(parse_expr("0.0")) == 0.0
     assert get_scalar(parse_expr("-10.0")) == -10.0
 
+def test_bool_literal():
+    assert get_scalar(parse_expr("true")) == True
+    assert get_scalar(parse_expr("false")) == False
+
 def test_negative():
     assert isinstance(parse_expr("let %x = 1; -%x").body, relay.Call)
     assert get_scalar(parse_expr("--10")) == 10
@@ -115,3 +119,35 @@ def test_func():
 def test_defn():
     id_defn = parse_prog("def @id(%x) => { %x }")
     assert isinstance(id_defn, Program)
+
+def test_ifelse():
+    simple_if = parse_expr(
+        """
+        if (true) {
+            0
+        } else {
+            1
+        }
+        """
+    )
+
+    assert isinstance(simple_if, relay.If)
+    assert isinstance(simple_if.cond, relay.Constant)
+    assert isinstance(simple_if.true_branch, relay.Constant)
+    assert isinstance(simple_if.false_branch, relay.Constant)
+
+    # scoping
+    try:
+        parse_expr(
+            """
+            if (true) {
+                let %x = ();
+                ()
+            } else {
+                %x
+            }
+            """
+        )
+        assert False
+    except ParseError:
+        assert True
