@@ -150,6 +150,11 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Exprs
 
     # pass through
+    def visitParens(self, ctx):
+        # type: (RelayParser.ParensContext) -> relay.Expr
+        return self.visit(ctx.expr())
+
+    # pass through
     def visitBody(self, ctx):
         # type: (RelayParser.BodyContext) -> relay.Expr
         return self.visit(ctx.expr())

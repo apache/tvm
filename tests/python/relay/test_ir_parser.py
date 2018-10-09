@@ -1,6 +1,7 @@
 import tvm
 from tvm import relay
 from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
+from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
 
 def get_scalar(x):
@@ -48,6 +49,14 @@ def test_bin_op():
     assert isinstance(parse_expr("1 >= 1"), relay.Call)
     assert isinstance(parse_expr("1 == 1"), relay.Call)
     assert isinstance(parse_expr("1 != 1"), relay.Call)
+
+def test_parens():
+    assert alpha_equal(parse_expr("1 * 1 + 1"), parse_expr("(1 * 1) + 1"))
+    assert not alpha_equal(parse_expr("1 * 1 + 1"), parse_expr("1 * (1 + 1)"))
+
+def test_op_assoc():
+    assert alpha_equal(parse_expr("1 * 1 + 1 < 1 == 1"), parse_expr("(((1 * 1) + 1) < 1) == 1"))
+    assert alpha_equal(parse_expr("1 == 1 < 1 + 1 * 1"), parse_expr("1 == (1 < (1 + (1 * 1)))"))
 
 @nottest
 def test_vars():
