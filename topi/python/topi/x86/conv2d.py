@@ -283,6 +283,14 @@ def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
         return nn.conv2d_hwcn(data, kernel, strides, padding, out_dtype)
     elif layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, out_dtype)
+    # Remove attached compilation target because conv2d_NCHWc needs to create
+    # a conv2d_nchwc op and target is not one of conv2d's parameters.
+    if "target" in new_attrs:
+        del new_attrs["target"]
+
+    if is_kernel_1x1:
+        # (oc, ic, h, w) -> (OC, IC, ic, oc, h, w)
+        new_attrs['kernel_layout'] = 'OI%di%doHW' % (ic_bn, oc_bn)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 

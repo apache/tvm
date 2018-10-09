@@ -10,7 +10,8 @@ from .registry import OpPattern
 @reg.register_compute("yolo_reorg")
 def compute_reorg(attrs, inputs, _):
     """Compute definition of reorg"""
-    return topi.vision.reorg(inputs[0], attrs.get_int("stride"))
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.reorg(inputs[0], attrs.get_int("stride"))
 
 @reg.register_schedule("yolo_reorg")
 def schedule_reorg(attrs, outs, target):
@@ -28,7 +29,10 @@ def compute_region(attrs, inputs, _):
     coords = attrs.get_int("coords")
     background = attrs.get_int("background")
     softmax = attrs.get_int("softmax")
-    return topi.vision.yolo.region(inputs[0], n, classes, coords, background, softmax)
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.yolo.region(inputs[0], n, classes, coords,
+                                       background, softmax)
+
 
 @reg.register_schedule("yolo_region")
 def schedule_region(attrs, outs, target):
@@ -43,7 +47,8 @@ def compute_yolo(attrs, inputs, _):
     """Compute definition of yolo"""
     n = attrs.get_int("n")
     classes = attrs.get_int("classes")
-    return topi.vision.yolo.yolo(inputs[0], n, classes)
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.yolo.yolo(inputs[0], n, classes)
 
 @reg.register_schedule("yolov3_yolo")
 def schedule_yolo(attrs, outs, target):
@@ -69,8 +74,9 @@ def compute_multibox_prior(attrs, inputs, _):
     offsets = attrs.get_float_tuple('offsets')
     clip = attrs.get_bool('clip')
 
-    return topi.vision.ssd.multibox_prior(inputs[0], sizes, ratios,
-                                          steps, offsets, clip)
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.ssd.multibox_prior(inputs[0], sizes, ratios,
+                                              steps, offsets, clip)
 
 reg.register_pattern("multibox_prior", OpPattern.OPAQUE)
 
@@ -88,8 +94,10 @@ def compute_multibox_transform_loc(attrs, inputs, _):
     threshold = attrs.get_float('threshold')
     variance = attrs.get_float_tuple('variances')
 
-    return topi.vision.ssd.multibox_transform_loc(inputs[0], inputs[1], inputs[2],
-                                                  clip, threshold, variance)
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.ssd.multibox_transform_loc(
+            inputs[0], inputs[1], inputs[2], clip, threshold, variance)
+
 
 reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
 
@@ -107,7 +115,8 @@ def compute_nms(attrs, inputs, _):
     force_suppress = attrs.get_bool('force_suppress')
     nms_topk = attrs.get_int('nms_topk')
 
-    return topi.vision.nms(inputs[0], inputs[1], nms_threshold,
-                           force_suppress, nms_topk)
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.vision.nms(inputs[0], inputs[1], nms_threshold,
+                               force_suppress, nms_topk)
 
 reg.register_pattern("nms", OpPattern.OPAQUE)

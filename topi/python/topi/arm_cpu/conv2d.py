@@ -514,6 +514,11 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
+    # Remove attached compilation target because conv2d_NCHWc needs to create
+    # a conv2d_nchwc op and target is not one of conv2d's parameters.
+    if "target" in new_attrs:
+        del new_attrs["target"]
+
     assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
                                                       "when alter_op_layout is enabled"
     strides = attrs.get_int_tuple("strides")

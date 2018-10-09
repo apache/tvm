@@ -58,6 +58,11 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     new_attrs = {k: attrs[k] for k in attrs.keys()}
     new_attrs['kernel_layout'] = 'OIHW%do' % (oc_bn)
 
+    # Remove attached compilation target because conv2d_NCHWc needs to create
+    # a conv2d_nchwc op and target is not one of conv2d's parameters.
+    if "target" in new_attrs:
+        del new_attrs["target"]
+
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register(["intel_graphics"])

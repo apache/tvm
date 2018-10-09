@@ -110,6 +110,13 @@ class NNVM_DLL Op {
    */
   uint32_t num_outputs = 1;
   /*!
+   * \brief Indicate if the operator is allowed to fallback to the host.
+   * By default, an operator should always be scheduled to the specified device
+   * for execution. However, users can allow it to fallback to the host (e.g.
+   * CPU) for compilation and execution by setting the value to true.
+   */
+  bool fallback = false;
+  /*!
    * \brief support level of the operator,
    *  The lower the more priority it contains.
    *  This is in analogies to BLAS levels.
@@ -127,6 +134,14 @@ class NNVM_DLL Op {
    * \return number of inputs
    */
   std::function<uint32_t(const NodeAttrs& attrs)> get_num_inputs = nullptr;
+  /*!
+   * \brief Get the fallback information of the operator.
+   * \param attrs The attribute of the node
+   * \return number of inputs
+   */
+  std::function<bool(const NodeAttrs& attrs)> get_fallback_device =
+      nullptr;
+
   /*!
    * \brief Attribute parser to parse the NodeAttrs information.
    *
@@ -214,6 +229,19 @@ class NNVM_DLL Op {
    * \return reference to self.
    */
   inline Op& set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn);  // NOLINT(*)
+  /*!
+   * \brief Set the fallback field.
+   * \param fallback The bool value to be set.
+   * \return reference to self.
+   */
+  Op& set_fallback_device(bool fallback);  // NOLINT(*)
+  /*!
+   * \brief Set the set_fallback_device function.
+   * \param fn The function to be set.
+   * \return reference to self.
+   */
+  Op& set_fallback_device(
+      std::function<bool(const NodeAttrs& attr)> fn);  // NOLINT(*)
   /*!
    * \brief Set the attr_parser function.
    * \param fn The number of outputs to be set.
@@ -509,6 +537,17 @@ inline Op& Op::set_num_outputs(uint32_t n) {  // NOLINT(*)
 
 inline Op& Op::set_num_outputs(std::function<uint32_t (const NodeAttrs& attr)> fn) {  // NOLINT(*)
   this->get_num_outputs = fn;
+  return *this;
+}
+
+inline Op& Op::set_fallback_device(bool fallback) {  // NOLINT(*)
+  this->fallback = fallback;
+  return *this;
+}
+
+inline Op& Op::set_fallback_device(
+    std::function<bool(const NodeAttrs& attr)> fn) {  // NOLINT(*)
+  this->get_fallback_device = fn;
   return *this;
 }
 

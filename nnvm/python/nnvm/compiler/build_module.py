@@ -1,11 +1,13 @@
 # pylint: disable=invalid-name
 """Namespace for building operators."""
 from __future__ import absolute_import as _abs
+from enum import IntEnum
 
 import logging
 import tvm
 
 from tvm.contrib import graph_runtime
+from tvm._ffi.runtime_ctypes import TVMContext
 from tvm import autotvm
 from . import graph_attr, graph_util
 from .. import graph as _graph
@@ -19,6 +21,13 @@ OPT_PASS_LEVEL = {
     "FoldScaleAxis": 3,
     "AlterOpLayout": 3,
 }
+
+class AnnotationType(IntEnum):
+    """The purpose of annotation."""
+    TARGET = 1          # Only set target to the node attribute.
+    DEVICE_TARGET = 2   # Annotate both device type and target info to a node.
+    COPY_INSERTION = 3  # Annotate device type and target. Insert copy node.
+
 
 # List of optimization pass and level when switch on
 class BuildConfig(object):
@@ -117,11 +126,11 @@ def _lower(sch, inputs, func_name, graph):
         f, (tvm.container.Array, tuple, list)) else [f]
 
 
-@tvm.register_func("nnvm.compiler.build_target")
-def _build(funcs, target, target_host):
+@tvm.register_func("nnvm.compiler.build_module")
+def _build(funcs, target_host):
     if target_host == "":
         target_host = None
-    return tvm.build(funcs, target=target, target_host=target_host)
+    return tvm.build(funcs, target_host=target_host)
 
 
 def _update_shape_dtype(shape, dtype, params):
@@ -182,7 +191,8 @@ def optimize(graph, shape, dtype="float32", layout=None):
 
 
 def build(graph, target=None, shape=None, dtype="float32",
-          params=None, target_host=None, layout=None):
+          params=None, target_host=None, layout=None, op_name_device=None,
+          fallback_device=None):
     """Build graph into runtime library.
 
     The build function will optimize the graph and do the compilation.
@@ -222,6 +232,12 @@ def build(graph, target=None, shape=None, dtype="float32",
     layout : dict of str to str or str optional
         The input layout
 
+    op_name_device : dict of str to int.
+        A dictionary contains operator name to device mapping.
+
+    fallback_device : TVMContext.
+        The fallback device.
+
     Returns
     -------
     graph : Graph
@@ -237,12 +253,20 @@ def build(graph, target=None, shape=None, dtype="float32",
     target = target if target else tvm.target.current_target()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
-    target = tvm.target.create(target)
+    device_target = {}
+    if isinstance(target, (str, tvm.target.Target)):
+        device_target = {0: str(tvm.target.create(target))}
+    elif isinstance(target, dict):
+        for dev, tar in target.items():
+            device_target[tvm.context(dev).device_type] = str(tar)
+    else:
+        raise ValueError("target must be the type of str, tvm.target.Target, "
+                         "or dict of device name to target")
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(target)
+        tophub_context = autotvm.tophub.context(list(device_target.values()))
     else:
         tophub_context = autotvm.util.EmptyContext()
 
@@ -276,22 +300,25 @@ def build(graph, target=None, shape=None, dtype="float32",
         init_var = {}
         if _all_var_init:
             init_var = initialize_variables(shape, dtype)
+
+        _annotate_graph(graph, device_target, op_name_device, fallback_device)
         # Apply optimization
-        with target:
-            graph = optimize(graph, shape, dtype, layout)
+        graph = optimize(graph, shape, dtype, layout)
 
         # Clear extra params without nodes.
         _remove_noref_params(params, graph)
 
+        _annotate_graph(graph, device_target)
         # Precompute prune
         if params and cfg.pass_enabled("PrecomputePrune"):
             graph, params = precompute_prune(graph, params)
             shape, dtype = _update_shape_dtype(shape, dtype, params)
+        _annotate_graph(graph, device_target, op_name_device, fallback_device,
+                        insert_copy_node=True)
         # Operator Fusion and generation
         graph = graph_attr.set_shape_inputs(graph, shape)
         graph = graph.apply("InferShape")
         graph = graph_attr.set_dtype_inputs(graph, dtype)
-        graph._set_json_attr("target", str(target), "str")
         if target_host is not None:
             graph._set_json_attr("target_host", str(target_host), "str")
         if cfg.pass_enabled("OpFusion"):
@@ -301,8 +328,7 @@ def build(graph, target=None, shape=None, dtype="float32",
         graph = graph.apply("InferShape").apply("InferType")
         graph = graph.apply("GraphFindFusibleGroups")
         graph = graph.apply("GraphFuse")
-        with target:
-            graph = graph.apply("GraphCompile")
+        graph = graph.apply("GraphCompile")
         libmod = graph_attr._move_out_module(graph, "module")
         # Write variable initial values into params
         if init_var:
@@ -310,6 +336,66 @@ def build(graph, target=None, shape=None, dtype="float32",
                 params = {}
             params.update(init_var)
         return graph, libmod, params
+
+
+def _annotate_graph(graph,
+                    device_target,
+                    op_name_device=None,
+                    fallback_device=None,
+                    insert_copy_node=False):
+    """Helper function to anntoate the graph. Both the target and the device
+    info of a graph node will be annotated if `op_name_device` is set.
+    Otherwise, only the target info will be attached. `insert_copy_node`
+    indicates if we need to insert cross device data copy node. It is only for
+    heterogeneous execution purpose.
+
+    Parameters
+    ----------
+    graph : Graph.
+        The input graph.
+
+    device_target : dict of int to str/tvm.target.Target.
+        A dictionary contain device type to compilation target pairs that will
+        be used to build the graph.
+
+    op_name_device : dict of str to int.
+        A dictionary contains operator name to device mapping.
+
+    fallback_device : TVMContext.
+        The fallback device.
+
+    insert_copy_node : bool.
+        A bool value indicates wheter or not cross device data copy node is
+        required.
+
+    Returns
+    -------
+    graph : Graph.
+        The updated graph.
+    """
+    annotation_type = AnnotationType.TARGET
+    if op_name_device:
+        annotation_type = AnnotationType.COPY_INSERTION if insert_copy_node \
+            else AnnotationType.DEVICE_TARGET
+        if not isinstance(op_name_device, dict):
+            raise ValueError("op_name_device must be a dictionary.")
+        fallback_device = fallback_device if fallback_device else tvm.cpu(0)
+        if not isinstance(fallback_device, TVMContext):
+            raise ValueError("fallback_device must be the type of TVMContext.")
+        op_name_device.update((name, tvm.context(dev).device_type)
+                              for name, dev in op_name_device.items())
+        graph._set_json_attr("fallback", fallback_device.device_type, "int")
+        graph._set_json_attr("op_name", list(op_name_device.keys()),
+                             "list_str")
+        graph._set_json_attr("op_device", list(op_name_device.values()),
+                             "list_int")
+
+    graph._set_json_attr("annotation_type", int(annotation_type), "int")
+    graph._set_json_attr("device_type", list(device_target.keys()), "list_int")
+    graph._set_json_attr("target", list(device_target.values()), "list_str")
+    graph = graph.apply("AnnotateGraph")
+    return graph
+
 
 def _remove_noref_params(params, graph):
     """ Helper to clear non referenced params

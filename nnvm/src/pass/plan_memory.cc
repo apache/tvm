@@ -187,8 +187,8 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
   const DTypeVector& dtype_vec = ret.GetAttr<DTypeVector>("dtype");
   const DeviceVector* device_vec = nullptr;
 
-  if (ret.attrs.count("device") != 0) {
-    device_vec = &(ret.GetAttr<DeviceVector>("device"));
+  if (ret.attrs.count("device_index") != 0) {
+    device_vec = &(ret.GetAttr<DeviceVector>("device_index"));
   }
   size_t num_not_allocated = 0;
   std::vector<GraphAllocator::StorageID> storage_ref_count(idx.num_node_entries(), 0);
@@ -237,8 +237,6 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
         }
       }
     }
-    // normal allocation
-    const int dev_id = (device_vec != nullptr) ? device_vec->at(nid) : 0;
     // sort output nodes based on size before allocating output
     std::multimap<size_t, uint32_t> eids;
     for (uint32_t index = 0; index < inode.source->num_outputs(); ++index) {
@@ -253,6 +251,8 @@ size_t AllocMemory(const Graph& ret, const IndexedGraph& idx,
     }
     for (auto rit = eids.rbegin(); rit != eids.rend(); ++rit) {
         uint32_t eid = rit->second;
+        // normal allocation
+        const int dev_id = (device_vec != nullptr) ? device_vec->at(eid) : 0;
         auto sid = allocator->Request(dev_id, dtype_vec[eid], shape_vec[eid], nid);
         if (sid >= 0) {
           storage_ref_count[sid] = entry_ref_count[eid];

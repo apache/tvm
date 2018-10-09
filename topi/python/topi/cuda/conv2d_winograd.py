@@ -354,6 +354,12 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
     assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
                                                       "when alter_op_layout is enabled"
+
+    # Remove attached compilation target because `transform` needs to
+    # a conv2d_nchwc op and target is not one of conv2d's parameters.
+    if "target" in new_attrs:
+        del new_attrs["target"]
+
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
     groups = attrs.get_int('groups')

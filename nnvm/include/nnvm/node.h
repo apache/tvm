@@ -106,6 +106,8 @@ struct NodeAttrs {
    * stateful operators.
    */
   std::vector<std::shared_ptr<Symbol> > subgraphs;
+  /*! \brief which device this op should be assigned to. */
+  int device_type = 0;
 };
 
 /*!

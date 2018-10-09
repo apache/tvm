@@ -13,6 +13,7 @@
 #include <nnvm/pass.h>
 #include <nnvm/pass_functions.h>
 #include <nnvm/tuple.h>
+#include <tvm/ir.h>
 #include <tvm/lowered_func.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -77,8 +78,19 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   CHECK(g.HasAttr("fused_entry")) << "Fusion hasn't been applied yet.";
   FuseEntryVec fuse_entries = g.GetAttr<FuseEntryVec>("fused_entry");
 
-  std::string target = g.GetAttr<std::string>("target");
   std::string target_host;
+  const auto& target = g.GetAttr<TargetVec>("target");
+  DeviceTypeVec device_types{0};
+  if (g.HasAttr("device_type")) {
+    device_types = g.GetAttr<DeviceTypeVec>("device_type");
+  }
+  CHECK_EQ(target.size(), device_types.size())
+      << "The number of compilation target doesn't match the given number of "
+         "devices.";
+  DeviceTargetMap dev_target_map;
+  for (size_t i = 0; i < device_types.size(); i++) {
+    dev_target_map.emplace(std::make_pair(device_types[i], target[i]));
+  }
 
   if (g.HasAttr("target_host")) {
     target_host = g.GetAttr<std::string>("target_host");
@@ -87,7 +99,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   const nnvm::Op* assign_op = nnvm::Op::Get("_assign");
 
   // Start lowering.
-  Array<tvm::LoweredFunc> func_list;
+  std::unordered_map<std::string, Array<tvm::LoweredFunc>> tar_func_map;
   std::unordered_set<const tvm::Node*> func_set;
   const IndexedGraph& idx = g.indexed_graph();
 
@@ -95,9 +107,14 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     const auto& inode = idx[nid];
     if (inode.source->is_variable()) continue;
     int root_id = group_vec[nid];
-        if (static_cast<int>(nid) != root_id) continue;
+    if (static_cast<int>(nid) != root_id) continue;
     int master = master_vec[root_id];
     FuseEntry& fe = fuse_entries[root_id];
+    fe.device_type = inode.source->attrs.device_type;
+
+    // No need to lower cross devcie copy node. The actual data copy will happen
+    // at runtime.
+    if (inode.source->attrs.name.rfind("__copy", 0) == 0) continue;
 
     const IndexedGraph& subidx = fe.subgraph.indexed_graph();
     CHECK_EQ(subidx.input_nodes().size(), fe.imap.size());
@@ -117,17 +134,20 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       }
     }
     CHECK_NE(sub_master_idx, -1) << "A master node not found in the subgraph.";
-    fe.compiled_func = GraphLower(fe.subgraph, inputs, target, sub_master_idx);
+    CHECK(dev_target_map.count(fe.device_type))
+        << "Cannot find the compilation target for device " << fe.device_type;
+    const auto& cur_target = dev_target_map[fe.device_type];
+    fe.compiled_func =
+        GraphLower(fe.subgraph, inputs, cur_target, sub_master_idx);
     for (LoweredFunc f : fe.compiled_func->funcs) {
       if (!func_set.count(f.get())) {
         func_set.insert(f.get());
-        func_list.push_back(f);
+        tar_func_map[cur_target].push_back(f);
       }
     }
   }
 
   const nnvm::Op* tvm_op = nnvm::Op::Get("tvm_op");
-
   std::unordered_map<uint32_t, nnvm::NodePtr> old_new;
   for (uint32_t nid = 0; nid < idx.num_nodes(); ++nid) {
     const auto& inode = idx[nid];
@@ -135,6 +155,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       // Only copy name since that is sufficient.
       nnvm::NodePtr np = nnvm::Node::Create();
       np->attrs.name = inode.source->attrs.name;
+      np->attrs.device_type = inode.source->attrs.device_type;
       old_new[nid] = np;
       continue;
     }
@@ -147,8 +168,13 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     nnvm::NodePtr np = nnvm::Node::Create();
     np->attrs.op = tvm_op;
     np->attrs.name = inode.source->attrs.name;
+    np->attrs.device_type = inode.source->attrs.device_type;
     TVMOpParam param;
-    param.func_name = fe.compiled_func->func_name;
+    if (inode.source->attrs.name.rfind("__copy", 0) == 0) {
+      param.func_name = "__copy";
+    } else {
+      param.func_name = fe.compiled_func->func_name;
+    }
     param.num_inputs = static_cast<uint32_t>(fe.imap.size());
     param.num_outputs = static_cast<uint32_t>(fe.subgraph.outputs.size());
     param.flatten_data = fe.flatten_data;
@@ -161,7 +187,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
       auto rit = fe.reverse_imap.find(subidx[sub_input_id].source);
       CHECK(rit != fe.reverse_imap.end());
       const IndexedGraph::NodeEntry& e = rit->second;
-            auto it = old_new.find(e.node_id);
+      auto it = old_new.find(e.node_id);
       CHECK(it != old_new.end())
           << "cannot find node_id=" << e.node_id;
       np->inputs.emplace_back(
@@ -174,6 +200,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
     }
     old_new[nid] = np;
   }
+
   nnvm::Graph ret;
   for (const auto& e : idx.outputs()) {
     auto it = old_new.find(group_vec[e.node_id]);
@@ -197,7 +224,7 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   //
   //  assign is a special operator that mutates the variable.
   //  Currently assign is implemented as output = copy(input[1])
-  //  Then we run DecorageMemoryPlan to force
+  //  Then we run DecorateMemoryPlan to force
   //  output.storage = input[0].storage
   //
   std::vector<int> assign_flag(new_idx.num_nodes(), 0);
@@ -238,9 +265,27 @@ nnvm::Graph GraphCompile(const nnvm::Graph& g) {
   ret.attrs["dtype"] = std::make_shared<any>(std::move(new_dtype_vec));
   ret.attrs["dltype"] = std::make_shared<any>(std::move(new_dltype_vec));
 
-  // Setup module
-  static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_target");
-  tvm::runtime::Module module = fbuild(func_list, target, target_host);
+  // Setup device assignment for heterogeneous execution.
+  if (tar_func_map.size() > 1) {
+    DeviceVector device_vec(new_idx.num_node_entries(), 0);
+    for (size_t i = 0; i < new_idx.num_nodes(); i++) {
+      device_vec[new_idx.entry_id(i, 0)] = new_idx[i].source->attrs.device_type;
+    }
+    for (uint32_t nid = 0; nid < new_idx.num_nodes(); nid++) {
+      const auto& inode = new_idx[nid];
+      for (const auto& e : inode.inputs) {
+        device_vec[new_idx.entry_id(e)] =
+            new_idx[e.node_id].source->attrs.device_type;
+      }
+    }
+    ret.attrs["device_index"] = std::make_shared<any>(std::move(device_vec));
+  }
+  // Setup module.
+  static const PackedFunc& fbuild = GetPackedFunc("nnvm.compiler.build_module");
+  tvm::runtime::Module module =
+      fbuild(tvm::Map<std::string, Array<tvm::LoweredFunc>>(
+                 tar_func_map.begin(), tar_func_map.end()),
+             target_host);
   ret.attrs["module"] = std::make_shared<any>(std::move(module));
   ret = nnvm::ApplyPass(ret, "PlanMemory");
   ret = DecorateMemoryPlan(ret, assign_flag);

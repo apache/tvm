@@ -25,9 +25,11 @@ def test_compile_cache():
     engine = nnvm.compiler.engine
     graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
     inputs = [tvm.placeholder((10,)), tvm.placeholder((10,))]
+    new_graph = nnvm.graph.create(z)
+    new_graph = nnvm.compiler.build_module._annotate_graph(new_graph, {1: "llvm"})
 
-    gkey = nnvm.compiler.graph_key(nnvm.graph.create(z), inputs, "llvm")
-    gkey2 = nnvm.compiler.graph_key(nnvm.graph.create(z), inputs + inputs, "llvm")
+    gkey = nnvm.compiler.graph_key(new_graph, inputs, "llvm")
+    gkey2 = nnvm.compiler.graph_key(new_graph, inputs + inputs, "llvm")
     gf = engine[gkey]
     assert gf is not None
     assert engine[gkey2] is None
