@@ -41,3 +41,4 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Haolong Zhang](https://github.com/haolongzhangm)
 - [Cody Hao Yu](https://github.com/comaniac)
 - [Chris Nuernberger](https://github.com/cnuernber)
+- [Ashutosh Parkhi](https://github.com/ashutoshparkhi)
