@@ -257,6 +257,71 @@ def test_param_alpha_equal():
     assert not alpha_equal(p1, p4)
 
 
+def test_function_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+    v3 = relay.Var("v3")
+    v4 = relay.Var("v4")
+
+    tt1 = relay.TensorType((1, 2, 3), "float32")
+    tt2 = relay.TensorType((4, 5, 6), "int8")
+    tt3 = relay.TupleType([tt1, tt2])
+
+    tp1 = relay.TypeParam("tp1", relay.Kind.Type)
+    tp2 = relay.TypeParam("tp2", relay.Kind.Type)
+    tp3 = relay.TypeParam("tp3", relay.Kind.Shape)
+    tp4 = relay.TypeParam("tp4", relay.Kind.Shape)
+
+    basic_args = [relay.Param(v3, tt1), relay.Param(v4, tt2)]
+    basic_tps = [tp1, tp2]
+
+    func = relay.Function([relay.Param(v1, tt1), relay.Param(v2, tt2)],
+                          tt2, v2, basic_tps)
+    mapped = relay.Function(basic_args, tt2, v4, basic_tps)
+    assert alpha_equal(func, mapped)
+
+    fewer_params = relay.Function([relay.Param(v4, tt2)], tt2, v4, basic_tps)
+    assert not alpha_equal(func, fewer_params)
+
+    more_params = relay.Function([relay.Param(v3, tt1), relay.Param(v4, tt2),
+                                  relay.Param(v2, tt2)], tt2, v4, basic_tps)
+    assert not alpha_equal(func, more_params)
+
+    params_unordered = relay.Function([relay.Param(v3, tt2),
+                                       relay.Param(v4, tt1)],
+                                      tt1, v3, basic_tps)
+    assert not alpha_equal(func, params_unordered)
+
+    params_mismatch = relay.Function([relay.Param(v3, tt3),
+                                      relay.Param(v4, tt2)],
+                                     tt2, v4, basic_tps)
+    assert not alpha_equal(func, params_mismatch)
+
+    # also would not typecheck
+    ret_type_mismatch = relay.Function(basic_args, tt1, v4, basic_tps)
+    assert not alpha_equal(func, ret_type_mismatch)
+
+    # also mis-typed
+    different_body = relay.Function(basic_args, tt2, v3, basic_tps)
+    assert not alpha_equal(func, different_body)
+
+    fewer_type_params = relay.Function(basic_args, tt2, v4, [tp1])
+    assert not alpha_equal(func, fewer_type_params)
+
+    more_type_params = relay.Function(basic_args, tt2, v4, [tp1, tp2, tp3])
+    assert not alpha_equal(func, more_type_params)
+
+    type_params_unordered = relay.Function(basic_args, tt2, v4, [tp2, tp1])
+    assert not alpha_equal(func, type_params_unordered)
+
+    different_type_params = relay.Function(basic_args, tt2, v4, [tp3, tp4])
+    assert not alpha_equal(func, different_type_params)
+
+    # a well-typed example that also differs in body, ret type, and type params
+    tupled_example = relay.Function(basic_args, tt3, relay.Tuple([v3, v4]))
+    assert not alpha_equal(func, tupled_example)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -271,3 +336,4 @@ if __name__ == "__main__":
     test_tuple_alpha_equal()
     test_tuple_get_item_alpha_equal()
     test_param_alpha_equal()
+    test_function_alpha_equal()
