@@ -28,6 +28,24 @@ BINARY_OPS = {
     RelayParser.NE: relay.not_equal,
 }
 
+TYPES = {
+    "Int8": "int8",
+    "Int16": "int16",
+    "Int32": "int32",
+    "Int64": "int64",
+
+    "UInt8": "uint8",
+    "UInt16": "uint16",
+    "UInt32": "uint32",
+    "UInt64": "uint64",
+
+    "Float16": "float16",
+    "Float32": "float32",
+    "Float64": "float64",
+
+    "Bool": "bool",
+}
+
 Program = NamedTuple("Program", [("ast", relay.Expr), ("env", relay.Environment)])
 
 class ParseError(Exception):
@@ -237,8 +255,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.ParamListContext) -> List[relay.Param]
         return self.visit_list(ctx.param())
 
-    def visitFunc(self, ctx):
-        # type: (RelayParser.FuncContext) -> relay.Function
+    def mk_func(self, ctx):
+        # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> relay.Function
+
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
         # Capture type params in params.
@@ -255,6 +274,10 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return relay.Function(param_list, ret_type, body, type_params) # type: ignore
 
+    def visitFunc(self, ctx):
+        # type: (RelayParser.FuncContext) -> relay.Function
+        return self.mk_func(ctx)
+
     def visitDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
@@ -262,21 +285,16 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError('Only global ids may be used in `def`s.')
         ident = relay.GlobalVar(ident.getText()[1:])
 
-        self.enter_var_scope()
-        self.enter_type_param_scope()
-        param_list = self.visit(ctx.paramList())
-        ret_type = self.getType_(ctx.type_())
+        self.env.add(ident, self.mk_func(ctx))
 
-        type_params = list(self.exit_type_param_scope())
-        if type_params:
-            _, type_params = zip(*type_params)
+    def visitCall(self, ctx):
+        # type: (RelayParser.CallContext) -> relay.Call
+        visited_exprs = self.visit_list(ctx.expr())
 
-        body = self.visit(ctx.body())
-        self.exit_var_scope()
+        func = visited_exprs[0]
+        args = visited_exprs[1:]
 
-        self.env.add(
-            ident,
-            relay.Function(param_list, ret_type, body, type_params)) # type: ignore
+        return relay.Call(func, args, None, None)
 
     def visitIfElse(self, ctx):
         # type: (RelayParser.IfElseContext) -> relay.If
@@ -293,6 +311,50 @@ class ParseTreeToRelayIR(RelayVisitor):
         return relay.If(cond, true_branch, false_branch)
 
     # Types
+
+    def visitIdentType(self, ctx):
+        # type: (RelayParser.IdentTypeContext) -> str
+        ident_type = ctx.CNAME().getText()
+
+        if not ident_type[0].isupper():
+            raise ParseError("Types must start with capital letters.")
+
+        builtin_type = TYPES.get(ident_type)
+
+        if builtin_type is None:
+            # TODO: is this correct?
+            return ident_type
+        else:
+            return builtin_type
+
+    def visitCallType(self, ctx):
+        # type: (RelayParser.CallTypeContext) -> str
+        ident_type = ctx.identType().CNAME()
+
+        args = self.visit_list(ctx.type_())
+
+        if ident_type == "Int":
+            if len(args) > 2:
+                raise ParseError("Int may have at most 2 arguments.")
+            return "int" + "x".join(args)
+        if ident_type == "UInt":
+            if len(args) > 2:
+                raise ParseError("UInt may have at most 2 arguments.")
+            return "uint" + "x".join(args)
+        elif ident_type == "Float":
+            if len(args) > 2:
+                raise ParseError("Float may have at most 2 arguments.")
+            return "float" + "x".join(args)
+        elif ident_type == "Bool":
+            if len(args) > 1:
+                raise ParseError("Float may have at most 1 argument.")
+            return "bool" + "x".join(args)
+        elif ident_type == "Mut":
+            raise ParseError("Mutation is unimplemented.")
+        elif ident_type == "Tensor":
+            raise ParseError("Tensors are unimplemented.")
+        else:
+            raise ParseError("Unrecognized type-level function.")
 
 def make_parser(data):
     # type: (str) -> RelayParser
