@@ -6,61 +6,51 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include "../type_relations.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relay {
 
-#define RELAY_REGISTER_BINARY_OP(OpName)                               \
-  TVM_REGISTER_API("relay.op._make." OpName)                           \
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {           \
-      static const Op& op = Op::Get(OpName);                           \
-      return CallNode::make(op, {lhs, rhs}, Attrs(), {});              \
-    });                                                                \
-  RELAY_REGISTER_OP(OpName)                                            \
-  .set_num_inputs(2)                                                   \
-  .add_argument("lhs", "Tensor", "The left hand side tensor.")         \
-  .add_argument("rhs", "Tensor", "The right hand side tensor.")        \
-  .add_type_rel("Broadcast", BroadcastRel)
-
-RELAY_REGISTER_BINARY_OP("add")
+// Addition
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "add")
 .describe("Elementwise add with with broadcasting")
 .set_support_level(1);
 
 // Subtraction
-RELAY_REGISTER_BINARY_OP("subtract")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "subtract")
 .describe("Elementwise substract with broadcasting")
 .set_support_level(1);
 
 // Right shift
-RELAY_REGISTER_BINARY_OP("right_shift")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "right_shift")
 .describe("Elementwise right shift with broadcasting")
 .set_support_level(4);
 
-RELAY_REGISTER_BINARY_OP("left_shift")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "left_shift")
 .describe("Elementwise left shift with broadcasting")
 .set_support_level(4);
 
-RELAY_REGISTER_BINARY_OP("maximum")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "maximum")
 .describe("Elementwise maximum of two tensors with broadcasting")
 .set_support_level(4);
 
-RELAY_REGISTER_BINARY_OP("minimum")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "minimum")
 .describe("Elementwise minimum of two tensors with broadcasting")
 .set_support_level(4);
 
-RELAY_REGISTER_BINARY_OP("divide")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "divide")
 .describe("Elementwise divide with broadcasting")
 .set_support_level(1);
 
-RELAY_REGISTER_BINARY_OP("multiply")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "multiply")
 .describe("Elementwise multiply with broadcasting")
 .set_support_level(1);
 
-RELAY_REGISTER_BINARY_OP("pow")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "pow")
 .describe("Elementwise power with broadcasting")
 .set_support_level(4);
 
-RELAY_REGISTER_BINARY_OP("mod")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "mod")
 .describe("Elementwise mod with broadcasting")
 .set_support_level(1);
 
@@ -68,7 +58,7 @@ RELAY_REGISTER_BINARY_OP("mod")
 #define RELAY_REGISTER_CMP_OP(OpName)                               \
   TVM_REGISTER_API("relay.op._make." OpName)                        \
   .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {        \
-      static const Op& op = Op::Get(OpName);                        \
+    static const Op& op = Op::Get(OpName);                          \
     return CallNode::make(op, {lhs, rhs}, Attrs(), {});             \
   });                                                               \
   RELAY_REGISTER_OP(OpName)                                         \

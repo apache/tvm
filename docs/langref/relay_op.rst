@@ -37,7 +37,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.mod
    tvm.relay.tanh
    tvm.relay.sigmoid
-
+   tvm.relay.nn.relu
 
 **Level 2: Convolutions**
 
@@ -75,6 +75,7 @@ This level enables additional math and transform operators.
    tvm.relay.negative
 
 
+
 **Level 4: Broadcast and Reductions**
 
 .. autosummary::
@@ -91,6 +92,7 @@ This level enables additional math and transform operators.
    tvm.relay.maximum
    tvm.relay.minimum
    tvm.relay.pow
+
 
 **Level 5: Vision/Image Operators**
 
@@ -116,6 +118,7 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.nn.softmax
 .. autofunction:: tvm.relay.nn.log_softmax
+.. autofunction:: tvm.relay.nn.relu
 
 
 Level 2 Definitions
@@ -140,6 +143,12 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.reshape
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
+
+Level 3 Definitions
+-------------------
+.. autofunction:: tvm.relay.zeros_like
+.. autofunction:: tvm.relay.ones_like
+
 
 Level 4 Definitions
 -------------------
