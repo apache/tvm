@@ -22,6 +22,12 @@ def test_float_literal():
     assert get_scalar(parse_expr("0.0")) == 0.0
     assert get_scalar(parse_expr("-10.0")) == -10.0
 
+    # scientific notation
+    assert get_scalar(parse_expr("1.0e-1")) == 1.0e-1
+    assert get_scalar(parse_expr("1.0e+1")) == 1.0e+1
+    assert get_scalar(parse_expr("1.0E-1")) == 1.0E-1
+    assert get_scalar(parse_expr("1.0E+1")) == 1.0E+1
+
 def test_bool_literal():
     assert get_scalar(parse_expr("true")) == True
     assert get_scalar(parse_expr("false")) == False
