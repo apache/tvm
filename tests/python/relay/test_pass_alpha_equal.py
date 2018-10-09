@@ -176,6 +176,23 @@ def test_constant_alpha_equal():
     assert alpha_equal(x, convert(1))
 
 
+def test_var_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+
+    # normally only pointer equality
+    assert alpha_equal(v1, v1)
+    assert not alpha_equal(v1, v2)
+
+    # let node allows for setting the eq_map
+    l1 = relay.Let(v1, convert(1), v1, None)
+    l2 = relay.Let(v2, convert(1), v2, None)
+    l3 = relay.Let(v1, convert(1), v2, None)
+
+    assert alpha_equal(l1, l2)
+    assert not alpha_equal(l1, l3)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -185,4 +202,5 @@ if __name__ == "__main__":
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
     test_constant_alpha_equal()
+    test_var_alpha_equal()
     test_tuple_get_item_alpha_equal()
