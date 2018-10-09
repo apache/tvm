@@ -110,13 +110,13 @@ def conv2d_transpose(data,
     weight : relay.Expr
         The weight expressions.
 
-    strides : tuple of int, optional
+    strides : Tuple[int], optional
         The strides of convoltution.
 
-    padding : tuple of int, optional
+    padding : Tuple[int], optional
         The padding of convolution on both sides of inputs.
 
-    dilation : tuple of int, optional
+    dilation : Tuple[int], optional
         Specifies the dilation rate to be used for dilated convolution.
 
     groups : int, optional
@@ -128,7 +128,7 @@ def conv2d_transpose(data,
     weight_layout : str, optional
         Layout of the weight.
 
-    output_padding : tuple of int, optional
+    output_padding : Tuple[int], optional
         Additional zero-padding to be added to one side of the output.
 
     out_dtype : str, optional

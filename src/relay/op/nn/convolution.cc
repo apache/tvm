@@ -236,7 +236,6 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     out_dtype = data->dtype;
   }
   oshape = ConvertLayout(oshape, kNCHW, in_layout);
-  // assign output type
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }

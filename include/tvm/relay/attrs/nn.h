@@ -77,7 +77,7 @@ struct SoftmaxAttrs : public tvm::AttrsNode<SoftmaxAttrs> {
   }
 };
 
-/*! \brief Attributes used in trasnposed convolution operator */
+/*! \brief Attributes used in transposed convolution operator */
 struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   IndexExpr channels;
   Array<IndexExpr> kernel_size;
@@ -96,10 +96,10 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
       .describe("The dimensionality of the output space"
                 "i.e. the number of output channels in the convolution.");
     TVM_ATTR_FIELD(kernel_size)
-      .describe("Specifies the dimensions of the convolution window.")
+      .describe("The dimensions of the convolution window.")
       .set_default(NullValue<Array<IndexExpr> >());
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
-      .describe("Specifies the strides of the convolution.");
+      .describe("The strides of the convolution.");
     TVM_ATTR_FIELD(output_padding).set_default(Array<IndexExpr>({0, 0}))
       .describe("Zero-padding added to one side of the output.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
