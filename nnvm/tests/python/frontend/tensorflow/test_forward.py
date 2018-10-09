@@ -26,14 +26,14 @@ import nnvm.testing.tf
 #######################################################################
 # Generic run functions for TVM & tensorflow
 # ------------------------------------------
-def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'):
+def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm', shape_dict=None):
     """ Generic function to compile on nnvm and execute on tvm """
 
     layout = None
     if target == "cuda":
         layout = "NCHW"
 
-    sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
+    sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout, shape_dict=shape_dict)
     target_host = 'llvm'
     if isinstance(input_data, list):
         shape_dict = {}
@@ -88,7 +88,7 @@ def run_tf_graph(sess, input_data, input_node, output_node):
     return output_data
 
 
-def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False):
+def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False, no_gpu=False, shape_dict=None):
     """Generic function to generate and compare tensorflow and TVM output"""
 
     out_node = out_name.split(':')[0] if ":" in out_name else out_name
@@ -119,7 +119,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             if no_gpu and device == 'cuda':
                 continue
 
-            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device)
+            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device, shape_dict=None)
             np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
 
         sess.close()
@@ -259,6 +259,27 @@ def test_forward_reshape():
     _test_reshape(np.arange(6), [3, -1])
     _test_reshape(np.arange(6), [-1])
 
+#######################################################################
+# Shape
+# -------
+
+def _test_shape(data, data2):
+    """ One iteration of reshape operation with given data and out shape """
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype)
+        shape = array_ops.shape(data2)
+        array_ops.reshape(in_data, shape)
+        ishapes = {}
+        ishapes['Placeholder'] = data.shape
+        compare_tf_with_tvm(data, 'Placeholder:0', 'Reshape:0', shape_dict=ishapes)
+
+def test_forward_shape():
+    _test_shape(np.arange(6.0), np.asarray([1,1,1,1,1,1]))
+    _test_shape(np.asarray([[10, 20]]), np.zeros((1,2)))
+    _test_shape(np.asarray([[[10, 20]]]), np.zeros([1,1,2]))
+
+#######################################################################
 #######################################################################
 # Squeeze
 # -------
@@ -937,7 +958,7 @@ def test_forward_leaky_relu():
     with tf.Graph().as_default():
         in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
         tf.nn.leaky_relu(in1, alpha=0.4)
-        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu:0')
+        compare_tf_with_tvm(inp_array, 'Placeholder:0', 'LeakyRelu/mul:0')
 
 def test_forward_elu():
     ishape = (1, 3, 10, 10)
@@ -1007,6 +1028,7 @@ if __name__ == '__main__':
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
+    test_forward_shape()
     test_forward_squeeze()
     test_forward_pack()
     test_forward_resize_bilinear()
