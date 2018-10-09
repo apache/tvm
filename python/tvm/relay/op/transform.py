@@ -141,6 +141,7 @@ def take(data, indices, axis=None):
     return _make.take(data, indices, axis)
 
 
+<<<<<<< 11050fdae41c9aceca7254c8f36409d323b341b1
 def full(fill_value, shape=(), dtype=""):
     """Fill array with scalar value.
 
@@ -180,3 +181,42 @@ def full_like(data, fill_value):
         The resulting tensor.
     """
     return _make.full_like(data, fill_value)
+
+
+def where(condition, x, y):
+    """Selecting elements from either x or y depending on the value of the
+    condition.
+
+    Parameters
+    ----------
+    condition : relay.Expr
+        The condition array. The n-th element in `y` is selected when the n-th
+        value in the `condition` array is zero. Otherwise, the corresponding
+        element from `x` will be picked.
+
+    x : relay.Expr
+        The first array to be selected.
+
+    y : relay.Expr
+        The second array to be selected.
+
+    Returns
+    -------
+    result : relay.Expr
+		The selected array.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        y = [[5, 6], [7, 8]]
+        condition = [[0, 1], [-1, 0]]
+        relay.where(conditon, x, y) = [[5, 2], [3, 8]]
+
+        condition = [1, 0]
+        relay.where(conditon, x, y) = [[1, 2], [7, 8]]
+
+    Note that the shape of condition, x, and y needs to be the same.
+    """
+    return _make.where(condition, x, y)
