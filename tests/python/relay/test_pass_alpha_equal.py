@@ -202,6 +202,44 @@ def test_global_var_alpha_equal():
     assert not alpha_equal(v1, v2)
 
 
+def test_tuple_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+
+    # unit value is a valid tuple
+    assert alpha_equal(relay.Tuple([]), relay.Tuple([]))
+
+    tup = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)])])
+    same = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)])])
+
+    assert alpha_equal(tup, same)
+
+    # use the eq_map
+    let_tup = relay.Let(v1, tup, v1, None)
+    let_mapped = relay.Let(v2, relay.Tuple([v2, convert(2), convert(3),
+                                            relay.Tuple([convert(4)])]),
+                           v2, None)
+    assert alpha_equal(let_tup, let_mapped)
+
+    more_fields = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)]), v2])
+    assert not alpha_equal(tup, more_fields)
+
+    fewer_fields = relay.Tuple([v1, convert(2), convert(3)])
+    assert not alpha_equal(tup, fewer_fields)
+
+    different_end = relay.Tuple([v1, convert(2), convert(3),
+                           relay.Tuple([convert(5)])])
+    assert not alpha_equal(tup, different_end)
+
+    different_start = relay.Tuple([v2, convert(2), convert(3),
+                                 relay.Tuple([convert(4)])])
+    assert not alpha_equal(tup, different_start)
+
+    longer_at_end = relay.Tuple([v1, convert(2), convert(3),
+                                 relay.Tuple([convert(4), convert(5)])])
+    assert not alpha_equal(tup, longer_at_end)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -213,4 +251,5 @@ if __name__ == "__main__":
     test_constant_alpha_equal()
     test_var_alpha_equal()
     test_global_var_alpha_equal()
+    test_tuple_alpha_equal()
     test_tuple_get_item_alpha_equal()
