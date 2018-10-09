@@ -150,12 +150,12 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const GetItemNode* g) {
+Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
   auto t = this->Mutate(g->tuple);
   if (g->tuple == t) {
     return GetRef<Expr>(g);
   } else {
-    return GetItemNode::make(t, g->field);
+    return TupleGetItemNode::make(t, g->index);
   }
 }
 
@@ -213,7 +213,7 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
 
 void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
 
-void ExprVisitor::VisitExpr_(const GetItemNode* op) {
+void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
   this->VisitExpr(op->tuple);
 }
 

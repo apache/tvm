@@ -377,21 +377,21 @@ class IfNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
 
 /*! \brief Get a field out of a tuple. */
-class GetItem;
-class GetItemNode : public ExprNode {
+class TupleGetItem;
+class TupleGetItemNode : public ExprNode {
  public:
   /*! \brief The tuple */
   Expr tuple;
   /*! \brief which value to get */
-  size_t field;
+  int index;
 
-  TVM_DLL static GetItem make(Expr tuple, int field);
+  TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
   static constexpr const char * _type_key = "relay.GetItem";
-  TVM_DECLARE_NODE_TYPE_INFO(GetItemNode, ExprNode);
+  TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
 };
 
-RELAY_DEFINE_NODE_REF(GetItem, GetItemNode, Expr);
+RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
 
 /*! \brief Print a debug representation of the expression to the stream.
  *  \param env The environment.

@@ -243,8 +243,8 @@ class ExprDocifier : private ExprFunctor<Doc(const Expr& n)> {
     return DocOfStr(o->name);
   }
 
-  Doc VisitExpr_(const GetItemNode* g) final {
-    return Docify(g->tuple) + DocOfStr(std::string(".") + std::to_string(g->field));
+  Doc VisitExpr_(const TupleGetItemNode* g) final {
+    return Docify(g->tuple) + DocOfStr(std::string(".") + std::to_string(g->index));
   }
 
  public:
