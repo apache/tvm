@@ -59,6 +59,15 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
   }
 };  // struct ReshapeAttrs
 
+struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
+  IndexExpr axis;
+
+  TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(NullValue<IndexExpr>())
+        .describe("The axis over which to select values.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_

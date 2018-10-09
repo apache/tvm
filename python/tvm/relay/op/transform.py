@@ -116,3 +116,26 @@ def reshape(data, newshape):
     if isinstance(newshape, int):
         newshape = [newshape]
     return _make.reshape(data, list(newshape))
+
+
+def take(data, indices, axis=None):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    a : relay.Expr
+        The source array.
+
+    indices : rely.Expr
+        The indices of the values to extract.
+
+    axis : int, optional
+        The axis over which to select values. By default,
+        the flattened input array is used.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.take(data, indices, axis)

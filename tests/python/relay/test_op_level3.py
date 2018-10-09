@@ -91,6 +91,27 @@ def test_single_op():
                    tvm.relay.round, tvm.relay.abs, tvm.relay.negative]:
         check_single_op(opfunc)
 
+def test_take_infer_type():
+    def verify_take(dshape, indices_shape, oshape, axis=None):
+        ib = relay.ir_builder.IRBuilder()
+        x = ib.param("x", relay.ty.TensorType(dshape, "float32"))
+        indices = ib.param("indices", relay.ty.TensorType(indices_shape, "int32"))
+        with ib.function(x, indices) as func:
+            ib.ret(relay.take(x.var, indices.var, axis=axis))
+        ib.ret(func)
+        func = relay.ir_pass.infer_type(ib.env, func.to_func())
+        ftype = func.checked_type
+        assert ftype.ret_type == relay.ty.TensorType(oshape, "float32")
+
+    d1, d2, d3 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3")
+    d4, d5, d6 = tvm.var("d4"), tvm.var("d5"), tvm.var("d6")
+    verify_take((d1,), (1,), (1,), 0)
+    verify_take((4,), (d1, d2), (d1, d2))
+    verify_take((3, 3, 3), (1, d2), (1, d2))
+    verify_take((d1, d2), (d3, d4, d5), (d3, d4, d5, d2), 0)
+    verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
+    verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
+
 
 if __name__ == "__main__":
     test_single_op()
@@ -99,3 +120,4 @@ if __name__ == "__main__":
     test_copy_infer_type()
     test_transpose_infer_type()
     test_reshape_infer_type()
+    test_take_infer_type()
