@@ -834,5 +834,94 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .set_support_level(10)
 .add_type_rel("BroadCastToLike", BroadCastToLikeRel);
 
+// Split
+TVM_REGISTER_NODE_TYPE(SplitAttrs);
+
+bool SplitRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  CHECK_NE(data->shape.size(), 0);
+  const auto param = attrs.as<SplitAttrs>();
+  CHECK(param != nullptr);
+
+  if (param->equal_split) {
+    const auto num_outputs = as_const_int(param->indices_or_sections[0]);
+    CHECK_LT(param->axis, data->shape.size());
+    // CHECK(reporter->Assert(data->shape[param->axis] %
+    //                       param->indices_or_sections[0] == make_zero(Int(64))))
+    //      << "indices_or_sections need to be able to divide input.shape[axis]";
+
+    std::vector<Type> fields;
+    for (int i = 0; i < *num_outputs; ++i) {
+        std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+        oshape[param->axis] /= param->indices_or_sections[0];
+        auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+        fields.push_back(vec_type);
+    }
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  } else {
+    const auto num_outputs = param->indices_or_sections.size() + 1;
+    CHECK_LT(param->axis, data->shape.size());
+    auto begin = make_zero(Int(32));
+    std::vector<Type> fields;
+    for (uint i = 0; i < num_outputs - 1; ++i) {
+      // CHECK(reporter->Assert(param->indices_or_sections[i] > begin))
+      //    << "indices_or_sections need to be a sorted ascending list";
+      std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+      oshape[param->axis] = param->indices_or_sections[i] - begin;
+      begin = param->indices_or_sections[i];
+      auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+      fields.push_back(vec_type);
+    }
+    // CHECK(reporter->Assert(begin < data->shape[param->axis]))
+    //    << "The sum of sections must match the input.shape[axis]";
+    std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+    oshape[param->axis] = data->shape[param->axis] - begin;
+    auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+    fields.push_back(vec_type);
+
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  }
+  return true;
+}
+
+Expr MakeSplit(Expr data,
+               Array<IndexExpr> indices_or_sections,
+               int axis,
+               bool equal_split) {
+  auto attrs = make_node<SplitAttrs>();
+  attrs->axis = axis;
+  attrs->indices_or_sections = std::move(indices_or_sections);
+  attrs->equal_split = equal_split;
+  static const Op& op = Op::Get("split");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.split")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 4>(MakeSplit, args, rv);
+});
+
+RELAY_REGISTER_OP("split")
+.describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
+
+While equal_split is true `indices_or_sections` should be of size 1 and it indicates
+number of sections to solit into and the dimension along given axis should be a
+multiple of indices_or_section[0].
+
+With equal_split being false indices_or_section ia an ascending ordered list with in 0
+and dimention of given axis. Here the input is split at the given indices.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Split", SplitRel);
+
 }  // namespace relay
 }  // namespace tvm
