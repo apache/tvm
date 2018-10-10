@@ -421,6 +421,16 @@ def test_if_alpha_equal():
     assert not alpha_equal(if_sample, different_false)
 
 
+def test_op_alpha_equal():
+    # only checks names
+    op1 = relay.op.get("add")
+    op2 = relay.op.get("add")
+    assert alpha_equal(op1, op2)
+
+    op3 = relay.op.get("take")
+    assert not alpha_equal(op1, op3)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -439,3 +449,4 @@ if __name__ == "__main__":
     test_call_alpha_equal()
     test_let_alpha_equal()
     test_if_alpha_equal()
+    test_op_alpha_equal()
