@@ -24,6 +24,7 @@ bool DenseRel(const Array<Type>& types,
               const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
+  const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
 
   const DenseAttrs* param = attrs.as<DenseAttrs>();
@@ -33,9 +34,22 @@ bool DenseRel(const Array<Type>& types,
 
   Array<tvm::Expr> oshape = data->shape;
   if (param->units.defined()) {
+    Array<tvm::Expr> dshape = data->shape;
+
+    // validate the weight shape is proper if defined
+    if (weight != nullptr) {
+      CHECK(reporter->AssertEQ(weight->shape[0], dshape[dshape.size() - 1]))
+        << "Dense: shape of weight is inconsistent with input data.";
+      CHECK(reporter->AssertEQ(weight->shape[1], param->units))
+        << "Dense: shape of weight is inconsistent with units.";
+    } else {
+      // Assign weight type
+      std::vector<IndexExpr> wshape({dshape[dshape.size() - 1], param->units});
+      reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
+    }
+
     oshape.Set((oshape.size() - 1), param->units);
   } else {
-    const auto* weight = types[1].as<TensorTypeNode>();
     if (weight == nullptr) return false;
     Array<tvm::Expr> wshape = weight->shape;
     oshape.Set((oshape.size() - 1), wshape[wshape.size() - 1]);
