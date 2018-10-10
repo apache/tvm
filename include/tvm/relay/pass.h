@@ -29,7 +29,7 @@ Expr InferType(const Environment& env, const Expr& e);
 Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
 
 /*!
- * \brief Check that types are well formed by applying "kinding rules".
+ * \brief Check that types are well kinded by applying "kinding rules".
  *
  * This pass ensures we do not do things that violate the design of the
  * type system when writing down types.
@@ -39,11 +39,12 @@ Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
  * We check this by ensuring the `dtype` field of a Tensor always contains
  * a data type such as `int`, `float`, `uint`.
  *
- * \param env The global environment.
  * \param t The type to check.
+ * \param env The global environment.
+ *
  * \return true if the rules are satisified otherwise false
  */
-bool KindCheck(const Environment& env, const Type& t);
+bool KindCheck(const Type& t, const Environment& env);
 
 /*! \brief Compare two expressions for structural equivalence.
  *

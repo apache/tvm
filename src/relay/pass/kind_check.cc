@@ -99,7 +99,7 @@ struct KindChecker : TypeVisitor<> {
   }
 };
 
-bool KindCheck(const Environment& env, const Type &t) {
+  bool KindCheck(const Type& t, const Environment& env) {
   KindChecker kc;
   return kc.Check(t);
 }
@@ -107,7 +107,7 @@ bool KindCheck(const Environment& env, const Type &t) {
 TVM_REGISTER_API("relay._ir_pass.check_kind")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       if (args.size() == 1) {
-        *ret = KindCheck(EnvironmentNode::make({}), args[0]);
+        *ret = KindCheck(args[0], EnvironmentNode::make({}));
       } else {
         *ret = KindCheck(args[0], args[1]);
       }

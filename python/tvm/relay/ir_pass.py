@@ -42,9 +42,27 @@ def well_formed(e):
     """
     return _ir_pass.well_formed(e)
 
-# do not know how to do check kind -
-# it's first argument has different meaning base on whether there's second arg or not
-check_kind = _ir_pass.check_kind
+def check_kind(t, env=None):
+    """Check that the type is well kinded.
+    For example, this mean type cannot has tensor of tensor, or is a tuple type of 2 shapes.
+
+    Parameters
+    ----------
+    t: relay.Type
+      The type to check
+
+    env: relay.Environment
+      The global environment
+
+    Returns
+    -------
+      well_kinded : bool
+        whether the input type is well kinded.
+    """
+    if env is not None:
+        return _ir_pass.check_kind(t, env)
+    else:
+        return _ir_pass.check_kind(t)
 
 def free_vars(e):
     """Get free variables from expression e.
