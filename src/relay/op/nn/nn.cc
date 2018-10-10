@@ -366,7 +366,7 @@ axis to be the last item in the input shape.
     This operator can be optimized away for inference.
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(5)
-.add_argument("data", "Tensor", "Input to which dropout will be applied.")
+.add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
 .add_argument("gamma", "Tensor", "The gamma scale factor.")
 .add_argument("beta", "Tensor", "The beta offset factor.")
 .add_argument("moving_mean", "Tensor", "Running mean of input.")
