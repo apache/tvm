@@ -230,10 +230,8 @@ bool DropoutRel(const Array<Type>& types,
 
   // dropout returns the original tensor with dropout applied
   // and a mask tensor (1.0 where element not dropped, 0.0 where dropped)
-  std::vector<Type> fields;
-  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
-  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
-  reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  auto ret_type = TensorTypeNode::make(data->shape, data->dtype);
+  reporter->Assign(types[1], TupleTypeNode::make(Array<Type>({ret_type, ret_type})));
   return true;
 }
 
