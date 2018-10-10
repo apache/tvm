@@ -373,6 +373,36 @@ def test_call_alpha_equal():
     assert not alpha_equal(call, different_type_arg)
 
 
+def test_let_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+    v3 = relay.Var("v3")
+
+    let = relay.Let(v1, convert(2), v1)
+    mapped = relay.Let(v2, convert(2), v2)
+    assert alpha_equal(let, mapped)
+
+    mismatched_var = relay.Let(v2, convert(2), v3)
+    assert not alpha_equal(let, mismatched_var)
+
+    different_value = relay.Let(v2, convert(3), v2)
+    assert not alpha_equal(let, different_value)
+
+    different_body = relay.Let(v2, convert(3), convert(12))
+    assert not alpha_equal(let, different_body)
+
+    # specified types must match
+    tt1 = relay.TensorType((), "float32")
+    tt2 = relay.TensorType((), "int8")
+    let_with_type = relay.Let(v1, convert(2), v1, tt1)
+    same_type = relay.Let(v1, convert(2), v1, tt1)
+    assert alpha_equal(let_with_type, same_type)
+    assert not alpha_equal(let, let_with_type)
+
+    different_type = relay.Let(v1, convert(2), v1, tt2)
+    assert not alpha_equal(let_with_type, different_type)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -389,3 +419,4 @@ if __name__ == "__main__":
     test_param_alpha_equal()
     test_function_alpha_equal()
     test_call_alpha_equal()
+    test_let_alpha_equal()
