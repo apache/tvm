@@ -403,6 +403,24 @@ def test_let_alpha_equal():
     assert not alpha_equal(let_with_type, different_type)
 
 
+def test_if_alpha_equal():
+    v1 = relay.Var("v1")
+    v2 = relay.Var("v2")
+
+    if_sample = relay.If(v1, convert(1), relay.Tuple([convert(2), convert(3)]))
+    same = relay.If(v1, convert(1), relay.Tuple([convert(2), convert(3)]))
+    assert alpha_equal(if_sample, same)
+
+    different_cond = relay.If(v2, convert(1), relay.Tuple([convert(2), convert(3)]))
+    assert not alpha_equal(if_sample, different_cond)
+
+    different_true = relay.If(v1, convert(2), relay.Tuple([convert(2), convert(3)]))
+    assert not alpha_equal(if_sample, different_true)
+
+    different_false = relay.If(v1, convert(1), relay.Tuple([]))
+    assert not alpha_equal(if_sample, different_false)
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -420,3 +438,4 @@ if __name__ == "__main__":
     test_function_alpha_equal()
     test_call_alpha_equal()
     test_let_alpha_equal()
+    test_if_alpha_equal()
