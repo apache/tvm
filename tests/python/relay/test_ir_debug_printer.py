@@ -77,7 +77,7 @@ def test_call():
 
 def test_let():
     lv = relay.Var('x')
-    ty = relay.ty.TensorType((10, 20), "float32")
+    ty = relay.ty.TensorType((10, 20), 'float32')
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
     let = relay.Let(lv, value, lv, ty)
@@ -90,3 +90,9 @@ def test_if():
     right = relay.Var('right')
     ife = relay.If(cond, left, right)
     show(ife)
+
+def test_tuple_get_item():
+    t = relay.Var('t')
+    g = relay.TupleGetItem(t, 0)
+    show(g)
+    print(debug_print(ib.env, g))
