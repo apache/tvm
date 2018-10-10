@@ -3,6 +3,7 @@ from tvm import relay
 from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
 from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
+from typing import Union
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -17,11 +18,44 @@ BINARY_OPS = {
     "!=": relay.not_equal,
 }
 
+TYPES = {
+    "Int8",
+    "Int16",
+    "Int32",
+    "Int64",
+
+    "UInt8",
+    "UInt16",
+    "UInt32",
+    "UInt64",
+
+    "Float16",
+    "Float32",
+    "Float64",
+
+    "Bool",
+}
+
+CALL_TYPES = {
+    "Int": 2,
+    "UInt": 2,
+    "Float": 2,
+    "Bool": 1,
+}
+
 def get_scalar(x):
+    # type: (relay.Constant) -> (Union[float, int, bool])
     return x.data.asnumpy().item()
 
 def to_constant(x):
+    # type: (Union[float, int, bool]) -> relay.Constant
     return relay.Constant(tvm.nd.array(x))
+
+def to_tensor_type(x):
+    # type: (str) -> relay.TensorType
+    return relay.TensorType([], x)
+
+int64 = to_tensor_type("int64")
 
 UNIT = relay.Tuple([])
 TYPE_HOLE = relay.IncompleteType()
@@ -43,6 +77,10 @@ def test_float_literal():
     assert get_scalar(parse_expr("-10.0")) == -10.0
 
     # scientific notation
+    assert get_scalar(parse_expr("1e-1")) == 1e-1
+    assert get_scalar(parse_expr("1e+1")) == 1e+1
+    assert get_scalar(parse_expr("1E-1")) == 1E-1
+    assert get_scalar(parse_expr("1E+1")) == 1E+1
     assert get_scalar(parse_expr("1.0e-1")) == 1.0e-1
     assert get_scalar(parse_expr("1.0e+1")) == 1.0e+1
     assert get_scalar(parse_expr("1.0E-1")) == 1.0E-1
@@ -226,6 +264,7 @@ def test_call():
         %constant()
         """
     )
+
     # assert alpha_equal(
     #     parse_expr(
     #     """
@@ -276,4 +315,68 @@ def test_call():
         %curried_mult(0);
         %curried_mult(0)(0)
         """
+    )
+
+# Types
+
+def test_builtin_types():
+    for builtin_type in TYPES:
+        parse_expr("let %_ : {} = (); ()".format(builtin_type))
+
+def test_call_type():
+    # tests e.g.
+    # let %_ : Int(0) = (); ()
+    # let %_ : Int(0, 1) = (); ()
+    for call_type, arity in CALL_TYPES.items():
+        for i in range(1, arity + 1):
+            # custom tuple printing to avoid hanging comma for one-tuples
+            tup = "(" + ",".join([str(num) for num in range(i)]) + ")"
+            print("let %_ : {}{} = (); ()".format(call_type, tup))
+            parse_expr("let %_ : {}{} = (); ()".format(call_type, tup))
+
+@nottest
+def test_function_type():
+    assert False
+
+def test_type_annotation():
+    assert False
+
+def test_tuple_type():
+    assert alpha_equal(
+        parse_expr(
+        """
+        let %_: () = (); ()
+        """),
+        relay.Let(
+            relay.Var("_"),
+            UNIT,
+            UNIT,
+            relay.TupleType([])
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr(
+        """
+        let %x: (Int64,) = (0,); ()
+        """),
+        relay.Let(
+            relay.Var("x"),
+            relay.Tuple([to_constant(0)]),
+            UNIT,
+            relay.TupleType([int64])
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr(
+        """
+        let %x: (Int64, Int64) = (0, 1); ()
+        """),
+        relay.Let(
+            relay.Var("x"),
+            relay.Tuple([to_constant(0), to_constant(1)]),
+            UNIT,
+            relay.TupleType([int64, int64])
+        )
     )

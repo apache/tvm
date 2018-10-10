@@ -79,13 +79,13 @@ expr
   | '{' expr '}' ';' expr                 # seq
 
   // mutable update
-  | ident '=' expr                        # writeRef
-  | expr '^'                              # readRef
+  // | ident '=' expr                        # writeRef
+  // | expr '^'                              # readRef
 
   | ident                                 # identExpr
   | scalar                                # scalarExpr
-  | expr '.' INT                          # project
-  | 'debug'                               # debug
+  // | expr '.' INT                          # project
+  // | 'debug'                               # debug
   ;
 
 func: 'fn'        paramList '=>' type_? body ;
@@ -95,18 +95,18 @@ paramList: '(' (param (',' param)*)? ')' ;
 param: ident (':' type_)? ;
 
 type_
-  : '(' type_ ')'                           # parensType
-  | type_ op=('*'|'/') type_                # binOpType
-  | type_ op=('+'|'-') type_                # binOpType
-  | '(' ')'                                 # tupleType
+  // : '(' type_ ')'                           # parensType
+  // | type_ op=('*'|'/') type_                # binOpType
+  // | type_ op=('+'|'-') type_                # binOpType
+  : '(' ')'                                 # tupleType
   | '(' type_ ',' ')'                       # tupleType
   | '(' type_ (',' type_)+ ')'              # tupleType
   | identType                               # identTypeType
   | identType '(' type_ (',' type_)* ')'    # callType
   | identType '[' type_ (',' type_)* ']'    # callType
   // Mut, Int, UInt, Float, Bool, Tensor
-  | type_ '.' INT                           # projectType
-  | INT                                     # dimLitType
+  // | type_ '.' INT                           # projectType
+  | INT                                     # intType
   | '_'                                     # incompleteType
   ;
 
