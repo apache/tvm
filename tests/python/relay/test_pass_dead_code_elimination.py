@@ -4,6 +4,7 @@ from tvm.relay.ir_pass import dead_code_elimination, alpha_equal
 from tvm.relay.ir_builder import convert, IRBuilder
 from tvm.relay.op import log, add, equal, subtract
 
+
 class env:
     def __init__(self):
         self.a = relay.Var("a")
@@ -22,19 +23,24 @@ class env:
         self.two = convert(2.0)
         self.three = convert(3.0)
 
+
 e = env()
+
 
 def test_let():
     orig = relay.Let(e.x, e.y, e.z, e.tt)
     assert alpha_equal(dead_code_elimination(orig), e.z)
 
+
 def test_used_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.c, e.tt), e.tt)
     assert alpha_equal(dead_code_elimination(orig), relay.Let(e.c, e.d, e.c, e.tt))
 
+
 def test_chain_unused_let():
     orig = relay.Let(e.a, e.b, relay.Let(e.c, e.d, e.e, e.tt), e.tt)
     assert alpha_equal(dead_code_elimination(orig), e.e)
+
 
 # make sure we dont infinite loop
 def test_recursion():
@@ -60,12 +66,21 @@ def test_recursion():
     assert alpha_equal(dead_code_elimination(orig), orig)
     assert alpha_equal(dead_code_elimination(relay.Let(f, funcbody, e.three, e.float32)), e.three)
 
+
 def test_op_let():
     assert alpha_equal(dead_code_elimination(add(relay.Let(e.a, e.one, e.three, e.float32), e.two)), add(e.three, e.two))
+
 
 def test_if():
     orig = relay.If(convert(True), e.a, e.b)
     assert alpha_equal(dead_code_elimination(orig), e.a)
+
+
+def test_tuple_get_item():
+    t = relay.Var('t')
+    g = relay.TupleGetItem(t, 0)
+    assert alpha_equal(dead_code_elimination(g), g)
+    assert alpha_equal(dead_code_elimination(relay.TupleGetItem(relay.Let(e.a, e.one, t, e.float32), 0)), g)
 
 
 if __name__ == "__main__":
@@ -75,3 +90,4 @@ if __name__ == "__main__":
     test_recursion()
     test_op_let()
     test_if()
+    test_tuple_get_item()

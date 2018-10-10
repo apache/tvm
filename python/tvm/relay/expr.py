@@ -125,4 +125,12 @@ class If(Expr):
         self.__init_handle_by_constructor__(
             _make.If, cond, true_value, false_value)
 
+@register_relay_node
+class TupleGetItem(Expr):
+    """An expression that get field from tuple in Relay, see tvm/relay/expr.h for more details."""
+
+    def __init__(self, tuple_, index):
+        self.__init_handle_by_constructor__(
+            _make.TupleGetItem, tuple_, index)
+
 debug_print = _expr._debug_print

@@ -167,11 +167,19 @@ def test_type_relation_alpha_equal():
 
     assert bigger != diff_num_inputs
 
+def test_tuple_get_item_alpha_equal():
+    x = relay.Var('x')
+    y = relay.Var('y')
+    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(y, 1))
+    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 2))
+    assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
+    test_constant_alpha_equal()
     test_type_param_alpha_equal()
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
+    test_tuple_get_item_alpha_equal()

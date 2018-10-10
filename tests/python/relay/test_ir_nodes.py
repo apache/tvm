@@ -175,6 +175,13 @@ def test_if():
     str(ife)
 
 
+def test_tuple_get_item():
+    tup = relay.Var("tuple")
+    get = relay.TupleGetItem(tup, 1)
+    assert get.tuple == tup
+    assert get.index == 1
+    str(get)
+
 if __name__ == "__main__":
     test_bad_constructor()
     test_span()
@@ -192,3 +199,4 @@ if __name__ == "__main__":
     test_call()
     test_let()
     test_if()
+    test_tuple_get_item()
