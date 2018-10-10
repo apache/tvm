@@ -161,12 +161,6 @@ def test_type_relation_alpha_equal():
 
     assert bigger != diff_num_inputs
 
-def test_tuple_get_item_alpha_equal():
-    x = relay.Var('x')
-    y = relay.Var('y')
-    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(y, 1))
-    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 2))
-    assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 def test_constant_alpha_equal():
     x = convert(1)
@@ -238,6 +232,14 @@ def test_tuple_alpha_equal():
     longer_at_end = relay.Tuple([v1, convert(2), convert(3),
                                  relay.Tuple([convert(4), convert(5)])])
     assert not alpha_equal(tup, longer_at_end)
+
+
+def test_tuple_get_item_alpha_equal():
+    x = relay.Var('x')
+    y = relay.Var('y')
+    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(y, 1))
+    assert not alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 2))
+    assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
 def test_param_alpha_equal():
