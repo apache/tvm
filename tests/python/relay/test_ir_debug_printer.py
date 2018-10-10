@@ -95,4 +95,3 @@ def test_tuple_get_item():
     t = relay.Var('t')
     g = relay.TupleGetItem(t, 0)
     show(g)
-    print(debug_print(ib.env, g))
