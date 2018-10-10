@@ -92,8 +92,8 @@ os.environ["TVM_NUM_THREADS"] = str(num_threads)
 # instead of plain conv2d.
 #
 # We will use local mode for tuning configuration. RPC tracker
-# mode can be setup similarly to the approach in autotvm
-# arm_cpu tutorial.
+# mode can be setup similarly to the approach in
+# :ref:`tune_nnvm_arm` tutorial.
 
 tuning_option = {
     'log_filename': log_file,
