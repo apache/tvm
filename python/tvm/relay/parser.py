@@ -313,7 +313,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Types
 
     def visitIdentType(self, ctx):
-        # type: (RelayParser.IdentTypeContext) -> str
+        # type: (RelayParser.IdentTypeContext) -> Union[relay.TensorType, str]
         ident_type = ctx.CNAME().getText()
 
         if not ident_type[0].isupper():
@@ -322,39 +322,56 @@ class ParseTreeToRelayIR(RelayVisitor):
         builtin_type = TYPES.get(ident_type)
 
         if builtin_type is None:
-            # TODO: is this correct?
-            return ident_type
+            raise ParseError("Unknown builtin type.")
         else:
-            return builtin_type
+            return relay.TensorType([], builtin_type)
 
     def visitCallType(self, ctx):
         # type: (RelayParser.CallTypeContext) -> str
-        ident_type = ctx.identType().CNAME()
+        ident_type = ctx.identType().CNAME().getText()
 
-        args = self.visit_list(ctx.type_())
+        args = [str(arg) for arg in self.visit_list(ctx.type_())]
+
+        if not args:
+            raise ParseError("Type-level functions must have arguments!")
 
         if ident_type == "Int":
+            print('ident_type == "Int"')
             if len(args) > 2:
                 raise ParseError("Int may have at most 2 arguments.")
-            return "int" + "x".join(args)
-        if ident_type == "UInt":
+            tvm_type = "int" + "x".join(args)
+        elif ident_type == "UInt":
+            print('ident_type == "UInt"')
             if len(args) > 2:
                 raise ParseError("UInt may have at most 2 arguments.")
-            return "uint" + "x".join(args)
+            tvm_type = "uint" + "x".join(args)
         elif ident_type == "Float":
+            print('ident_type == "Float"')
             if len(args) > 2:
                 raise ParseError("Float may have at most 2 arguments.")
-            return "float" + "x".join(args)
+            tvm_type = "float" + "x".join(args)
         elif ident_type == "Bool":
+            print('ident_type == "Bool"')
             if len(args) > 1:
-                raise ParseError("Float may have at most 1 argument.")
-            return "bool" + "x".join(args)
+                raise ParseError("Bool may have at most 1 argument.")
+            # can't use bool, because ffi doesn't convert anything after bool
+            # bool is sugar for uint1 anyway
+            tvm_type = "uint1x" + args[0]
         elif ident_type == "Mut":
             raise ParseError("Mutation is unimplemented.")
         elif ident_type == "Tensor":
             raise ParseError("Tensors are unimplemented.")
         else:
+            print(ident_type)
+            print(type(ident_type))
             raise ParseError("Unrecognized type-level function.")
+
+        return relay.TensorType([], tvm_type)
+
+    def visitTupleType(self, ctx):
+        # type: (RelayParser.TupleTypeContext) -> relay.TupleType
+
+        return relay.TupleType(self.visit_list(ctx.type_()))
 
 def make_parser(data):
     # type: (str) -> RelayParser
