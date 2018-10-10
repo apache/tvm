@@ -385,6 +385,11 @@ class TupleGetItemNode : public ExprNode {
   /*! \brief which value to get */
   int index;
 
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("tuple", &tuple);
+    v->Visit("index", &index);
+  }
+
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
   static constexpr const char * _type_key = "relay.GetItem";

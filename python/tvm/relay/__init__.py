@@ -39,3 +39,4 @@ Function = expr.Function
 Call = expr.Call
 Let = expr.Let
 If = expr.If
+TupleGetItem = expr.TupleGetItem

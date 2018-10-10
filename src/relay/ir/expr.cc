@@ -200,12 +200,12 @@ TupleGetItem TupleGetItemNode::make(Expr tuple, int index) {
   return TupleGetItem(n);
 }
 
-TVM_REGISTER_API("relay._make.TupleGetItem").set_body([](TVMArgs args, TVMRetValue * ret) {
+TVM_REGISTER_API("relay._make.TupleGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = TupleGetItemNode::make(args[0], args[1]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TupleGetItemNode>([](const TupleGetItemNode *node, tvm::IRPrinter *p) {
+.set_dispatch<TupleGetItemNode>([](const TupleGetItemNode* node, tvm::IRPrinter* p) {
   p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
 });
 
