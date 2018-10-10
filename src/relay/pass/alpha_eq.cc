@@ -335,6 +335,16 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
       eq_map.Set(op->var, let->var);
       this->VisitExpr(op->value, let->value);
       this->VisitExpr(op->body, let->body);
+
+      // value_type should match as well (including nulls)
+      if (op->value_type.defined() != let->value_type.defined()) {
+        equal = false;
+        return;
+      }
+
+      if (op->value_type.defined()) {
+        equal = equal && AlphaEqual(op->value_type, let->value_type);
+      }
     } else {
       equal = false;
     }
