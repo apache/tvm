@@ -220,6 +220,12 @@ def test_func():
 
     assert isinstance(parse_expr("fn (%x, %y) => { %x + %y }"), relay.Function)
 
+    # annotations
+
+    id_func_annotated = parse_expr("fn (%x: Int64) => Int64 { %x }")
+    assert id_func_annotated.params[0].type == int64
+    assert id_func_annotated.ret_type == int64
+
 @nottest
 def test_defn():
     id_defn = parse_prog("def @id(%x) => { %x }")
@@ -336,9 +342,6 @@ def test_call_type():
 
 @nottest
 def test_function_type():
-    assert False
-
-def test_type_annotation():
     assert False
 
 def test_tuple_type():
