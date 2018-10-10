@@ -214,7 +214,7 @@ Normalizes along dimension axis using an L2 norm
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(1)
+.set_support_level(2)
 .add_type_rel("Identity", IdentityRel);
 
 }  // namespace relay
