@@ -220,6 +220,23 @@ Normalizes along dimension axis using an L2 norm
 // Dropout
 TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 
+bool DropoutRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  // dropout returns the original tensor with dropout applied
+  // and a mask tensor (1.0 where element not dropped, 0.0 where dropped)
+  std::vector<Type> fields;
+  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
+  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
+  reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  return true;
+}
+
 Expr MakeDropout(Expr data, double rate) {
   auto attrs = make_node<DropoutAttrs>();
   attrs->rate = rate;
@@ -242,7 +259,7 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input to which dropout will be applied.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel);
+.add_type_rel("Dropout", DropoutRel);
 
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);

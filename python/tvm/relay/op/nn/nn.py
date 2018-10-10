@@ -554,8 +554,11 @@ def dropout(data, rate=0.5):
 
     Returns
     -------
-    result : relay.Expr
-        The result after dropping elements and rescaling.
+    result : relay.Tuple([relay.Expr, relay.Expr])
+        The first member of the tuple is the result of dropping elements from ``data``
+        and rescaling. The second member is a "mask" tensor, which is of the same
+        shape and data type as ``data`` and, for each element in ``data``, is 1.0
+        if the element was not dropped and 0.0 if it was.
     """
     return _make.dropout(data, rate)
 

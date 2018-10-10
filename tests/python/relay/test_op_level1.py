@@ -195,25 +195,27 @@ def test_l2_normalize():
 
 def test_dropout():
     ib = relay.ir_builder.IRBuilder()
-    x = ib.param("x", relay.ty.TensorType((3, 4, 5), "int8"))
+    input_ty = relay.ty.TensorType((3, 4, 5), "int8")
+    x = ib.param("x", input_ty)
     with ib.function(x) as func:
         ib.ret(relay.nn.dropout(x))
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((3, 4, 5), "int8")
+    assert ftype.ret_type == relay.ty.TupleType([input_ty, input_ty])
 
     ib = relay.ir_builder.IRBuilder()
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
-    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    input_ty = relay.ty.TensorType((n, t, d), "float32")
+    x = ib.param("x", input_ty)
     with ib.function(x) as func:
         ib.ret(relay.nn.dropout(x, rate=0.75))
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((n, t, d), "float32")
+    assert ftype.ret_type == relay.ty.TupleType([input_ty, input_ty])
 
 
 def test_batch_norm():
