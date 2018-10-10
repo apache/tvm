@@ -51,19 +51,19 @@ inline std::vector<IndexExpr> GetReduceAxes(const uint32_t indim,
     }
   }
   auto in_dim = make_const(tvm::Int(64), indim);
-  CHECK(reporter->AssertLT(axis[axis.size() - 1], in_dim))
+  CHECK(reporter->Assert(axis[axis.size() - 1] < in_dim))
     << "Reduction axis " << axis[axis.size() - 1]
     << " exceeds input dimensions " << indim;
 
   std::vector<IndexExpr> in_axis = axis;
   auto zero = make_zero(tvm::Int(64));
   for (auto &i : in_axis) {
-    if (reporter->AssertLT(i, zero)) {
+    if (reporter->Assert(i < zero)) {
       i = i + in_dim;
     }
-    CHECK(reporter->AssertGE(i, zero))
+    CHECK(reporter->Assert(i >= zero))
       << "axis out of bounds in reduce operator";
-    CHECK(reporter->AssertLT(i, make_const(tvm::Int(64), indim)))
+    CHECK(reporter->Assert(i < make_const(tvm::Int(64), indim)))
       << "axis out of bounds in reduce operator";
   }
 
@@ -85,7 +85,7 @@ inline std::vector<IndexExpr> GetReduceAxes(const uint32_t indim,
 
   for (uint32_t i = 0, j = 0, k = 0; i < indim; ++i) {
     auto val = make_const(tvm::Int(64), i);
-    if (j < in_axis.size() && reporter->AssertEQ(in_axis[j], val)) {
+    if (j < in_axis.size() && reporter->Assert(in_axis[j] == val)) {
         ++j;
         continue;
     }
@@ -114,7 +114,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     std::vector<IndexExpr> oshape(in_shape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
       auto val = make_const(tvm::Int(64), i);
-      if (j >= r_axes.size() || !(reporter->AssertEQ(r_axes[j], val))) continue;
+      if (j >= r_axes.size() || !(reporter->Assert(r_axes[j] == val))) continue;
       oshape[i] = 1;
       ++j;
     }
@@ -125,7 +125,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   std::vector<IndexExpr> oshape(osize);
   for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
     auto val = make_const(tvm::Int(64), i);
-    if (j < r_axes.size() && (reporter->AssertEQ(r_axes[j], val))) {
+    if (j < r_axes.size() && (reporter->Assert(r_axes[j] == val))) {
       ++j;
       continue;
     }

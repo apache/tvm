@@ -18,47 +18,18 @@ class TypeSolver::Reporter : public TypeReporterNode {
     solver_->Unify(dst, src);
   }
 
+  bool Assert(const IndexExpr& cond) final {
+    if (const uint64_t* pdiff = as_const_uint(cond)) {
+      return pdiff[0];
+    }
+    return true;
+  }
+
   bool AssertEQ(const IndexExpr& lhs, const IndexExpr& rhs) final {
     // early warning constant case.
     IndexExpr diff = lhs - rhs;
     if (const int64_t* pdiff = as_const_int(diff)) {
       return pdiff[0] == 0;
-    }
-    return true;
-  }
-
-  bool AssertLT(const IndexExpr& lhs, const IndexExpr& rhs) final {
-    // early warning constant case.
-    IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
-      return pdiff[0] < 0;
-    }
-    return true;
-  }
-
-  bool AssertLE(const IndexExpr& lhs, const IndexExpr& rhs) final {
-    // early warning constant case.
-    IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
-      return pdiff[0] <= 0;
-    }
-    return true;
-  }
-
-  bool AssertGT(const IndexExpr& lhs, const IndexExpr& rhs) final {
-    // early warning constant case.
-    IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
-      return pdiff[0] > 0;
-    }
-    return true;
-  }
-
-  bool AssertGE(const IndexExpr& lhs, const IndexExpr& rhs) final {
-    // early warning constant case.
-    IndexExpr diff = lhs - rhs;
-    if (const int64_t* pdiff = as_const_int(diff)) {
-      return pdiff[0] >= 0;
     }
     return true;
   }
