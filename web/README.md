@@ -43,7 +43,7 @@ export PATH=${PATH}:/emsdk-related-path-here
 
 ### Build TVM with Fastcomp LLVM
 
-To build TVM with Emscripten's Fastcomp LLVM, we can modify the LLVM_CONFIG in ```config.mk```
+To build TVM with Emscripten's Fastcomp LLVM, we can modify the LLVM_CONFIG in ```config.cmake```
 to point to fastcomp's llvm-config and build TVM normally.
 
 ```bash
