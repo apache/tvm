@@ -9,6 +9,7 @@ from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 from tvm.relay.env import Environment
 from tvm.relay.op import log, add, equal, subtract, concatenate
 from tvm.relay.expr import Function
+from tvm import relay
 
 def assert_has_type(expr, typ, env=Environment({})):
     checked_expr = infer_type(env, expr)
@@ -110,6 +111,16 @@ def test_concat():
     fn_ty = func_type([tensor_type(3, 2), tensor_type(2, 2)], tensor_type(5, 2))
     assert_decl_has_type(ib.env, try_concat2, fn_ty)
 
+def test_tuple():
+    ib = IRBuilder()
+    dup = ib.global_var('dup')
+    x = ib.param('x')
+    with ib.decl(dup, x):
+        ib.ret(relay.Tuple([x, x]))
+    # todo: why is this not generalized?
+    fn_ty = func_type([tensor_type()], relay.TupleType([tensor_type(), tensor_type()]))
+    assert_decl_has_type(ib.env, dup, fn_ty)
+
 if __name__ == "__main__":
     test_dual_op()
     test_recursion()
@@ -117,3 +128,4 @@ if __name__ == "__main__":
     test_decl()
     test_recursion()
     test_concat()
+    test_tuple()

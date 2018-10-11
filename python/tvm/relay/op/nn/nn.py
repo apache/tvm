@@ -383,6 +383,7 @@ def relu(data):
     """
     return _make.relu(data)
 
+
 def pad(data,
         pad_width,
         pad_value=0.0):
@@ -407,3 +408,67 @@ def pad(data,
         The computed result.
     """
     return _make.pad(data, pad_width, pad_value)
+
+
+def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
+    """This operator takes data as input and does local response normalization.
+
+    Normalize the input in a local region across or within feature maps.
+    Each input value is divided by (data / (bias + (alpha * sum_data ^2 /size))^beta)
+    where n is the size of each local region, and the sum is taken over the region
+    centered at that value (zero padding is added where necessary).
+
+    .. math::
+        (data / (bias + (alpha * sum_data ^2 /size))^beta)
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    size : int, optional
+        The size of the local region to be considered for normalization.
+
+    axis : int, optional
+        Input data layout channel axis. Default value is 1 for NCHW format
+
+    bias : float, optional
+        The offset parameter to avoid dividing by 0.
+
+    alpha : float, optional
+        The scaling parameter.
+
+    beta : float, optional
+        The exponent parameter.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.lrn(data, size, axis, alpha, beta, bias)
+
+
+def l2_normalize(data, eps, axis=None):
+    """Perform L2 normalization on the input data
+
+    .. math::
+        y(i, j) = x(i, j) / sqrt(max(sum(x^2), eps))
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    eps : float
+        epsilon value
+
+    axis : list of int, optional
+        axis over the normalization applied
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.l2_normalize(data, eps, axis)
+

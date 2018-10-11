@@ -15,6 +15,17 @@ def test_free_vars():
     f = relay.Function([relay.Param(x, ty)], ty, x)
     assert len(free_vars(f)) == 0
 
+
+def test_tuple():
+    t = relay.Var('t')
+    fv = free_vars(relay.Tuple([t, t]))
+    assert len(fv) == 1
+    assert fv[0] == t
+    fv = free_vars(relay.TupleGetItem(t, 123))
+    assert len(fv) == 1
+    assert fv[0] == t
+
+
 def test_free_type_vars():
     tp = relay.TypeParam("")
     ty = relay.TupleType([tp, relay.TensorType([], "int32")])

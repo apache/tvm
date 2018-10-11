@@ -172,7 +172,6 @@ struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   }
 };
 
-
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   double pad_value;
@@ -184,6 +183,42 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
     TVM_ATTR_FIELD(pad_width)
       .describe("Number of values padded to the edges of each axis, "
                 "in the format of ((before_1, after_1), ..., (before_N, after_N))");
+   }
+};
+
+/*! \brief Attributes for LRN operator */
+struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
+  IndexExpr size;
+  IndexExpr axis;
+  double bias;
+  double alpha;
+  double beta;
+
+  TVM_DECLARE_ATTRS(LRNAttrs, "relay.attrs.LRNAttrs") {
+    TVM_ATTR_FIELD(size).set_default(5)
+      .describe("The size of the local region to be considered for normalization.");
+    TVM_ATTR_FIELD(axis).set_default(1)
+      .describe("Axis of input data layout channel.");
+    TVM_ATTR_FIELD(bias).set_default(2)
+      .describe("The offset parameter to avoid division by 0.");
+    TVM_ATTR_FIELD(alpha).set_default(0.0001)
+      .describe("The scaling parameter.");
+    TVM_ATTR_FIELD(beta).set_default(0.75)
+      .describe("The exponent parameter.");
+  }
+};
+
+
+/*! \brief Attributes for L2Normalize operator */
+struct L2NormalizeAttrs : public tvm::AttrsNode<L2NormalizeAttrs> {
+  double eps;
+  Array<IndexExpr> axis;
+
+  TVM_DECLARE_ATTRS(L2NormalizeAttrs, "relay.attrs.L2NormalizeAttrs") {
+    TVM_ATTR_FIELD(eps)
+      .describe("A lower bound value for the norm, to avoid division by 0.");
+    TVM_ATTR_FIELD(axis)
+      .describe("Axis over the normalization applied.");
   }
 };
 
