@@ -25,15 +25,15 @@ struct MultiBoxPriorAttr : public tvm::AttrsNode<MultiBoxPriorAttr> {
       .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
       .describe("List of sizes of generated MultiBoxPriores.");
     TVM_ATTR_FIELD(ratios)
-      .set_default(Array<IndexExpr>({static_cast<float>((1.0)}))
+      .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
       .describe("List of aspect ratios of generated MultiBoxPriores.");
     TVM_ATTR_FIELD(steps)
-      .set_default(Array<IndexExpr>({static_cast<float>((-1.0),
-                                     static_cast<float>((-1.0)}))
+      .set_default(Array<IndexExpr>({static_cast<float>(-1.0),
+                                     static_cast<float>(-1.0)}))
       .describe("Priorbox step across y and x, -1 for auto calculation.");
     TVM_ATTR_FIELD(offsets)
-      .set_default(Array<IndexExpr>({static_cast<float>((0.5),
-                                     static_cast<float>((0.5)}))
+      .set_default(Array<IndexExpr>({static_cast<float>(0.5),
+                                     static_cast<float>(0.5)}))
       .describe("Priorbox center offsets, y and x respectively.");
     TVM_ATTR_FIELD(clip).set_default(false)
       .describe("Whether to clip out-of-boundary boxes.");
