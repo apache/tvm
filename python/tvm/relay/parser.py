@@ -370,8 +370,16 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitTupleType(self, ctx):
         # type: (RelayParser.TupleTypeContext) -> relay.TupleType
-
         return relay.TupleType(self.visit_list(ctx.type_()))
+
+    def visitFuncType(self, ctx):
+        # type: (RelayParser.FuncTypeContext) -> relay.FuncType
+        types = self.visit_list(ctx.type_())
+
+        arg_types = types[:-1]
+        ret_type = types[-1]
+
+        return relay.FuncType(arg_types, ret_type, [], None)
 
 def make_parser(data):
     # type: (str) -> RelayParser
