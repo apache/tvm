@@ -70,3 +70,12 @@ def _restore_runtime(func, intersect):
         _globals.pop(elem)
     for k, v in intersect:
         _globals[k] = v
+
+def _internal_assert(cond, err):
+    """Simplify the code segment like if not XXX then raise an error"""
+    if not cond:
+        raise ValueError(err)
+
+# Almost the same functionality as the one above, but in this case,
+# the error is caused by users inproper usage.
+_user_assert = _internal_assert
