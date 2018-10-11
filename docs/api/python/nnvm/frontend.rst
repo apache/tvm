@@ -10,3 +10,7 @@ nnvm.frontend
 .. autofunction:: nnvm.frontend.from_coreml
 
 .. autofunction:: nnvm.frontend.from_keras
+
+.. autofunction:: nnvm.frontend.from_tensorflow
+
+.. autofunction:: nnvm.frontend.from_darknet
