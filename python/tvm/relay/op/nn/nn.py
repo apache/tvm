@@ -88,6 +88,62 @@ def conv2d(data,
                         weight_layout, out_layout, out_dtype)
 
 
+def conv2d_transpose(data,
+                     weight,
+                     strides=(1, 1),
+                     padding=(0, 0),
+                     dilation=(1, 1),
+                     groups=1,
+                     channels=None,
+                     kernel_size=None,
+                     data_layout="NCHW",
+                     weight_layout="OIHW",
+                     output_padding=(0, 0),
+                     out_dtype=""):
+    """Two dimensional trnasposed convolution operator.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    weight : relay.Expr
+        The weight expressions.
+
+    strides : Tuple[int], optional
+        The strides of convoltution.
+
+    padding : Tuple[int], optional
+        The padding of convolution on both sides of inputs.
+
+    dilation : Tuple[int], optional
+        Specifies the dilation rate to be used for dilated convolution.
+
+    groups : int, optional
+        Number of groups for grouped convolution.
+
+    data_layout : str, optional
+        Layout of the input.
+
+    weight_layout : str, optional
+        Layout of the weight.
+
+    output_padding : Tuple[int], optional
+        Additional zero-padding to be added to one side of the output.
+
+    out_dtype : str, optional
+        Specifies the output data type for mixed precision conv2d.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.conv2d_transpose(data, weight, strides, padding, dilation,
+                                  groups, channels, kernel_size, data_layout,
+                                  weight_layout, output_padding, out_dtype)
+
+
 def softmax(data, axis):
     r"""Computes softmax.
 
@@ -103,8 +159,12 @@ def softmax(data, axis):
 
     axis: int
         The axis to sum over when computing softmax
-    """
 
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
     return _make.softmax(data, axis)
 
 
@@ -125,8 +185,12 @@ def log_softmax(data, axis):
 
     axis: int
         The axis to sum over when computing softmax
-    """
 
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
     return _make.log_softmax(data, axis)
 
 
