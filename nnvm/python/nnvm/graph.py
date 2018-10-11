@@ -31,6 +31,11 @@ class GraphIndex(object):
         self.output_entries = jgraph["heads"]
 
     @property
+    def node_list(self):
+        """Get the node list."""
+        return self.nodes
+
+    @property
     def num_nodes(self):
         """Number of nodes in graph."""
         return len(self.entry_ptr) - 1

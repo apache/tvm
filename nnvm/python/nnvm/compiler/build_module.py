@@ -308,7 +308,9 @@ def build(graph, target=None, shape=None, dtype="float32",
         if init_var:
             if params is None:
                 params = {}
-            params.update(init_var)
+            for k, _ in init_var.items():
+                if k in graph.index.input_names:
+                    params.update(init_var)
         return graph, libmod, params
 
 def _remove_noref_params(params, graph):

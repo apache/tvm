@@ -387,12 +387,16 @@ def _reshape():
     def _impl(inputs, attr, params):
         try:
             pop_node = inputs[1]
-            shape_arg = params.pop(pop_node.list_output_names()[0])
+            if pop_node.list_output_names()[0] in params.keys():
+                shape_arg = params.pop(pop_node.list_output_names()[0]).asnumpy()
+            elif '_output_shapes' in attr:
+                shape_arg = np.asarray(attr['_output_shapes'][0])
+            else:
+                raise KeyError
             inputs.pop(1)
-
             return AttrCvt(
                 op_name="reshape",
-                extras={'shape':tuple(shape_arg.asnumpy())},
+                extras={'shape':tuple(shape_arg)},
                 ignores=['Tshape'])(inputs, attr)
         except KeyError:
             return AttrCvt(
@@ -469,9 +473,12 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        # Result of this operator is prominently used by reshape operator.
-        # Just pass the input as it is so that reshape_like can be used there.
-        return inputs[0]
+        if inputs[0] in attr["input_shapes"]:
+            shape = attr["_input_shapes"][inputs[0]]
+        else:
+            shape = _infer_out_shapes(inputs[0], params)[0]
+        return _sym.Variable(name="ShapeVariableAdded", init=np.asarray(shape),
+                             shape=np.asarray(shape).shape)
     return _impl
 
 def _fill():
@@ -1141,7 +1148,6 @@ class GraphProto(object):
                     pass
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
-
                 op = self._convert_operator(node.op, inputs, attr, graph)
                 # Assuming only one output.
                 self._nodes[node.name] = op
@@ -1206,7 +1212,7 @@ class GraphProto(object):
             self._nodes[name] = _sym.Variable(name=name,
                                               shape=self._params[name].shape)
         else:
-            if key != 'dtype' and key != '_output_shapes' and key != '_class':
+            if key not in ('dtype', '_output_shapes', '_class'):
                 raise NotImplementedError \
                     ("Other attributes for a Const(param) Node {} ? .".format(key))
 
