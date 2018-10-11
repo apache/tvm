@@ -66,7 +66,9 @@ This level enables additional math and transform operators.
 .. autosummary::
    :nosignatures:
 
+   tvm.relay.zeros
    tvm.relay.zeros_like
+   tvm.relay.ones
    tvm.relay.ones_like
    tvm.relay.reshape
    tvm.relay.copy
@@ -153,10 +155,9 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
 .. autofunction:: tvm.relay.take
-
-Level 3 Definitions
--------------------
+.. autofunction:: tvm.relay.zeros
 .. autofunction:: tvm.relay.zeros_like
+.. autofunction:: tvm.relay.ones
 .. autofunction:: tvm.relay.ones_like
 
 
@@ -173,6 +174,7 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.maximum
 .. autofunction:: tvm.relay.minimum
 .. autofunction:: tvm.relay.pow
+
 
 Level 5 Definitions
 -------------------

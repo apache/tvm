@@ -7,6 +7,15 @@ from tvm.relay.ir_pass import infer_type
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.env import Environment
 
+def test_zeros_ones():
+    for op in [relay.zeros, relay.ones]:
+        ib = relay.ir_builder.IRBuilder()
+        with ib.function() as func:
+            ib.ret(op((124, 50), "float64"))
+        ib.ret(func)
+        func = relay.ir_pass.infer_type(ib.env, func.to_func())
+        ftype = func.checked_type
+        assert ftype.ret_type == relay.TensorType((124, 50), "float64")
 
 def test_unary_identity():
     for op in [relay.zeros_like, relay.ones_like]:
@@ -162,6 +171,7 @@ def test_full_like():
 
 if __name__ == "__main__":
     test_single_op()
+    test_zeros_ones()
     test_unary_identity()
     test_clip_type()
     test_copy_infer_type()
