@@ -85,7 +85,7 @@ inline std::vector<IndexExpr> GetReduceAxes(const uint32_t indim,
 
   for (uint32_t i = 0, j = 0, k = 0; i < indim; ++i) {
     auto val = make_const(tvm::Int(64), i);
-    if (j < in_axis.size() && reporter->Assert(in_axis[j] == val)) {
+    if (j < in_axis.size() && reporter->AssertEQ(in_axis[j], val)) {
         ++j;
         continue;
     }
@@ -114,7 +114,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     std::vector<IndexExpr> oshape(in_shape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
       auto val = make_const(tvm::Int(64), i);
-      if (j >= r_axes.size() || !(reporter->Assert(r_axes[j] == val))) continue;
+      if (j >= r_axes.size() || !(reporter->AssertEQ(r_axes[j], val))) continue;
       oshape[i] = 1;
       ++j;
     }
@@ -125,7 +125,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   std::vector<IndexExpr> oshape(osize);
   for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
     auto val = make_const(tvm::Int(64), i);
-    if (j < r_axes.size() && (reporter->Assert(r_axes[j] == val))) {
+    if (j < r_axes.size() && (reporter->AssertEQ(r_axes[j], val))) {
       ++j;
       continue;
     }
