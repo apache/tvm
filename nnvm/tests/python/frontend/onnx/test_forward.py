@@ -66,7 +66,7 @@ def get_caffe2_output(model, x, dtype='float32'):
 def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     dtype = 'float32'
     x = np.random.uniform(size=data_shape)
-    model = onnx.load(graph_file)
+    model = onnx.load_model(graph_file)
     c2_out = get_caffe2_output(model, x, dtype)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
