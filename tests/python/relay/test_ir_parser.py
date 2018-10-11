@@ -192,7 +192,7 @@ def test_func():
     # TODO(@jmp): get function alpha eqs to work
 
     # assert alpha_equal(
-    #     parse_expr("fn (%x) => { %x }"),
+    #     parse_expr("fn (%x) -> { %x }"),
     #     relay.Function(
     #         [relay.Param(relay.Var("x"), TYPE_HOLE)],
     #         TYPE_HOLE,
@@ -202,7 +202,7 @@ def test_func():
     # )
 
     # assert alpha_equal(
-    #     parse_expr("fn (%x, %y) => { %x + %y }"),
+    #     parse_expr("fn (%x, %y) -> { %x + %y }"),
     #     relay.Function(
     #         [relay.Param(relay.Var("x"), TYPE_HOLE),
     #          relay.Param(relay.Var("y"), TYPE_HOLE)],
@@ -212,23 +212,23 @@ def test_func():
     #     )
     # )
 
-    id_func = parse_expr("fn (%x) => { %x }")
+    id_func = parse_expr("fn (%x) -> { %x }")
     assert isinstance(id_func, relay.Function)
     assert id_func.params[0].var.name_hint == "x"
     assert isinstance(id_func.params[0].type, relay.IncompleteType)
     assert id_func.params[0].var == id_func.body
 
-    assert isinstance(parse_expr("fn (%x, %y) => { %x + %y }"), relay.Function)
+    assert isinstance(parse_expr("fn (%x, %y) -> { %x + %y }"), relay.Function)
 
     # annotations
 
-    id_func_annotated = parse_expr("fn (%x: Int64) => Int64 { %x }")
+    id_func_annotated = parse_expr("fn (%x: Int64) -> Int64 { %x }")
     assert id_func_annotated.params[0].type == int64
     assert id_func_annotated.ret_type == int64
 
 @nottest
 def test_defn():
-    id_defn = parse_prog("def @id(%x) => { %x }")
+    id_defn = parse_prog("def @id(%x) -> { %x }")
     assert isinstance(id_defn, Program)
 
 def test_ifelse():
@@ -266,7 +266,7 @@ def test_call():
     # 0 args
     parse_expr(
         """
-        let %constant = fn () => { 0 };
+        let %constant = fn () -> { 0 };
         %constant()
         """
     )
@@ -274,7 +274,7 @@ def test_call():
     # assert alpha_equal(
     #     parse_expr(
     #     """
-    #     let %constant = fn () => { 0 };
+    #     let %constant = fn () -> { 0 };
     #     %constant()
     #     """
     #     ),
@@ -289,7 +289,7 @@ def test_call():
     # 1 arg
     parse_expr(
         """
-        let %id = fn (%x) => { %x };
+        let %id = fn (%x) -> { %x };
         %id(1)
         """
     )
@@ -297,7 +297,7 @@ def test_call():
     # 2 args
     parse_expr(
         """
-        let %multiply = fn (%x, %y) => { %x * %y };
+        let %multiply = fn (%x, %y) -> { %x * %y };
         %multiply(0, 0)
         """
     )
@@ -305,7 +305,7 @@ def test_call():
     # anonymous function
     parse_expr(
         """
-        (fn (%x) => { %x })(0)
+        (fn (%x) -> { %x })(0)
         """
     )
 
@@ -313,8 +313,8 @@ def test_call():
     parse_expr(
         """
         let %curried_mult =
-            fn (%x) => {
-            fn (%y) => {
+            fn (%x) -> {
+            fn (%y) -> {
                 %x * %y
             }
             };
@@ -340,9 +340,48 @@ def test_call_type():
             print("let %_ : {}{} = (); ()".format(call_type, tup))
             parse_expr("let %_ : {}{} = (); ()".format(call_type, tup))
 
-@nottest
 def test_function_type():
-    assert False
+    assert alpha_equal(
+        parse_expr(
+            """
+            let %_: () -> Int64 = fn () -> Int64 { 0 }; ()
+            """
+        ),
+        relay.Let(
+            relay.Var("_"),
+            relay.Function([], int64, to_constant(0), []),
+            UNIT,
+            relay.FuncType([], int64, [], [])
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr(
+            """
+            let %_: (Int64) -> Int64 = fn (%x: Int64) -> Int64 { 0 }; ()
+            """
+        ),
+        relay.Let(
+            relay.Var("_"),
+            relay.Function([relay.Param(relay.Var("x"), int64)], int64, to_constant(0), []),
+            UNIT,
+            relay.FuncType([int64], int64, [], [])
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr(
+            """
+            let %_: (Int64, Int64) -> Int64 = fn (%x: Int64, %y: Int64) -> Int64 { 0 }; ()
+            """
+        ),
+        relay.Let(
+            relay.Var("_"),
+            relay.Function([relay.Param(relay.Var("x"), int64), relay.Param(relay.Var("y"), int64)], int64, to_constant(0), []),
+            UNIT,
+            relay.FuncType([int64, int64], int64, [], [])
+        )
+    )
 
 def test_tuple_type():
     assert alpha_equal(
