@@ -77,7 +77,8 @@ This level enables additional math and transform operators.
    tvm.relay.abs
    tvm.relay.negative
    tvm.relay.take
-
+   tvm.relay.full
+   tvm.relay.full_like
 
 
 **Level 4: Broadcast and Reductions**

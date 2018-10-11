@@ -68,6 +68,20 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   }
 };
 
+/*! \brief Attributes used in full operator */
+struct FullAttrs : public tvm::AttrsNode<FullAttrs> {
+  Array<IndexExpr> shape;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(FullAttrs, "relay.attrs.FullAttrs") {
+    TVM_ATTR_FIELD(shape)
+      .describe("Target shape.");
+    TVM_ATTR_FIELD(dtype)
+      .describe("Target data type.")
+      .set_default(Int(0));
+  }
+};  // struct FullAttrs
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
