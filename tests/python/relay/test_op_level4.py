@@ -125,8 +125,22 @@ def test_binary_broadcast():
         assert ftype.ret_type == relay.TensorType((5, 10, 4), "int32")
 
 
+def test_where():
+    ib = relay.ir_builder.IRBuilder()
+    cond = ib.param("cond", relay.TensorType((3, 4), "float32"))
+    x = ib.param("x", relay.TensorType((3, 4), "float32"))
+    y = ib.param("y", relay.TensorType((3, 4), "float32"))
+    with ib.function(cond, x, y) as func:
+        ib.ret(relay.where(cond.var, x.var, y.var))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((3, 4), "float32")
+
+
 if __name__ == "__main__":
     test_cmp_type()
     test_binary_broadcast()
     test_binary_op()
     test_binary_broadcast_op()
+    test_where()
