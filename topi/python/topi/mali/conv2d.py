@@ -187,7 +187,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
             [-1 / 6.0, 1 / 6.0, -1 / 6.0],
             [1 / 24.0, 1 / 12.0, 1 / 6.0],
             [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]], dtype=np.float32)
+            [0, 0, 1]], out_dtype)
 
         B_data = np.array([
             [4, 0, 0, 0, 0, 0],
@@ -209,7 +209,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_
             [1, 0, 0],
             [1.0/2, 1.0/2, 1.0/2],
             [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1]], np.float32)
+            [0, 0, 1]], out_dtype)
 
         B_data = np.array([
             [1, 0, 0, 0],
