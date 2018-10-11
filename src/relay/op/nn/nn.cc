@@ -292,7 +292,7 @@ bool BatchNormRel(const Array<Type>& types,
   const BatchNormAttrs* param = attrs.as<BatchNormAttrs>();
 
   // axis of -1 means use the last dimension
-  CHECK(param->axis == -1 || param->axis < (int)data->shape.size());
+  CHECK(param->axis >= -1 && param->axis < (int)data->shape.size());
   int axis = (param->axis != -1) ? param->axis : data->shape.size() - 1;
 
   auto dim = as_const_int(data->shape[axis]);
