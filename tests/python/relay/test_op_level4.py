@@ -135,7 +135,7 @@ def test_where():
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.TensorType((3, 4), "float")
+    assert ftype.ret_type == relay.TensorType((3, 4), "float32")
 
 
 if __name__ == "__main__":

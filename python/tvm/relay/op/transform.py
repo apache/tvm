@@ -141,7 +141,6 @@ def take(data, indices, axis=None):
     return _make.take(data, indices, axis)
 
 
-<<<<<<< 11050fdae41c9aceca7254c8f36409d323b341b1
 def full(fill_value, shape=(), dtype=""):
     """Fill array with scalar value.
 
