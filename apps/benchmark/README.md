@@ -28,6 +28,10 @@ Build TVM with LLVM and CUDA enabled. [Help](https://docs.tvm.ai/install/from_so
 ```bash
 python3 gpu_imagenet_bench.py --model 1080ti
 python3 gpu_imagenet_bench.py --model titanx
+
+# For NVIDIA Jetson TX2, you can run the following command directly on the board,
+# or use cross compilation and RPC like what we do for ARM CPU.
+python3 gpu_imagenet_bench.py --model tx2
 ```
 
 ### ARM CPU & Mali GPU
