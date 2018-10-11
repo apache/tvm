@@ -114,7 +114,7 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
   TVM_DECLARE_ATTRS(SplitAttrs, "relay.attrs.SplitAttrs") {
     TVM_ATTR_FIELD(indices_or_sections)
         .describe("Number of outputs to be splitted");
-    TVM_ATTR_FIELD(axis).set_lower_bound(0).set_default(1)
+    TVM_ATTR_FIELD(axis).set_default(0)
         .describe("the axis to be splitted.");
     TVM_ATTR_FIELD(equal_split).set_default(false)
         .describe("Is it equal split of input");
