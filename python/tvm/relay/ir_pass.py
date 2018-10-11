@@ -15,15 +15,15 @@ def infer_type(env, expr):
     Parameters
     ----------
     env : relay.Environment
-        The global environment.
+      The global environment.
 
     expr : relay.Expr
-        The input expression.
+      The input expression.
 
     Returns
     -------
     checked_expr : relay.Expr
-         The checked expression.
+      The checked expression.
     """
     return _ir_pass.infer_type(env, expr)
 
@@ -37,8 +37,8 @@ def well_formed(e):
 
     Returns
     -------
-      well_form : bool
-        whether the input expression is well formed
+    well_form : bool
+      whether the input expression is well formed
     """
     return _ir_pass.well_formed(e)
 
@@ -51,13 +51,20 @@ def check_kind(t, env=None):
     t: relay.Type
       The type to check
 
-    env: relay.Environment
+    env: relay.Environment, optional
       The global environment
 
     Returns
     -------
-      well_kinded : bool
-        whether the input type is well kinded.
+    well_kinded : bool
+      whether the input type is well kinded.
+
+    Examples
+    --------
+    .. code:: python
+
+        assert not check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)]))
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)]))
     """
     if env is not None:
         return _ir_pass.check_kind(t, env)
@@ -74,8 +81,8 @@ def free_vars(e):
 
     Returns
     -------
-      free : List[relay.Var]
-        the list of free variables
+    free : List[relay.Var]
+      the list of free variables
     """
     return _ir_pass.free_vars(e)
 
@@ -89,8 +96,8 @@ def free_type_vars(e):
 
     Returns
     -------
-      free : List[relay.TypeParam]
-        the list of free type variables
+    free : List[relay.TypeParam]
+      the list of free type variables
     """
     return _ir_pass.free_type_vars(e)
 
@@ -117,9 +124,9 @@ def alpha_equal(lhs, rhs):
     ----------
     lhs: relay.Expr
       One of the input Expression.
+
     rhs: relay.Expr
       One of the input Expression.
-
 
     Returns
     -------
