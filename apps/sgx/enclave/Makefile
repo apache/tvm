@@ -13,7 +13,9 @@ else
 	debug := debug
 endif
 
-target/x86_64-unknown-linux-sgx/$(debug)/libmodel-enclave.a: $(build_dir)/libmodel.a **/*
+target=target/x86_64-unknown-linux-sgx/$(debug)/libmodel-enclave.a
+
+$(target): $(build_dir)/libmodel.a **/* $(TVM_DIR)/rust/patched.txt
 	RUST_TARGET_PATH=$(shell pwd) \
 		RUST_TARGET_DIR=$(shell pwd)/target \
 		RUSTFLAGS="-Z force-unstable-if-unmarked" \
@@ -21,11 +23,16 @@ target/x86_64-unknown-linux-sgx/$(debug)/libmodel-enclave.a: $(build_dir)/libmod
 		BUILD_DIR=../build \
 		xargo build --target x86_64-unknown-linux-sgx $(xargo_args) -q
 
+$(TVM_DIR)/rust/patched.txt: $(shell pwd)/sgx-deps.diff
+	echo $(TVM_DIR)
+	cd $(TVM_DIR) && git apply $<
+	touch $@
+
 $(build_dir)/libmodel.a: $(build_dir)/model.o
-	llvm-ar cr $@ $^
+	$(AR) cr $@ $^
 
 $(build_dir)/model.o: $(build_dir)/model.bc
-	clang -c $< -o $@ -fPIC -O3
+	$(CC) -c $< -o $@ -fPIC -O3
 	objcopy --globalize-symbol __tvm_module_startup $@
 
 $(build_dir)/model.bc: src/build_model.py

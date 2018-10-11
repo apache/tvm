@@ -4,7 +4,7 @@ SGX_MODE ?= SIM
 DEBUG ?= true
 NUM_THREADS ?= 4
 
-TVM_DIR ?= ../..
+TVM_DIR ?= $(shell git rev-parse --show-toplevel)
 
 export
 

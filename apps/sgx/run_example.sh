@@ -1,6 +1,10 @@
 #!/bin/bash
 
 sgx_sdk=${SGX_SDK:=/opt/sgxsdk}
-LD_LIBRARY_PATH="$sgx_sdk/lib64":${LD_LIBRARY_PATH} make
-printf "\n"
-LD_LIBRARY_PATH="$sgx_sdk/lib64":${LD_LIBRARY_PATH} TVM_CACHE_DIR=/tmp python3 run_model.py
+
+export LD_LIBRARY_PATH="$sgx_sdk/lib64":${LD_LIBRARY_PATH}
+export CC=clang-6.0
+export AR=llvm-ar-6.0
+export TVM_CACHE_DIR=/tmp
+
+make && printf "\n" && python3 run_model.py
