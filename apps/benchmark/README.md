@@ -94,6 +94,7 @@ python3 -m tvm.exec.rpc_tracker
   sudo -i
   echo performance > /sys/class/misc/mali0/device/devfreq/ff9a0000.gpu/governor
   python3 mobile_gpu_imagenet_bench.py --model rk3399 --rpc-key rk3399
+  python3 mobile_gpu_imagenet_bench.py --model rk3399 --rpc-key rk3399 --dtype float16
   ```
 
 ### AMD GPU
