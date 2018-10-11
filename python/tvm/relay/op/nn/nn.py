@@ -563,7 +563,7 @@ def dropout(data, rate=0.5):
     return _make.dropout(data, rate)
 
 def batch_norm(data, gamma, beta, moving_mean, moving_var,
-               axis=0, epsilon=1e-5, center=True, scale=True):
+               axis=1, epsilon=1e-5, center=True, scale=True):
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
     Normalizes the input at each batch, i.e. applies a transformation
@@ -613,7 +613,7 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
         Running mean of input,
     moving_var : relay.Expr
         Running variance of input.
-    axis : int, optional, default=0
+    axis : int, optional, default=1
         Specify along which shape axis the channel is specified.
     epsilon : double, optional, default=1e-5
         Small float added to variance to avoid diving by zero.

@@ -257,7 +257,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   TVM_DECLARE_ATTRS(BatchNormAttrs, "relay.attrs.BatchNormAttrs") {
     TVM_ATTR_FIELD(axis)
       .describe("Specify which shape axis denotes the channel.")
-      .set_default(0);
+      .set_default(1);
     TVM_ATTR_FIELD(epsilon)
       .describe("Small float added to variance to avoid dividing by zero")
       .set_default(1e-5);
