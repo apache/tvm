@@ -407,9 +407,9 @@ Examples::
 TVM_REGISTER_NODE_TYPE(TensorAttrs);
 
 bool FullRel(const Array<Type>& types,
-             int num_inputs,
-             const Attrs& attrs,
-             const TypeReporter& reporter) {
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const TensorAttrs* param = attrs.as<TensorAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
@@ -443,7 +443,7 @@ Expr MakeFull(Expr fill_value,
 TVM_REGISTER_API("relay.op._make.full")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 3>(MakeFull, args, rv);
-});
+  });
 
 RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
@@ -453,6 +453,73 @@ RELAY_REGISTER_OP("full")
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
 .add_type_rel("Full", FullRel);
+
+bool TensorRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 1);
+  const TensorAttrs* param = attrs.as<TensorAttrs>();
+  const auto* fill_value = types[0].as<TensorTypeNode>();
+
+  DataType out_dtype = param->dtype;
+  if (out_dtype.bits() == 0) {
+    out_dtype = fill_value->dtype;
+  }
+
+  CHECK_EQ(fill_value->shape.size(), 0)
+    << "Fill value should be a scalar but has dimension "
+    << fill_value->shape.size() << ".";
+
+  reporter->Assign(types[0], TensorTypeNode::make(param->shape, out_dtype));
+  return true;
+}
+
+Expr MakeZeros(Expr fill_value,
+               Array<IndexExpr> shape,
+               DataType dtype) {
+  auto attrs = make_node<TensorAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("zeros");
+  return CallNode::make(op, {fill_value}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.zeros")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeZeros, args, rv);
+  });
+
+RELAY_REGISTER_OP("zeros")
+.describe(R"code(Fill array with zeros.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(0)
+.set_support_level(3)
+.add_type_rel("Tensor", TensorRel);
+
+Expr MakeOnes(Expr fill_value,
+              Array<IndexExpr> shape,
+              DataType dtype) {
+  auto attrs = make_node<TensorAttrs>();
+  attrs->shape = std::move(shape);
+  attrs->dtype = std::move(dtype);
+  static const Op& op = Op::Get("ones");
+  return CallNode::make(op, {fill_value}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.ones")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeOnes, args, rv);
+  });
+
+RELAY_REGISTER_OP("ones")
+.describe(R"code(Fill array with ones.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(0)
+.set_support_level(3)
+.add_type_rel("Tensor", TensorRel);
 
 bool FullLikeRel(const Array<Type>& types,
                  int num_inputs,
