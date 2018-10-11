@@ -404,14 +404,14 @@ Examples::
 .set_support_level(2)
 .add_type_rel("Take", TakeRel);
 
-TVM_REGISTER_NODE_TYPE(FullAttrs);
+TVM_REGISTER_NODE_TYPE(TensorAttrs);
 
 bool FullRel(const Array<Type>& types,
              int num_inputs,
              const Attrs& attrs,
              const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
-  const FullAttrs* param = attrs.as<FullAttrs>();
+  const TensorAttrs* param = attrs.as<TensorAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
   if (fill_value == nullptr) {
     return false;
@@ -433,7 +433,7 @@ bool FullRel(const Array<Type>& types,
 Expr MakeFull(Expr fill_value,
               Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<FullAttrs>();
+  auto attrs = make_node<TensorAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
