@@ -183,7 +183,7 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
     TVM_ATTR_FIELD(pad_width)
       .describe("Number of values padded to the edges of each axis, "
                 "in the format of ((before_1, after_1), ..., (before_N, after_N))");
-   }
+  }
 };
 
 /*! \brief Attributes for LRN operator */
