@@ -139,7 +139,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         with tvm.target.create(device):
             s = topi.generic.schedule_injective(tensor_l)
 
-        foo = tvm.build(s, [A] + tensor_l, device, name="split")
+        foo = tvm.build(s, [A] + list(tensor_l), device, name="split")
         data_npy = np.random.normal(size=src_shape).astype(A.dtype)
         out_npys = np.split(data_npy, indices_or_sections, axis=axis)
         data_nd = tvm.nd.array(data_npy, ctx)

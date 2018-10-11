@@ -344,14 +344,22 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   const TShape& dshape = (*in_shape)[0];
   if (dshape.ndim() == 0) return false;
 
+  auto axis = param.axis;
+  if (axis < 0) {
+    axis += dshape.ndim();
+  }
+  CHECK_LT(param.axis, dshape.ndim())
+    << "axis should be with in input dimension range";
+  CHECK_GT(param.axis, 0)
+    << "axis should be with in input dimension range";
+
   if (param.equal_split) {
     int num_outputs = param.indices_or_sections[0];
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
-    CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
-    CHECK_EQ(oshape[param.axis] % num_outputs, 0)
+    CHECK_EQ(oshape[axis] % num_outputs, 0)
         << "indices_or_sections need to be able to divide input.shape[axis]";
-    oshape[param.axis] /= num_outputs;
+    oshape[axis] /= num_outputs;
 
     for (size_t i = 0; i < out_shape->size(); ++i) {
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
@@ -359,19 +367,18 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   } else {
     dim_t num_outputs = param.indices_or_sections.ndim() + 1;
     CHECK_EQ(out_shape->size(), static_cast<size_t>(num_outputs));
-    CHECK_LT(param.axis, dshape.ndim());
     TShape oshape = dshape;
     dim_t begin = 0;
     for (dim_t i = 0; i < num_outputs - 1; ++i) {
       CHECK_GT(param.indices_or_sections[i], begin)
           << "indices_or_sections need to be a sorted ascending list";
-      oshape[param.axis] = param.indices_or_sections[i] - begin;
+      oshape[axis] = param.indices_or_sections[i] - begin;
       begin = param.indices_or_sections[i];
       NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, i, oshape);
     }
-    CHECK_LT(begin, dshape[param.axis])
+    CHECK_LT(begin, dshape[axis])
         << "The sum of sections must match the input.shape[axis]";
-    oshape[param.axis] = dshape[param.axis] - begin;
+    oshape[axis] = dshape[axis] - begin;
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, num_outputs - 1, oshape);
   }
   return true;
