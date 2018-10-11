@@ -13,7 +13,6 @@
   alloc,
   allocator_api,
   box_syntax,
-  extern_prelude,
   fn_traits,
   try_from,
   unboxed_closures,
