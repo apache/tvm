@@ -112,7 +112,7 @@ class Call(Expr):
 class Let(Expr):
     """A variable bindings in Relay, see tvm/relay/expr.h for more details."""
 
-    def __init__(self, var, value, body, value_type):
+    def __init__(self, var, value, body, value_type=None):
         self.__init_handle_by_constructor__(
             _make.Let, var, value, body, value_type)
 
