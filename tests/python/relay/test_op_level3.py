@@ -113,6 +113,53 @@ def test_take_infer_type():
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
 
+def test_full():
+    # default settings: match input dtype
+    ib = relay.ir_builder.IRBuilder()
+    x = ib.param("x", relay.TensorType((), "int8"))
+    with ib.function(x) as func:
+        ib.ret(relay.full(x.var, ()))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((), "int8")
+
+    # change the shape and dtype
+    ib = relay.ir_builder.IRBuilder()
+    x = ib.param("x", relay.TensorType((), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.full(x.var, (1, 2), "int8"))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((1, 2), "int8")
+
+
+def test_full_like():
+    # concrete shape
+    ib = relay.ir_builder.IRBuilder()
+    base = ib.param("base", relay.TensorType((1, 2, 3), "float32"))
+    fill = ib.param("fill", relay.TensorType((), "float32"))
+    with ib.function(base, fill) as func:
+        ib.ret(relay.full_like(base.var, fill.var))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((1, 2, 3), "float32")
+
+    # symbolic shape
+    ib = relay.ir_builder.IRBuilder()
+    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    base = ib.param("base", relay.TensorType((n, c, h, w), "float32"))
+    fill = ib.param("fill", relay.TensorType((), "float32"))
+    with ib.function(base, fill) as func:
+        ib.ret(relay.full_like(base.var, fill.var))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.TensorType((n, c, h, w), "float32")
+
+
 if __name__ == "__main__":
     test_single_op()
     test_unary_identity()
@@ -121,3 +168,5 @@ if __name__ == "__main__":
     test_transpose_infer_type()
     test_reshape_infer_type()
     test_take_infer_type()
+    test_full()
+    test_full_like()
