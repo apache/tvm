@@ -443,7 +443,7 @@ Expr MakeFull(Expr fill_value,
 TVM_REGISTER_API("relay.op._make.full")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 3>(MakeFull, args, rv);
-  });
+});
 
 RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
