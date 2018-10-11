@@ -6,7 +6,7 @@ from model_zoo import super_resolution, super_resolution_sym
 from model_zoo import squeezenet as squeezenet
 
 def compare_graph(onnx_file, nnvm_sym, ishape):
-    onnx_model = onnx.load(onnx_file)
+    onnx_model = onnx.load_model(onnx_file)
     onnx_sym, params = nnvm.frontend.from_onnx(onnx_model)
     g1 = nnvm.graph.create(onnx_sym)
     g2 = nnvm.graph.create(nnvm_sym)
