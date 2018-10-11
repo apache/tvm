@@ -1,0 +1,13 @@
+diff --git a/rust/Cargo.toml b/rust/Cargo.toml
+index 0819e0c7..e56f4ef2 100644
+--- a/rust/Cargo.toml
++++ b/rust/Cargo.toml
+@@ -14,7 +14,7 @@ default = ["nom/std"]
+ sgx = ["nom/alloc"]
+ 
+ [dependencies]
+-bounded-spsc-queue = "0.4.0"
++bounded-spsc-queue = { git = "https://github.com/nhynes/bounded-spsc-queue", branch = "sgx" }
+ error-chain = { version = "0.12.0", default-features = false }
+ itertools = "0.7.8"
+ lazy_static = "1.1.0"

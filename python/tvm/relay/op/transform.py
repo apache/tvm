@@ -18,7 +18,7 @@ def expand_dims(data, axis, num_newaxis=1):
         If `axis >= 0`, it is the last axis inserted in Python's negative indexing.
 
     num_newaxis : int
-        Number of axises to be inserted. Should be >= 0.
+        Number of axes to be inserted. Should be >= 0.
 
     Returns
     -------
@@ -139,3 +139,44 @@ def take(data, indices, axis=None):
         The computed result.
     """
     return _make.take(data, indices, axis)
+
+
+def full(fill_value, shape=(), dtype=""):
+    """Fill array with scalar value.
+
+    Parameters
+    ----------
+    fill_value : relay.Expr
+        The value to fill. Must be a scalar.
+
+    shape : tuple of int
+        The shape of the target.
+
+    dtype : data type, optional (defaults to data type of the fill value)
+        The data type of the target.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.full(fill_value, shape, dtype)
+
+
+def full_like(data, fill_value):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    fill_value : relay.Expr
+        The scalar value to fill.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.full_like(data, fill_value)

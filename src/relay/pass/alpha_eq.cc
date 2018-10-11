@@ -268,8 +268,25 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         return;
       }
 
+      if (func1->type_params.size() != func2->type_params.size()) {
+        equal = false;
+        return;
+      }
+
       for (size_t i = 0U; i < func1->params.size(); i++) {
         this->VisitExpr(func1->params[i], func2->params[i]);
+      }
+
+      for (size_t i = 0U; i < func1->type_params.size(); i++) {
+        equal = equal && AlphaEqual(func1->type_params[i], func2->type_params[i]);
+        if (!equal) {
+          return;
+        }
+      }
+
+      equal = equal && AlphaEqual(func1->ret_type, func2->ret_type);
+      if (!equal) {
+        return;
       }
 
       this->VisitExpr(func1->body, func2->body);
@@ -287,10 +304,27 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         return;
       }
 
+      if (op->type_args.size() != call->type_args.size()) {
+        equal = false;
+        return;
+      }
+
+      // checking attrs by pointer equality for now
+      equal = equal && (op->attrs == call->attrs);
+      if (!equal) {
+        return;
+      }
+
       for (size_t i = 0U; i < op->args.size(); i++) {
         this->VisitExpr(op->args[i], call->args[i]);
       }
 
+      for (size_t i = 0U; i < op->type_args.size(); i++) {
+        equal = equal && AlphaEqual(op->type_args[i], call->type_args[i]);
+        if (!equal) {
+          return;
+        }
+      }
     } else {
       equal = false;
     }
@@ -301,6 +335,16 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
       eq_map.Set(op->var, let->var);
       this->VisitExpr(op->value, let->value);
       this->VisitExpr(op->body, let->body);
+
+      // value_type should match as well (including nulls)
+      if (op->value_type.defined() != let->value_type.defined()) {
+        equal = false;
+        return;
+      }
+
+      if (op->value_type.defined()) {
+        equal = equal && AlphaEqual(op->value_type, let->value_type);
+      }
     } else {
       equal = false;
     }
