@@ -10,7 +10,7 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_NODE_TYPE(MultiBoxPriorAttr);
+TVM_REGISTER_NODE_TYPE(MultiBoxPriorAttrs);
 
 bool MultiboxPriorRel(const Array<Type>& types,
                       int num_inputs,
@@ -18,7 +18,7 @@ bool MultiboxPriorRel(const Array<Type>& types,
                       const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  const MultiBoxPriorAttr* param = attrs.as<MultiBoxPriorAttr>();
+  const MultiBoxPriorAttrs* param = attrs.as<MultiBoxPriorAttrs>();
   const auto& dshape = data->shape;
   CHECK_EQ(dshape.size(), 4) << "Input data should be 4D: "
       "[batch, channel, height, width]";
@@ -43,7 +43,7 @@ Expr MakeMultiBoxPrior(Expr data,
                        Array<IndexExpr> steps,
                        Array<IndexExpr> offsets,
                        bool clip) {
-  auto attrs = make_node<MultiBoxPriorAttr>();
+  auto attrs = make_node<MultiBoxPriorAttrs>();
   attrs->sizes = std::move(sizes);
   attrs->ratios = std::move(ratios);
   attrs->steps = std::move(steps);

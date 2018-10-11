@@ -144,6 +144,18 @@ def test_multibox_prior():
     assert ftype.ret_type == relay.ty.TensorType(
         (1, h * w * (len(sizes) + len(ratios) - 1), 4), "float32")
 
+    ib = relay.ir_builder.IRBuilder()
+    n, c, h, w = tvm.var("n"), 24, 32, 32
+    x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
+
+    with ib.function(x) as func:
+        ib.ret(relay.vision.multibox_prior(x.var))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType(
+        (1, h * w, 4), "float32")
+
 def test_where():
     ib = relay.ir_builder.IRBuilder()
     cond = ib.param("cond", relay.TensorType((3, 4), "float32"))

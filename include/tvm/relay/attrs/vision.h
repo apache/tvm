@@ -13,14 +13,14 @@ namespace tvm {
 namespace relay {
 
 /*! \brief Attributes used in multibox_prior operators */
-struct MultiBoxPriorAttr : public tvm::AttrsNode<MultiBoxPriorAttr> {
+struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
   Array<IndexExpr> sizes;
   Array<IndexExpr> ratios;
   Array<IndexExpr> steps;
   Array<IndexExpr> offsets;
   bool clip;
 
-  TVM_DECLARE_ATTRS(MultiBoxPriorAttr, "relay.attrs.MultiBoxPriorAttr") {
+  TVM_DECLARE_ATTRS(MultiBoxPriorAttrs, "relay.attrs.MultiBoxPriorAttrs") {
     TVM_ATTR_FIELD(sizes)
       .set_default(Array<IndexExpr>({static_cast<float>(1.0)}))
       .describe("List of sizes of generated MultiBoxPriores.");

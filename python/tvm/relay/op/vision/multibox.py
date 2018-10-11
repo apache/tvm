@@ -3,11 +3,11 @@ from __future__ import absolute_import as _abs
 from . import _make
 
 def multibox_prior(data,
-                   sizes,
-                   ratios,
-                   steps,
-                   offsets,
-                   clip):
+                   sizes=(1.0,),
+                   ratios=(1.0,),
+                   steps=(-1.0, -1.0),
+                   offsets=(0.5, 0.5),
+                   clip=False):
     """Generate prior(anchor) boxes from data, sizes and ratios.
 
     Parameters
@@ -15,19 +15,19 @@ def multibox_prior(data,
     data : relay.Expr
         The input data tensor.
 
-    sizes : tuple of float
+    sizes : tuple of float, optional
         Tuple of sizes for anchor boxes.
 
-    ratios : tuple of float
+    ratios : tuple of float, optional
         Tuple of ratios for anchor boxes.
 
-    steps : Tuple of float
+    steps : Tuple of float, optional
         Priorbox step across y and x, -1 for auto calculation.
 
-    offsets : tuple of int
+    offsets : tuple of int, optional
         Priorbox center offsets, y and x respectively.
 
-    clip : boolean
+    clip : boolean, optional
         Whether to clip out-of-boundary boxes.
 
     Returns
