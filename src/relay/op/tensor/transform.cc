@@ -407,9 +407,9 @@ Examples::
 TVM_REGISTER_NODE_TYPE(TensorAttrs);
 
 bool FullRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
-               const TypeReporter& reporter) {
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const TensorAttrs* param = attrs.as<TensorAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
