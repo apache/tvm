@@ -471,4 +471,3 @@ def l2_normalize(data, eps, axis=None):
         The computed result.
     """
     return _make.l2_normalize(data, eps, axis)
-
