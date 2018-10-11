@@ -168,6 +168,30 @@ def test_concatenate_infer_type():
     assert ftype.ret_type == relay.ty.TensorType(
         (n, t + t, 100), "float32")
 
+def test_lrn():
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.nn.lrn(x, size=10, axis=2, bias=0.5, alpha=.00001, beta=0.75))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c , h, w), "float32")
+
+
+def test_l2_normalize():
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.nn.l2_normalize(x, eps=0.001, axis=[1]))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c , h, w), "float32")
 
 if __name__ == "__main__":
     test_unary_op()
@@ -178,3 +202,5 @@ if __name__ == "__main__":
     test_log_softmax()
     test_binary_op()
     test_binary_broadcast_op()
+    test_lrn()
+    test_l2_normalize()

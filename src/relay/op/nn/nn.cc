@@ -143,5 +143,79 @@ RELAY_REGISTER_UNARY_OP("relay.op.nn._make.", "relu")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
+
+// Positional relay function to create LRN operator used by frontend FFI.
+Expr MakeLRN(Expr data,
+             IndexExpr size,
+             IndexExpr axis,
+             double alpha,
+             double beta,
+             double bias) {
+  auto attrs = make_node<LRNAttrs>();
+  attrs->size = size;
+  attrs->axis = axis;
+  attrs->alpha = alpha;
+  attrs->beta = beta;
+  attrs->bias = bias;
+  static const Op& op = Op::Get("nn.lrn");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.lrn")
+  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 6>(MakeLRN, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.lrn")
+    .describe(R"code(LRN layer.
+
+Normalize the input in a local region across or within feature maps.
+Each input value is divided by (1 + (\alpha/n) \sum_i x_i^2)^\beta,
+where n is the size of each local region, and the sum is taken over the region
+centered at that value (zero padding is added where necessary).
+
+.. math::
+
+    data / (bias + (alpha * sum_data ^2 /size))^beta
+
+- **data**: The input tensor.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(2)
+.add_type_rel("Identity", IdentityRel);
+
+
+// Positional relay function to create L2Normalize operator used by frontend FFI.
+Expr MakeL2Normalize(Expr data,
+                     double eps,
+                     Array<IndexExpr> axis) {
+  auto attrs = make_node<L2NormalizeAttrs>();
+  attrs->eps = eps;
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("nn.l2_normalize");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
+  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 3>(MakeL2Normalize, args, rv);
+  });
+
+RELAY_REGISTER_OP("nn.l2_normalize")
+    .describe(R"code(L2 Normalization layer.
+
+Normalizes along dimension axis using an L2 norm
+
+.. math::
+    output = x / sqrt(max(sum(x^2), epsilon))
+
+- **data**: The input tensor.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(2)
+.add_type_rel("Identity", IdentityRel);
+
 }  // namespace relay
 }  // namespace tvm

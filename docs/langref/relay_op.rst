@@ -39,6 +39,7 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.sigmoid
    tvm.relay.nn.relu
 
+
 **Level 2: Convolutions**
 
 This level enables typical convnet models.
@@ -53,6 +54,8 @@ This level enables typical convnet models.
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
    tvm.relay.nn.batch_flatten
+   tvm.relay.nn.lrn
+   tvm.relay.nn.l2_normalize
 
 
 **Level 3: Additional Math And Transform Operators**
@@ -131,6 +134,8 @@ Level 2 Definitions
 .. autofunction:: tvm.relay.nn.global_avg_pool2d
 .. autofunction:: tvm.relay.nn.upsampling
 .. autofunction:: tvm.relay.nn.batch_flatten
+.. autofunction:: tvm.relay.nn.lrn
+.. autofunction:: tvm.relay.nn.l2_normalize
 
 
 Level 3 Definitions
