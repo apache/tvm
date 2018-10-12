@@ -429,7 +429,6 @@ def batch_flatten(data):
     """
     return _make.batch_flatten(data)
 
-
 def relu(data):
     """Rectified linear unit.
 
@@ -447,6 +446,32 @@ def relu(data):
         The computed result.
     """
     return _make.relu(data)
+
+
+def pad(data,
+        pad_width,
+        pad_value=0.0):
+    r"""Padding
+
+    This operator takes in a tensor and pads each axis by the specified
+    widths using the specified value.
+
+    Parameters
+    ----------
+    data: relay.Expr
+        The input data to the operator
+    pad_width: tuple of <tuple of <int>>, required
+        Number of values padded to the edges of each axis, in the format
+        of ((before_1, after_1), ..., (before_N, after_N))
+    pad_value: float, optional, default=0.0
+        The value used for padding
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.pad(data, pad_width, pad_value)
 
 
 def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
@@ -484,8 +509,8 @@ def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
     result : relay.Expr
         The computed result.
     """
-
     return _make.lrn(data, size, axis, alpha, beta, bias)
+
 
 def l2_normalize(data, eps, axis=None):
     """Perform L2 normalization on the input data
