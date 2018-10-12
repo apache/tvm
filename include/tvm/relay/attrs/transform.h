@@ -120,6 +120,19 @@ struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
                   "the entries indicate where along axis the array is split.");
     TVM_ATTR_FIELD(axis).set_default(0)
         .describe("the axis to be splitted.");
+/*! \brief Attributes for StridedSlice operator */
+struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
+  Array<IndexExpr> begin;
+  Array<IndexExpr> end;
+  Array<IndexExpr> stride;
+
+  TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
+    TVM_ATTR_FIELD(begin)
+        .describe("Indices for begin of slice");
+    TVM_ATTR_FIELD(end)
+        .describe("Indices for end of the slice");
+    TVM_ATTR_FIELD(stride).set_default(Array<IndexExpr>({}))
+        .describe("Stride values of the slice");
   }
 };
 
