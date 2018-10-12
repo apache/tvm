@@ -31,6 +31,7 @@ def find_clang(required=True):
     if hasattr(codegen, "llvm_version_major"):
         cc_list += ["clang-%d.0" % codegen.llvm_version_major()]
     cc_list += ["clang"]
+    cc_list += ["clang.exe"]
     valid_list = [util.which(x) for x in cc_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
