@@ -25,7 +25,7 @@ if __name__ == "__main__":
                         choices=['1080ti', 'titanx', 'tx2', 'gfx900'], default='1080ti',
                         help="The model of the test device. If your device is not listed in "
                              "the choices list, pick the most similar one as argument.")
-    parser.add_argument("--number", type=int, default=500)
+    parser.add_argument("--repeat", type=int, default=600)
     parser.add_argument("--target", type=str,
                         choices=['cuda', 'opencl', 'rocm', 'nvptx', 'metal'], default='cuda',
                         help="The tvm compilation target")
@@ -58,6 +58,6 @@ if __name__ == "__main__":
         module.set_input(**params)
 
         # evaluate
-        ftimer = module.module.time_evaluator("run", ctx, number=args.number, repeat=3)
+        ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=args.repeat)
         prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
         print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
