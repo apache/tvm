@@ -241,6 +241,75 @@ def test_oneD_pool():
     stmt = tvm.ir_pass.Simplify(stmt)
     assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
+def test_cce_loop_1():
+  ib = tvm.ir_builder.create()
+  dtype = 'float16'
+  n = 514
+  m = 514
+  _A = tvm.placeholder((n*m,), name = 'A')
+  Ab = tvm.decl_buffer((n*m,), dtype, name="A")
+  A = ib.buffer_ptr(Ab)
+  _B = tvm.placeholder((n*m,), name = 'B')
+  Bb = tvm.decl_buffer((n*m,), dtype, name="B")
+  B = ib.buffer_ptr(Bb)
+  #for i in 0 to n-1:
+  with ib.for_range(0, 11, name="i") as i:
+      with ib.for_range(0, 160, name="j") as j:
+          with ib.if_scope(ib.likely(((i*160) + j) < 1600)):
+               A[(i+1)*m+j+1] = B[(i)*m+j+1] + B[(i+1)*m+j+1] + B[(i+2)*m+j+1]
+  stmt = ib.get()
+  stmt = tvm.ir_pass.LoopPartition(stmt, True)
+  stmt = tvm.ir_pass.Simplify(stmt)
+  assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
+def test_cce_loop_2():
+  ib = tvm.ir_builder.create()
+  len = 112
+  tile = 32
+  loop = (len + tile - 1) // tile
+  with ib.for_range(0, loop, 'i') as i:
+    head = i * tile
+    with ib.if_scope(ib.likely(head + tile > len)):
+      tail = len
+      ib.emit(tvm.call_extern('float32', "cce_intrisic", head, tail))
+    with ib.else_scope():
+      tail = head + tile
+      ib.emit(tvm.call_extern('float32', "cce_intrisic", head, tail))
+
+  stmt = ib.get()
+  stmt = tvm.ir_pass.LoopPartition(stmt, True)
+  stmt = tvm.ir_pass.Simplify(stmt)
+  assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
+def test_conv_tiling():
+    HSTR = WSTR = 1
+    in_channel = 128
+    kernel_height = kernel_width = 3
+    out_channel = 64
+    batch_size = 1
+    in_height = in_width = 64
+    out_height = out_width = in_height - kernel_height + 1
+    data = tvm.placeholder((batch_size, in_channel, in_height, in_width), name='data')
+    kernel = tvm.placeholder((kernel_height, kernel_width, in_channel,
+        out_channel), name='kernel')
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+    conv = tvm.compute((batch_size, out_channel, out_height, out_width),
+                       lambda n, oc, oh, ow: tvm.sum(data[n, ic, oh*HSTR + kh, ow*WSTR + kw] *
+                                                     kernel[kh, kw, ic, oc],
+                                                     axis=[ic, kh, kw]),
+                       name="conv2d")
+    s = tvm.create_schedule(conv.op)
+
+    n, oc, oh, ow = conv.op.axis
+    oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
+    bounds = tvm.schedule.InferBound(s)
+    stmt = tvm.schedule.ScheduleOps(s, bounds)
+    stmt = tvm.ir_pass.LoopPartition(stmt, True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
 if __name__ == "__main__":
     test_basic()
     test_const_loop()
@@ -254,3 +323,6 @@ if __name__ == "__main__":
     test_single_likely()
     test_multi_likely()
     test_oneD_pool()
+    test_cce_loop_1()
+    test_cce_loop_2()
+    test_conv_tiling()

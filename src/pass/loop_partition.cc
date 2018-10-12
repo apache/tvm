@@ -360,7 +360,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
       // [post_doubt_begin, max]
       if (!partition_thread_scope) {
         Stmt post_body;
-        // If the loop is going from 0 to 1, then replace the loop var with min value
+        // If the loop is going from 0 to 1, replace the loop var with min value
         if (as_const_int(max) && as_const_int(post_doubt_begin)) {
             if (*as_const_int(max) == *as_const_int(post_doubt_begin)) {
                 post_body = Substitute(body, {{Var{var}, post_doubt_begin}});
@@ -376,12 +376,6 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     post_doubt_begin = max + 1;
   }
 
-  if (as_const_int(body_begin) && as_const_int(post_doubt_begin)) {
-      if (*as_const_int(body_begin) == *as_const_int(post_doubt_begin)) {
-          return Stmt();
-      }
-  }
-
   Stmt s;
   if (!partition_thread_scope) {
     // [body_begin, post_doubt_begin)
@@ -389,19 +383,13 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
     s = MakeFor(node, post_doubt_begin - body_begin, new_body);
 
-    if (!(pre_stmt.defined() && post_stmt.defined())) {
-        if (as_const_int(body_begin) && as_const_int(post_doubt_begin)) {
-            s = VisitAndMutate(s);
-        }
-    }
-    if (pre_stmt.defined()) {
-        s = Block::make(pre_stmt, s);
-    }
+    if (!(pre_stmt.defined() && post_stmt.defined())) s = VisitAndMutate(s);
+    if (pre_stmt.defined()) s = Block::make(pre_stmt, s);
     if (post_stmt.defined()) {
-        if (as_const_int(max) && as_const_int(post_doubt_begin)) {
-            post_stmt = VisitAndMutate(post_stmt);
-        }
-        s = Block::make(s, post_stmt);
+      if (as_const_int(max) && as_const_int(post_doubt_begin)) {
+        post_stmt = VisitAndMutate(post_stmt);
+      }
+      s = Block::make(s, post_stmt);
     }
   } else {
     Expr cond = const_true();
