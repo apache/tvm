@@ -39,61 +39,51 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
   }
 };
 
-inline std::vector<IndexExpr> GetReduceAxes(const uint32_t indim,
-                                            const std::vector<IndexExpr>& axis,
-                                            bool exclude,
-                                            const TypeReporter& reporter) {
+inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
+                                          const std::vector<int64_t>& axis,
+                                          bool exclude,
+                                          const TypeReporter& reporter) {
   if (axis.size() == 0) {
-    std::vector<IndexExpr> r_axes;
-    r_axes.push_back(make_const(tvm::Int(64), 0));
+    std::vector<int64_t> r_axes;
+    r_axes.push_back(0);
     return r_axes;
   }
-  auto in_dim = make_const(tvm::Int(64), indim);
-  CHECK(reporter->Assert(axis[axis.size() - 1] < in_dim))
+  CHECK(axis[axis.size() - 1] < indim)
     << "Reduction axis " << axis[axis.size() - 1]
     << " exceeds input dimensions " << indim;
 
-  std::vector<IndexExpr> in_axis = axis;
-  auto zero = make_zero(tvm::Int(64));
+  std::vector<int64_t> in_axis = axis;
   for (auto &i : in_axis) {
-    if (reporter->Assert(i < zero)) {
-      i = i + in_dim;
+    if (i < 0) {
+      i = i + indim;
     }
-    CHECK(reporter->Assert(i >= zero))
+    CHECK(i >= 0)
       << "axis out of bounds in reduce operator";
-    CHECK(reporter->Assert(i < make_const(tvm::Int(64), indim)))
+    CHECK(i < indim)
       << "axis out of bounds in reduce operator";
   }
 
-  std::sort(in_axis.begin(),
-            in_axis.end(),
-            [](IndexExpr lhs, IndexExpr rhs){
-                if (const int64_t* pdiff = as_const_int(lhs - rhs)) {
-                  return(pdiff[0] < 0);
-                }
-                return false;
-              });
+  std::sort(in_axis.begin(), in_axis.end());
 
   if (!exclude) {
     return in_axis;
   }
 
   auto r_size = indim - in_axis.size();
-  std::vector<IndexExpr> r_axis(r_size);
+  std::vector<int64_t> r_axis(r_size);
 
   for (uint32_t i = 0, j = 0, k = 0; i < indim; ++i) {
-    auto val = make_const(tvm::Int(64), i);
-    if (j < in_axis.size() && reporter->AssertEQ(in_axis[j], val)) {
+    if (j < in_axis.size() && in_axis[j] == i) {
         ++j;
         continue;
     }
-    r_axis[k++] = val;
+    r_axis[k++] = i;
   }
   return r_axis;
 }
 
 inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_shape,
-                                              const std::vector<IndexExpr> &in_axis,
+                                              const std::vector<int64_t> &in_axis,
                                               bool keepdims,
                                               bool exclude,
                                               const TypeReporter& reporter) {
@@ -111,8 +101,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   if (keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
-      auto val = make_const(tvm::Int(64), i);
-      if (j >= r_axes.size() || !(reporter->AssertEQ(r_axes[j], val))) continue;
+      if (j >= r_axes.size() || !(r_axes[j] == i)) continue;
       oshape[i] = 1;
       ++j;
     }
@@ -122,8 +111,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   auto osize = indim - r_axes.size();
   std::vector<IndexExpr> oshape(osize);
   for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
-    auto val = make_const(tvm::Int(64), i);
-    if (j < r_axes.size() && (reporter->AssertEQ(r_axes[j], val))) {
+    if (j < r_axes.size() && (r_axes[j] == i)) {
       ++j;
       continue;
     }
@@ -149,9 +137,11 @@ bool ReduceRel(const Array<Type>& types,
     in_shape.push_back(i);
   }
 
-  std::vector<IndexExpr> in_axis;
+  std::vector<int64_t> in_axis;
   for (auto i : param->axis) {
-    in_axis.push_back(i);
+    auto axis = as_const_int(i);
+    CHECK(axis != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
+    in_axis.push_back(axis[0]);
   }
 
   // assign output type
