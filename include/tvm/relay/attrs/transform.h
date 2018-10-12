@@ -69,18 +69,18 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
 };
 
 /*! \brief Attributes that specify a tensor */
-struct TensorAttrs : public tvm::AttrsNode<TensorAttrs> {
+struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
   Array<IndexExpr> shape;
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(TensorAttrs, "relay.attrs.TensorAttrs") {
+  TVM_DECLARE_ATTRS(InitOpAttrs, "relay.attrs.InitOpAttrs") {
     TVM_ATTR_FIELD(shape)
       .describe("Target shape.");
     TVM_ATTR_FIELD(dtype)
       .describe("Target data type.")
       .set_default(Int(0));
   }
-};  // struct TensorAttrs
+};  // struct InitOpAttrs
 
 }  // namespace relay
 }  // namespace tvm

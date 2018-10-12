@@ -404,14 +404,14 @@ Examples::
 .set_support_level(2)
 .add_type_rel("Take", TakeRel);
 
-TVM_REGISTER_NODE_TYPE(TensorAttrs);
+TVM_REGISTER_NODE_TYPE(InitOpAttrs);
 
 bool FullRel(const Array<Type>& types,
              int num_inputs,
              const Attrs& attrs,
              const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
-  const TensorAttrs* param = attrs.as<TensorAttrs>();
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
   const auto* fill_value = types[0].as<TensorTypeNode>();
   if (fill_value == nullptr) {
     return false;
@@ -433,7 +433,7 @@ bool FullRel(const Array<Type>& types,
 Expr MakeFull(Expr fill_value,
               Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<TensorAttrs>();
+  auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("full");
@@ -454,12 +454,12 @@ RELAY_REGISTER_OP("full")
 .set_support_level(3)
 .add_type_rel("Full", FullRel);
 
-bool TensorRel(const Array<Type>& types,
+bool InitOpRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
                const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 1);
-  const TensorAttrs* param = attrs.as<TensorAttrs>();
+  const InitOpAttrs* param = attrs.as<InitOpAttrs>();
 
   reporter->Assign(types[0], TensorTypeNode::make(param->shape, param->dtype));
   return true;
@@ -467,7 +467,7 @@ bool TensorRel(const Array<Type>& types,
 
 Expr MakeZeros(Array<IndexExpr> shape,
                DataType dtype) {
-  auto attrs = make_node<TensorAttrs>();
+  auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("zeros");
@@ -485,11 +485,11 @@ RELAY_REGISTER_OP("zeros")
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(0)
 .set_support_level(3)
-.add_type_rel("Tensor", TensorRel);
+.add_type_rel("InitOp", InitOpRel);
 
 Expr MakeOnes(Array<IndexExpr> shape,
               DataType dtype) {
-  auto attrs = make_node<TensorAttrs>();
+  auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   attrs->dtype = std::move(dtype);
   static const Op& op = Op::Get("ones");
@@ -507,7 +507,7 @@ RELAY_REGISTER_OP("ones")
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(0)
 .set_support_level(3)
-.add_type_rel("Tensor", TensorRel);
+.add_type_rel("InitOp", InitOpRel);
 
 bool FullLikeRel(const Array<Type>& types,
                  int num_inputs,
