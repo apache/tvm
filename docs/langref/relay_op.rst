@@ -55,6 +55,7 @@ This level enables typical convnet models.
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
    tvm.relay.nn.batch_flatten
+   tvm.relay.nn.pad
    tvm.relay.nn.lrn
    tvm.relay.nn.l2_normalize
 
