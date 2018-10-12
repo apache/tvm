@@ -56,11 +56,13 @@ impl Graph {
         .as_ref()
         .ok_or(ErrorKind::GraphFormatError(
           "Missing graph attrs".to_string(),
-        ))?.get(attr)
+        ))?
+        .get(attr)
         .ok_or(ErrorKind::GraphFormatError(format!(
           "Missing {} attr",
           attr
-        )))?.to_owned(),
+        )))?
+        .to_owned(),
     )?)
   }
 }
@@ -99,7 +101,8 @@ impl Node {
       .ok_or(format!(
         "Node `{}` is missing attrs.flatten_data",
         self.name
-      ))?.parse::<u8>()?
+      ))?
+      .parse::<u8>()?
       == 1;
     Ok(NodeAttrs {
       func_name,
@@ -189,7 +192,8 @@ impl<'m, 't> GraphExecutor<'m, 't> {
         } else {
           Err(ErrorKind::GraphFormatError(format!("Invalid dltype: {}", dltype).to_string()).into())
         }
-      }).collect::<Result<Vec<DataType>>>()?;
+      })
+      .collect::<Result<Vec<DataType>>>()?;
 
     let align = dtypes.iter().map(|dtype| dtype.bits as usize).max();
     let mut storage_num_bytes = vec![0usize; *storage_ids.iter().max().unwrap_or(&1) + 1];
@@ -216,7 +220,8 @@ impl<'m, 't> GraphExecutor<'m, 't> {
           strides: None,
           byte_offset: 0,
         }
-      }).collect();
+      })
+      .collect();
 
     Ok(tensors)
   }
@@ -261,7 +266,8 @@ impl<'m, 't> GraphExecutor<'m, 't> {
           } else {
             DLTensor::from(tensor)
           })
-        }).collect::<Result<Vec<DLTensor>>>()
+        })
+        .collect::<Result<Vec<DLTensor>>>()
         .unwrap();
       let op: Box<Fn()> = box move || {
         let args = dl_tensors
