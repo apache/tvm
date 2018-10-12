@@ -15,26 +15,91 @@ def infer_type(env, expr):
     Parameters
     ----------
     env : relay.Environment
-        The global environment.
+      The global environment.
 
     expr : relay.Expr
-        The input expression.
+      The input expression.
 
     Returns
     -------
     checked_expr : relay.Expr
-         The checked expression.
+      The checked expression.
     """
     return _ir_pass.infer_type(env, expr)
 
+def well_formed(e):
+    """Check that each Var is only bound once (well formed).
 
-well_formed = _ir_pass.well_formed
+    Parameters
+    ----------
+    e: relay.Expr
+      The input expression
 
-check_kind = _ir_pass.check_kind
+    Returns
+    -------
+    well_form : bool
+      whether the input expression is well formed
+    """
+    return _ir_pass.well_formed(e)
 
-free_vars = _ir_pass.free_vars
+def check_kind(t, env=None):
+    """Check that the type is well kinded.
+    For example, this mean type cannot has tensor of tensor, or is a tuple type of 2 shapes.
 
-free_type_vars = _ir_pass.free_type_vars
+    Parameters
+    ----------
+    t: relay.Type
+      The type to check
+
+    env: relay.Environment, optional
+      The global environment
+
+    Returns
+    -------
+    well_kinded : bool
+      whether the input type is well kinded.
+
+    Examples
+    --------
+    .. code:: python
+
+        assert not check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)]))
+        assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)]))
+    """
+    if env is not None:
+        return _ir_pass.check_kind(t, env)
+    else:
+        return _ir_pass.check_kind(t)
+
+def free_vars(e):
+    """Get free variables from expression e.
+
+    Parameters
+    ----------
+    e: relay.Expr
+      The input expression
+
+    Returns
+    -------
+    free : List[relay.Var]
+      the list of free variables
+    """
+    return _ir_pass.free_vars(e)
+
+def free_type_vars(e):
+    """Get free type variables from expression/type e
+
+    Parameters
+    ----------
+    e: relay.Expr/relay.Type
+      The input expression/type
+
+    Returns
+    -------
+    free : List[relay.TypeParam]
+      the list of free type variables
+    """
+    return _ir_pass.free_type_vars(e)
 
 def dead_code_elimination(e):
     """ Remove expressions which does not effect the program result (dead code).
@@ -59,9 +124,9 @@ def alpha_equal(lhs, rhs):
     ----------
     lhs: relay.Expr
       One of the input Expression.
+
     rhs: relay.Expr
       One of the input Expression.
-
 
     Returns
     -------
