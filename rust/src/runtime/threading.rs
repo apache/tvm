@@ -58,7 +58,8 @@ impl Job {
         },
         cdata: self.cdata,
         pending: Arc::clone(&self.pending),
-      }).collect()
+      })
+      .collect()
   }
 
   /// Waits for all tasks in this `Job` to be completed.
@@ -110,7 +111,8 @@ impl<'a> Threads {
         let (p, c) = bounded_spsc_queue::make(2);
         let handle = thread::spawn(move || cb(c.into()));
         (handle, p)
-      }).unzip();
+      })
+      .unzip();
     Threads {
       handles: handles,
       queues: queues,
@@ -128,7 +130,8 @@ impl<'a> Threads {
         let (p, c) = bounded_spsc_queue::make(2);
         consumer_queues.push_back(c.into());
         p
-      }).collect();
+      })
+      .collect();
     ocall_packed!("__sgx_thread_group_launch__", num_threads as u64);
     Threads { queues: queues }
   }
