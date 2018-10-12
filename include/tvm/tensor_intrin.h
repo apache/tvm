@@ -74,13 +74,13 @@ class TensorIntrinNode : public Node {
     v->Visit("reduce_update", &reduce_update);
   }
 
-  static TensorIntrin make(std::string name,
-                           Operation op,
-                           Array<Tensor> inputs,
-                           Array<Buffer> buffers,
-                           Stmt body,
-                           Stmt reduce_init,
-                           Stmt reduce_update);
+  TVM_DLL static TensorIntrin make(std::string name,
+                                   Operation op,
+                                   Array<Tensor> inputs,
+                                   Array<Buffer> buffers,
+                                   Stmt body,
+                                   Stmt reduce_init,
+                                   Stmt reduce_update);
 
   static constexpr const char* _type_key = "TensorIntrin";
   TVM_DECLARE_NODE_TYPE_INFO(TensorIntrinNode, Node);
@@ -89,7 +89,6 @@ class TensorIntrinNode : public Node {
 inline const TensorIntrinNode* TensorIntrin::operator->() const {
   return static_cast<const TensorIntrinNode*>(node_.get());
 }
-
 
 // Internal node container of tensor intrinsic calling.
 class TensorIntrinCallNode;
