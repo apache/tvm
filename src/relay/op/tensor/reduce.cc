@@ -40,15 +40,13 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
 };
 
 inline std::vector<IndexExpr> GetReduceAxes(const uint32_t indim,
-                              const std::vector<IndexExpr>& axis,
-                              bool exclude,
-                              const TypeReporter& reporter) {
+                                            const std::vector<IndexExpr>& axis,
+                                            bool exclude,
+                                            const TypeReporter& reporter) {
   if (axis.size() == 0) {
     std::vector<IndexExpr> r_axes;
-    for (uint32_t i = 0; i < indim; i++) {
-      r_axes.push_back(make_const(tvm::Int(64), i));
-      return r_axes;
-    }
+    r_axes.push_back(make_const(tvm::Int(64), 0));
+    return r_axes;
   }
   auto in_dim = make_const(tvm::Int(64), indim);
   CHECK(reporter->Assert(axis[axis.size() - 1] < in_dim))
@@ -135,9 +133,9 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
 }
 
 bool ReduceRel(const Array<Type>& types,
-              int num_inputs,
-              const Attrs& attrs,
-              const TypeReporter& reporter) {
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
