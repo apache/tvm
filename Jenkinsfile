@@ -139,6 +139,7 @@ stage('Build') {
         timeout(time: max_time, unit: 'MINUTES') {
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_cpp_unittest.sh"
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_python_vta.sh"
+          sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_rust.sh"
         }
       }
     }
