@@ -6,7 +6,7 @@ class Executor(object):
     Allows submit asynchronous jobs and returns the Future object.
     """
     # timeout for jobs that may hang
-    DEFAULT_TIMEOUT = 60
+    DEFAULT_TIMEOUT = 120
 
     def submit(self, func, *args, **kwargs):
         """

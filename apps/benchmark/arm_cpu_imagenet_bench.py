@@ -14,7 +14,7 @@ import nnvm.testing
 from util import get_network, print_progress
 
 
-def evaluate_network(network, target, target_host, number):
+def evaluate_network(network, target, target_host, repeat):
     # connect to remote device
     tracker = tvm.rpc.connect_tracker(args.host, args.port)
     remote = tracker.request(args.rpc_key)
@@ -50,7 +50,7 @@ def evaluate_network(network, target, target_host, number):
 
     # evaluate
     print_progress("%-20s evaluating..." % network)
-    ftimer = module.module.time_evaluator("run", ctx, number=args.number, repeat=3)
+    ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=repeat)
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
     print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
 
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
-    parser.add_argument("--number", type=int, default=3)
+    parser.add_argument("--repeat", type=int, default=10)
     args = parser.parse_args()
 
     dtype = 'float32'
@@ -87,5 +87,5 @@ if __name__ == "__main__":
     print("%-20s %-20s" % ("Network Name", "Mean Inference Time (std dev)"))
     print("--------------------------------------------------")
     for network in networks:
-        evaluate_network(network, target, target_host, args.number)
+        evaluate_network(network, target, target_host, args.repeat)
 
