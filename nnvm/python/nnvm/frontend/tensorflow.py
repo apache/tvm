@@ -64,10 +64,9 @@ def _math_name_picker(surfix):
 def _dimension_picker(prefix, surfix=''):
     def _impl(attr):
         kernel = attr['kernel_shape']
-        if len(kernel) == 2:
-            return prefix + '2d' + surfix
-        else:
+        if len(kernel) != 2:
             raise NotImplementedError("Only 2d kernel supported.")
+        return prefix + '2d' + surfix
     return _impl
 
 def _dimension_constraint():
@@ -1053,10 +1052,6 @@ class GraphProto(object):
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
-        if shape_dict is not None:
-            self._params.update(shape_dict)
-            self._num_param = len(shape_dict)
-
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
@@ -1068,6 +1063,10 @@ class GraphProto(object):
         if missing_operators:
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
+
+        # Find output nodes
+        probable_outputs = self._get_probable_outputs(graph)
+        out = []
 
         # Parse the nodes to re-create TF graph using Symbol API of NNVM
         for node in graph.node:
@@ -1113,7 +1112,11 @@ class GraphProto(object):
                 if node.input[0] in self._output_shapes:
                     input_shape = self._output_shapes[node.input[0]][0]
                 elif shape_dict is not None:
-                    input_shape = _infer_out_shapes(inputs[0], params)[0]
+                    shapes = {}
+                    shapes.update(self._params)
+                    for k, v in shape_dict.items():
+                        shapes[k] = tvm.nd.array(np.asarray(v))
+                    input_shape = _infer_out_shapes(inputs[0], shapes)[0]
                 else:
                     raise NotImplementedError("Shape not supported by NNVM")
                 self._params[node.name] = tvm.nd.array(np.asarray(input_shape))
@@ -1154,20 +1157,34 @@ class GraphProto(object):
                 op = self._convert_operator(node.op, inputs, attr, graph)
                 # Assuming only one output.
                 self._nodes[node.name] = op
-                node_output = op
-
-        # Assume the final node is the output node
-        out = node_output
+                if node.name in probable_outputs:
+                    out.append(op)
 
         #Add the RNN outputs also with 'head' nodes of the nnvm graph
         if self._num_rnn_layer:
             out_rnn = _sym.concatenate(*self._out_rnn, axis=0)
-            out = [out, out_rnn]
+            out.append(out_rnn)
 
         if isinstance(out, list):
             out = _sym.Group(out)
 
         return out, self._params
+
+    def _get_probable_outputs(self, graph):
+        outputs = []
+        for node in graph.node:
+            outputs.append(node.name)
+        for node in graph.node:
+            for i in node.input:
+                if i in outputs:
+                    outputs.remove(i)
+        for node in graph.node:
+            if node.name in outputs:
+                if node.op == "Const" or node.op == "Variable" or \
+                   node.op == "Variable2" or node.op == "Assign" or \
+                   node.op == "CheckNumerics":
+                    outputs.remove(node.name)
+        return outputs
 
     def _parse_import_prerequisites(self, graph):
         """ Calculate the named preconditions from TensorFlow `graph`.
