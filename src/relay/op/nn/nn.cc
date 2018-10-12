@@ -37,17 +37,9 @@ bool DenseRel(const Array<Type>& types,
     Array<tvm::Expr> dshape = data->shape;
 
     // validate the weight shape is proper if defined
-    if (weight != nullptr) {
-      CHECK(reporter->AssertEQ(weight->shape[0], dshape[dshape.size() - 1]))
-        << "Dense: shape of weight is inconsistent with input data.";
-      CHECK(reporter->AssertEQ(weight->shape[1], param->units))
-        << "Dense: shape of weight is inconsistent with units.";
-    } else {
-      // Assign weight type
-      std::vector<IndexExpr> wshape({dshape[dshape.size() - 1], param->units});
-      reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
-    }
-
+    // Assign weight type
+    Array<IndexExpr> wshape({dshape[dshape.size() - 1], param->units});
+    reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
