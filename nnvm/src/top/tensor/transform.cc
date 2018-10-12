@@ -348,10 +348,10 @@ inline bool SplitInferShape(const NodeAttrs& attrs,
   if (axis < 0) {
     axis += dshape.ndim();
   }
-  CHECK_LT(param.axis, dshape.ndim())
+  CHECK_LT(axis, dshape.ndim())
     << "axis should be with in input dimension range";
-  CHECK_GT(param.axis, 0)
-    << "axis should be with in input dimension range";
+  CHECK_GT(axis, -1)
+    << "axis should be with in input dimension range " << axis;
 
   if (param.equal_split) {
     int num_outputs = param.indices_or_sections[0];

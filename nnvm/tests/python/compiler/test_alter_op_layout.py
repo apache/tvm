@@ -20,7 +20,7 @@ def test_alter_conv2d_layout():
                       kernel_size=(3,3), padding=(1,1),
                       use_bias=False, layout="NCHW")
     # split here
-    convs = sym.split(conv, indices_or_sections=2)
+    convs = sym.split(conv, indices_or_sections=2, axis=1)
     relus = [sym.relu(x, name="relu") for x in convs]
     relu = sym.concatenate(*relus)
     flatten = sym.flatten(relu, name="flatten")
