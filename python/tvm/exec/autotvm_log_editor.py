@@ -10,9 +10,9 @@ from .. import autotvm
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--act", type=str, choices=['pick-best'],
+    parser.add_argument("--act", type=str, choices=['pick-best'], required=True,
                         help="The action")
-    parser.add_argument("--i", type=str, help="The input file or directory")
+    parser.add_argument("--i", type=str, help="The input file or directory", required=True)
     parser.add_argument("--o", type=str, help="The output file")
 
     args = parser.parse_args()
