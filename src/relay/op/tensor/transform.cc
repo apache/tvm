@@ -891,6 +891,122 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
 .set_support_level(10)
 .add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+// strided_slice
+TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
+bool StridedSliceRel(const Array<Type>& types,
+                 int num_inputs,
+                 const Attrs& attrs,
+                 const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  if (data->shape.size() == 0) return false;
+
+  const StridedSliceAttrs *param = attrs.as<StridedSliceAttrs>();
+  CHECK(param != nullptr);
+
+  auto dshape = data->shape;
+  auto num_axis = dshape.size();
+
+  std::vector<IndexExpr> begin_vec;
+  for (auto i : param->begin) {
+    begin_vec.push_back(i);
+  }
+  for (auto i = begin_vec.size(); i < num_axis; ++i) {
+    begin_vec.push_back(0);
+  }
+
+  std::vector<IndexExpr> end_vec;
+  for (auto i : param->end) {
+    end_vec.push_back(i);
+  }
+  for (auto i = end_vec.size(); i < num_axis; ++i) {
+    end_vec.push_back(dshape[i]);
+  }
+
+  std::vector<IndexExpr> stride_vec;
+  for (auto i : param->stride) {
+    stride_vec.push_back(i);
+  }
+  for (auto i = stride_vec.size(); i < num_axis; ++i) {
+    stride_vec.push_back(1);
+  }
+  std::vector<IndexExpr> oshape(dshape.size());
+
+  #define MAX(a, b) (reporter->Assert((a) > (b)) ? (a) : (b))
+  #define MIN(a, b) (reporter->Assert((a) < (b)) ? (a) : (b))
+
+  for (size_t i = 0; i < num_axis; ++i) {
+      auto begin_range = reporter->Assert(stride_vec[i] < 0) ? -1 : 0;
+      auto end_range = reporter->Assert(stride_vec[i] < 0) ? dshape[i] - 1 : dshape[i];
+      auto begin = reporter->Assert(begin_vec[i] < 0) ? dshape[i] + begin_vec[i] : begin_vec[i];
+      auto end = reporter->Assert(end_vec[i] < 0) ? dshape[i] + end_vec[i] : end_vec[i];
+
+      begin = MIN(MAX(begin, begin_range), end_range);
+      end = MIN(MAX(end, begin_range), end_range);
+      auto interval = abs((end - begin));
+      auto slice_size = (interval + abs(stride_vec[i]) - 1) / abs(stride_vec[i]);
+
+      CHECK(reporter->Assert(stride_vec[i] < 0) ?
+              reporter->Assert(end < begin) : reporter->Assert(begin < end))
+        << ": Input [Begin=" << begin_vec[i] << ", End=" << end_vec[i]
+        << "] is invalid for axis=" << i;
+      oshape[i] = slice_size;
+  }
+
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+
+// Positional relay function to create StridedSlice operator used by frontend FFI.
+Expr MakeStridedSlice(Expr data,
+                     Array<IndexExpr> begin,
+                     Array<IndexExpr> end,
+                     Array<IndexExpr> stride) {
+  auto attrs = make_node<StridedSliceAttrs>();
+  attrs->begin = std::move(begin);
+  attrs->end = std::move(end);
+  attrs->stride = std::move(stride);
+  static const Op& op = Op::Get("strided_slice");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op._make.strided_slice")
+  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
+      runtime::detail::unpack_call<Expr, 4>(MakeStridedSlice, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("strided_slice")
+    .describe(R"code(Strided slice of an array.
+
+Examples::
+
+  x = [[  1.,   4.,   7.,  10.],
+       [  2.,   5.,   8.,  11.],
+       [  3.,   6.,   9.,  12.]]
+
+  strided_slice(x, begin=[0, 1], end=[2, 4], stride=[1, 1]) = [[ 4.,  7.,  10.],
+                                                               [ 5.,  8.,  11.]]
+
+  x = [[[ 1.,  2.],
+        [ 3.,  4.]],
+
+       [[ 5.,  6.],
+        [ 7.,  8.]]]
+
+  strided_slice(x, begin=[0, 0], end=[2, 2]) = [[[ 1.,  2.],
+                                                 [ 3.,  4.]],
+
+                                                [[ 5.,  6.],
+                                                 [ 7.,  8.]]]
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(4)
+.add_type_rel("StridedSlice", StridedSliceRel);
 
 // Split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
