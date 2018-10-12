@@ -860,9 +860,9 @@ bool SplitRel(const Array<Type>& types,
 
   if (param->equal_split) {
     const auto num_outputs = as_const_int(param->indices_or_sections[0]);
-    // CHECK(reporter->Assert(data->shape[axis] %
-    //                       param->indices_or_sections[0] == make_zero(Int(64))))
-    //      << "indices_or_sections need to be able to divide input.shape[axis]";
+    CHECK(reporter->Assert(data->shape[axis] %
+                           param->indices_or_sections[0] == make_zero(Int(64))))
+        << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
     for (int i = 0; i < *num_outputs; ++i) {
         std::vector<IndexExpr>&& oshape = AsVector(data->shape);
@@ -876,16 +876,16 @@ bool SplitRel(const Array<Type>& types,
     auto begin = make_zero(Int(32));
     std::vector<Type> fields;
     for (uint i = 0; i < num_outputs - 1; ++i) {
-      // CHECK(reporter->Assert(param->indices_or_sections[i] > begin))
-      //    << "indices_or_sections need to be a sorted ascending list";
+      CHECK(reporter->Assert(param->indices_or_sections[i] > begin))
+          << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr>&& oshape = AsVector(data->shape);
       oshape[axis] = param->indices_or_sections[i] - begin;
       begin = param->indices_or_sections[i];
       auto vec_type = TensorTypeNode::make(oshape, data->dtype);
       fields.push_back(vec_type);
     }
-    // CHECK(reporter->Assert(begin < data->shape[axis]))
-    //    << "The sum of sections must match the input.shape[axis]";
+    CHECK(reporter->Assert(begin < data->shape[axis]))
+        << "The sum of sections must match the input.shape[axis]";
     std::vector<IndexExpr>&& oshape = AsVector(data->shape);
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
