@@ -91,7 +91,9 @@ python3 -m tvm.exec.rpc_tracker
   python3 arm_cpu_imagenet_bench.py --model pixel2 --rpc-key pixel2
   python3 arm_cpu_imagenet_bench.py --model p20pro --rpc-key p20pro
   python3 arm_cpu_imagenet_bench.py --model mate10pro --rpc-key mate10pro  
+  ```
 
+  ```bash
   # Mali GPU
   # NOTE: To make the test environment more stable, we close GUI and lock the frequency
   sudo /etc/init.d/lightdm stop
