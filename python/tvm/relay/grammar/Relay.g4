@@ -102,11 +102,9 @@ type_
   | '(' type_ ',' ')'                         # tupleType
   | '(' type_ (',' type_)+ ')'                # tupleType
   | identType                                 # identTypeType
-  | identType '(' (type_ (',' type_)*)? ')'   # callType
   | identType '[' (type_ (',' type_)*)? ']'   # callType
   | '(' (type_ (',' type_)*)? ')' '->' type_  # funcType
   // Mut, Int, UInt, Float, Bool, Tensor
-  // | type_ '.' INT                           # projectType
   | INT                                       # intType
   | '_'                                       # incompleteType
   ;

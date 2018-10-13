@@ -273,6 +273,27 @@ else(INSTALL_DEV)
     )
 endif(INSTALL_DEV)
 
+# ANTLR4 build definitions
+# find_program(ANTLR4 antlr4)
+
+# set(RELAY_PARSER_DIR
+#   ${CMAKE_CURRENT_SOURCE_DIR}/relay/python/relay/parser)
+
+# set(RELAY_PARSER
+#   ${RELAY_PARSER_DIR}/RelayVisitor.py
+#   ${RELAY_PARSER_DIR}/RelayParser.py
+#   ${RELAY_PARSER_DIR}/RelayLexer.py)
+
+# if(ANTLR4)
+#   # Generate ANTLR grammar for parsing.
+#   add_custom_command(OUTPUT ${RELAY_PARSER}
+#     COMMAND antlr4 -visitor -no-listener -Dlanguage=Python3 ${RELAY_PARSER_DIR}/Relay.g4 -o ${RELAY_PARSER_DIR}
+#     DEPENDS ${RELAY_PARSER_DIR}/Relay.g4
+#     WORKING_DIRECTORY ${RELAY_PARSER_DIR})
+# endif()
+
+# add_custom_target(relay_parser ALL DEPENDS ${RELAY_PARSER})
+
 # More target definitions
 if(MSVC)
   target_compile_definitions(tvm PRIVATE -DHalide_EXPORTS)
