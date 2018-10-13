@@ -335,10 +335,7 @@ def test_call_type():
     # let %_ : Int(0, 1) = (); ()
     for call_type, arity in CALL_TYPES.items():
         for i in range(1, arity + 1):
-            # custom tuple printing to avoid hanging comma for one-tuples
-            tup = "(" + ",".join([str(num) for num in range(i)]) + ")"
-            print("let %_ : {}{} = (); ()".format(call_type, tup))
-            parse_expr("let %_ : {}{} = (); ()".format(call_type, tup))
+            parse_expr("let %_ : {}{} = (); ()".format(call_type, range(i)))
 
 def test_function_type():
     assert alpha_equal(
