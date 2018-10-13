@@ -102,7 +102,7 @@ def test_argmax():
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -113,7 +113,7 @@ def test_argmax():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -124,7 +124,7 @@ def test_argmax():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "int32")
 
 def test_argmin():
     ib = relay.ir_builder.IRBuilder()
@@ -135,7 +135,7 @@ def test_argmin():
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -146,7 +146,7 @@ def test_argmin():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -157,7 +157,7 @@ def test_argmin():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -168,7 +168,7 @@ def test_argmin():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((1, c , h, 1), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((1, c , h, 1), "int32")
 
     ib = relay.ir_builder.IRBuilder()
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -179,7 +179,7 @@ def test_argmin():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((1, c , h, w), "float32")
+    assert ftype.ret_type == relay.ty.TensorType((1, c , h, w), "int32")
 
 def test_where():
     ib = relay.ir_builder.IRBuilder()

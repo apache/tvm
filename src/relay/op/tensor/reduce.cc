@@ -83,22 +83,29 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 }
 
 inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_shape,
-                                              const std::vector<int64_t> &in_axis,
-                                              bool keepdims,
-                                              bool exclude,
+                                              const ReduceAttrs* param,
                                               const TypeReporter& reporter) {
+  std::vector<int64_t> in_axis;
+  for (auto i : param->axis) {
+    auto axis = as_const_int(i);
+    CHECK(axis != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
+    in_axis.push_back(axis[0]);
+  }
+
   uint32_t indim = in_shape.size();
-  auto r_axes = GetReduceAxes(indim, in_axis, exclude, reporter);
-  if (!r_axes.size()) return in_shape;
+  auto r_axes = GetReduceAxes(indim, in_axis, param->exclude, reporter);
+  if (!r_axes.size()) {
+    return in_shape;
+  }
   if (r_axes.size() == indim) {
     auto dim = 1;
-    if (keepdims) {
+    if (param->keepdims) {
       dim = indim;
       }
     return std::vector<IndexExpr>(dim);
   }
   CHECK(r_axes.size() < indim);
-  if (keepdims) {
+  if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
       if (j >= r_axes.size() || !(r_axes[j] == i)) continue;
@@ -120,7 +127,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   return oshape;
 }
 
-bool ReduceRel(const Array<Type>& types,
+bool ArgReduceRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
                const TypeReporter& reporter) {
@@ -128,30 +135,17 @@ bool ReduceRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   CHECK(static_cast<int>(data->shape.size()) != 0);
-
-  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
-  CHECK(param != nullptr);
-
   std::vector<IndexExpr> in_shape;
   for (auto i : data->shape) {
     in_shape.push_back(i);
   }
 
-  std::vector<int64_t> in_axis;
-  for (auto i : param->axis) {
-    auto axis = as_const_int(i);
-    CHECK(axis != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
-    in_axis.push_back(axis[0]);
-  }
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
 
-  // assign output type
-  auto oshape = ReduceShapeImpl(in_shape,
-                                in_axis,
-                                param->keepdims,
-                                param->exclude,
-                                reporter);
-  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
-
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, Int(32)));
   return true;
 }
 
@@ -175,8 +169,7 @@ Expr MakeReduce(Expr data,
     });                                                            \
   RELAY_REGISTER_OP(OpName)                                        \
   .set_num_inputs(1)                                              \
-  .add_argument("data", "Tensor", "The input tensor.")            \
-  .add_type_rel("Reduce", ReduceRel)
+  .add_argument("data", "Tensor", "The input tensor.")
 
 
 RELAY_REGISTER_REDUCE_OP("argmax")
@@ -185,7 +178,8 @@ values over a given axis.
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_support_level(4);
+.set_support_level(4)
+.add_type_rel("ArgReduce", ArgReduceRel);
 
 
 RELAY_REGISTER_REDUCE_OP("argmin")
@@ -194,7 +188,8 @@ values over a given axis.
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
-.set_support_level(4);
+.set_support_level(4)
+.add_type_rel("ArgReduce", ArgReduceRel);
 
 }  // namespace relay
 }  // namespace tvm
