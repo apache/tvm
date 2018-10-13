@@ -484,6 +484,25 @@ def left_shift(lhs, rhs):
     return _make.left_shift(lhs, rhs)
 
 
+def zeros(shape, dtype):
+    """Fill array with zeros.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        The shape of the target.
+
+    dtype : data type
+        The data type of the target.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.zeros(shape, dtype)
+
+
 def zeros_like(data):
     """Returns an array of zeros, with same type and shape as the input.
 
@@ -498,6 +517,25 @@ def zeros_like(data):
         The computed result.
     """
     return _make.zeros_like(data)
+
+
+def ones(shape, dtype):
+    """Fill array with ones.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        The shape of the target.
+
+    dtype : data type
+        The data type of the target.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.ones(shape, dtype)
 
 
 def ones_like(data):
