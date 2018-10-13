@@ -599,6 +599,7 @@ bool SqueezeRel(const Array<Type>& types,
     return false;
   }
   const auto* param = attrs.as<SqueezeAttrs>();
+  CHECK(param != nullptr);
   std::vector<IndexExpr> result_shape;
   // if axes is empty, squeeze all axes of dimension 1
   if (param->axes.size() == 0) {
