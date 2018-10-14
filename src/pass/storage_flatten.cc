@@ -59,7 +59,8 @@ class StorageFlattener : public IRMutator {
     if (op->attr_key == attr::realize_scope) {
       storage_scope_[op->node.get()] = op->value.as<StringImm>()->value;
       return this->Mutate(op->body);
-    } else if (op->attr_key == attr::double_buffer_scope) {
+    } else if (op->attr_key == attr::double_buffer_scope &&
+               op->node.node_->derived_from<OperationNode>()) {
       Operation func(op->node.node_);
       Stmt body = Mutate(op->body);
       for (int i = 0; i < func->num_outputs(); ++i) {
