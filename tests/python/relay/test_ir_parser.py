@@ -56,6 +56,7 @@ def to_tensor_type(x):
     # type: (str) -> relay.TensorType
     return relay.TensorType([], x)
 
+_ = relay.Var("_")
 X = relay.Var("x")
 Y = relay.Var("y")
 
@@ -114,6 +115,7 @@ def test_op_assoc():
     assert alpha_equal(parse_expr("1 * 1 + 1 < 1 == 1"), parse_expr("(((1 * 1) + 1) < 1) == 1"))
     assert alpha_equal(parse_expr("1 == 1 < 1 + 1 * 1"), parse_expr("1 == (1 < (1 + (1 * 1)))"))
 
+@nottest
 def test_vars():
     # temp vars won't work b/c they start with a digit
     # # temp var
@@ -141,7 +143,7 @@ def test_let():
         parse_expr("let %x = 1; ()"),
 
         relay.Let(
-            relay.Var("x"),
+            X,
             to_constant(1),
             UNIT,
             TYPE_HOLE
@@ -153,7 +155,7 @@ def test_seq():
         parse_expr("(); ()"),
 
         relay.Let(
-            relay.Var("_"),
+            _,
             UNIT,
             UNIT,
             TYPE_HOLE)
@@ -161,7 +163,7 @@ def test_seq():
 
     assert alpha_equal(
         parse_expr("{ (); () }; ()"),
-
+        # Can't use _ constant, because the _'s are different.
         relay.Let(
             relay.Var("_"),
             relay.Let(relay.Var("_"), UNIT, UNIT, TYPE_HOLE),
@@ -228,10 +230,12 @@ def test_func():
     # annotations
     assert alpha_equal(
         parse_expr("fn (%x: Int64) -> Int64 { %x }"),
-        [relay.Param(X, int64)],
-        int64,
-        X,
-        []
+        relay.Function(
+            [relay.Param(X, int64)],
+            int64,
+            X,
+            []
+        )
     )
 
 # TODO(@jmp): Figure out why this is crashing.
@@ -273,63 +277,117 @@ def test_ifelse_scope():
 
 def test_call():
     # 0 args
-    parse_expr(
+    constant = relay.Var("constant")
+    assert alpha_equal(
+        parse_expr(
         """
         let %constant = fn () -> { 0 };
         %constant()
         """
+        ),
+        relay.Let(
+            constant,
+            relay.Function([], TYPE_HOLE, to_constant(0), []),
+            relay.Call(constant, [], None, None),
+            TYPE_HOLE
+        )
     )
 
-    # assert alpha_equal(
-    #     parse_expr(
-    #     """
-    #     let %constant = fn () -> { 0 };
-    #     %constant()
-    #     """
-    #     ),
-    #     relay.Let(
-    #         relay.Var("constant"),
-    #         relay.Function([], TYPE_HOLE, to_constant(0), []),
-    #         relay.Call(relay.Var("constant"), [], None, None),
-    #         TYPE_HOLE
-    #     )
-    # )
-
     # 1 arg
-    parse_expr(
-        """
-        let %id = fn (%x) -> { %x };
-        %id(1)
-        """
+    id_var = relay.Var("id")
+    assert alpha_equal(
+        parse_expr(
+            """
+            let %id = fn (%x) -> { %x };
+            %id(1)
+            """
+        ),
+        relay.Let(
+            id_var,
+            relay.Function([relay.Param(X, TYPE_HOLE)], TYPE_HOLE, X, []),
+            relay.Call(id_var, [to_constant(1)], None, None),
+            TYPE_HOLE
+        )
     )
 
     # 2 args
-    parse_expr(
+    multiply = relay.Var("multiply")
+    assert alpha_equal(
+        parse_expr(
         """
         let %multiply = fn (%x, %y) -> { %x * %y };
         %multiply(0, 0)
         """
+        ),
+        relay.Let(
+            multiply,
+            relay.Function(
+                [relay.Param(X, TYPE_HOLE), relay.Param(Y, TYPE_HOLE)],
+                TYPE_HOLE,
+                relay.multiply(X, Y),
+                []
+            ),
+            relay.Call(multiply, [to_constant(0), to_constant(0)], None, None),
+            TYPE_HOLE
+        )
     )
 
     # anonymous function
-    parse_expr(
+    assert alpha_equal(
+        parse_expr(
         """
         (fn (%x) -> { %x })(0)
         """
+        ),
+        relay.Call(
+            relay.Function(
+                [relay.Param(X, TYPE_HOLE)],
+                TYPE_HOLE,
+                X,
+                []
+            ),
+            [to_constant(0)],
+            None,
+            None
+        )
     )
 
     # curried function
-    parse_expr(
-        """
-        let %curried_mult =
-            fn (%x) -> {
-            fn (%y) -> {
-                %x * %y
-            }
-            };
-        %curried_mult(0);
-        %curried_mult(0)(0)
-        """
+    curried_mult = relay.Var("curried_mult")
+    alpha_equal(
+        parse_expr(
+            """
+            let %curried_mult =
+                fn (%x) -> {
+                fn (%y) -> {
+                    %x * %y
+                }
+                };
+            %curried_mult(0);
+            %curried_mult(0)(0)
+            """
+        ),
+        relay.Let(
+            curried_mult,
+            relay.Function(
+                [relay.Param(X, TYPE_HOLE)],
+                TYPE_HOLE,
+                relay.Function(
+                    [relay.Param(Y, TYPE_HOLE)],
+                    TYPE_HOLE,
+                    relay.multiply(X, Y),
+                    []
+                ),
+                []
+            ),
+            relay.Let(
+                _,
+                relay.Call(curried_mult, [to_constant(0)], None, None),
+                relay.Call(relay.Call(curried_mult, [to_constant(0)], None, None), [to_constant(0)], None, None),
+                TYPE_HOLE
+            ),
+            TYPE_HOLE
+        )
     )
 
 # Types
@@ -340,11 +398,13 @@ def test_builtin_types():
 
 def test_call_type():
     # tests e.g.
-    # let %_ : Int(0) = (); ()
-    # let %_ : Int(0, 1) = (); ()
+    # let %_ : Int[0] = (); ()
+    # let %_ : Int[0, 1] = (); ()
     for call_type, arity in CALL_TYPES.items():
-        for i in range(1, arity + 1):
-            parse_expr("let %_ : {}{} = (); ()".format(call_type, range(i)))
+        args = []
+        for i in range(arity):
+            args.append(i)
+            parse_expr("let %_ : {}{} = (); ()".format(call_type, args))
 
 def test_function_type():
     assert alpha_equal(
@@ -354,7 +414,7 @@ def test_function_type():
             """
         ),
         relay.Let(
-            relay.Var("_"),
+            _,
             relay.Function([], int64, to_constant(0), []),
             UNIT,
             relay.FuncType([], int64, [], [])
@@ -368,8 +428,8 @@ def test_function_type():
             """
         ),
         relay.Let(
-            relay.Var("_"),
-            relay.Function([relay.Param(relay.Var("x"), int64)], int64, to_constant(0), []),
+            _,
+            relay.Function([relay.Param(X, int64)], int64, to_constant(0), []),
             UNIT,
             relay.FuncType([int64], int64, [], [])
         )
@@ -382,8 +442,8 @@ def test_function_type():
             """
         ),
         relay.Let(
-            relay.Var("_"),
-            relay.Function([relay.Param(relay.Var("x"), int64), relay.Param(relay.Var("y"), int64)], int64, to_constant(0), []),
+            _,
+            relay.Function([relay.Param(X, int64), relay.Param(Y, int64)], int64, to_constant(0), []),
             UNIT,
             relay.FuncType([int64, int64], int64, [], [])
         )
@@ -396,7 +456,7 @@ def test_tuple_type():
         let %_: () = (); ()
         """),
         relay.Let(
-            relay.Var("_"),
+            _,
             UNIT,
             UNIT,
             relay.TupleType([])
@@ -409,7 +469,7 @@ def test_tuple_type():
         let %x: (Int64,) = (0,); ()
         """),
         relay.Let(
-            relay.Var("x"),
+            X,
             relay.Tuple([to_constant(0)]),
             UNIT,
             relay.TupleType([int64])
@@ -422,7 +482,7 @@ def test_tuple_type():
         let %x: (Int64, Int64) = (0, 1); ()
         """),
         relay.Let(
-            relay.Var("x"),
+            X,
             relay.Tuple([to_constant(0), to_constant(1)]),
             UNIT,
             relay.TupleType([int64, int64])

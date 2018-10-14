@@ -73,9 +73,9 @@ expr
 
   // sequencing
   | 'let' MUT? ident (':' type_)? '=' expr ';' expr  # seq
-  // sugar for let _ = expr; expr
+  // sugar for let %_ = expr; expr
   | expr ';' expr                         # seq
-  // sugar for let _ = expr; expr
+  // sugar for let %_ = expr; expr
   | '{' expr '}' ';' expr                 # seq
 
   // mutable update
