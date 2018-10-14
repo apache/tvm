@@ -11,7 +11,7 @@ class Expr(NodeBase):
     """The base type for all Relay expressions."""
     @property
     def checked_type(self):
-        """Get the checked type of tvm.relay.
+        """Get the checked type of tvm.relay.Expr.
 
         Returns
         -------
@@ -30,7 +30,7 @@ class Expr(NodeBase):
 
 @register_relay_node
 class Constant(Expr):
-    """A constant expression in Tvm.Relay.
+    """A constant expression in Relay.
 
     Parameters
     ----------
@@ -47,7 +47,7 @@ class Tuple(Expr):
 
     Parameters
     ----------
-    fields : list of tvm.relay.Expr.
+    fields : List[tvm.relay.Expr]
         The fields in the tuple.
     """
     def __init__(self, fields):
@@ -98,7 +98,7 @@ class Function(Expr):
 
     Parameters
     ----------
-    params: list of tvm.relay.Var
+    params: List[tvm.relay.Var]
         List of input parameters to the function.
 
     ret_type: tvm.relay.Type
@@ -107,7 +107,7 @@ class Function(Expr):
     body: tvm.relay.Expr
         The body of the function.
 
-    type_params: list of tvm.relay.TypeParam
+    type_params: Optional[List[tvm.relay.TypeParam]]
         The additional type parameters, this is only
         used in advanced usecase of template functions.
     """
@@ -135,13 +135,13 @@ class Call(Expr):
     op: tvm.relay.Op or any tvm.relay.Expr with function type.
         The operation to be called.
 
-    args: list of tvm.relay.Expr
+    args: List[tvm.relay.Expr]
         The arguments to the call.
 
-    attrs: tvm.Attrs, optional
+    attrs: Optional[tvm.Attrs]
         Attributes to the call, can be None
 
-    type_args: list of tvm.relay.Type
+    type_args: Optional[List[tvm.relay.Type]]
         The additional type arguments, this is only
         used in advanced usecase of template functions.
     """
@@ -159,10 +159,10 @@ class Let(Expr):
     Parameters
     ----------
     var: tvm.relay.Var
-        The local variable to be binded.
+        The local variable to be bound.
 
     value: tvm.relay.Expr
-        The value to be binded.
+        The value to be bound.
 
     body: tvm.relay.Expr
         The body of the let binding.

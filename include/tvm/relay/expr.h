@@ -369,7 +369,7 @@ RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
 class TupleGetItem;
 class TupleGetItemNode : public ExprNode {
  public:
-  /*! \brief The tuple expression */
+  /*! \brief The tuple Expression */
   Expr tuple;
   /*! \brief which value to get */
   int index;
