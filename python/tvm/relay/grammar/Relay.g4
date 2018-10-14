@@ -94,7 +94,15 @@ defn: 'def' ident paramList '->' type_? body ;
 paramList: '(' (param (',' param)*)? ')' ;
 param: ident (':' type_)? ;
 
+// TODO(@jmp): for improved type annotations
+// typeAnno: ':' type_ ;
+// returnAnno: (ident ':')? type_ ;
+
+// relations: 'where' relation (',' relation)* ;
+// relation: ident '(' (type_ (',' type_)*)? ')' ;
+
 type_
+  // TODO(@jmp): for shape expressions
   // : '(' type_ ')'                           # parensType
   // | type_ op=('*'|'/') type_                # binOpType
   // | type_ op=('+'|'-') type_                # binOpType
@@ -106,7 +114,7 @@ type_
   | '(' (type_ (',' type_)*)? ')' '->' type_  # funcType
   // Mut, Int, UInt, Float, Bool, Tensor
   | INT                                       # intType
-  | '_'                                       # incompleteType
+  // | '_'                                       # incompleteType
   ;
 
 identType: CNAME ;
