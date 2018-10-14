@@ -2,6 +2,7 @@ import tvm
 from tvm import relay
 from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
 from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.expr import pretty_print
 from nose.tools import nottest, raises
 from typing import Union
 
@@ -54,6 +55,9 @@ def to_constant(x):
 def to_tensor_type(x):
     # type: (str) -> relay.TensorType
     return relay.TensorType([], x)
+
+X = relay.Var("x")
+Y = relay.Var("y")
 
 int64 = to_tensor_type("int64")
 
@@ -110,7 +114,6 @@ def test_op_assoc():
     assert alpha_equal(parse_expr("1 * 1 + 1 < 1 == 1"), parse_expr("(((1 * 1) + 1) < 1) == 1"))
     assert alpha_equal(parse_expr("1 == 1 < 1 + 1 * 1"), parse_expr("1 == (1 < (1 + (1 * 1)))"))
 
-@nottest
 def test_vars():
     # temp vars won't work b/c they start with a digit
     # # temp var
@@ -119,15 +122,14 @@ def test_vars():
     # assert temp_var.name == "1"
 
     # var
-    # var = parse_expr("let %foo = 0; %foo")
-    var = parse_expr("%foo")
+    var = parse_expr("let %foo = (); %foo")
     assert isinstance(var.body, relay.Var)
-    assert var.body.name == "foo"
+    assert var.body.name_hint == "foo"
 
     # global var
     global_var = parse_expr("@foo")
     assert isinstance(global_var, relay.GlobalVar)
-    assert global_var.name == "foo"
+    assert global_var.name_hint == "foo"
 
     # operator id
     op = parse_expr("foo")
@@ -189,43 +191,50 @@ def test_tuple():
     assert alpha_equal(parse_expr("(0, 1, 2)"), relay.Tuple([to_constant(0), to_constant(1), to_constant(2)]))
 
 def test_func():
-    # TODO(@jmp): get function alpha eqs to work
+    # 0 args
+    assert alpha_equal(
+        parse_expr("fn () -> { 0 }"),
+        relay.Function(
+            [],
+            TYPE_HOLE,
+            to_constant(0),
+            []
+        )
+    )
 
-    # assert alpha_equal(
-    #     parse_expr("fn (%x) -> { %x }"),
-    #     relay.Function(
-    #         [relay.Param(relay.Var("x"), TYPE_HOLE)],
-    #         TYPE_HOLE,
-    #         relay.Var("x"),
-    #         []
-    #     )
-    # )
+    # 1 arg
+    assert alpha_equal(
+        parse_expr("fn (%x) -> { %x }"),
+        relay.Function(
+            [relay.Param(X, TYPE_HOLE)],
+            TYPE_HOLE,
+            X,
+            []
+        )
+    )
 
-    # assert alpha_equal(
-    #     parse_expr("fn (%x, %y) -> { %x + %y }"),
-    #     relay.Function(
-    #         [relay.Param(relay.Var("x"), TYPE_HOLE),
-    #          relay.Param(relay.Var("y"), TYPE_HOLE)],
-    #         TYPE_HOLE,
-    #         relay.add(relay.Var("x"), relay.Var("y")),
-    #         []
-    #     )
-    # )
-
-    id_func = parse_expr("fn (%x) -> { %x }")
-    assert isinstance(id_func, relay.Function)
-    assert id_func.params[0].var.name_hint == "x"
-    assert isinstance(id_func.params[0].type, relay.IncompleteType)
-    assert id_func.params[0].var == id_func.body
-
-    assert isinstance(parse_expr("fn (%x, %y) -> { %x + %y }"), relay.Function)
+    # 2 args
+    assert alpha_equal(
+        parse_expr("fn (%x, %y) -> { %x + %y }"),
+        relay.Function(
+            [relay.Param(X, TYPE_HOLE),
+             relay.Param(Y, TYPE_HOLE)],
+            TYPE_HOLE,
+            relay.add(X, Y),
+            []
+        )
+    )
 
     # annotations
+    assert alpha_equal(
+        parse_expr("fn (%x: Int64) -> Int64 { %x }"),
+        [relay.Param(X, int64)],
+        int64,
+        X,
+        []
+    )
 
-    id_func_annotated = parse_expr("fn (%x: Int64) -> Int64 { %x }")
-    assert id_func_annotated.params[0].type == int64
-    assert id_func_annotated.ret_type == int64
-
+# TODO(@jmp): Figure out why this is crashing.
 @nottest
 def test_defn():
     id_defn = parse_prog("def @id(%x) -> { %x }")
