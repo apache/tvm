@@ -54,12 +54,7 @@ class CalcDep : private ExprMutator {
   }
 
  private:
-  struct Binder {
-    Type t;
-    Expr e;
-    Binder(const Type& t, const Expr& e) : t(t), e(e) { }
-  };
-  using VarMap = std::unordered_map<Var, Binder, NodeHash, NodeEqual>;
+  using VarMap = std::unordered_map<Var, Expr, NodeHash, NodeEqual>;
   VarMap var_map_;
 
   Expr VisitExpr_(const IfNode* i) final {
@@ -74,9 +69,7 @@ class CalcDep : private ExprMutator {
   }
 
   Expr VisitExpr_(const LetNode* l) final {
-    var_map_.insert(std::pair<Var, Binder>(l->var,
-                                           Binder(l->value_type,
-                                                  Eliminate(l->value))));
+    var_map_[l->var] = Eliminate(l->value);
     return VisitExpr(l->body);
   }
 
@@ -92,15 +85,16 @@ class CalcDep : private ExprMutator {
     explicit GenLet(const VarMap& var_map) : var_map_(var_map) { }
     friend CalcDep;
 
-    void VisitExpr_(const VarNode* vn) final {
-      Var v = GetRef<Var>(vn);
-      if (var_map_.count(v) != 0) {
-        auto val = var_map_.at(v);
-        var_map_.erase(v);
+    void VisitExpr_(const VarNode* vnode) final {
+      Var v = GetRef<Var>(vnode);
+      auto it = var_map_.find(v);
+      if (it != var_map_.end()) {
+        Expr expr = it->second;
+        var_map_.erase(it);
         // erase before visit to handle letrec
-        VisitExpr(val.e);
+        VisitExpr(expr);
         // visit before push back so the dependency of dependency is before the dependency
-        lets_.Push(v, val.t, val.e);
+        lets_.Push(v, expr);
       }
     }
   };

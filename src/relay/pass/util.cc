@@ -50,14 +50,17 @@ class FreeVar : public ExprVisitor {
     if (bound_vars.count(var) == 0) {
       free_vars.insert(var);
     }
+    if (v->type_annotation.defined()) {
+      VisitType(v->type_annotation);
+    }
   }
 
   void VisitExpr_(const FunctionNode *f) final {
     for (const auto& tp : f->type_params) {
       bound_types.insert(tp);
     }
-    for (const auto& p : f->params) {
-      bound_vars.insert(p->var);
+    for (const auto& param : f->params) {
+      bound_vars.insert(param);
     }
     VisitExpr(f->body);
     VisitType(f->ret_type);
@@ -67,7 +70,6 @@ class FreeVar : public ExprVisitor {
     bound_vars.insert(l->var);
     VisitExpr(l->value);
     VisitExpr(l->body);
-    VisitType(l->value_type);
   }
 
  public:

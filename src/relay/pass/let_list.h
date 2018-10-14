@@ -26,57 +26,46 @@ namespace relay {
  */
 class LetList {
  public:
-  /*! \brief insert a binding.
+  /*!
+   * \brief insert a binding.
    *
-   *  \param pv the var of the binding.
+   * \param pv the var of the binding.
    *
-   *  \param ty the type of the binding.
+   * \param expr the value of the binding.
    *
-   *  \param expr the value of the binding.
-   *
-   *  \return a Var that hold the inserted expr.
+   * \return a Var that hold the inserted expr.
    */
-  Var Push(const Var& pv, const Type& ty, const Expr& expr) {
-    std::tuple<Var, Type, Expr> tuple(pv, ty, expr);
-    lets_.push_back(tuple);
+  Var Push(Var pv, Expr expr) {
+    lets_.emplace_back(std::make_pair(pv, expr));
     return pv;
   }
 
-  /*! \brief insert a binding.
+  /*!
+   * \brief insert a binding.
    *
-   *  \param ty the type of the binding.
+   * \param ty the type of the binding.
    *
-   *  \param expr the value of the binding.
+   * \param expr the value of the binding.
    *
-   *  \return a Var that hold the inserted expr.
+   * \return a Var that hold the inserted expr.
    */
-  Var Push(const Type& ty, const Expr& expr) {
-    return Push(VarNode::make("x"), ty, expr);
+  Var Push(Type ty, Expr expr) {
+    return Push(VarNode::make("x", ty), expr);
   }
 
-  /*! \brief insert a binding.
-   *
-   *  \param pv the var of the binding.
-   *
-   *  \param expr the value of the binding.
-   *
-   *  \return a Var that hold the inserted expr.
-   */
-  Var Push(const Var& pv, const Expr& expr) {
-    return Push(pv, IncompleteTypeNode::make(TypeParamNode::kType), expr);
-  }
-
-  /*! \brief insert a binding.
+  /*!
+   * \brief insert a binding.
    *
    *  \param expr the value of the binding.
    *
    *  \return a Var that hold the inserted expr.
    */
-  Var Push(const Expr& expr) {
+  Var Push(Expr expr) {
     return Push(IncompleteTypeNode::make(TypeParamNode::kType), expr);
   }
 
-  /*! \brief wrap an expr around the LetList.
+  /*!
+   * \brief wrap an expr around the LetList.
    *
    *  \param body the Expression to be wrapped around.
    *
@@ -85,7 +74,7 @@ class LetList {
   Expr Get(const Expr& body) const {
     Expr ret = body;
     for (auto rit = lets_.rbegin(); rit != lets_.rend(); ++rit) {
-      ret = LetNode::make(std::get<0>(*rit), std::get<2>(*rit), ret, std::get<1>(*rit));
+      ret = LetNode::make(std::get<0>(*rit), std::get<1>(*rit), ret);
     }
     return ret;
   }
@@ -118,7 +107,7 @@ class LetList {
   }
 
  private:
-  std::vector<std::tuple<Var, Type, Expr> > lets_;
+  std::vector<std::pair<Var, Expr> > lets_;
 };
 
 }  // namespace relay

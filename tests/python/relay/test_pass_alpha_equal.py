@@ -1,4 +1,5 @@
 import tvm
+import numpy as np
 from tvm import relay
 from tvm.relay.ir_pass import alpha_equal
 from tvm.relay.ir_builder import convert
@@ -179,9 +180,9 @@ def test_var_alpha_equal():
     assert not alpha_equal(v1, v2)
 
     # let node allows for setting the eq_map
-    l1 = relay.Let(v1, convert(1), v1, None)
-    l2 = relay.Let(v2, convert(1), v2, None)
-    l3 = relay.Let(v1, convert(1), v2, None)
+    l1 = relay.Let(v1, convert(1), v1)
+    l2 = relay.Let(v2, convert(1), v2)
+    l3 = relay.Let(v1, convert(1), v2)
 
     assert alpha_equal(l1, l2)
     assert not alpha_equal(l1, l3)
@@ -209,10 +210,10 @@ def test_tuple_alpha_equal():
     assert alpha_equal(tup, same)
 
     # use the eq_map
-    let_tup = relay.Let(v1, tup, v1, None)
+    let_tup = relay.Let(v1, tup, v1)
     let_mapped = relay.Let(v2, relay.Tuple([v2, convert(2), convert(3),
                                             relay.Tuple([convert(4)])]),
-                           v2, None)
+                           v2)
     assert alpha_equal(let_tup, let_mapped)
 
     more_fields = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)]), v2])
@@ -242,61 +243,44 @@ def test_tuple_get_item_alpha_equal():
     assert alpha_equal(relay.TupleGetItem(x, 1), relay.TupleGetItem(x, 1))
 
 
-def test_param_alpha_equal():
-    # only checks equality of the types
-    v1 = relay.Var("v1")
-    v2 = relay.Var("v2")
-
-    p1 = relay.Param(v1, relay.TensorType((1, 2, 3), "float32"))
-    p2 = relay.Param(v2, relay.TensorType((1, 2, 3), "float32"))
-    assert alpha_equal(p1, p2)
-
-    p3 = relay.Param(v1, relay.TensorType((4, 5, 6), "int8"))
-    assert not alpha_equal(p1, p3)
-
-    p4 = relay.Param(v1, relay.TupleType([relay.TensorType((1, 2, 3),
-                                                           "float32")]))
-    assert not alpha_equal(p1, p4)
-
-
 def test_function_alpha_equal():
-    v1 = relay.Var("v1")
-    v2 = relay.Var("v2")
-    v3 = relay.Var("v3")
-    v4 = relay.Var("v4")
-
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((4, 5, 6), "int8")
     tt3 = relay.TupleType([tt1, tt2])
+
+    v1 = relay.Var("v1", tt1)
+    v2 = relay.Var("v2", tt2)
+    v3 = relay.Var("v3", tt3)
+    v4 = relay.Var("v4", tt2)
+    vret = relay.Constant(tvm.nd.array(np.ones(1)))
 
     tp1 = relay.TypeParam("tp1", relay.Kind.Type)
     tp2 = relay.TypeParam("tp2", relay.Kind.Type)
     tp3 = relay.TypeParam("tp3", relay.Kind.Shape)
     tp4 = relay.TypeParam("tp4", relay.Kind.Shape)
 
-    basic_args = [relay.Param(v3, tt1), relay.Param(v4, tt2)]
+    basic_args = [relay.Var("v3", tt1), relay.Var("v4", tt2)]
     basic_tps = [tp1, tp2]
 
-    func = relay.Function([relay.Param(v1, tt1), relay.Param(v2, tt2)],
-                          tt2, v2, basic_tps)
-    mapped = relay.Function(basic_args, tt2, v4, basic_tps)
+    func = relay.Function([v1, v2],
+                          tt2, v1, basic_tps)
+    mapped = relay.Function(basic_args, tt2, basic_args[0], basic_tps)
     assert alpha_equal(func, mapped)
 
-    fewer_params = relay.Function([relay.Param(v4, tt2)], tt2, v4, basic_tps)
+    fewer_params = relay.Function([relay.Var("v4", tt2)], tt2, v4, basic_tps)
     assert not alpha_equal(func, fewer_params)
 
-    more_params = relay.Function([relay.Param(v3, tt1), relay.Param(v4, tt2),
-                                  relay.Param(v2, tt2)], tt2, v4, basic_tps)
+    more_params = relay.Function([relay.Var("v3", tt1),
+                                  relay.Var("v4", tt2),
+                                  relay.Var("v2", tt2)], tt2, v4, basic_tps)
     assert not alpha_equal(func, more_params)
 
-    params_unordered = relay.Function([relay.Param(v3, tt2),
-                                       relay.Param(v4, tt1)],
-                                      tt1, v3, basic_tps)
+    params_unordered = relay.Function([v2, v1],
+                                      tt2, v1, basic_tps)
     assert not alpha_equal(func, params_unordered)
 
-    params_mismatch = relay.Function([relay.Param(v3, tt3),
-                                      relay.Param(v4, tt2)],
-                                     tt2, v4, basic_tps)
+    params_mismatch = relay.Function([v1, v3],
+                                     tt2, v1, basic_tps)
     assert not alpha_equal(func, params_mismatch)
 
     # also would not typecheck
@@ -376,7 +360,10 @@ def test_call_alpha_equal():
 
 
 def test_let_alpha_equal():
+    tt1 = relay.TensorType((), "float32")
+    tt2 = relay.TensorType((), "int8")
     v1 = relay.Var("v1")
+    v1_wtype = relay.Var("v1", tt1)
     v2 = relay.Var("v2")
     v3 = relay.Var("v3")
 
@@ -394,14 +381,13 @@ def test_let_alpha_equal():
     assert not alpha_equal(let, different_body)
 
     # specified types must match
-    tt1 = relay.TensorType((), "float32")
-    tt2 = relay.TensorType((), "int8")
-    let_with_type = relay.Let(v1, convert(2), v1, tt1)
-    same_type = relay.Let(v1, convert(2), v1, tt1)
+
+    let_with_type = relay.Let(v1_wtype, convert(2), v1_wtype)
+    same_type = relay.Let(v1_wtype, convert(2), v1_wtype)
     assert alpha_equal(let_with_type, same_type)
     assert not alpha_equal(let, let_with_type)
-
-    different_type = relay.Let(v1, convert(2), v1, tt2)
+    v2 = relay.Var("v1", tt2)
+    different_type = relay.Let(v2, convert(2), v2)
     assert not alpha_equal(let_with_type, different_type)
 
 
@@ -437,16 +423,13 @@ if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
     test_constant_alpha_equal()
-    test_type_param_alpha_equal()
     test_func_type_alpha_equal()
     test_tuple_type_alpha_equal()
     test_type_relation_alpha_equal()
     test_constant_alpha_equal()
-    test_var_alpha_equal()
     test_global_var_alpha_equal()
     test_tuple_alpha_equal()
     test_tuple_get_item_alpha_equal()
-    test_param_alpha_equal()
     test_function_alpha_equal()
     test_call_alpha_equal()
     test_let_alpha_equal()

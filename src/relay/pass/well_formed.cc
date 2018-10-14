@@ -34,8 +34,8 @@ class WellFormedChecker : private ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode * f) final {
-    for (const Param & p : f->params) {
-      Check(p->var);
+    for (const Var & param : f->params) {
+      Check(param);
     }
     CheckWellFormed(f->body);
   }

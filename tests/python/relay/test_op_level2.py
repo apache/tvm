@@ -11,7 +11,7 @@ def test_conv2d_infer_type():
     w = ib.param("w", relay.ty.IncompleteType())
 
     with ib.function(x, w) as func:
-        ib.ret(relay.nn.conv2d(x.var, w.var,
+        ib.ret(relay.nn.conv2d(x, w,
                                kernel_size=(3, 3),
                                padding=(1, 1),
                                channels=2))
@@ -29,7 +29,7 @@ def test_conv2d_infer_type():
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "int8"))
     w = ib.param("w", relay.ty.TensorType((2, 10, 3, 3), "int8"))
     with ib.function(x, w) as func:
-        ib.ret(relay.nn.conv2d(x.var, w.var, out_dtype="int32"))
+        ib.ret(relay.nn.conv2d(x, w, out_dtype="int32"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -42,7 +42,7 @@ def test_conv2d_infer_type():
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "int8"))
     w = ib.param("w", relay.ty.IncompleteType())
     with ib.function(x, w) as func:
-        ib.ret(relay.nn.conv2d(x.var, w.var,
+        ib.ret(relay.nn.conv2d(x, w,
                                kernel_size=(3, 3),
                                padding=(1, 1),
                                channels=16,
@@ -65,7 +65,7 @@ def test_conv2d_transpose_infer_type():
     w = ib.param("w", relay.ty.IncompleteType())
 
     with ib.function(x, w) as func:
-        ib.ret(relay.nn.conv2d_transpose(x.var, w.var,
+        ib.ret(relay.nn.conv2d_transpose(x, w,
                                          kernel_size=(3, 3),
                                          padding=(1, 1),
                                          channels=15))
@@ -83,7 +83,7 @@ def test_conv2d_transpose_infer_type():
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
     w = ib.param("w", relay.ty.TensorType((12, 11, 5, 5), "float32"))
     with ib.function(x, w) as func:
-        ib.ret(relay.nn.conv2d_transpose(x.var, w.var,
+        ib.ret(relay.nn.conv2d_transpose(x, w,
                                          output_padding=(1, 1),
                                          channels=11,
                                          data_layout="NHWC"))
@@ -98,7 +98,7 @@ def test_upsampling_infer_type():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.nn.upsampling(x.var, scale=2, layout="NCHW", method="BILINEAR"))
+        ib.ret(relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -108,7 +108,7 @@ def test_upsampling_infer_type():
     n, c = tvm.var("n"), tvm.var("c")
     x = ib.param("x", relay.ty.TensorType((n, c, 100, 200), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.nn.upsampling(x.var, scale=2, layout="NCHW", method="BILINEAR"))
+        ib.ret(relay.nn.upsampling(x, scale=2, layout="NCHW", method="BILINEAR"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -119,7 +119,7 @@ def _test_pool2d_infer_type(opfunc):
     n, c, h, w = tvm.var("n"), 10, 224, 224
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
     with ib.function(x) as func:
-        ib.ret(opfunc(x.var, pool_size=(1, 1)))
+        ib.ret(opfunc(x, pool_size=(1, 1)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -132,7 +132,7 @@ def _test_pool2d_infer_type(opfunc):
     n, c, h, w = tvm.var("n"), 10, 224, 224
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
     with ib.function(x) as func:
-        ib.ret(opfunc(x.var, pool_size=(ph, pw), strides=(sh, sw)))
+        ib.ret(opfunc(x, pool_size=(ph, pw), strides=(sh, sw)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -144,7 +144,7 @@ def _test_global_pool2d_infer_type(opfunc):
     n, c, h, w = tvm.var("n"), tvm.var("c"), 224, 224
     x = ib.param("x", relay.ty.TensorType((n, h, w, c), "float32"))
     with ib.function(x) as func:
-        ib.ret(opfunc(x.var, layout="NHWC"))
+        ib.ret(opfunc(x, layout="NHWC"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -154,7 +154,7 @@ def _test_global_pool2d_infer_type(opfunc):
     n, c, h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
     with ib.function(x) as func:
-        ib.ret(opfunc(x.var))
+        ib.ret(opfunc(x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -172,7 +172,7 @@ def test_flatten_infer_type():
     x = ib.param("x", relay.ty.TensorType((d1, d2, d3, d4), "float32"))
 
     with ib.function(x) as func:
-        ib.ret(relay.nn.batch_flatten(x.var))
+        ib.ret(relay.nn.batch_flatten(x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -181,7 +181,7 @@ def test_flatten_infer_type():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.ty.TensorType((3, 2, 4, 3), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.nn.batch_flatten(x.var))
+        ib.ret(relay.nn.batch_flatten(x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -190,7 +190,7 @@ def test_flatten_infer_type():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.ty.TensorType((d1, 2, d3, 3), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.nn.batch_flatten(x.var))
+        ib.ret(relay.nn.batch_flatten(x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -202,7 +202,7 @@ def test_pad_infer_type():
     n, c, h, w = 1, 2, 3, 4
     t = ib.param("t", relay.TensorType((n, c, h, w), "float32"))
     with ib.function(t) as func:
-        ib.ret(relay.nn.pad(t.var, ((1, 1), (2, 2), (3, 3), (4, 4))))
+        ib.ret(relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4))))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -213,7 +213,7 @@ def test_pad_infer_type():
     n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
     t = ib.param("t", relay.TensorType((n, c, h, w), "float32"))
     with ib.function(t) as func:
-        ib.ret(relay.nn.pad(t.var, ((1, 1), (2, 2), (3, 3), (4, 4))))
+        ib.ret(relay.nn.pad(t, ((1, 1), (2, 2), (3, 3), (4, 4))))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -227,4 +227,3 @@ if __name__ == "__main__":
     test_flatten_infer_type()
     test_pad_infer_type()
     test_conv2d_transpose_infer_type()
-
