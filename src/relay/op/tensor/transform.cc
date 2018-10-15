@@ -931,17 +931,14 @@ bool StridedSliceRel(const Array<Type>& types,
   }
   std::vector<IndexExpr> oshape(dshape.size());
 
-  #define MAX(a, b) (reporter->Assert((a) > (b)) ? (a) : (b))
-  #define MIN(a, b) (reporter->Assert((a) < (b)) ? (a) : (b))
-
   for (size_t i = 0; i < num_axis; ++i) {
       auto begin_range = reporter->Assert(stride_vec[i] < 0) ? -1 : 0;
       auto end_range = reporter->Assert(stride_vec[i] < 0) ? dshape[i] - 1 : dshape[i];
       auto begin = reporter->Assert(begin_vec[i] < 0) ? dshape[i] + begin_vec[i] : begin_vec[i];
       auto end = reporter->Assert(end_vec[i] < 0) ? dshape[i] + end_vec[i] : end_vec[i];
 
-      begin = MIN(MAX(begin, begin_range), end_range);
-      end = MIN(MAX(end, begin_range), end_range);
+      begin = min(max(begin, begin_range), end_range);
+      end = min(max(end, begin_range), end_range);
       auto interval = abs((end - begin));
       auto slice_size = (interval + abs(stride_vec[i]) - 1) / abs(stride_vec[i]);
 
