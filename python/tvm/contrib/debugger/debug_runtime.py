@@ -5,8 +5,9 @@ import tempfile
 import shutil
 from datetime import datetime
 from tvm._ffi.base import string_types
-from tvm.contrib import graph_runtime
 from tvm._ffi.function import get_global_func
+from tvm.contrib import graph_runtime
+from tvm.rpc import base as rpc_base
 from . import debug_result
 
 _DUMP_ROOT_PREFIX = "tvmdbg_"
@@ -49,8 +50,12 @@ def create(graph_json_str, libmod, ctx, dump_root=None):
 
     ctx, num_rpc_ctx, device_type_id = graph_runtime.get_device_ctx(libmod, ctx)
     if num_rpc_ctx == len(ctx):
-        raise NotSupportedError("Remote graph debugging is not supported.")
-
+        libmod = rpc_base._ModuleHandle(libmod)
+        try:
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.remote_create")
+        except ValueError:
+            raise ValueError("Please set '(USE_GRAPH_RUNTIME_DEBUG ON)' in " \
+                             "config.cmake and rebuild TVM to enable debug mode")
     func_obj = fcreate(graph_json_str, libmod, *device_type_id)
     return GraphModuleDebug(func_obj, ctx, graph_json_str, dump_root)
 

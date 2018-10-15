@@ -2,6 +2,8 @@ import os
 import tvm
 import numpy as np
 import json
+from tvm import rpc
+from tvm.contrib import util
 from tvm.contrib.debugger import debug_runtime as graph_runtime
 
 def test_graph_simple():
@@ -70,7 +72,32 @@ def test_graph_simple():
         #verify dump root delete after cleanup
         assert(not os.path.exists(directory))
 
+    def check_remote():
+        if not tvm.module.enabled("llvm"):
+            print("Skip because llvm is not enabled")
+            return
+        mlib = tvm.build(s, [A, B], "llvm", name="myadd")
+        server = rpc.Server("localhost")
+        remote = rpc.connect(server.host, server.port)
+        temp = util.tempdir()
+        ctx = remote.cpu(0)
+        path_dso = temp.relpath("dev_lib.so")
+        mlib.export_library(path_dso)
+        remote.upload(path_dso)
+        mlib = remote.load_module("dev_lib.so")
+        try:
+            mod = graph_runtime.create(graph, mlib, remote.cpu(0))
+        except ValueError:
+            print("Skip because debug graph_runtime not enabled")
+            return
+        a = np.random.uniform(size=(n,)).astype(A.dtype)
+        mod.run(x=tvm.nd.array(a, ctx))
+        out = tvm.nd.empty((n,), ctx=ctx)
+        out = mod.get_output(0, out)
+        np.testing.assert_equal(out.asnumpy(), a + 1)
+
     check_verify()
+    check_remote()
 
 if __name__ == "__main__":
     test_graph_simple()

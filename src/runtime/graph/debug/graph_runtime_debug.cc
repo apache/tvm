@@ -146,5 +146,18 @@ TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.create")
         << args.num_args;
     *rv = GraphRuntimeDebugCreate(args[0], args[1], GetAllContext(args));
   });
+
+TVM_REGISTER_GLOBAL("tvm.graph_runtime_debug.remote_create")
+  .set_body([](TVMArgs args, TVMRetValue* rv) {
+    CHECK_GE(args.num_args, 4) << "The expected number of arguments for "
+                                  "graph_runtime.remote_create is "
+                                  "at least 4, but it has "
+                               << args.num_args;
+    void* mhandle = args[1];
+    const auto& contexts = GetAllContext(args);
+    *rv = GraphRuntimeDebugCreate(
+        args[0], *static_cast<tvm::runtime::Module*>(mhandle), contexts);
+  });
+
 }  // namespace runtime
 }  // namespace tvm
