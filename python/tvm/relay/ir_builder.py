@@ -119,6 +119,32 @@ def _mk_let(bindings, ret_value):
     return let_expr
 
 
+class TupleWrapper(tvm._ffi.node.NodeGeneric):
+    """TupleWrapper.
+
+    This class is a Python wrapper for a Relay tuple of known size.
+    It allows for accessing the fields of the Relay tuple as though
+    it were a Python tuple.
+    """
+
+    def __init__(self, tuple_value, size):
+        self.tuple_value = tuple_value
+        self.size = size
+
+
+    def asnode(self):
+        """Returns the underlying Relay tuple if this wrapper is passed
+        as an argument to an FFI function."""
+
+        return self.tuple_value
+
+    def __getitem__(self, key):
+        return self.tuple_value.fields[key]
+
+    def __len__(self):
+        return len(self.tuple_value.fields)
+
+
 class IRBuilder(object):
     """The IRBuilder class.
 

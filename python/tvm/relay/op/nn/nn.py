@@ -1,5 +1,6 @@
 """Neural network operations."""
 from __future__ import absolute_import as _abs
+from tvm.relay.ir_builder import TupleWrapper
 from . import _make
 
 
@@ -560,7 +561,8 @@ def dropout(data, rate=0.5):
         shape and data type as ``data`` and, for each element in ``data``, is 1.0
         if the element was not dropped and 0.0 if it was.
     """
-    return _make.dropout(data, rate)
+    result = _make.dropout(data, rate)
+    return TupleWrapper(result, 2)
 
 def batch_norm(data, gamma, beta, moving_mean, moving_var,
                axis=1, epsilon=1e-5, center=True, scale=True):
@@ -632,5 +634,6 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
         Tuple of normed data (same shape as input), new running mean (k-length vector),
         and new running variance (k-length vector)
     """
-    return _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                            axis, epsilon, center, scale)
+    result = _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                              axis, epsilon, center, scale)
+    return TupleWrapper(result, 3)

@@ -198,7 +198,7 @@ def test_dropout():
     input_ty = relay.ty.TensorType((3, 4, 5), "int8")
     x = ib.param("x", input_ty)
     with ib.function(x) as func:
-        ib.ret(relay.nn.dropout(x))
+        ib.ret(relay.nn.dropout(x).asnode())
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
@@ -210,7 +210,7 @@ def test_dropout():
     input_ty = relay.ty.TensorType((n, t, d), "float32")
     x = ib.param("x", input_ty)
     with ib.function(x) as func:
-        ib.ret(relay.nn.dropout(x, rate=0.75))
+        ib.ret(relay.nn.dropout(x, rate=0.75).asnode())
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
@@ -228,7 +228,7 @@ def test_batch_norm():
     moving_var = ib.param("moving_var", relay.ty.TensorType((2,), "float32"))
     with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
         ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                                   center=False, scale=False))
+                                   center=False, scale=False).asnode())
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
@@ -248,7 +248,7 @@ def test_batch_norm():
     moving_var = ib.param("moving_var", relay.ty.TensorType((3,), "float32"))
     with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
         ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                                   axis=0, center=False, scale=False))
+                                   axis=0, center=False, scale=False).asnode())
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
@@ -268,7 +268,7 @@ def test_batch_norm():
     moving_var = ib.param("moving_var", relay.ty.TensorType((3,), "float32"))
     with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
         ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                                   axis=-1, center=False, scale=False))
+                                   axis=-1, center=False, scale=False).asnode())
     ib.ret(func)
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
