@@ -34,7 +34,6 @@ Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var
 GlobalVar = expr.GlobalVar
-Param = expr.Param
 Function = expr.Function
 Call = expr.Call
 Let = expr.Let

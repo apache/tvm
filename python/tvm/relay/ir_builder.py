@@ -7,7 +7,7 @@ from collections import OrderedDict
 import numpy as np
 import tvm
 from .ty import Type, FuncType, TensorType
-from .expr import Expr, Constant, Let, Var, Param, Function, If
+from .expr import Expr, Constant, Let, Var, Function, If
 from .env import Environment
 
 
@@ -98,7 +98,7 @@ class PartialFunc(object):
         self.type_params = type_params
 
     def param_ids(self):
-        return [p.var for p in self.params]
+        return [p for p in self.params]
 
     def to_func(self):
         """Converts a PartialFunc into a :py:class:`~relay.Function`."""
@@ -113,9 +113,8 @@ class PartialFunc(object):
 
 def _mk_let(bindings, ret_value):
     let_expr = ret_value
-    for var, (value, ty) in reversed(list(bindings.items())):
-        let_expr = Let(var, value, let_expr, ty)
-
+    for var, value in reversed(list(bindings.items())):
+        let_expr = Let(var, value, let_expr)
     return let_expr
 
 
@@ -168,15 +167,12 @@ class IRBuilder(object):
 
     #pylint: disable=invalid-name
     def bind(self, name, value, ty):
-        lv = Var(name)
+        lv = Var(name, ty)
         self.scopes[-1][name] = lv
-        self.bindings[-1][lv] = (value, ty)
+        self.bindings[-1][lv] = value
         return lv
 
     def let(self, name, value, value_type=None):
-        if isinstance(value, Param):
-            value = value.var
-
         if not isinstance(value, Expr):
             value = convert(value)
 
@@ -185,23 +181,18 @@ class IRBuilder(object):
     def _convert_params(self, raw_params):
         relay_params = []
         for raw_param in raw_params:
-            if isinstance(raw_param, Param):
-                var = raw_param.var
+            if isinstance(raw_param, Var):
                 param = raw_param
             elif isinstance(raw_param, tuple):
                 var, ty = raw_param
-                if isinstance(var, str):
-                    var = Var(var)
                 ty = _convert_type(ty)
-                param = Param(var, ty)
-            elif isinstance(param, str):
-                var = Var(raw_param)
-                ty = None
-                param = Param(var, ty)
+                param = Var(var, ty)
+            elif isinstance(raw_param, str):
+                param = Var(raw_param, None)
             else:
                 raise Exception("unknown parameter type")
 
-            self.scopes[-1][var.name_hint] = var
+            self.scopes[-1][param.name_hint] = param
             relay_params.append(param)
 
         return relay_params
@@ -265,7 +256,7 @@ class IRBuilder(object):
         else:
             ty = _convert_type(ty)
 
-        return Param(Var(name), ty)
+        return Var(name, ty)
 
     def global_var(self, name):
         # type: (str) -> GlobalVar

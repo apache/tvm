@@ -27,6 +27,8 @@ def test_single_op():
                    tvm.relay.sigmoid, tvm.relay.tanh]:
         check_single_op(opfunc)
 
+
+
 def test_expand_dims_infer_type():
     ib = relay.ir_builder.IRBuilder()
     n, t, d = tvm.var("n"), tvm.var("t"), 100
@@ -75,11 +77,12 @@ def test_unary_op():
         ib = relay.ir_builder.IRBuilder()
         x = ib.param("x", relay.TensorType((10, 4), "int32"))
         with ib.function(x) as func:
-            ib.ret(op(x.var))
+            ib.ret(op(x))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((10, 4), "int32")
+
 
 def test_binary_op():
     def check_binary_op(opfunc):
@@ -94,7 +97,7 @@ def test_binary_op():
         x = b.param('x', tensor_type(5, 5, 5))
         y = b.param('y', tensor_type(5, 5, 5))
         with b.function(x, y) as func:
-            b.ret(opfunc(x.var, y.var))
+            b.ret(opfunc(x, y))
         b.ret(func)
         prog, env = b.get()
         ttype = tensor_type(5, 5, 5)
@@ -118,7 +121,7 @@ def test_binary_broadcast_op():
         x = b.param('x', tensor_type(10, 4))
         y = b.param('y', tensor_type(5, 10, 1))
         with b.function(x, y) as func:
-            b.ret(opfunc(x.var, y.var))
+            b.ret(opfunc(x, y))
         b.ret(func)
         prog, env = b.get()
 
