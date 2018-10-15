@@ -6,6 +6,7 @@ from tvm import relay
 from tvm.relay.ir_pass import infer_type
 from tvm.relay.ir_builder import IRBuilder, func_type
 from tvm.relay.env import Environment
+from nose.tools import raises
 
 def test_zeros_ones():
     for op in [relay.zeros, relay.ones]:
@@ -65,6 +66,44 @@ def test_transpose_infer_type():
     ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType(
         (t, n, 100), "float32")
+
+
+def test_squeeze_default_axes_infer_type():
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = 1, 4, 1
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.squeeze(x))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType(
+        (4,), "float32")
+
+
+def test_squeeze_axes_infer_type():
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = 1, 4, 1
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.squeeze(x, axes=(2,)))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType(
+        (1, 4), "float32")
+
+
+@raises(tvm._ffi.base.TVMError)
+def test_squeeze_bad_axes_infer_type():
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = 1, 4, 1
+    x = ib.param("x", relay.ty.TensorType((n, t, d), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.squeeze(x, axes=(1,)))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
 
 
 def test_reshape_infer_type():
@@ -181,3 +220,5 @@ if __name__ == "__main__":
     test_take_infer_type()
     test_full()
     test_full_like()
+    test_squeeze_axes_infer_type()
+    test_squeeze_default_axes_infer_type()
