@@ -11,6 +11,32 @@ from .expr import Expr, Constant, Let, Var, Param, Function, If
 from .env import Environment
 
 
+class TupleWrapper(tvm._ffi.node.NodeGeneric):
+    """TupleWrapper.
+
+    This class is a Python wrapper for a Relay tuple of known size.
+    It allows for accessing the fields of the Relay tuple as though
+    it were a Python tuple.
+    """
+
+    def __init__(self, tuple_value, size):
+        self.tuple_value = tuple_value
+        self.size = size
+
+
+    def asnode(self):
+        """Returns the underlying Relay tuple if this wrapper is passed
+        as an argument to an FFI function."""
+
+        return self.tuple_value
+
+    def __getitem__(self, key):
+        return self.tuple_value.fields[key]
+
+    def __len__(self):
+        return len(self.tuple_value.fields)
+
+
 def _convert_to_value(arg, ctxt=tvm.cpu(0)):
     # type: (Any, tvm.Context) -> tvm.nd.NDArray
     """Convert Python values into the appropriate types
@@ -61,6 +87,8 @@ def convert(arg):
         return relay.Tuple([convert(el) for el in arg])
     elif isinstance(arg, PartialFunc):
         return arg.to_func()
+    elif isinstance(arg, TupleWrapper):
+        return arg.asnode()
     else:
         value = _convert_to_value(arg)
         return Constant(value)
@@ -117,32 +145,6 @@ def _mk_let(bindings, ret_value):
         let_expr = Let(var, value, let_expr, ty)
 
     return let_expr
-
-
-class TupleWrapper(tvm._ffi.node.NodeGeneric):
-    """TupleWrapper.
-
-    This class is a Python wrapper for a Relay tuple of known size.
-    It allows for accessing the fields of the Relay tuple as though
-    it were a Python tuple.
-    """
-
-    def __init__(self, tuple_value, size):
-        self.tuple_value = tuple_value
-        self.size = size
-
-
-    def asnode(self):
-        """Returns the underlying Relay tuple if this wrapper is passed
-        as an argument to an FFI function."""
-
-        return self.tuple_value
-
-    def __getitem__(self, key):
-        return self.tuple_value.fields[key]
-
-    def __len__(self):
-        return len(self.tuple_value.fields)
 
 
 class IRBuilder(object):
