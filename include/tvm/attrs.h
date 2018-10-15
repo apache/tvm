@@ -131,8 +131,8 @@ class BaseAttrsNode : public Node {
    */
   inline void PrintDocString(std::ostream &os) const;  // NOLINT(*)
   /*!
-   * \brief Get the field information about the
-   * \note This function throws when the required a field is not present.
+   * \brief Get the field information
+   * \return The fields in the Attrs.
    */
   TVM_DLL virtual Array<AttrFieldInfo> ListFieldInfo() const = 0;
   /*!
@@ -140,7 +140,7 @@ class BaseAttrsNode : public Node {
    * \param kwargs The key value pairs for initialization.
    *        [key0, value0, key1, value1, ..., key_n, value_n]
    * \param allow_unknown Whether allow additional unknown fields.
-   * \note This function throws when the required a field is not present.
+   * \note This function throws when the required field is not present.
    */
   TVM_DLL virtual void InitByPackedArgs(const TVMArgs& kwargs, bool allow_unknown = false) = 0;
   /*!
@@ -209,7 +209,7 @@ class DictAttrsNode : public BaseAttrsNode {
 };
 
 /*!
- * \brief Content-ware Equality comparator for attrs.
+ * \brief Content-aware Equality comparator for attrs.
  *
  * This comparator will recursively deep compare the following Attributes.
  *
@@ -250,7 +250,7 @@ class AttrsEqual {
 };
 
 /*!
- * \brief Content-ware hash function.
+ * \brief Content-aware hash function.
  *
  * This hash functor will recursively hash the content of the Attributes.
  * It is guaranteed that if AttrsEqual(a, b) == true, then AttrsHash(a) == AttrsHash(b);

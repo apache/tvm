@@ -1,7 +1,8 @@
 /*!
  *  Copyright (c) 2018 by Contributors
  * \file attr_functor.h
- * \brief A way to defined arbitrary function signature with dispatch on common attributes.
+ * \brief A way to define arbitrary function signature
+ *        with dispatch on common attributes.
  *
  * Common attributes include:
  *  - int, float, str constants
@@ -23,7 +24,7 @@ class AttrFunctor;
                             std::forward<Args>(args)...);               \
       });                                                               \
 
-// Comparator to compare equality among attributes
+// A functor for common attribute information.
 template <typename R, typename... Args>
 class AttrFunctor<R(const NodeRef& n, Args...)> {
  private:
