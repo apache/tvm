@@ -198,6 +198,17 @@ bool AlphaEqual(const Type& t1, const Type& t2) {
   return aeq.equal;
 }
 
+// Like AlphaEqual, but allows t1 and/or t2 to be nullptr.
+bool NullableAlphaEqual(const Type& t1, const Type& t2) {
+  if (t1.defined() != t2.defined())
+    return false;
+
+  if (!t1.defined())
+    return true;
+
+  return AlphaEqual(t1, t2);
+}
+
 struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
  public:
   tvm::Map<Var, Var> eq_map;
@@ -276,7 +287,7 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         }
       }
 
-      equal = equal && AlphaEqual(func1->ret_type, func2->ret_type);
+      equal = equal && NullableAlphaEqual(func1->ret_type, func2->ret_type);
       if (!equal) {
         return;
       }
@@ -373,15 +384,11 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
 
  private:
   void MergeVarDecl(const Var& var1, const Var& var2) {
-    if (var1->type_annotation.defined() != var2->type_annotation.defined()) {
-      equal = false;
+    equal = equal && NullableAlphaEqual(var1->type_annotation, var2->type_annotation);
+    if (!equal) {
       return;
     }
-    if (var1->type_annotation.defined() &&
-        !AlphaEqual(var1->type_annotation, var2->type_annotation)) {
-      equal = false;
-      return;
-    }
+
     eq_map.Set(var1, var2);
   }
 };
