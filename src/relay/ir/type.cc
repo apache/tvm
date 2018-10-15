@@ -22,6 +22,8 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
   return TensorTypeNode::make({}, dtype);
 }
 
+TVM_REGISTER_NODE_TYPE(TensorTypeNode);
+
 TVM_REGISTER_API("relay._make.TensorType")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   Array<IndexExpr> shape = args[0];
@@ -30,8 +32,8 @@ TVM_REGISTER_API("relay._make.TensorType")
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TensorTypeNode>([](const TensorTypeNode *node,
-                                     tvm::IRPrinter *p) {
-  p->stream << "TensorTypeNode(" << node->dtype << ", " << node->shape << ")";
+                                 tvm::IRPrinter *p) {
+  p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
 TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
@@ -40,6 +42,8 @@ TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
   n->kind = std::move(kind);
   return TypeParam(n);
 }
+
+TVM_REGISTER_NODE_TYPE(TypeParamNode);
 
 TVM_REGISTER_API("relay._make.TypeParam")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -60,6 +64,8 @@ IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
   n->kind = std::move(kind);
   return IncompleteType(n);
 }
+
+TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 
 TVM_REGISTER_API("relay._make.IncompleteType")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -86,6 +92,8 @@ FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
   return FuncType(n);
 }
 
+TVM_REGISTER_NODE_TYPE(FuncTypeNode);
+
 TVM_REGISTER_API("relay._make.FuncType")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   *ret = FuncTypeNode::make(args[0], args[1], args[2], args[3]);
@@ -111,6 +119,8 @@ TypeRelation TypeRelationNode::make(TypeRelationFn func,
   return TypeRelation(n);
 }
 
+TVM_REGISTER_NODE_TYPE(TypeRelationNode);
+
 TVM_REGISTER_API("relay._make.TypeRelation")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = TypeRelationNode::make(args[0], args[1], args[2], args[3]);
@@ -128,6 +138,8 @@ TupleType TupleTypeNode::make(Array<Type> fields) {
   n->fields = std::move(fields);
   return TupleType(n);
 }
+
+TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
 TVM_REGISTER_API("relay._make.TupleType")
 .set_body([](TVMArgs args, TVMRetValue *ret) {

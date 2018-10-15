@@ -1,13 +1,19 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from __future__ import absolute_import
-from .base import NodeBase, register_relay_node
+
+import numpy as _np
+from .base import RelayNode, register_relay_node
 from . import _expr
 from . import _make
+from . import ty as _ty
+from .._ffi import base as _base
+from .. import nd as _nd
 from .. import convert
 
 
-class Expr(NodeBase):
+
+class Expr(RelayNode):
     """The base type for all Relay expressions."""
     @property
     def checked_type(self):
@@ -56,7 +62,7 @@ class Tuple(Expr):
 
 @register_relay_node
 class Var(Expr):
-    """A local variable in Tvm.Relay.
+    """A local variable in Relay.
 
     Local variable can be used to declare input
     arguments to a function, or intermediate variables.
@@ -101,11 +107,11 @@ class Function(Expr):
     params: List[tvm.relay.Var]
         List of input parameters to the function.
 
-    ret_type: tvm.relay.Type
-        The return type annotation of the function.
-
     body: tvm.relay.Expr
         The body of the function.
+
+    ret_type: Optional[tvm.relay.Type]
+        The return type annotation of the function.
 
     type_params: Optional[List[tvm.relay.TypeParam]]
         The additional type parameters, this is only
@@ -113,14 +119,14 @@ class Function(Expr):
     """
     def __init__(self,
                  params,
-                 ret_type,
                  body,
+                 ret_type=None,
                  type_params=None):
         if type_params is None:
             type_params = convert([])
 
         self.__init_handle_by_constructor__(
-            _make.Function, params, ret_type, body, type_params)
+            _make.Function, params, body, ret_type, type_params)
 
 
 @register_relay_node
@@ -208,4 +214,73 @@ class TupleGetItem(Expr):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
 
-debug_print = _expr._debug_print
+
+def var(name_hint,
+        type_annotation=None,
+        shape=None,
+        dtype="float32"):
+    """Create a new tvm.relay.Var.
+
+    This is a simple wrapper function that allows specify
+    shape and dtype directly.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable.
+        This name only acts as a hint, and is not used
+        for equality.
+
+    type_annotation: Optional[tvm.relay.Type, str]
+        The type annotation on the variable.
+        When type_annotation is a str, we will create a scalar variable.
+
+    shape: Optional[List[tvm.Expr]]
+        The shape of the tensor type.
+
+    dtype: str, optional
+        The data type of the tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      # The following 4 lines are equivalent to each other
+      x = tvm.relay.Var("x", tvm.relay.TensorType([1, 2]))
+      x = tvm.relay.var("x", tvm.relay.TensorType([1, 2]))
+      x = tvm.relay.var("x", shape=[1, 2])
+      x = tvm.relay.var("x", shape=[1, 2], dtype="float32")
+
+      # The following 2 lines are equivalent to each other.
+      y = tvm.relay.var("x", "float32")
+      y = tvm.relay.var("x", shape=(), dtype="float32")
+    """
+    if type_annotation is not None and shape is not None:
+        raise ValueError("Can only specify either type_annotation or shape.")
+    if shape is not None:
+        type_annotation = _ty.TensorType(shape, dtype)
+    elif isinstance(type_annotation, str):
+        type_annotation = _ty.TensorType((), type_annotation)
+    return Var(name_hint, type_annotation)
+
+
+def const(value, dtype=None):
+    """Create a constant value.
+
+    Parameters
+    ----------
+    value: Union[int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
+
+    dtype: str, optional
+        The data type of the value.
+    """
+    if isinstance(value, _base.numeric_types):
+        value = _np.array(value, dtype=dtype)
+    elif isinstance(value, list):
+        value = _np.array(value, dtype=dtype)
+    if isinstance(value, (_np.ndarray, _np.generic)):
+        value = _nd.array(value)
+    if not isinstance(value, _nd.NDArray):
+        raise ValueError("value has to be scalar or NDArray")
+    return Constant(value)

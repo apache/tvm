@@ -59,7 +59,7 @@ def test_recursion():
     n = relay.Var("n", e.int32)
     data = relay.Var("data", e.float32)
     funcbody = relay.If(equal(n, convert(0)), data, f(subtract(n, convert(1.0)), log(data)))
-    value = relay.Function([n, data], e.float32, funcbody, [])
+    value = relay.Function([n, data], funcbody, e.float32, [])
     orig = relay.Let(f, funcbody, f(convert(2.0), convert(10000.0)))
     assert alpha_equal(dead_code_elimination(orig), orig)
     assert alpha_equal(dead_code_elimination(relay.Let(f, funcbody, e.three)), e.three)

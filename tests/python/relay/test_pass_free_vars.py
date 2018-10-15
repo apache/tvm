@@ -13,7 +13,7 @@ def test_free_vars():
     let = relay.Let(x, v, x)
     fvx = free_vars(let)
     assert len(free_vars(let)) == 0
-    f = relay.Function([x], ty, x)
+    f = relay.Function([x], x, ty)
     assert len(free_vars(f)) == 0
 
 

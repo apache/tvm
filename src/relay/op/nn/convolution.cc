@@ -151,6 +151,7 @@ with the layer input to produce a tensor of outputs.
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
+.set_attrs_type_key("relay.attrs.ConvAttrs")
 .set_support_level(2)
 .add_type_rel("Conv2D", Conv2DRel);
 

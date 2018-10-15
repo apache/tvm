@@ -132,8 +132,8 @@ class PartialFunc(object):
         """Converts a PartialFunc into a :py:class:`~relay.Function`."""
         return Function(
             self.params,
-            self.ret_type,
             self.body,
+            self.ret_type,
             self.type_params)
 
 #pylint: disable=invalid-name
@@ -325,7 +325,7 @@ class IRBuilder(object):
         def _on_exit():
             bindings, _, _, ret_value = self.exit_scope()
             exp = _mk_let(bindings, ret_value)
-            self.env.add(name, Function(params, ret_type, exp))
+            self.env.add(name, Function(params, exp, ret_type))
 
         return WithScope(10, _on_exit)
 

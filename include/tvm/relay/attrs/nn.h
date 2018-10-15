@@ -55,14 +55,14 @@ struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
         .describe("Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
                   "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                   "dimensions respectively.");
-    TVM_ATTR_FIELD(out_layout).set_default("__undef__")
+    TVM_ATTR_FIELD(out_layout).set_default("")
         .describe("Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Default to be same as input layout.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
-        .set_default(Int(0))
+        .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };

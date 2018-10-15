@@ -181,8 +181,6 @@ class FunctionNode : public ExprNode {
  public:
   /*! \brief Function parameters */
   tvm::Array<Var> params;
-  /*! \brief User annotated return type of the function. */
-  Type ret_type;
   /*!
    * \brief
    * The expression which represents the computation of the function,
@@ -190,6 +188,8 @@ class FunctionNode : public ExprNode {
    * or sub-expressions may reference the type variables.
    */
   Expr body;
+  /*! \brief User annotated return type of the function. */
+  Type ret_type;
   /*!
    * \brief Type parameters of the function.
    *  Enables the function to vary its type based on these.
@@ -201,8 +201,8 @@ class FunctionNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);
-    v->Visit("ret_type", &ret_type);
     v->Visit("body", &body);
+    v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
@@ -217,8 +217,8 @@ class FunctionNode : public ExprNode {
   TVM_DLL FuncType func_type_annotation() const;
 
   TVM_DLL static Function make(tvm::Array<Var> params,
-                               Type ret_type,
                                Expr body,
+                               Type ret_type,
                                tvm::Array<TypeParam> ty_params);
 
   static constexpr const char* _type_key = "relay.Function";

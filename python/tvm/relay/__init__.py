@@ -18,6 +18,9 @@ from . import image
 # Span
 Span = base.Span
 
+# Env
+Environment = env.Environment
+
 # Type
 Type = ty.Type
 TupleType = ty.TupleType
@@ -39,3 +42,7 @@ Call = expr.Call
 Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
+
+# helper functions
+var = expr.var
+const = expr.const
