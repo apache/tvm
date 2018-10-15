@@ -208,11 +208,10 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (List[ParserRuleContext]) -> List[relay.Expr]
         return [self.visit(ctx) for ctx in ctx_list]
 
-    # TODO(@jmp): Include kind environment to set IncompleteType appropriately.
     def getType_(self, ctx):
-        # type: (Optional[RelayParser.Type_Context]) -> relay.Type
+        # type: (Optional[RelayParser.Type_Context]) -> Optional[relay.Type]
         if ctx is None:
-            return relay.IncompleteType()
+            return None
         else:
             return self.visit(ctx)
 
