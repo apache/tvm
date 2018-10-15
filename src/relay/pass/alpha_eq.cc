@@ -69,7 +69,7 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const IncompleteTypeNode* bt1, const Type& t2) final {
     if (const IncompleteTypeNode* bt2 = t2.as<IncompleteTypeNode>()) {
-      equal = equal && bt1->kind == bt2->kind;
+      equal = equal && bt1 == bt2;
       return;
     } else {
       equal = false;
@@ -206,6 +206,16 @@ bool AlphaEqual(const Type& t1, const Type& t2) {
   return aeq.equal;
 }
 
+bool NullableAlphaEqual(const Type& t1, const Type& t2) {
+  if (t1.defined() != t2.defined())
+    return false;
+
+  if (!t1.defined())
+    return true;
+
+  return AlphaEqual(t1, t2);
+}
+
 struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
  public:
   tvm::Map<Var, Var> eq_map;
@@ -287,7 +297,8 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
         }
       }
 
-      equal = equal && AlphaEqual(func1->ret_type, func2->ret_type);
+      equal = equal && NullableAlphaEqual(func1->ret_type, func2->ret_type);
+
       if (!equal) {
         return;
       }
