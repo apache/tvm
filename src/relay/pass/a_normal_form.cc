@@ -43,7 +43,9 @@ class ANFMutator : private ExprMutator {
    */
   Var Compound(const Expr& original, const Expr& e) {
     // use the specified mapping if possible.
-    Var v = expr_to_var_->count(original) != 0 ? expr_to_var_->at(original) : VarNode::make("x", Type());
+    Var v = expr_to_var_->count(original) != 0 ?
+      expr_to_var_->at(original) :
+      VarNode::make("x", Type());
     return let_list_.Push(v, e);
   }
 
