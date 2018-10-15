@@ -87,15 +87,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   // Visitor logics
   Type VisitExpr_(const VarNode* op) final {
-    // The type of Var can already been lookedup in type_map_;
-    LOG(FATAL) << "Cannot find binding for var " << GetRef<Var>(op);
-    return Type();
-  }
-
-  Type VisitExpr_(const ParamNode* op) final {
-    // directly handled by Funtion
-    LOG(FATAL) << "not reached";
-    return Type();
+    if (op->type_annotation.defined()) {
+      return op->type_annotation;
+    } else {
+      return IncompleteTypeNode::make(TypeParamNode::kType);
+    }
   }
 
   Type VisitExpr_(const GlobalVarNode* op) final {
@@ -139,11 +135,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const LetNode* op) final {
     Type vtype = GetType(op->value);
-    if (op->value_type.defined()) {
-      vtype = Unify(vtype, op->value_type, op->span);
+    if (op->var->type_annotation.defined()) {
+      vtype = Unify(vtype, op->var->type_annotation, op->span);
     }
     CHECK(!type_map_.count(op->var));
-    // NOTE: no scoping is necessary becase var are unique in program
+    // NOTE: no scoping is necessary because var are unique in program
     type_map_[op->var] = vtype;
     return GetType(op->body);
   }
@@ -256,8 +252,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const FunctionNode* f) final {
     for (auto param : f->params) {
-      type_map_[param->var] = param->type;
-      type_map_[param] = param->type;
+      GetType(param);
     }
     Type rtype = GetType(f->body);
     // Run solver using the currently known information
@@ -265,8 +260,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // Trying to resolve
     Array<Type> arg_types;
     for (size_t i = 0; i < f->params.size(); ++i) {
-      Param param = f->params[i];
-      Type atype = solver_.Resolve(param->type);
+      Type atype = solver_.Resolve(GetType(f->params[i]));
       CHECK(atype.as<IncompleteTypeNode>() == nullptr)
           << "Cannot resolve type of " << i
           << "-th parameter of function at" << f->span;
@@ -311,9 +305,6 @@ class TypeInferencer::Resolver : public ExprMutator {
     return AttachCheckedType(op);
   }
 
-  Expr VisitExpr_(const ParamNode* op) final {
-    return ExprMutator::VisitExpr_(op);
-  }
 
   Expr VisitExpr_(const FunctionNode* op) final {
     return AttachCheckedType(op);
@@ -380,7 +371,7 @@ Expr InferType(const Environment& env,
                const GlobalVar& var,
                const Function& func) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
-  func_copy->checked_type_ = func_copy->fn_type();
+  func_copy->checked_type_ = func_copy->func_type_annotation();
   env->functions.Set(var, func_copy);
   Expr func_ret = TypeInferencer(env).Infer(func_copy);
   auto map_node = env->functions.CopyOnWrite();

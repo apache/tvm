@@ -14,7 +14,6 @@ def test_let():
     assert var == prog.body
     assert isinstance(value, Constant)
     assert value.data.asnumpy() == np.array(1)
-    assert prog.value_type == None
 
 if __name__ == "__main__":
     test_let()

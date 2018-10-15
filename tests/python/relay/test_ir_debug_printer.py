@@ -49,18 +49,11 @@ def test_global_var():
     show(gv)
 
 
-def test_param():
-    lv = relay.Var('x')
-    ty = None
-    param = relay.Param(lv, ty)
-    show(lv)
-
-
 def test_function():
     param_names = ['a', 'b', 'c', 'd']
-    params = tvm.convert([relay.Param(relay.Var(n), None) for n in param_names])
+    params = tvm.convert([relay.Var(n) for n in param_names])
     ret_type = None
-    body = params[0].var
+    body = params[0]
     type_params = tvm.convert([])
     fn = relay.Function(params, ret_type, body, type_params)
     show(fn)
@@ -76,11 +69,11 @@ def test_call():
 
 
 def test_let():
-    lv = relay.Var('x')
     ty = relay.ty.TensorType((10, 20), 'float32')
+    lv = relay.Var('x', ty)
     arr = tvm.nd.array(10)
     value = relay.Constant(arr)
-    let = relay.Let(lv, value, lv, ty)
+    let = relay.Let(lv, value, lv)
     show(let)
 
 

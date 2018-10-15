@@ -24,7 +24,7 @@ def test_cmp_type():
         x = ib.param("x", relay.TensorType((10, 4), "float32"))
         y = ib.param("y", relay.TensorType((5, 10, 1), "float32"))
         with ib.function(x, y) as func:
-            ib.ret(op(x.var, y.var))
+            ib.ret(op(x, y))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -39,7 +39,7 @@ def test_binary_broadcast():
         x = ib.param("x", relay.TensorType((10, 4), "int32"))
         y = ib.param("y", relay.TensorType((5, 10, 1), "int32"))
         with ib.function(x, y) as func:
-            ib.ret(op(x.var, y.var))
+            ib.ret(op(x, y))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -58,7 +58,7 @@ def test_binary_op():
         x = b.param('x', tensor_type(5, 5, 5))
         y = b.param('y', tensor_type(5, 5, 5))
         with b.function(x, y) as func:
-            b.ret(opfunc(x.var, y.var))
+            b.ret(opfunc(x, y))
         b.ret(func)
         prog, env = b.get()
         ttype = tensor_type(5, 5, 5)
@@ -81,7 +81,7 @@ def test_binary_broadcast_op():
         x = b.param('x', tensor_type(10, 4))
         y = b.param('y', tensor_type(5, 10, 1))
         with b.function(x, y) as func:
-            b.ret(opfunc(x.var, y.var))
+            b.ret(opfunc(x, y))
         b.ret(func)
         prog, env = b.get()
 
@@ -103,7 +103,7 @@ def test_cmp_type():
         x = ib.param("x", relay.TensorType((10, 4), "float32"))
         y = ib.param("y", relay.TensorType((5, 10, 1), "float32"))
         with ib.function(x, y) as func:
-            ib.ret(op(x.var, y.var))
+            ib.ret(op(x, y))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -118,7 +118,7 @@ def test_binary_broadcast():
         x = ib.param("x", relay.TensorType((10, 4), "int32"))
         y = ib.param("y", relay.TensorType((5, 10, 1), "int32"))
         with ib.function(x, y) as func:
-            ib.ret(op(x.var, y.var))
+            ib.ret(op(x, y))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -131,7 +131,7 @@ def test_where():
     x = ib.param("x", relay.TensorType((3, 4), "float32"))
     y = ib.param("y", relay.TensorType((3, 4), "float32"))
     with ib.function(cond, x, y) as func:
-        ib.ret(relay.where(cond.var, x.var, y.var))
+        ib.ret(relay.where(cond, x, y))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type

@@ -10,7 +10,7 @@ def test_resize_infer_type():
     th, tw = tvm.var("th"), tvm.var("tw")
 
     with ib.function(x) as func:
-        ib.ret(relay.image.resize(x.var, (th, tw)))
+        ib.ret(relay.image.resize(x, (th, tw)))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -19,7 +19,7 @@ def test_resize_infer_type():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "int8"))
     with ib.function(x) as func:
-        ib.ret(relay.image.resize(x.var, (100, 200), "NCHW", "BILINEAR", False))
+        ib.ret(relay.image.resize(x, (100, 200), "NCHW", "BILINEAR", False))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type

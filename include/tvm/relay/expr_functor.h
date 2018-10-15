@@ -80,7 +80,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const GlobalVarNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
-  virtual R VisitExpr_(const ParamNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FunctionNode* op,
                        Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const CallNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -103,7 +102,6 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAY_EXPR_FUNCTOR_DISPATCH(TupleNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(VarNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(GlobalVarNode);
-    RELAY_EXPR_FUNCTOR_DISPATCH(ParamNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(FunctionNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(CallNode);
     RELAY_EXPR_FUNCTOR_DISPATCH(LetNode);
@@ -127,7 +125,6 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const ConstantNode* op) override;
   void VisitExpr_(const TupleNode* op) override;
-  void VisitExpr_(const ParamNode* op) override;
   void VisitExpr_(const FunctionNode* op) override;
   void VisitExpr_(const CallNode* op) override;
   void VisitExpr_(const LetNode* op) override;
@@ -151,7 +148,6 @@ class ExprMutator
   Expr VisitExpr_(const GlobalVarNode* op) override;
   Expr VisitExpr_(const OpNode* op) override;
   Expr VisitExpr_(const TupleNode* op) override;
-  Expr VisitExpr_(const ParamNode* op) override;
   Expr VisitExpr_(const FunctionNode* op) override;
   Expr VisitExpr_(const CallNode* call_node) override;
   Expr VisitExpr_(const LetNode* op) override;

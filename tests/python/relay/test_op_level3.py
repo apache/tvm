@@ -17,12 +17,13 @@ def test_zeros_ones():
         ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((124, 50), "float64")
 
+
 def test_unary_identity():
     for op in [relay.zeros_like, relay.ones_like]:
         ib = relay.ir_builder.IRBuilder()
         x = ib.param("x", relay.TensorType((8, 9, 4), "int32"))
         with ib.function(x) as func:
-            ib.ret(op(x.var))
+            ib.ret(op(x))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -33,7 +34,7 @@ def test_clip_type():
     ib = relay.ir_builder.IRBuilder()
     a = ib.param("a", relay.TensorType((10, 4), "float32"))
     with ib.function(a) as func:
-        ib.ret(relay.clip(a.var, 1., 4.))
+        ib.ret(relay.clip(a, 1., 4.))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -106,7 +107,7 @@ def test_take_infer_type():
         x = ib.param("x", relay.ty.TensorType(dshape, "float32"))
         indices = ib.param("indices", relay.ty.TensorType(indices_shape, "int32"))
         with ib.function(x, indices) as func:
-            ib.ret(relay.take(x.var, indices.var, axis=axis))
+            ib.ret(relay.take(x, indices, axis=axis))
         ib.ret(func)
         func = relay.ir_pass.infer_type(ib.env, func.to_func())
         ftype = func.checked_type
@@ -127,7 +128,7 @@ def test_full():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.TensorType((), "int8"))
     with ib.function(x) as func:
-        ib.ret(relay.full(x.var, ()))
+        ib.ret(relay.full(x, ()))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -137,7 +138,7 @@ def test_full():
     ib = relay.ir_builder.IRBuilder()
     x = ib.param("x", relay.TensorType((), "float32"))
     with ib.function(x) as func:
-        ib.ret(relay.full(x.var, (1, 2), "int8"))
+        ib.ret(relay.full(x, (1, 2), "int8"))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -150,7 +151,7 @@ def test_full_like():
     base = ib.param("base", relay.TensorType((1, 2, 3), "float32"))
     fill = ib.param("fill", relay.TensorType((), "float32"))
     with ib.function(base, fill) as func:
-        ib.ret(relay.full_like(base.var, fill.var))
+        ib.ret(relay.full_like(base, fill))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -162,7 +163,7 @@ def test_full_like():
     base = ib.param("base", relay.TensorType((n, c, h, w), "float32"))
     fill = ib.param("fill", relay.TensorType((), "float32"))
     with ib.function(base, fill) as func:
-        ib.ret(relay.full_like(base.var, fill.var))
+        ib.ret(relay.full_like(base, fill))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
