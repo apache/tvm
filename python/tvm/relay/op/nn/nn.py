@@ -572,15 +572,15 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
 
     .. math::
 
-    data\_mean[i] = mean(data[:,i,:,...]) \\
-    data\_var[i] = var(data[:,i,:,...])
+        data\_mean[i] = mean(data[:,i,:,...]) \\
+        data\_var[i] = var(data[:,i,:,...])
 
     Then compute the normalized output, which has the same shape as input, as following:
 
     .. math::
 
-    out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
-        * gamma[i] + beta[i]
+        out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
+            * gamma[i] + beta[i]
 
     Both *mean* and *var* returns a scalar by treating the input as a vector.
 
@@ -599,7 +599,8 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
     Specifying -1 sets the channel axis to be the last item in the input shape.
 
     .. note::
-    This operator can be optimized away for inference.
+
+        This operator can be optimized away for inference.
 
     Parameters
     ----------
