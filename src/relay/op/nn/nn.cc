@@ -262,7 +262,7 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-bool CheckVectorLength(int64_t dim, const DataType& dtype, Type vector, std::string name) {
+bool CheckVectorLength(int64_t dim, const DataType& dtype, Type vector, const char* name) {
   const auto* candidate = vector.as<TensorTypeNode>();
   CHECK(candidate != nullptr)
     << name << " should be a vector but is not a tensor type,";
@@ -272,7 +272,7 @@ bool CheckVectorLength(int64_t dim, const DataType& dtype, Type vector, std::str
     << name << " should be a vector but has a shape of "
     << candidate->shape.size() << " dimensions instead of 1.";
 
-  auto length = as_const_int(candidate->shape[0]);
+  const int64_t* length = as_const_int(candidate->shape[0]);
   if (length == nullptr) return false;
   CHECK(*length == dim)
     << name << " should be as long as the channel but has length "
