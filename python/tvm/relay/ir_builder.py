@@ -87,7 +87,7 @@ def convert(arg):
         return relay.Tuple([convert(el) for el in arg])
     elif isinstance(arg, PartialFunc):
         return arg.to_func()
-    elif isinstance(arg, TupleWrapper):
+    elif isinstance(arg, tvm._ffi.node.NodeGeneric):
         return arg.asnode()
     else:
         value = _convert_to_value(arg)
