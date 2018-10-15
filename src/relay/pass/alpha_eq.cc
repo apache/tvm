@@ -69,7 +69,7 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 
   void VisitType_(const IncompleteTypeNode* bt1, const Type& t2) final {
     if (const IncompleteTypeNode* bt2 = t2.as<IncompleteTypeNode>()) {
-      equal = equal && bt1 == bt2;
+      equal = equal && bt1->kind == bt2->kind;
       return;
     } else {
       equal = false;

@@ -21,11 +21,8 @@ def test_incomplete_type_alpha_equal():
     t2 = relay.IncompleteType(relay.Kind.Type)
     t3 = relay.IncompleteType(relay.Kind.Type)
 
-    # only equal when there is pointer equality
-    assert t2 == t2
-    assert t1 == t1
     assert t1 != t2
-    assert t2 != t3
+    assert t2 == t3
 
 
 def test_type_param_alpha_equal():
