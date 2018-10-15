@@ -39,13 +39,21 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
   }
 };
 
+/*!
+* \brief GetReduceAxes, get the new axis from indim and other arguments
+* \param indim Number of dimensions of input data.
+* \param axis The input axis vector.
+* \param exclude Whether 'axis' input given is the excluded axis.
+* \return r_axes The new reduced axes of the output.
+*/
 inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
                                           const std::vector<int64_t>& axis,
-                                          bool exclude,
-                                          const TypeReporter& reporter) {
+                                          bool exclude) {
   if (axis.size() == 0) {
     std::vector<int64_t> r_axes;
-    r_axes.push_back(0);
+    for (uint32_t i = 0; i < indim; ++i) {
+      r_axes.push_back(i);
+    }
     return r_axes;
   }
   CHECK(axis[axis.size() - 1] < indim)
@@ -82,6 +90,13 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
   return r_axis;
 }
 
+/*!
+* \brief ReduceShapeImpl get the outshape for the reduction operator
+* \param in_shape Shape of input data.
+* \param param ReduceAttrs details.
+* \param reporter The reporter to report solution to.
+* \return oshape Output shape inferred.
+*/
 inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_shape,
                                               const ReduceAttrs* param,
                                               const TypeReporter& reporter) {
@@ -93,7 +108,7 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   }
 
   uint32_t indim = in_shape.size();
-  auto r_axes = GetReduceAxes(indim, in_axis, param->exclude, reporter);
+  auto r_axes = GetReduceAxes(indim, in_axis, param->exclude);
   if (!r_axes.size()) {
     return in_shape;
   }
@@ -102,8 +117,13 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
     if (param->keepdims) {
       dim = indim;
       }
-    return std::vector<IndexExpr>(dim);
+    std::vector<IndexExpr> oshape(dim);
+    for (auto i = 0; i < dim; ++i) {
+      oshape[i] = 1;
+    }
+    return oshape;
   }
+
   CHECK(r_axes.size() < indim);
   if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
@@ -127,6 +147,13 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   return oshape;
 }
 
+/*!
+* \brief ArgReduceRel Output type and shape relation evaluation function.
+* \param num_inputs Number of input types in the args.
+* \param attrs The additional attributes of the operator.
+* \param reporter The reporter to report solution to.
+* \return false if This relation cannot be resolved. true if this relation has been resolved.
+*/
 bool ArgReduceRel(const Array<Type>& types,
                int num_inputs,
                const Attrs& attrs,
@@ -149,26 +176,25 @@ bool ArgReduceRel(const Array<Type>& types,
   return true;
 }
 
-// Positional relay function to create reduce operator used by frontend FFI.
-Expr MakeReduce(Expr data,
-                Array<IndexExpr> axis,
-                bool keepdims,
-                bool exclude) {
-  auto attrs = make_node<ReduceAttrs>();
-  attrs->axis = std::move(axis);
-  attrs->keepdims = keepdims;
-  attrs->exclude = exclude;
-  static const Op& op = Op::Get("argmax");
-  return CallNode::make(op, {data}, Attrs(attrs), {});
-}
 
 #define RELAY_REGISTER_REDUCE_OP(OpName)                           \
   TVM_REGISTER_API("relay.op._make." OpName)                       \
   .set_body([](const TVMArgs& args, TVMRetValue* rv) {             \
-      runtime::detail::unpack_call<Expr, 4>(MakeReduce, args, rv); \
+    auto make_func = [](Expr data,                                 \
+                        Array<IndexExpr> axis,                     \
+                        bool keepdims,                             \
+                        bool exclude) {                            \
+      auto attrs = make_node<ReduceAttrs>();                       \
+      attrs->axis = std::move(axis);                               \
+      attrs->keepdims = keepdims;                                  \
+      attrs->exclude = exclude;                                    \
+      static const Op& op = Op::Get(OpName);                       \
+      return CallNode::make(op, {data}, Attrs(attrs), {});         \
+    };                                                             \
+    runtime::detail::unpack_call<Expr, 4>(make_func, args, rv);    \
     });                                                            \
   RELAY_REGISTER_OP(OpName)                                        \
-  .set_num_inputs(1)                                              \
+  .set_num_inputs(1)                                               \
   .add_argument("data", "Tensor", "The input tensor.")
 
 

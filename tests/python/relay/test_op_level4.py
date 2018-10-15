@@ -179,7 +179,7 @@ def test_argmin():
 
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType((1, c , h, w), "int32")
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , 1, 1), "int32")
 
 def test_where():
     ib = relay.ir_builder.IRBuilder()
