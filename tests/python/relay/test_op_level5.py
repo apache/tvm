@@ -39,7 +39,7 @@ def test_multibox_prior():
     x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
 
     with ib.function(x) as func:
-        ib.ret(relay.vision.multibox_prior(x.var, sizes, ratios,
+        ib.ret(relay.vision.multibox_prior(x, sizes, ratios,
                                            steps, offsets, clip))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
