@@ -128,9 +128,9 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relay.attrs.StridedSliceAttrs") {
     TVM_ATTR_FIELD(begin)
-        .describe("Indices for begin of slice");
+        .describe("Indices for begin of slice, begin index is also inclusive");
     TVM_ATTR_FIELD(end)
-        .describe("Indices for end of the slice");
+        .describe("Indices for end of slice, end index is also inclusive");
     TVM_ATTR_FIELD(stride).set_default(Array<IndexExpr>({}))
         .describe("Stride values of the slice");
   }
