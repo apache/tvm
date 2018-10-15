@@ -63,7 +63,6 @@ Y = relay.Var("y")
 int64 = to_tensor_type("int64")
 
 UNIT = relay.Tuple([])
-TYPE_HOLE = relay.IncompleteType()
 
 def test_int_literal():
     assert isinstance(parse_expr("1"), relay.Constant)
@@ -145,8 +144,7 @@ def test_let():
         relay.Let(
             X,
             to_constant(1),
-            UNIT,
-            TYPE_HOLE
+            UNIT
         )
     )
 
@@ -157,8 +155,7 @@ def test_seq():
         relay.Let(
             _,
             UNIT,
-            UNIT,
-            TYPE_HOLE)
+            UNIT)
     )
 
     assert alpha_equal(
@@ -166,9 +163,8 @@ def test_seq():
         # Can't use _ constant, because the _'s are different.
         relay.Let(
             relay.Var("_"),
-            relay.Let(relay.Var("_"), UNIT, UNIT, TYPE_HOLE),
-            UNIT,
-            TYPE_HOLE)
+            relay.Let(relay.Var("_"), UNIT, UNIT),
+            UNIT)
     )
 
 @raises(ParseError)
@@ -198,7 +194,7 @@ def test_func():
         parse_expr("fn () -> { 0 }"),
         relay.Function(
             [],
-            TYPE_HOLE,
+            None,
             to_constant(0),
             []
         )
@@ -208,8 +204,8 @@ def test_func():
     assert alpha_equal(
         parse_expr("fn (%x) -> { %x }"),
         relay.Function(
-            [relay.Param(X, TYPE_HOLE)],
-            TYPE_HOLE,
+            [relay.Param(X, None)],
+            None,
             X,
             []
         )
@@ -219,9 +215,9 @@ def test_func():
     assert alpha_equal(
         parse_expr("fn (%x, %y) -> { %x + %y }"),
         relay.Function(
-            [relay.Param(X, TYPE_HOLE),
-             relay.Param(Y, TYPE_HOLE)],
-            TYPE_HOLE,
+            [relay.Param(X, None),
+             relay.Param(Y, None)],
+            None,
             relay.add(X, Y),
             []
         )
@@ -287,9 +283,8 @@ def test_call():
         ),
         relay.Let(
             constant,
-            relay.Function([], TYPE_HOLE, to_constant(0), []),
-            relay.Call(constant, [], None, None),
-            TYPE_HOLE
+            relay.Function([], None, to_constant(0), []),
+            relay.Call(constant, [], None, None)
         )
     )
 
@@ -304,9 +299,8 @@ def test_call():
         ),
         relay.Let(
             id_var,
-            relay.Function([relay.Param(X, TYPE_HOLE)], TYPE_HOLE, X, []),
-            relay.Call(id_var, [to_constant(1)], None, None),
-            TYPE_HOLE
+            relay.Function([relay.Param(X, None)], None, X, []),
+            relay.Call(id_var, [to_constant(1)], None, None)
         )
     )
 
@@ -322,13 +316,12 @@ def test_call():
         relay.Let(
             multiply,
             relay.Function(
-                [relay.Param(X, TYPE_HOLE), relay.Param(Y, TYPE_HOLE)],
-                TYPE_HOLE,
+                [relay.Param(X, None), relay.Param(Y, None)],
+                None,
                 relay.multiply(X, Y),
                 []
             ),
-            relay.Call(multiply, [to_constant(0), to_constant(0)], None, None),
-            TYPE_HOLE
+            relay.Call(multiply, [to_constant(0), to_constant(0)], None, None)
         )
     )
 
@@ -341,8 +334,8 @@ def test_call():
         ),
         relay.Call(
             relay.Function(
-                [relay.Param(X, TYPE_HOLE)],
-                TYPE_HOLE,
+                [relay.Param(X, None)],
+                None,
                 X,
                 []
             ),
@@ -370,11 +363,11 @@ def test_call():
         relay.Let(
             curried_mult,
             relay.Function(
-                [relay.Param(X, TYPE_HOLE)],
-                TYPE_HOLE,
+                [relay.Param(X, None)],
+                None,
                 relay.Function(
-                    [relay.Param(Y, TYPE_HOLE)],
-                    TYPE_HOLE,
+                    [relay.Param(Y, None)],
+                    None,
                     relay.multiply(X, Y),
                     []
                 ),
@@ -383,10 +376,8 @@ def test_call():
             relay.Let(
                 _,
                 relay.Call(curried_mult, [to_constant(0)], None, None),
-                relay.Call(relay.Call(curried_mult, [to_constant(0)], None, None), [to_constant(0)], None, None),
-                TYPE_HOLE
-            ),
-            TYPE_HOLE
+                relay.Call(relay.Call(curried_mult, [to_constant(0)], None, None), [to_constant(0)], None, None)
+            )
         )
     )
 
