@@ -75,19 +75,19 @@ def test_expand_dims():
 
 
 def test_split():
-    x1 = sym.Variable("x", shape=(20, 10))
+    x1 = sym.Variable("x", shape=(10, 20))
     z = sym.split(x1, indices_or_sections=[11], name="y")
     sdict = infer_shape(z)
-    assert(sdict["y"][0] == [11, 10])
-    assert(sdict["y"][1] == [9, 10])
+    assert(sdict["y"][0] == [10, 11])
+    assert(sdict["y"][1] == [10, 9])
     z = sym.split(x1, indices_or_sections=2, name="y")
     sdict = infer_shape(z)
     assert(sdict["y"][0] == [10, 10])
     assert(sdict["y"][1] == [10, 10])
     z = sym.split(x1, indices_or_sections=[6], axis=-1, name="y")
     sdict = infer_shape(z)
-    assert(sdict["y"][0] == [20, 6])
-    assert(sdict["y"][1] == [20, 4])
+    assert(sdict["y"][0] == [10, 6])
+    assert(sdict["y"][1] == [10, 14])
 
 
 def test_batchnorm():
