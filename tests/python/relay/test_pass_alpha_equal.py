@@ -187,6 +187,25 @@ def test_var_alpha_equal():
     assert alpha_equal(l1, l2)
     assert not alpha_equal(l1, l3)
 
+    # type annotations
+    tt1 = relay.TensorType([], "int32")
+    tt2 = relay.TensorType([], "int32")
+    tt3 = relay.TensorType([], "int64")
+    v3 = relay.Var("v3", tt1)
+    v4 = relay.Var("v4", tt2)
+    v5 = relay.Var("v5", tt3)
+
+    l4 = relay.Let(v3, convert(1), v3)
+    l5 = relay.Let(v4, convert(1), v4)
+    l6 = relay.Let(v5, convert(1), v5)
+
+    # same annotations
+    assert alpha_equal(l4, l5)
+    # different annotations
+    assert not alpha_equal(l4, l6)
+    # one null annotation
+    assert not alpha_equal(l1, l4)
+
 
 def test_global_var_alpha_equal():
     v1 = relay.GlobalVar("v1")
@@ -306,6 +325,14 @@ def test_function_alpha_equal():
     # a well-typed example that also differs in body, ret type, and type params
     tupled_example = relay.Function(basic_args, relay.Tuple([v3, v4]), tt3)
     assert not alpha_equal(func, tupled_example)
+
+    # nullable
+    no_ret_type = relay.Function(basic_args, None, v4, [tp1, tp2])
+    # both null
+    assert alpha_equal(no_ret_type, no_ret_type)
+    # one null
+    assert not alpha_equal(func, no_ret_type)
+    assert not alpha_equal(no_ret_type, func)
 
 
 def test_call_alpha_equal():
