@@ -236,10 +236,17 @@ def test_func():
         )
     )
 
-# TODO(@jmp): Figure out why this is crashing.
-@nottest
+# TODO(@jmp): Crashes if %x isn't annnotated.
+# @nottest
 def test_defn():
-    id_defn = parse_prog("def @id(%x) -> { %x }")
+    id_defn = parse_prog(
+        """
+        def @id(%x: Int32) -> Int32 {
+            %x
+        }
+
+        ()
+        """)
     assert isinstance(id_defn, Program)
 
 def test_ifelse():
