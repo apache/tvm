@@ -2,9 +2,10 @@
 from antlr4 import ParserRuleContext, InputStream, CommonTokenStream
 from antlr4.tree.Tree import TerminalNode
 from collections import deque
-from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable
+from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 import tvm
 from tvm import relay
+from relay.ir_builder import convert
 import sys
 if sys.version_info.major < 3:
     from .grammar.py2.RelayVisitor import RelayVisitor
@@ -151,9 +152,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: () -> Scope[relay.Var]
         return self.var_scopes.popleft()
 
-    def mk_var(self, name):
-        # type: (str) -> relay.Var
-        var = relay.Var(name)
+    def mk_var(self, name, type_):
+        # type: (str, relay.Type) -> relay.Var
+        var = relay.Var(name, type_)
         self.var_scopes[0].appendleft((name, var))
         return var
 
@@ -180,7 +181,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
             return relay.GlobalVar(node.getText()[1:])
-        elif node_type == RelayLexer.VAR:
+        elif node_type == RelayLexer.LOCAL_VAR:
             name = node.getText()[1:]
             var = lookup(self.var_scopes, name)
             if var is None:
@@ -272,14 +273,16 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         if ctx.ident() is None:
             # anonymous identity
-            ident = self.mk_var("_")
+            ident = "_"
         else:
-            ident = ctx.ident().VAR()
-            if ident is None:
+            local_var = ctx.ident().LOCAL_VAR()
+            if local_var is None:
                 raise ParseError('Only local ids may be used in `let`s.')
-            ident = self.mk_var(ident.getText()[1:])
+            ident = local_var.getText()[1:]
 
         type_ = self.getType_(ctx.type_())
+
+        var = self.mk_var(ident, type_)
 
         self.enter_var_scope()
         value = self.visit(ctx.expr(0))
@@ -287,7 +290,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         
         body = self.visit(ctx.expr(1))
 
-        return relay.Let(ident, value, body, type_)
+        return relay.Let(var, value, body)
 
     def visitBinOp(self, ctx):
         # type: (RelayParser.BinOpContext) -> relay.Call
@@ -300,21 +303,20 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return relay_op(arg0, arg1)
 
-    def visitParam(self, ctx):
-        # type: (RelayParser.ParamContext) -> relay.Param
-        ident = ctx.ident().VAR()
+    def visitVar(self, ctx):
+        # type: (RelayParser.VarContext) -> relay.Var
+        ident = ctx.ident().LOCAL_VAR()
 
         if ident is None:
             raise ParseError('Only local ids may be used in params.')
 
-        ident = self.mk_var(ident.getText()[1:])
         type_ = self.getType_(ctx.type_())
 
-        return relay.Param(ident, type_)
+        return self.mk_var(ident.getText()[1:], type_)
 
-    def visitParamList(self, ctx):
-        # type: (RelayParser.ParamListContext) -> List[relay.Param]
-        return self.visit_list(ctx.param())
+    def visitVarList(self, ctx):
+        # type: (RelayParser.VarListContext) -> List[relay.Var]
+        return self.visit_list(ctx.var())
 
     def mk_func(self, ctx):
         # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> relay.Function

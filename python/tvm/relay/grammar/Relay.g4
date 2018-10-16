@@ -20,7 +20,7 @@ NE: '!=' ;
 
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
-VAR: '%' CNAME ;
+LOCAL_VAR: '%' CNAME ;
 
 MUT: 'mut' ;
 
@@ -72,7 +72,7 @@ expr
   | 'if' '(' expr ')' body 'else' body    # ifElse
 
   // sequencing
-  | 'let' MUT? ident (':' type_)? '=' expr ';' expr  # seq
+  | 'let' MUT? var '=' expr ';' expr  # seq
   // sugar for let %_ = expr; expr
   | expr ';' expr                         # seq
   // sugar for let %_ = expr; expr
@@ -88,14 +88,13 @@ expr
   // | 'debug'                               # debug
   ;
 
-func: 'fn'        paramList '->' type_? body ;
-defn: 'def' ident paramList '->' type_? body ;
+func: 'fn'        varList '->' type_? body ;
+defn: 'def' ident varList '->' type_? body ;
 
-paramList: '(' (param (',' param)*)? ')' ;
-param: ident (':' type_)? ;
+varList: '(' (var (',' var)*)? ')' ;
+var: ident (':' type_)? ;
 
 // TODO(@jmp): for improved type annotations
-// typeAnno: ':' type_ ;
 // returnAnno: (ident ':')? type_ ;
 
 // relations: 'where' relation (',' relation)* ;
@@ -134,5 +133,5 @@ scalar
 ident
   : opIdent
   | GLOBAL_VAR
-  | VAR
+  | LOCAL_VAR
   ;
