@@ -11,6 +11,7 @@ from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
     _get_workload_int8, _get_schedule, _get_schedule_NCHWc, \
     _get_schedule_NCHWc_int8, _get_alter_layout_schedule, Workload
+from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
 from .conv2d_avx_common import AVXConvCommonFwd
@@ -277,16 +278,79 @@ def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
                                             layout, out_dtype)
             cfg = _get_default_sch(workload)
         args = [cfg, data, kernel, strides, padding, layout, out_dtype]
-        _, _, kh, kw = get_const_tuple(kernel.shape)
-        is_kernel_1x1 = kh == 1 and kw == 1
-        return conv2d_avx_1x1._declaration_conv(*args) if is_kernel_1x1 else \
-            conv2d_avx_common._declaration_conv(*args)
+        return _declaration_conv_impl(*args)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, out_dtype)
     elif layout == 'NHWC':
         return nn.conv2d_nhwc(data, kernel, strides, padding, out_dtype)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
+
+
+def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype):
+    out_dtype = data.dtype if out_dtype is None else out_dtype
+    assert layout == 'NCHW', "only support NCHW convolution for AVX"
+
+    HPAD, WPAD = padding
+    HSTR, WSTR = strides
+
+    batch_size, in_channel, in_height, in_width = get_const_tuple(data.shape)
+    num_filter, _, kernel_height, kernel_width = get_const_tuple(kernel.shape)
+
+    pad_height = in_height + 2 * HPAD
+    pad_width = in_width + 2 * WPAD
+
+    out_height = (in_height + 2 * HPAD - kernel_height) // HSTR + 1
+    out_width = (in_width + 2 * WPAD - kernel_width) // WSTR + 1
+
+    # pack data
+    DOPAD = (HPAD != 0 or WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
+    else:
+        data_pad = data
+
+    # fetch schedule
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+
+    shape = (batch_size, in_channel // ic_bn, pad_height, ic_bn, pad_width)
+    data_vec = tvm.compute(shape,
+                           lambda n, C, h, c, w: data_pad[n, C * ic_bn + c, h, w],
+                           name='data_vec')
+
+    # pack kernel
+    shape = (num_filter//oc_bn, in_channel//ic_bn,
+             kernel_height, kernel_width, ic_bn, oc_bn)
+    kernel_vec = tvm.compute(shape,
+                             lambda CO, CI, h, w, ci, co:
+                             kernel[CO * oc_bn + co, CI * ic_bn + ci, h, w],
+                             name='kernel_vec')
+
+    # convolution
+    oshape = (batch_size, num_filter//oc_bn, out_height, out_width, oc_bn)
+    unpack_shape = (batch_size, num_filter, out_height, out_width)
+
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
+
+    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                       tvm.sum(data_vec[n, ic//ic_bn, oh*HSTR+kh, ic%ic_bn,
+                                        ow*WSTR+kw].astype(out_dtype) *
+                               kernel_vec[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn,
+                                          oc_block].astype(out_dtype),
+                               axis=[ic, kh, kw]), name='conv')
+
+    unpack = tvm.compute(unpack_shape,
+                         lambda n, c, h, w: conv[n, c // oc_bn, h, w, c % oc_bn]
+                         .astype(out_dtype),
+                         name='output_unpack',
+                         tag='conv2d_nchw',
+                         attrs={'workload':
+                                    conv_arg_to_workload(data, kernel, strides,
+                                                         padding, layout,
+                                                         out_dtype)})
+    return unpack
 
 
 @autotvm.task.register_topi_schedule(generic.schedule_conv2d_nchw, 'cpu', ['direct'])
@@ -408,13 +472,9 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
     args = deserialize_args(args)
     data, kernel = args[:2]
-    kernel_size = args[3]
     strides = args[4]
     padding = args[5]
     layout = args[6]
-    kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) else \
-        (kernel_size, kernel_size)
-    is_kernel_1x1 = kh == 1 and kw == 1
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
@@ -429,12 +489,8 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
                       raw_data_shape[2], raw_data_shape[3], ic_bn)
     data_layout = "NCHW%dc" % ic_bn
     out_layout = "NCHW%dc" % oc_bn
-    if is_kernel_1x1:
-        new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
-                            ic_bn, oc_bn, raw_kernel_shape[2], raw_kernel_shape[3])
-    else:
-        new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
-                            raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
+    new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
+                        raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
     args[0] = tvm.placeholder(new_data_shape, data.dtype)
     args[1] = tvm.placeholder(new_kernel_shape, kernel.dtype)
     args[6] = data_layout
@@ -451,21 +507,14 @@ def conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
     """convert argument to workload"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
-    kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) else \
-        (kernel_size, kernel_size)
-    is_kernel_1x1 = kh == 1 and kw == 1
     if len(dshape) > 4:
         raw_data = tvm.placeholder((dshape[0], dshape[1] * dshape[4], dshape[2],
                                     dshape[3]), dtype=kernel.dtype)
     else:
         raw_data = data
     if len(kshape) > 4:
-        if is_kernel_1x1:
-            raw_kernel = tvm.placeholder((kshape[0] * kshape[3], kshape[1] * kshape[2],
-                                          kshape[4], kshape[5]), dtype=kernel.dtype)
-        else:
-            raw_kernel = tvm.placeholder((kshape[0] * kshape[5], kshape[1] * kshape[4],
-                                          kshape[2], kshape[3]), dtype=kernel.dtype)
+        raw_kernel = tvm.placeholder((kshape[0] * kshape[5], kshape[1] * kshape[4],
+                                      kshape[2], kshape[3]), dtype=kernel.dtype)
     else:
         raw_kernel = kernel
     return ('conv2d_NCHWc', ) + autotvm.task.args_to_workload(
@@ -506,8 +555,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
 
     dtype = data.dtype
     out_dtype = dtype if attrs["out_dtype"] == "same" else attrs["out_dtype"]
-    kh, kw = kernel_size
-    is_kernel_1x1 = kh == 1 and kw == 1
     workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
                                           padding, layout, out_layout, out_dtype)
     cfg = _query_dispatcher(workload, True)
@@ -524,12 +571,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
         global_dict_key = workload
         dispatch_ctx.update_global_dict(global_dict_key, cfg)
 
-    if is_kernel_1x1:
-        # (oc, ic, h, w) -> (OC, IC, ic, oc, h, w)
-        new_attrs['kernel_layout'] = 'OI%di%doHW' % (ic_bn, oc_bn)
-    else:
-        # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
-        new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+    # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
+    new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
 
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
@@ -569,8 +612,58 @@ def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
             else conv2d_avx_common._declaration_conv_NCHWc_int8(wkl, sch, data, kernel)
 
     args = [cfg, data, kernel, (kh, kw), (sh, sw), (ph, pw), layout, out_layout, out_dtype]
-    return conv2d_avx_1x1._declaration_conv_NCHWc(*args) if is_kernel_1x1 else \
-        conv2d_avx_common._declaration_conv_NCHWc(*args)
+    return _declaration_conv_NCHWc_impl(*args)
+
+
+def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, padding, layout,
+                                 out_layout, out_dtype):
+    HPAD, WPAD = padding
+    HSTR, WSTR = strides
+
+    n, ic_chunk, ih, iw, ic_block = get_const_tuple(data.shape)
+    ic = ic_chunk * ic_block
+    kh, kw = kernel_size
+    oc_chunk, _, _, _, _, oc_block = get_const_tuple(kernel.shape)
+    oc = oc_chunk * oc_block
+    oh = (ih + 2 * HPAD - kh) // HSTR + 1
+    ow = (iw + 2 * WPAD - kw) // WSTR + 1
+
+    # DOPAD
+    DOPAD = (HPAD != 0 or WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
+    else:
+        data_pad = data
+
+    # fetch schedule
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    if ic_bn != ic_block:
+        raise RuntimeError("ic_bn in config is not equal to actual data ic_block: %d vs %d."
+                           % (ic_bn, ic_block))
+    if oc_bn != oc_block:
+        raise RuntimeError("oc_bn in config is not equal to actual kernel oc_block: %d vs %d."
+                           % (oc_bn, oc_block))
+
+    # convolution
+    oshape = (n, oc//oc_bn, oh, ow, oc_bn)
+
+    ic = tvm.reduce_axis((0, ic), name='ic')
+    kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
+    kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
+
+    workload = conv2d.conv_NCHWc_arg_to_workload(data, kernel,
+                                                 kernel_size,
+                                                 strides, padding,
+                                                 layout, out_layout,
+                                                 out_dtype),
+    attrs = {'workload': workload}
+    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
+                                        ic%ic_bn].astype(out_dtype) *
+                               kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
+                               axis=[ic, kh, kw]),
+                       name='conv2d_NCHWc', tag="conv2d_NCHWc", attrs=attrs)
+    return conv
 
 
 @generic.schedule_conv2d_NCHWc.register("cpu")
