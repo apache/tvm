@@ -651,11 +651,9 @@ def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, paddin
     kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
     kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
 
-    workload = conv2d.conv_NCHWc_arg_to_workload(data, kernel,
-                                                 kernel_size,
-                                                 strides, padding,
-                                                 layout, out_layout,
-                                                 out_dtype),
+    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
+                                          strides, padding, layout,
+                                          out_layout, out_dtype),
     attrs = {'workload': workload}
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
