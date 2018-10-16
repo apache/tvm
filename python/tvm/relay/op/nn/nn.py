@@ -1,5 +1,6 @@
 """Neural network operations."""
 from __future__ import absolute_import as _abs
+from tvm.relay.ir_builder import TupleWrapper
 from . import _make
 
 
@@ -536,6 +537,7 @@ def lrn(data, size=5, axis=1, bias=2, alpha=.00001, beta=0.75):
 
     .. math::
         (data / (bias + (alpha * sum_data ^2 /size))^beta)
+
     Parameters
     ----------
     data : relay.Expr
@@ -587,3 +589,103 @@ def l2_normalize(data, eps, axis=None):
         The computed result.
     """
     return _make.l2_normalize(data, eps, axis)
+
+def dropout(data, rate=0.5):
+    """Applies the dropout operation to the input array.
+
+    During training, each element of the input is set to zero with
+    probability ``p``. The whole array is rescaled by ``1/(1-p)``
+    to keep the expected sum of the input unchanged.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    rate : float, optional (default=0.5)
+        The probability for an element to be reset to 0.
+
+    Returns
+    -------
+    result : relay.Tuple([relay.Expr, relay.Expr])
+        The first member of the tuple is the result of dropping elements from ``data``
+        and rescaling. The second member is a "mask" tensor, which is of the same
+        shape and data type as ``data`` and, for each element in ``data``, is 1.0
+        if the element was not dropped and 0.0 if it was.
+    """
+    result = _make.dropout(data, rate)
+    return TupleWrapper(result, 2)
+
+def batch_norm(data, gamma, beta, moving_mean, moving_var,
+               axis=1, epsilon=1e-5, center=True, scale=True):
+    r"""
+    Batch normalization layer (Ioffe and Szegedy, 2014).
+    Normalizes the input at each batch, i.e. applies a transformation
+    that maintains the mean activation close to 0 and the activation
+    standard deviation close to 1.
+
+    .. math::
+
+        data\_mean[i] = mean(data[:,i,:,...]) \\
+        data\_var[i] = var(data[:,i,:,...])
+
+    Then compute the normalized output, which has the same shape as input, as following:
+
+    .. math::
+
+        out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
+            * gamma[i] + beta[i]
+
+    Both *mean* and *var* returns a scalar by treating the input as a vector.
+
+    Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
+    have shape *(k,)*.
+
+    Besides the inputs and the outputs, this operator accepts two auxiliary
+    states, ``moving_mean`` and ``moving_var``, which are *k*-length
+    vectors. They are global statistics for the whole dataset, which are updated by::
+
+    moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+    moving_var = moving_var * momentum + data_var * (1 - momentum)
+
+    The parameter ``axis`` specifies which axis of the input shape denotes
+    the 'channel' (separately normalized groups).  The default is 1.
+    Specifying -1 sets the channel axis to be the last item in the input shape.
+
+    .. note::
+
+        This operator can be optimized away for inference.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        Input to which batch_norm will be applied.
+    gamma : relay.Expr
+        The gamma scale factor.
+    beta : relay.Expr
+        The beta offset factor.
+    moving_mean : relay.Expr
+        Running mean of input,
+    moving_var : relay.Expr
+        Running variance of input.
+    axis : int, optional, default=1
+        Specify along which shape axis the channel is specified.
+    epsilon : double, optional, default=1e-5
+        Small float added to variance to avoid diving by zero.
+    center : boolean, optional, default=True
+        If True, add offset of beta to normalized tensor, If False,
+        beta is ignored.
+    scale : boolean, optional, default=True
+        If true, multiply by gamma. If False, gamma is not used.
+        When the next layer is piecewise linear (also e.g. nn.relu),
+        this can be disabled since the scalingwill be done by the next layer.
+
+    Returns
+    -------
+    result : relay.Tuple([relay.Expr, relay.Expr, relay.Expr])
+        Tuple of normed data (same shape as input), new running mean (k-length vector),
+        and new running variance (k-length vector)
+    """
+    result = _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                              axis, epsilon, center, scale)
+    return TupleWrapper(result, 3)

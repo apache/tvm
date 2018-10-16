@@ -38,6 +38,8 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.tanh
    tvm.relay.sigmoid
    tvm.relay.nn.relu
+   tvm.relay.nn.dropout
+   tvm.relay.nn.batch_norm
 
 
 **Level 2: Convolutions**
