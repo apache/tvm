@@ -231,7 +231,7 @@ def test_func():
         relay.Function(
             [X_ANNO],
             int32,
-            X,
+            X_ANNO,
             []
         )
     )
@@ -407,10 +407,9 @@ def test_function_type():
             """
         ),
         relay.Let(
-            _,
+            relay.Var("_", relay.FuncType([], int32, [], [])),
             relay.Function([], int32, to_constant(0), []),
-            UNIT,
-            relay.FuncType([], int32, [], [])
+            UNIT
         )
     )
 
@@ -421,10 +420,9 @@ def test_function_type():
             """
         ),
         relay.Let(
-            _,
+            relay.Var("_", relay.FuncType([int32], int32, [], [])),
             relay.Function([relay.Var("x", int32)], int32, to_constant(0), []),
-            UNIT,
-            relay.FuncType([int32], int32, [], [])
+            UNIT
         )
     )
 
@@ -435,10 +433,9 @@ def test_function_type():
             """
         ),
         relay.Let(
-            _,
+            relay.Var("_", relay.FuncType([int32, int32], int32, [], [])),
             relay.Function([relay.Var("x", int32), relay.Var("y", int32)], int32, to_constant(0), []),
-            UNIT,
-            relay.FuncType([int32, int32], int32, [], [])
+            UNIT
         )
     )
 
@@ -449,35 +446,32 @@ def test_tuple_type():
         let %_: () = (); ()
         """),
         relay.Let(
-            _,
+            relay.Var("_", relay.TupleType([])),
             UNIT,
-            UNIT,
-            relay.TupleType([])
+            UNIT
         )
     )
 
     assert alpha_equal(
         parse_expr(
         """
-        let %x: (Int32,) = (0,); ()
+        let %_: (Int32,) = (0,); ()
         """),
         relay.Let(
-            X,
+            relay.Var("_", relay.TupleType([int32])),
             relay.Tuple([to_constant(0)]),
-            UNIT,
-            relay.TupleType([int32])
+            UNIT
         )
     )
 
     assert alpha_equal(
         parse_expr(
         """
-        let %x: (Int32, Int32) = (0, 1); ()
+        let %_: (Int32, Int32) = (0, 1); ()
         """),
         relay.Let(
-            X,
+            relay.Var("_", relay.TupleType([int32, int32])),
             relay.Tuple([to_constant(0), to_constant(1)]),
-            UNIT,
-            relay.TupleType([int32, int32])
+            UNIT
         )
     )
