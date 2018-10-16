@@ -2,6 +2,7 @@ import tvm
 from tvm import relay
 from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
 from tvm.relay.ir_pass import alpha_equal
+# from tvm.relay.ir_builder import convert
 from tvm.relay.expr import pretty_print
 from nose.tools import nottest, raises
 from typing import Union
@@ -56,11 +57,13 @@ def to_tensor_type(x):
     # type: (str) -> relay.TensorType
     return relay.TensorType([], x)
 
+int32 = to_tensor_type("int32")
+
 _ = relay.Var("_")
 X = relay.Var("x")
 Y = relay.Var("y")
-
-int64 = to_tensor_type("int64")
+X_ANNO = relay.Var("x", int32)
+Y_ANNO = relay.Var("y", int32)
 
 UNIT = relay.Tuple([])
 
@@ -204,7 +207,7 @@ def test_func():
     assert alpha_equal(
         parse_expr("fn (%x) -> { %x }"),
         relay.Function(
-            [relay.Param(X, None)],
+            [X],
             None,
             X,
             []
@@ -215,8 +218,7 @@ def test_func():
     assert alpha_equal(
         parse_expr("fn (%x, %y) -> { %x + %y }"),
         relay.Function(
-            [relay.Param(X, None),
-             relay.Param(Y, None)],
+            [X, Y],
             None,
             relay.add(X, Y),
             []
@@ -225,10 +227,10 @@ def test_func():
 
     # annotations
     assert alpha_equal(
-        parse_expr("fn (%x: Int64) -> Int64 { %x }"),
+        parse_expr("fn (%x: Int32) -> Int32 { %x }"),
         relay.Function(
-            [relay.Param(X, int64)],
-            int64,
+            [X_ANNO],
+            int32,
             X,
             []
         )
@@ -299,7 +301,7 @@ def test_call():
         ),
         relay.Let(
             id_var,
-            relay.Function([relay.Param(X, None)], None, X, []),
+            relay.Function([X], None, X, []),
             relay.Call(id_var, [to_constant(1)], None, None)
         )
     )
@@ -316,7 +318,7 @@ def test_call():
         relay.Let(
             multiply,
             relay.Function(
-                [relay.Param(X, None), relay.Param(Y, None)],
+                [X, Y],
                 None,
                 relay.multiply(X, Y),
                 []
@@ -334,7 +336,7 @@ def test_call():
         ),
         relay.Call(
             relay.Function(
-                [relay.Param(X, None)],
+                [X],
                 None,
                 X,
                 []
@@ -363,10 +365,10 @@ def test_call():
         relay.Let(
             curried_mult,
             relay.Function(
-                [relay.Param(X, None)],
+                [X],
                 None,
                 relay.Function(
-                    [relay.Param(Y, None)],
+                    [Y],
                     None,
                     relay.multiply(X, Y),
                     []
@@ -401,42 +403,42 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: () -> Int64 = fn () -> Int64 { 0 }; ()
+            let %_: () -> Int32 = fn () -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
             _,
-            relay.Function([], int64, to_constant(0), []),
+            relay.Function([], int32, to_constant(0), []),
             UNIT,
-            relay.FuncType([], int64, [], [])
+            relay.FuncType([], int32, [], [])
         )
     )
 
     assert alpha_equal(
         parse_expr(
             """
-            let %_: (Int64) -> Int64 = fn (%x: Int64) -> Int64 { 0 }; ()
+            let %_: (Int32) -> Int32 = fn (%x: Int32) -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
             _,
-            relay.Function([relay.Param(X, int64)], int64, to_constant(0), []),
+            relay.Function([relay.Var("x", int32)], int32, to_constant(0), []),
             UNIT,
-            relay.FuncType([int64], int64, [], [])
+            relay.FuncType([int32], int32, [], [])
         )
     )
 
     assert alpha_equal(
         parse_expr(
             """
-            let %_: (Int64, Int64) -> Int64 = fn (%x: Int64, %y: Int64) -> Int64 { 0 }; ()
+            let %_: (Int32, Int32) -> Int32 = fn (%x: Int32, %y: Int32) -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
             _,
-            relay.Function([relay.Param(X, int64), relay.Param(Y, int64)], int64, to_constant(0), []),
+            relay.Function([relay.Var("x", int32), relay.Var("y", int32)], int32, to_constant(0), []),
             UNIT,
-            relay.FuncType([int64, int64], int64, [], [])
+            relay.FuncType([int32, int32], int32, [], [])
         )
     )
 
@@ -457,25 +459,25 @@ def test_tuple_type():
     assert alpha_equal(
         parse_expr(
         """
-        let %x: (Int64,) = (0,); ()
+        let %x: (Int32,) = (0,); ()
         """),
         relay.Let(
             X,
             relay.Tuple([to_constant(0)]),
             UNIT,
-            relay.TupleType([int64])
+            relay.TupleType([int32])
         )
     )
 
     assert alpha_equal(
         parse_expr(
         """
-        let %x: (Int64, Int64) = (0, 1); ()
+        let %x: (Int32, Int32) = (0, 1); ()
         """),
         relay.Let(
             X,
             relay.Tuple([to_constant(0), to_constant(1)]),
             UNIT,
-            relay.TupleType([int64, int64])
+            relay.TupleType([int32, int32])
         )
     )
