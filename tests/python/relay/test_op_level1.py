@@ -196,6 +196,93 @@ def test_l2_normalize():
     ftype = func.checked_type
     assert ftype.ret_type == relay.ty.TensorType((n, c , h, w), "float32")
 
+def test_dropout():
+    ib = relay.ir_builder.IRBuilder()
+    input_ty = relay.ty.TensorType((3, 4, 5), "int8")
+    x = ib.param("x", input_ty)
+    with ib.function(x) as func:
+        ib.ret(relay.nn.dropout(x))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TupleType([input_ty, input_ty])
+
+    ib = relay.ir_builder.IRBuilder()
+    n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
+    input_ty = relay.ty.TensorType((n, t, d), "float32")
+    x = ib.param("x", input_ty)
+    with ib.function(x) as func:
+        ib.ret(relay.nn.dropout(x, rate=0.75))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TupleType([input_ty, input_ty])
+
+
+def test_batch_norm():
+    # beta and gamma ignored
+    ib = relay.ir_builder.IRBuilder()
+    data = ib.param("data", relay.ty.TensorType((3, 2, 1), "float32"))
+    gamma = ib.param("gamma", relay.ty.TensorType((5,), "int8"))
+    beta = ib.param("beta", relay.ty.TensorType((12, 16), "int64"))
+    moving_mean = ib.param("moving_mean", relay.ty.TensorType((2,), "float32"))
+    moving_var = ib.param("moving_var", relay.ty.TensorType((2,), "float32"))
+    with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
+        ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                                   center=False, scale=False))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TupleType(tvm.convert([
+        relay.ty.TensorType((3, 2, 1), "float32"),
+        relay.ty.TensorType((2,), "float32"),
+        relay.ty.TensorType((2,), "float32")
+    ]))
+
+    # with beta and gamma, different axis
+    ib = relay.ir_builder.IRBuilder()
+    data = ib.param("data", relay.ty.TensorType((3, 2, 1), "float32"))
+    gamma = ib.param("gamma", relay.ty.TensorType((3,), "float32"))
+    beta = ib.param("beta", relay.ty.TensorType((3,), "float32"))
+    moving_mean = ib.param("moving_mean", relay.ty.TensorType((3,), "float32"))
+    moving_var = ib.param("moving_var", relay.ty.TensorType((3,), "float32"))
+    with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
+        ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                                   axis=0, center=False, scale=False))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TupleType(tvm.convert([
+        relay.ty.TensorType((3, 2, 1), "float32"),
+        relay.ty.TensorType((3,), "float32"),
+        relay.ty.TensorType((3,), "float32")
+    ]))
+
+    # axis=-1
+    ib = relay.ir_builder.IRBuilder()
+    data = ib.param("data", relay.ty.TensorType((1, 2, 3), "float32"))
+    gamma = ib.param("gamma", relay.ty.TensorType((3,), "float32"))
+    beta = ib.param("beta", relay.ty.TensorType((3,), "float32"))
+    moving_mean = ib.param("moving_mean", relay.ty.TensorType((3,), "float32"))
+    moving_var = ib.param("moving_var", relay.ty.TensorType((3,), "float32"))
+    with ib.function(data, gamma, beta, moving_mean, moving_var) as func:
+        ib.ret(relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
+                                   axis=-1, center=False, scale=False))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TupleType(tvm.convert([
+        relay.ty.TensorType((1, 2, 3), "float32"),
+        relay.ty.TensorType((3,), "float32"),
+        relay.ty.TensorType((3,), "float32")
+    ]))
+
+
 if __name__ == "__main__":
     test_unary_op()
     test_single_op()
@@ -207,3 +294,5 @@ if __name__ == "__main__":
     test_binary_broadcast_op()
     test_lrn()
     test_l2_normalize()
+    test_dropout()
+    test_batch_norm()
