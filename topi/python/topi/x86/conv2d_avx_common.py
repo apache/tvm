@@ -5,9 +5,6 @@ from collections import namedtuple
 import tvm
 from tvm.autotvm.task import ConfigEntity
 
-import topi
-
-from ..util import get_const_tuple
 from ..nn.util import infer_pad
 from ..nn.pad import pad
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
