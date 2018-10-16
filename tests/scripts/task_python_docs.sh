@@ -12,6 +12,10 @@ make doc
 jsdoc web/tvm_runtime.js web/README.md || exit -1
 mv out docs/_build/html/jsdoc || exit -1
 
+# Java doc
+make javadoc || exit -1
+mv jvm/core/target/site/apidocs docs/_build/html/javadoc || exit -1
+
 rm -rf python/tvm/*.pyc python/tvm/*/*.pyc python/tvm/*/*/*.pyc
 
 cd docs
