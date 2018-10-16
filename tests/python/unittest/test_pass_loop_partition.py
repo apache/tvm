@@ -281,6 +281,24 @@ def test_cce_loop_2():
   stmt = tvm.ir_pass.Simplify(stmt)
   assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
 
+
+def test_cce_loop_3():
+    ib = tvm.ir_builder.create()
+    loop1 = 4
+    loop2 = 9998
+    tile = 39991
+    with ib.for_range(0,loop2,'i') as i:
+        with ib.for_range(0,loop1,'j') as j:
+            head1 = i
+            head2 = j
+            with ib.if_scope(ib.likely(head1*loop1 + head2 < tile)):
+                ib.emit(tvm.call_extern('float16',"cce_intrisic",head1))
+
+    stmt = ib.get()
+    stmt = tvm.ir_pass.LoopPartition(stmt,True)
+    stmt = tvm.ir_pass.Simplify(stmt)
+    assert(not any(collect_visit(stmt, lambda x: isinstance(x, tvm.stmt.IfThenElse))))
+
 def test_conv_tiling():
     HSTR = WSTR = 1
     in_channel = 128
@@ -325,4 +343,5 @@ if __name__ == "__main__":
     test_oneD_pool()
     test_cce_loop_1()
     test_cce_loop_2()
+    test_cce_loop_3()
     test_conv_tiling()
