@@ -1,11 +1,12 @@
+# pylint: disable=invalid-name, unused-import
 """A parser for Relay's text format."""
+from collections import deque
+import sys
+from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 from antlr4 import ParserRuleContext, InputStream, CommonTokenStream
 from antlr4.tree.Tree import TerminalNode
-from collections import deque
-from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 import tvm
 from tvm import relay
-import sys
 if sys.version_info.major < 3:
     from .grammar.py2.RelayVisitor import RelayVisitor
     from .grammar.py2.RelayParser import RelayParser
@@ -18,6 +19,8 @@ else:
 Program = NamedTuple("Program", [("ast", relay.Expr), ("env", relay.Environment)])
 
 class ParseError(Exception):
+    """Exception type for parse errors."""
+
     def __init__(self, message):
         # type: (str) -> None
         super(ParseError, self).__init__()
@@ -56,6 +59,8 @@ TYPES = {
 
 def int_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
+    """Turn an Int type call into a Relay TensorType"""
+
     if len(args) > 2:
         raise ParseError("Int may have at most 2 arguments.")
 
@@ -65,6 +70,8 @@ def int_type_call(args):
 
 def uint_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
+    """Turn a UInt type call into a Relay TensorType"""
+
     if len(args) > 2:
         raise ParseError("UInt may have at most 2 arguments.")
 
@@ -74,6 +81,8 @@ def uint_type_call(args):
 
 def float_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
+    """Turn a Float type call into a Relay TensorType"""
+
     if len(args) > 2:
         raise ParseError("Float may have at most 2 arguments.")
 
@@ -83,6 +92,8 @@ def float_type_call(args):
 
 def bool_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
+    """Turn a Bool type call into a Relay TensorType"""
+
     if len(args) > 1:
         raise ParseError("Bool may have at most 1 argument.")
 
@@ -95,9 +106,11 @@ def bool_type_call(args):
 # TODO(@jmp): Unused.
 def tensor_type_call(args):
     # type: (List[relay.Expr]) -> Union[relay.Expr, relay.TensorType]
+    """Turn a Tensor type call into a Relay TensorType"""
+
     if len(args) > 2:
         raise ParseError("Tensor may have at most 2 arguments.")
-    elif len(args) == 0:
+    elif not args:
         print("Warning. Generic Tensor type unimplemented. Treating as Expr.")
         return relay.Expr()
     elif len(args) == 1:
@@ -122,9 +135,11 @@ Scopes = Deque[Scope[T]]
 
 def lookup(scopes, name):
     # type: (Scopes[T], str) -> Optional[T]
+    """Look up `name` in `scopes`."""
+
     for scope in scopes:
-        for n, val in scope:
-            if n == name:
+        for key, val in scope:
+            if key == name:
                 return val
     return None
 
@@ -145,28 +160,40 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def enter_var_scope(self):
         # type: () -> None
+        """Enter a new Var scope so it can be popped off later."""
+
         self.var_scopes.appendleft(deque())
 
     def exit_var_scope(self):
         # type: () -> Scope[relay.Var]
+        """Pop off the current Var scope and return it."""
+
         return self.var_scopes.popleft()
 
     def mk_var(self, name, type_):
         # type: (str, relay.Type) -> relay.Var
+        """Create a new Var and add it to the Var scope."""
+
         var = relay.Var(name, type_)
         self.var_scopes[0].appendleft((name, var))
         return var
 
     def enter_type_param_scope(self):
         # type: () -> None
+        """Enter a new TypeParam scope so it can be popped off later."""
+
         self.type_param_scopes.appendleft(deque())
 
     def exit_type_param_scope(self):
         # type: () -> Scope[relay.TypeParam]
+        """Pop off the current TypeParam scope and return it."""
+
         return self.type_param_scopes.popleft()
 
     def mk_typ(self, name, kind):
         # (str, relay.Kind) -> relay.TypeParam
+        """Create a new TypeParam and add it to the TypeParam scope."""
+
         typ = relay.TypeParam(name, kind)
         self.type_param_scopes[0].appendleft((name, typ))
         return typ
@@ -176,44 +203,49 @@ class ParseTreeToRelayIR(RelayVisitor):
         """Visit lexer tokens that aren't ignored or visited by other functions."""
 
         node_type = node.getSymbol().type
+        node_text = node.getText()
 
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
-            return relay.GlobalVar(node.getText()[1:])
+            return relay.GlobalVar(node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
-            name = node.getText()[1:]
+            name = node_text[1:]
             var = lookup(self.var_scopes, name)
             if var is None:
                 raise ParseError("Couldn't resolve `{}`.".format(name))
-            else:
-                return var
+
+            return var
 
         # data types
         elif node_type == RelayLexer.INT:
-            return int(node.getText())
+            return int(node_text)
         elif node_type == RelayLexer.FLOAT:
-            return float(node.getText())
+            return float(node_text)
         elif node_type == RelayLexer.BOOL_LIT:
-            if node.getText() == "true":
+            if node_text == "true":
                 return True
-            elif node.getText() == "false":
+            elif node_text == "false":
                 return False
             else:
-                assert False
+                raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
 
         else:
-            raise ParseError("todo: {}".format(node.getText()))
+            raise ParseError("todo: {}".format(node_text))
 
     def visit_list(self, ctx_list):
         # type: (List[ParserRuleContext]) -> List[relay.Expr]
+        """"Visit a list of contexts."""
+
         return [self.visit(ctx) for ctx in ctx_list]
 
     def getType_(self, ctx):
         # type: (Optional[RelayParser.Type_Context]) -> Optional[relay.Type]
+        """Return a (possibly None) Relay type."""
+
         if ctx is None:
             return None
-        else:
-            return self.visit(ctx)
+
+        return self.visit(ctx)
 
     def visitProg(self, ctx):
         # type: (RelayParser.ProgContext) -> Program
@@ -256,8 +288,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         if isinstance(val, relay.Constant) and val.data.asnumpy().ndim == 0:
             # fold Neg in for scalars
             return relay.Constant(tvm.nd.array(-val.data.asnumpy().item()))
-        else:
-            return relay.negative(val)
+        
+        return relay.negative(val)
 
     def visitTuple(self, ctx):
         # type: (RelayParser.TupleContext) -> relay.Tuple
@@ -286,7 +318,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.enter_var_scope()
         value = self.visit(ctx.expr(0))
         self.exit_var_scope()
-        
+
         body = self.visit(ctx.expr(1))
 
         return relay.Let(var, value, body)
@@ -319,6 +351,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def mk_func(self, ctx):
         # type: (Union[RelayParser.FuncContext, RelayParser.DefnContext]) -> relay.Function
+        """Construct a function from either a Func or Defn."""
 
         # Enter var scope early to put params in scope.
         self.enter_var_scope()
@@ -419,6 +452,8 @@ class ParseTreeToRelayIR(RelayVisitor):
 
 def make_parser(data):
     # type: (str) -> RelayParser
+    """Construct a RelayParser a given data stream."""
+
     input_stream = InputStream(data)
     lexer = RelayLexer(input_stream)
     token_stream = CommonTokenStream(lexer)
@@ -428,25 +463,19 @@ def parse_expr(data):
     # type: (str) -> relay.Expr
     """Parse a Relay expression."""
 
-    # try:
-    # TODO add error handling here
     tree = make_parser(data).expr()
     return ParseTreeToRelayIR().visit(tree)
-    # except Exception as exn:
-    #     raise ParseError("parser error: {}".format(exn))
 
 def parse_prog(data):
     # type: (str) -> Program
     """Parse a Relay program."""
 
-    # try:
-    # TODO add error handling here
     tree = make_parser(data).prog()
     return ParseTreeToRelayIR().visit(tree)
-    # except Exception as exn:
-    #     raise ParseError("parser error: {}".format(exn))
 
 def parse_file(path):
     # type: (str) -> Program
-    with open(path, 'r') as f:
-        return parse_prog(f.read())
+    """Parse a Relay program from a file."""
+
+    with open(path, 'r') as in_file:
+        return parse_prog(in_file.read())
