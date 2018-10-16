@@ -5,7 +5,6 @@ from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 import tvm
 from tvm import relay
-from relay.ir_builder import convert
 import sys
 if sys.version_info.major < 3:
     from .grammar.py2.RelayVisitor import RelayVisitor
@@ -271,16 +270,16 @@ class ParseTreeToRelayIR(RelayVisitor):
         if ctx.MUT() is not None:
             raise ParseError("Mutation is currently unsupported.")
 
-        if ctx.ident() is None:
+        if ctx.var() is None or ctx.var().ident() is None:
             # anonymous identity
             ident = "_"
+            type_ = None
         else:
-            local_var = ctx.ident().LOCAL_VAR()
+            local_var = ctx.var().ident().LOCAL_VAR()
             if local_var is None:
                 raise ParseError('Only local ids may be used in `let`s.')
             ident = local_var.getText()[1:]
-
-        type_ = self.getType_(ctx.type_())
+            type_ = self.getType_(ctx.var().type_())
 
         var = self.mk_var(ident, type_)
 
@@ -325,7 +324,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.enter_var_scope()
         # Capture type params in params.
         self.enter_type_param_scope()
-        param_list = self.visit(ctx.paramList())
+        var_list = self.visit(ctx.varList())
         ret_type = self.getType_(ctx.type_())
 
         type_params = list(self.exit_type_param_scope())
@@ -335,7 +334,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         body = self.visit(ctx.body())
         self.exit_var_scope()
 
-        return relay.Function(param_list, ret_type, body, type_params) # type: ignore
+        return relay.Function(var_list, ret_type, body, type_params) # type: ignore
 
     def visitFunc(self, ctx):
         # type: (RelayParser.FuncContext) -> relay.Function
