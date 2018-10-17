@@ -1,6 +1,7 @@
 #!/bin/bash
 mkdir -p docs/_build/html
 rm -rf docs/_build/html/jsdoc
+rm -rf docs/_build/html/javadoc
 
 # remove stale tutorials and always build from scratch.
 rm -rf docs/tutorials
