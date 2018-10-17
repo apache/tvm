@@ -11,7 +11,9 @@ This is a quick guide to submit a pull request, please also refer to the detaile
     git fetch upstream
     git rebase upstream/master
 
-- Make sure code style check pass by typing ``make lint``, and all the existing test-cases pass.
+- Make sure code style check pass by typing the following command, and all the existing test-cases pass.
+  - ``docker/bash.sh tvmai/ci-lint ./tests/scripts/task_lint.sh``  
+     (Note: You must install docker beforehand so you can run a docker image.)
 - Add test-cases to cover the new features or bugfix the patch introduces.
 - Document the code you wrote, see more at :ref:`doc_guide`
 - Send the pull request,  fix the problems reported by automatic checks.
