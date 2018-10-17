@@ -202,6 +202,18 @@ struct GlobalPool2DAttrs : public tvm::AttrsNode<GlobalPool2DAttrs> {
   }
 };
 
+
+/*! \brief Attributes for dense operator */
+struct DenseAttrs : public tvm::AttrsNode<DenseAttrs> {
+  IndexExpr units;
+
+  TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.DenseAttrs") {
+    TVM_ATTR_FIELD(units)
+        .describe("Number of hidden units of the dense transformation.");
+  }
+};
+
+
 /*! \brief Attributes for upsampling operator */
 struct UpSamplingAttrs : public tvm::AttrsNode<UpSamplingAttrs> {
   int scale;
@@ -237,6 +249,18 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   }
 };
 
+
+/*! \brief Attributes for leaky relu operator */
+struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
+  double alpha;
+
+  TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.LeakyReluAttrs") {
+    TVM_ATTR_FIELD(alpha).set_lower_bound(0.0).set_default(0.25)
+        .describe("Slope coefficient for the negative half axis.");
+  }
+};
+
+
 /*! \brief Attributes used in dropout operator */
 struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   double rate;
@@ -271,6 +295,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
       .set_default(true);
   }
 };  // struct BatchNormAttrs
+
 
 /*! \brief Attributes for LRN operator */
 struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {

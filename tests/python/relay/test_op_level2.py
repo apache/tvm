@@ -219,6 +219,47 @@ def test_pad_infer_type():
     ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
+def test_dense_infer_type():
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
+
+    w = ib.param("w", relay.ty.TensorType((w, 2), "float32"))
+
+    with ib.function(x, w) as func:
+        ib.ret(relay.nn.dense(x, w, units=2))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c, h, 2), "float32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
+
+    wh, ww = tvm.var("wh"), tvm.var("ww")
+    w = ib.param("w", relay.ty.TensorType((wh, ww), "float32"))
+
+    with ib.function(x, w) as func:
+        ib.ret(relay.nn.dense(x, w))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c, h, ww), "float32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
+
+    w = ib.param("w", relay.ty.IncompleteType())
+
+    with ib.function(x, w) as func:
+        ib.ret(relay.nn.dense(x, w, units=2))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c, h, 2), "float32")
+
 
 if __name__ == "__main__":
     test_conv2d_infer_type()
@@ -227,3 +268,4 @@ if __name__ == "__main__":
     test_flatten_infer_type()
     test_pad_infer_type()
     test_conv2d_transpose_infer_type()
+    test_dense_infer_type()
