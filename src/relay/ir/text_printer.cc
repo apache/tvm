@@ -22,7 +22,7 @@ struct TextValue {
   // constructor
   TextValue() {}
   // constructor
-  TextValue(std::string name) : name(name) {}
+  explicit TextValue(std::string name) : name(name) {}
 };
 
 // operator overloading
@@ -469,7 +469,7 @@ class TextPrinter :
    * \param fn The function to be printed.
    */
   void PrintFuncInternal(std::string prefix, const Function& fn) {
-    // TODO(tqchen, marisha)(support generic function)
+    // TODO(tqchen, marisha) support generic function
     // Possibly through meta-data
     CHECK_EQ(fn->type_params.size(), 0U)
         << "generic fn not yet supported";

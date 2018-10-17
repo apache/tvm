@@ -1,4 +1,4 @@
-# pylint: disable=wildcard-import, redefined-builtin
+# pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
 from . import base
 from . import ty

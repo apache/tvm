@@ -3,7 +3,6 @@
 from .base import register_relay_node, RelayNode
 from . import _make
 from . import _env
-from . import _expr
 
 @register_relay_node
 class Environment(RelayNode):

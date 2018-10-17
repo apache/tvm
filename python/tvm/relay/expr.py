@@ -4,7 +4,6 @@ from __future__ import absolute_import
 
 import numpy as _np
 from .base import RelayNode, register_relay_node
-from . import _expr
 from . import _make
 from . import ty as _ty
 from .._ffi import base as _base
@@ -164,7 +163,7 @@ class Let(Expr):
 
     Parameters
     ----------
-    var: tvm.relay.Var
+    variable: tvm.relay.Var
         The local variable to be bound.
 
     value: tvm.relay.Expr
@@ -173,9 +172,9 @@ class Let(Expr):
     body: tvm.relay.Expr
         The body of the let binding.
     """
-    def __init__(self, var, value, body):
+    def __init__(self, variable, value, body):
         self.__init_handle_by_constructor__(
-            _make.Let, var, value, body)
+            _make.Let, variable, value, body)
 
 
 @register_relay_node

@@ -56,10 +56,8 @@ def test_let_if_scope():
     x = relay.var("x", "float32")
     y = relay.var("y", "float32")
     cond = relay.var("cond", "bool")
-
     v1 = relay.var("v")
     v2 = relay.var("v", "float32")
-
     then_branch = relay.Let(
         v1, relay.const(1, "float32"),
         relay.Let(v2, x, relay.subtract(v1, v2)))
