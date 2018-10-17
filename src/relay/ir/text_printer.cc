@@ -35,7 +35,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  *
  * This is an important part to enable bi-directional serializability.
  * We use tvm's Node system to build the current IR.
- * It can hard to design a text format for all the possible nodes
+ * It can be hard to design a text format for all the possible nodes
  * as the set of nodes can grow when we do more extensions.
  *
  * Instead of trying to design readable text format for every nodes,
