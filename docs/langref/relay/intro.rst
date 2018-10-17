@@ -5,7 +5,7 @@ Introduction
 Relay is differentiable programming language with support for
 closures, control-flow, and recursion. It has an advanced
 static type system specifically designed for programs written
-by machine  learning practioniers and researchers.
+by machine learning practitioners and researchers.
 
 Relay is intended to replace the computation graph based
 intermediate representations currently employed by deep
@@ -15,7 +15,7 @@ for the form of computation originally desired, i.e
 a directed acyclic graph of primitive functions.
 
 This may be a useful way to describe early ML models, but is
-limited onceyou want to generalize to dynamic models.
+limited once you want to generalize to dynamic models.
 
 At the same time computation graphs have been over loaded
 purpose as both a compile-time and run-time data structure.
@@ -87,7 +87,7 @@ beyond the type of identifier.
 Globals are written with `@`, locals are written with `%`, and operators are written with
 no sigil like LLVM's intrinsics. The distinction between global and local identifiers
 makes certain kinds of transformation easier. For example inlining a global definition
-requires no analysis, you can write a pass that just directly inlines the defintions.
+requires no analysis, you can write a pass that just directly inlines the definitions.
 It also ensures there are no spooky action at a distance, introducing a new identifier
 of any type will never introduce an ambiguity to the program.
 

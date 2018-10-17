@@ -70,7 +70,6 @@ This restriction importantly means
 The shape may be any valid Relay shape as described in the below
 section on shapes.
 
-
 See :py:class:`~tvm.relay.type.TensorType` for its definition and documentation.
 
 Kind
@@ -179,9 +178,3 @@ A type, or portion of a type which is not known yet. Only used during type infer
 .. note:: Known as a "type variable" in the type checking literature.
 
 See :py:class:`~tvm.relay.type.IncompleteType` for its definition and documentation.
-
-
-
-
-
-
