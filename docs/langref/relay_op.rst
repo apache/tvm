@@ -51,6 +51,7 @@ This level enables typical convnet models.
 
    tvm.relay.nn.conv2d
    tvm.relay.nn.conv2d_transpose
+   tvm.relay.nn.dense
    tvm.relay.nn.max_pool2d
    tvm.relay.nn.avg_pool2d
    tvm.relay.nn.global_max_pool2d
@@ -70,6 +71,7 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.zeros
+   tvm.relay.nn.leaky_relu
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
@@ -137,6 +139,7 @@ Level 2 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.conv2d
 .. autofunction:: tvm.relay.nn.conv2d_transpose
+.. autofunction:: tvm.relay.nn.dense
 .. autofunction:: tvm.relay.nn.max_pool2d
 .. autofunction:: tvm.relay.nn.avg_pool2d
 .. autofunction:: tvm.relay.nn.global_max_pool2d
@@ -149,6 +152,7 @@ Level 2 Definitions
 
 Level 3 Definitions
 -------------------
+.. autofunction:: tvm.relay.nn.leaky_relu
 .. autofunction:: tvm.relay.floor
 .. autofunction:: tvm.relay.ceil
 .. autofunction:: tvm.relay.trunc

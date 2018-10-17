@@ -208,6 +208,17 @@ def test_full_like():
     ftype = func.checked_type
     assert ftype.ret_type == relay.TensorType((n, c, h, w), "float32")
 
+def test_infer_type_leaky_relu():
+   ib = relay.ir_builder.IRBuilder()
+   n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+   x = ib.param("x", relay.ty.TensorType((n, c, h, w), "float32"))
+
+   with ib.function(x) as func:
+       ib.ret(relay.nn.leaky_relu(x, alpha=0.1))
+   ib.ret(func)
+   func = relay.ir_pass.infer_type(ib.env, func.to_func())
+   ftype = func.checked_type
+   assert ftype.ret_type == relay.ty.TensorType((n, c, h, w), "float32")
 
 if __name__ == "__main__":
     test_single_op()
@@ -220,5 +231,6 @@ if __name__ == "__main__":
     test_take_infer_type()
     test_full()
     test_full_like()
+    test_infer_type_leaky_relu()
     test_squeeze_axes_infer_type()
     test_squeeze_default_axes_infer_type()
