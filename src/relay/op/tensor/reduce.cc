@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <numeric>
 #include "../type_relations.h"
 
 namespace tvm {
@@ -47,47 +48,51 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
 * \return r_axes The new reduced axes of the output.
 */
 inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
-                                          const std::vector<int64_t>& axis,
+                                          const Array<IndexExpr>& inaxis,
                                           bool exclude) {
-  if (axis.size() == 0) {
-    std::vector<int64_t> r_axes;
-    for (uint32_t i = 0; i < indim; ++i) {
-      r_axes.push_back(i);
-    }
+  if (!inaxis.defined()) {
+    std::vector<int64_t> r_axes(indim);
+    std::iota(r_axes.begin(), r_axes.end(), 0);
     return r_axes;
   }
-  CHECK(axis[axis.size() - 1] < indim)
-    << "Reduction axis " << axis[axis.size() - 1]
+
+  std::vector<int64_t> in_axes;
+  for (auto i : inaxis) {
+    auto k = as_const_int(i);
+    CHECK(k != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
+    auto axis = k[0];
+    if (axis < 0) {
+      axis = axis + indim;
+    }
+    // Check out of bounds error
+    CHECK(axis >= 0)
+      << "axis out of bounds in reduce operator";
+    CHECK(axis < indim)
+      << "axis out of bounds in reduce operator";
+    in_axes.push_back(axis);
+  }
+
+  CHECK(in_axes[in_axes.size() - 1] < indim)
+    << "Reduction axis " << in_axes[in_axes.size() - 1]
     << " exceeds input dimensions " << indim;
 
-  std::vector<int64_t> in_axis = axis;
-  for (auto &i : in_axis) {
-    if (i < 0) {
-      i = i + indim;
-    }
-    CHECK(i >= 0)
-      << "axis out of bounds in reduce operator";
-    CHECK(i < indim)
-      << "axis out of bounds in reduce operator";
-  }
-
-  std::sort(in_axis.begin(), in_axis.end());
+  std::sort(in_axes.begin(), in_axes.end());
 
   if (!exclude) {
-    return in_axis;
+    return in_axes;
   }
 
-  auto r_size = indim - in_axis.size();
-  std::vector<int64_t> r_axis(r_size);
+  auto r_size = indim - in_axes.size();
+  std::vector<int64_t> r_axes(r_size);
 
   for (uint32_t i = 0, j = 0, k = 0; i < indim; ++i) {
-    if (j < in_axis.size() && in_axis[j] == i) {
+    if (j < in_axes.size() && in_axes[j] == i) {
         ++j;
         continue;
     }
-    r_axis[k++] = i;
+    r_axes[k++] = i;
   }
-  return r_axis;
+  return r_axes;
 }
 
 /*!
@@ -100,51 +105,34 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_shape,
                                               const ReduceAttrs* param,
                                               const TypeReporter& reporter) {
-  std::vector<int64_t> in_axis;
-  for (auto i : param->axis) {
-    auto axis = as_const_int(i);
-    CHECK(axis != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
-    in_axis.push_back(axis[0]);
-  }
-
   uint32_t indim = in_shape.size();
-  auto r_axes = GetReduceAxes(indim, in_axis, param->exclude);
+  auto r_axes = GetReduceAxes(indim, param->axis, param->exclude);
   if (!r_axes.size()) {
     return in_shape;
   }
-  if (r_axes.size() == indim) {
-    auto dim = 1;
-    if (param->keepdims) {
-      dim = indim;
-      }
-    std::vector<IndexExpr> oshape(dim);
-    for (auto i = 0; i < dim; ++i) {
-      oshape[i] = 1;
-    }
-    return oshape;
-  }
 
-  CHECK(r_axes.size() < indim);
   if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
     for (unsigned i = 0, j = 0; i < indim; ++i) {
-      if (j >= r_axes.size() || !(r_axes[j] == i)) continue;
+      if (j >= r_axes.size() || !(r_axes[j] == i)) {
+        continue;
+      }
       oshape[i] = 1;
       ++j;
     }
     return oshape;
-  }
-
-  auto osize = indim - r_axes.size();
-  std::vector<IndexExpr> oshape(osize);
-  for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
-    if (j < r_axes.size() && (r_axes[j] == i)) {
-      ++j;
-      continue;
+  } else {
+    auto osize = indim - r_axes.size();
+    std::vector<IndexExpr> oshape(osize);
+    for (unsigned i = 0, j = 0, k = 0; i < indim; ++i) {
+      if (j < r_axes.size() && (r_axes[j] == i)) {
+        ++j;
+        continue;
+      }
+      oshape[k++] = in_shape[i];
     }
-    oshape[k++] = in_shape[i];
+    return oshape;
   }
-  return oshape;
 }
 
 /*!

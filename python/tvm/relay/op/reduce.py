@@ -31,8 +31,7 @@ def argmax(data, axis=None, keepdims=False, exclude=False):
         The computed result.
     """
 
-    axis = axis or []
-    return _make.argmax(data, list(axis), keepdims, exclude)
+    return _make.argmax(data, axis, keepdims, exclude)
 
 def argmin(data, axis=None, keepdims=False, exclude=False):
     """Returns the indices of the minimum values along an axis.
@@ -61,5 +60,5 @@ def argmin(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
-    axis = axis or []
-    return _make.argmin(data, list(axis), keepdims, exclude)
+
+    return _make.argmin(data, axis, keepdims, exclude)
