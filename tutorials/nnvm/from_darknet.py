@@ -1,11 +1,11 @@
 """
-Compile YOLO-V2 in DarkNet Models
+Compile YOLO-V2 and YOLO-V3 in DarkNet Models
 =================================
 **Author**: `Siju Samuel <https://siju-samuel.github.io/>`_
 
 This article is an introductory tutorial to deploy darknet models with NNVM.
 All the required models and libraries will be downloaded from the internet by the script.
-This script runs the YOLO-V2 Model with the bounding boxes
+This script runs the YOLO-V2 and YOLO-V3 Model with the bounding boxes
 Darknet parsing have dependancy with CFFI and CV2 library
 Please install CFFI and CV2 before executing this script
 
@@ -17,6 +17,7 @@ Please install CFFI and CV2 before executing this script
 
 import nnvm
 import nnvm.frontend.darknet
+import nnvm.testing.yolo_detection
 import nnvm.testing.darknet
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +29,7 @@ from tvm.contrib.download import download
 from nnvm.testing.darknet import __darknetffi__
 
 # Model name
-MODEL_NAME = 'yolo'
+MODEL_NAME = 'yolov3'
 
 ######################################################################
 # Download required files
@@ -75,9 +76,11 @@ ctx = tvm.cpu(0)
 data = np.empty([batch_size, net.c, net.h, net.w], dtype)
 shape = {'data': data.shape}
 print("Compiling the model...")
+dtype_dict = {}
 with nnvm.compiler.build_config(opt_level=2):
-    graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype, params)
+    graph, lib, params = nnvm.compiler.build(sym, target, shape, dtype_dict, params)
 
+[neth, netw] = shape['data'][2:] # Current image shape is 608x608
 ######################################################################
 # Load a test image
 # --------------------------------------------------------------------
@@ -87,8 +90,7 @@ img_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + \
           test_image + '?raw=true'
 download(img_url, test_image)
 
-data = nnvm.testing.darknet.load_image(test_image, net.w, net.h)
-
+data = nnvm.testing.darknet.load_image(test_image, netw, neth)
 ######################################################################
 # Execute on TVM Runtime
 # ----------------------
@@ -105,24 +107,44 @@ print("Running the test image...")
 
 m.run()
 # get outputs
-out_shape = (net.outputs,)
-tvm_out = m.get_output(0).asnumpy().flatten()
+tvm_out = []
+if MODEL_NAME == 'yolov2':
+    layer_out = {}
+    layer_out['type'] = 'Region'
+    # Get the region layer attributes (n, out_c, out_h, out_w, classes, coords, background)
+    layer_attr = m.get_output(2).asnumpy()
+    layer_out['biases'] = m.get_output(1).asnumpy()
+    out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
+                 layer_attr[2], layer_attr[3])
+    layer_out['output'] = m.get_output(0).asnumpy().reshape(out_shape)
+    layer_out['classes'] = layer_attr[4]
+    layer_out['coords'] = layer_attr[5]
+    layer_out['background'] = layer_attr[6]
+    tvm_out.append(layer_out)
+
+elif MODEL_NAME == 'yolov3':
+    for i in range(3):
+        layer_out = {}
+        layer_out['type'] = 'Yolo'
+        # Get the yolo layer attributes (n, out_c, out_h, out_w, classes, total)
+        layer_attr = m.get_output(i*4+3).asnumpy()
+        layer_out['biases'] = m.get_output(i*4+2).asnumpy()
+        layer_out['mask'] = m.get_output(i*4+1).asnumpy()
+        out_shape = (layer_attr[0], layer_attr[1]//layer_attr[0],
+                     layer_attr[2], layer_attr[3])
+        layer_out['output'] = m.get_output(i*4).asnumpy().reshape(out_shape)
+        layer_out['classes'] = layer_attr[4]
+        tvm_out.append(layer_out)
 
 # do the detection and bring up the bounding boxes
-thresh = 0.24
-hier_thresh = 0.5
+thresh = 0.5
+nms_thresh = 0.45
 img = nnvm.testing.darknet.load_image_color(test_image)
 _, im_h, im_w = img.shape
-probs = []
-boxes = []
-region_layer = net.layers[net.n - 1]
-boxes, probs = nnvm.testing.yolo2_detection.get_region_boxes(
-    region_layer, im_w, im_h, net.w, net.h,
-    thresh, probs, boxes, 1, tvm_out)
-
-boxes, probs = nnvm.testing.yolo2_detection.do_nms_sort(
-    boxes, probs,
-    region_layer.w*region_layer.h*region_layer.n, region_layer.classes, 0.3)
+dets = nnvm.testing.yolo_detection.fill_network_boxes((netw, neth), (im_w, im_h), thresh,
+                                                      1, tvm_out)
+last_layer = net.layers[net.n - 1]
+nnvm.testing.yolo_detection.do_nms_sort(dets, last_layer.classes, nms_thresh)
 
 coco_name = 'coco.names'
 coco_url = 'https://github.com/siju-samuel/darknet/blob/master/data/' + coco_name + '?raw=true'
@@ -136,8 +158,6 @@ with open(coco_name) as f:
 
 names = [x.strip() for x in content]
 
-nnvm.testing.yolo2_detection.draw_detections(
-    img, region_layer.w*region_layer.h*region_layer.n,
-    thresh, boxes, probs, names, region_layer.classes)
+nnvm.testing.yolo_detection.draw_detections(img, dets, thresh, names, last_layer.classes)
 plt.imshow(img.transpose(1, 2, 0))
 plt.show()
