@@ -73,13 +73,10 @@ bool BroadcastCompRel(const Array<Type>& types,
                       const TypeReporter& reporter);
 
 /*!
- * \brief The The concat relation, implements the broadcasting
- *  rule over the two input types producing the broadcasted type.
- *
- * This differs from BroadcastRel in the return dtype,
- * it instead returns bool(uint8), for use in comparsion operators
- * such as equal, not_equal, lt, and so on.
- *
+ * \brief The concat type relation, implements the concatenating
+ *  rule over the list of input types producing one concatenated
+ *  type.
+ * 
  * \param types The input and output types to the relation.
  * \param num_inputs The number of input arguments.
  * \param attrs The attributes
