@@ -93,6 +93,94 @@ def test_binary_broadcast():
         ftype = func.checked_type
         assert ftype.ret_type == relay.TensorType((5, 10, 4), "int32")
 
+def test_argmax():
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmax(x, axis=(1,)))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmax(x, axis=(2,), keepdims=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmax(x, axis=(2,), keepdims=True, exclude=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "int32")
+
+def test_argmin():
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmax(x, axis=(1,)))
+    ib.ret(func)
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, h, w), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmin(x, axis=(2,), keepdims=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((n, c , 1, w), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmin(x, axis=(2,), keepdims=True, exclude=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , h, 1), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmin(x, axis=(2,1), keepdims=True, exclude=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((1, c , h, 1), "int32")
+
+    ib = relay.ir_builder.IRBuilder()
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = ib.param("x", relay.ty.TensorType((n, c , h, w), "float32"))
+    with ib.function(x) as func:
+        ib.ret(relay.argmin(x, axis=None, keepdims=True, exclude=True))
+    ib.ret(func)
+
+    func = relay.ir_pass.infer_type(ib.env, func.to_func())
+    ftype = func.checked_type
+    assert ftype.ret_type == relay.ty.TensorType((1, 1 , 1, 1), "int32")
+
 def test_where():
     ib = relay.ir_builder.IRBuilder()
     cond = ib.param("cond", relay.TensorType((3, 4), "float32"))
@@ -113,3 +201,5 @@ if __name__ == "__main__":
     test_binary_broadcast()
     test_where()
     test_multibox_prior()
+    test_argmax()
+    test_argmin()

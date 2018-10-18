@@ -9,6 +9,7 @@ from . import ir_builder
 
 # Root operators
 from .op import Op
+from .op.reduce import *
 from .op.tensor import *
 from .op.transform import *
 from . import nn
