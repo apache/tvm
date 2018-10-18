@@ -21,6 +21,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Lianmin Zheng](https://github.com/merrymercy) AutoTVM
 
 ## Reviewers
+- [Liangfu Chen](https://github.com/liangfu)
 - [Masahiro Masuda](https://github.com/masahi)
 - [Kazutaka Morita](https://github.com/kazum)
 - [Tatsuya Nishiyama](https://github.com/nishi-t)
