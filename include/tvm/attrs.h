@@ -131,6 +131,13 @@ class BaseAttrsNode : public Node {
    */
   inline void PrintDocString(std::ostream &os) const;  // NOLINT(*)
   /*!
+   * \brief Visit attributes that do not equal the default value.
+   *
+   * \note This is useful to extract fields for concise printing.
+   * \param v The visitor
+   */
+  TVM_DLL virtual void VisitNonDefaultAttrs(AttrVisitor* v) = 0;
+  /*!
    * \brief Get the field information
    * \return The fields in the Attrs.
    */
@@ -199,6 +206,7 @@ class DictAttrsNode : public BaseAttrsNode {
   TVM_DLL static Attrs make(Map<std::string, NodeRef> dict);
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
+  void VisitNonDefaultAttrs(AttrVisitor* v) final;
   void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
   bool ContentEqual(const Node* other) const final;
@@ -300,15 +308,15 @@ struct AttrNopEntry {
     return *this;
   }
   template<typename T>
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED T value) {
+  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
     return *this;
   }
   template<typename T>
-  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED T begin) {
+  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
     return *this;
   }
   template<typename T>
-  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED T end) {
+  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
     return *this;
   }
 };
@@ -603,7 +611,7 @@ class AttrDocEntry {
     return *this;
   }
   template<typename T>
-  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED T value) {
+  TSelf& set_default(DMLC_ATTRIBUTE_UNUSED const T& value) {
     std::ostringstream os;
     os << info_->type_info << ", default=" << value;
     info_->type_info = os.str();
@@ -649,6 +657,57 @@ class AttrExistVisitor {
     return AttrNopEntry();
   }
 };
+
+template<typename T>
+struct AttrTriggerNonDefaultEntry {
+  using TSelf = AttrTriggerNonDefaultEntry<T>;
+  // constructor
+  AttrTriggerNonDefaultEntry(
+      AttrVisitor* visitor, const char* key, T* data)
+      : visitor_(visitor), key_(key), data_(data) {}
+
+  ~AttrTriggerNonDefaultEntry() DMLC_THROW_EXCEPTION {
+    if (trigger_) {
+      visitor_->Visit(key_, data_);
+    }
+  }
+  TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {
+    return *this;
+  }
+  TSelf& set_default(const T& value) {
+    if (AttrsEqual()(value, *data_)) {
+      trigger_ = false;
+    }
+    return *this;
+  }
+  TSelf& set_lower_bound(DMLC_ATTRIBUTE_UNUSED const T& begin) {
+    return *this;
+  }
+  TSelf& set_upper_bound(DMLC_ATTRIBUTE_UNUSED const T& end) {
+    return *this;
+  }
+
+ private:
+  AttrVisitor* visitor_;
+  const char * key_;
+  T *data_;
+  bool trigger_{true};
+};
+
+class AttrNonDefaultVisitor {
+ public:
+  explicit AttrNonDefaultVisitor(AttrVisitor* visitor)
+      : visitor_(visitor) {
+  }
+  template<typename T>
+  AttrTriggerNonDefaultEntry<T>
+  operator()(const char* key, T* value) {
+    return AttrTriggerNonDefaultEntry<T>(visitor_, key, value);
+  }
+
+ private:
+  AttrVisitor* visitor_;
+};
 }  // namespace detail
 
 /*!
@@ -662,6 +721,11 @@ class AttrsNode : public BaseAttrsNode {
  public:
   void VisitAttrs(AttrVisitor* v) final {
     detail::AttrNormalVisitor vis(v);
+    self()->__VisitAttrs__(vis);
+  }
+
+  void VisitNonDefaultAttrs(AttrVisitor* v) final {
+    detail::AttrNonDefaultVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
 
