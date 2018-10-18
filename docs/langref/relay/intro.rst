@@ -2,7 +2,7 @@
 Introduction
 ============
 
-Relay is differentiable programming language with support for
+Relay is a differentiable programming language with support for
 closures, control-flow, and recursion. It has an advanced
 static type system specifically designed for programs written
 by machine learning practitioners and researchers. Relay is intended to replace
