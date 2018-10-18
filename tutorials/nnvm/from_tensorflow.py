@@ -84,7 +84,8 @@ with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
     # Call the utility to import the graph definition into default graph.
     graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
     # Add shapes to the graph.
-    graph_def = nnvm.testing.tf.AddShapesToGraphDef('softmax')
+    with tf.Session() as sess:
+        graph_def = nnvm.testing.tf.AddShapesToGraphDef(sess, 'softmax')
 
 ######################################################################
 # Decode image

@@ -387,9 +387,8 @@ def _pack():
 def _reshape():
     def _impl(inputs, attr, params):
         try:
-            pop_node = inputs[1]
+            pop_node = inputs.pop(1)
             shape_arg = params.pop(pop_node.list_output_names()[0])
-            inputs.pop(1)
 
             return AttrCvt(
                 op_name="reshape",
@@ -470,9 +469,7 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        # Result of this operator is prominently used by reshape operator.
-        # Just pass the input as it is so that reshape_like can be used there.
-        return inputs[0]
+        return np.array(attr['_input_shapes'][inputs[0]][0])
     return _impl
 
 def _fill():
@@ -1031,27 +1028,32 @@ class GraphProto(object):
         self._num_param = 0
         self._num_rnn_layer = False
 
-    def from_tensorflow(self, graph, layout="NHWC"):
+    def from_tensorflow(self, graph, layout="NHWC", shape=None):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
         Some of the assumptions listed below.
 
-            -> First Placeholder or Const node will be considered as graph input.
-            -> Rest all Const nodes are params.
+            -> All Placeholders are considered as graph input.
+            -> All Const nodes are params.
             -> Last node is assumed as graph output.
-            -> _output_shapes : Attribute should present in the tenserflow forzen graph.
+            -> _output_shapes : Graph should be frozen with add_shapes=True.
+                                Or user can pass input shape dictionaly optionally.
             -> DecodeJpeg, ResizeBilinear: These are dummy operators.
                                            Hence user should handle preprocessing outside.
             -> CheckNumerics: No implementation as of now for this.
                               Just copies input to output.
 
-        TODO: Change algorithm to stop treating first 'Const' in a special way.
-
         Parameters
         ----------
         graph : tensorflow graph definition object
             The loaded tensorflow GraphDef
+
+        layout : target layout to be used (Optional)
+            NCHW only supported now to enable NHWC models on GPU.
+
+        shape : Dictionary of input dimentions (Optional)
+            Graph level input shape dictionary.
 
         Returns
         -------
@@ -1092,6 +1094,9 @@ class GraphProto(object):
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(shape) \
                     for shape in attr['_output_shapes']]
+            elif shape:
+                # Keep some value to avoid key error and infer shape after node creation.
+                self._output_shapes[node.name] = [[1,]]
             else:
                 raise NotImplementedError( \
                     "Please freeze the graph with add_shapes=True")
@@ -1100,7 +1105,6 @@ class GraphProto(object):
                 self._nodes[node.name] = _sym.Variable(name=node.name,
                                                        shape=self._output_shapes[node.name][0])
 
-                #input_shapes[self._nodes[node.name]] = self._output_shapes[node.name]
             elif node.op == "Const":
                 # All Const nodes are Param nodes, lets parse
                 self._num_param += 1
@@ -1132,21 +1136,33 @@ class GraphProto(object):
                     node.input[0] = in_name
 
                 # Fill shapes for all inputs in a list
-                try:
-                    inputs = [self._nodes[i] for i in node.input]
-                    for i in node.input:
+                inputs = []
+                for i in node.input:
+                    if i in self._nodes:
+                        inputs.append(self._nodes[i])
                         input_shapes[self._nodes[i]] = self._output_shapes[i]
-                    attr['_input_shapes'] = input_shapes
-                except KeyError:
-                    # TODO: Need to find clean way to handle '^CheckNumerics'
-                    pass
+                attr['_input_shapes'] = input_shapes
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
-
                 op = self._convert_operator(node.op, inputs, attr, graph)
+
+                # Check is op is converted to param
+                if isinstance(op, np.ndarray):
+                    self._params[node.name] = tvm.nd.array(op)
+                    op = _sym.Variable(name=node.name,
+                                       shape=self._params[node.name].shape)
+
                 # Assuming only one output.
                 self._nodes[node.name] = op
-                node_output = op
+
+            # Infer shapes if passed explicitely
+            node_output = self._nodes[node.name]
+            if shape:
+                g = _graph.create(node_output)
+                shape_dict = {k: v.shape for k, v in self._params.items()}
+                shape_dict.update(shape)
+                _, out_shapes = graph_util.infer_shape(g, **shape_dict)
+                self._output_shapes[node.name] = out_shapes
 
         # Assume the final node is the output node
         out = node_output
@@ -1351,7 +1367,7 @@ class GraphProto(object):
 
         return inputs
 
-def from_tensorflow(graph, layout="NHWC"):
+def from_tensorflow(graph, layout="NHWC", shape=None):
     """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
     The companion parameters will be handled automatically.
 
@@ -1369,5 +1385,5 @@ def from_tensorflow(graph, layout="NHWC"):
         Dict of converted parameters stored in tvm.ndarray format
     """
     g = GraphProto()
-    sym, params = g.from_tensorflow(graph, layout)
+    sym, params = g.from_tensorflow(graph, layout, shape)
     return sym, params

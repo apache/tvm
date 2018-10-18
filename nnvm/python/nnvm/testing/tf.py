@@ -135,7 +135,45 @@ class NodeLookup(object):
             return ''
         return self.node_lookup[node_id]
 
-def get_workload(model_path):
+def get_workload_official(model_url, model_sub_path, temp):
+    """ Import workload from tensorflow official
+
+    Parameters
+    ----------
+    model_url: str
+        URL from where it will be downloaded.
+
+    model_sub_path:
+        Sub path in extracted tar for the ftozen protobuf file.
+
+    temp: TempDirectory
+        The temp directory object to download the content.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    model_tar_name = os.path.basename(model_url)
+
+    from mxnet.gluon.utils import download
+    temp_path = temp.relpath("./")
+    path_model = temp_path + model_tar_name
+
+    download(model_url, path_model)
+
+    import tarfile
+    if path_model.endswith("tgz") or path_model.endswith("gz"):
+        tar = tarfile.open(path_model)
+        tar.extractall(path=temp_path)
+        tar.close()
+    else:
+        raise RuntimeError('Could not un compress the file: ' + path_model)
+    return temp_path + model_sub_path
+
+def get_workload(model_path, model_sub_path=None):
     """ Import workload from frozen protobuf
 
     Parameters
@@ -150,16 +188,17 @@ def get_workload(model_path):
 
     """
 
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
-    model_name = os.path.basename(model_path)
-    model_url = os.path.join(repo_base, model_path)
-
-    from mxnet.gluon.utils import download
-
     temp = util.tempdir()
-    path_model = temp.relpath(model_name)
+    if model_sub_path:
+        path_model = get_workload_official(model_path, model_sub_path, temp)
+    else:
+        repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
+        model_name = os.path.basename(model_path)
+        model_url = os.path.join(repo_base, model_path)
 
-    download(model_url, path_model)
+        from mxnet.gluon.utils import download
+        path_model = temp.relpath(model_name)
+        download(model_url, path_model)
 
     # Creates graph from saved graph_def.pb.
     with tf.gfile.FastGFile(path_model, 'rb') as f:
