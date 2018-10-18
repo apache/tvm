@@ -6,6 +6,7 @@
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
 #include <numeric>
+#include <limits>
 #include "../type_relations.h"
 
 namespace tvm {
@@ -58,17 +59,20 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 
   std::vector<int64_t> in_axes;
   for (auto i : inaxis) {
-    auto k = as_const_int(i);
+    const int64_t* k = as_const_int(i);
     CHECK(k != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
-    auto axis = k[0];
+    int64_t axis = k[0];
     if (axis < 0) {
       axis = axis + indim;
     }
+
     // Check out of bounds error
+    CHECK(axis < std::numeric_limits<int32_t>::max())
+      << "Axis greater than int32 max.";
     CHECK(axis >= 0)
-      << "axis out of bounds in reduce operator";
+      << "Axis out of bounds in reduce operator.";
     CHECK(axis < indim)
-      << "axis out of bounds in reduce operator";
+      << "Axis out of bounds in reduce operator.";
     in_axes.push_back(axis);
   }
 
@@ -84,7 +88,6 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 
   auto r_size = indim - in_axes.size();
   std::vector<int64_t> r_axes(r_size);
-
   for (uint32_t i = 0, j = 0, k = 0; i < indim; ++i) {
     if (j < in_axes.size() && in_axes[j] == i) {
         ++j;
