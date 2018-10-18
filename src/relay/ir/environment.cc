@@ -100,6 +100,8 @@ void EnvironmentNode::Merge(const Environment &env) {
   }
 }
 
+TVM_REGISTER_NODE_TYPE(EnvironmentNode);
+
 TVM_REGISTER_API("relay._make.Environment")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = EnvironmentNode::make(args[0]);

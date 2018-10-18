@@ -11,6 +11,10 @@ void DictAttrsNode::VisitAttrs(AttrVisitor* v)  {
   v->Visit("__dict__", &dict);
 }
 
+void DictAttrsNode::VisitNonDefaultAttrs(AttrVisitor* v) {
+  v->Visit("__dict__", &dict);
+}
+
 void DictAttrsNode::InitByPackedArgs(
     const runtime::TVMArgs& args, bool allow_unknown) {
   for (int i = 0; i < args.size(); i += 2) {
@@ -55,48 +59,48 @@ class AttrsEqualChecker :
     if (!equal_) return false;
     if (lhs.same_as(rhs)) return true;
     if (!lhs.defined() || !rhs.defined()) return false;
-    if (!this->Visit(lhs, rhs)) {
+    if (!this->VisitAttr(lhs, rhs)) {
       equal_ = false;
     }
     return equal_;
   }
 
-  bool VisitDefault_(const NodeRef& lhs, const NodeRef& other) final {
+  bool VisitAttrDefault_(const Node* lhs, const NodeRef& other) final {
     if (lhs->derived_from<BaseAttrsNode>()) {
-      return static_cast<const BaseAttrsNode*>(lhs.get())->ContentEqual(other.get());
+      return static_cast<const BaseAttrsNode*>(lhs)->ContentEqual(other.get());
     }
-    return lhs.same_as(other);
+    return lhs == other.get();
   }
 
-  bool Visit_(const IntImm* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const IntImm* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<IntImm>()) {
       return lhs->value == rhs->value;
     }
     return false;
   }
 
-  bool Visit_(const UIntImm* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const UIntImm* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<UIntImm>()) {
       return lhs->value == rhs->value;
     }
     return false;
   }
 
-  bool Visit_(const FloatImm* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const FloatImm* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<FloatImm>()) {
       return lhs->value == rhs->value;
     }
     return false;
   }
 
-  bool Visit_(const StringImm* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const StringImm* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<StringImm>()) {
       return lhs->value == rhs->value;
     }
     return false;
   }
 
-  bool Visit_(const ArrayNode* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const ArrayNode* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<ArrayNode>()) {
       if (rhs->data.size() != lhs->data.size()) return false;
       for (size_t  i = 0; i < lhs->data.size(); ++i) {
@@ -106,7 +110,7 @@ class AttrsEqualChecker :
     return true;
   }
 
-  bool Visit_(const StrMapNode* lhs, const NodeRef& other) final {
+  bool VisitAttr_(const StrMapNode* lhs, const NodeRef& other) final {
     if (const auto* rhs = other.as<StrMapNode>()) {
       if (rhs->data.size() != lhs->data.size()) return false;
       for (const auto& kv : lhs->data) {
@@ -127,38 +131,38 @@ class AttrContentHasher :
  public:
   size_t result_{0};
 
-  void VisitDefault_(const NodeRef& value) final {
+  void VisitAttrDefault_(const Node* value) final {
     if (value->derived_from<BaseAttrsNode>()) {
-      Update(static_cast<const BaseAttrsNode*>(value.get())->ContentHash());
+      Update(static_cast<const BaseAttrsNode*>(value)->ContentHash());
     } else {
-      Update(NodeHash()(value));
+      Update(NodeHash()(GetRef<NodeRef>(value)));
     }
   }
 
-  void Visit_(const IntImm* op) final {
+  void VisitAttr_(const IntImm* op) final {
     Update(std::hash<int64_t>()(op->value));
   }
 
-  void Visit_(const UIntImm* op) final {
+  void VisitAttr_(const UIntImm* op) final {
     Update(std::hash<uint64_t>()(op->value));
   }
 
-  void Visit_(const FloatImm* op) final {
+  void VisitAttr_(const FloatImm* op) final {
     Update(std::hash<double>()(op->value));
   }
 
-  void Visit_(const StringImm* op) final {
+  void VisitAttr_(const StringImm* op) final {
     Update(std::hash<std::string>()(op->value));
   }
 
-  void Visit_(const ArrayNode* op) final {
+  void VisitAttr_(const ArrayNode* op) final {
     Update(op->data.size());
     for (size_t  i = 0; i < op->data.size(); ++i) {
-      this->Visit(NodeRef(op->data[i]));
+      this->VisitAttr(NodeRef(op->data[i]));
     }
   }
 
-  void Visit_(const StrMapNode* lhs) final {
+  void VisitAttr_(const StrMapNode* lhs) final {
     using Entry = std::pair<std::string, NodePtr<Node> >;
     std::vector<Entry> data(lhs->data.begin(), lhs->data.end());
     std::sort(data.begin(), data.end(), [](const Entry& a, const Entry& b) {
@@ -166,7 +170,7 @@ class AttrContentHasher :
       });
     for (const Entry& kv : data) {
       Update(std::hash<std::string>()(kv.first));
-      this->Visit(NodeRef(kv.second));
+      this->VisitAttr(NodeRef(kv.second));
     }
   }
 
@@ -184,7 +188,7 @@ bool AttrsEqual::Equal(const NodeRef& lhs, const NodeRef& rhs) {
 size_t AttrsHash::Hash(const NodeRef& node) {
   if (!node.defined()) return 0;
   AttrContentHasher hasher;
-  hasher.Visit(node);
+  hasher.VisitAttr(node);
   return hasher.result_;
 }
 

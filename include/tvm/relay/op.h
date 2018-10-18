@@ -48,6 +48,11 @@ class OpNode : public relay::ExprNode {
    */
   std::string attrs_type_key;
   /*!
+   * \brief attribute type index,
+   * this field varies in each run and is not exposed to frontend.
+   */
+  uint32_t attrs_type_index{0};
+  /*!
    * \brief number of input arguments to the operator,
    * -1 means it is variable length
    */
@@ -416,6 +421,7 @@ inline OpRegistry& OpRegistry::set_num_inputs(int32_t n) {  // NOLINT(*)
 inline OpRegistry& OpRegistry::set_attrs_type_key(  // NOLINT(*)
     const std::string& type_key) {
   get()->attrs_type_key = type_key;
+  get()->attrs_type_index = Node::TypeKey2Index(type_key.c_str());
   return *this;
 }
 
