@@ -143,7 +143,6 @@ def test_vars():
 def test_let():
     assert alpha_equal(
         parse_expr("let %x = 1; ()"),
-
         relay.Let(
             X,
             to_constant(1),
@@ -154,7 +153,6 @@ def test_let():
 def test_seq():
     assert alpha_equal(
         parse_expr("(); ()"),
-
         relay.Let(
             _,
             UNIT,
@@ -162,17 +160,13 @@ def test_seq():
     )
 
     assert alpha_equal(
-        parse_expr("{ (); () }; ()"),
-        # Can't use _ constant, because the _'s are different.
+        parse_expr("let %_ = { 1 }; ()"),
         relay.Let(
-            relay.Var("_"),
-            relay.Let(relay.Var("_"), UNIT, UNIT),
-            UNIT)
+            X,
+            to_constant(1),
+            UNIT
+        )
     )
-
-@raises(ParseError)
-def test_seq_scope():
-    parse_expr("{ let %x = 1; %x }; %x")
 
 @raises(ParseError)
 def test_let_global_var():
