@@ -365,9 +365,9 @@ def test_forward_l2normalize():
     '''test l2 normalization layer'''
     net = LIB.make_network(1)
     layer = LIB.make_l2norm_layer(1, 224*224*3)
+    layer.c = layer.out_c = 3
     layer.h = layer.out_h = 224
     layer.w = layer.out_w = 224
-    layer.c = layer.out_c = 3
     net.layers[0] = layer
     net.w = net.h = 224
     LIB.resize_network(net, 224, 224)
