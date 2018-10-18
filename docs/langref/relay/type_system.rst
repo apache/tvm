@@ -28,21 +28,21 @@ on the expressivity of the input language.
 
 Because Relay is intended as an IR we require *some* type information to provide
 full inference. We don't believe this to be an issue as many of the IR builder
-inferfaces require some type information, or can generate IR based on their own
+interfaces require some type information, or can generate IR based on their own
 higher level inferences.
 
 We view this limited shape inference as a simpler form of type
 inference. Instead of relying on an ad-hoc procedure for recovering type
 information from a potentially dynamic program, we apply ideas from compiler and IR design.
 
-Below we briefly dicsuss the different kinds of types in Relay.
+Below we briefly discuss the different kinds of types in Relay.
 
 =====
 Types
 =====
 
 Relay's type system has a "language of types" which allow us to write down the type of
-a Relay program. Below we detail the langauge of types and how we assign them to Relay
+a Relay program. Below we detail the language of types and how we assign them to Relay
 programs.
 
 Type
@@ -54,21 +54,12 @@ See :py:class:`~tvm.relay.ty.Type` for its definition and documentation.
 Tensor Type
 ~~~~~~~~~~~
 
-A concrete TensorType in Relay, see tvm/relay/type.h for more details.
+A concrete TensorType in Relay, see `tvm/relay/type.h` for more details.
 
-This is the type assigned to tensor's with a known dype and shape. For
-example a tensor of `float32` and `(5, 5)`.
-
-
-
-Tensor values in Relay are typed with tensor types. A tensor type is
-parametrized by a data type, and shape. The data type must be a base
-type as enforced by the kind checking rules described in TODO.
-
-This restriction importantly means
-
-The shape may be any valid Relay shape as described in the below
-section on shapes.
+This is the type assigned to tensor's with a known dtype and shape. For
+example a tensor of `float32` and `(5, 5)`. The data type must be a base
+type as enforced by the kind checking rules described below.
+The shape may be any valid Relay shape as described in the below section on shapes.
 
 See :py:class:`~tvm.relay.ty.TensorType` for its definition and documentation.
 
@@ -87,7 +78,7 @@ Type Parameter
 ~~~~~~~~~~~~~~
 
 A type parameter used for generic types in Relay,
-see tvm/relay/type.h for more details.
+see `tvm/relay/type.h` for more details.
 
 A type parameter represents a type placeholder which will
 be filled in later on. This allows the user to write
@@ -95,7 +86,7 @@ functions which are generic over types.
 
 See :py:class:`~tvm.relay.ty.TypeParam` for its definition and documentation.
 
-Type Constriant
+Type Constraint
 ~~~~~~~~~~~~~~~
 
 Abstract class representing a type constraint, to be elaborated
@@ -105,12 +96,11 @@ See :py:class:`~tvm.relay.ty.TypeConstraint` for its definition and documentatio
 
 Function Type
 ~~~~~~~~~~~~~
-A function type in Relay, see tvm/relay/type.h for more details.
+A function type in Relay, see `tvm/relay/type.h` for more details.
 
-This is the type assigned to functions in Relay. They consist of
-a list of type parameters which enable the definition of generic
-functions, a set of type constraints which we omit for the time
-being, a sequence of argument types, and a return type.
+This is the type assigned to functions in Relay. A function type
+is a list of type parameters, a set of type constraints, a sequence of argument
+types, and a return type.
 
 We informally write them as:
 `forall (type_params), (arg_types) -> ret_type where type_constraints`
@@ -121,9 +111,8 @@ Type Relation
 ~~~~~~~~~~~~~
 
 A type relation is the most exotic type system feature in Relay. It allows
-users to extend type and shape checking/inference with new rules. We use
-type relations to type operators with "hard" types such as broadcasting
-operators, or special ones like :code:`flatten`.
+users to extend type inference with new rules. We use type relations to type operators with
+"hard" types such as broadcasting operators, or :code:`flatten`.
 
 A type relation :code:`R` is a n-ary input, single output relation over
 types. To unpack that, it allows us to specify a relationship between
@@ -159,16 +148,6 @@ That is the user may pick the type of the :code:`Lhs`, :code:`Rhs`, and :code:`O
 show :code:`Broadcast(Lhs, Rhs, Out)` holds.
 
 See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
-
-Type Call
-~~~~~~~~~
-
-Apply a type relation to a set of input arguments, at the present momen the type
-call node represents the application of a :py:class:`~tvm.relay.ty.TypeRelation`
-to a set of input arguments. The result of type application is the output variable
-of the type relation.
-
-See :py:class:`~tvm.relay.ty.TypeCall` for its definition and documentation.
 
 Incomplete Type
 ~~~~~~~~~~~~~~~
