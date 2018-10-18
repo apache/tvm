@@ -345,3 +345,83 @@ def clear_fallback_cache(target, workload):
     while not isinstance(context, FallbackContext):
         context = context._old_ctx
     context.clear_cache(target, workload)
+
+class ApplyGraphBest(DispatchContext):
+    """Load the graph level tuning optimal schedules.
+
+    The input records should be in the ascending order of
+    node index for target operator. Usually this can be obtained
+    with graph tuner.
+
+    This context maintains an internal counter to indicate the current
+    node index.
+    """
+    def __init__(self, records):
+        """
+        Parameters
+        ----------
+        records : str or iterator of (MeasureInput, MeasureResult)
+            Collection of tuning records.
+            If is str, then it should be the filename of a records log file.
+                   Each row of this file is an encoded record pair.
+            Otherwise, it is an iterator.
+        """
+        from ..record import load_from_file
+
+        super(ApplyGraphBest, self).__init__()
+        if isinstance(records, str):
+            records = load_from_file(records)
+        self._records = list(records)
+        self._counter = 0
+        self._global_cfg_dict = {}
+
+    def _query_inside(self, target, workload):
+        """
+        Query the context to get config from records.
+
+        Parameters
+        ----------
+        target : Target
+            The current target
+        workload : Workload
+            The current workload.
+
+        Returns
+        -------
+        cfg : ConfigSpace
+            The specific configuration.
+        """
+        cfg = self._records[self._counter][0].config
+        self._counter += 1
+        return cfg
+
+    def query_global_dict(self, key):
+        """
+        Query the context to get config from global
+        config dictionary.
+
+        Parameters
+        ----------
+        key : str
+            Key to query the config.
+
+        Returns
+        -------
+        cfg : ConfigSpace
+            The specific configuration.
+        """
+        return self._global_cfg_dict[key]
+
+    def update_global_dict(self, key, val):
+        """
+        Update the global config dictionary.
+
+        Parameters
+        ----------
+        key : str
+            Key of config.
+
+        val : ConfigSpace
+            Value of config.
+        """
+        self._global_cfg_dict[key] = val
