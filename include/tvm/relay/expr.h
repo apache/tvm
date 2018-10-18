@@ -375,13 +375,14 @@ class TupleGetItemNode : public ExprNode {
   int index;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("tuple", &tuple);
+    v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
+    v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static TupleGetItem make(Expr tuple, int index);
 
-  static constexpr const char * _type_key = "relay.GetItem";
+  static constexpr const char * _type_key = "relay.TupleGetItem";
   TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
 };
 

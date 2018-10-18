@@ -63,6 +63,7 @@ TVM_REGISTER_API("relay.op.vision._make.multibox_prior")
 RELAY_REGISTER_OP("vision.multibox_prior")
 .describe(R"doc("Generate prior(anchor) boxes from data, sizes and ratios."
 )doc" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.MultiBoxPriorAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(4)

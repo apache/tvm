@@ -20,7 +20,9 @@ bool IsBoolLit(const Expr& e, bool b) {
   if (const ConstantNode* c = e.as<ConstantNode>()) {
     if (c->is_scalar()) {
       auto dt = c->tensor_type()->dtype;
-      if (dt == UInt(8)) {
+      if (dt == Bool()) {
+        return *reinterpret_cast<const uint8_t*>(c->data->data) == b;
+      } else if (dt == UInt(8)) {
         return *reinterpret_cast<const uint8_t*>(c->data->data) == b;
       } else if (dt == UInt(16)) {
         return *reinterpret_cast<const uint16_t*>(c->data->data) == b;

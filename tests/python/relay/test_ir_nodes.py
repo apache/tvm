@@ -173,7 +173,7 @@ def test_if():
 def test_tuple_get_item():
     tup = relay.Var("tuple")
     get = relay.TupleGetItem(tup, 1)
-    assert get.tuple == tup
+    assert get.tuple_value == tup
     assert get.index == 1
     str(get)
 

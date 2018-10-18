@@ -2,7 +2,6 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.ir_pass import alpha_equal
-from tvm.relay.ir_builder import convert
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
@@ -164,11 +163,11 @@ def test_type_relation_alpha_equal():
 
 
 def test_constant_alpha_equal():
-    x = convert(1)
-    y = convert(2)
+    x = relay.const(1)
+    y = relay.const(2)
     assert alpha_equal(x, x)
     assert not alpha_equal(x, y)
-    assert alpha_equal(x, convert(1))
+    assert alpha_equal(x, relay.const(1))
 
 
 def test_var_alpha_equal():
@@ -180,9 +179,9 @@ def test_var_alpha_equal():
     assert not alpha_equal(v1, v2)
 
     # let node allows for setting the eq_map
-    l1 = relay.Let(v1, convert(1), v1)
-    l2 = relay.Let(v2, convert(1), v2)
-    l3 = relay.Let(v1, convert(1), v2)
+    l1 = relay.Let(v1, relay.const(1), v1)
+    l2 = relay.Let(v2, relay.const(1), v2)
+    l3 = relay.Let(v1, relay.const(1), v2)
 
     assert alpha_equal(l1, l2)
     assert not alpha_equal(l1, l3)
@@ -204,34 +203,34 @@ def test_tuple_alpha_equal():
     # unit value is a valid tuple
     assert alpha_equal(relay.Tuple([]), relay.Tuple([]))
 
-    tup = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)])])
-    same = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)])])
+    tup = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
+    same = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
 
     assert alpha_equal(tup, same)
 
     # use the eq_map
     let_tup = relay.Let(v1, tup, v1)
-    let_mapped = relay.Let(v2, relay.Tuple([v2, convert(2), convert(3),
-                                            relay.Tuple([convert(4)])]),
+    let_mapped = relay.Let(v2, relay.Tuple([v2, relay.const(2), relay.const(3),
+                                            relay.Tuple([relay.const(4)])]),
                            v2)
     assert alpha_equal(let_tup, let_mapped)
 
-    more_fields = relay.Tuple([v1, convert(2), convert(3), relay.Tuple([convert(4)]), v2])
+    more_fields = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)]), v2])
     assert not alpha_equal(tup, more_fields)
 
-    fewer_fields = relay.Tuple([v1, convert(2), convert(3)])
+    fewer_fields = relay.Tuple([v1, relay.const(2), relay.const(3)])
     assert not alpha_equal(tup, fewer_fields)
 
-    different_end = relay.Tuple([v1, convert(2), convert(3),
-                           relay.Tuple([convert(5)])])
+    different_end = relay.Tuple([v1, relay.const(2), relay.const(3),
+                           relay.Tuple([relay.const(5)])])
     assert not alpha_equal(tup, different_end)
 
-    different_start = relay.Tuple([v2, convert(2), convert(3),
-                                 relay.Tuple([convert(4)])])
+    different_start = relay.Tuple([v2, relay.const(2), relay.const(3),
+                                 relay.Tuple([relay.const(4)])])
     assert not alpha_equal(tup, different_start)
 
-    longer_at_end = relay.Tuple([v1, convert(2), convert(3),
-                                 relay.Tuple([convert(4), convert(5)])])
+    longer_at_end = relay.Tuple([v1, relay.const(2), relay.const(3),
+                                 relay.Tuple([relay.const(4), relay.const(5)])])
     assert not alpha_equal(tup, longer_at_end)
 
 
@@ -319,11 +318,11 @@ def test_call_alpha_equal():
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((), "int8")
 
-    basic_args = [convert(1), convert(2), v2, relay.Tuple([])]
+    basic_args = [relay.const(1), relay.const(2), v2, relay.Tuple([])]
 
     # manually writing out args to ensure that args does not rely on
     # pointer equality
-    call = relay.Call(v1, [convert(1), convert(2), v2, relay.Tuple([])],
+    call = relay.Call(v1, [relay.const(1), relay.const(2), v2, relay.Tuple([])],
                       attr1, [tt1])
     same = relay.Call(v1, basic_args, attr1, [tt1])
     assert alpha_equal(call, same)
@@ -331,19 +330,19 @@ def test_call_alpha_equal():
     different_fn = relay.Call(v2, basic_args, attr1, [tt1])
     assert not alpha_equal(call, different_fn)
 
-    fewer_args = relay.Call(v1, [convert(1), convert(2), v2], attr1, [tt1])
+    fewer_args = relay.Call(v1, [relay.const(1), relay.const(2), v2], attr1, [tt1])
     assert not alpha_equal(call, fewer_args)
 
-    reordered_args = relay.Call(v1, [convert(2), convert(1),
+    reordered_args = relay.Call(v1, [relay.const(2), relay.const(1),
                                      relay.Tuple([]), v2], attr1, [tt1])
     assert not alpha_equal(call, reordered_args)
 
-    different_args = relay.Call(v1, [convert(1), convert(2), convert(3)],
+    different_args = relay.Call(v1, [relay.const(1), relay.const(2), relay.const(3)],
                                 attr1, [tt1])
     assert not alpha_equal(call, different_args)
 
-    more_args = relay.Call(v1, [convert(1), convert(2), v2, relay.Tuple([]),
-                                convert(3), convert(4)], attr1, [tt1])
+    more_args = relay.Call(v1, [relay.const(1), relay.const(2), v2, relay.Tuple([]),
+                                relay.const(3), relay.const(4)], attr1, [tt1])
     assert not alpha_equal(call, more_args)
 
     different_attrs = relay.Call(v1, basic_args, attr2, [tt1])
@@ -367,27 +366,27 @@ def test_let_alpha_equal():
     v2 = relay.Var("v2")
     v3 = relay.Var("v3")
 
-    let = relay.Let(v1, convert(2), v1)
-    mapped = relay.Let(v2, convert(2), v2)
+    let = relay.Let(v1, relay.const(2), v1)
+    mapped = relay.Let(v2, relay.const(2), v2)
     assert alpha_equal(let, mapped)
 
-    mismatched_var = relay.Let(v2, convert(2), v3)
+    mismatched_var = relay.Let(v2, relay.const(2), v3)
     assert not alpha_equal(let, mismatched_var)
 
-    different_value = relay.Let(v2, convert(3), v2)
+    different_value = relay.Let(v2, relay.const(3), v2)
     assert not alpha_equal(let, different_value)
 
-    different_body = relay.Let(v2, convert(3), convert(12))
+    different_body = relay.Let(v2, relay.const(3), relay.const(12))
     assert not alpha_equal(let, different_body)
 
     # specified types must match
 
-    let_with_type = relay.Let(v1_wtype, convert(2), v1_wtype)
-    same_type = relay.Let(v1_wtype, convert(2), v1_wtype)
+    let_with_type = relay.Let(v1_wtype, relay.const(2), v1_wtype)
+    same_type = relay.Let(v1_wtype, relay.const(2), v1_wtype)
     assert alpha_equal(let_with_type, same_type)
     assert not alpha_equal(let, let_with_type)
     v2 = relay.Var("v1", tt2)
-    different_type = relay.Let(v2, convert(2), v2)
+    different_type = relay.Let(v2, relay.const(2), v2)
     assert not alpha_equal(let_with_type, different_type)
 
 
@@ -395,17 +394,17 @@ def test_if_alpha_equal():
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
-    if_sample = relay.If(v1, convert(1), relay.Tuple([convert(2), convert(3)]))
-    same = relay.If(v1, convert(1), relay.Tuple([convert(2), convert(3)]))
+    if_sample = relay.If(v1, relay.const(1), relay.Tuple([relay.const(2), relay.const(3)]))
+    same = relay.If(v1, relay.const(1), relay.Tuple([relay.const(2), relay.const(3)]))
     assert alpha_equal(if_sample, same)
 
-    different_cond = relay.If(v2, convert(1), relay.Tuple([convert(2), convert(3)]))
+    different_cond = relay.If(v2, relay.const(1), relay.Tuple([relay.const(2), relay.const(3)]))
     assert not alpha_equal(if_sample, different_cond)
 
-    different_true = relay.If(v1, convert(2), relay.Tuple([convert(2), convert(3)]))
+    different_true = relay.If(v1, relay.const(2), relay.Tuple([relay.const(2), relay.const(3)]))
     assert not alpha_equal(if_sample, different_true)
 
-    different_false = relay.If(v1, convert(1), relay.Tuple([]))
+    different_false = relay.If(v1, relay.const(1), relay.Tuple([]))
     assert not alpha_equal(if_sample, different_false)
 
 

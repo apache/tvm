@@ -28,6 +28,39 @@
 
 namespace tvm {
 namespace relay {
+
+// Necessary deferred relation for TupleGetItem
+struct TupleGetItemAttrs : public tvm::AttrsNode<TupleGetItemAttrs> {
+  int index;
+
+  TVM_DECLARE_ATTRS(TupleGetItemAttrs, "relay.attrs.TupleGetItemAttrs") {
+    TVM_ATTR_FIELD(index);
+  }
+};
+
+bool TupleGetItemRel(const Array<Type>& types,
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  if (types[0].as<IncompleteTypeNode>()) return false;
+  const auto* data = types[0].as<TupleTypeNode>();
+  CHECK(data != nullptr)
+      << "TupleGetItem expect input type to be TupleType "
+      << " get " << types[0] << " instead";
+  const auto* param = attrs.as<TupleGetItemAttrs>();
+  CHECK(param != nullptr);
+  CHECK_GE(param->index, 0);
+  CHECK_LT(param->index,  data->fields.size());
+  reporter->Assign(types[1], data->fields[param->index]);
+  return true;
+}
+
+TVM_REGISTER_NODE_TYPE(TupleGetItemAttrs);
+TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
+.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
+    TupleGetItemRel);
+
 //
 // The inference algorithm can roughly be devided into three stages:
 // - Populate the constraints by visiting the expression (TypeInferencer.GetType)
@@ -38,8 +71,7 @@ namespace relay {
 class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
  public:
   // constructors
-  TypeInferencer()
-      : env_(EnvironmentNode::make({})) {
+  TypeInferencer() {
   }
   explicit TypeInferencer(Environment env)
       : env_(env) {
@@ -58,6 +90,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   std::unordered_map<Expr, Type, NodeHash, NodeEqual> type_map_;
   // The solver used by the inferencer.
   TypeSolver solver_;
+  // relation function
+  TypeRelationFn tuple_getitem_rel_;
   // Unify two types
   Type Unify(const Type& t1, const Type& t2, const Span& span) {
     // TODO(tqchen, jroesch): propagate span to solver
@@ -96,6 +130,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = GetRef<GlobalVar>(op);
+    CHECK(env_.defined())
+        << "Cannot do type inference without a global variable";
     Expr e = env_->Lookup(var);
     return e->checked_type();
   }
@@ -116,17 +152,17 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
-    // TODO(M.K.)
-    // handle case where field type is not known
+    if (!tuple_getitem_rel_.defined())  {
+      tuple_getitem_rel_ = TypeRelationFn(
+          EnvFunc::Get("tvm.relay.type_relation.TupleGetItem").node_);
+    }
     Type tuple_type = GetType(op->tuple);
-    auto tuple_ty_node = tuple_type.as<TupleTypeNode>();
-    if (!tuple_ty_node) {
-      LOG(FATAL) << "only expressions with tuple types is accepted" << GetRef<TupleGetItem>(op);
-    }
-    if (static_cast<int>(tuple_ty_node->fields.size()) <= op->index) {
-      LOG(FATAL) << "tuple not big enough" << GetRef<TupleGetItem>(op);
-    }
-    return tuple_ty_node->fields[op->index];
+    Type rtype = IncompleteTypeNode::make(TypeParamNode::Kind::kType);
+    auto attrs = make_node<TupleGetItemAttrs>();
+    attrs->index = op->index;
+    solver_.AddConstraint(TypeRelationNode::make(
+        tuple_getitem_rel_, {tuple_type, rtype}, 1, Attrs(attrs)));
+    return rtype;
   }
 
   Type VisitExpr_(const OpNode* op) final {
@@ -305,7 +341,6 @@ class TypeInferencer::Resolver : public ExprMutator {
     return AttachCheckedType(op);
   }
 
-
   Expr VisitExpr_(const FunctionNode* op) final {
     return AttachCheckedType(op);
   }
@@ -363,20 +398,21 @@ Expr TypeInferencer::Infer(Expr expr) {
   return Resolver(type_map_, &solver_).VisitExpr(expr);
 }
 
-Expr InferType(const Environment& env, const Expr& expr) {
+
+Expr InferType(const Expr& expr, const Environment& env) {
   return TypeInferencer(env).Infer(expr);
 }
 
-Expr InferType(const Environment& env,
-               const GlobalVar& var,
-               const Function& func) {
+Function InferType(const Function& func,
+                   const Environment& env,
+                   const GlobalVar& var) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
   env->functions.Set(var, func_copy);
   Expr func_ret = TypeInferencer(env).Infer(func_copy);
   auto map_node = env->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
-  return func_ret;
+  return Downcast<Function>(func_ret);
 }
 
 TVM_REGISTER_API("relay._ir_pass.infer_type")

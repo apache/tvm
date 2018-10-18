@@ -217,6 +217,8 @@ class TextPrinter :
         return ConstScalar(dtype, static_cast<const float*>(op->data->data));
       } else if (dtype == Float(64)) {
         return ConstScalar(dtype, static_cast<const double*>(op->data->data));
+      } else if (dtype == Bool()) {
+        return ConstScalar(dtype, static_cast<const uint8_t*>(op->data->data));
       }
     }
     // default fall-back, record it as meta node.
@@ -638,8 +640,14 @@ class TextPrinter :
    * \return The corresponding name.
    */
   TextValue AllocVarName(const Var& var) {
-    std::string name = GetUniqueName('%' + var->name_hint);
-    TextValue val(name);
+    std::string name = var->name_hint;
+    // always make sure first name is alpha
+    if (name.length() != 0 && !std::isalpha(name[0])) {
+      name = "%v" + name;
+    } else {
+      name = "%" + name;
+    }
+    TextValue val(GetUniqueName(name));
     CHECK(!memo_.count(var));
     memo_[var] = val;
     return val;

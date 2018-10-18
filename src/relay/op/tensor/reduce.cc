@@ -199,7 +199,7 @@ RELAY_REGISTER_REDUCE_OP("argmax")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel);
 
@@ -209,7 +209,7 @@ RELAY_REGISTER_REDUCE_OP("argmin")
 values over a given axis.
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel);
 

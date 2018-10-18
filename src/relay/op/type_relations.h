@@ -13,17 +13,6 @@
 
 namespace tvm {
 namespace relay {
-
-/*! \brief The error raised by a type relation.
- *
- * This error is how a type relation signals that it has failed.
- *
- */
-struct TypeRelationError : Error {
-  explicit TypeRelationError(const std::string& msg)
-      : Error(msg) {}
-};
-
 /*!
  * \brief The identity type relation, all the types are equal.
  *
@@ -71,22 +60,6 @@ bool BroadcastCompRel(const Array<Type>& types,
                       int num_inputs,
                       const Attrs& attrs,
                       const TypeReporter& reporter);
-
-/*!
- * \brief The concat type relation, implements the concatenating
- *  rule over the list of input types producing one concatenated
- *  type.
- * 
- * \param types The input and output types to the relation.
- * \param num_inputs The number of input arguments.
- * \param attrs The attributes
- * \param reporter The reporter.
- * \return true whether relation has been resolved.
- */
-bool ConcatRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
-               const TypeReporter& reporter);
 
 }  // namespace relay
 }  // namespace tvm
