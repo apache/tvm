@@ -11,7 +11,6 @@ from .. import nd as _nd
 from .. import convert
 
 
-
 class Expr(RelayNode):
     """The base type for all Relay expressions."""
     @property
@@ -268,7 +267,7 @@ def const(value, dtype=None):
 
     Parameters
     ----------
-    value: Union[int, float, numpy.ndarray, tvm.nd.NDArray]
+    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
         The constant value.
 
     dtype: str, optional
@@ -276,7 +275,7 @@ def const(value, dtype=None):
     """
     if isinstance(value, _base.numeric_types):
         value = _np.array(value, dtype=dtype)
-    elif isinstance(value, list):
+    elif isinstance(value, (bool, list)):
         value = _np.array(value, dtype=dtype)
     if isinstance(value, (_np.ndarray, _np.generic)):
         value = _nd.array(value)

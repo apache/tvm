@@ -301,7 +301,7 @@ namespace detail {
 using runtime::TVMArgValue;
 
 // helper entry that does nothing in set_default/bound/describe calls.
-struct AttrNopEntry{
+struct AttrNopEntry {
   using TSelf = AttrNopEntry;
 
   TSelf& describe(DMLC_ATTRIBUTE_UNUSED const char* str) {

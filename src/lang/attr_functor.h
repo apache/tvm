@@ -17,14 +17,14 @@ namespace tvm {
 template <typename FType>
 class AttrFunctor;
 
-#define ATTR_FUNCTOR_DEFAULT \
+#define ATTR_FUNCTOR_DEFAULT                                        \
   { return VisitAttrDefault_(op, std::forward<Args>(args)...); }
 
 
 #define ATTR_FUNCTOR_DISPATCH(OP)                                       \
   vtable.template set_dispatch<OP>(                                     \
       [](const NodeRef& n, TSelf* self, Args... args) {                 \
-        return self->VisitAttr_(static_cast<const OP*>(n.node_.get()),      \
+        return self->VisitAttr_(static_cast<const OP*>(n.node_.get()),  \
                                 std::forward<Args>(args)...);           \
       });                                                               \
 

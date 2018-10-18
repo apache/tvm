@@ -273,7 +273,7 @@ class TextPrinter :
   }
 
   TextValue VisitExpr_(const CallNode* op) final {
-    // TODO(tqchen, marisha): support generic call
+    // TODO(tqchen, M.K.): support generic call
     // possibly through meta-data
     CHECK_EQ(op->type_args.size(), 0U)
         << "generic call not yet supported";
@@ -354,6 +354,7 @@ class TextPrinter :
         os << ", ";
       }
     }
+    // conform to python tuple format (1,)
     if (node->shape.size() == 1) {
       os << ",";
     }
@@ -469,7 +470,7 @@ class TextPrinter :
    * \param fn The function to be printed.
    */
   void PrintFuncInternal(std::string prefix, const Function& fn) {
-    // TODO(tqchen, marisha) support generic function
+    // TODO(tqchen, M.K.) support generic function
     // Possibly through meta-data
     CHECK_EQ(fn->type_params.size(), 0U)
         << "generic fn not yet supported";
@@ -494,7 +495,7 @@ class TextPrinter :
     this->PrintScope(fn->body);
   }
   /*!
-   * \brief Print additional extra info about expr in comment.
+   * \brief Print additional info about expr in comment.
    * \param expr The expression.
    */
   void PrintOptionalInfo(const Expr& expr) {
@@ -565,7 +566,7 @@ class TextPrinter :
    * \param os The output stream
    */
   void PrintString(const std::string& value, std::ostream& os) { // NOLINT(*)
-    // TODO(marisha): add escape.
+    // TODO(M.K.): add escape.
     os << "\"" << value << "\"";
   }
   /*!
@@ -609,6 +610,7 @@ class TextPrinter :
   }
   /*!
    * \brief Print the indent to the stream.
+   * \param more_indent More indentation besides the current one.
    */
   void PrintIndent(int64_t more_indent = 0) {
     for (int i = 0; i < indent_ + more_indent; ++i) {
