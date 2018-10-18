@@ -17,11 +17,15 @@ namespace tvm {
 template <typename FType>
 class AttrFunctor;
 
+#define ATTR_FUNCTOR_DEFAULT                                        \
+  { return VisitAttrDefault_(op, std::forward<Args>(args)...); }
+
+
 #define ATTR_FUNCTOR_DISPATCH(OP)                                       \
   vtable.template set_dispatch<OP>(                                     \
       [](const NodeRef& n, TSelf* self, Args... args) {                 \
-        return self->Visit_(static_cast<const OP*>(n.node_.get()),      \
-                            std::forward<Args>(args)...);               \
+        return self->VisitAttr_(static_cast<const OP*>(n.node_.get()),  \
+                                std::forward<Args>(args)...);           \
       });                                                               \
 
 // A functor for common attribute information.
@@ -40,21 +44,21 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
    * \param args Additional arguments.
    * \return The result of the call
    */
-  virtual R Visit(const NodeRef& n, Args... args) {
+  virtual R VisitAttr(const NodeRef& n, Args... args) {
     static FType vtable = InitVTable();
     if (vtable.can_dispatch(n)) {
       return vtable(n, this, std::forward<Args>(args)...);
     } else {
-      return VisitDefault_(n, std::forward<Args>(args)...);
+      return VisitAttrDefault_(n.get(), std::forward<Args>(args)...);
     }
   }
-  virtual R Visit_(const ArrayNode* op, Args... args) = 0;
-  virtual R Visit_(const StrMapNode* op, Args... args) = 0;
-  virtual R Visit_(const ir::IntImm* op, Args... args) = 0;
-  virtual R Visit_(const ir::UIntImm* op, Args... args) = 0;
-  virtual R Visit_(const ir::FloatImm* op, Args... args) = 0;
-  virtual R Visit_(const ir::StringImm* op, Args... args) = 0;
-  virtual R VisitDefault_(const NodeRef& n, Args... args) = 0;
+  virtual R VisitAttr_(const ArrayNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const StrMapNode* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::IntImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::UIntImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::FloatImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::StringImm* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttrDefault_(const Node* node, Args... args) = 0;
 
  private:
   // initialize the vtable.

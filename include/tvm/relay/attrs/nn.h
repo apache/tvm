@@ -13,7 +13,7 @@ namespace tvm {
 namespace relay {
 
 /*! \brief Attributes used in convolution operators */
-struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
+struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
   Array<IndexExpr> dilation;
@@ -25,7 +25,7 @@ struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
   std::string out_layout;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(ConvAttrs, "relay.attrs.ConvAttrs") {
+  TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))
@@ -55,14 +55,14 @@ struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
         .describe("Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
                   "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                   "dimensions respectively.");
-    TVM_ATTR_FIELD(out_layout).set_default("__undef__")
+    TVM_ATTR_FIELD(out_layout).set_default("")
         .describe("Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
                   "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
                   "dimensions respectively. Default to be same as input layout.");
 
     // use 0 bits to indicate none.
     TVM_ATTR_FIELD(out_dtype)
-        .set_default(Int(0))
+        .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };
@@ -123,7 +123,7 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                 "dimensions respectively.");
     TVM_ATTR_FIELD(out_dtype)
-        .set_default(Int(0))
+        .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");
   }
 };

@@ -74,7 +74,10 @@ class CalcDep : private ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* f) final {
-    return FunctionNode::make(f->params, f->ret_type, Eliminate(f->body), f->type_params);
+    return FunctionNode::make(f->params,
+                              Eliminate(f->body),
+                              f->ret_type,
+                              f->type_params);
   }
 
   // generate the let list from dependency graph

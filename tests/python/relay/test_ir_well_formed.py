@@ -10,7 +10,7 @@ def test_well_formed():
     let = relay.Let(x, v, x)
     assert well_formed(let)
     assert not well_formed(relay.Let(x, v, let))
-    f = relay.Function([x], ty, x)
+    f = relay.Function([x], x, ty)
     assert well_formed(f)
     # this test should pass in case of weak uniqueness (only test for shadowing)
     # but we want all binder to be distinct from each other.

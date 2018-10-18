@@ -17,6 +17,8 @@ Constant ConstantNode::make(runtime::NDArray data) {
   return Constant(n);
 }
 
+TVM_REGISTER_NODE_TYPE(ConstantNode);
+
 TVM_REGISTER_API("relay._make.Constant")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = ConstantNode::make(args[0]);
@@ -44,6 +46,8 @@ Tuple TupleNode::make(tvm::Array<relay::Expr> fields) {
   return Tuple(n);
 }
 
+TVM_REGISTER_NODE_TYPE(TupleNode);
+
 TVM_REGISTER_API("relay._make.Tuple")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = TupleNode::make(args[0]);
@@ -60,6 +64,8 @@ Var VarNode::make(std::string name_hint, Type type_annotation) {
   n->type_annotation = std::move(type_annotation);
   return Var(n);
 }
+
+TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_API("relay._make.Var")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -82,6 +88,8 @@ GlobalVar GlobalVarNode::make(std::string name_hint) {
   return GlobalVar(n);
 }
 
+TVM_REGISTER_NODE_TYPE(GlobalVarNode);
+
 TVM_REGISTER_API("relay._make.GlobalVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = GlobalVarNode::make(args[0]);
@@ -94,13 +102,13 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 
 Function FunctionNode::make(tvm::Array<Var> params,
-                            Type ret_type,
                             Expr body,
+                            Type ret_type,
                             tvm::Array<TypeParam> type_params) {
   NodePtr<FunctionNode> n = make_node<FunctionNode>();
   n->params = std::move(params);
-  n->ret_type = std::move(ret_type);
   n->body = std::move(body);
+  n->ret_type = std::move(ret_type);
   n->type_params = std::move(type_params);
   return Function(n);
 }
@@ -112,6 +120,8 @@ FuncType FunctionNode::func_type_annotation() const {
   }
   return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
 }
+
+TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_API("relay._make.Function")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -135,6 +145,8 @@ Call CallNode::make(Expr op, Array<Expr> args, Attrs attrs,
   return Call(n);
 }
 
+TVM_REGISTER_NODE_TYPE(CallNode);
+
 TVM_REGISTER_API("relay._make.Call")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   *ret = CallNode::make(args[0], args[1], args[2], args[3]);
@@ -153,6 +165,8 @@ Let LetNode::make(Var var, Expr value, Expr body) {
   n->body = std::move(body);
   return Let(n);
 }
+
+TVM_REGISTER_NODE_TYPE(LetNode);
 
 TVM_REGISTER_API("relay._make.Let")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
@@ -173,6 +187,8 @@ If IfNode::make(Expr cond, Expr true_branch, Expr false_branch) {
   return If(n);
 }
 
+TVM_REGISTER_NODE_TYPE(IfNode);
+
 TVM_REGISTER_API("relay._make.If").set_body([](TVMArgs args, TVMRetValue *ret) {
   *ret = IfNode::make(args[0], args[1], args[2]);
 });
@@ -189,6 +205,8 @@ TupleGetItem TupleGetItemNode::make(Expr tuple, int index) {
   n->index = index;
   return TupleGetItem(n);
 }
+
+TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
 
 TVM_REGISTER_API("relay._make.TupleGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = TupleGetItemNode::make(args[0], args[1]);

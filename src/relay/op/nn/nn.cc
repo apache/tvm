@@ -78,6 +78,7 @@ RELAY_REGISTER_OP("nn.dense")
 - **out**: `(x1, x2, ..., xn, units)`.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.DenseAttrs")
 .set_num_inputs(2)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight", "2D Tensor", "Weight matrix.")
@@ -107,6 +108,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 `y = x > 0 ? x : alpha * x`
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.LeakyReluAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3)
@@ -135,6 +137,7 @@ RELAY_REGISTER_OP("nn.softmax")
 
 - **data**: The input data
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SoftmaxAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
@@ -163,6 +166,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
 
 - **data**: The input data
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SoftmaxAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
@@ -171,9 +175,9 @@ RELAY_REGISTER_OP("nn.log_softmax")
 
 // BatchFlatten
 bool BatchFlattenRel(const Array<Type>& types,
-               int num_inputs,
-               const Attrs& attrs,
-               const TypeReporter& reporter) {
+                     int num_inputs,
+                     const Attrs& attrs,
+                     const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
@@ -278,6 +282,7 @@ centered at that value (zero padding is added where necessary).
 
 - **data**: The input tensor.
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.LRNAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -296,12 +301,12 @@ Expr MakeL2Normalize(Expr data,
 }
 
 TVM_REGISTER_API("relay.op.nn._make.l2_normalize")
-  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 3>(MakeL2Normalize, args, rv);
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeL2Normalize, args, rv);
   });
 
 RELAY_REGISTER_OP("nn.l2_normalize")
-    .describe(R"code(L2 Normalization layer.
+.describe(R"code(L2 Normalization layer.
 
 Normalizes along dimension axis using an L2 norm
 
@@ -352,6 +357,7 @@ During training, each element of the input is set to zero with probability ``p``
 The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input unchanged.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.DropoutAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input to which dropout will be applied.")
 .set_support_level(1)
@@ -478,6 +484,7 @@ axis to be the last item in the input shape.
 .. note::
     This operator can be optimized away for inference.
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.BatchNormAttrs")
 .set_num_inputs(5)
 .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
 .add_argument("gamma", "Tensor", "The gamma scale factor.")

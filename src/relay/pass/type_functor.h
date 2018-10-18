@@ -20,6 +20,7 @@ class TypeFunctor;
 #define TYPE_FUNCTOR_DEFAULT \
   { return VisitTypeDefault_(op, std::forward<Args>(args)...); }
 
+
 #define RELAY_TYPE_FUNCTOR_DISPATCH(OP)                                   \
   vtable.template set_dispatch<OP>(                                       \
       [](const NodeRef& n, TSelf* self, Args... args) {                   \
