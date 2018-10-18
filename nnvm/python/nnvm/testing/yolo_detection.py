@@ -160,7 +160,7 @@ def draw_detections(im, dets, thresh, names, classes):
             if det['prob'][j] > thresh:
                 if category == -1:
                     category = j
-                labelstr.append(names[j])
+                labelstr.append(names[j] + " " + str(round(det['prob'][j], 4)))
         if category > -1:
             imc, imh, imw = im.shape
             width = int(imh * 0.006)
