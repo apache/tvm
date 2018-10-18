@@ -46,13 +46,15 @@ def ProcessGraphDefParam(graph_def):
     return graph_def
 
 
-def AddShapesToGraphDef(out_node):
+def AddShapesToGraphDef(session, out_node):
     """ Add shapes attribute to nodes of the graph.
         Input graph here is the default graph in context.
 
     Parameters
     ----------
-    out_node: String
+    session : tf.Session
+        Tensorflow session
+    out_node : String
         Final output node of the graph.
 
     Returns
@@ -62,13 +64,12 @@ def AddShapesToGraphDef(out_node):
 
     """
 
-    with tf.Session() as sess:
-        graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            [out_node],
-            )
-        return graph_def
+    graph_def = tf.graph_util.convert_variables_to_constants(
+        session,
+        session.graph.as_graph_def(add_shapes=True),
+        [out_node],
+        )
+    return graph_def
 
 class NodeLookup(object):
     """Converts integer node ID's to human readable labels."""
