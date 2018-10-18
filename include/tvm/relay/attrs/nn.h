@@ -13,7 +13,7 @@ namespace tvm {
 namespace relay {
 
 /*! \brief Attributes used in convolution operators */
-struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
+struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> strides;
   Array<IndexExpr> padding;
   Array<IndexExpr> dilation;
@@ -25,7 +25,7 @@ struct ConvAttrs : public tvm::AttrsNode<ConvAttrs> {
   std::string out_layout;
   DataType out_dtype;
 
-  TVM_DECLARE_ATTRS(ConvAttrs, "relay.attrs.ConvAttrs") {
+  TVM_DECLARE_ATTRS(Conv2DAttrs, "relay.attrs.Conv2DAttrs") {
     TVM_ATTR_FIELD(strides).set_default(Array<IndexExpr>({1, 1}))
         .describe("Specifies the strides of the convolution.");
     TVM_ATTR_FIELD(padding).set_default(Array<IndexExpr>({0, 0}))

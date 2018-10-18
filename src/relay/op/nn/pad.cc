@@ -60,7 +60,7 @@ bool PadRel(const Array<Type>& types,
 }
 
 // Handler to create a call to the padding op used by front-end FFI
-  Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
+Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
   auto attrs = make_node<PadAttrs>();
   attrs->pad_value = pad_value;
   attrs->pad_width = std::move(pad_width);

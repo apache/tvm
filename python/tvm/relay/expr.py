@@ -6,7 +6,7 @@ import numpy as _np
 from .base import RelayNode, register_relay_node
 from . import _make
 from . import ty as _ty
-from .._ffi import base as _base
+from .._ffi import base as _base, node as _node
 from .. import nd as _nd
 from .. import convert
 
@@ -211,6 +211,38 @@ class TupleGetItem(Expr):
     def __init__(self, tuple_value, index):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
+
+
+class TupleWrapper(_node.NodeGeneric):
+    """TupleWrapper.
+
+    This class is a Python wrapper for a Relay tuple of known size.
+    It allows for accessing the fields of the Relay tuple as though
+    it were a Python tuple.
+
+    Parameters
+    ----------
+    tuple_value: tvm.relay.Expr
+        The input tuple
+
+    size: int
+        The size of the tuple.
+    """
+    def __init__(self, tuple_value, size):
+        self.tuple_value = tuple_value
+        self.size = size
+
+    def asnode(self):
+        """Returns the underlying Relay tuple if this wrapper is passed
+        as an argument to an FFI function."""
+
+        return self.tuple_value
+
+    def __getitem__(self, key):
+        return self.tuple_value.fields[key]
+
+    def __len__(self):
+        return len(self.tuple_value.fields)
 
 
 def var(name_hint,

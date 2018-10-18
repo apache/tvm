@@ -717,21 +717,16 @@ class TextPrinter::AttrPrinter: public AttrVisitor {
 
  private:
   void PrintSep() {
-    if (counter_ != 0) {
-      stream_ << ", ";
-    }
-    ++counter_;
+    stream_ << ", ";
   }
   std::ostream& stream_;  // NOLINT(*)
   TextPrinter* parent_;
-  int counter_{0};
 };
 
 void TextPrinter::PrintCallAttrs(const Expr& op,
                                  const Attrs& attrs,
                                  std::ostream& os) {  // NOLINT(*)
   if (!attrs.defined()) return;
-  os << ", ";
   if (const auto* op_node = op.as<OpNode>()) {
     if (attrs->type_index() == op_node->attrs_type_index) {
       AttrPrinter printer(os, this);
@@ -740,7 +735,7 @@ void TextPrinter::PrintCallAttrs(const Expr& op,
       return;
     }
   }
-  os << meta_.GetMetaNode(attrs);
+  os << ", " << meta_.GetMetaNode(attrs);
 }
 
 std::string RelayPrint(const NodeRef& node) {

@@ -52,6 +52,20 @@ def test_meta_data():
     assert "meta.relay.Constant(id=0)" in text
     show(text)
 
+
+def test_call_attrs():
+    x = relay.var("x")
+    # non default args
+    z = relay.nn.softmax(x, axis=2)
+    assert "axis=2" in z.astext()
+    # default args
+    z = relay.nn.softmax(x)
+    assert "softmax(%x)" in z.astext()
+    # non default args
+    z = relay.expand_dims(x, axis=2, num_newaxis=2)
+    assert "num_newaxis=2" in z.astext()
+
+
 def test_let_if_scope():
     x = relay.var("x", "float32")
     y = relay.var("y", "float32")
@@ -78,3 +92,4 @@ if __name__ == "__main__":
     test_func()
     test_env()
     test_meta_data()
+    test_call_attrs()
