@@ -42,7 +42,7 @@ struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
 
 /*! \brief Attributes used in non_maximum_suppression operators */
 struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  float nms_threshold;
+  double nms_threshold;
   bool force_suppress;
   int nms_topk;
 

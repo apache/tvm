@@ -31,13 +31,13 @@ bool NMSRel(const Array<Type>& types,
 
 Expr MakeNMS(Expr data,
              Expr valid_count,
-             float nms_threshold,
+             double nms_threshold,
              bool force_suppress,
              int nms_topk) {
   auto attrs = make_node<NMSAttrs>();
-  attrs->nms_threshold = std::move(nms_threshold);
-  attrs->force_suppress= std::move(force_suppress);
-  attrs->nms_topk = std::move(nms_topk);
+  attrs->nms_threshold = nms_threshold;
+  attrs->force_suppress = force_suppress;
+  attrs->nms_topk = nms_topk;
   static const Op& op = Op::Get("vision.nms");
   return CallNode::make(op, {data, valid_count}, Attrs(attrs), {});
 }
@@ -45,7 +45,7 @@ Expr MakeNMS(Expr data,
 
 TVM_REGISTER_API("relay.op.vision._make.nms")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-  runtime::detail::unpack_call<Expr, 6>(MakeNMS, args, rv);
+  runtime::detail::unpack_call<Expr, 5>(MakeNMS, args, rv);
 });
 
 
@@ -55,7 +55,7 @@ RELAY_REGISTER_OP("vision.nms")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("valid_count", "Tensor", "Number of valid anchor boxes.")
-.set_support_level(4)
+.set_support_level(5)
 .add_type_rel("NMS", NMSRel);
 
 }  // namespace relay
