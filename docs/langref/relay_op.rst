@@ -106,6 +106,8 @@ This level enables additional math and transform operators.
    tvm.relay.minimum
    tvm.relay.pow
    tvm.relay.where
+   tvm.relay.argmax
+   tvm.relay.argmin
 
 
 **Level 5: Vision/Image Operators**
@@ -183,6 +185,8 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.minimum
 .. autofunction:: tvm.relay.pow
 .. autofunction:: tvm.relay.where
+.. autofunction:: tvm.relay.argmax
+.. autofunction:: tvm.relay.argmin
 
 
 Level 5 Definitions

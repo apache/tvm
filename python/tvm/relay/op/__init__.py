@@ -4,6 +4,7 @@
 from .op import get, register, Op
 
 # Operators
+from .reduce import *
 from .tensor import *
 from .transform import *
 from . import nn

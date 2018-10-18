@@ -270,6 +270,13 @@ class TypeReporterNode : public Node {
    */
   TVM_DLL virtual void Assign(const Type& dst, const Type& src) = 0;
   /*!
+   * \brief assert shape expression comparison.
+   * \param cond The condition of operation.
+   * \return false if assertation can be proven to have failed
+   *      true if solver can still proceed.
+   */
+  TVM_DLL virtual bool Assert(const IndexExpr& cond)= 0;
+  /*!
    * \brief assert shape expression equals each other.
    * \param lhs The left operand.
    * \param rhs The right operand.
