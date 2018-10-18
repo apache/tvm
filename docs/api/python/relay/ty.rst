@@ -1,27 +1,27 @@
-tvm.relay.type
+tvm.relay.ty
 --------------
-.. automodule:: tvm.relay.type
+.. automodule:: tvm.relay.ty
 
-.. autoclass:: tvm.relay.type.Type
+.. autoclass:: tvm.relay.ty.Type
     :members:
 
-.. autoclass:: tvm.relay.type.TensorType
+.. autoclass:: tvm.relay.ty.TensorType
     :members:
 
-.. autoclass:: tvm.relay.type.Kind
+.. autoclass:: tvm.relay.ty.Kind
     :members:
 
-.. autoclass:: tvm.relay.type.TypeParam
+.. autoclass:: tvm.relay.ty.TypeParam
     :members:
 
-.. autoclass:: tvm.relay.type.TypeConstraint
+.. autoclass:: tvm.relay.ty.TypeConstraint
     :members:
 
-.. autoclass:: tvm.relay.type.FuncType
+.. autoclass:: tvm.relay.ty.FuncType
     :members:
 
-.. autoclass:: tvm.relay.type.TypeCall
+.. autoclass:: tvm.relay.ty.TypeCall
     :members:
 
-.. autoclass:: tvm.relay.type.IncompleteType
+.. autoclass:: tvm.relay.ty.IncompleteType
     :members:

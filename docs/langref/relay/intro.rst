@@ -1,55 +1,34 @@
-==================
+============
 Introduction
-==================
+============
 
 Relay is differentiable programming language with support for
 closures, control-flow, and recursion. It has an advanced
 static type system specifically designed for programs written
-by machine learning practitioners and researchers.
-
-Relay is intended to replace the computation graph based
-intermediate representations currently employed by deep
+by machine learning practitioners and researchers. Relay is intended to replace
+the computation graph based intermediate representations currently employed by deep
 learning frameworks and compilers. The deep learning community
 has organically evolved a representation that was useful
 for the form of computation originally desired, i.e
 a directed acyclic graph of primitive functions.
 
-This may be a useful way to describe early ML models, but is
-limited once you want to generalize to dynamic models.
-
-At the same time computation graphs have been over loaded
-purpose as both a compile-time and run-time data structure.
-The conflation of the description of a computation, the
+Computation graphs were a useful way to describe ML models with static
+topology, but make representing control flow, and abstraction tricky.
+Computation graphs have dual purpose as both a compile-time and run-time data
+structure. The conflation of the description of a computation, the
 representation used for optimizing it, and the data structure
-used to execute it uncessarily hampers many of the goals
-of a framework.
-
-We believe having a high level, an expressive language designed
+used to execute it unnecessarily hampers many goals of machine
+learning frameworks. We believe having a high level, expressive language designed
 for compiler optimizations is essential to the future of an
 end-to-end deep learning compiler stack.
 
-Relay's design was influenced by the authors previous experince
-building advanced optimizing compilers for high level languages,
-as well as experinces with the current TVM stack, and NNVM.
-
-Concretely NNVM has played the role of this high level IR.
-
-for NNVM which address design flaws of the computation graph IRs
-employed by common deep learning frameworks.
-We address a few important challenges. First we present a new IR with first
-class functions and closures, enabling the design of differentiable
-arbitrary control flow constructs. Second we contribute a type system for
-Relay which makes the important properties of computations involving tensors
-explicit.
-
-The result is a high-level IR for differentiable comptuation that can
-be used to abstract over the details of execution including devices,
-parallelism, and distribution.
-
-We believe Relay will enable researchers and industry to design a
-new class of DL framework frontends, differentiable programming languages,
-deep probablistic programming languages, thus accelerating the pace of
-research in applications.
+Relay's design is influenced by the authors' experience building advanced optimizing compilers
+for high level languages, as well as challenges presented by the current version
+TVM stack, and NNVM's IR. We address a few important challenges with Relay's design.
+Relay is an IR with closures, control-flow, recursion, and advanced type system supporting,
+complex shape relationships, and symbolic dimensions. We can define a series of
+automatic-differentiation over the language, with the goal of enabling higher-order
+differentiation of programs with control-flow and closures.
 
 ==================
 Language
@@ -63,29 +42,30 @@ IR Reference
 
 The IR has a global environment which stores the set of definitions,
 constants, options, attributes, and provides access to features like
-the type inferencer, constant evaluator, and more.
+type inference, constant evaluation, and more.
 
-## Node
+~~~~~~~~~~
+Relay Node
+~~~~~~~~~~
 
-The fundmental unit of the IR is the node, all nodes must have
-a type field.
+The fundamental unit of the IR is the node, which only contains a Span.
 
 .. code-block:: python
+
     class Node:
-        def checked_type() -> Type:
-            ...
+        span: Span
 
 ==================
 Variables
 ==================
 
-Relay has three variable references local, global, and operators. Our design draws inspiration
-from LLVM which differentiates between identifier types. This enables writers of
-optimizations to know precisely what an identifier references without needing information
-beyond the type of identifier.
+Relay has two notions of variables local, and global.
+Our design draws inspiration from LLVM which differentiates between identifier types.
+This enables writers of optimizations to know precisely what an identifier references without needing
+information beyond the kind of identifier.
 
-Globals are written with `@`, locals are written with `%`, and operators are written with
-no sigil like LLVM's intrinsics. The distinction between global and local identifiers
+Globals are written with `@`, locals are written with `%`, variables written without a
+sigil name the corresponding operator. The distinction between global and local identifiers
 makes certain kinds of transformation easier. For example inlining a global definition
 requires no analysis, you can write a pass that just directly inlines the definitions.
 It also ensures there are no spooky action at a distance, introducing a new identifier
@@ -95,9 +75,9 @@ of any type will never introduce an ambiguity to the program.
 Global Variable
 ~~~~~~~~~~~~~~~~~~
 
-Global identifiers are prefixed by the ::@ sigil. A global identifier always
+Global identifiers are prefixed by the `@` sigil. A global identifier always
 references a globally visibly definition contained in the environment. You
-can write a global identifier as ::@global.
+can write a global identifier as `@global`.
 
 Local Variable
 ~~~~~~~~~~~~~~~~~
@@ -112,8 +92,8 @@ Global Functions
 ================
 
 A definition consists of a name, type parameter, parameters, and an optional return
-type. A Relay definition is similar to a procedure or function in a typical programming
-language, but can also be viewed as a named subgraph.
+type. A global function is no different then a  procedures or function in a typical programming
+language, and generalize the concept of a named subgraph.
 
 A definition minimally consists of an identifier :code:`@id`, an empty set of
 parameters, and a body expression contained by curly braces
@@ -122,7 +102,7 @@ parameters, and a body expression contained by curly braces
 
     def @id() { body }
 
-A definiton may also contain any number of parameters, for example a
+A definition may also contain any number of parameters, for example a
 simple function which just adds two tensors
 
 .. code-block:: python
@@ -138,7 +118,7 @@ we can restrict the above definition to only work on certain types
         %x + %y
     }
 
-A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.type.Type`. They represent
+A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.ty.Type`. They represent
 the formal parameters of functions and definitions, and are written as :code:`%x : T`.
 
 They may only appear in function literals, and definitions, and have no relation
@@ -151,7 +131,7 @@ return type is omitted we will infer the return type based on the text of the
 program.
 
 Finally we can directly construct type polymorphic definitions by writing down
-a set of type parameters for a definition. To define a polymoprhic identity
+a set of type parameters for a definition. To define a polymorphic identity
 function, the function which just returns its argument as so.
 ::
     def @id<s: Shape, bt: BaseType>(%x: Tensor<bt, s>) {
@@ -160,24 +140,24 @@ function, the function which just returns its argument as so.
 
 Notice we can omit the return type, and it will still be inferred.
 
-*Note: this is not yet implemented.*
+.. *Note: this is not yet implemented.*
 
-Finally we allo a definition be prefixed by metadata, which adds
+.. Finally we allow a definition be prefixed by metadata, which adds
 extra properties to the definition.
 
-It is important to be able to annotate metadata that is external to
+.. It is important to be able to annotate metadata that is external to
 the computational behavior of a definition. For example we can use
 this to add an `inline` or `noinline` attribute which the compiler
 can consider when performing inlining.
 
-For example we can set the attributes for :code:`@id_real`.::
+.. For example we can set the attributes for :code:`@id_real`.::
 
 
-    attributes id_real {
+..    attributes id_real {
         inline: true
     }
 
-    def id_real(%x:Real) { ret %x }
+..    def id_real(%x:Real) { ret %x }
 
 
 =========
@@ -200,6 +180,6 @@ Programs
 ~~~~~~~~
 
 Now that we have presented both global functions, and operators we have
-everthing in hand to describe a complete Relay program. A Relay program consists of a
+everything in hand to describe a complete Relay program. A Relay program consists of a
 registry of operators, one or more functions, as well as the global configuration
 stored in the environment.

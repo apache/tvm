@@ -49,7 +49,7 @@ Type
 ~~~~
 The base type for all Relay types. All Relay types are sub-classes of this base type.
 
-See :py:class:`~tvm.relay.type.Type` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.Type` for its definition and documentation.
 
 Tensor Type
 ~~~~~~~~~~~
@@ -70,7 +70,7 @@ This restriction importantly means
 The shape may be any valid Relay shape as described in the below
 section on shapes.
 
-See :py:class:`~tvm.relay.type.TensorType` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TensorType` for its definition and documentation.
 
 Kind
 ~~~~
@@ -81,7 +81,7 @@ This controls what a type parameter is allowed to be instantiated
 with. For example one's of kind BaseType can only be `float32`,
 `int32`, and so on.
 
-See :py:class:`~tvm.relay.type.Kind` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.Kind` for its definition and documentation.
 
 Type Parameter
 ~~~~~~~~~~~~~~
@@ -93,7 +93,7 @@ A type parameter represents a type placeholder which will
 be filled in later on. This allows the user to write
 functions which are generic over types.
 
-See :py:class:`~tvm.relay.type.TypeParam` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TypeParam` for its definition and documentation.
 
 Type Constriant
 ~~~~~~~~~~~~~~~
@@ -101,7 +101,7 @@ Type Constriant
 Abstract class representing a type constraint, to be elaborated
 on in further releases.
 
-See :py:class:`~tvm.relay.type.TypeConstraint` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TypeConstraint` for its definition and documentation.
 
 Function Type
 ~~~~~~~~~~~~~
@@ -115,7 +115,7 @@ being, a sequence of argument types, and a return type.
 We informally write them as:
 `forall (type_params), (arg_types) -> ret_type where type_constraints`
 
-See :py:class:`~tvm.relay.type.FuncType` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.FuncType` for its definition and documentation.
 
 Type Relation
 ~~~~~~~~~~~~~
@@ -158,17 +158,17 @@ notational convenience for:
 That is the user may pick the type of the :code:`Lhs`, :code:`Rhs`, and :code:`Out` as long as we can
 show :code:`Broadcast(Lhs, Rhs, Out)` holds.
 
-See :py:class:`~tvm.relay.type.TypeRelation` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
 
 Type Call
 ~~~~~~~~~
 
 Apply a type relation to a set of input arguments, at the present momen the type
-call node represents the application of a :py:class:`~tvm.relay.type.TypeRelation`
+call node represents the application of a :py:class:`~tvm.relay.ty.TypeRelation`
 to a set of input arguments. The result of type application is the output variable
 of the type relation.
 
-See :py:class:`~tvm.relay.type.TypeCall` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TypeCall` for its definition and documentation.
 
 Incomplete Type
 ~~~~~~~~~~~~~~~
@@ -177,4 +177,4 @@ A type, or portion of a type which is not known yet. Only used during type infer
 
 .. note:: Known as a "type variable" in the type checking literature.
 
-See :py:class:`~tvm.relay.type.IncompleteType` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.IncompleteType` for its definition and documentation.
