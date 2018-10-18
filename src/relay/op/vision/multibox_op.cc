@@ -5,7 +5,6 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/vision.h>
-#include <vector>
 
 namespace tvm {
 namespace relay {
