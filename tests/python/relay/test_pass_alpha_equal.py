@@ -262,49 +262,49 @@ def test_function_alpha_equal():
     basic_args = [relay.Var("v3", tt1), relay.Var("v4", tt2)]
     basic_tps = [tp1, tp2]
 
-    func = relay.Function([v1, v2],
-                          tt2, v1, basic_tps)
-    mapped = relay.Function(basic_args, tt2, basic_args[0], basic_tps)
+    func = relay.Function([v1, v2], v1,
+                          tt2, basic_tps)
+    mapped = relay.Function(basic_args, basic_args[0], tt2, basic_tps)
     assert alpha_equal(func, mapped)
 
-    fewer_params = relay.Function([relay.Var("v4", tt2)], tt2, v4, basic_tps)
+    fewer_params = relay.Function([relay.Var("v4", tt2)], v4, tt2, basic_tps)
     assert not alpha_equal(func, fewer_params)
 
     more_params = relay.Function([relay.Var("v3", tt1),
                                   relay.Var("v4", tt2),
-                                  relay.Var("v2", tt2)], tt2, v4, basic_tps)
+                                  relay.Var("v2", tt2)], v4, tt2, basic_tps)
     assert not alpha_equal(func, more_params)
 
-    params_unordered = relay.Function([v2, v1],
-                                      tt2, v1, basic_tps)
+    params_unordered = relay.Function([v2, v1], v1,
+                                      tt2, basic_tps)
     assert not alpha_equal(func, params_unordered)
 
-    params_mismatch = relay.Function([v1, v3],
-                                     tt2, v1, basic_tps)
+    params_mismatch = relay.Function([v1, v3], v1,
+                                     tt2, basic_tps)
     assert not alpha_equal(func, params_mismatch)
 
     # also would not typecheck
-    ret_type_mismatch = relay.Function(basic_args, tt1, v4, basic_tps)
+    ret_type_mismatch = relay.Function(basic_args, v4, tt1, basic_tps)
     assert not alpha_equal(func, ret_type_mismatch)
 
     # also mis-typed
-    different_body = relay.Function(basic_args, tt2, v3, basic_tps)
+    different_body = relay.Function(basic_args, v3, tt2, basic_tps)
     assert not alpha_equal(func, different_body)
 
-    fewer_type_params = relay.Function(basic_args, tt2, v4, [tp1])
+    fewer_type_params = relay.Function(basic_args, v4, tt2, [tp1])
     assert not alpha_equal(func, fewer_type_params)
 
-    more_type_params = relay.Function(basic_args, tt2, v4, [tp1, tp2, tp3])
+    more_type_params = relay.Function(basic_args, v4, tt2, [tp1, tp2, tp3])
     assert not alpha_equal(func, more_type_params)
 
-    type_params_unordered = relay.Function(basic_args, tt2, v4, [tp2, tp1])
+    type_params_unordered = relay.Function(basic_args, v4, tt2, [tp2, tp1])
     assert not alpha_equal(func, type_params_unordered)
 
-    different_type_params = relay.Function(basic_args, tt2, v4, [tp3, tp4])
+    different_type_params = relay.Function(basic_args, v4, tt2, [tp3, tp4])
     assert not alpha_equal(func, different_type_params)
 
     # a well-typed example that also differs in body, ret type, and type params
-    tupled_example = relay.Function(basic_args, tt3, relay.Tuple([v3, v4]))
+    tupled_example = relay.Function(basic_args, relay.Tuple([v3, v4]), tt3)
     assert not alpha_equal(func, tupled_example)
 
 

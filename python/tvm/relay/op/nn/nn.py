@@ -1,6 +1,6 @@
 """Neural network operations."""
 from __future__ import absolute_import as _abs
-from tvm.relay.ir_builder import TupleWrapper
+from ...expr import TupleWrapper
 from . import _make
 
 
@@ -145,7 +145,7 @@ def conv2d_transpose(data,
                                   weight_layout, output_padding, out_dtype)
 
 
-def softmax(data, axis):
+def softmax(data, axis=1):
     r"""Computes softmax.
 
     .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
@@ -158,7 +158,7 @@ def softmax(data, axis):
     data: relay.Expr
         The input data to the operator.
 
-    axis: int
+    axis: int, optional
         The axis to sum over when computing softmax
 
     Returns

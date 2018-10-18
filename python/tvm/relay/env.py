@@ -1,12 +1,11 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
 """A global environment storing everything needed to interpret or compile a Relay program."""
-from .base import register_relay_node, NodeBase
+from .base import register_relay_node, RelayNode
 from . import _make
 from . import _env
 
-
 @register_relay_node
-class Environment(NodeBase):
+class Environment(RelayNode):
     """The global Relay environment containing functions,
     options and more.
     """

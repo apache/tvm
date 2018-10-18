@@ -51,6 +51,8 @@ Span SpanNode::make(SourceName source, int lineno, int col_offset) {
   return Span(n);
 }
 
+TVM_REGISTER_NODE_TYPE(SpanNode);
+
 TVM_REGISTER_API("relay._make.Span")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     *ret = SpanNode::make(args[0], args[1], args[2]);

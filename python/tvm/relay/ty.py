@@ -1,11 +1,11 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The type nodes of the Relay language."""
 from enum import IntEnum
-from .base import NodeBase, register_relay_node
+from .base import RelayNode, register_relay_node
 from . import _make
 
 
-class Type(NodeBase):
+class Type(RelayNode):
     """The base type for all Relay types."""
 
     def __eq__(self, other):
@@ -21,27 +21,25 @@ class Type(NodeBase):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
+
 @register_relay_node
 class TensorType(Type):
-    """A concrete TensorType in Relay, see tvm/relay/type.h for more details.
+    """A concrete TensorType in Relay.
 
     This is the type assigned to tensor's with a known dype and shape. For
     example a tensor of `float32` and `(5, 5)`.
+
+    Parameters
+    ----------
+    shape: List[tvm.Expr]
+        The shape of the Tensor
+
+    dtype: str, optional
+        The content data type.
     """
-
-    def __init__(self, shape, dtype):
-        """Construct a tensor type.
-
-        Parameters
-        ----------
-        shape: list of tvm.Expr
-        dtype: str
-
-        Returns
-        -------
-        tensor_type: The TensorType
-        """
-        self.__init_handle_by_constructor__(_make.TensorType, shape, dtype)
+    def __init__(self, shape, dtype="float32"):
+        self.__init_handle_by_constructor__(
+            _make.TensorType, shape, dtype)
 
 
 class Kind(IntEnum):

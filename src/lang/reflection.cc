@@ -208,6 +208,8 @@ class JSONAttrGetter : public AttrVisitor {
     node_->type_key = node->type_key();
     // sepcially handle global object
     auto* f = dmlc::Registry<NodeFactoryReg>::Find(node_->type_key);
+    CHECK(f != nullptr)
+        << "Node type \'" << node_->type_key << "\' is not registered in TVM";
     if (f->fglobal_key != nullptr) {
       node_->global_key = f->fglobal_key(node);
       return;

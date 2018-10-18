@@ -11,7 +11,7 @@
 namespace tvm {
 namespace relay {
 
-TVM_REGISTER_NODE_TYPE(ConvAttrs);
+TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 bool Conv2DRel(const Array<Type>& types,
                int num_inputs,
@@ -25,7 +25,7 @@ bool Conv2DRel(const Array<Type>& types,
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
 
-  const ConvAttrs* param = attrs.as<ConvAttrs>();
+  const Conv2DAttrs* param = attrs.as<Conv2DAttrs>();
   CHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->weight_layout);
@@ -113,7 +113,7 @@ Expr MakeConv2D(Expr data,
                 std::string weight_layout,
                 std::string out_layout,
                 DataType out_dtype) {
-  auto attrs = make_node<ConvAttrs>();
+  auto attrs = make_node<Conv2DAttrs>();
   attrs->strides = std::move(strides);
   attrs->padding = std::move(padding);
   attrs->dilation = std::move(dilation);
@@ -148,6 +148,7 @@ with the layer input to produce a tensor of outputs.
             (batch_size, channels, out_height, out_width) if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.Conv2DAttrs")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
@@ -296,6 +297,7 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
                 out_width = (width-1)*strides[1]-2*padding[1]+kernel_size[1]+output_padding[1]
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.Conv2DTransposeAttrs")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")

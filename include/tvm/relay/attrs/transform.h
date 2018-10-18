@@ -78,7 +78,7 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
       .describe("Target shape.");
     TVM_ATTR_FIELD(dtype)
       .describe("Target data type.")
-      .set_default(Int(0));
+      .set_default(NullValue<DataType>());
   }
 };  // struct InitOpAttrs
 

@@ -76,6 +76,7 @@ RELAY_REGISTER_OP("expand_dims")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ExpandDimsAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("ExpandDims", ExpandDimsRel);
@@ -481,6 +482,7 @@ RELAY_REGISTER_OP("zeros")
 .describe(R"code(Fill array with zeros.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.InitOpAttrs")
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
@@ -503,6 +505,7 @@ RELAY_REGISTER_OP("ones")
 .describe(R"code(Fill array with ones.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.InitOpAttrs")
 .set_num_inputs(0)
 .set_support_level(3)
 .add_type_rel("InitOp", InitOpRel);
@@ -697,6 +700,7 @@ RELAY_REGISTER_OP("squeeze")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.SqueezeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Squeeze", SqueezeRel);
