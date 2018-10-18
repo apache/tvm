@@ -12,9 +12,9 @@ has organically evolved a representation that was useful
 for the form of computation originally desired, i.e
 a directed acyclic graph of primitive functions.
 
-Computation graphs were a useful way to describe ML models with static
-topology, but make representing control flow, and abstraction tricky.
-Computation graphs have dual purpose as both a compile-time and run-time data
+Computation graphs are a good fit for ML models with static topology, but make
+representing control flow, and abstraction tricky. Computation graphs have dual
+purpose as both a compile-time and run-time data
 structure. The conflation of the description of a computation, the
 representation used for optimizing it, and the data structure
 used to execute it unnecessarily hampers many goals of machine
