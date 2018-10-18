@@ -67,8 +67,6 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
     }
 
     // Check out of bounds error
-    CHECK(axis < std::numeric_limits<int32_t>::max())
-      << "Axis greater than int32 max.";
     CHECK(axis >= 0)
       << "Axis out of bounds in reduce operator.";
     CHECK(axis < indim)
@@ -113,6 +111,13 @@ inline std::vector<IndexExpr> ReduceShapeImpl(const std::vector<IndexExpr> &in_s
   if (!r_axes.size()) {
     return in_shape;
   }
+
+  auto max_shape = make_const(Int(64), 1);
+  for (int64_t axis : r_axes) {
+    max_shape *= in_shape[axis];
+  }
+  CHECK(reporter->Assert(max_shape < make_const(Int(64), std::numeric_limits<int32_t>::max())))
+    << "The maximum possible index of reduced shape cannot be more than int32 max.";
 
   if (param->keepdims) {
     std::vector<IndexExpr> oshape(in_shape);
