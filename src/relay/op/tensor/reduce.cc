@@ -172,6 +172,34 @@ bool ArgReduceRel(const Array<Type>& types,
   return true;
 }
 
+/*!
+* \brief ReduceRel Output type and shape relation evaluation function.
+* \param num_inputs Number of input types in the args.
+* \param attrs The additional attributes of the operator.
+* \param reporter The reporter to report solution to.
+* \return false if This relation cannot be resolved. true if this relation has been resolved.
+*/
+bool ReduceRel(const Array<Type>& types,
+               int num_inputs,
+               const Attrs& attrs,
+               const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  CHECK(static_cast<int>(data->shape.size()) != 0);
+  std::vector<IndexExpr> in_shape;
+  for (auto i : data->shape) {
+    in_shape.push_back(i);
+  }
+
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
+
+  // assign output type and shape
+  auto oshape = ReduceShapeImpl(in_shape, param, reporter);
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
 
 #define RELAY_REGISTER_REDUCE_OP(OpName)                           \
   TVM_REGISTER_API("relay.op._make." OpName)                       \
@@ -212,6 +240,89 @@ values over a given axis.
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
 .add_type_rel("ArgReduce", ArgReduceRel);
+
+
+RELAY_REGISTER_REDUCE_OP("sum")
+.describe(R"code(Computes the sum of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  sum(data, axis=1)
+  [[  4.   8.]
+   [ 10.   9.]
+   [ 21.   6.]]
+
+  sum(data, axis=[1,2])
+  [ 12.  19.  27.]
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel);
+
+
+RELAY_REGISTER_REDUCE_OP("max")
+.describe(R"code(Computes the max of array elements over given axes.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel);
+
+
+RELAY_REGISTER_REDUCE_OP("min")
+.describe(R"code(Computes the min of array elements over given axes.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel);
+
+
+RELAY_REGISTER_REDUCE_OP("mean")
+.describe(R"code(Computes the mean of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  mean(data)
+  [3.22]
+
+  mean(data, axis=[1,2])
+  [ 2.  3.16666667  4.5]
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel);
+
+
+RELAY_REGISTER_REDUCE_OP("prod")
+.describe(R"code(Computes the products of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  mean(data, axis=1)
+  [35562240]
+
+  mean(data, axis=[1,2])
+  [ 36  480  2058]
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel);
 
 }  // namespace relay
 }  // namespace tvm
