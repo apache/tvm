@@ -72,11 +72,10 @@ expr
   | 'if' '(' expr ')' body 'else' body    # ifElse
 
   // sequencing
-  | 'let' MUT? var '=' expr ';' expr  # seq
+  | 'let' MUT? var '=' expr ';' expr          # seq
+  | 'let' MUT? var '=' '{' expr '}' ';' expr  # seq
   // sugar for let %_ = expr; expr
-  | expr ';' expr                         # seq
-  // sugar for let %_ = expr; expr
-  | '{' expr '}' ';' expr                 # seq
+  | expr ';' expr                             # seq
 
   // mutable update
   // | ident '=' expr                        # writeRef
