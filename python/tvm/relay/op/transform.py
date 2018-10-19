@@ -1,6 +1,7 @@
 """Transform operators."""
 
 from . import _make
+from ..expr import TupleWrapper
 
 
 def expand_dims(data, axis, num_newaxis=1):

@@ -120,8 +120,9 @@ def test_split_infer_type():
 
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     axis = tvm.var("axis")
-    verify_split((5, 4, 2, 2), (4,),
+    verify_split((5, 5, 2, 2), (5,),
                  relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
