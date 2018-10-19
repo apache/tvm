@@ -29,7 +29,7 @@ an issue as many of the IR builder interfaces require some type information, or 
 generate IR based on their own higher level inferences.
 
 We view this limited shape inference as a simpler form of type
-inference. Instead of relying on an ad-hoc procedure for recovering type
+inference. Instead of relying on an ad hoc procedure for recovering type
 information from a potentially dynamic program, we apply ideas from compiler
 and IR design. Below we briefly discuss the different kinds of types in Relay.
 
@@ -37,9 +37,9 @@ and IR design. Below we briefly discuss the different kinds of types in Relay.
 Types
 =====
 
-Relay's type system has a "language of types" which allow us to write down the type of
-a Relay program. Below we detail the language of types and how we assign them to Relay
-programs.
+Relay's type system has a "language of types" which enables one to write down the type of
+a Relay program. Below we detail the language of types and how we assign types to Relay
+expressions.
 
 Type
 ~~~~
@@ -110,7 +110,7 @@ A type relation is the most exotic type system feature in Relay. It allows
 users to extend type inference with new rules. We use type relations to type operators with
 "hard" types such as broadcasting operators, or :code:`flatten`.
 
-A type relation :code:`R` is a n-ary input, single output relation over
+A type relation :code:`R` is a n-ary input, single-output relation over
 types. To unpack that, it allows us to specify a relationship between
 a set of input and output types.
 

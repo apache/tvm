@@ -5,22 +5,22 @@ Introduction
 Relay is a differentiable programming language with support for
 closures, control-flow, and recursion. It has an advanced
 static type system specifically designed for programs written
-by machine learning practitioners and researchers. Relay is intended to replace
-the computation graph based intermediate representations currently employed by deep
-learning frameworks and compilers. The deep learning community
+by machine learning practitioners and researchers. The deep learning community
 has organically evolved a representation that was useful
 for the form of computation originally desired, i.e
-a directed acyclic graph of primitive functions.
+a directed acyclic graph of primitive functions. Relay is intended to replace
+the computation graph based intermediate representations currently employed by deep
+learning frameworks and compilers.
 
 Computation graphs are a good fit for ML models with static topology, but make
 representing control flow, and abstraction tricky. Computation graphs have dual
 purpose as both a compile-time and run-time data
 structure. The conflation of the description of a computation, the
 representation used for optimizing it, and the data structure
-used to execute it unnecessarily hampers many goals of machine
+used to execute it unnecessarily hampers the goals of machine
 learning frameworks. We believe having a high level, expressive language designed
-for compiler optimizations is essential to the future of an
-end-to-end deep learning compiler stack.
+for writing compiler optimizations is essential to the future of an end-to-end
+deep learning compiler stack.
 
 Relay's design is influenced by the authors' experience building advanced optimizing compilers
 for high level languages, as well as challenges presented by the current version
@@ -125,12 +125,12 @@ They may only appear in function literals, and definitions, and have no relation
 to parameters in the machine learning.
 
 When the type information is omitted we will attempt to infer a most general type
-for the users. This property is known as generalization, for a definition without
+for the users. This property is known as generalization: for a definition without
 explicit annotations, we will attempt to assign the most general type. When the
 return type is omitted we will infer the return type based on the text of the
 program.
 
-Finally we can directly construct type polymorphic definitions by writing down
+Finally we can directly construct type-polymorphic definitions by writing down
 a set of type parameters for a definition. To define a polymorphic identity
 function, the function which just returns its argument as so.
 ::
