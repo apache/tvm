@@ -126,6 +126,7 @@ pub struct Tensor<'a> {
   /// The `Tensor` strides. Can be `None` if the `Tensor` is contiguous.
   pub(super) strides: Option<Vec<usize>>,
   pub(super) byte_offset: isize,
+  /// The number of elements in the `Tensor`.
   pub(super) size: usize,
 }
 
@@ -316,12 +317,12 @@ pub struct DataType {
 
 impl DataType {
   /// Returns the number of bytes occupied by an element of this `DataType`.
-  fn itemsize(&self) -> usize {
+  pub fn itemsize(&self) -> usize {
     (self.bits * self.lanes) >> 3
   }
 
   /// Returns whether this `DataType` represents primitive type `T`.
-  fn is_type<T: 'static>(&self) -> bool {
+  pub fn is_type<T: 'static>(&self) -> bool {
     if self.lanes != 1 {
       return false;
     }
@@ -341,6 +342,16 @@ impl<'a> From<&'a DataType> for DLDataType {
       code: dtype.code as u8,
       bits: dtype.bits as u8,
       lanes: dtype.lanes as u16,
+    }
+  }
+}
+
+impl From<DLDataType> for DataType {
+  fn from(dtype: DLDataType) -> Self {
+    Self {
+      code: dtype.code as usize,
+      bits: dtype.bits as usize,
+      lanes: dtype.lanes as usize,
     }
   }
 }
@@ -390,6 +401,33 @@ impl Default for TVMContext {
     Self {
       device_type: DLDeviceType_kDLCPU as usize,
       device_id: 0,
+    }
+  }
+}
+
+impl<'a> From<DLTensor> for Tensor<'a> {
+  fn from(dlt: DLTensor) -> Self {
+    unsafe {
+      let dtype = DataType::from(dlt.dtype);
+      let shape = slice::from_raw_parts(dlt.shape, dlt.ndim as usize).to_vec();
+      let size = shape.iter().map(|v| *v as usize).product::<usize>() as usize;
+      let storage = Storage::from(slice::from_raw_parts(
+        dlt.data as *const u8,
+        dtype.itemsize() * size,
+      ));
+      Self {
+        data: storage,
+        ctx: TVMContext::default(),
+        dtype: dtype,
+        size: size,
+        shape: shape,
+        strides: if dlt.strides == ptr::null_mut() {
+          None
+        } else {
+          Some(slice::from_raw_parts_mut(dlt.strides as *mut usize, size).to_vec())
+        },
+        byte_offset: dlt.byte_offset as isize,
+      }
     }
   }
 }

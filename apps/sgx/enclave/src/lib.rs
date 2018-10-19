@@ -2,20 +2,32 @@
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
 extern crate tvm;
 
-use std::{convert::TryFrom, sync::Mutex};
+use std::{
+  convert::{TryFrom, TryInto},
+  sync::Mutex,
+};
 
-use tvm::runtime::{sgx, Graph, GraphExecutor, SystemLibModule, TVMArgValue, TVMRetValue};
+use tvm::{
+  ffi::runtime::DLTensor,
+  runtime::{
+    load_param_dict, sgx, Graph, GraphExecutor, SystemLibModule, TVMArgValue, TVMRetValue, Tensor,
+  },
+};
 
 lazy_static! {
   static ref SYSLIB: SystemLibModule = { SystemLibModule::default() };
   static ref MODEL: Mutex<GraphExecutor<'static, 'static>> = {
-    let _params = include_bytes!(concat!("../", env!("BUILD_DIR"), "/params.bin"));
     let graph_json = include_str!(concat!("../", env!("BUILD_DIR"), "/graph.json"));
+    let params_bytes = include_bytes!(concat!("../", env!("BUILD_DIR"), "/params.bin"));
+    let params = load_param_dict(params_bytes).unwrap();
 
     let graph = Graph::try_from(graph_json).unwrap();
-    Mutex::new(GraphExecutor::new(graph, &*SYSLIB).unwrap())
+    let mut exec = GraphExecutor::new(graph, &*SYSLIB).unwrap();
+    exec.load_params(params);
+    Mutex::new(exec)
   };
 }
 
@@ -24,13 +36,15 @@ fn ecall_init(_args: &[TVMArgValue]) -> TVMRetValue {
   TVMRetValue::from(0)
 }
 
-fn ecall_main(_args: &[TVMArgValue]) -> TVMRetValue {
-  let model = MODEL.lock().unwrap();
-  // model.set_input("data", args[0]);
+fn ecall_main(args: &[TVMArgValue<'static>]) -> TVMRetValue {
+  let mut model = MODEL.lock().unwrap();
+  let inp = args[0].try_into().unwrap();
+  let mut out: Tensor = args[1].try_into().unwrap();
+  model.set_input("data", inp);
   model.run();
   sgx::shutdown();
-  // model.get_output(0).into()
-  TVMRetValue::from(42)
+  out.copy(model.get_output(0).unwrap());
+  TVMRetValue::from(1)
 }
 
 pub mod ecalls {
@@ -40,15 +54,16 @@ pub mod ecalls {
 
   use std::{
     ffi::CString,
-    os::raw::{c_char, c_int},
+    mem,
+    os::raw::{c_char, c_int, c_void},
     slice,
   };
 
   use tvm::{
     ffi::runtime::{TVMRetValueHandle, TVMValue},
     runtime::{
-      sgx::{run_worker, SgxStatus},
-      PackedFunc,
+      sgx::{ocall_packed_func, run_worker, SgxStatus},
+      DataType, PackedFunc,
     },
   };
 
@@ -63,8 +78,10 @@ pub mod ecalls {
 
   const ECALLS: &'static [&'static str] = &["__tvm_run_worker__", "__tvm_main__", "init"];
 
+  pub type EcallPackedFunc = Box<Fn(&[TVMArgValue<'static>]) -> TVMRetValue + Send + Sync>;
+
   lazy_static! {
-    static ref ECALL_FUNCS: Vec<PackedFunc> = {
+    static ref ECALL_FUNCS: Vec<EcallPackedFunc> = {
       vec![
         Box::new(run_worker),
         Box::new(ecall_main),
@@ -87,7 +104,8 @@ pub mod ecalls {
         tvm_ocall!(tvm_ocall_register_export(
           CString::new(*ecall).unwrap().as_ptr(),
           i as i32
-        )).expect(&format!("Error registering `{}`", ecall));
+        ))
+        .expect(&format!("Error registering `{}`", ecall));
       });
     }
   }
@@ -108,7 +126,7 @@ pub mod ecalls {
         .into_iter()
         .zip(type_codes.into_iter())
         .map(|(v, t)| TVMArgValue::new(*v, *t as i64))
-        .collect::<Vec<TVMArgValue>>()
+        .collect::<Vec<TVMArgValue<'static>>>()
     };
     let (rv, tc) = ECALL_FUNCS[func_id as usize](&args).into_tvm_value();
     unsafe {

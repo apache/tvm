@@ -14,6 +14,9 @@ use std::os::raw::c_char;
 
 pub use self::{array::*, graph::*, module::*, packed_func::*, threading::*, workspace::*};
 
+#[cfg(target_env = "sgx")]
+use self::sgx::ocall_packed_func;
+
 #[no_mangle]
 pub extern "C" fn TVMAPISetLastError(cmsg: *const c_char) {
   #[cfg(not(target_env = "sgx"))]

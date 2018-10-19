@@ -1,8 +1,8 @@
 <EnclaveConfiguration>
   <ProdID>0</ProdID>
   <ISVSVN>0</ISVSVN>
-  <StackMaxSize>0x20000</StackMaxSize>
-  <HeapMaxSize>0x5000000</HeapMaxSize>
+  <StackMaxSize>0xf0000</StackMaxSize>
+  <HeapMaxSize>0xf000000</HeapMaxSize>
   <TCSNum>NUM_THREADS</TCSNum>
   <TCSPolicy>0</TCSPolicy> <!-- must be "bound" to use thread_local -->
   <DisableDebug>0</DisableDebug>
