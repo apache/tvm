@@ -62,13 +62,13 @@ def verify_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape
         gluon_out, gluon_sym = get_gluon_output(name, x)
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(gluon_sym, x, None, None, target, ctx, dtype)
-            np.testing.assert_allclose(gluon_out, tvm_out, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(gluon_out, tvm_out, rtol=1e-5, atol=1e-5)
     else:
         mx_out, args, auxs = get_mxnet_output(mx_symbol, x, dtype)
         assert "data" not in args
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(mx_symbol, x, args, auxs, target, ctx, dtype)
-            np.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_mlp():
     mlp = model_zoo.mx_mlp
