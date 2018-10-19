@@ -1,3 +1,4 @@
+from nose.tools import raises
 import tvm
 import pickle as pkl
 
@@ -112,6 +113,13 @@ def test_vectorize():
     assert s[T].iter_var_attrs[xi].iter_type == UNROLL
     assert s[T].iter_var_attrs[yi].iter_type == VECTORIZE
 
+@raises(Exception)
+def test_vectorize_commreduce():
+    V = tvm.placeholder((128,), name='V')
+    ax = tvm.reduce_axis((0, 128), name='ax')
+    O = tvm.compute((1,), lambda _: tvm.sum(V[ax], axis=[ax]))
+    s = tvm.create_schedule(O.op)
+    s[O].vectorize(ax) # should throw here
 
 def test_pragma():
     m = 100
@@ -197,3 +205,4 @@ if __name__ == "__main__":
     test_split()
     test_fuse()
     test_vectorize()
+    test_vectorize_commreduce()
