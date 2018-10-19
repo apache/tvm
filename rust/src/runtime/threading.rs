@@ -23,7 +23,7 @@ use super::super::errors::*;
 use ffi::runtime::TVMParallelGroupEnv;
 
 #[cfg(target_env = "sgx")]
-use super::{TVMArgValue, TVMRetValue};
+use super::{sgx::ocall_packed_func, TVMArgValue, TVMRetValue};
 
 type FTVMParallelLambda =
   extern "C" fn(task_id: usize, penv: *const TVMParallelGroupEnv, cdata: *const c_void) -> i32;

@@ -202,21 +202,25 @@ void tvm_ocall_packed_func(const char* name,
 
 // Allocates space for return values. The returned pointer is only valid between
 // successive calls to `tvm_ocall_reserve_space`.
-void* tvm_ocall_reserve_space(size_t num_bytes, size_t alignment) {
+TVM_REGISTER_GLOBAL("__sgx_reserve_space__")
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+  size_t num_bytes = args[0];
+  size_t alignment = args[1];
+
   static TVMContext ctx = { kDLCPU, 0 };
   static thread_local void* buf = nullptr;
   static thread_local size_t buf_size = 0;
   static thread_local size_t buf_align = 0;
 
-  if (buf_size >= num_bytes && buf_align >= alignment) return buf;
+  if (buf_size >= num_bytes && buf_align >= alignment) *rv = nullptr;
 
   DeviceAPI::Get(ctx)->FreeDataSpace(ctx, buf);
   buf = DeviceAPI::Get(ctx)->AllocDataSpace(ctx, num_bytes, alignment, {});
   buf_size = num_bytes;
   buf_align = alignment;
 
-  return buf;
-}
+  *rv = buf;
+});
 
 }  // extern "C"
 }  // namespace sgx
