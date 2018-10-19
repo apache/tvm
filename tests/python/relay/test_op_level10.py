@@ -8,7 +8,7 @@ def test_collapse_sum_like():
     x = ib.param("x", relay.ty.TensorType((3, 4, 5, 6), "int8"))
     y = ib.param("y", relay.ty.TensorType((4, 1, 6), "int8"))
     with ib.function(x, y) as func:
-        ib.ret(relay.collapse_sum_like(x.var, y.var))
+        ib.ret(relay.collapse_sum_like(x, y))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
@@ -20,7 +20,7 @@ def test_broadcast_to_like():
     x = ib.param("x", relay.ty.TensorType((3, 4, 5, 6), "int8"))
     y = ib.param("x", relay.ty.TensorType((4, 1, 6), "int8"))
     with ib.function(x, y) as func:
-        ib.ret(relay.broadcast_to_like(y.var, x.var))
+        ib.ret(relay.broadcast_to_like(y, x))
     ib.ret(func)
     func = relay.ir_pass.infer_type(ib.env, func.to_func())
     ftype = func.checked_type
