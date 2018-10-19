@@ -3,7 +3,6 @@ from tvm import relay
 from tvm.relay.parser import parse_expr, parse_prog, ParseError
 from tvm.relay.ir_pass import alpha_equal
 # from tvm.relay.ir_builder import convert
-from tvm.relay.expr import pretty_print
 from nose.tools import nottest, raises
 from typing import Union
 
@@ -48,10 +47,6 @@ CALL_TYPES = {
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
     return x.data.asnumpy().item()
-
-def to_constant(x):
-    # type: (Union[float, int, bool]) -> relay.Constant
-    return relay.Constant(tvm.nd.array(x))
 
 def to_tensor_type(x):
     # type: (str) -> relay.TensorType
@@ -106,7 +101,7 @@ def test_bin_op():
     for bin_op in BINARY_OPS.keys():
         assert alpha_equal(
             parse_expr("1 {} 1".format(bin_op)),
-            BINARY_OPS.get(bin_op)(to_constant(1), to_constant(1))
+            BINARY_OPS.get(bin_op)(relay.const(1), relay.const(1))
         )
 
 def test_parens():
@@ -145,7 +140,7 @@ def test_let():
         parse_expr("let %x = 1; ()"),
         relay.Let(
             X,
-            to_constant(1),
+            relay.const(1),
             UNIT
         )
     )
@@ -163,7 +158,7 @@ def test_seq():
         parse_expr("let %_ = { 1 }; ()"),
         relay.Let(
             X,
-            to_constant(1),
+            relay.const(1),
             UNIT
         )
     )
@@ -179,11 +174,11 @@ def test_let_op():
 def test_tuple():
     assert alpha_equal(parse_expr("()"), relay.Tuple([]))
 
-    assert alpha_equal(parse_expr("(0,)"), relay.Tuple([to_constant(0)]))
+    assert alpha_equal(parse_expr("(0,)"), relay.Tuple([relay.const(0)]))
 
-    assert alpha_equal(parse_expr("(0, 1)"), relay.Tuple([to_constant(0), to_constant(1)]))
+    assert alpha_equal(parse_expr("(0, 1)"), relay.Tuple([relay.const(0), relay.const(1)]))
 
-    assert alpha_equal(parse_expr("(0, 1, 2)"), relay.Tuple([to_constant(0), to_constant(1), to_constant(2)]))
+    assert alpha_equal(parse_expr("(0, 1, 2)"), relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
 
 def test_func():
     # 0 args
@@ -191,8 +186,8 @@ def test_func():
         parse_expr("fn () -> { 0 }"),
         relay.Function(
             [],
+            relay.const(0),
             None,
-            to_constant(0),
             []
         )
     )
@@ -202,8 +197,8 @@ def test_func():
         parse_expr("fn (%x) -> { %x }"),
         relay.Function(
             [X],
-            None,
             X,
+            None,
             []
         )
     )
@@ -213,8 +208,8 @@ def test_func():
         parse_expr("fn (%x, %y) -> { %x + %y }"),
         relay.Function(
             [X, Y],
-            None,
             relay.add(X, Y),
+            None,
             []
         )
     )
@@ -224,8 +219,8 @@ def test_func():
         parse_expr("fn (%x: Int32) -> Int32 { %x }"),
         relay.Function(
             [X_ANNO],
-            int32,
             X_ANNO,
+            int32,
             []
         )
     )
@@ -253,9 +248,9 @@ def test_ifelse():
         """
         ),
         relay.If(
-            to_constant(True),
-            to_constant(0),
-            to_constant(1)
+            relay.const(True),
+            relay.const(0),
+            relay.const(1)
         )
     )
 
@@ -284,7 +279,7 @@ def test_call():
         ),
         relay.Let(
             constant,
-            relay.Function([], None, to_constant(0), []),
+            relay.Function([], relay.const(0), None, []),
             relay.Call(constant, [], None, None)
         )
     )
@@ -300,8 +295,8 @@ def test_call():
         ),
         relay.Let(
             id_var,
-            relay.Function([X], None, X, []),
-            relay.Call(id_var, [to_constant(1)], None, None)
+            relay.Function([X], X, None, []),
+            relay.Call(id_var, [relay.const(1)], None, None)
         )
     )
 
@@ -318,11 +313,11 @@ def test_call():
             multiply,
             relay.Function(
                 [X, Y],
-                None,
                 relay.multiply(X, Y),
+                None,
                 []
             ),
-            relay.Call(multiply, [to_constant(0), to_constant(0)], None, None)
+            relay.Call(multiply, [relay.const(0), relay.const(0)], None, None)
         )
     )
 
@@ -336,11 +331,11 @@ def test_call():
         relay.Call(
             relay.Function(
                 [X],
-                None,
                 X,
+                None,
                 []
             ),
-            [to_constant(0)],
+            [relay.const(0)],
             None,
             None
         )
@@ -365,19 +360,19 @@ def test_call():
             curried_mult,
             relay.Function(
                 [X],
-                None,
                 relay.Function(
                     [Y],
-                    None,
                     relay.multiply(X, Y),
+                    None,
                     []
                 ),
+                None,
                 []
             ),
             relay.Let(
                 _,
-                relay.Call(curried_mult, [to_constant(0)], None, None),
-                relay.Call(relay.Call(curried_mult, [to_constant(0)], None, None), [to_constant(0)], None, None)
+                relay.Call(curried_mult, [relay.const(0)], None, None),
+                relay.Call(relay.Call(curried_mult, [relay.const(0)], None, None), [relay.const(0)], None, None)
             )
         )
     )
@@ -385,7 +380,7 @@ def test_call():
     # op
     alpha_equal(
         parse_expr("abs(1)"),
-        relay.Call(relay.op.get("abs"), [to_constant(1)], None, None)
+        relay.Call(relay.op.get("abs"), [relay.const(1)], None, None)
     )
 
 # Types
@@ -451,7 +446,7 @@ def test_function_type():
         ),
         relay.Let(
             relay.Var("_", relay.FuncType([], int32, [], [])),
-            relay.Function([], int32, to_constant(0), []),
+            relay.Function([], relay.const(0), int32, []),
             UNIT
         )
     )
@@ -464,7 +459,7 @@ def test_function_type():
         ),
         relay.Let(
             relay.Var("_", relay.FuncType([int32], int32, [], [])),
-            relay.Function([relay.Var("x", int32)], int32, to_constant(0), []),
+            relay.Function([relay.Var("x", int32)], relay.const(0), int32, []),
             UNIT
         )
     )
@@ -477,7 +472,7 @@ def test_function_type():
         ),
         relay.Let(
             relay.Var("_", relay.FuncType([int32, int32], int32, [], [])),
-            relay.Function([relay.Var("x", int32), relay.Var("y", int32)], int32, to_constant(0), []),
+            relay.Function([relay.Var("x", int32), relay.Var("y", int32)], relay.const(0), int32, []),
             UNIT
         )
     )
@@ -502,7 +497,7 @@ def test_tuple_type():
         """),
         relay.Let(
             relay.Var("_", relay.TupleType([int32])),
-            relay.Tuple([to_constant(0)]),
+            relay.Tuple([relay.const(0)]),
             UNIT
         )
     )
@@ -514,7 +509,7 @@ def test_tuple_type():
         """),
         relay.Let(
             relay.Var("_", relay.TupleType([int32, int32])),
-            relay.Tuple([to_constant(0), to_constant(1)]),
+            relay.Tuple([relay.const(0), relay.const(1)]),
             UNIT
         )
     )
