@@ -382,6 +382,12 @@ def test_call():
         )
     )
 
+    # op
+    alpha_equal(
+        parse_expr("abs(1)"),
+        relay.Call(relay.op.get("abs"), [to_constant(1)], None, None)
+    )
+
 # Types
 
 def test_incomplete_type():

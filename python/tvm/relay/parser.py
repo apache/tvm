@@ -240,7 +240,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> relay.Op
 
-        return relay.op.get(ctx.CNAME())
+        return relay.op.get(ctx.CNAME().getText())
 
     # pass through
     def visitParens(self, ctx):
