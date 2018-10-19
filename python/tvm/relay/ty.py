@@ -56,7 +56,7 @@ class Kind(IntEnum):
     Shape = 3
 
 @register_relay_node
-class TypeParam(Type):
+class TypeVar(Type):
     """A type parameter used for generic types in Relay,
     see tvm/relay/type.h for more details.
 
@@ -66,7 +66,7 @@ class TypeParam(Type):
     """
 
     def __init__(self, var, kind=Kind.Type):
-        """Construct a TypeParam.
+        """Construct a TypeVar.
 
         Parameters
         ----------
@@ -78,10 +78,10 @@ class TypeParam(Type):
 
         Returns
         -------
-        type_param: TypeParam
+        type_param: TypeVar
             The type parameter.
         """
-        self.__init_handle_by_constructor__(_make.TypeParam, var, kind)
+        self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
 
 
 @register_relay_node
@@ -131,7 +131,7 @@ class FuncType(Type):
     ret_type: tvm.relay.Type
         The return type.
 
-    type_params: List[tvm.relay.TypeParam]
+    type_params: List[tvm.relay.TypeVar]
         The type parameters
 
     type_constraints: List[tvm.relay.TypeConstraint]

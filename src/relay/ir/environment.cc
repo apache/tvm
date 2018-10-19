@@ -26,7 +26,7 @@ Environment EnvironmentNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
   return Environment(n);
 }
 
-GlobalVar EnvironmentNode::GetGlobalVar(const std::string &name) {
+GlobalVar EnvironmentNode::GetGlobalVar(const std::string& name) {
   auto it = global_var_map_.find(name);
   CHECK(it != global_var_map_.end())
       << "Cannot find global var " << name << " in the Environment";
@@ -42,14 +42,11 @@ void EnvironmentNode::Add(const GlobalVar& var,
   auto type = checked_func->checked_type();
   CHECK(type.as<IncompleteTypeNode>() == nullptr);
   if (functions.find(var) != functions.end()) {
-    if (!update) {
-      throw dmlc::Error("already have definition for XXXX.");
-    }
+    CHECK(update)
+        << "Already have definition for " << var->name_hint;
     auto old_type = functions[var].as<FunctionNode>()->checked_type();
-    if (!AlphaEqual(type, old_type)) {
-      throw dmlc::Error(
-          "Environment#update changes type, not possible in this mode.");
-    }
+    CHECK(AlphaEqual(type, old_type))
+        << "Environment#update changes type, not possible in this mode.";
   }
   this->functions.Set(var, checked_func);
   // set gloval var map
@@ -70,12 +67,10 @@ void EnvironmentNode::Remove(const GlobalVar& var) {
 }
 
 Function EnvironmentNode::Lookup(const GlobalVar& var) {
-  auto func = functions.find(var);
-  if (func != functions.end()) {
-    return (*func).second;
-  } else {
-    throw Error(std::string("there is no definition of ") + var->name_hint);
-  }
+  auto it = functions.find(var);
+  CHECK(it != functions.end())
+      << "There is no definition of " << var->name_hint;
+  return (*it).second;
 }
 
 Function EnvironmentNode::Lookup(const std::string &name) {

@@ -34,7 +34,7 @@ bool SameNDArray(const NDArray& lhs, const NDArray& rhs) {
 }
 
 struct TypeAlphaEq : TypeVisitor<const Type&> {
-  tvm::Map<TypeParam, TypeParam> eq_map;
+  tvm::Map<TypeVar, TypeVar> eq_map;
   bool equal;
 
   TypeAlphaEq() : eq_map(), equal(true) {}
@@ -76,10 +76,10 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
     }
   }
 
-  void VisitType_(const TypeParamNode* ti1, const Type& t2) final {
-    if (const TypeParamNode* ti2 = t2.as<TypeParamNode>()) {
-      auto tid1 = GetRef<TypeParam>(ti1);
-      auto tid2 = GetRef<TypeParam>(ti2);
+  void VisitType_(const TypeVarNode* ti1, const Type& t2) final {
+    if (const TypeVarNode* ti2 = t2.as<TypeVarNode>()) {
+      auto tid1 = GetRef<TypeVar>(ti1);
+      auto tid2 = GetRef<TypeVar>(ti2);
 
       // We handle open terms with this rule assuming variables are identical.
       //

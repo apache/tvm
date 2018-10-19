@@ -28,7 +28,7 @@ def test_tuple():
 
 
 def test_free_type_vars():
-    tp = relay.TypeParam("")
+    tp = relay.TypeVar("")
     ty = relay.TupleType([tp, relay.TensorType([], "int32")])
     x = relay.Var("x", ty)
     y = relay.Var("y")

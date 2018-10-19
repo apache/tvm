@@ -120,7 +120,7 @@ tvm::Array<Var> FreeVariables(const Expr& e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
+tvm::Array<TypeVar> FreeTypeVariables(const Expr& e);
 
 /*! \brief Get free type parameters from type t.
  *
@@ -130,7 +130,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Type& t);
+tvm::Array<TypeVar> FreeTypeVariables(const Type& t);
 
 /*! \brief Remove expressions which does not effect the program result.
  *

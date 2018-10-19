@@ -61,7 +61,7 @@ class LetList {
    *  \return a Var that hold the inserted expr.
    */
   Var Push(Expr expr) {
-    return Push(IncompleteTypeNode::make(TypeParamNode::kType), expr);
+    return Push(IncompleteTypeNode::make(TypeVarNode::kType), expr);
   }
 
   /*!

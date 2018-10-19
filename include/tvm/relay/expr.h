@@ -197,7 +197,7 @@ class FunctionNode : public ExprNode {
    *
    * \note This can be usually empty for non-polymorphic functions.
    */
-  tvm::Array<TypeParam> type_params;
+  tvm::Array<TypeVar> type_params;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);
@@ -219,7 +219,7 @@ class FunctionNode : public ExprNode {
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
-                               tvm::Array<TypeParam> ty_params);
+                               tvm::Array<TypeVar> ty_params);
 
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);

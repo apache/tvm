@@ -124,7 +124,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (op->type_annotation.defined()) {
       return op->type_annotation;
     } else {
-      return IncompleteTypeNode::make(TypeParamNode::kType);
+      return IncompleteTypeNode::make(TypeVarNode::kType);
     }
   }
 
@@ -157,7 +157,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
           EnvFunc::Get("tvm.relay.type_relation.TupleGetItem").node_);
     }
     Type tuple_type = GetType(op->tuple);
-    Type rtype = IncompleteTypeNode::make(TypeParamNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
     auto attrs = make_node<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelationNode::make(
@@ -205,7 +205,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     for (size_t i = 0; i < op->type_params.size(); ++i) {
       if (!op->type_params[i].same_as(rel->args[i])) return Type();
     }
-    Type rtype = IncompleteTypeNode::make(TypeParamNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
     arg_types.push_back(rtype);
     // we can do simple replacement here
     solver_.AddConstraint(TypeRelationNode::make(
@@ -215,7 +215,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   // instantiate the function type with fresh
   FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args) {
-    tvm::Map<TypeParam, Type> subst_map;
+    tvm::Map<TypeVar, Type> subst_map;
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
@@ -232,7 +232,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // This is a temporary work around to check recursive functions whose
     // return type is not yet known.
     if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(TypeParamNode::Kind::kType);
+      ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
     }
     Type inst_ty = FuncTypeNode::make(fn_ty->arg_types,
                                       ret_type, {},
