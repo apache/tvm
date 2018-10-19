@@ -16,8 +16,6 @@ else:
     from .grammar.py3.RelayParser import RelayParser
     from .grammar.py3.RelayLexer import RelayLexer
 
-Program = NamedTuple("Program", [("ast", relay.Expr), ("env", relay.Environment)])
-
 class ParseError(Exception):
     """Exception type for parse errors."""
 
@@ -103,30 +101,11 @@ def bool_type_call(args):
 
     return relay.TensorType([], "uint1x" + str_args[0])
 
-# TODO(@jmp): Unused.
-def tensor_type_call(args):
-    # type: (List[relay.Expr]) -> Union[relay.Expr, relay.TensorType]
-    """Turn a Tensor type call into a Relay TensorType"""
-
-    if len(args) > 2:
-        raise ParseError("Tensor may have at most 2 arguments.")
-    elif not args:
-        print("Warning. Generic Tensor type unimplemented. Treating as Expr.")
-        return relay.Expr()
-    elif len(args) == 1:
-        raise ParseError("Generic Shape type unimplemented.")
-    elif len(args) == 2:
-        dtype = args[0]
-        shape = args[1]
-
-    return relay.TensorType(shape, dtype)
-
 TYPE_FUNCS = {
     "Int": int_type_call,
     "UInt": uint_type_call,
     "Float": float_type_call,
     "Bool": bool_type_call,
-    # "Tensor": tensor_type_call,
 }
 
 T = TypeVar("T")
@@ -233,7 +212,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError("todo: {}".format(node_text))
 
     def visit_list(self, ctx_list):
-        # type: (List[ParserRuleContext]) -> List[relay.Expr]
+        # type: (List[ParserRuleContext]) -> List[Any]
         """"Visit a list of contexts."""
 
         return [self.visit(ctx) for ctx in ctx_list]
@@ -248,17 +227,20 @@ class ParseTreeToRelayIR(RelayVisitor):
         return self.visit(ctx)
 
     def visitProg(self, ctx):
-        # type: (RelayParser.ProgContext) -> Program
-        if ctx.option():
-            raise ParseError("Compiler options are unimplemented.")
+        # type: (RelayParser.ProgContext) -> relay.Environment
+        # if ctx.option():
+        #     raise ParseError("Compiler options are unimplemented.")
 
         self.visit_list(ctx.defn())
 
-        expr = self.visit(ctx.expr())
-
-        return Program(ast=expr, env=self.env)
+        return self.env
 
     # Exprs
+
+    def visitOpIdent(self, ctx):
+        # type: (RelayParser.OpIdentContext) -> relay.Op
+
+        return relay.op.get(ctx.CNAME())
 
     # pass through
     def visitParens(self, ctx):
@@ -407,6 +389,10 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     # Types
 
+    def visitIncompleteType(self, ctx):
+        # type (RelayParser.IncompleteTypeContext) -> None:
+        return None
+
     def visitIdentType(self, ctx):
         # type: (RelayParser.IdentTypeContext) -> Union[relay.TensorType, str]
         ident_type = ctx.CNAME().getText()
@@ -436,6 +422,27 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError("Unknown type-level function: `{}`".format(ident_type))
         else:
             return func_type
+
+    def visitParensShape(self, ctx):
+        # type: (RelayParser.ParensShapeContext) -> int
+        return self.visit(ctx.shape())
+
+    def visitShapeSeq(self, ctx):
+        # type: (RelayParser.ShapeSeqContext) -> List[int]
+        return self.visit_list(ctx.shape())
+
+    def visitTensorType(self, ctx):
+        # type: (RelayParser.TensorTypeContext) -> relay.TensorType
+
+        shape = self.visit(ctx.shapeSeq())
+        dtype = self.visit(ctx.type_)
+
+        if not isinstance(dtype, relay.TensorType):
+            raise ParseError("Expected dtype to be a Relay base type.")
+
+        dtype = dtype.dtype
+
+        return relay.TensorType(shape, dtype)
 
     def visitTupleType(self, ctx):
         # type: (RelayParser.TupleTypeContext) -> relay.TupleType

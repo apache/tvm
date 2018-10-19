@@ -1,6 +1,6 @@
 import tvm
 from tvm import relay
-from tvm.relay.parser import parse_expr, parse_prog, ParseError, Program
+from tvm.relay.parser import parse_expr, parse_prog, ParseError
 from tvm.relay.ir_pass import alpha_equal
 # from tvm.relay.ir_builder import convert
 from tvm.relay.expr import pretty_print
@@ -238,10 +238,8 @@ def test_defn():
         def @id(%x: Int32) -> Int32 {
             %x
         }
-
-        ()
         """)
-    assert isinstance(id_defn, Program)
+    assert isinstance(id_defn, relay.Environment)
 
 def test_ifelse():
     assert alpha_equal(
@@ -386,6 +384,16 @@ def test_call():
 
 # Types
 
+def test_incomplete_type():
+    assert alpha_equal(
+        parse_expr("let %_ : _ = (); ()"),
+        relay.Let(
+            _,
+            UNIT,
+            UNIT
+        )
+    )
+
 def test_builtin_types():
     for builtin_type in TYPES:
         parse_expr("let %_ : {} = (); ()".format(builtin_type))
@@ -399,6 +407,11 @@ def test_call_type():
         for i in range(arity):
             args.append(i)
             parse_expr("let %_ : {}{} = (); ()".format(call_type, args))
+
+    # Tensors
+    parse_expr("let %_ : Tensor[(1), Float32] = (); ()")
+    parse_expr("let %_ : Tensor[(1, 1), Float32] = (); ()")
+    parse_expr("let %_ : Tensor[(1, 1, 1), Float32] = (); ()")
 
 def test_function_type():
     assert alpha_equal(
