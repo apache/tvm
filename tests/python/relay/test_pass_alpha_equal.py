@@ -327,7 +327,7 @@ def test_function_alpha_equal():
     assert not alpha_equal(func, tupled_example)
 
     # nullable
-    no_ret_type = relay.Function(basic_args, None, v4, [tp1, tp2])
+    no_ret_type = relay.Function(basic_args, v4, None, [tp1, tp2])
     # both null
     assert alpha_equal(no_ret_type, no_ret_type)
     # one null
