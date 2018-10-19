@@ -1,8 +1,9 @@
 use std::{any::Any, convert::TryFrom, marker::PhantomData, os::raw::c_void};
 
+use super::Tensor;
 use ffi::runtime::{
   BackendPackedCFunc, DLDataTypeCode_kDLFloat, DLDataTypeCode_kDLInt, DLTensor,
-  TVMTypeCode_kArrayHandle, TVMTypeCode_kHandle, TVMValue,
+  TVMTypeCode_kArrayHandle, TVMTypeCode_kHandle, TVMTypeCode_kNDArrayContainer, TVMValue,
 };
 
 use errors::*;
@@ -55,6 +56,18 @@ macro_rules! impl_prim_tvm_arg {
         }
       }
     }
+    impl<'a> TryFrom<TVMArgValue<'a>> for $type {
+      type Error = Error;
+      fn try_from(val: TVMArgValue<'a>) -> Result<Self> {
+        ensure!(
+          val.type_code == $code as i64,
+          "Could not downcast arg. Expected `{}`, got `{}`",
+          $code,
+          val.type_code
+        );
+        Ok(unsafe { val.value.$field as $type })
+      }
+    }
   };
   ($type:ty, $field:ident, $code:expr) => {
     impl_prim_tvm_arg!($type, $field, $code, $type);
@@ -75,7 +88,6 @@ impl_prim_tvm_arg!(i32, v_int64);
 impl_prim_tvm_arg!(u32, v_int64);
 impl_prim_tvm_arg!(i64, v_int64);
 impl_prim_tvm_arg!(u64, v_int64);
-impl_prim_tvm_arg!(bool, v_int64);
 
 /// Creates a conversion to a `TVMArgValue` for an object handle.
 impl<'a, T> From<*const T> for TVMArgValue<'a> {
@@ -127,6 +139,23 @@ impl<'a> From<&'a DLTensor> for TVMArgValue<'a> {
   }
 }
 
+impl<'a> TryFrom<TVMArgValue<'a>> for Tensor<'a> {
+  type Error = Error;
+  fn try_from(val: TVMArgValue<'a>) -> Result<Self> {
+    ensure!(
+      val.type_code == TVMTypeCode_kArrayHandle as i64
+        || val.type_code == TVMTypeCode_kNDArrayContainer as i64,
+      "Could not downcast arg. Expected `{}` or `{}`, but got `{}`",
+      TVMTypeCode_kArrayHandle,
+      TVMTypeCode_kNDArrayContainer,
+      val.type_code,
+    );
+
+    let dlt = unsafe { *(val.value.v_handle as *mut DLTensor as *const DLTensor) };
+    Ok(dlt.into())
+  }
+}
+
 /// An owned TVMPODValue. Can be converted from a variety of primitive and object types.
 /// Can be downcasted using `try_from` if it contains the desired type.
 ///
@@ -175,7 +204,7 @@ impl TVMRetValue {
       2 => TVMValue {
         v_float64: self.prim_value.clone() as f64,
       },
-      3 | 7 | 8 | 9 | 10 => TVMValue {
+      3 | 7 | 8 | 9 | 10 | 13 => TVMValue {
         v_handle: Box::into_raw(self.box_value) as *mut c_void,
       },
       11 | 12 => TVMValue {
@@ -264,6 +293,33 @@ impl_prim_ret_value!(f64, 2);
 impl_prim_ret_value!(isize, 0);
 impl_prim_ret_value!(usize, 1);
 impl_boxed_ret_value!(String, 11);
+
+impl<'a, 't> From<&'t Tensor<'a>> for TVMRetValue {
+  fn from(val: &'t Tensor<'a>) -> Self {
+    TVMRetValue {
+      prim_value: 0,
+      box_value: box DLTensor::from(val),
+      type_code: TVMTypeCode_kNDArrayContainer as i64,
+    }
+  }
+}
+
+impl<'a> TryFrom<TVMRetValue> for Tensor<'a> {
+  type Error = Error;
+  fn try_from(ret: TVMRetValue) -> Result<Self> {
+    ensure!(
+      ret.type_code == TVMTypeCode_kArrayHandle as i64
+        || ret.type_code == TVMTypeCode_kNDArrayContainer as i64,
+      "Could not downcast arg. Expected `{}` or `{}`, but got `{}`",
+      TVMTypeCode_kArrayHandle,
+      TVMTypeCode_kNDArrayContainer,
+      ret.type_code,
+    );
+
+    let dlt = unsafe { *(ret.prim_value as *mut DLTensor as *const DLTensor) };
+    Ok(dlt.into())
+  }
+}
 
 // @see `WrapPackedFunc` in `llvm_module.cc`.
 pub(super) fn wrap_backend_packed_func(func: BackendPackedCFunc) -> PackedFunc {
