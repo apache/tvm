@@ -72,7 +72,7 @@ a_np = np.random.uniform(size=(m, n)).astype(s_scan.dtype)
 a = tvm.nd.array(a_np, ctx)
 b = tvm.nd.array(np.zeros((m, n), dtype=s_scan.dtype), ctx)
 fscan(a, b)
-np.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
+tvm.testing.assert_allclose(b.asnumpy(), np.cumsum(a_np, axis=0))
 
 ######################################################################
 # Multi-Stage Scan Cell
