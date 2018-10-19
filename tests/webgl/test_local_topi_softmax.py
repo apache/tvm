@@ -32,7 +32,7 @@ def verify_softmax(m, n):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="softmax")
         foo(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ["opengl"]:
         check_device(device)
@@ -63,7 +63,7 @@ def verify_log_softmax(m, n):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         foo = tvm.build(s, [A, B], device, name="log_softmax")
         foo(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ["opengl"]:
         check_device(device)

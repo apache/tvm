@@ -30,7 +30,7 @@ def test_local_save_load():
     f.export_library(path_so)
     f1 = tvm.module.load(path_so)
     f1(a, b, c)
-    np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 if __name__ == "__main__":
     test_local_save_load()

@@ -66,7 +66,7 @@ def test_combination():
     c = tvm.nd.array(np.random.uniform(size=(n, m)).astype(C.dtype), ctx)
     d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
     foo(x, a, b, c, d)
-    np.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() / x)
+    tvm.testing.assert_allclose(d.asnumpy(), k + a.asnumpy() - b.asnumpy() * c.asnumpy() / x)
 
 
 def verify_tensor_scalar_bop(shape, typ="add"):
@@ -111,7 +111,7 @@ def verify_tensor_scalar_bop(shape, typ="add"):
         a_nd = tvm.nd.array(a_npy, ctx)
         b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
         foo(a_nd, b_nd, k_, *shape)
-        np.testing.assert_allclose(b_nd.asnumpy(), b_npy, rtol=1e-5)
+        tvm.testing.assert_allclose(b_nd.asnumpy(), b_npy, rtol=1e-5)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
@@ -160,7 +160,7 @@ def verify_broadcast_bop(lhs_shape, rhs_shape, typ="add"):
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(lhs_nd, rhs_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)
@@ -213,7 +213,7 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         b_nd = tvm.nd.array(np.empty(b_npy.shape).astype(B.dtype), ctx)
         c_nd = tvm.nd.array(np.empty(c_npy.shape).astype(C.dtype), ctx)
         foo(a_nd, w_nd, b_nd, c_nd)
-        np.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(c_nd.asnumpy(), c_npy, rtol=1E-4, atol=1E-4)
 
     for device in ['llvm', 'cuda', 'opencl', 'metal', 'rocm', 'vulkan']:
         check_device(device)

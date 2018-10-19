@@ -52,7 +52,7 @@ def test_llvm_import():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         f(a, b)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), a.asnumpy() + 1.0)
     check_llvm(use_file=True)
     check_llvm(use_file=False)
@@ -106,7 +106,7 @@ def test_llvm_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, b, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     with tvm.build_config(offset_factor=4):
@@ -138,7 +138,7 @@ def test_llvm_persist_parallel():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(c.asnumpy(),
+        tvm.testing.assert_allclose(c.asnumpy(),
                                    np.sqrt(a.asnumpy() + 1) * 2 + 2,
                                    rtol=1e-5)
 
@@ -164,7 +164,7 @@ def test_llvm_flip_pipeline():
         a = tvm.nd.array(np.random.uniform(size=(n + base)).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy()[::-1][:n])
     check_llvm(4, 0)
     check_llvm(128, 8)
@@ -195,7 +195,7 @@ def test_llvm_vadd_pipeline():
             np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), C.dtype, ctx)
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + 1)
     check_llvm(64, 2)
     check_llvm(512, 2)
@@ -220,7 +220,7 @@ def test_llvm_madd_pipeline():
         a = tvm.nd.array(np.random.uniform(size=(n + base, stride)).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros((n, stride), dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy()[base:] + 1)
     check_llvm(64, 0, 2)
     check_llvm(4, 0, 1)
@@ -247,7 +247,7 @@ def test_llvm_temp_space():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + 1 + 1)
     check_llvm()
 
@@ -277,10 +277,10 @@ def test_multiple_func():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd1(a, b, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
         fadd2(a, b, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_llvm()
 
@@ -302,7 +302,7 @@ def test_llvm_select():
         f(a, c)
         c_np = a.asnumpy()
         c_np[:offset] = 0
-        np.testing.assert_allclose(c.asnumpy(), c_np)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np)
     check_llvm(64, 8)
 
 
@@ -321,7 +321,7 @@ def test_llvm_bool():
         c = tvm.nd.empty((n,), C.dtype, ctx)
         f(a, c)
         c_np = a.asnumpy() == 1
-        np.testing.assert_allclose(c.asnumpy(), c_np)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np)
     check_llvm(64)
 
 
@@ -345,7 +345,7 @@ def test_rank_zero():
         d = tvm.nd.empty((), D.dtype, ctx)
         f(a, sc, d)
         d_np = np.sum(a.asnumpy()) * sc.asnumpy() + 1
-        np.testing.assert_allclose(d.asnumpy(), d_np)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np)
     check_llvm(64)
 
 
