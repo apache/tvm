@@ -414,10 +414,33 @@ def test_call_type():
             args.append(i)
             parse_expr("let %_ : {}{} = (); ()".format(call_type, args))
 
-    # Tensors
-    parse_expr("let %_ : Tensor[(1), Float32] = (); ()")
-    parse_expr("let %_ : Tensor[(1, 1), Float32] = (); ()")
-    parse_expr("let %_ : Tensor[(1, 1, 1), Float32] = (); ()")
+def test_tensor_type():
+    assert alpha_equal(
+        parse_expr("let %_ : Tensor[(), Float32] = (); ()"),
+        relay.Let(
+            relay.Var("_", relay.TensorType((), "float32")),
+            UNIT,
+            UNIT
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr("let %_ : Tensor[(1,), Float32] = (); ()"),
+        relay.Let(
+            relay.Var("_", relay.TensorType((1,), "float32")),
+            UNIT,
+            UNIT
+        )
+    )
+
+    assert alpha_equal(
+        parse_expr("let %_ : Tensor[(1, 1), Float32] = (); ()"),
+        relay.Let(
+            relay.Var("_", relay.TensorType((1, 1), "float32")),
+            UNIT,
+            UNIT
+        )
+    )
 
 def test_function_type():
     assert alpha_equal(

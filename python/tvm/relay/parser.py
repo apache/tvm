@@ -64,7 +64,7 @@ def int_type_call(args):
 
     str_args = [str(arg) for arg in args]
 
-    return relay.TensorType([], "int" + "x".join(str_args))
+    return relay.TensorType((), "int" + "x".join(str_args))
 
 def uint_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
@@ -75,7 +75,7 @@ def uint_type_call(args):
 
     str_args = [str(arg) for arg in args]
 
-    return relay.TensorType([], "uint" + "x".join(str_args))
+    return relay.TensorType((), "uint" + "x".join(str_args))
 
 def float_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
@@ -86,7 +86,7 @@ def float_type_call(args):
 
     str_args = [str(arg) for arg in args]
 
-    return relay.TensorType([], "float" + "x".join(str_args))
+    return relay.TensorType((), "float" + "x".join(str_args))
 
 def bool_type_call(args):
     # type: (List[relay.Expr]) -> relay.TensorType
@@ -99,7 +99,7 @@ def bool_type_call(args):
     # bool is sugar for uint1 anyway
     str_args = [str(arg) for arg in args]
 
-    return relay.TensorType([], "uint1x" + str_args[0])
+    return relay.TensorType((), "uint1x" + str_args[0])
 
 TYPE_FUNCS = {
     "Int": int_type_call,
@@ -239,7 +239,6 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitOpIdent(self, ctx):
         # type: (RelayParser.OpIdentContext) -> relay.Op
-
         return relay.op.get(ctx.CNAME().getText())
 
     # pass through
@@ -405,7 +404,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if builtin_type is None:
             raise ParseError("Unknown builtin type: {}".format(ident_type))
         else:
-            return relay.TensorType([], builtin_type)
+            return relay.TensorType((), builtin_type)
 
     def visitCallType(self, ctx):
         # type: (RelayParser.CallTypeContext) -> Union[relay.Expr, relay.TensorType]
@@ -435,7 +434,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.TensorTypeContext) -> relay.TensorType
 
         shape = self.visit(ctx.shapeSeq())
-        dtype = self.visit(ctx.type_)
+        dtype = self.visit(ctx.type_())
 
         if not isinstance(dtype, relay.TensorType):
             raise ParseError("Expected dtype to be a Relay base type.")

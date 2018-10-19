@@ -112,7 +112,11 @@ type_
   | INT                                       # intType
   ;
 
-shapeSeq: '(' (shape (',' shape)*)? ')' ;
+shapeSeq
+  : '(' ')'
+  | '(' shape ',' ')'
+  | '(' shape (',' shape)+ ')'
+  ;
 
 shape
   : '(' shape ')'                   # parensShape
