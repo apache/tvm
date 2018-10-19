@@ -68,8 +68,8 @@ Globals are written with `@`, locals are written with `%`, variables written wit
 sigil name the corresponding operator. The distinction between global and local identifiers
 makes certain kinds of transformation easier. For example inlining a global definition
 requires no analysis, you can write a pass that just directly inlines the definitions.
-It also ensures there are no spooky action at a distance, introducing a new identifier
-of any type will never introduce an ambiguity to the program.
+Ensuring there is no spooky action at a distance; introducing a new identifier return
+type is omitted we will infer the return type based on the text of the program.
 
 
 Global Variable
@@ -165,13 +165,12 @@ Operators
 =========
 
 A primitive operation that is not defined in the Relay language but provided
-externally. Currently we back these operators registrations with the operators
+externally. Currently we back these operator's registrations with the operators
 exposed by TVM's TOPI. An operator requires a user to provide an implementation
-of the operator, its type and various attributes required by Relay subsystems.
+of the operator, its type, and various required attributes.
 
 The input methods for Relay programs do not provide a way to describe operators in
 Relay, they must be explicitly registered in the global environment via Python or C++.
-
 Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`) when pretty
 printing Relay programs.  Operators are explicitly contained in the program and are uniquely
 identifiable by pointer during a run of the Relay compiler.

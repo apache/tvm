@@ -3,39 +3,35 @@ Type System
 ===========
 
 We have briefly introduced types while detailing the the expression language
-of Relay, but have fully laid out the type system.
-
-Although the majority of Relay programs are written without type annotations,
-Relay is statically typed.
+of Relay, but have not yet described the type system. Relay is
+a statically typed, and type inferred language, allowing programs to
+be typed with a minimum amount of type information.
 
 Static types are useful because they enable efficient layout, memory reuse, and
-code generation. They aid in debugging program transformations, but can also
-give us the expressivity afforded by more dynamic langauges.
+code generation. They aid in debugging program transformations, but can also give us the
+expressivity afforded by more dynamic languages.
 
 We are able to omit these type annotations by a process known as type inference.
 Type inference is a technique that has its roots in the programming language
 community, and can be viewed as a method for generalizing shape inference to
 run over arbitrary user programs containing control flow and recursion.
 
-Static types are useful when performing compiler optimization because they
+Static types are useful when performing compiler optimizations because they
 communicate properties about the data we manipulate, such as runtime shape,
-data layout, storage without needing to run the program.
+data layout, and storage without needing to run the program.
 
-Most current IRs use "shape inference" to recover Tensor dimensions from the user
+Most current IRs use "shape inference" to recover tensor dimensions from the user
 provided program. Machine learning users have enjoyed shape inference for
 tensors because it allows them to generate performant code without giving up
-on the expressivity of the input language.
-
-Because Relay is intended as an IR we require *some* type information to provide
-full inference. We don't believe this to be an issue as many of the IR builder
-interfaces require some type information, or can generate IR based on their own
-higher level inferences.
+on the expressivity of the input language. Because Relay is intended as an IR we
+require *some* type information to provide full inference. We don't believe this to be
+an issue as many of the IR builder interfaces require some type information, or can
+generate IR based on their own higher level inferences.
 
 We view this limited shape inference as a simpler form of type
 inference. Instead of relying on an ad-hoc procedure for recovering type
-information from a potentially dynamic program, we apply ideas from compiler and IR design.
-
-Below we briefly discuss the different kinds of types in Relay.
+information from a potentially dynamic program, we apply ideas from compiler
+and IR design. Below we briefly discuss the different kinds of types in Relay.
 
 =====
 Types
