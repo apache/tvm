@@ -145,7 +145,7 @@ def rnn_matexp():
                 for j in range(n_num_hidden):
                     if abs(res_cmp[i,0,j] - res_gpu[i,0,j]) > 1e-5:
                         print("%d, %d: %g vs %g" % (i,j, res_cmp[i,0,j], res_gpu[i,0,j]))
-            np.testing.assert_allclose(res_gpu, res_cmp, rtol=1e-3)
+            tvm.testing.assert_allclose(res_gpu, res_cmp, rtol=1e-3)
     check_device("cuda")
 
 if __name__ == "__main__":

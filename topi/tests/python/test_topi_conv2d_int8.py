@@ -83,7 +83,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
         else:
             func = tvm.build(s, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
             func(a, w, c)
-        np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in ["cuda"]:
         check_device(device)

@@ -36,7 +36,7 @@ def verify_shortcut(batch, in_size, in_channel):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         func = tvm.build(s, [A1, A2, B], device)
         func(a1, a2, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ['llvm', 'cuda']:
         check_device(device)

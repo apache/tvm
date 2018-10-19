@@ -64,10 +64,10 @@ def test_conv2d_hwcn_map():
                               unroll_explicit=device == 'rocm'):
             func1 = tvm.build(s1, [A, W, B], device)
             func1(a, w, b)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
             func2 = tvm.build(s2, [A, W, C], device)
             func2(a, w, c)
-            np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in ['cuda', 'opencl', 'rocm']:
         check_device(device)

@@ -32,7 +32,7 @@ def verify_elemwise_sum(num_args, dtype):
         tvm_nd = [tvm.nd.array(nd, ctx) for nd in np_nd] + [out]
         f(*tvm_nd)
         np_out = np.sum(np.array(np_nd), axis=0)
-        np.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_out, rtol=1e-5)
 
     for device in ["llvm"]:
         check_device(device)
@@ -59,11 +59,11 @@ def verify_full(shape, dtype, fill_value):
         out = tvm.nd.array(np.zeros(shape, dtype=dtype), ctx)
         f = tvm.build(s1, [A, B], device, name="full_like")
         f(tvm.nd.array(np.zeros(shape, dtype), ctx), out)
-        np.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
 
         f = tvm.build(s2, [C], device, name="full")
         f(out)
-        np.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_nd, rtol=1e-5)
 
     for device in ["llvm"]:
         check_device(device)

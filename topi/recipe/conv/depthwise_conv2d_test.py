@@ -106,9 +106,9 @@ def test_depthwise_conv2d_nchw():
         for c in range(in_channel * channel_multiplier):
             scale_shift_scipy[:,c,:,:] = depthwise_conv2d_scipy[:,c,:,:] * scale_np[c] + shift_np[c]
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
@@ -195,9 +195,9 @@ def test_depthwise_conv2d_nhwc():
         for c in range(in_channel * channel_multiplier):
             scale_shift_scipy[:,:,:,c] = depthwise_conv2d_scipy[:,:,:,c] * scale_np[c] + shift_np[c]
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
         print("success")
 
     for device in ['cuda', 'opencl', 'rocm']:
