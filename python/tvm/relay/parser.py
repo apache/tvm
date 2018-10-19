@@ -348,7 +348,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         body = self.visit(ctx.body())
         self.exit_var_scope()
 
-        return relay.Function(var_list, ret_type, body, type_params) # type: ignore
+        return relay.Function(var_list, body, ret_type, type_params) # type: ignore
 
     def visitFunc(self, ctx):
         # type: (RelayParser.FuncContext) -> relay.Function
