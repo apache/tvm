@@ -253,23 +253,23 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitScalarFloat(self, ctx):
         # type: (RelayParser.ScalarFloatContext) -> relay.Constant
-        return relay.Constant(tvm.nd.array(self.visit(ctx.FLOAT())))
+        return relay.const(self.visit(ctx.FLOAT()))
 
     def visitScalarInt(self, ctx):
         # type: (RelayParser.ScalarIntContext) -> relay.Constant
-        return relay.Constant(tvm.nd.array(self.visit(ctx.INT())))
+        return relay.const(self.visit(ctx.INT()))
 
     def visitScalarBool(self, ctx):
         # type: (RelayParser.ScalarBoolContext) -> relay.Constant
-        return relay.Constant(tvm.nd.array(self.visit(ctx.BOOL_LIT())))
+        return relay.const(self.visit(ctx.BOOL_LIT()))
 
     def visitNeg(self, ctx):
         # type: (RelayParser.NegContext) -> Union[relay.Constant, relay.Call]
         val = self.visit(ctx.expr())
         if isinstance(val, relay.Constant) and val.data.asnumpy().ndim == 0:
             # fold Neg in for scalars
-            return relay.Constant(tvm.nd.array(-val.data.asnumpy().item()))
-        
+            return relay.const(-val.data.asnumpy().item())
+
         return relay.negative(val)
 
     def visitTuple(self, ctx):
