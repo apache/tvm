@@ -206,3 +206,6 @@ tvm_t.*
 *.cer
 *.crt
 *.der
+
+# patch sentinel
+patched.txt
