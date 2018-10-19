@@ -352,6 +352,13 @@ inline void SetAttrIterType(StageNode* self, IterVar var, IterVarType iter_type)
 }
 
 Stage& Stage::vectorize(IterVar var) {   // NOLINT(*)
+  CHECK(var->iter_type == kDataPar ||
+        var->iter_type == kOpaque ||
+        var->iter_type == kUnrolled ||
+        var->iter_type == kVectorized ||
+        var->iter_type == kTensorized ||
+        var->iter_type == kParallelized)
+      << "Cannot vectorize on " << IterVarType2String(var->iter_type);
   SetAttrIterType(operator->(), var, kVectorized);
   return *this;
 }
