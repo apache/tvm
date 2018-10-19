@@ -204,19 +204,26 @@ class Pad(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = _infer_channels(inputs[1], params, True)
-        attr['channels'] = channels
-        groups = attr.pop('group')
-        attr['groups'] = groups
+        # channels = _infer_channels(inputs[0], params, True)
+        # attr['channels'] = 1
+        # groups = attr.pop('group')
+        # attr['groups'] = groups
+        attr['mode'] = attr['mode'].decode("utf-8")
+        pads = attr['pads']
+        if len(pads) % 2 > 0:
+            raise ValueError('Invalid pad_width: {}'.format(pads))
+        left, right = pads[:len(pads)//2], pads[len(pads)//2:]
+        pads = [(before, after) for before, after in zip(left, right)]
+        attr['pads'] = pads
         return AttrCvt(
             op_name='pad',
             transforms={
                 'value': 'pad_value',
-                'pads': 'pad_width'
+                'pads': 'pad_width',
             },
-            custom_check=lambda attrs: attrs.get('mode') == 'constant')(
+            ignores=['mode'],
+            custom_check=(lambda attrs: attrs.get('mode') == 'constant', 'Invalid mode'))(
                 inputs, attr, params)
-
 
 class ParametricSoftPlus(OnnxOpConverter):
 
@@ -393,7 +400,6 @@ def _infer_channels(inputs, params, transpose=False):
     _, out_shapes = graph_util.infer_shape(g, **shape_dict)
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
-
 
 def _fully_connected(opset):
 
@@ -857,7 +863,7 @@ class GraphProto(object):
             raise ImportError(
                 "Unable to import onnx which is required {}".format(e))
         np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
-        return tvm.nd.array(np_array)
+        return tvm.nd.array(np_array.astype('float32'))
 
     def _parse_attr(self, attr_proto):
         """Convert a list of AttributeProto to a dict, with names as keys."""
