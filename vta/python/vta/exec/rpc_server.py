@@ -13,6 +13,7 @@ import tvm
 from tvm._ffi.base import c_str
 from tvm import rpc
 from tvm.contrib import cc
+from pynq import Bitstream
 
 from ..environment import get_env
 from ..pkg_config import PkgConfig
@@ -51,7 +52,9 @@ def server_start():
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
         path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
-        load_vta_dll().VTAProgram(c_str(path))
+        # load_vta_dll().VTAProgram(c_str(path))
+        bs = Bitstream(path)
+        bs.download()
         logging.info("Program FPGA with %s", file_name)
 
     @tvm.register_func("tvm.rpc.server.shutdown", override=True)
