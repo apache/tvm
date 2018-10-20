@@ -4,8 +4,8 @@ Type System
 
 We have briefly introduced types while detailing the the expression language
 of Relay, but have not yet described the type system. Relay is
-a statically typed, and type inferred language, allowing programs to
-be typed with a minimum amount of type information.
+a statically typed and type-inferred language, allowing programs to
+be typed with a minimal requirement of explicit type information.
 
 Static types are useful because they enable efficient layout, memory reuse, and
 code generation. They aid in debugging program transformations, but can also give us the
@@ -23,15 +23,15 @@ data layout, and storage without needing to run the program.
 Most current IRs use "shape inference" to recover tensor dimensions from the user
 provided program. Machine learning users have enjoyed shape inference for
 tensors because it allows them to generate performant code without giving up
-on the expressivity of the input language. Because Relay is intended as an IR we
+on the expressivity of the input language. Because Relay is intended as an IR, we
 require *some* type information to provide full inference. We don't believe this to be
-an issue as many of the IR builder interfaces require some type information, or can
-generate IR based on their own higher level inferences.
+an issue, as many of the IR builder interfaces require some type information or can
+generate IR based on their own higher-level inferences.
 
 We view this limited shape inference as a simpler form of type
 inference. Instead of relying on an ad hoc procedure for recovering type
 information from a potentially dynamic program, we apply ideas from compiler
-and IR design. Below we briefly discuss the different kinds of types in Relay.
+and IR design. Below, we briefly discuss the different kinds of types in Relay.
 
 =====
 Types
@@ -43,6 +43,7 @@ expressions.
 
 Type
 ~~~~
+
 The base type for all Relay types. All Relay types are sub-classes of this base type.
 
 See :py:class:`~tvm.relay.ty.Type` for its definition and documentation.
@@ -61,7 +62,8 @@ See :py:class:`~tvm.relay.ty.TensorType` for its definition and documentation.
 
 Kind
 ~~~~
-The kind of a type parameter, represents a variable shape,
+
+The kind of a type parameter, representing a variable shape,
 base type, type, or dimension.
 
 This controls what a type parameter is allowed to be instantiated
@@ -76,9 +78,9 @@ Type Parameter
 A type parameter used for generic types in Relay,
 see `tvm/relay/type.h` for more details.
 
-A type parameter represents a type placeholder which will
+A type parameter represents a type placeholder that will
 be filled in later on. This allows the user to write
-functions which are generic over types.
+functions that are generic over types.
 
 See :py:class:`~tvm.relay.ty.TypeParam` for its definition and documentation.
 
@@ -86,7 +88,7 @@ Type Constraint
 ~~~~~~~~~~~~~~~
 
 Abstract class representing a type constraint, to be elaborated
-on in further releases.
+upon in further releases.
 
 See :py:class:`~tvm.relay.ty.TypeConstraint` for its definition and documentation.
 
@@ -94,8 +96,8 @@ Function Type
 ~~~~~~~~~~~~~
 A function type in Relay, see `tvm/relay/type.h` for more details.
 
-This is the type assigned to functions in Relay. A function type
-is a list of type parameters, a set of type constraints, a sequence of argument
+This is the type assigned to functions in Relay. A function type consists of
+a list of type parameters, a set of type constraints, a sequence of argument
 types, and a return type.
 
 We informally write them as:
@@ -110,7 +112,7 @@ A type relation is the most exotic type system feature in Relay. It allows
 users to extend type inference with new rules. We use type relations to type operators with
 "hard" types such as broadcasting operators, or :code:`flatten`.
 
-A type relation :code:`R` is a n-ary input, single-output relation over
+A type relation :code:`R` is an n-ary input, single-output relation over
 types. To unpack that, it allows us to specify a relationship between
 a set of input and output types.
 
@@ -125,22 +127,22 @@ Or we can define the relation for flatten:
     Flatten(Tensor(sh, bt), O) :-
       O = Tensor(sh[0], prod(sh[1:]))
 
-The above examples are written in Prolog-like syntax but currently the relations
+The above examples are written in Prolog-like syntax, but currently the relations
 must be implemented by users in C++ or Python.
 
 If we have a relation such as :code:`Broadcast` it becomes possible to type things
-such as :code:`elemwise_add`:
+like :code:`elemwise_add`:
 
 .. code-block:: python
     elemwise_add : forall (Lhs : Type) (Rhs : Type), (Lhs, Rhs) -> Broadcast(Lhs, Rhs)
 
-You might ask why we write the relation in the return type but we use it as a
+You might ask why we write the relation in the return type. We use it as a
 notational convenience for:
 
 .. code-block:: python
     elemwise_add : forall (Lhs : Type) (Rhs : Type) (Out : Type), Broadcast(Lhs, Rhs, Out) => (Lhs, Rhs) -> Out
 
-That is the user may pick the type of the :code:`Lhs`, :code:`Rhs`, and :code:`Out` as long as we can
+That is, the user may pick the type of the :code:`Lhs`, :code:`Rhs`, and :code:`Out` as long as we can
 show :code:`Broadcast(Lhs, Rhs, Out)` holds.
 
 See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
@@ -148,7 +150,7 @@ See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
 Incomplete Type
 ~~~~~~~~~~~~~~~
 
-A type, or portion of a type which is not known yet. Only used during type inference.
+A type or portion of a type that is not yet known. Only used during type inference.
 
 .. note:: Known as a "type variable" in the type checking literature.
 
