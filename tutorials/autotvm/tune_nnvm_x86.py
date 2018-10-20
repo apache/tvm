@@ -118,11 +118,12 @@ def tune_kernels(tasks,
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
 
         # converting conv2d tasks to conv2d_NCHWc tasks
+        # data, kernel are tuples of ("TENSOR", shape, dtype)
         data, kernel, strides, padding, layout, dtype = tsk.args
         kernel_size = (kernel[1][2], kernel[1][3])
         data_plc = tvm.placeholder(data[1], name="data")
         kernel_plc = tvm.placeholder(kernel[1], name="kernel")
-        args = [data_plc, kernel_plc, data[1][1], kernel_size, strides,
+        args = [data_plc, kernel_plc, kernel[1][0], kernel_size, strides,
                 padding, layout, layout, dtype]
         args = autotvm.task.nnvm_integration.serialize_args(args)
         task = autotvm.task.create("topi_x86_conv2d_NCHWc", args=args, target=target)
