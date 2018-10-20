@@ -47,12 +47,13 @@ class EnvironmentNode : public RelayNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
-    v->Visit("global_map_", &global_map_);
+    v->Visit("global_var_map_", &global_var_map_);
   }
 
   TVM_DLL static Environment make(tvm::Map<GlobalVar, Function> global_funcs);
 
-  /*! \brief Add a function to the global environment.
+  /*!
+   * \brief Add a function to the global environment.
    * \param var The name of the global function.
    * \param func The function.
    * \param update Controls whether you can replace a definition in the
@@ -60,39 +61,46 @@ class EnvironmentNode : public RelayNode {
    */
   void Add(const GlobalVar& var, const Function& func, bool update = false);
 
-  /*! \brief Update a function in the global environment.
+  /*!
+   * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
    */
   void Update(const GlobalVar& var, const Function& func);
 
-  /*! \brief Remove a function from the global environment.
+  /*!
+   * \brief Remove a function from the global environment.
    * \param var The name of the global function to update.
    */
   void Remove(const GlobalVar& var);
 
-  /*! \brief Lookup a global function by its variable.
+  /*!
+   * \brief Lookup a global function by its variable.
    * \param str The unique string specifying the global variable.
    * \returns The global variable.
    */
   GlobalVar GetGlobalVar(const std::string& str);
 
-  /*! \brief Lookup a global function by its variable.
+  /*!
+   * \brief Lookup a global function by its variable.
    * \param var The global var to lookup.
    * \returns The function named by the variable argument.
    */
   Function Lookup(const GlobalVar& var);
 
-  /*! \brief Lookup a global function by its string name
+  /*!
+   * \brief Lookup a global function by its string name
    * \param name The name of the function.
    * \returns The function named by the argument.
    */
   Function Lookup(const std::string& name);
 
-  /*! \brief Combine with another Environment.
+  /*!
+   * \brief Update the functions inside this environment by
+   *        functions in another environment.
    * \param other The other environment.
    */
-  void Merge(const Environment& other);
+  void Update(const Environment& other);
 
   static constexpr const char* _type_key = "relay.Environment";
   TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
@@ -101,7 +109,7 @@ class EnvironmentNode : public RelayNode {
   /*! \brief A map from string names to global variables that
    * ensures global uniqueness.
    */
-  tvm::Map<std::string, GlobalVar> global_map_;
+  tvm::Map<std::string, GlobalVar> global_var_map_;
 };
 
 struct Environment : public NodeRef {
