@@ -52,7 +52,6 @@ def server_start():
     @tvm.register_func("tvm.contrib.vta.init", override=True)
     def program_fpga(file_name):
         path = tvm.get_global_func("tvm.rpc.server.workpath")(file_name)
-        # load_vta_dll().VTAProgram(c_str(path))
         bs = Bitstream(path)
         bs.download()
         logging.info("Program FPGA with %s", file_name)
