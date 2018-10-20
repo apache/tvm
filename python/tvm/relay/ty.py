@@ -56,7 +56,7 @@ class Kind(IntEnum):
     Shape = 3
 
 @register_relay_node
-class TypeParam(Type):
+class TypeVar(Type):
     """A type parameter used for generic types in Relay,
     see tvm/relay/type.h for more details.
 
@@ -66,7 +66,7 @@ class TypeParam(Type):
     """
 
     def __init__(self, var, kind=Kind.Type):
-        """Construct a TypeParam.
+        """Construct a TypeVar.
 
         Parameters
         ----------
@@ -78,10 +78,10 @@ class TypeParam(Type):
 
         Returns
         -------
-        type_param: TypeParam
+        type_param: TypeVar
             The type parameter.
         """
-        self.__init_handle_by_constructor__(_make.TypeParam, var, kind)
+        self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
 
 
 @register_relay_node
@@ -122,26 +122,30 @@ class FuncType(Type):
 
     We informally write them as:
     `forall (type_params), (arg_types) -> ret_type where type_constraints`
+
+    Parameters
+    ----------
+    arg_types: List[tvm.relay.Type]
+        The argument types
+
+    ret_type: tvm.relay.Type
+        The return type.
+
+    type_params: List[tvm.relay.TypeVar]
+        The type parameters
+
+    type_constraints: List[tvm.relay.TypeConstraint]
+        The type constraints.
     """
     def __init__(self,
                  arg_types,
                  ret_type,
-                 type_params,
-                 type_constraints):
-        """Construct a function type.
-
-        Parameters
-        ----------
-        arg_types:  list of Type
-        ret_type: Type
-        type_params: list of TypeParam
-        type_constraints: list of TypeConstraint
-
-        Returns
-        -------
-        func_type: FuncType
-            The function type.
-        """
+                 type_params=None,
+                 type_constraints=None):
+        if type_params is None:
+            type_params = []
+        if type_constraints is None:
+            type_constraints = []
         self.__init_handle_by_constructor__(
             _make.FuncType, arg_types, ret_type, type_params, type_constraints)
 
@@ -175,3 +179,21 @@ class TypeRelation(TypeConstraint):
     def __init__(self, func, args, num_inputs, attrs):
         self.__init_handle_by_constructor__(_make.TypeRelation,
                                             func, args, num_inputs, attrs)
+
+
+def scalar_type(dtype):
+    """Creates a scalar type.
+
+    This function returns TensorType((), dtype)
+
+    Parameters
+    ----------
+    dtype : str
+        The content data type.
+
+    Returns
+    -------
+    s_type: tvm.relay.TensorType
+        The result type.
+    """
+    return TensorType((), dtype)

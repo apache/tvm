@@ -12,6 +12,7 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
+TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 
 template <typename AttrTtype>
 bool Pool2DRel(const Array<Type>& types,
@@ -115,6 +116,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
            equation.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.MaxPool2DAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -169,6 +171,7 @@ Average pooling operation for one dimensional data.
            equation.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.AvgPool2DAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -232,6 +235,7 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
@@ -261,6 +265,7 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
            (batch_size, channels, 1, 1)  if `layout` is `NCHW`.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.GlobalPool2DAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

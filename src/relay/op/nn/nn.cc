@@ -247,6 +247,8 @@ RELAY_REGISTER_UNARY_OP("relay.op.nn._make.", "relu")
 
 
 // Positional relay function to create LRN operator used by frontend FFI.
+TVM_REGISTER_NODE_TYPE(LRNAttrs);
+
 Expr MakeLRN(Expr data,
              IndexExpr size,
              IndexExpr axis,
@@ -290,6 +292,8 @@ centered at that value (zero padding is added where necessary).
 
 
 // Positional relay function to create L2Normalize operator used by frontend FFI.
+TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
+
 Expr MakeL2Normalize(Expr data,
                      double eps,
                      Array<IndexExpr> axis) {
@@ -315,6 +319,7 @@ Normalizes along dimension axis using an L2 norm
 
 - **data**: The input tensor.
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.L2NormalizeAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

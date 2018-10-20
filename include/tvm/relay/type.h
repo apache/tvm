@@ -98,7 +98,7 @@ RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
  *  This can be viewed as template parameter in c++ template function.
  *
  * For example, in the following pesudo code,
- * the TypeParam of f is TypeParam(kind=kShapeVar, var=n).
+ * the TypeVar of f is TypeVar(kind=kShapeVar, var=n).
  * This function can take in a Tensor with shape=(3, 3) and
  * returns a Tensor with shape=(9,)
  *
@@ -108,13 +108,13 @@ RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
  *  f(x : Tensor[i32, (n, n)]) -> Tensor[i32, (n * n)]
  *
  * \endcode
- * \sa TypeParamNode The actual container class of TypeParam
+ * \sa TypeVarNode The actual container class of TypeVar
  */
-class TypeParam;
-/*! \brief TypeParam container node */
-class TypeParamNode : public TypeNode {
+class TypeVar;
+/*! \brief TypeVar container node */
+class TypeVarNode : public TypeNode {
  public:
-  /*! \brief possible kinds of TypeParam */
+  /*! \brief possible kinds of TypeVar */
   enum Kind : int {
     /*! \brief template variable in shape expression */
     kType = 0,
@@ -136,13 +136,13 @@ class TypeParamNode : public TypeNode {
     v->Visit("span", &span);
   }
 
-  TVM_DLL static TypeParam make(std::string name, Kind kind);
+  TVM_DLL static TypeVar make(std::string name, Kind kind);
 
-  static constexpr const char* _type_key = "relay.TypeParam";
-  TVM_DECLARE_NODE_TYPE_INFO(TypeParamNode, TypeNode);
+  static constexpr const char* _type_key = "relay.TypeVar";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeVarNode, TypeNode);
 };
 
-RELAY_DEFINE_NODE_REF(TypeParam, TypeParamNode, Type);
+RELAY_DEFINE_NODE_REF(TypeVar, TypeVarNode, Type);
 
 /*!
  * \brief IncompleteType.
@@ -150,20 +150,20 @@ RELAY_DEFINE_NODE_REF(TypeParam, TypeParamNode, Type);
  *
  * If we view the type relations as "computational graph of types",
  * then IncompleteType represents intermediate values of the graph,
- * TypeParam represents the input to the graph.
+ * TypeVar represents the input to the graph.
  */
 class IncompleteType;
 
 /*! \brief IncompleteType container node */
 class IncompleteTypeNode : public TypeNode {
  public:
-  TypeParamNode::Kind kind;
+  TypeVarNode::Kind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("kind", &kind);
   }
 
-  TVM_DLL static IncompleteType make(TypeParamNode::Kind kind);
+  TVM_DLL static IncompleteType make(TypeVarNode::Kind kind);
 
   static constexpr const char* _type_key = "relay.IncompleteType";
   TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);
@@ -192,7 +192,7 @@ class FuncType;
  * Relay support polymorphic function type.
  * This can be roughly viewed as template function in C++.
  *
- * \sa TypeParam, TypeConstraint
+ * \sa TypeVar, TypeConstraint
  */
 class FuncTypeNode : public TypeNode {
  public:
@@ -203,7 +203,7 @@ class FuncTypeNode : public TypeNode {
   // The following fields are used in polymorphic(template) functions
   // For normal functions, the following two fields will be empty.
   /*! \brief The type parameters of the function */
-  tvm::Array<TypeParam> type_params;
+  tvm::Array<TypeVar> type_params;
   /*!
    * \brief potential constraint the type need to obey
    * \note this field is reserved for futher purposes.
@@ -220,7 +220,7 @@ class FuncTypeNode : public TypeNode {
 
   TVM_DLL static FuncType make(tvm::Array<Type> arg_types,
                                Type ret_type,
-                               tvm::Array<TypeParam> type_params,
+                               tvm::Array<TypeVar> type_params,
                                tvm::Array<TypeConstraint> type_constraints);
 
   static constexpr const char* _type_key = "relay.FuncType";

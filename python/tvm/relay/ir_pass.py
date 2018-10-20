@@ -2,37 +2,39 @@
 # pylint: disable=unidiomatic-typecheck
 """The set of passes for Relay.
 
-Exposes an interface for configuring the passes and scripting
-them in Python.
+Exposes an interface for configuring the passes and
+scripting them in Python.
 """
 from . import _ir_pass
 from . import _make
 # pylint: disable=invalid-name
 
-def infer_type(env, expr):
+def infer_type(expr, env=None):
     """Infer the type of expr under the context of env.
 
     Parameters
     ----------
-    env : relay.Environment
+    expr: tvm.relay.Expr
+      The input expression.
+
+    env: Optional[tvm.relay.Environment]
       The global environment.
 
-    expr : relay.Expr
-      The input expression.
 
     Returns
     -------
-    checked_expr : relay.Expr
+    checked_expr : tvm.relay.Expr
       The checked expression.
     """
-    return _ir_pass.infer_type(env, expr)
+    return _ir_pass.infer_type(expr, env)
 
-def well_formed(e):
+
+def well_formed(expr):
     """Check that each Var is only bound once (well formed).
 
     Parameters
     ----------
-    e: relay.Expr
+    expr: tvm.relay.Expr
       The input expression
 
     Returns
@@ -40,7 +42,8 @@ def well_formed(e):
     well_form : bool
       whether the input expression is well formed
     """
-    return _ir_pass.well_formed(e)
+    return _ir_pass.well_formed(expr)
+
 
 def check_kind(t, env=None):
     """Check that the type is well kinded.
@@ -48,10 +51,10 @@ def check_kind(t, env=None):
 
     Parameters
     ----------
-    t: relay.Type
+    t: tvm.relay.Type
       The type to check
 
-    env: relay.Environment, optional
+    env: tvm.relay.Environment, optional
       The global environment
 
     Returns
@@ -71,61 +74,65 @@ def check_kind(t, env=None):
     else:
         return _ir_pass.check_kind(t)
 
+
 def free_vars(e):
     """Get free variables from expression e.
 
     Parameters
     ----------
-    e: relay.Expr
+    e: tvm.relay.Expr
       The input expression
 
     Returns
     -------
-    free : List[relay.Var]
-      the list of free variables
+    free : List[tvm.relay.Var]
+        The list of free variables
     """
     return _ir_pass.free_vars(e)
 
-def free_type_vars(e):
+
+def free_type_vars(expr):
     """Get free type variables from expression/type e
 
     Parameters
     ----------
-    e: relay.Expr/relay.Type
-      The input expression/type
+    expr: Union[tvm.relay.Expr,tvm.relay.Type]
+        The input expression/type
 
     Returns
     -------
-    free : List[relay.TypeParam]
-      the list of free type variables
+    free : List[tvm.relay.TypeParam]
+        The list of free type variables
     """
-    return _ir_pass.free_type_vars(e)
+    return _ir_pass.free_type_vars(expr)
 
-def dead_code_elimination(e):
+
+def dead_code_elimination(expr):
     """ Remove expressions which does not effect the program result (dead code).
 
     Parameters
     ----------
-    e: relay.Expr
-      The input Expression
+    e: tvm.relay.Expr
+        The input Expression
 
     Returns
     -------
-    result: relay.Expr
-      An expression which is semantically equal to the input expression,
-      but with dead code removed.
+    result: tvm.relay.Expr
+        An expression which is semantically equal to the input expression,
+        but with dead code removed.
     """
-    return _ir_pass.dead_code_elimination(e)
+    return _ir_pass.dead_code_elimination(expr)
+
 
 def alpha_equal(lhs, rhs):
     """Compare two Relay expr for structural equivalence (alpha equivalence).
 
     Parameters
     ----------
-    lhs: relay.Expr
+    lhs: tvm.relay.Expr
       One of the input Expression.
 
-    rhs: relay.Expr
+    rhs: tvm.relay.Expr
       One of the input Expression.
 
     Returns

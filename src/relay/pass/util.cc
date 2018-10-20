@@ -14,14 +14,14 @@ namespace relay {
 
 class FreeVar;
 class FreeTypeVar : private TypeVisitor<> {
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * free_vars;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound_vars;
-  FreeTypeVar(std::unordered_set<TypeParam, NodeHash, NodeEqual> * free_vars,
-              std::unordered_set<TypeParam, NodeHash, NodeEqual> * bound_vars) :
+  std::unordered_set<TypeVar, NodeHash, NodeEqual> * free_vars;
+  std::unordered_set<TypeVar, NodeHash, NodeEqual> * bound_vars;
+  FreeTypeVar(std::unordered_set<TypeVar, NodeHash, NodeEqual> * free_vars,
+              std::unordered_set<TypeVar, NodeHash, NodeEqual> * bound_vars) :
     free_vars(free_vars), bound_vars(bound_vars) { }
 
-  void VisitType_(const TypeParamNode* tp) final {
-    auto var = GetRef<TypeParam>(tp);
+  void VisitType_(const TypeVarNode* tp) final {
+    auto var = GetRef<TypeVar>(tp);
     if (bound_vars->count(var) == 0) {
       free_vars->insert(var);
     }
@@ -75,8 +75,8 @@ class FreeVar : public ExprVisitor {
  public:
   std::unordered_set<Var, NodeHash, NodeEqual> free_vars;
   std::unordered_set<Var, NodeHash, NodeEqual> bound_vars;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> free_types;
-  std::unordered_set<TypeParam, NodeHash, NodeEqual> bound_types;
+  std::unordered_set<TypeVar, NodeHash, NodeEqual> free_types;
+  std::unordered_set<TypeVar, NodeHash, NodeEqual> bound_types;
 
   void VisitType(const Type& t) final {
     FreeTypeVar(&free_types, &bound_types)(t);
@@ -89,16 +89,16 @@ tvm::Array<Var> FreeVariables(const Expr& e) {
   return tvm::Array<Var>(fv.free_vars.begin(), fv.free_vars.end());
 }
 
-tvm::Array<TypeParam> FreeTypeVariables(const Expr& e) {
+tvm::Array<TypeVar> FreeTypeVariables(const Expr& e) {
   FreeVar fv;
   fv.VisitExpr(e);
-  return tvm::Array<TypeParam>(fv.free_types.begin(), fv.free_types.end());
+  return tvm::Array<TypeVar>(fv.free_types.begin(), fv.free_types.end());
 }
 
-tvm::Array<TypeParam> FreeTypeVariables(const Type& t) {
+tvm::Array<TypeVar> FreeTypeVariables(const Type& t) {
   FreeVar fv;
   fv.VisitType(t);
-  return tvm::Array<TypeParam>(fv.free_types.begin(), fv.free_types.end());
+  return tvm::Array<TypeVar>(fv.free_types.begin(), fv.free_types.end());
 }
 
 TVM_REGISTER_API("relay._ir_pass.free_vars")

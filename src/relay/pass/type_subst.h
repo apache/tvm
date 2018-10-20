@@ -11,8 +11,8 @@
 namespace tvm {
 namespace relay {
 
-Type TypeSubst(const Type& type, const TypeParam& target, const Type& subst);
-Type TypeSubst(const Type& type, tvm::Map<TypeParam, Type> subst_map);
+Type TypeSubst(const Type& type, const TypeVar& target, const Type& subst);
+Type TypeSubst(const Type& type, tvm::Map<TypeVar, Type> subst_map);
 
 }  // namespace relay
 }  // namespace tvm

@@ -19,7 +19,7 @@ namespace relay {
  */
 template <typename... Args>
 struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
-  void VisitType_(const TypeParamNode* op, Args... args) override {}
+  void VisitType_(const TypeVarNode* op, Args... args) override {}
 
   void VisitType_(const FuncTypeNode* op, Args... args) override {
     for (auto type_param : op->type_params) {
@@ -60,16 +60,16 @@ struct TypeMutator : TypeFunctor<Type(const Type& n)> {
     return TensorTypeNode::make(op->shape, op->dtype);
   }
 
-  Type VisitType_(const TypeParamNode* op) override {
-    return GetRef<TypeParam>(op);
+  Type VisitType_(const TypeVarNode* op) override {
+    return GetRef<TypeVar>(op);
   }
 
   Type VisitType_(const FuncTypeNode* op) override {
-    Array<TypeParam> type_params;
+    Array<TypeVar> type_params;
     for (auto type_param : op->type_params) {
       auto new_type_param = VisitType(type_param);
-      if (const TypeParamNode* tin = new_type_param.as<TypeParamNode>()) {
-        type_params.push_back(GetRef<TypeParam>(tin));
+      if (const TypeVarNode* tin = new_type_param.as<TypeVarNode>()) {
+        type_params.push_back(GetRef<TypeVar>(tin));
       } else {
         CHECK(false) << new_type_param << std::endl;
       }

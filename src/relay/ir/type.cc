@@ -36,30 +36,30 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
-TypeParam TypeParamNode::make(std::string name, TypeParamNode::Kind kind) {
-  NodePtr<TypeParamNode> n = make_node<TypeParamNode>();
+TypeVar TypeVarNode::make(std::string name, TypeVarNode::Kind kind) {
+  NodePtr<TypeVarNode> n = make_node<TypeVarNode>();
   n->var = tvm::Var(name);
   n->kind = std::move(kind);
-  return TypeParam(n);
+  return TypeVar(n);
 }
 
-TVM_REGISTER_NODE_TYPE(TypeParamNode);
+TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
-TVM_REGISTER_API("relay._make.TypeParam")
+TVM_REGISTER_API("relay._make.TypeVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   int kind = args[1];
   *ret =
-    TypeParamNode::make(args[0], static_cast<TypeParamNode::Kind>(kind));
+    TypeVarNode::make(args[0], static_cast<TypeVarNode::Kind>(kind));
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TypeParamNode>([](const TypeParamNode *node,
+.set_dispatch<TypeVarNode>([](const TypeVarNode *node,
                                     tvm::IRPrinter *p) {
-  p->stream << "TypeParamNode(" << node->var->name_hint << ", "
+  p->stream << "TypeVarNode(" << node->var->name_hint << ", "
     << node->kind << ")";
 });
 
-IncompleteType IncompleteTypeNode::make(TypeParamNode::Kind kind) {
+IncompleteType IncompleteTypeNode::make(TypeVarNode::Kind kind) {
   auto n = make_node<IncompleteTypeNode>();
   n->kind = std::move(kind);
   return IncompleteType(n);
@@ -70,7 +70,7 @@ TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 TVM_REGISTER_API("relay._make.IncompleteType")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     int kind = args[0];
-    *ret = IncompleteTypeNode::make(static_cast<TypeParamNode::Kind>(kind));
+    *ret = IncompleteTypeNode::make(static_cast<TypeVarNode::Kind>(kind));
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
@@ -82,7 +82,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
                             Type ret_type,
-                            tvm::Array<TypeParam> type_params,
+                            tvm::Array<TypeVar> type_params,
                             tvm::Array<TypeConstraint> type_constraints) {
   NodePtr<FuncTypeNode> n = make_node<FuncTypeNode>();
   n->arg_types = std::move(arg_types);

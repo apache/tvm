@@ -1,7 +1,5 @@
 import tvm
-
 from tvm import relay
-from tvm.relay.ir_builder import scalar_type, convert, tensor_type
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):

@@ -20,7 +20,7 @@ namespace tvm {
 namespace relay {
 
 using namespace tvm::runtime;
-using Kind = TypeParamNode::Kind;
+using Kind = TypeVarNode::Kind;
 
 struct KindChecker : TypeVisitor<> {
   bool valid;
@@ -33,7 +33,7 @@ struct KindChecker : TypeVisitor<> {
       return tv->kind == k;
     }
 
-    if (const TypeParamNode *tp = t.as<TypeParamNode>()) {
+    if (const TypeVarNode *tp = t.as<TypeVarNode>()) {
       return tp->kind == k;
     }
 

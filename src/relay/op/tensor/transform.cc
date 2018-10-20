@@ -144,12 +144,14 @@ RELAY_REGISTER_OP("concatenate")
 - **axis** : The axis along which the tensors are concatenated.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ConcatenateAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
 .add_type_rel("Concatenate", ConcatenateRel);
 
 /* relay.transpose */
+TVM_REGISTER_NODE_TYPE(TransposeAttrs);
 
 bool TransposeRel(const Array<Type>& types,
                   int num_inputs,
@@ -224,11 +226,14 @@ RELAY_REGISTER_OP("transpose")
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.TransposeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Transpose", TransposeRel);
 
 /* relay.reshape */
+
+TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
 bool ReshapeRel(const Array<Type>& types,
                 int num_inputs,
@@ -310,6 +315,7 @@ Example::
 
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.ReshapeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel);
@@ -397,12 +403,14 @@ Examples::
                               [ 4., 3.]]
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.TakeAttrs")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
 .set_support_level(2)
 .add_type_rel("Take", TakeRel);
 
+// Init ops
 TVM_REGISTER_NODE_TYPE(InitOpAttrs);
 
 bool FullRel(const Array<Type>& types,
@@ -448,6 +456,7 @@ RELAY_REGISTER_OP("full")
 .describe(R"code(Fill array with scalar value.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.InitOpAttrs")
 .set_num_inputs(1)
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
@@ -633,6 +642,10 @@ Examples::
 .set_num_inputs(3)
 .set_support_level(4)
 .add_type_rel("Where", WhereRel);
+
+
+// Squeeze
+TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr MakeSqueeze(Expr data,
                  Array<IndexExpr> axes) {
