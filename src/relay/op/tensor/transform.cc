@@ -1001,6 +1001,7 @@ Examples::
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.StridedSliceAttrs")
 .add_type_rel("StridedSlice", StridedSliceRel);
 
 // Split
