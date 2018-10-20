@@ -89,7 +89,7 @@ identifier as :code:`%local`.
 Global Functions
 ================
 
-A definition consists of a name, type parameter, parameters, and an optional return
+A function definition consists of a name, parameters, type parameters, and an optional return
 type. A global function is no different from a procedure or function in a typical programming
 language and generalizes the concept of a named subgraph.
 
@@ -119,10 +119,10 @@ we can restrict the above definition to only work on certain types:
 A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.ty.Type`. They represent
 the formal parameters of functions and definitions, and are written as :code:`%x : T`.
 
-They may only appear in function literals and definitions, and have no relation
+Parameters may only appear in function literals and definitions and have no relation
 to parameters in the machine learning.
 
-When the type information is omitted, we will attempt to infer a most general type
+When the type information is omitted, we will attempt to infer the most general type
 for the users. This property is known as generalization: for a definition without
 explicit annotations, we will attempt to assign the most general type. When the
 return type is omitted, we will infer the return type based on the text of the
