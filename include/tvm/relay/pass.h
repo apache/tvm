@@ -12,21 +12,30 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Infer the type of an expression with the provided environment.
+/*!
+ * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
- * \param env The environment used for global settings and referencing
- * global functions.
- *
- * \param e The expression to type check.
+ * \param expr The expression to type check.
+ * \param env The environment used for referencing global functions, can be None.
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Environment& env, const Expr& e);
-Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
+Expr InferType(const Expr& expr, const Environment& env);
+/*!
+ * \brief Infer the type of a function as if it is mapped to var in the env.
+ *
+ * \param f the function.
+ * \param env The environment used for referencing global functions.
+ * \param var The global variable corresponding to the function.
+ *
+ * \return A type checked Function with its checked_type field populated.
+ * \note this function mutates env and is not thread-safe.
+ */
+Function InferType(const Function& f, const Environment& env, const GlobalVar& var);
 
 /*!
  * \brief Check that types are well kinded by applying "kinding rules".
@@ -111,7 +120,7 @@ tvm::Array<Var> FreeVariables(const Expr& e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
+tvm::Array<TypeVar> FreeTypeVariables(const Expr& e);
 
 /*! \brief Get free type parameters from type t.
  *
@@ -121,7 +130,7 @@ tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
  *
  * \return the set of free type variables.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Type& t);
+tvm::Array<TypeVar> FreeTypeVariables(const Type& t);
 
 /*! \brief Remove expressions which does not effect the program result.
  *

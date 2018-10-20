@@ -254,7 +254,7 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
 struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
   double alpha;
 
-  TVM_DECLARE_ATTRS(DenseAttrs, "relay.attrs.LeakyReluAttrs") {
+  TVM_DECLARE_ATTRS(LeakyReluAttrs, "relay.attrs.LeakyReluAttrs") {
     TVM_ATTR_FIELD(alpha).set_lower_bound(0.0).set_default(0.25)
         .describe("Slope coefficient for the negative half axis.");
   }

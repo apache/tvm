@@ -104,7 +104,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 Function FunctionNode::make(tvm::Array<Var> params,
                             Expr body,
                             Type ret_type,
-                            tvm::Array<TypeParam> type_params) {
+                            tvm::Array<TypeVar> type_params) {
   NodePtr<FunctionNode> n = make_node<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);

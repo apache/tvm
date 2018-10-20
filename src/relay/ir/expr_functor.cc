@@ -66,11 +66,11 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
 }
 
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
-  tvm::Array<TypeParam> ty_params;
+  tvm::Array<TypeVar> ty_params;
   bool all_ty_params_changed = true;
 
   for (auto ty_param : op->type_params) {
-    TypeParam new_ty_param = Downcast<TypeParam>(VisitType(ty_param));
+    TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
     ty_params.push_back(new_ty_param);
     all_ty_params_changed &= new_ty_param.same_as(ty_param);
   }

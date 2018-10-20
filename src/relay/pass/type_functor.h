@@ -61,7 +61,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
   // Functions that can be overriden by subclass
   virtual R VisitType_(const TensorTypeNode* op,
                        Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeParamNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
+  virtual R VisitType_(const TypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeConstraintNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
@@ -79,7 +79,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     FType vtable;
     // Set dispatch
     RELAY_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
-    RELAY_TYPE_FUNCTOR_DISPATCH(TypeParamNode);
+    RELAY_TYPE_FUNCTOR_DISPATCH(TypeVarNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeConstraintNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     RELAY_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
