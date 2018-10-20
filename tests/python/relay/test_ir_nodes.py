@@ -34,7 +34,7 @@ def test_tensor_type():
 
 
 def test_type_param():
-    tp = relay.TypeParam('name', relay.Kind.Type)
+    tp = relay.TypeVar('name', relay.Kind.Type)
     assert tp.kind == relay.Kind.Type
     # assert tp.span  # TODO allow us to set span
     str(tp)
@@ -56,7 +56,7 @@ def test_func_type():
 
 
 def test_tuple_type():
-    tp = relay.TypeParam('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.Kind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     fields = tvm.convert([tp, tf, tt])
@@ -66,7 +66,7 @@ def test_tuple_type():
 
 
 def test_type_relation():
-    tp = relay.TypeParam('tp', relay.Kind.Type)
+    tp = relay.TypeVar('tp', relay.Kind.Type)
     tf = relay.FuncType(tvm.convert([]), None, tvm.convert([]), tvm.convert([]))
     tt = relay.TensorType(tvm.convert([1, 2, 3]), 'float32')
     args = tvm.convert([tf, tt, tp])
@@ -173,7 +173,7 @@ def test_if():
 def test_tuple_get_item():
     tup = relay.Var("tuple")
     get = relay.TupleGetItem(tup, 1)
-    assert get.tuple == tup
+    assert get.tuple_value == tup
     assert get.index == 1
     str(get)
 

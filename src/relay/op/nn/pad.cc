@@ -77,6 +77,7 @@ RELAY_REGISTER_OP("nn.pad")
 .describe(R"code(Pad for n-D tensor.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.PadAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)

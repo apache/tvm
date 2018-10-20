@@ -28,9 +28,6 @@ class Expr(RelayNode):
                              " the checked_type for this node")
         return ret
 
-    def __call__(self, *args):
-        return Call(self, args, None, None)
-
 
 @register_relay_node
 class Constant(Expr):
@@ -56,6 +53,14 @@ class Tuple(Expr):
     """
     def __init__(self, fields):
         self.__init_handle_by_constructor__(_make.Tuple, fields)
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return self.fields[index]
+
+    def __len__(self):
+        return len(self.fields)
 
 
 @register_relay_node
@@ -95,6 +100,16 @@ class GlobalVar(Expr):
     def __init__(self, name_hint):
         self.__init_handle_by_constructor__(_make.GlobalVar, name_hint)
 
+    def __call__(self, *args):
+        """Invoke the gobal function.
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            Arguments.
+        """
+        return Call(self, args, None, None)
+
 
 @register_relay_node
 class Function(Expr):
@@ -125,6 +140,16 @@ class Function(Expr):
 
         self.__init_handle_by_constructor__(
             _make.Function, params, body, ret_type, type_params)
+
+    def __call__(self, *args):
+        """Invoke the gobal function.
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            Arguments.
+        """
+        return Call(self, args, None, None)
 
 
 @register_relay_node
@@ -238,11 +263,17 @@ class TupleWrapper(_node.NodeGeneric):
 
         return self.tuple_value
 
-    def __getitem__(self, key):
-        return self.tuple_value.fields[key]
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return TupleGetItem(self.tuple_value, index)
 
     def __len__(self):
-        return len(self.tuple_value.fields)
+        return self.size
+
+    def __repr__(self):
+        return ("TupleWrapper(" + self.tuple_value.__repr__() +
+                ", " + self.size + ")")
 
 
 def var(name_hint,
@@ -304,13 +335,27 @@ def const(value, dtype=None):
 
     dtype: str, optional
         The data type of the value.
+
+    Note
+    ----
+    When dtype is None, we use the following rule:
+
+    - int maps to "int32"
+    - float maps to "float32"
+    - bool maps to "bool"
+    - other using the same default rule as numpy.
     """
-    if isinstance(value, _base.numeric_types):
+    if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
-    elif isinstance(value, (bool, list)):
-        value = _np.array(value, dtype=dtype)
+        # convert default to int32 and float32
+        if dtype is None:
+            if value.dtype == "float64":
+                value = value.astype("float32")
+            elif value.dtype == "int64":
+                value = value.astype("int32")
     if isinstance(value, (_np.ndarray, _np.generic)):
         value = _nd.array(value)
+
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
     return Constant(value)
