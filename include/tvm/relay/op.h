@@ -371,14 +371,14 @@ inline OpRegistry& OpRegistry::add_type_rel(
     env_type_rel_func = env_func;
   }
 
-  Array<TypeParam> type_params;
+  Array<TypeVar> type_params;
   Array<Type> arg_types;
 
   // Add inputs.
   std::string input_name_prefix = "in";
   for (int i = 0; i < get()->num_inputs; i++) {
     auto name = input_name_prefix + std::to_string(i);
-    auto param = TypeParamNode::make(name, TypeParamNode::Kind::kType);
+    auto param = TypeVarNode::make(name, TypeVarNode::Kind::kType);
     type_params.push_back(param);
     arg_types.push_back(param);
   }
@@ -386,7 +386,7 @@ inline OpRegistry& OpRegistry::add_type_rel(
   Array<Type> ty_call_args = arg_types;
 
   // Add output type.
-  auto out_param = TypeParamNode::make("out", TypeParamNode::Kind::kType);
+  auto out_param = TypeVarNode::make("out", TypeVarNode::Kind::kType);
   type_params.push_back(out_param);
   // this will trigger copy on write.
   ty_call_args.push_back(out_param);
