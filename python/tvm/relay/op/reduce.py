@@ -67,20 +67,6 @@ def argmin(data, axis=None, keepdims=False, exclude=False):
 def sum(data, axis=None, keepdims=False, exclude=False):
     """Computes the sum of array elements over given axes.
 
-    Example::
-
-      data = [[[1,2],[2,3],[1,3]],
-              [[1,4],[4,3],[5,2]],
-              [[7,1],[7,2],[7,3]]]
-
-      sum(data, axis=1)
-      [[  4.   8.]
-       [ 10.   9.]
-       [ 21.   6.]]
-
-      sum(data, axis=[1,2])
-      [ 12.  19.  27.]
-
     Parameters
     ----------
     data : relay.Expr
@@ -174,18 +160,6 @@ def min(data, axis=None, keepdims=False, exclude=False):
 def mean(data, axis=None, keepdims=False, exclude=False):
     """Computes the mean of array elements over given axes.
 
-    Example::
-
-      data = [[[1,2],[2,3],[1,3]],
-              [[1,4],[4,3],[5,2]],
-              [[7,1],[7,2],[7,3]]]
-
-      mean(data)
-      [3.22]
-
-      mean(data, axis=[1,2])
-      [ 2.  3.16666667  4.5]
-
     Parameters
     ----------
     data : relay.Expr
@@ -216,18 +190,6 @@ def mean(data, axis=None, keepdims=False, exclude=False):
 
 def prod(data, axis=None, keepdims=False, exclude=False):
     """Computes the products of array elements over given axes.
-
-    Example::
-
-      data = [[[1,2],[2,3],[1,3]],
-              [[1,4],[4,3],[5,2]],
-              [[7,1],[7,2],[7,3]]]
-
-      mean(data, axis=1)
-      [35562240]
-
-      mean(data, axis=[1,2])
-      [ 36  480  2058]
 
     Parameters
     ----------

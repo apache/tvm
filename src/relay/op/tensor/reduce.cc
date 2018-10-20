@@ -7,6 +7,7 @@
 #include <tvm/relay/op.h>
 #include <numeric>
 #include <limits>
+#include "../op_common.h"
 #include "../type_relations.h"
 
 namespace tvm {
@@ -158,10 +159,7 @@ bool ArgReduceRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   CHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr> in_shape;
-  for (auto i : data->shape) {
-    in_shape.push_back(i);
-  }
+  std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
@@ -187,10 +185,7 @@ bool ReduceRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
   CHECK(static_cast<int>(data->shape.size()) != 0);
-  std::vector<IndexExpr> in_shape;
-  for (auto i : data->shape) {
-    in_shape.push_back(i);
-  }
+  std::vector<IndexExpr>&& in_shape = AsVector(data->shape);
 
   const ReduceAttrs* param = attrs.as<ReduceAttrs>();
   CHECK(param != nullptr);
@@ -229,6 +224,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("ArgReduce", ArgReduceRel);
 
 
@@ -239,6 +235,7 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("ArgReduce", ArgReduceRel);
 
 
@@ -262,6 +259,7 @@ Example::
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -271,6 +269,7 @@ RELAY_REGISTER_REDUCE_OP("max")
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -280,6 +279,7 @@ RELAY_REGISTER_REDUCE_OP("min")
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -301,6 +301,7 @@ Example::
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -322,6 +323,7 @@ Example::
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
 .set_support_level(4)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("Reduce", ReduceRel);
 
 }  // namespace relay
