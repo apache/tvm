@@ -337,6 +337,7 @@ def split(data, indices_or_sections, axis=0):
         ret_size = len(indices_or_sections) + 1
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
+
 def strided_slice(data, begin, end, stride=None):
     """Strided slice of an array..
 
@@ -362,4 +363,3 @@ def strided_slice(data, begin, end, stride=None):
     """
     stride = stride or []
     return _make.strided_slice(data, list(begin), list(end), list(stride))
->>>>>>> [RELAY][OP]Strided slice
