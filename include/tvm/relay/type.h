@@ -93,6 +93,15 @@ class TensorTypeNode : public BaseTensorTypeNode {
 
 RELAY_DEFINE_NODE_REF(TensorType, TensorTypeNode, Type);
 
+/*! \brief possible kinds of TypeVar */
+enum Kind : int {
+  /*! \brief template variable in shape expression */
+  kType = 0,
+  kShapeVar = 1,
+  kBaseType = 2,
+  kShape = 3
+};
+
 /*!
  * \brief Type parameter in the function.
  *  This can be viewed as template parameter in c++ template function.
@@ -114,14 +123,6 @@ class TypeVar;
 /*! \brief TypeVar container node */
 class TypeVarNode : public TypeNode {
  public:
-  /*! \brief possible kinds of TypeVar */
-  enum Kind : int {
-    /*! \brief template variable in shape expression */
-    kType = 0,
-    kShapeVar = 1,
-    kBaseType = 2,
-    kShape = 3
-  };
   /*!
    * \brief The variable itself is only meaningful when
    *  kind is ShapeVar, otherwise, we only use the name.
@@ -157,13 +158,13 @@ class IncompleteType;
 /*! \brief IncompleteType container node */
 class IncompleteTypeNode : public TypeNode {
  public:
-  TypeVarNode::Kind kind;
+  Kind kind;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("kind", &kind);
   }
 
-  TVM_DLL static IncompleteType make(TypeVarNode::Kind kind);
+  TVM_DLL static IncompleteType make(Kind kind);
 
   static constexpr const char* _type_key = "relay.IncompleteType";
   TVM_DECLARE_NODE_TYPE_INFO(IncompleteTypeNode, TypeNode);

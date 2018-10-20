@@ -36,7 +36,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
-TypeVar TypeVarNode::make(std::string name, TypeVarNode::Kind kind) {
+TypeVar TypeVarNode::make(std::string name, Kind kind) {
   NodePtr<TypeVarNode> n = make_node<TypeVarNode>();
   n->var = tvm::Var(name);
   n->kind = std::move(kind);
@@ -48,9 +48,8 @@ TVM_REGISTER_NODE_TYPE(TypeVarNode);
 TVM_REGISTER_API("relay._make.TypeVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   int kind = args[1];
-  *ret =
-    TypeVarNode::make(args[0], static_cast<TypeVarNode::Kind>(kind));
-    });
+  *ret = TypeVarNode::make(args[0], static_cast<Kind>(kind));
+});
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<TypeVarNode>([](const TypeVarNode *node,
@@ -59,7 +58,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     << node->kind << ")";
 });
 
-IncompleteType IncompleteTypeNode::make(TypeVarNode::Kind kind) {
+IncompleteType IncompleteTypeNode::make(Kind kind) {
   auto n = make_node<IncompleteTypeNode>();
   n->kind = std::move(kind);
   return IncompleteType(n);
@@ -70,7 +69,7 @@ TVM_REGISTER_NODE_TYPE(IncompleteTypeNode);
 TVM_REGISTER_API("relay._make.IncompleteType")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     int kind = args[0];
-    *ret = IncompleteTypeNode::make(static_cast<TypeVarNode::Kind>(kind));
+    *ret = IncompleteTypeNode::make(static_cast<Kind>(kind));
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)

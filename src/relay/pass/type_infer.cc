@@ -97,7 +97,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
       return solver_.Unify(t1, t2);
-    } catch (const dmlc::Error &e) {
+    } catch (const dmlc::Error& e) {
       LOG(FATAL)
           << "Error unifying `"
           << t1
@@ -109,7 +109,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
   // Lazily get type for expr
   // will call visit to deduce it if it is not in the type_map_
-  Type GetType(const Expr &expr) {
+  Type GetType(const Expr& expr) {
     auto it = type_map_.find(expr);
     if (it != type_map_.end()) {
       return it->second;
@@ -124,7 +124,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (op->type_annotation.defined()) {
       return op->type_annotation;
     } else {
-      return IncompleteTypeNode::make(TypeVarNode::kType);
+      return IncompleteTypeNode::make(Kind::kType);
     }
   }
 
@@ -157,7 +157,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
           EnvFunc::Get("tvm.relay.type_relation.TupleGetItem").node_);
     }
     Type tuple_type = GetType(op->tuple);
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
     auto attrs = make_node<TupleGetItemAttrs>();
     attrs->index = op->index;
     solver_.AddConstraint(TypeRelationNode::make(
@@ -205,7 +205,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     for (size_t i = 0; i < op->type_params.size(); ++i) {
       if (!op->type_params[i].same_as(rel->args[i])) return Type();
     }
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    Type rtype = IncompleteTypeNode::make(Kind::kType);
     arg_types.push_back(rtype);
     // we can do simple replacement here
     solver_.AddConstraint(TypeRelationNode::make(
@@ -232,7 +232,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // This is a temporary work around to check recursive functions whose
     // return type is not yet known.
     if (!ret_type.defined()) {
-      ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      ret_type = IncompleteTypeNode::make(Kind::kType);
     }
     Type inst_ty = FuncTypeNode::make(fn_ty->arg_types,
                                       ret_type, {},
