@@ -355,7 +355,8 @@ class Vectorizer : public IRMutator {
   // scalarize the statment
   Stmt Scalarize(Stmt stmt) {
     Var idx(var_->name_hint + ".s", var_->type);
-    stmt = Substitute(stmt, {{var_, idx}});
+    Map<Var, Expr> values{{var_, idx}};
+    stmt = Substitute(stmt, values);
     return For::make(idx, 0, var_lanes_, ForType::Serial, DeviceAPI::None, stmt);
   }
 
