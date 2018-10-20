@@ -194,9 +194,9 @@ def test_var_alpha_equal():
     v4 = relay.Var("v4", tt2)
     v5 = relay.Var("v5", tt3)
 
-    l4 = relay.Let(v3, convert(1), v3)
-    l5 = relay.Let(v4, convert(1), v4)
-    l6 = relay.Let(v5, convert(1), v5)
+    l4 = relay.Let(v3, relay.const(1), v3)
+    l5 = relay.Let(v4, relay.const(1), v4)
+    l6 = relay.Let(v5, relay.const(1), v5)
 
     # same annotations
     assert alpha_equal(l4, l5)
