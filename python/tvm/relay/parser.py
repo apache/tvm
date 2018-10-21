@@ -361,7 +361,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError('Only global ids may be used in `def`s.')
         ident = relay.GlobalVar(ident.getText()[1:])
 
-        self.env.add(ident, self.mk_func(ctx))
+        self.env[ident] = self.mk_func(ctx)
 
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> relay.Call
