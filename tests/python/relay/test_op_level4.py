@@ -68,7 +68,7 @@ def verify_reduce(test_func, data, axis, keepdims, exclude, output):
     out_type = "int32" if test_func in [relay.argmin, relay.argmax] else "float32"
     assert zz.checked_type == relay.ty.TensorType(output, out_type)
 
-def test_reduce():
+def test_reduce_functions():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     for func in [relay.sum,
                  relay.max,
@@ -96,6 +96,4 @@ if __name__ == "__main__":
     test_cmp_type()
     test_binary_int_broadcast()
     test_where()
-    test_arg_reduce()
-    test_multibox_prior()
-    test_reduce()
+    test_reduce_functions()
