@@ -51,7 +51,7 @@ def test_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
         d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
         f(a, b, d)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     def check_module_save(device, host="stackvm"):
@@ -75,7 +75,7 @@ def test_add_pipeline():
         b = tvm.nd.array(np.random.uniform(size=()).astype(Bb.dtype), ctx)
         d = tvm.nd.array(np.zeros(n, dtype=Db.dtype), ctx)
         f(a, b, d)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             d.asnumpy(), a.asnumpy() + b.asnumpy() + 1)
 
     check_target("cuda", host="stackvm")
