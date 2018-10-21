@@ -48,6 +48,9 @@ def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
     return x.data.asnumpy().item()
 
+def is_close(x, y, precision=0.001):
+    return x - y < precision and y - x < precision
+
 def to_tensor_type(x):
     # type: (str) -> relay.TensorType
     return relay.TensorType([], x)
@@ -74,18 +77,18 @@ def test_int_literal():
 
 def test_float_literal():
     assert get_scalar(parse_expr("1.0")) == 1.0
-    assert get_scalar(parse_expr("1.56667")) == 1.56667
+    assert is_close(get_scalar(parse_expr("1.56667")), 1.56667)
     assert get_scalar(parse_expr("0.0")) == 0.0
     assert get_scalar(parse_expr("-10.0")) == -10.0
 
     # scientific notation
-    assert get_scalar(parse_expr("1e-1")) == 1e-1
+    assert is_close(get_scalar(parse_expr("1e-1")), 1e-1)
     assert get_scalar(parse_expr("1e+1")) == 1e+1
-    assert get_scalar(parse_expr("1E-1")) == 1E-1
+    assert is_close(get_scalar(parse_expr("1E-1")), 1E-1)
     assert get_scalar(parse_expr("1E+1")) == 1E+1
-    assert get_scalar(parse_expr("1.0e-1")) == 1.0e-1
+    assert is_close(get_scalar(parse_expr("1.0e-1")), 1.0e-1)
     assert get_scalar(parse_expr("1.0e+1")) == 1.0e+1
-    assert get_scalar(parse_expr("1.0E-1")) == 1.0E-1
+    assert is_close(get_scalar(parse_expr("1.0E-1")), 1.0E-1)
     assert get_scalar(parse_expr("1.0E+1")) == 1.0E+1
 
 def test_bool_literal():
@@ -183,7 +186,7 @@ def test_tuple():
 def test_func():
     # 0 args
     assert alpha_equal(
-        parse_expr("fn () -> { 0 }"),
+        parse_expr("fn () { 0 }"),
         relay.Function(
             [],
             relay.const(0),
@@ -194,7 +197,7 @@ def test_func():
 
     # 1 arg
     assert alpha_equal(
-        parse_expr("fn (%x) -> { %x }"),
+        parse_expr("fn (%x) { %x }"),
         relay.Function(
             [X],
             X,
@@ -205,7 +208,7 @@ def test_func():
 
     # 2 args
     assert alpha_equal(
-        parse_expr("fn (%x, %y) -> { %x + %y }"),
+        parse_expr("fn (%x, %y) { %x + %y }"),
         relay.Function(
             [X, Y],
             relay.add(X, Y),
@@ -273,7 +276,7 @@ def test_call():
     assert alpha_equal(
         parse_expr(
         """
-        let %constant = fn () -> { 0 };
+        let %constant = fn () { 0 };
         %constant()
         """
         ),
@@ -289,7 +292,7 @@ def test_call():
     assert alpha_equal(
         parse_expr(
             """
-            let %id = fn (%x) -> { %x };
+            let %id = fn (%x) { %x };
             %id(1)
             """
         ),
@@ -305,7 +308,7 @@ def test_call():
     assert alpha_equal(
         parse_expr(
         """
-        let %multiply = fn (%x, %y) -> { %x * %y };
+        let %multiply = fn (%x, %y) { %x * %y };
         %multiply(0, 0)
         """
         ),
@@ -325,7 +328,7 @@ def test_call():
     assert alpha_equal(
         parse_expr(
         """
-        (fn (%x) -> { %x })(0)
+        (fn (%x) { %x })(0)
         """
         ),
         relay.Call(
@@ -347,8 +350,8 @@ def test_call():
         parse_expr(
             """
             let %curried_mult =
-                fn (%x) -> {
-                fn (%y) -> {
+                fn (%x) {
+                fn (%y) {
                     %x * %y
                 }
                 };
@@ -441,7 +444,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: () -> Int32 = fn () -> Int32 { 0 }; ()
+            let %_: fn () -> Int32 = fn () -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
@@ -454,7 +457,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: (Int32) -> Int32 = fn (%x: Int32) -> Int32 { 0 }; ()
+            let %_: fn (Int32) -> Int32 = fn (%x: Int32) -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
@@ -467,7 +470,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: (Int32, Int32) -> Int32 = fn (%x: Int32, %y: Int32) -> Int32 { 0 }; ()
+            let %_: fn (Int32, Int32) -> Int32 = fn (%x: Int32, %y: Int32) -> Int32 { 0 }; ()
             """
         ),
         relay.Let(
