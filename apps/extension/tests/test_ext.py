@@ -22,7 +22,7 @@ def test_ext_dev():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
         f(a, b)
-        np.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1)
     check_llvm()
 
 

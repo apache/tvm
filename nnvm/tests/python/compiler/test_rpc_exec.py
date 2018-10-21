@@ -43,7 +43,7 @@ def test_rpc_executor():
     # get outputs
     out = tvm.nd.empty(shape, dtype, ctx)
     get_output(0, out)
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         out.asnumpy(), np.exp(na.asnumpy() + nb.asnumpy()))
     server.terminate()
 

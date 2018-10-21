@@ -139,7 +139,7 @@ def test_forward(net, build_dtype='float32'):
 
     tvm_out = _get_tvm_output(net, data, build_dtype)
     for tvm_outs, darknet_out in zip(tvm_out, darknet_output):
-        np.testing.assert_allclose(darknet_out, tvm_outs, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(darknet_out, tvm_outs, rtol=1e-3, atol=1e-3)
 
 def test_rnn_forward(net):
     '''Test network with given input data on both darknet and tvm'''
@@ -158,7 +158,7 @@ def test_rnn_forward(net):
     last_layer = net.layers[net.n-1]
     darknet_outshape = (last_layer.batch, last_layer.outputs)
     darknet_out = darknet_out.reshape(darknet_outshape)
-    np.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
+    tvm.testing.assert_allclose(darknet_out, tvm_out, rtol=1e-4, atol=1e-4)
 
 def test_forward_extraction():
     '''test extraction model'''

@@ -35,7 +35,7 @@ def test_local_gemm():
     c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
     f(a, b, c)
 
-    np.testing.assert_allclose(c.asnumpy(), np.dot(a_np, b_np.T))
+    tvm.testing.assert_allclose(c.asnumpy(), np.dot(a_np, b_np.T))
 
 if __name__ == "__main__":
     test_local_gemm()

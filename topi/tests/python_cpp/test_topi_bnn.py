@@ -44,7 +44,7 @@ def verify_binary_dense(batch, in_dim, out_dim):
     f1(a, bnn_a)
     f2(b, bnn_b)
     f3(bnn_a, bnn_b, bnn_c)
-    np.testing.assert_allclose(bnn_c.asnumpy(), c_np, rtol=1e-5)
+    tvm.testing.assert_allclose(bnn_c.asnumpy(), c_np, rtol=1e-5)
 
 def test_binary_dense():
     verify_binary_dense(1, 4096, 1024)

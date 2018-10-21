@@ -23,7 +23,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), ctx)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -50,7 +50,7 @@ def verify_tranpose(in_shape, axes):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -76,7 +76,7 @@ def verify_reshape(src_shape, dst_shape):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(dst_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -106,7 +106,7 @@ def verify_squeeze(src_shape, axis):
             out_nd_shape = out_npy.shape
         out_nd = tvm.nd.empty(out_nd_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -133,7 +133,7 @@ def verify_concatenate(shapes, axis):
         data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
         foo(*(data_nds + [out_nd]))
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -162,7 +162,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys]
         foo(*([data_nd] + out_nds))
         for out_nd, out_npy in zip(out_nds, out_npys):
-            np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -201,7 +201,7 @@ def verify_take(src_shape, indices_src, axis=None):
         indices_nd = tvm.nd.array(indices_src, ctx)
         out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
         foo(data_nd, indices_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
 
     for device in ["llvm", "opencl"]:
         check_device(device)
@@ -230,7 +230,7 @@ def verify_where(condition, x, y):
         tvm_out = tvm.nd.empty(x.shape, ctx=ctx, dtype=dtype)
         foo(tvm.nd.array(condition, ctx), tvm.nd.array(x, ctx),
             tvm.nd.array(y, ctx), tvm_out)
-        np.testing.assert_allclose(tvm_out.asnumpy(), np_out)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out)
 
     for device in ["llvm", "nvptx", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -261,7 +261,7 @@ def verify_concatenate_split(shapes, axis, indices_or_sections):
         out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys_split]
         foo(*(data_nds + out_nds))
         for out_nd, out_npy in zip(out_nds, out_npys_split):
-            np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)
@@ -295,7 +295,7 @@ def verify_concatenate_broadcast(shapes, axis, rhs_shape):
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(B.dtype), ctx)
         for _ in range(1):
             foo(*(data_nds + [rhs_nd] + [out_nd]))
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     for device in ["llvm", "cuda", "opencl", "metal", "rocm"]:
         check_device(device)

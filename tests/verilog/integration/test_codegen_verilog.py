@@ -60,7 +60,7 @@ def test_add_pipeline():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, b, c)
         print("Check correctness...")
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_target("verilog")
 

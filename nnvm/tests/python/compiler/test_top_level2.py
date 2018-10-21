@@ -22,7 +22,7 @@ def test_conv2d():
             c_np = topi.testing.conv2d_nchw_python(
                 data.asnumpy(), kernel.asnumpy(), 1, padding)
             c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
-            np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
     x = sym.Variable("x")
     y = sym.conv2d(x, channels=10, kernel_size=(3,3),
@@ -71,7 +71,7 @@ def test_mixed_precision():
         c_np = topi.testing.conv2d_nchw_python(
             data.asnumpy().astype(out_dtype),
             kernel.asnumpy().astype(out_dtype), 1, 1)
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_dilated_conv2d():
@@ -97,7 +97,7 @@ def test_dilated_conv2d():
         c_np = topi.testing.conv2d_nchw_python(
             data.asnumpy(), dkernel_np, 1, 1)
         c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_grouped_conv2d_nchw():
@@ -120,7 +120,7 @@ def test_grouped_conv2d_nchw():
         c_np = topi.testing.depthwise_conv2d_python_nchw(
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1)
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 def test_grouped_conv2d_nhwc():
     x = sym.Variable("x")
@@ -142,7 +142,7 @@ def test_grouped_conv2d_nhwc():
         c_np = topi.testing.depthwise_conv2d_python_nhwc(
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         c_np = c_np + bias.asnumpy().reshape(1, 1, kshape[2])
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_conv2d_transpose():
@@ -167,7 +167,7 @@ def test_conv2d_transpose():
         c_np = c_np + bias.asnumpy().reshape(kshape[1], 1, 1)
         d_np = np.zeros(shape=oshape)
         d_np[:,:,0:c_np.shape[2],0:c_np.shape[3]] = c_np
-        np.testing.assert_allclose(out.asnumpy(), d_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), d_np, rtol=1e-5)
 
 
 def test_max_pool2d():
@@ -185,7 +185,7 @@ def test_max_pool2d():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = np.max(data.asnumpy().reshape(1,3,14,2,14,2), axis=(3,5))
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
 def test_avg_pool2d():
@@ -202,7 +202,7 @@ def test_avg_pool2d():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = np.mean(data.asnumpy().reshape(1,3,14,2,14,2), axis=(3,5))
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
 def test_avg_pool2d_no_count_pad():
@@ -237,7 +237,7 @@ def test_avg_pool2d_no_count_pad():
         data = tvm.nd.array(a_np)
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty((n, oc, oh, ow), dtype))
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
 def test_global_max_pool2d():
@@ -254,7 +254,7 @@ def test_global_max_pool2d():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = np.max(data.asnumpy(), axis=(2,3), keepdims=True)
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
 def test_global_avg_pool2d():
@@ -271,7 +271,7 @@ def test_global_avg_pool2d():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = np.mean(data.asnumpy(), axis=(2,3), keepdims=True)
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 
 def test_upsampling_nearest_neighbor():
@@ -290,7 +290,7 @@ def test_upsampling_nearest_neighbor():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = topi.testing.upsampling_python(a_np, scale, "NCHW")
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5)
 
 def test_upsampling_bilinear():
     x = sym.Variable("x")
@@ -309,7 +309,7 @@ def test_upsampling_bilinear():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = topi.testing.bilinear_resize_python(a_np, (32*scale, 32*scale), "NCHW")
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 def test_resize_bilinear():
     x = sym.Variable("x")
@@ -327,7 +327,7 @@ def test_resize_bilinear():
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
         b_np = topi.testing.bilinear_resize_python(a_np, (60, 60), "NHWC")
-        np.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
 if __name__ == "__main__":
     test_mixed_precision()
