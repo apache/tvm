@@ -109,14 +109,10 @@ def test_take_infer_type():
 
 def test_split_infer_type():
     def verify_split(dshape, indices_or_sections, ret_type, axis=None, equal_split=True):
-        ib = relay.ir_builder.IRBuilder()
-        x = ib.param("x", relay.ty.TensorType(dshape, "float32"))
-        with ib.function(x) as func:
-            ib.ret(relay.split(x, indices_or_sections, axis=axis, equal_split=equal_split))
-        ib.ret(func)
-        func = relay.ir_pass.infer_type(ib.env, func.to_func())
-        ftype = func.checked_type
-        assert ftype.ret_type == ret_type
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.split(x, indices_or_sections, axis=axis, equal_split=equal_split)
+        yy = relay.ir_pass.infer_type(y)
+        assert yy.checked_type == ret_type
 
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
     axis = tvm.var("axis")

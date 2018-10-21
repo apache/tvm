@@ -924,6 +924,7 @@ With equal_split being false indices_or_section ia an ascending ordered list wit
 and dimention of given axis. Here the input is split at the given indices.
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SplitAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
