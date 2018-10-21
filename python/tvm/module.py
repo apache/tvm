@@ -92,7 +92,7 @@ class Module(ModuleBase):
             If fcompile has attribute object_format, will compile host library
             to that format. Otherwise, will use default format "o".
 
-        kwargs : dict, optiona;
+        kwargs : dict, optional
             Additional arguments passed to fcompile
         """
         if self.is_empty():
