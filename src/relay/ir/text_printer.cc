@@ -121,7 +121,7 @@ class TextMetaDataContext {
 };
 
 class TextPrinter :
-    public ExprFunctor<TextValue(const Expr&)> ,
+    public ExprFunctor<TextValue(const Expr&)>,
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
