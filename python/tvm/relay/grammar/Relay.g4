@@ -87,8 +87,8 @@ expr
   // | 'debug'                               # debug
   ;
 
-func: 'fn'        varList '->' type_? body ;
-defn: 'def' ident varList '->' type_? body ;
+func: 'fn'        varList ('->' type_)? body ;
+defn: 'def' ident varList ('->' type_)? body ;
 
 varList: '(' (var (',' var)*)? ')' ;
 var: ident (':' type_)? ;
@@ -107,7 +107,7 @@ type_
   | 'Tensor' '[' shapeSeq ',' type_ ']'       # tensorType
   | identType '[' (type_ (',' type_)*)? ']'   # callType
   // Mut, Int, UInt, Float, Bool
-  | '(' (type_ (',' type_)*)? ')' '->' type_  # funcType
+  | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_  # funcType
   | '_'                                       # incompleteType
   | INT                                       # intType
   ;
