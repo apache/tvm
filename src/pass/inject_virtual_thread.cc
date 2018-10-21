@@ -430,7 +430,8 @@ class VTInjector : public IRMutator {
     } else {
       // insert a for loop
       Var idx(var_->name_hint + ".s", var_->type);
-      stmt = Substitute(stmt, {{var_, idx}});
+      Map<Var, Expr> values{{var_, idx}};
+      stmt = Substitute(stmt, values);
       return For::make(idx, make_zero(idx.type()),
                        make_const(idx.type(), num_threads_),
                        ForType::Serial, DeviceAPI::None, stmt);
