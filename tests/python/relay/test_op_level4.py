@@ -46,36 +46,6 @@ def test_binary_int_broadcast():
         assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
 
 
-def test_arg_reduce():
-    for op in [relay.argmax, relay.argmin]:
-        n, c , h, w = 10, 20, 3, 4
-        x = relay.var("x", relay.ty.TensorType((n, c , h, w), "float32"))
-        z = relay.argmax(x, axis=(1,))
-        "axis="  in z.astext()
-        zz = relay.ir_pass.infer_type(z)
-        assert zz.checked_type == relay.ty.TensorType((n, h, w), "int32")
-        n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
-        x = relay.var("x", relay.ty.TensorType((n, c , h, w), "float32"))
-        z = relay.argmax(x, axis=(2,), keepdims=True)
-        zz = relay.ir_pass.infer_type(z)
-        assert zz.checked_type == relay.ty.TensorType((n, c , 1, w), "int32")
-
-        n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
-        x = relay.var("x", relay.ty.TensorType((n, c , h, w), "float32"))
-        z = relay.argmax(x, axis=(2,), keepdims=True, exclude=True)
-        zz = relay.ir_pass.infer_type(z)
-        assert zz.checked_type == relay.ty.TensorType((1, 1 , h, 1), "int32")
-        ib = relay.ir_builder.IRBuilder()
-        x = ib.param("x", relay.TensorType((10, 4), "int32"))
-        y = ib.param("y", relay.TensorType((5, 10, 1), "int32"))
-        with ib.function(x, y) as func:
-            ib.ret(op(x, y))
-        ib.ret(func)
-        func = relay.ir_pass.infer_type(ib.env, func.to_func())
-        ftype = func.checked_type
-        assert ftype.ret_type == relay.TensorType((5, 10, 4), "int32")
-
-
 def test_where():
     cond = relay.var("cond", relay.TensorType((3, 4), "float32"))
     x = relay.var("x", relay.TensorType((3, 4), "float32"))
@@ -86,15 +56,17 @@ def test_where():
 
 
 def verify_reduce(test_func, data, axis, keepdims, exclude, output):
-    ib = relay.ir_builder.IRBuilder()
-    x = ib.param("x", relay.ty.TensorType(data, "float32"))
-    with ib.function(x) as func:
-        ib.ret(test_func(x, axis, keepdims, exclude))
-    ib.ret(func)
-    func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type
+    x = relay.var("x", relay.TensorType(data, "float32"))
+    z = test_func(x, axis, keepdims, exclude)
+    zz = relay.ir_pass.infer_type(z)
+    if axis:
+        assert "axis=" in z.astext()
+    if keepdims:
+        assert "keepdims=" in z.astext()
+    if exclude:
+        assert "exclude=" in z.astext()
     out_type = "int32" if test_func in [relay.argmin, relay.argmax] else "float32"
-    assert ftype.ret_type == relay.ty.TensorType(output, out_type)
+    assert zz.checked_type == relay.ty.TensorType(output, out_type)
 
 def test_reduce():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
@@ -106,16 +78,18 @@ def test_reduce():
                  relay.argmin,
                  relay.argmax]:
         verify_reduce(func, (d1, d2, d3, d4), (2,), True, False, (d1, d2, 1, d4))
+        verify_reduce(func, (d1, d2, d3), (1,), True, False, (d1, 1, d3))
+        verify_reduce(func, (d1, d2, d3), None, True, False, (1, 1, 1))
+        verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
         verify_reduce(func, (4, 4, 3), None, True, False, (1, 1, 1))
-        verify_reduce(func, (4, 4, 3), None, False, False, ())
+        verify_reduce(func, (4, 4, 3), None, False, True, ())
         verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))
         verify_reduce(func, (128, 24, 128), (0, 1), False, False, (128,))
         verify_reduce(func, (128, 24, 128), (0, 2), False, False, (24,))
         verify_reduce(func, (128, 24, 128), (0, 1), True, False, (1, 1, 128))
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
-        verify_reduce(func, (128, 24, 128), None, True, False, (1, 1, 1))
 
 if __name__ == "__main__":
     test_binary_op()

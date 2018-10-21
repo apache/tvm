@@ -20,7 +20,7 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
   bool exclude;
 
   TVM_DECLARE_ATTRS(ReduceAttrs, "relay.attrs.ReduceAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(Array<IndexExpr>({}))
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Array<IndexExpr>>())
         .describe(R"code(The axis or axes along which to perform the reduction.
 
       The default, `axis=()`, will compute over all elements into a
@@ -224,7 +224,6 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("ArgReduce", ArgReduceRel);
 
 
@@ -235,7 +234,6 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
 .add_type_rel("ArgReduce", ArgReduceRel);
 
 
@@ -257,9 +255,8 @@ Example::
   [ 12.  19.  27.]
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_support_level(4)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -267,9 +264,8 @@ RELAY_REGISTER_REDUCE_OP("max")
 .describe(R"code(Computes the max of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_support_level(4)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -277,9 +273,8 @@ RELAY_REGISTER_REDUCE_OP("min")
 .describe(R"code(Computes the min of array elements over given axes.
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_support_level(4)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -299,9 +294,8 @@ Example::
   [ 2.  3.16666667  4.5]
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_support_level(4)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel);
 
 
@@ -321,9 +315,8 @@ Example::
   [ 36  480  2058]
 
 )code" TVM_ADD_FILELINE)
-.set_num_inputs(1)
-.set_support_level(4)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
 .add_type_rel("Reduce", ReduceRel);
 
 }  // namespace relay
