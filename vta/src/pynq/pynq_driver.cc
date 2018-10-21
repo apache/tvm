@@ -136,34 +136,3 @@ int VTADeviceRun(VTADeviceHandle handle,
   return static_cast<VTADevice*>(handle)->Run(
       insn_phy_addr, insn_count, wait_cycles);
 }
-
-void VTAProgram(const char* bitstream) {
-  int elem;
-  FILE *src, *dst, *partial;
-  partial = fopen(VTA_PYNQ_BS_IS_PARTIAL, "w");
-  if (partial == NULL) {
-    printf("Cannot open partial config file %s\n", VTA_PYNQ_BS_IS_PARTIAL);
-        fclose(partial);
-        exit(1);
-  }
-  fputc('0', partial);
-  fclose(partial);
-  src = fopen(bitstream, "rb");
-  if (src == NULL) {
-    printf("Cannot open bitstream %s\n", bitstream);
-    exit(1);
-  }
-  dst = fopen(VTA_PYNQ_BS_XDEVCFG, "wb");
-  if (dst == NULL) {
-    printf("Cannot open device file %s\n", VTA_PYNQ_BS_XDEVCFG);
-    fclose(dst);
-    exit(1);
-  }
-  elem = fgetc(src);
-  while (elem != EOF) {
-    fputc(elem, dst);
-    elem = fgetc(src);
-  }
-  fclose(src);
-  fclose(dst);
-}
