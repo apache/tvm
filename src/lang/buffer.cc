@@ -357,9 +357,9 @@ Expr Buffer::access_ptr(int access_mask, Type ptr_type, int content_lanes, Expr 
   } else if (self->strides.size() == self->shape.size()) {
     int highest_dim = 0;
     extent = arith::ComputeExpr<ir::Mul>(
-        self->strides[highest_dim], self->shape[highest_dim]);
+        self->strides[highest_dim], self->shape[highest_dim]) - offset;
   } else {
-    extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr());
+    extent = arith::ComputeReduce<ir::Mul>(self->shape, Expr()) - offset;
   }
   Expr elem_offset = self->elem_offset + offset;
   if (content_lanes > 1) {
