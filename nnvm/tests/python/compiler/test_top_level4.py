@@ -24,7 +24,7 @@ def verify_transpose(dshape, axes):
         m.run(x=data)
         out_np = np.transpose(data.asnumpy(), axes=axes) + 1
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float32', **kwargs):
     """ Verify reduce operations by comparign its result with `result` """
@@ -43,7 +43,7 @@ def verify_reduce_explicit(dshape, data, result, fsym, oshape=None, otype='float
         out = m.get_output(0, tvm.nd.empty(oshape, dtype=otype))
         if isinstance(result, np.ndarray):
             np.testing.assert_equal(out.asnumpy().shape, result.shape)
-            np.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
+            tvm.testing.assert_allclose(out.asnumpy(), result, atol=1e-5, rtol=1e-5)
         else:
             tvm_out = out.asnumpy()
             assert abs(result - tvm_out) <= (1e-5 + 1e-5 * abs(tvm_out))
@@ -68,7 +68,7 @@ def verify_collapse(dshape, target_shape, fnp):
         m.run(x=data)
         out = m.get_output(0, tvm.nd.empty(target_shape))
         out_np = fnp(data)
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
 def test_transpose():
@@ -149,7 +149,7 @@ def verify_flip(ishape, axis):
         m = graph_runtime.create(graph, lib, ctx)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty(res.shape))
-        np.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), res, atol=1e-5, rtol=1e-5)
 
 
 def test_flip():
@@ -174,7 +174,7 @@ def verify_reshape(dshape, oshape):
         m.run(x=data)
         out_np = data.asnumpy().reshape(oshape) + 1
         out = m.get_output(0, tvm.nd.empty(out_np.shape))
-        np.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), out_np, atol=1e-5, rtol=1e-5)
 
 
 def test_reshape():
@@ -435,7 +435,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=value, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -445,7 +445,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=1, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -455,7 +455,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run(data=np.random.uniform(size=shape).astype(dtype))
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=0, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -465,7 +465,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=value, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -475,7 +475,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=1, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -485,7 +485,7 @@ def test_full():
         m = graph_runtime.create(graph, lib, ctx)
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),
             np.full(shape, fill_value=0, dtype=dtype),
             atol=1e-5, rtol=1e-5)
@@ -534,7 +534,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1),
     m.set_input("data", np.random.uniform(size=dshape).astype(dtype))
     m.run()
     out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
-    np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_multibox_prior():
     verify_multibox_prior((1, 3, 50, 50))
@@ -571,7 +571,7 @@ def test_multibox_transform_loc():
     m.set_input(**{"cls_prob": np_cls_prob.astype(dtype), "loc_preds": np_loc_preds.astype(dtype), "anchors": np_anchors.astype(dtype)})
     m.run()
     out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
-    np.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
 def test_nms():
     dshape = (1, 5, 6)
@@ -599,7 +599,7 @@ def test_nms():
     m.set_input(**{"data": np_data, "valid_count": np_valid_count})
     m.run()
     out = m.get_output(0, tvm.nd.empty(np_result.shape, "float32"))
-    np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def np_slice_like(np_data, np_shape_like, axis=[]):
     begin_idx = [0 for _ in np_data.shape]
@@ -634,7 +634,7 @@ def verify_slice_like(np_data, np_shape_like, axis=[]):
         m.set_input(**{"data1": np_data, "data2": np_shape_like})
         m.run()
         out = m.get_output(0, tvm.nd.empty(np_result.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_result, atol=1e-5, rtol=1e-5)
 
 def test_slice_like():
     np_data = np.random.uniform(size=(3, 4, 5))
@@ -673,7 +673,7 @@ def verify_where(condition, x, y):
         m.set_input(**{"condition": condition, "x": x, "y": y})
         m.run()
         out = m.get_output(0, tvm.nd.empty(x.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
 
 def test_where():
     shape = (13, 8, 224, 224, 6)

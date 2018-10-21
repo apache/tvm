@@ -281,10 +281,10 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
         Additional parameters for `check_numerical_grads`.
 
     atol : float, optional
-        Absolute tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
+        Absolute tolerance for `tvm.testing.assert_allclose`. NOT used for numerical gradients.
 
     rtol : float, optional
-        Relative tolerance for `np.testing.assert_allclose`. NOT used for numerical gradients.
+        Relative tolerance for `tvm.testing.assert_allclose`. NOT used for numerical gradients.
 
     quiet : bool, optional
         Don't dump additional information to stdout on failure.
@@ -466,7 +466,7 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                                      .format(len(numpy_res), out_len))
 
                 for i in range(out_len):
-                    np.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
+                    tvm.testing.assert_allclose(nnvm_res[i], numpy_res[i], atol=atol, rtol=rtol)
 
             if backward is not None:
                 nothing_was_done = False
@@ -495,8 +495,8 @@ def check_function(symbol, forward=None, backward=None, grad_input_vars=None,
                                          .format(set(grad_var_names) - set(numpy_grads)))
 
                 for x_name in numpy_grads:
-                    np.testing.assert_allclose(nnvm_grads[x_name], numpy_grads[x_name],
-                                               atol=atol, rtol=rtol)
+                    tvm.testing.assert_allclose(nnvm_grads[x_name], numpy_grads[x_name],
+                                                atol=atol, rtol=rtol)
 
             if numerical_grads:
                 nothing_was_done = False

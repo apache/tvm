@@ -67,7 +67,7 @@ def test_llvm_add_pipeline():
             b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
             c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
             farm(a, b, c)
-            np.testing.assert_allclose(
+            tvm.testing.assert_allclose(
                 c.asnumpy(), a.asnumpy() + b.asnumpy())
             print("Verification finish on remote..")
 

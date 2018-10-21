@@ -48,8 +48,8 @@ def verify_conv2d_transpose_nchw(batch, in_channel, in_size, num_filter, kernel,
         func2 = tvm.build(s2, [A, W, C], device)
         func1(a, w, b)
         func2(a, w, c)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-        np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in get_all_backend():
         check_device(device)

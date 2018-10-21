@@ -97,9 +97,9 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         # launch kernel 3 (depthwise_conv2d + scale_shift + relu)
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
         tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
-        np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     for device in get_all_backend():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
@@ -197,9 +197,9 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         timer_3 = f3.time_evaluator(f3.entry_name, ctx, number=1)
         tcost_3 = timer_3(input_tvm, filter_tvm, scale_tvm, shift_tvm, relu_tvm).mean
         relu_scipy = np.maximum(scale_shift_scipy, 0)
-        np.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
-        np.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
-        np.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(scale_shift_tvm.asnumpy(), scale_shift_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 
     for device in get_all_backend():
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters

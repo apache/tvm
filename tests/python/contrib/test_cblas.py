@@ -27,7 +27,7 @@ def test_matmul_add():
         d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
         bb = 10.0
         f(a, b, d, bb)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + bb, rtol=1e-5)
     verify()
 

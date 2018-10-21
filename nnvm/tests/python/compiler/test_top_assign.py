@@ -27,11 +27,11 @@ def test_update():
         m.set_input("w", data)
         m.run()
         out = m.get_input("w2", tvm.nd.empty(dshape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), data.asnumpy() + 2, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), data.asnumpy() + 2, rtol=1e-5)
 
         m.run()
         out = m.get_input("w2", tvm.nd.empty(dshape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), data.asnumpy() + 3, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), data.asnumpy() + 3, rtol=1e-5)
 
     for target, ctx in ctx_list():
         check(target, ctx)

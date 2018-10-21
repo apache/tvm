@@ -33,7 +33,7 @@ def verify_clip(N, a_min, a_max, dtype):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B], device, name="clip")
         f(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in get_all_backend():
         check_device(device)

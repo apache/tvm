@@ -140,7 +140,7 @@ if __name__ == '__main__':
     c = tvm.nd.array(np.zeros((n, m), dtype='int32'), ctx)
     f(a, b, c)
 
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         c.asnumpy(),
         np.dot(
             a_np.astype('int32'),
