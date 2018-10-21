@@ -95,12 +95,6 @@ void VTAFlushCache(vta_phy_addr_t buf, int size);
  */
 void VTAInvalidateCache(vta_phy_addr_t buf, int size);
 
-/*!
- * \brief Programming the bit stream on the FPGA.
- * \param bitstream The path to the bit stream file.
- */
-void VTAProgram(const char* bitstream);
-
 #ifdef __cplusplus
 }
 #endif

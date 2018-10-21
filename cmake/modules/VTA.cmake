@@ -38,13 +38,10 @@ elseif(PYTHON)
     set_target_properties(vta PROPERTIES LINK_FLAGS "-undefined dynamic_lookup")
   endif(APPLE)
 
-  # PYNQ rules
+  # PYNQ rules for Pynq v2.3
   if(${VTA_TARGET} STREQUAL "pynq")
-    find_library(__sds_lib NAMES sds_lib PATHS /usr/lib)
-    find_library(__dma_lib NAMES dma PATHS
-      "/opt/python3.6/lib/python3.6/site-packages/pynq/drivers/"
-      "/opt/python3.6/lib/python3.6/site-packages/pynq/lib/")
-    target_link_libraries(vta ${__sds_lib} ${__dma_lib})
+    find_library(__cma_lib NAMES cma PATH /usr/lib)
+    target_link_libraries(vta ${__cma_lib})
   endif()
 else()
   message(STATUS "Cannot found python in env, VTA build is skipped..")
