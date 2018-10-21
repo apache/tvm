@@ -17,6 +17,7 @@ from . import ir_builder
 from . import target
 from . import generic
 from . import hybrid
+from . import testing
 
 from . import ndarray as nd
 from .ndarray import context, cpu, gpu, opencl, cl, vulkan, metal, mtl

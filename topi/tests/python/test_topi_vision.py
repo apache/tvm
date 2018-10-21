@@ -41,7 +41,7 @@ def test_nms():
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
         f = tvm.build(s, [data, valid_count, out], device)
         f(tvm_data, tvm_valid_count, tvm_out)
-        np.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_result, rtol=1e-4)
 
     for device in ['llvm', 'opencl']:
         check_device(device)
@@ -100,7 +100,7 @@ def verify_multibox_prior(dshape, sizes=(1,), ratios=(1,), steps=(-1, -1), offse
         tvm_out = tvm.nd.array(np.zeros(oshape, dtype=dtype), ctx)
         f = tvm.build(s, [data, out], device)
         f(tvm_input_data, tvm_out)
-        np.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), np_out, rtol=1e-3)
 
     for device in ['llvm', 'opencl']:
         check_device(device)
@@ -148,7 +148,7 @@ def test_multibox_detection():
         tvm_out = tvm.nd.array(np.zeros((batch_size, num_anchors, 6)).astype(out.dtype), ctx)
         f = tvm.build(s, [cls_prob, loc_preds, anchors, out], device)
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
-        np.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
+        tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
     for device in ['llvm', 'opencl']:
         check_device(device)

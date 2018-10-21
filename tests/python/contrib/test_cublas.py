@@ -24,7 +24,7 @@ def test_matmul_add():
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), ctx)
         f(a, b, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()), rtol=1e-5)
     verify()
 

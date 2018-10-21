@@ -70,7 +70,7 @@ def verify_onnx_forward_impl(graph_file, data_shape, out_shape):
     c2_out = get_caffe2_output(model, x, dtype)
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, dtype)
-        np.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(c2_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 def verify_super_resolution_example():
     verify_onnx_forward_impl(super_resolution, (1, 1, 224, 224), (1, 1, 672, 672))
@@ -112,7 +112,7 @@ def test_reshape():
         x = np.random.uniform(size=in_shape).astype('int32')
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
-    np.testing.assert_allclose(ref_shape, tvm_out.shape)
+    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 def test_reshape_like():
     in_shape = (4, 3, 3, 4)
@@ -142,7 +142,7 @@ def test_reshape_like():
         x = np.random.uniform(size=in_shape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, ref_shape, 'float32')
 
-    np.testing.assert_allclose(ref_shape, tvm_out.shape)
+    tvm.testing.assert_allclose(ref_shape, tvm_out.shape)
 
 def _test_power_iteration(x_shape, y_shape):
     if isinstance(y_shape, int):
@@ -168,7 +168,7 @@ def _test_power_iteration(x_shape, y_shape):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [x, y], target, ctx, np_res.shape)
-        np.testing.assert_allclose(np_res, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(np_res, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_power():
     _test_power_iteration((1, 3), (1))
@@ -193,7 +193,7 @@ def test_squeeze():
         x = np.random.uniform(size=in_shape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
 
-    np.testing.assert_allclose(out_shape, tvm_out.shape)
+    tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
 def test_unsqueeze():
     in_shape = (3, 3)
@@ -214,7 +214,7 @@ def test_unsqueeze():
         x = np.random.uniform(size=in_shape).astype('float32')
         tvm_out = get_tvm_output(model, x, target, ctx, out_shape, 'float32')
 
-    np.testing.assert_allclose(out_shape, tvm_out.shape)
+    tvm.testing.assert_allclose(out_shape, tvm_out.shape)
 
 def verify_gather(in_shape, indices, axis, dtype):
     x = np.random.uniform(size=in_shape).astype(dtype)
@@ -235,7 +235,7 @@ def verify_gather(in_shape, indices, axis, dtype):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [x, indices], target, ctx, out_np.shape)
-        np.testing.assert_allclose(out_np, tvm_out)
+        tvm.testing.assert_allclose(out_np, tvm_out)
 
 def test_gather():
     verify_gather((4,), [1], 0, 'int32')
@@ -263,7 +263,7 @@ def _test_slice_iteration(indata, outdata, starts, ends, axes=None):
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
 
-    np.testing.assert_allclose(outdata, tvm_out)
+    tvm.testing.assert_allclose(outdata, tvm_out)
 
 def test_slice():
     x = np.random.randn(20, 10, 5).astype(np.float32)
@@ -290,7 +290,7 @@ def _test_onnx_op_elementwise(inshape, outfunc, npargs, dtype, opname, kwargs):
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, dtype)
 
-    np.testing.assert_allclose(outdata, tvm_out)
+    tvm.testing.assert_allclose(outdata, tvm_out)
 
 def test_floor():
     _test_onnx_op_elementwise((2, 4, 5, 6), np.floor, {}, 'float32', 'Floor', {})
@@ -329,7 +329,7 @@ def test_matmul():
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_array, b_array], target, ctx, out_np.shape)
-        np.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
     in_array = np.random.uniform(size=shape).astype(dtype)
@@ -376,7 +376,7 @@ def verify_lrn(shape, nsize, dtype, alpha=None, beta=None, bias=None):
         # get outputs
         tvm_out = m.get_output(0, tvm.nd.empty(shape, dtype))
         py_out = _get_python_lrn()
-        np.testing.assert_allclose(py_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(py_out, tvm_out.asnumpy(), rtol=1e-5, atol=1e-5)
 
 def test_lrn():
     verify_lrn((5, 5, 5, 5), 3, 'float32')
@@ -400,7 +400,7 @@ def _test_upsample_nearest():
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
-        np.testing.assert_allclose(out_array, tvm_out)
+        tvm.testing.assert_allclose(out_array, tvm_out)
 
 def _test_upsample_bilinear():
     scale = 2
@@ -420,7 +420,7 @@ def _test_upsample_bilinear():
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, in_array, target, ctx, out_shape, 'float32')
-        np.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out_array, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_upsample():
     _test_upsample_nearest()
@@ -447,7 +447,7 @@ def _test_softmax(inshape, axis):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, indata, target, ctx, outshape, 'float32')
-        np.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_softmax():
     _test_softmax((1, 10), None)
@@ -479,7 +479,7 @@ def verify_min(input_dim):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_min():
     verify_min((1, 3, 20, 20))
@@ -511,7 +511,7 @@ def verify_max(input_dim):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_max():
     verify_max((1, 3, 20, 20))
@@ -543,7 +543,7 @@ def verify_mean(input_dim):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1, a_np2, a_np3], target, ctx, b_np.shape)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_mean():
     verify_mean((1, 3, 20, 20))
@@ -569,7 +569,7 @@ def verify_hardsigmoid(input_dim, alpha, beta):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_hardsigmoid():
     verify_hardsigmoid((1, 3, 20, 20), 0.5, 0.6)
@@ -618,7 +618,7 @@ def verify_argmin(input_dim, axis=None, keepdims=None):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def verify_argmax(input_dim, axis=None, keepdims=None):
     def _argmax_numpy(data, axis=0, keepdims=True):
@@ -665,7 +665,7 @@ def verify_argmax(input_dim, axis=None, keepdims=None):
 
     for target, ctx in ctx_list():
         tvm_out = get_tvm_output(model, [a_np1], target, ctx, b_np.shape, b_np.dtype)
-        np.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_arg_min_max():
     '''Verify argmin and argmax'''
@@ -705,7 +705,7 @@ def verify_constantfill(is_shape, input_dim, out_dim, value, dtype, **kwargs):
         else:
             tvm_out = get_tvm_output(model, [input_a], target, ctx, out.shape)
 
-        np.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(out, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_constantfill():
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')

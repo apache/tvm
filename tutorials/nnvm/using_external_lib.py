@@ -195,7 +195,7 @@ out_cudnn = out.asnumpy()
 # -----------------
 # We can check that the results of two runs match.
 
-np.testing.assert_allclose(out_cuda, out_cudnn, rtol=1e-5)
+tvm.testing.assert_allclose(out_cuda, out_cudnn, rtol=1e-5)
 
 #####################################################################
 # Conclusion

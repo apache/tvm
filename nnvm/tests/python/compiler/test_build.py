@@ -27,7 +27,7 @@ def test_compile():
         # get outputs
         out = tvm.nd.empty(shape, dtype)
         get_output(0, out)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(), np.exp(na.asnumpy() + nb.asnumpy()))
 
     graph, lib, _ = nnvm.compiler.build(z, "llvm", shape_dict)
@@ -49,7 +49,7 @@ def test_run():
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     res = _run_graph(z, {"x": nx, "y": ny})
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         res[0].asnumpy(), np.exp(nx.asnumpy() + ny.asnumpy()))
 
 
@@ -73,7 +73,7 @@ def test_precompute_prune():
     m["load_params"](nnvm.compiler.save_param_dict(params))
     m.run()
     out = m.get_output(0, out=res)
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         res.asnumpy(), nx.asnumpy() + 1 + ny.asnumpy() + na.asnumpy())
 
 
@@ -92,7 +92,7 @@ def test_dtypes():
         m.run(x=data)
         data = (data > 0) * data
         out = m.get_output(0, tvm.nd.empty(oshape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), data, atol=1e-5, rtol=1e-5)
 
 def test_ndarray_output():
     x = sym.Variable("x")
@@ -110,7 +110,7 @@ def test_ndarray_output():
     m.set_input("y", ny)
     m.run()
     out = m.get_output(0)
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         out.asnumpy(), nx.asnumpy() + ny.asnumpy())
 
 def test_ndarray_input():
@@ -131,12 +131,12 @@ def test_ndarray_input():
     in_y = tvm.nd.empty(shape, dtype)
     m.get_input("x", in_x)
     m.get_input("y", in_y)
-    np.testing.assert_allclose(nx.asnumpy(), in_x.asnumpy())
-    np.testing.assert_allclose(ny.asnumpy(), in_y.asnumpy())
+    tvm.testing.assert_allclose(nx.asnumpy(), in_x.asnumpy())
+    tvm.testing.assert_allclose(ny.asnumpy(), in_y.asnumpy())
     in_nx = m.get_input("x")
     in_ny = m.get_input("y")
-    np.testing.assert_allclose(nx.asnumpy(), in_nx.asnumpy())
-    np.testing.assert_allclose(ny.asnumpy(), in_ny.asnumpy())
+    tvm.testing.assert_allclose(nx.asnumpy(), in_nx.asnumpy())
+    tvm.testing.assert_allclose(ny.asnumpy(), in_ny.asnumpy())
 
 def test_num_outputs():
     x = sym.Variable('x')

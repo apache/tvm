@@ -68,7 +68,7 @@ def test_bigendian_rpc_param():
         m.load_params(nnvm.compiler.save_param_dict(params))
         m.run()
         out = m.get_output(0, tvm.nd.empty(shape, dtype=dtype, ctx=ctx))
-        np.testing.assert_allclose(a + 1, out.asnumpy())
+        tvm.testing.assert_allclose(a + 1, out.asnumpy())
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)

@@ -27,7 +27,7 @@ def verify_matmul(sa, sb, transp_a, transp_b):
     c1 = np.matmul(np.transpose(a) if transp_a else a,
                    np.transpose(b) if transp_b else b)
     c2 = with_tvm(lambda A,B: topi.matmul(A,B,transp_a,transp_b), a,b)
-    np.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(c1, c2, rtol=1e-5, atol=1e-5)
 
 def test_matmul():
     verify_matmul((1,1),(1,1),False,False)

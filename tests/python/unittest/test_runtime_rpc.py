@@ -31,7 +31,7 @@ def test_bigendian_rpc():
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)
-        np.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
+        tvm.testing.assert_allclose(a.asnumpy() + 1, b.asnumpy())
 
     print("Test RPC connection to PowerPC...")
     remote = rpc.connect(host, port)

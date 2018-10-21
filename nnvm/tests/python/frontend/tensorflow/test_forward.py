@@ -120,7 +120,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                 continue
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device)
-            np.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
+            tvm.testing.assert_allclose(tf_output, tvm_output, atol=1e-5, rtol=1e-5)
 
         sess.close()
 
@@ -580,7 +580,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     out_state_c = np.reshape(out_state_tup[0], (batch_size, num_hidden))
     out_state_h = np.reshape(out_state_tup[1], (batch_size, num_hidden))
     tvm_out = [out, out_state_c, out_state_h]
-    np.testing.assert_allclose(tf_out, tvm_out, rtol=1e-3, atol=1e-3)
+    tvm.testing.assert_allclose(tf_out, tvm_out, rtol=1e-3, atol=1e-3)
 
 def test_forward_lstm():
     '''test LSTM block cell'''
@@ -653,7 +653,7 @@ def test_forward_inception_v3():
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', 'InceptionV3/Predictions/Reshape_1:0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
-            np.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Inception V1
@@ -689,7 +689,7 @@ def test_forward_inception_v1():
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'DecodeJpeg/contents:0', 'softmax:0')
             tvm_output = run_tvm_graph(graph_def, tvm_data, 'DecodeJpeg/contents')
-            np.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(tf_output, tvm_output, rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # Mobilenet
@@ -707,7 +707,7 @@ def test_forward_mobilenet():
         with tf.Session() as sess:
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
-            np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # ResnetV2
@@ -726,7 +726,7 @@ def test_forward_resnetv2():
             with tf.Session() as sess:
                 tf_output = run_tf_graph(sess, data, 'input_tensor:0', out_node + ':0')
                 tvm_output = run_tvm_graph(graph_def, data, 'input_tensor', tf_output.shape, 'float32')
-                np.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
+                tvm.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)
 
 #######################################################################
 # PTB
@@ -834,7 +834,7 @@ def test_forward_ptb():
                                 in_state, cnt_sample)
         tf_sample_str = _pretty_print(tf_samples, False, id_to_word)
         inpt = tvm_sample_str
-        np.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(tf_samples, tvm_samples, rtol=1e-5, atol=1e-5)
         assert(tvm_sample_str == tf_sample_str)
 
 #######################################################################

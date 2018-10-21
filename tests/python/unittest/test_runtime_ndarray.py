@@ -53,7 +53,7 @@ def test_fp16_conversion():
         expected = x_tvm.asnumpy().astype(dst)
         real = y_tvm.asnumpy()
 
-        np.testing.assert_allclose(expected, real)
+        tvm.testing.assert_allclose(expected, real)
 
 if __name__ == "__main__":
     test_nd_create()

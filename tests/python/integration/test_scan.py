@@ -38,7 +38,7 @@ def test_scan():
         a = tvm.nd.array(a_np, ctx)
         b = tvm.nd.array(np.zeros((m, n), dtype=res.dtype), ctx)
         fscan(a, b)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), np.cumsum(a_np, axis=0))
 
     check_device("vulkan")

@@ -22,7 +22,7 @@ def test_ewise_injective():
         x_np = np.random.uniform(size=dshape).astype(dtype)
         m.run(x=x_np)
         out = m.get_output(0, tvm.nd.empty((10, 6)))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(),  x_np.reshape(out.shape) * 2 + 1,
             atol=1e-5, rtol=1e-5)
 
@@ -54,7 +54,7 @@ def test_conv_ewise_injective():
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         c_np = c_np + bias.asnumpy().reshape(kshape[0], 1, 1) + 1
         c_np = c_np.reshape(c_np.shape[0], np.prod(c_np.shape[1:])) + 1
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_injective_reduce_injective():
@@ -74,7 +74,7 @@ def test_injective_reduce_injective():
         c_np = np.sum(data.reshape(32, 18 * 18) + 1, axis=1)
         # get output
         out = m.get_output(0, tvm.nd.empty(c_np.shape, dtype))
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_injective_conv2d():
@@ -107,7 +107,7 @@ def test_injective_conv2d():
             data.asnumpy(), kernel.asnumpy(), (1,1), 'SAME')
         weight = np.mean(data.asnumpy(), axis=(2, 3))
         c_np = weight[:, :, np.newaxis, np.newaxis] * data.asnumpy() + residual
-        np.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), c_np, rtol=1e-5)
 
 
 def test_concatenate_conv2d():
@@ -140,7 +140,7 @@ def test_concatenate_conv2d():
         conv = topi.testing.conv2d_nchw_python(
             concat, kernel.asnumpy(), (1,1), 'SAME')
         ref = concat + conv
-        np.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
 
 
 def test_residual_block_layout_transform():
@@ -178,7 +178,7 @@ def test_residual_block_layout_transform():
     conv2 = topi.testing.conv2d_nchw_python(
         conv1, kernel2.asnumpy(), (1,1), 'SAME')
     ref = np.maximum(conv1 + conv2, 0)
-    np.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5)
 
 
 def build_and_run(sym, params, data, out_shape, target, ctx, opt_level=2):
@@ -218,7 +218,7 @@ def test_fuse_conv2d_elu():
         _, params2 = utils.create_workload(sym2, 1, dshape[1:], seed=0)
         output1, g1 = build_and_run(sym1, params1, data, oshape, target, ctx, opt_level=2)
         output2, g2 = build_and_run(sym2, params2, data, oshape, target, ctx, opt_level=0)
-        np.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(output1, output2, rtol=1e-5, atol=1e-5)
         # data, conv weight, bias, batch norm gamma, batch norm beta, conv op
         assert g1.index.num_nodes == 6
 

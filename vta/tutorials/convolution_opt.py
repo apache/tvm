@@ -413,7 +413,7 @@ res_ref = res_ref.reshape((batch_size // env.BATCH,
                            env.BLOCK_OUT,
                            fout_height,
                            fout_width)).transpose((0, 2, 4, 5, 1, 3))
-np.testing.assert_allclose(res_ref, res_nd.asnumpy())
+tvm.testing.assert_allclose(res_ref, res_nd.asnumpy())
 print("Successful 2D convolution test!")
 
 ######################################################################

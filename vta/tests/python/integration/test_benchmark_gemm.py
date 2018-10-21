@@ -94,7 +94,7 @@ def test_gemm():
                                                    env.BATCH,
                                                    env.BLOCK_OUT)
             if check_correctness:
-                np.testing.assert_allclose(res_unpack, res_ref)
+                tvm.testing.assert_allclose(res_unpack, res_ref)
             return cost
 
         def run_schedule(load_inp,

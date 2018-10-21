@@ -40,7 +40,7 @@ def mxnet_check():
     mxf(xx, yy, zz, 10.0)
 
 
-    np.testing.assert_allclose(
+    tvm.testing.assert_allclose(
         zz.asnumpy(), (xx.asnumpy() + yy.asnumpy()) * 10)
 
 

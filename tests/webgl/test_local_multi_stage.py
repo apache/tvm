@@ -24,7 +24,7 @@ def test_local_multi_stage():
     c = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
     f(a, c)
 
-    np.testing.assert_allclose(c.asnumpy(), (a.asnumpy() + 1) * 2)
+    tvm.testing.assert_allclose(c.asnumpy(), (a.asnumpy() + 1) * 2)
 
 if __name__ == "__main__":
     test_local_multi_stage()

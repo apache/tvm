@@ -27,7 +27,7 @@ def test_cuda_vectorize_add():
             np.random.uniform(size=(n, lanes)))
         c = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
         
     check_cuda("float32", 64, 2)
     check_cuda("float16", 64, 2)
@@ -62,7 +62,7 @@ def test_cuda_multiply_add():
         c = tvm.nd.empty((n,), C.dtype, ctx).copyfrom(np_c)
         d = tvm.nd.empty((n,), D.dtype, ctx)
         fun(a, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), np_d)
+        tvm.testing.assert_allclose(d.asnumpy(), np_d)
     check_cuda("int8", 64, 4)
 
 def test_cuda_vectorize_load():
@@ -83,7 +83,7 @@ def test_cuda_vectorize_load():
         a = tvm.nd.empty((n,), A.dtype, ctx).copyfrom(np_a)
         b = tvm.nd.empty((n,), B.dtype, ctx)
         fun(a,b)
-        np.testing.assert_allclose(a.asnumpy(), b.asnumpy())
+        tvm.testing.assert_allclose(a.asnumpy(), b.asnumpy())
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
 

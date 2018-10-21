@@ -42,7 +42,7 @@ def test_reduce_prims():
             npy[:2] = 0
             res = np_reducer(x.asnumpy(), axis=1)
             res[:2] = 0
-            np.testing.assert_allclose(npy, res, rtol=1e-4)
+            tvm.testing.assert_allclose(npy, res, rtol=1e-4)
 
         check_device("metal")
         check_device("vulkan")
@@ -78,7 +78,7 @@ def test_rfactor():
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target()
@@ -108,7 +108,7 @@ def test_rfactor_factor_axis():
         b  = tvm.nd.array(np.zeros(1, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=0)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target()
@@ -155,7 +155,7 @@ def test_rfactor_threads():
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1)
         res[:2] = 0
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
@@ -206,7 +206,7 @@ def test_rfactor_elemwise_threads():
         b  = tvm.nd.array(np.zeros(m, dtype=B.dtype), ctx)
         fsum(a, b)
         res = np.sum(a.asnumpy(), axis=1) + 2
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             b.asnumpy(), res, rtol=1e-4)
 
     check_target("vulkan")
@@ -256,7 +256,7 @@ def test_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target()
 
@@ -316,7 +316,7 @@ def test_rfactor_argmax():
         nd_res0 = tvm.nd.array(np.zeros(mm, dtype='int32'), ctx)
         nd_res1 = tvm.nd.array(np.zeros(mm, dtype='float32'), ctx)
         fargmax(nd_idx, nd_val, nd_res0, nd_res1)
-        np.testing.assert_allclose(np_res, nd_res0.asnumpy())
+        tvm.testing.assert_allclose(np_res, nd_res0.asnumpy())
 
     check_target("cuda")
     check_target("vulkan")

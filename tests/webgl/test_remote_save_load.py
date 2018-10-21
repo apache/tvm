@@ -73,7 +73,7 @@ def try_remote_save_load():
     b = tvm.nd.array(np.zeros(16, dtype=A.dtype), ctx)
     c = tvm.nd.array(np.zeros(16, dtype=C.dtype), ctx)
     fhost(a, b, c)
-    np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+    tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
 
 if __name__ == "__main__":
     try_remote_save_load()

@@ -27,7 +27,7 @@ def helper(symbol, inputs, params, update_func, run_times, target, ctx, dtype="f
         m.run()
     y_np = update_func(**np_inputs)
     out = m.get_output(0, tvm.nd.empty(y_np.shape, dtype))
-    np.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
+    tvm.testing.assert_allclose(out.asnumpy(), y_np, atol=1e-5, rtol=1e-5)
 
 
 def test_sgd():

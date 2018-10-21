@@ -59,7 +59,7 @@ b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), ctx)
 d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
 bb = 10.0
 f(a, b, d, bb)
-np.testing.assert_allclose(
+tvm.testing.assert_allclose(
     d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy()) + 10, rtol=1e-5)
 
 ######################################################################
@@ -98,7 +98,7 @@ f = tvm.build(s, [A, B], "llvm")
 a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), ctx)
 b = tvm.nd.array(np.random.uniform(size=(n,)).astype(B.dtype), ctx)
 f(a, b)
-np.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1, rtol=1e-5)
+tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1, rtol=1e-5)
 
 ######################################################################
 # Summary

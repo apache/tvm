@@ -109,7 +109,7 @@ def verify_AddLayerParams(input_dim, alpha=2):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_AddLayerParams():
     verify_AddLayerParams((1, 2, 2), 0)
@@ -139,7 +139,7 @@ def verify_MultiplyLayerParams(input_dim, alpha):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_MultiplyLayerParams():
     verify_MultiplyLayerParams((1, 2, 2), 0)
@@ -168,7 +168,7 @@ def verify_ConcatLayerParams(input1_dim, input2_dim):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_ConcatLayerParams():
     verify_ConcatLayerParams((1, 1, 2, 2), (1, 2, 2, 2))
@@ -198,7 +198,7 @@ def verify_UpsampleLayerParams(input_dim, scale, mode):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_UpsampleLayerParams():
     verify_UpsampleLayerParams((1, 16, 32, 32), 2, 'NN')
@@ -218,7 +218,7 @@ def verify_l2_normalize(input_dim, eps):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001)
@@ -243,7 +243,7 @@ def verify_lrn(input_dim, size, bias, alpha, beta):
     model = cm.models.MLModel(builder.spec)
     for target, ctx in ctx_list():
         out = run_tvm_graph(model, a_np, 'input', b_np.shape, dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_lrn():
     verify_lrn((1, 3, 10, 20), 3, 1.0, 1.0, 0.5)
@@ -271,7 +271,7 @@ def verify_average(input_dim1, input_dim2, axis=0):
                            ['input1', 'input2'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_average():
     verify_average((1, 3, 20, 20), (1, 3, 20, 20))
@@ -303,7 +303,7 @@ def verify_max(input_dim):
                            ['input1', 'input2', 'input3'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_max():
     verify_max((1, 3, 20, 20))
@@ -334,7 +334,7 @@ def verify_min(input_dim):
                            ['input1', 'input2', 'input3'],
                            b_np.shape,
                            dtype)
-        np.testing.assert_allclose(out, b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(out, b_np, rtol=1e-5)
 
 def test_forward_min():
     verify_min((1, 3, 20, 20))

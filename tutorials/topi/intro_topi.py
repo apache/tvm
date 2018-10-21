@@ -89,7 +89,7 @@ a_nd = tvm.nd.array(a_np, ctx)
 b_nd = tvm.nd.array(b_np, ctx)
 g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), ctx)
 func(a_nd, b_nd, g_nd)
-np.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
+tvm.testing.assert_allclose(g_nd.asnumpy(), g_np, rtol=1e-5)
 
 ######################################################################
 # TOPI also provides common neural nets operations such as _softmax_ with optimized schedule

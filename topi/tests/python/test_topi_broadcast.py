@@ -23,7 +23,7 @@ def verify_broadcast_to_ele(in_shape, out_shape, fbcast):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), ctx)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for target in get_all_backend():
         check_device(target)
@@ -77,7 +77,7 @@ def verify_broadcast_binary_ele(lhs_shape, rhs_shape,
         out_npy = fnumpy(lhs_npy, rhs_npy)
         out_nd = tvm.nd.array(np.empty(out_npy.shape).astype(C.dtype), ctx)
         foo(lhs_nd, rhs_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy, rtol=1E-4, atol=1E-4)
 
     for target in get_all_backend():
         check_device(target)

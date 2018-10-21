@@ -211,7 +211,7 @@ w_tvm = tvm.nd.array(w_np, ctx=ctx)
 c_tvm = tvm.nd.empty(c_np.shape, ctx=ctx)
 func(a_tvm, w_tvm, c_tvm)
 
-np.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
+tvm.testing.assert_allclose(c_np, c_tvm.asnumpy(), rtol=1e-2)
 
 # Evaluate running time. Here we choose a large repeat number (400) to reduce the noise
 # and the overhead of kernel launch. You can also use nvprof to validate the result.

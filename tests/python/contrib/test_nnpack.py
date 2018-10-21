@@ -28,7 +28,7 @@ def test_fully_connected_output():
         d = tvm.nd.array(np.zeros((n, m), dtype=D.dtype), ctx)
         bb = 10.0
         f(a, b, d, bb)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
     verify()
 
@@ -58,7 +58,7 @@ def test_fully_connected_inference():
         d = tvm.nd.array(np.zeros((m, ), dtype=D.dtype), ctx)
         bb = 10.0
         f(a, b, d, bb)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             d.asnumpy(), np.dot(a.asnumpy(), b.asnumpy().T) + bb, rtol=1e-5)
     verify()
 
@@ -142,7 +142,7 @@ def test_convolution_inference():
         td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
         f(ta, tb, tc, td)
         nd = np_conv(np.reshape(na, (1, IC, IH, IW)), nb, PAD, STRIDE)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             td.asnumpy(), nd.reshape(IC, IH, IW), rtol=1e-5)
     verify()
 
@@ -187,7 +187,7 @@ def test_convolution_output():
         td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
         f(ta, tb, tc, td)
         nd = np_conv(na, nb, PAD)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             td.asnumpy(), nd, rtol=1e-5)
     verify()
 

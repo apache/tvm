@@ -19,7 +19,7 @@ def test_compile_cache():
         m.run(x=na, y=nb)
         # get outputs
         out = m.get_output(0, tvm.nd.empty(shape, dtype))
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             out.asnumpy(), np.exp(na.asnumpy() + nb.asnumpy()))
 
     engine = nnvm.compiler.engine

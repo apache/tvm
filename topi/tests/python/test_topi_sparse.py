@@ -47,7 +47,7 @@ def verify_dynamic_csrmv(batch, in_dim, out_dim, use_bias=True):
         assert a.indptr.dtype == A.indptr.dtype
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmv")
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
 
     for device in ["llvm"]:
         check_device(device)
@@ -89,7 +89,7 @@ def verify_dynamic_csrmm(batch, in_dim, out_dim, use_bias=True):
         f = tvm.build(s, [nr, A.data, A.indices, A.indptr, B, C, D], device, name="csrmm")
 
         f(_nr, a.data, a.indices, a.indptr, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-2, atol=1e-2)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-2, atol=1e-2)
 
     for device in ["llvm"]:
         check_device(device)
@@ -127,7 +127,7 @@ def verify_dense_si(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A.data, A.indices, A.indptr, B, C, D], device, name="dense")
         f(a.data, a.indices, a.indptr, b, c, d)
-        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device('llvm')
 
@@ -164,7 +164,7 @@ def verify_dense_sw(batch, in_dim, out_dim, use_bias=True, dtype='float32'):
         d = tvm.nd.array(np.zeros(get_const_tuple(D.shape), dtype=dtype), ctx)
         f = tvm.build(s, [A, B.data, B.indices, B.indptr, C, D], device, name="dense")
         f(a, b.data, b.indices, b.indptr, c, d)
-        np.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
+        tvm.testing.assert_allclose(d.asnumpy(), d_np, rtol=1e-4, atol=1e-4)
 
     check_device('llvm')
 

@@ -22,7 +22,7 @@ def verify_expand_dims(in_shape, out_shape, axis, num_newaxis):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.array(np.empty(out_shape).astype(B.dtype), ctx)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -45,7 +45,7 @@ def verify_tranpose(in_shape, axes):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -68,7 +68,7 @@ def verify_reshape(src_shape, dst_shape):
         data_nd = tvm.nd.array(data_npy, ctx)
         out_nd = tvm.nd.empty(dst_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -96,7 +96,7 @@ def verify_squeeze(src_shape, axis):
             out_nd_shape = out_npy.shape
         out_nd = tvm.nd.empty(out_nd_shape, ctx=ctx, dtype=B.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -121,7 +121,7 @@ def verify_concatenate(shapes, axis):
         data_nds = [tvm.nd.array(data_npy, ctx) for data_npy in data_npys]
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=out_tensor.dtype)
         foo(*(data_nds + [out_nd]))
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -146,7 +146,7 @@ def verify_split(src_shape, indices_or_sections, axis):
         out_nds = [tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=tensor_l[0].dtype) for out_npy in out_npys]
         foo(*([data_nd] + out_nds))
         for out_nd, out_npy in zip(out_nds, out_npys):
-            np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+            tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in get_all_backend():
         check_device(device)
@@ -181,7 +181,7 @@ def verify_expand_like(in_shape, out_shape, axis):
         tvm_shape_like = tvm.nd.array(np.zeros(out_shape).astype(B.dtype), ctx)
         out = tvm.nd.array(np.zeros(out_shape).astype(A.dtype), ctx)
         f(tvm_input, tvm_shape_like, out)
-        np.testing.assert_allclose(out.asnumpy(), input)
+        tvm.testing.assert_allclose(out.asnumpy(), input)
 
     for device in ["llvm"]:
         check_device(device)
@@ -204,7 +204,7 @@ def verify_flip(in_shape, axis):
         data_nd = tvm.nd.array(x_np, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=A.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "cuda", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
@@ -243,7 +243,7 @@ def verify_take(src_shape, indices_src, axis=None):
         indices_nd = tvm.nd.array(indices_src, ctx)
         out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
         foo(data_nd, indices_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
 
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
@@ -270,7 +270,7 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
         data_nd = tvm.nd.array(x_np, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=A.dtype)
         foo(data_nd, out_nd)
-        np.testing.assert_allclose(out_nd.asnumpy(), out_npy)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npy)
 
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)

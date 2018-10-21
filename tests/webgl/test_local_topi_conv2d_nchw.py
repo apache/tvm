@@ -49,8 +49,8 @@ def verify_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, stride, p
             func2 = tvm.build(s2, [A, W, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
             func1(a, w, b)
             func2(a, w, c)
-            np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
-            np.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
+            tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+            tvm.testing.assert_allclose(c.asnumpy(), c_np, rtol=1e-5)
 
     for device in ['opengl']:
         check_device(device)

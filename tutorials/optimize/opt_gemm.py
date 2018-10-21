@@ -93,7 +93,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype=dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=1)
 print('Baseline: %f' % evaluator(a, b, c).mean)
@@ -128,7 +128,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 # By simply tiling the loop 32x32, and hoisting ko, ki outside the blocking loops,
 # we can see big speedup compared with the baseline.
@@ -164,7 +164,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt2: %f' % evaluator(a, b, c).mean)
@@ -197,7 +197,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt3: %f' % evaluator(a, b, c).mean)
@@ -252,7 +252,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt4: %f' % evaluator(a, b, c).mean)
@@ -298,7 +298,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=10)
 print('Opt5: %f' % evaluator(a, b, c).mean)
@@ -341,7 +341,7 @@ assert func
 
 c = tvm.nd.array(numpy.zeros((M, N), dtype = dtype), ctx)
 func(a, b, c)
-numpy.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
+tvm.testing.assert_allclose(c.asnumpy(), answer, rtol=1e-5)
 
 evaluator = func.time_evaluator(func.entry_name, ctx, number=50)
 opt6_time = evaluator(a, b, c).mean

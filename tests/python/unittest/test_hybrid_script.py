@@ -38,7 +38,7 @@ def run_and_check(func, args, outs, var_dict={}, target='llvm'):
     module(*nd_args)
 
     for nd, np in to_check:
-        numpy.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(nd.asnumpy(), np, rtol=1e-5, atol=1e-5)
 
 
 @script
@@ -257,7 +257,7 @@ def test_math_intrin():
     tvm_a = tvm.ndarray.array(a)
     func(tvm_a)
     intrin_real(a)
-    numpy.testing.assert_allclose(a, tvm_a.asnumpy(), rtol=1e-5)
+    tvm.testing.assert_allclose(a, tvm_a.asnumpy(), rtol=1e-5)
 
     @script
     def intrin_int(a):

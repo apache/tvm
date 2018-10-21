@@ -28,7 +28,7 @@ def test_sort():
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), ctx)
     c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), ctx)
     f(a, b, c)
-    np.testing.assert_allclose(c.asnumpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
+    tvm.testing.assert_allclose(c.asnumpy(), np.array(sorted_index).astype(out.dtype), rtol=1e-5)
 
 def test_sort_np():
     dshape = (1, 2, 3, 4, 5, 6)
@@ -55,7 +55,7 @@ def test_sort_np():
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), ctx)
     c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), ctx)
     f(a, b, c)
-    np.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
+    tvm.testing.assert_allclose(c.asnumpy(), np_out, rtol=1e-5)
 
 if __name__ == "__main__":
     test_sort()

@@ -37,7 +37,7 @@ def verify_region(batch, in_size, in_channel, n, classes, coords, background, l_
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         func = tvm.build(s, [A, B], device)
         func(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ['llvm', 'cuda']:
         check_device(device)
