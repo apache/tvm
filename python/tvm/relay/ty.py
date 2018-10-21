@@ -163,17 +163,17 @@ class TypeRelation(TypeConstraint):
 
     Parameters
     ----------
-    func : EnvFunc
+    func: EnvFunc
         User defined relation function.
 
-    args : list of types
+    args: list of types
         List of types to the func.
 
     num_inputs: int
         Number of input arguments in args,
         this act as a hint for type inference.
 
-    attrs : Attrs
+    attrs: Attrs
         The attribute attached to the relation information
     """
     def __init__(self, func, args, num_inputs, attrs):
@@ -188,7 +188,7 @@ def scalar_type(dtype):
 
     Parameters
     ----------
-    dtype : str
+    dtype: str
         The content data type.
 
     Returns
