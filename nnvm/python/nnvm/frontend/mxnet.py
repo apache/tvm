@@ -273,6 +273,14 @@ def _lrn(inputs, attrs):
     new_attrs['size'] = _required_attr(attrs, 'nsize')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
+def _ones(_, attrs):
+    op_name = "ones"
+    return _get_nnvm_op(op_name)(**attrs)
+
+def _zeros(_, attrs):
+    op_name = "zeros"
+    return _get_nnvm_op(op_name)(**attrs)
+
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -281,8 +289,8 @@ _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   'broadcast_sub', 'broadcast_to', 'cast', 'elemwise_add',
                   'elemwise_div', 'elemwise_mul', 'elemwise_sub', 'exp',
                   'flatten', 'log', 'log_softmax', 'max', 'min', 'negative',
-                  'relu', 'sigmoid', 'slice_like', 'softmax', 'sum', 'tanh',
-                  'transpose']
+                  'ones_like', 'relu', 'sigmoid', 'slice_like', 'softmax',
+                  'sum', 'tanh', 'transpose', 'zeros_like']
 
 _convert_map = {
     '_copy'         : _rename('copy'),
@@ -294,6 +302,8 @@ _convert_map = {
     '_rminus_scalar': _rename('__rsub_scalar__'),
     '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
     '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
+    '_ones' : _ones,
+    '_zeros' : _zeros,
     'Activation'    : _activations,
     'BatchNorm'     : _batch_norm,
     'BatchNorm_v1'  : _batch_norm,
@@ -397,13 +407,14 @@ def _from_mxnet_impl(symbol, graph):
     if node:
         return node[output_index]
     attr = symbol.list_attr()
-    # op_name = symbol.attr('op_name')
+    op_name = symbol.attr('op_name')
     childs = symbol.get_children()
     if childs is not None:
-        op_name = symbol.attr('op_name')
         childs = [_from_mxnet_impl(childs[i], graph) for i in range(len(childs.list_outputs()))]
         childs = [x for y in childs for x in _as_list(y)]  # expand group symbol
         node = _convert_symbol(op_name, childs, attr)
+    elif op_name != 'null':
+        node = _convert_symbol(op_name, [], attr)   # no input symbol
     else:
         op_name = json.loads(symbol.tojson())['nodes'][0]['op']
         node = _sym.Variable(name=name, **attr)

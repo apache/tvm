@@ -153,6 +153,28 @@ def test_forward_lrn():
     mx_sym = mx.sym.LRN(data, alpha=2, beta=2, knorm=1, nsize=5)
     verify_mxnet_frontend_impl(mx_sym, (1, 10, 24, 24), (1, 10, 24, 24))
 
+def test_forward_ones():
+    data = mx.sym.var('data')
+    ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.elemwise_add(data, ones)
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+    
+def test_forward_zeros():
+    data = mx.sym.var('data')
+    zeros = mx.sym.zeros(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.elemwise_add(data, zeros)
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_ones_like():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.ones_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_zeros_like():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.zeros_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+    
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -168,3 +190,7 @@ if __name__ == '__main__':
     test_forward_expand_dims()
     test_forward_pooling()
     test_forward_lrn()
+    test_forward_ones()
+    test_forward_zeros()
+    test_forward_ones_like()
+    test_forward_zeros_like()
