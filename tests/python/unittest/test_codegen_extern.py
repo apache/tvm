@@ -46,7 +46,7 @@ def test_add_pipeline():
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         f(a, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + 1)
         
     check_target("llvm")
     check_target("opencl")
@@ -80,7 +80,7 @@ def test_pack_buffer_simple():
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
 
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy())
     check_target("stackvm")
     check_target("llvm")
@@ -112,12 +112,12 @@ def test_pack_buffer_intermediate():
         @tvm.register_func
         def my_extern_array_func2(aa, bb):
             assert aa.shape == a.shape
-            np.testing.assert_allclose(
+            tvm.testing.assert_allclose(
                 aa.asnumpy(), a.asnumpy() + 1)
             aa.copyto(bb)
 
         f(a, c)
-        np.testing.assert_allclose(
+        tvm.testing.assert_allclose(
             c.asnumpy(), a.asnumpy() + 1)
 
     check_target("llvm")
