@@ -82,6 +82,9 @@ class TensorTypeNode : public BaseTensorTypeNode {
     v->Visit("span", &span);
   }
 
+  /*! \brief Return product of elements in the shape */
+  TVM_DLL IndexExpr Size() const;
+
   TVM_DLL static TensorType make(Array<IndexExpr> shape, DataType dtype);
 
   /*! \brief Construct an scalar containing elements of dtype.  */
