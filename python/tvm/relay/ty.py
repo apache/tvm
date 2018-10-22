@@ -102,7 +102,7 @@ class TupleType(Type):
 
         Parameters
         ----------
-        fields: list of tvm.Type
+        fields: List[tvm.relay.Type]
 
         Returns
         -------
