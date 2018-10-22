@@ -718,5 +718,66 @@ RELAY_REGISTER_OP("squeeze")
 .set_support_level(3)
 .add_type_rel("Squeeze", SqueezeRel);
 
+// Have no idea how to assert the constraint.
+// CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
+bool CollapseSumLikeRel(const Array<Type>& types,
+                        int num_inputs,
+                        const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  reporter->Assign(types[2], types[1]);
+  return true;
+}
+
+Expr MakeCollapseSumLike(Expr data,
+                         Expr collapse_type) {
+  static const Op& op = Op::Get("collapse_sum_like");
+  return CallNode::make(op, {data, collapse_type}, Attrs(), {});
+}
+
+TVM_REGISTER_API("relay.op._make.collapse_sum_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeCollapseSumLike, args, rv);
+  });
+
+RELAY_REGISTER_OP("collapse_sum_like")
+.describe(R"code(Collapse the first input to match the shape of the second input.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("collapse_type", "Tensor", "Provide the type to collapse to.")
+.set_support_level(10)
+.add_type_rel("CollapseSumLike", CollapseSumLikeRel);
+
+// BroadCastToLike: <A, B> -> B where BroadCast(A, B) = B
+bool BroadCastToLikeRel(const Array<Type>& types,
+                        int num_inputs,
+                        const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  reporter->Assign(types[2], types[1]);
+  return true;
+}
+
+Expr MakeBroadCastToLike(Expr data,
+                         Expr broadcast_type) {
+  static const Op& op = Op::Get("broadcast_to_like");
+  return CallNode::make(op, {data, broadcast_type}, Attrs(), {});
+}
+
+TVM_REGISTER_API("relay.op._make.broadcast_to_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeBroadCastToLike, args, rv);
+  });
+
+RELAY_REGISTER_OP("broadcast_to_like")
+.describe(R"code(Broadcast the first input to match the shape of the second input.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
+.set_support_level(10)
+.add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+
 }  // namespace relay
 }  // namespace tvm

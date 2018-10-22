@@ -123,6 +123,17 @@ This level enables additional math and transform operators.
    tvm.relay.image.resize
 
 
+**Level 10: Temporary Operators**
+
+This level support backpropagation of broadcast operators. It is temporary.
+
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.broadcast_to_like
+   tvm.relay.collapse_sum_like
+
+
 Level 1 Definitions
 -------------------
 .. autofunction:: tvm.relay.log
@@ -199,6 +210,13 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.prod
 
 
+
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
+
+
+Level 10 Definitions
+--------------------
+.. autofunction:: tvm.relay.broadcast_to_like
+.. autofunction:: tvm.relay.collapse_sum_like

@@ -461,3 +461,4 @@ if __name__ == "__main__":
     test_let_alpha_equal()
     test_if_alpha_equal()
     test_op_alpha_equal()
+    test_var_alpha_equal()
