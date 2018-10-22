@@ -119,10 +119,10 @@ struct FuncFORAD : FORAD {
   explicit FuncFORAD(const OpNode::reverse_mode_type& rev) : rev(rev) {}
 };
 
-std::vector<Type> from_params(const tvm::Array<Param>& params) {
+std::vector<Type> from_params(const tvm::Array<Var>& params) {
   std::vector<Type> v;
   for (const auto& param : params) {
-    v.push_back(param->type);
+    v.push_back(param->type_annotation);
   }
   return v;
 }
@@ -200,19 +200,19 @@ class Transformer : private ExprFunctor<std::shared_ptr<FORAD>(const Expr&)> {
     auto f = e.as<FunctionNode>();
     CHECK(f) << "input need to be a function";
     // push the param onto the Wengert list
-    for (const Param& p : f->params) {
+    for (const auto& p : f->params) {
       size_t idx = tf.wl.stack.size();
-      tf.wl.grad_param.insert(std::pair<Var, Expr>(p->var, ZeroLike(p->var)));
-      tf.wl.stack.push_back(std::make_pair(ZeroLike(p->var), [&tf, p, env](const Expr &e) {
-            tf.wl.grad_param[p->var] = Plus(tf.wl.grad_param[p->var], e);
+      tf.wl.grad_param.insert(std::pair<Var, Expr>(p, ZeroLike(p)));
+      tf.wl.stack.push_back(std::make_pair(ZeroLike(p), [&tf, p, env](const Expr &e) {
+            tf.wl.grad_param[p] = Plus(tf.wl.grad_param[p], e);
           }));
       tf.transformed.insert(std::make_pair(
-        p->var,
-        std::shared_ptr<FORAD>(new FloatFORAD(p->var, idx))));
+        p,
+        std::shared_ptr<FORAD>(new FloatFORAD(p, idx))));
     }
     auto ret = tf(f->body);
     auto fret = ret->get<FloatFORAD>();
-    auto ret_grad = VarNode::make("ret_grad");
+    auto ret_grad = VarNode::make("ret_grad", f->ret_type);
     // init gradient of result
     tf.wl.stack[fret.grad_loc].first = ret_grad;
     // back propagation
@@ -221,20 +221,21 @@ class Transformer : private ExprFunctor<std::shared_ptr<FORAD>(const Expr&)> {
       tf.wl.stack.pop_back();
     }
     auto ty = from_params(f->params);
-    auto type = TupleTypeNode::make({
+    Type type = TupleTypeNode::make({
       f->ret_type,
       FuncTypeNode::make({f->ret_type},
                          TupleTypeNode::make(ty),
                          {},
                          {})});
+    Expr m = tf.ll.Get(Pair(fret.orig,
+                            FunctionNode::make({ret_grad},
+                                               tf.wl.ll.Get(TupleNode::make(tf.YieldWrt(wrt))),
+                                               TupleTypeNode::make(ty),
+                                               {})));
     return FunctionNode::make(
-      f->params, type,
-      tf.ll.Get(Pair(
-        fret.orig,
-        FunctionNode::make({ParamNode::make(ret_grad, f->ret_type)},
-                           TupleTypeNode::make(ty),
-                           tf.wl.ll.Get(TupleNode::make(tf.YieldWrt(wrt))),
-                           {}))),
+      f->params,
+      m,
+      type,
       f->type_params);
   }
 };
@@ -253,21 +254,21 @@ Expr FOWithGradient(const Environment& env, const Expr& re, const tvm::Array<Var
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   std::vector<Expr> args;
-  for (const Param& p : f->params) {
-    args.push_back(p->var);
+  for (const auto& p : f->params) {
+    args.push_back(p);
   }
   return FunctionNode::make(
     f->params,
-    TupleTypeNode::make({
-      f->ret_type,
-      TupleTypeNode::make(from_params(f->params))
-    }),
     LetList::With([&](LetList* ll) {
       auto res = ll->Push(CallNode::make(Transformer::Rev(env, e, wrt), args));
       return Pair(GetField(res, 0),
                   CallNode::make(GetField(res, 1),
                                  {OneLike(GetField(res, 0))}));
       }),
+    TupleTypeNode::make({
+        f->ret_type,
+          TupleTypeNode::make(from_params(f->params))
+          }),
     f->type_params);
 }
 
@@ -276,8 +277,8 @@ Expr FOWithGradient(const Environment& env, const Expr& re) {
   auto f = e.as<FunctionNode>();
   CHECK(f) << "input need to be a function";
   std::vector<Var> args;
-  for (const Param & p : f->params) {
-    args.push_back(p->var);
+  for (const auto& p : f->params) {
+    args.push_back(p);
   }
   return FOWithGradient(env, re, tvm::Array<Var>(args));
 }
