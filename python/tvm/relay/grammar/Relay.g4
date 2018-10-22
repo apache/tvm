@@ -1,3 +1,5 @@
+// semver: 0.1.0
+
 grammar Relay;
 
 // Lexing

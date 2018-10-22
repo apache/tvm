@@ -1,3 +1,5 @@
+# semver: 0.1.0
+
 # pylint: disable=invalid-name, unused-import
 """A parser for Relay's text format."""
 from collections import deque
