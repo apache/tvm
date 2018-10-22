@@ -107,17 +107,18 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
 };  // struct SqueezeAttrs
 
 struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
-  Array<IndexExpr> indices_or_sections;
+  NodeRef indices_or_sections;
   int axis;
-  bool equal_split;
 
   TVM_DECLARE_ATTRS(SplitAttrs, "relay.attrs.SplitAttrs") {
     TVM_ATTR_FIELD(indices_or_sections)
-        .describe("Number of outputs to be splitted");
+        .describe("Indices or sections to split into. Accepts an int or a tuple"
+                  "If indices_or_sections is an integer, the input will be divided equally"
+                  "along given axis. If such a split is not possible, an error is raised."
+                  "If indices_or_sections is a tuple of sorted integers,"
+                  "the entries indicate where along axis the array is split.");
     TVM_ATTR_FIELD(axis).set_default(0)
         .describe("the axis to be splitted.");
-    TVM_ATTR_FIELD(equal_split).set_default(false)
-        .describe("Is it equal split of input");
   }
 };
 

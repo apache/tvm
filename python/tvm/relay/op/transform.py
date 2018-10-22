@@ -300,7 +300,7 @@ def split(data, indices_or_sections, axis=0):
     indices_or_sections : int or tuple of int
         Indices or sections to split into. Accepts an int or a tuple
 
-     axis : int, optional
+    axis : int, optional
         The axis over which to split.
 
     Returns
@@ -308,6 +308,8 @@ def split(data, indices_or_sections, axis=0):
     ret : relay.Tuple([relay.Expr, relay.Expr])
         The computed result.
     """
-    ret_size = indices_or_sections if isinstance(indices_or_sections, int)
-        else len(indices_or_sections)+1
+    if isinstance(indices_or_sections, int):
+        ret_size = indices_or_sections
+    else:
+        ret_size = len(indices_or_sections) + 1
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)

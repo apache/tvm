@@ -6,12 +6,14 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
+#include <tvm/ir.h>
 #include <vector>
 #include "../op_common.h"
 
 
 namespace tvm {
 namespace relay {
+using ir::IntImm;
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -848,7 +850,6 @@ bool SplitRel(const Array<Type>& types,
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
   const auto param = attrs.as<SplitAttrs>();
   CHECK(param != nullptr);
-
   auto axis = param->axis;
   if (axis < 0) {
     axis += data->shape.size();
@@ -858,29 +859,31 @@ bool SplitRel(const Array<Type>& types,
   CHECK_GT(axis, 0)
     << "axis should be within the input dimension range.";
 
-  if (param->equal_split) {
-    const auto num_outputs = as_const_int(param->indices_or_sections[0]);
+  if (param->indices_or_sections.as<IntImm>()) {
+    const auto sections = make_const(Int(32),
+                                     param->indices_or_sections.as<IntImm>()->value);
     CHECK(reporter->Assert(data->shape[axis] %
-                           param->indices_or_sections[0] == make_zero(Int(64))))
+                           sections == make_zero(Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
-    for (int i = 0; i < *num_outputs; ++i) {
+    for (int i = 0; i < *as_const_int(sections); ++i) {
         std::vector<IndexExpr>&& oshape = AsVector(data->shape);
-        oshape[axis] /= param->indices_or_sections[0];
+        oshape[axis] /= sections;
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }
     reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
   } else {
-    const auto num_outputs = param->indices_or_sections.size() + 1;
-    auto begin = make_zero(Int(32));
+    auto indices = param->indices_or_sections.as<ArrayNode>()->data;
+    const auto num_outputs = indices.size() + 1;
+    auto begin = IndexExpr(make_zero(Int(32)));
     std::vector<Type> fields;
     for (uint i = 0; i < num_outputs - 1; ++i) {
-      CHECK(reporter->Assert(param->indices_or_sections[i] > begin))
+      CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr>&& oshape = AsVector(data->shape);
-      oshape[axis] = param->indices_or_sections[i] - begin;
-      begin = param->indices_or_sections[i];
+      oshape[axis] = IndexExpr(indices[i]) - begin;
+      begin = IndexExpr(indices[i]);
       auto vec_type = TensorTypeNode::make(oshape, data->dtype);
       fields.push_back(vec_type);
     }
@@ -890,38 +893,39 @@ bool SplitRel(const Array<Type>& types,
     oshape[axis] = data->shape[axis] - begin;
     auto vec_type = TensorTypeNode::make(oshape, data->dtype);
     fields.push_back(vec_type);
-
     reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
   }
   return true;
 }
 
 Expr MakeSplit(Expr data,
-               Array<IndexExpr> indices_or_sections,
-               int axis,
-               bool equal_split) {
+               NodeRef indices_or_sections,
+               int axis) {
   auto attrs = make_node<SplitAttrs>();
   attrs->axis = axis;
   attrs->indices_or_sections = std::move(indices_or_sections);
-  attrs->equal_split = equal_split;
   static const Op& op = Op::Get("split");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_API("relay.op._make.split")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-    runtime::detail::unpack_call<Expr, 4>(MakeSplit, args, rv);
+    if (args.type_codes[1] == kDLInt) {
+      *rv = MakeSplit(args[0], make_const(Int(64), int64_t(args[1])), args[2]);
+    } else {
+      *rv = MakeSplit(args[0], args[1], args[2]);
+    }
 });
 
 RELAY_REGISTER_OP("split")
 .describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
 
-While equal_split is true `indices_or_sections` should be of size 1 and it indicates
-number of sections to solit into and the dimension along given axis should be a
-multiple of indices_or_section[0].
+Indices or sections to split into. Accepts an int or a tuple
+If indices_or_sections is an integer, the input will be divided equally
+along given axis. If such a split is not possible, an error is raised.
 
-With equal_split being false indices_or_section ia an ascending ordered list with in 0
-and dimention of given axis. Here the input is split at the given indices.
+If indices_or_sections is a tuple of sorted integers,
+the entries indicate where along axis the array is split.
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.SplitAttrs")
