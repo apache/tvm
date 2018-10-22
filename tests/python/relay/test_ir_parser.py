@@ -20,28 +20,25 @@ BINARY_OPS = {
 }
 
 TYPES = {
-    "Int8",
-    "Int16",
-    "Int32",
-    "Int64",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
 
-    "UInt8",
-    "UInt16",
-    "UInt32",
-    "UInt64",
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
 
-    "Float16",
-    "Float32",
-    "Float64",
+    "float16",
+    "float32",
+    "float64",
 
-    "Bool",
-}
+    "bool",
 
-CALL_TYPES = {
-    "Int": 2,
-    "UInt": 2,
-    "Float": 2,
-    "Bool": 1,
+    "int8x4",
+    "uint1x4",
+    "float16x4",
 }
 
 def get_scalar(x):
@@ -64,6 +61,25 @@ X_ANNO = relay.Var("x", int32)
 Y_ANNO = relay.Var("y", int32)
 
 UNIT = relay.Tuple([])
+
+def test_comments():
+    assert alpha_equal(
+        parse_expr("""
+            // This is a line comment!
+            ()
+        """),
+        UNIT
+    )
+
+    assert alpha_equal(
+        parse_expr("""
+            /* This is a block comment!
+               This is still a block comment!
+            */
+            ()
+        """),
+        UNIT
+    )
 
 def test_int_literal():
     assert isinstance(parse_expr("1"), relay.Constant)
@@ -92,8 +108,8 @@ def test_float_literal():
     assert get_scalar(parse_expr("1.0E+1")) == 1.0E+1
 
 def test_bool_literal():
-    assert get_scalar(parse_expr("true")) == True
-    assert get_scalar(parse_expr("false")) == False
+    assert get_scalar(parse_expr("True")) == True
+    assert get_scalar(parse_expr("False")) == False
 
 def test_negative():
     assert isinstance(parse_expr("let %x = 1; -%x").body, relay.Call)
@@ -219,7 +235,7 @@ def test_func():
 
     # annotations
     assert alpha_equal(
-        parse_expr("fn (%x: Int32) -> Int32 { %x }"),
+        parse_expr("fn (%x: int32) -> int32 { %x }"),
         relay.Function(
             [X_ANNO],
             X_ANNO,
@@ -233,7 +249,7 @@ def test_func():
 def test_defn():
     id_defn = parse_prog(
         """
-        def @id(%x: Int32) -> Int32 {
+        def @id(%x: int32) -> int32 {
             %x
         }
         """)
@@ -243,7 +259,7 @@ def test_ifelse():
     assert alpha_equal(
         parse_expr(
         """
-        if (true) {
+        if (True) {
             0
         } else {
             1
@@ -261,7 +277,7 @@ def test_ifelse():
 def test_ifelse_scope():
     parse_expr(
         """
-        if (true) {
+        if (True) {
             let %x = ();
             ()
         } else {
@@ -402,19 +418,13 @@ def test_builtin_types():
     for builtin_type in TYPES:
         parse_expr("let %_ : {} = (); ()".format(builtin_type))
 
+@nottest
 def test_call_type():
-    # tests e.g.
-    # let %_ : Int[0] = (); ()
-    # let %_ : Int[0, 1] = (); ()
-    for call_type, arity in CALL_TYPES.items():
-        args = []
-        for i in range(arity):
-            args.append(i)
-            parse_expr("let %_ : {}{} = (); ()".format(call_type, args))
+    assert False
 
 def test_tensor_type():
     assert alpha_equal(
-        parse_expr("let %_ : Tensor[(), Float32] = (); ()"),
+        parse_expr("let %_ : Tensor[(), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((), "float32")),
             UNIT,
@@ -423,7 +433,7 @@ def test_tensor_type():
     )
 
     assert alpha_equal(
-        parse_expr("let %_ : Tensor[(1,), Float32] = (); ()"),
+        parse_expr("let %_ : Tensor[(1,), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((1,), "float32")),
             UNIT,
@@ -432,7 +442,7 @@ def test_tensor_type():
     )
 
     assert alpha_equal(
-        parse_expr("let %_ : Tensor[(1, 1), Float32] = (); ()"),
+        parse_expr("let %_ : Tensor[(1, 1), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((1, 1), "float32")),
             UNIT,
@@ -444,7 +454,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: fn () -> Int32 = fn () -> Int32 { 0 }; ()
+            let %_: fn () -> int32 = fn () -> int32 { 0 }; ()
             """
         ),
         relay.Let(
@@ -457,7 +467,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: fn (Int32) -> Int32 = fn (%x: Int32) -> Int32 { 0 }; ()
+            let %_: fn (int32) -> int32 = fn (%x: int32) -> int32 { 0 }; ()
             """
         ),
         relay.Let(
@@ -470,7 +480,7 @@ def test_function_type():
     assert alpha_equal(
         parse_expr(
             """
-            let %_: fn (Int32, Int32) -> Int32 = fn (%x: Int32, %y: Int32) -> Int32 { 0 }; ()
+            let %_: fn (int32, int32) -> int32 = fn (%x: int32, %y: int32) -> int32 { 0 }; ()
             """
         ),
         relay.Let(
@@ -496,7 +506,7 @@ def test_tuple_type():
     assert alpha_equal(
         parse_expr(
         """
-        let %_: (Int32,) = (0,); ()
+        let %_: (int32,) = (0,); ()
         """),
         relay.Let(
             relay.Var("_", relay.TupleType([int32])),
@@ -508,7 +518,7 @@ def test_tuple_type():
     assert alpha_equal(
         parse_expr(
         """
-        let %_: (Int32, Int32) = (0, 1); ()
+        let %_: (int32, int32) = (0, 1); ()
         """),
         relay.Let(
             relay.Var("_", relay.TupleType([int32, int32])),

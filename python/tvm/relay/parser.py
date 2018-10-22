@@ -1,5 +1,3 @@
-# semver: 0.1.0
-
 # pylint: disable=invalid-name, unused-import
 """A parser for Relay's text format."""
 from collections import deque
@@ -39,76 +37,12 @@ BINARY_OPS = {
     RelayParser.NE: relay.not_equal,
 }
 
-TYPES = {
-    "Int8": "int8",
-    "Int16": "int16",
-    "Int32": "int32",
-    "Int64": "int64",
-
-    "UInt8": "uint8",
-    "UInt16": "uint16",
-    "UInt32": "uint32",
-    "UInt64": "uint64",
-
-    "Float16": "float16",
-    "Float32": "float32",
-    "Float64": "float64",
-
-    "Bool": "bool",
-}
-
-def int_type_call(args):
-    # type: (List[relay.Expr]) -> relay.TensorType
-    """Turn an Int type call into a Relay TensorType"""
-
-    if len(args) > 2:
-        raise ParseError("Int may have at most 2 arguments.")
-
-    str_args = [str(arg) for arg in args]
-
-    return relay.TensorType((), "int" + "x".join(str_args))
-
-def uint_type_call(args):
-    # type: (List[relay.Expr]) -> relay.TensorType
-    """Turn a UInt type call into a Relay TensorType"""
-
-    if len(args) > 2:
-        raise ParseError("UInt may have at most 2 arguments.")
-
-    str_args = [str(arg) for arg in args]
-
-    return relay.TensorType((), "uint" + "x".join(str_args))
-
-def float_type_call(args):
-    # type: (List[relay.Expr]) -> relay.TensorType
-    """Turn a Float type call into a Relay TensorType"""
-
-    if len(args) > 2:
-        raise ParseError("Float may have at most 2 arguments.")
-
-    str_args = [str(arg) for arg in args]
-
-    return relay.TensorType((), "float" + "x".join(str_args))
-
-def bool_type_call(args):
-    # type: (List[relay.Expr]) -> relay.TensorType
-    """Turn a Bool type call into a Relay TensorType"""
-
-    if len(args) > 1:
-        raise ParseError("Bool may have at most 1 argument.")
-
-    # can't use bool, because ffi doesn't convert anything after bool
-    # bool is sugar for uint1 anyway
-    str_args = [str(arg) for arg in args]
-
-    return relay.TensorType((), "uint1x" + str_args[0])
-
-TYPE_FUNCS = {
-    "Int": int_type_call,
-    "UInt": uint_type_call,
-    "Float": float_type_call,
-    "Bool": bool_type_call,
-}
+TYPE_PREFIXES = [
+    "int",
+    "uint",
+    "float",
+    "bool",
+]
 
 T = TypeVar("T")
 Scope = Deque[Tuple[str, T]]
@@ -203,9 +137,9 @@ class ParseTreeToRelayIR(RelayVisitor):
         elif node_type == RelayLexer.FLOAT:
             return float(node_text)
         elif node_type == RelayLexer.BOOL_LIT:
-            if node_text == "true":
+            if node_text == "True":
                 return True
-            elif node_text == "false":
+            elif node_text == "False":
                 return False
             else:
                 raise ParseError("Unrecognized BOOL_LIT: `{}`".format(node_text))
@@ -398,31 +332,29 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.IdentTypeContext) -> Union[relay.TensorType, str]
         ident_type = ctx.CNAME().getText()
 
-        if not ident_type[0].isupper():
-            raise ParseError("Types must start with capital letters.")
+        # look through all type prefixes for a match
+        for type_prefix in TYPE_PREFIXES:
+            if ident_type.startswith(type_prefix):
+                return relay.TensorType((), ident_type)
 
-        builtin_type = TYPES.get(ident_type)
-
-        if builtin_type is None:
-            raise ParseError("Unknown builtin type: {}".format(ident_type))
-        else:
-            return relay.TensorType((), builtin_type)
+        raise ParseError("Unknown builtin type: {}".format(ident_type))
 
     def visitCallType(self, ctx):
         # type: (RelayParser.CallTypeContext) -> Union[relay.Expr, relay.TensorType]
-        ident_type = ctx.identType().CNAME().getText()
+        # ident_type = ctx.identType().CNAME().getText()
 
-        args = self.visit_list(ctx.type_())
+        # args = self.visit_list(ctx.type_())
 
-        if not args:
-            raise ParseError("Type-level functions must have arguments!")
+        # if not args:
+        #     raise ParseError("Type-level functions must have arguments!")
 
-        func_type = TYPE_FUNCS.get(ident_type)(args)
+        # func_type = TYPE_FUNCS.get(ident_type)(args)
 
-        if func_type is None:
-            raise ParseError("Unknown type-level function: `{}`".format(ident_type))
-        else:
-            return func_type
+        # if func_type is None:
+        #     raise ParseError("Unknown type-level function: `{}`".format(ident_type))
+        # else:
+        #     return func_type
+        raise ParseError("Call types are unused!")
 
     def visitParensShape(self, ctx):
         # type: (RelayParser.ParensShapeContext) -> int
