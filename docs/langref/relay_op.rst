@@ -76,6 +76,7 @@ This level enables additional math and transform operators.
    tvm.relay.ones
    tvm.relay.ones_like
    tvm.relay.reshape
+   tvm.relay.reshape_like
    tvm.relay.copy
    tvm.relay.transpose
    tvm.relay.floor
@@ -167,6 +168,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.abs
 .. autofunction:: tvm.relay.negative
 .. autofunction:: tvm.relay.reshape
+.. autofunction:: tvm.relay.reshape_like
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
 .. autofunction:: tvm.relay.take

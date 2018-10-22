@@ -80,6 +80,22 @@ def test_reshape_infer_type():
         (n, t, 2000), "float32")
 
 
+def test_reshape_like():
+    # concrete shape
+    x = relay.var("x", relay.TensorType((1, 2, 3), "float32"))
+    y = relay.var("y", relay.TensorType((1,6), "float32"))
+    z = relay.reshape_like(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((1, 6), "float32")
+
+    # symbolic shape
+    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.var("y", relay.TensorType((1, 8, 8), "float32"))
+    z = relay.reshape_like(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((1, 8, 8), "float32")
+
 
 def test_take_infer_type():
     def verify_take(dshape, indices_shape, oshape, axis=None):
@@ -145,6 +161,7 @@ if __name__ == "__main__":
     test_clip_type()
     test_transpose_infer_type()
     test_reshape_infer_type()
+    test_reshape_like()
     test_take_infer_type()
     test_full()
     test_full_like()
