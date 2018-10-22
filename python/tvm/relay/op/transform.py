@@ -242,3 +242,41 @@ def where(condition, x, y):
     Note that the shape of condition, x, and y needs to be the same.
     """
     return _make.where(condition, x, y)
+
+
+def broadcast_to_like(data, broadcast_type):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    broadcast_type : relay.Expr
+        Provide the type to broadcast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.broadcast_to_like(data, broadcast_type)
+
+
+def collapse_sum_like(data, collapse_type):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    collapse_type : relay.Expr
+        Provide the type to collapse to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.collapse_sum_like(data, collapse_type)
