@@ -1,5 +1,3 @@
-// semver: 0.1.0
-
 grammar Relay;
 
 // Lexing
@@ -27,8 +25,8 @@ LOCAL_VAR: '%' CNAME ;
 MUT: 'mut' ;
 
 BOOL_LIT
-  : 'true'
-  | 'false'
+  : 'True'
+  | 'False'
   ;
 
 // non-negative floats
@@ -54,24 +52,24 @@ prog: /* option* */ defn* /* expr */ EOF ;
 
 expr
   // operators
-  : '(' expr ')'                          # parens
-  | '-' expr                              # neg
-  | expr op=('*'|'/') expr                # binOp
-  | expr op=('+'|'-') expr                # binOp
-  | expr op=('<'|'>'|'<='|'>=') expr      # binOp
-  | expr op=('=='|'!=') expr              # binOp
+  : '(' expr ')'                              # parens
+  | '-' expr                                  # neg
+  | expr op=('*'|'/') expr                    # binOp
+  | expr op=('+'|'-') expr                    # binOp
+  | expr op=('<'|'>'|'<='|'>=') expr          # binOp
+  | expr op=('=='|'!=') expr                  # binOp
 
   // function definition and application
-  | expr '(' (expr (',' expr)*)? ')'      # call
-  | func                                  # funcExpr
+  | expr '(' (expr (',' expr)*)? ')'          # call
+  | func                                      # funcExpr
 
   // tuples and tensors
-  | '(' ')'                               # tuple
-  | '(' expr ',' ')'                      # tuple
-  | '(' expr (',' expr)+ ')'              # tuple
-  | '[' (expr (',' expr)*)? ']'           # tensor
+  | '(' ')'                                   # tuple
+  | '(' expr ',' ')'                          # tuple
+  | '(' expr (',' expr)+ ')'                  # tuple
+  | '[' (expr (',' expr)*)? ']'               # tensor
 
-  | 'if' '(' expr ')' body 'else' body    # ifElse
+  | 'if' '(' expr ')' body 'else' body        # ifElse
 
   // sequencing
   | 'let' MUT? var '=' expr ';' expr          # seq
@@ -80,13 +78,13 @@ expr
   | expr ';' expr                             # seq
 
   // mutable update
-  // | ident '=' expr                        # writeRef
-  // | expr '^'                              # readRef
+  // | ident '=' expr                            # writeRef
+  // | expr '^'                                  # readRef
 
-  | ident                                 # identExpr
-  | scalar                                # scalarExpr
-  // | expr '.' INT                          # project
-  // | 'debug'                               # debug
+  | ident                                     # identExpr
+  | scalar                                    # scalarExpr
+  // | expr '.' INT                              # project
+  // | 'debug'                                   # debug
   ;
 
 func: 'fn'        varList ('->' type_)? body ;
@@ -102,16 +100,16 @@ var: ident (':' type_)? ;
 // relation: ident '(' (type_ (',' type_)*)? ')' ;
 
 type_
-  : '(' ')'                                   # tupleType
-  | '(' type_ ',' ')'                         # tupleType
-  | '(' type_ (',' type_)+ ')'                # tupleType
-  | identType                                 # identTypeType
-  | 'Tensor' '[' shapeSeq ',' type_ ']'       # tensorType
-  | identType '[' (type_ (',' type_)*)? ']'   # callType
-  // Mut, Int, UInt, Float, Bool
-  | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_  # funcType
-  | '_'                                       # incompleteType
-  | INT                                       # intType
+  : '(' ')'                                         # tupleType
+  | '(' type_ ',' ')'                               # tupleType
+  | '(' type_ (',' type_)+ ')'                      # tupleType
+  | identType                                       # identTypeType
+  | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
+  // currently unused
+  | identType '[' (type_ (',' type_)*)? ']'         # callType
+  | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
+  | '_'                                             # incompleteType
+  | INT                                             # intType
   ;
 
 shapeSeq
