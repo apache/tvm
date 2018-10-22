@@ -9,7 +9,7 @@ from .tensor_intrin import dp4a
 from ..nn.conv2d import conv2d_NCHWc_int8_prepacked
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple, get_const_int, traverse_inline
+from ..util import get_const_tuple, traverse_inline
 
 
 def _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype):
@@ -183,7 +183,7 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
             _schedule_injective(packed_data.op, s)
             _schedule_injective(packed_kernel.op, s)
     else:
-        kernel = packed_data
+        kernel = packed_kernel
 
     if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
         s[kernel].compute_inline()
@@ -191,7 +191,6 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     if pad_data != packed_data:
         s[pad_data].compute_inline()
 
-    batch = get_const_int(packed_data.shape[0])
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -210,25 +209,24 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
 
     # tile and bind spatial axes
     n, f, y, x, c = s[output].op.axis
+    cfg.define_split("tile_n", cfg.axis(n), num_outputs=4)
     cfg.define_split("tile_f", cfg.axis(f), num_outputs=4)
     cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
     cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
 
+    # this is the scope to attach global config inside this kernel
+    kernel_scope, n = s[output].split(n, nparts=1)
+
+    bn, vn, tn, ni = cfg["tile_n"].apply(s, output, n)
     bf, vf, tf, fi = cfg["tile_f"].apply(s, output, f)
     by, vy, ty, yi = cfg["tile_y"].apply(s, output, y)
     bx, vx, tx, xi = cfg["tile_x"].apply(s, output, x)
 
-    # this is the scope to attach global config inside this kernel
-    kernel_scope, n = s[output].split(n, nparts=1)
-
-    max_block_z = 128
-    if batch > max_block_z:
-        _, n = s[output].split(n, factor=max_block_z)
-    s[output].reorder(n, bf, by, bx, vf, vy, vx, tf, ty, tx, fi, yi, xi)
-    fused_byx = s[output].fuse(by, bx)
-    s[output].bind(n, tvm.thread_axis("blockIdx.z"))
+    s[output].reorder(bn, bf, by, bx, vn, vf, vy, vx, tn, tf, ty, tx, ni, fi, yi, xi)
+    s[output].bind(bn, tvm.thread_axis("blockIdx.z"))
     s[output].bind(bf, tvm.thread_axis("blockIdx.y"))
-    s[output].bind(fused_byx, tvm.thread_axis("blockIdx.x"))
+    s[output].bind(s[output].fuse(by, bx), tvm.thread_axis("blockIdx.x"))
+    s[output].bind(vn, tvm.thread_axis("vthread"))
     s[output].bind(vf, tvm.thread_axis("vthread"))
     s[output].bind(vy, tvm.thread_axis("vthread"))
     s[output].bind(vx, tvm.thread_axis("vthread"))
