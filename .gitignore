@@ -209,3 +209,7 @@ tvm_t.*
 
 # patch sentinel
 patched.txt
+
+# Python type checking
+.mypy_cache/
+.pyre/
