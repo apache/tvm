@@ -275,7 +275,6 @@ class TextPrinter :
   }
 
   TextValue VisitExpr_(const CallNode* op) final {
-    // TODO(tqchen, M.K.): support generic call
     // possibly through meta-data
     TextValue call_op = GetValue(op->op);
     std::vector<TextValue> args;
@@ -289,7 +288,7 @@ class TextPrinter :
 
     auto type_args = op->type_args;
 
-    if (type_args.size() > 0U) {
+    if (!IsPrimitiveOp(op->op) && type_args.size() > 0U) {
       stream_ << "<";
       for (size_t i = 0; i < op->type_args.size(); ++i) {
         this->PrintType(type_args[i], stream_);
