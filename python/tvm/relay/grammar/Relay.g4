@@ -106,7 +106,7 @@ type_
   | identType                                       # identTypeType
   | 'Tensor' '[' shapeSeq ',' type_ ']'             # tensorType
   // currently unused
-  | identType '[' (type_ (',' type_)*)? ']'         # callType
+  // | identType '[' (type_ (',' type_)*)? ']'         # callType
   | 'fn' '(' (type_ (',' type_)*)? ')' '->' type_   # funcType
   | '_'                                             # incompleteType
   | INT                                             # intType
