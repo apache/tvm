@@ -62,10 +62,14 @@ TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
     TupleGetItemRel);
 
 struct ResolvedTypeInfo {
-  explicit ResolvedTypeInfo(Type checked_type) : checked_type(checked_type), type_args() {}
-  explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args) : checked_type(checked_type), type_args() {}
-  explicit ResolvedTypeInfo(Array<Type> type_args) : checked_type(), type_args(type_args) {}
-  ResolvedTypeInfo(const ResolvedTypeInfo& rti) : checked_type(rti.checked_type), type_args(rti.type_args) {}
+  explicit ResolvedTypeInfo(Type checked_type)
+      : checked_type(checked_type), type_args() {}
+  explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
+      : checked_type(checked_type), type_args() {}
+  explicit ResolvedTypeInfo(Array<Type> type_args)
+      : checked_type(), type_args(type_args) {}
+  ResolvedTypeInfo(const ResolvedTypeInfo& rti)
+      : checked_type(rti.checked_type), type_args(rti.type_args) {}
   ResolvedTypeInfo() : checked_type(), type_args() {}
 
   Type checked_type;
