@@ -125,13 +125,6 @@ class DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(TVMContext ctx, TVMStreamHandle stream) {}
-
-    /*!
-   * \brief Set the stream
-   * \param ctx The context to set stream.
-   * \param stream The stream to be set.
-   */
-  virtual TVMStreamHandle GetStream(TVMContext ctx) { return 0; }
   /*!
    * \brief Synchronize 2 streams of execution.
    *

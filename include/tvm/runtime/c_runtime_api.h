@@ -500,17 +500,6 @@ TVM_DLL int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream
  */
 TVM_DLL int TVMSetStream(int device_type, int device_id, TVMStreamHandle handle);
 
-
-/*!
- * \brief Get the current stream handle (if any) bound to this thread for this device.
- *
- * \param device_type The device type of context
- * \param device_id The device id of context.
- *
- * \return 0 when failure, valid stream when success
- */
-TVM_DLL int TVMGetStream(int device_type, int device_id, TVMStreamHandle* out);
-
 /*!
  * \brief Wait until all computations on stream completes.
  *

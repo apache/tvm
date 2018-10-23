@@ -350,15 +350,6 @@ int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_END();
 }
 
-int TVMGetStream(int device_type, int device_id, TVMStreamHandle* out) {
-  API_BEGIN();
-  TVMContext ctx;
-  ctx.device_type = static_cast<DLDeviceType>(device_type);
-  ctx.device_id = device_id;
-  *out = DeviceAPIManager::Get(ctx)->GetStream(ctx);
-  API_END();
-}
-
 int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   TVMContext ctx;
