@@ -191,7 +191,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
     CHECK(!type_map_.count(op->var));
     // NOTE: no scoping is necessary because var are unique in program
-    type_map_[op->var].checked_type = vtype; // ResolvedTypeInfo(vtype, Array<Type>(NodePtr<Node>(nullptr)));
+    type_map_[op->var].checked_type = vtype;
     return GetType(op->body);
   }
 
