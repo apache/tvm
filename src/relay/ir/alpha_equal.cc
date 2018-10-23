@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file src/tvm/relay/pass/alpha_eq.cc
- * \brief Check that two type are syntactically equal up to alpha equivalence.
+ * \file src/tvm/relay/ir/alpha_equal.cc
+ * \brief Alpha equality check by deep comparing two nodes.
  */
 #include <tvm/ir_pass.h>
 #include <tvm/relay/expr_functor.h>
