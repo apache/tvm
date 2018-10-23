@@ -23,9 +23,13 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
 }
 
 IndexExpr TensorTypeNode::Size() const {
-  IndexExpr size = make_const(Int(64), 1);
-  for (IndexExpr i : shape) {
-    size *= i;
+  if (shape.size() == 0) {
+    return make_const(Int(64), 1);
+  }
+
+  IndexExpr size = shape[0];
+  for (size_t i = 1; i < shape.size(); ++i) {
+    size *= shape[i];
   }
   return size;
 }
