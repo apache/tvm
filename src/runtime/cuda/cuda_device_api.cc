@@ -169,6 +169,10 @@ class CUDADeviceAPI final : public DeviceAPI {
         ->stream = static_cast<cudaStream_t>(stream);
   }
 
+  TVMStreamHandle GetStream(TVMContext ctx) final {
+    return CUDAThreadEntry::ThreadLocal()->stream;
+  }
+
   void* AllocWorkspace(TVMContext ctx, size_t size, TVMType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(ctx, size);
   }
