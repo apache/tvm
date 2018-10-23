@@ -213,6 +213,7 @@ class ParseTreeToRelayIR(RelayVisitor):
     # Currently doesn't support mutable sequencing.
     def visitSeq(self, ctx):
         # type: (RelayParser.SeqContext) -> relay.Let
+        """Desugar various sequence constructs to Relay Let nodes."""
         if ctx.MUT() is not None:
             raise ParseError("Mutation is currently unsupported.")
 
@@ -307,6 +308,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitIfElse(self, ctx):
         # type: (RelayParser.IfElseContext) -> relay.If
+        """Construct a Relay If node. Creates a new scope for each branch."""
         cond = self.visit(ctx.expr())
 
         self.enter_var_scope()
@@ -321,6 +323,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     # Types
 
+    # pylint: disable=unused-argument
     def visitIncompleteType(self, ctx):
         # type (RelayParser.IncompleteTypeContext) -> None:
         return None
@@ -336,22 +339,21 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         raise ParseError("Unknown builtin type: {}".format(ident_type))
 
-    def visitCallType(self, ctx):
-        # type: (RelayParser.CallTypeContext) -> Union[relay.Expr, relay.TensorType]
-        # ident_type = ctx.identType().CNAME().getText()
+    # def visitCallType(self, ctx):
+    #     # type: (RelayParser.CallTypeContext) -> Union[relay.Expr, relay.TensorType]
+    #     ident_type = ctx.identType().CNAME().getText()
 
-        # args = self.visit_list(ctx.type_())
+    #     args = self.visit_list(ctx.type_())
 
-        # if not args:
-        #     raise ParseError("Type-level functions must have arguments!")
+    #     if not args:
+    #         raise ParseError("Type-level functions must have arguments!")
 
-        # func_type = TYPE_FUNCS.get(ident_type)(args)
+    #     func_type = TYPE_FUNCS.get(ident_type)(args)
 
-        # if func_type is None:
-        #     raise ParseError("Unknown type-level function: `{}`".format(ident_type))
-        # else:
-        #     return func_type
-        raise ParseError("Call types are unused!")
+    #     if func_type is None:
+    #         raise ParseError("Unknown type-level function: `{}`".format(ident_type))
+    #     else:
+    #         return func_type
 
     def visitParensShape(self, ctx):
         # type: (RelayParser.ParensShapeContext) -> int
@@ -363,6 +365,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitTensorType(self, ctx):
         # type: (RelayParser.TensorTypeContext) -> relay.TensorType
+        """Create a simple tensor type. No generics."""
 
         shape = self.visit(ctx.shapeSeq())
         dtype = self.visit(ctx.type_())
