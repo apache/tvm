@@ -5,7 +5,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
-#include <tvm/contrib/blas.h>
+#include <tvm/contrib/gemm.h>
 
 extern "C" {
 #include <cublas_v2.h>
@@ -17,8 +17,10 @@ namespace contrib {
 using namespace runtime;
 
 #ifndef CHECK_CUBLAS_ERROR
-#define CHECK_CUBLAS_ERROR(_fn_) \
-if (int error = _fn_ != CUBLAS_STATUS_SUCCESS) { \
+#define CHECK_CUBLAS_ERROR(fn)			\
+  do {						\
+  int error = (int)fn;			\
+  if (error!= CUBLAS_STATUS_SUCCESS) {	\
   fprintf(stderr, "cuBLAS error: "); \
   if (error == CUBLAS_STATUS_NOT_INITIALIZED) fprintf(stderr, "CUBLAS_STATUS_NOT_INITIALIZED"); \
   if (error == CUBLAS_STATUS_ALLOC_FAILED) fprintf(stderr, "CUBLAS_STATUS_ALLOC_FAILED"); \
@@ -31,10 +33,10 @@ if (int error = _fn_ != CUBLAS_STATUS_SUCCESS) { \
   if (error == CUBLAS_STATUS_LICENSE_ERROR) fprintf(stderr, "CUBLAS_STATUS_LICENSE_ERROR"); \
   fprintf(stderr, "\n"); \
   exit(EXIT_FAILURE); \
-}
+  }} while(0);
 #endif
 
-  inline int boolean_to_transpose(bool item) {
+  inline cublasOperation_t boolean_to_transpose(bool item) {
     return item ? CUBLAS_OP_T : CUBLAS_OP_N;
   }
 
@@ -55,9 +57,10 @@ if (int error = _fn_ != CUBLAS_STATUS_SUCCESS) { \
 				     boolean_to_transpose(ta),
 				     boolean_to_transpose(tb),
 				     M, N, K,
-				     alpha, A, lda,
+				     &alpha, A, lda,
 				     B, ldb,
-				     beta, C, ldc));
+				     &beta, C, ldc));
+    }
   };
 
 
@@ -77,9 +80,9 @@ if (int error = _fn_ != CUBLAS_STATUS_SUCCESS) { \
 				     boolean_to_transpose(ta),
 				     boolean_to_transpose(tb),
 				     M, N, K,
-				     alpha, A, lda,
+				     &alpha, A, lda,
 				     B, ldb,
-				     beta, C, ldc));
+				     &beta, C, ldc));
     }
   };
 
@@ -93,10 +96,6 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     CHECK(TypeMatch(A->dtype, kDLFloat, 32) ||
 	  TypeMatch(A->dtype, kDLFloat, 64));
 
-    TVMStreamHandle stream = TVMGetStream(A->device_type, A->device_id);
-
-    DeviceAPIManager::Get(ctx)->SetStream(ctx, stream);
-
     //TODO cache handle
     //TODO set stream appropriate to the thread current stream.
     static cublasHandle_t handle = 0;
@@ -104,8 +103,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
       CHECK_CUBLAS_ERROR(cublasCreate(&handle));
     }
 
+    TVMStreamHandle stream = 0;
+    TVMGetStream(A->ctx.device_type, A->ctx.device_id, &stream);
     if (stream)
-      cublasSetStream(static_cast<cudaStream_t>(stream));
+      cublasSetStream(handle, static_cast<cudaStream_t>(stream));
+    
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
       call_gemm(args, ret, sgemm_op(handle));
