@@ -164,9 +164,6 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def visitProg(self, ctx):
         # type: (RelayParser.ProgContext) -> relay.Environment
-        # if ctx.option():
-        #     raise ParseError("Compiler options are unimplemented.")
-
         self.visit_list(ctx.defn())
 
         return self.env
