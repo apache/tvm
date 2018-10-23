@@ -387,8 +387,9 @@ def _pack():
 def _reshape():
     def _impl(inputs, attr, params):
         try:
-            pop_node = inputs.pop(1)
+            pop_node = inputs[1]
             shape_arg = params.pop(pop_node.list_output_names()[0])
+            inputs.pop(1)
 
             return AttrCvt(
                 op_name="reshape",
