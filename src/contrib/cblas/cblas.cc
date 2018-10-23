@@ -25,7 +25,7 @@ using namespace runtime;
     return trans ? CblasTrans : CblasNoTrans;
   }
 
-  struct sgemm_op
+  struct cblas_sgemm_op
   {
     typedef float TDatatype;
     void operator()(bool ta, bool tb,
@@ -43,7 +43,7 @@ using namespace runtime;
     }
   };
 
-  struct dgemm_op
+  struct cblas_dgemm_op
   {
     typedef double TDatatype;
     void operator()(bool ta, bool tb,
@@ -70,9 +70,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
 	  TypeMatch(A->dtype, kDLFloat, 64));
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      call_gemm(args, ret, sgemm_op());
+      call_gemm(args, ret, cblas_sgemm_op());
     else
-      call_gemm(args, ret, dgemm_op());
+      call_gemm(args, ret, cblas_dgemm_op());
   });
 }  // namespace contrib
 }  // namespace tvm

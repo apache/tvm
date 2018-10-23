@@ -7,8 +7,6 @@
 #define TVM_CONTRIB_CUBLAS_CUBLAS_UTILS_H_
 
 #include <dmlc/logging.h>
-#include <tvm/runtime/device_api.h>
-#include "../../runtime/cuda/cuda_common.h"
 
 extern "C" {
 #include <cublas_v2.h>

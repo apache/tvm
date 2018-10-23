@@ -18,11 +18,11 @@ using namespace runtime;
     return item ? CUBLAS_OP_T : CUBLAS_OP_N;
   }
 
-  struct sgemm_op
+  struct cublas_sgemm_op
   {
     typedef float TDatatype;
     cublasHandle_t handle;
-    sgemm_op( cublasHandle_t hdl )
+    cublas_sgemm_op( cublasHandle_t hdl )
       : handle(hdl)
       {}
 
@@ -42,11 +42,11 @@ using namespace runtime;
   };
 
 
-  struct dgemm_op
+  struct cublas_dgemm_op
   {
     typedef double TDatatype;
     cublasHandle_t handle;
-    dgemm_op( cublasHandle_t hdl )
+    cublas_dgemm_op( cublasHandle_t hdl )
       : handle(hdl)
       {}
     void operator()(bool ta, bool tb,
@@ -76,9 +76,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      call_gemm(args, ret, sgemm_op(entry_ptr->handle));
+      call_gemm(args, ret, cublas_sgemm_op(entry_ptr->handle));
     else
-      call_gemm(args, ret, dgemm_op(entry_ptr->handle));
+      call_gemm(args, ret, cublas_dgemm_op(entry_ptr->handle));
 });
 }  // namespace contrib
 }  // namespace tvm
