@@ -859,26 +859,23 @@ bool SplitRel(const Array<Type>& types,
   CHECK_GT(axis, 0)
     << "axis should be within the input dimension range.";
 
-  if (param->indices_or_sections.as<IntImm>()) {
-    const auto sections = make_const(Int(32),
-                                     param->indices_or_sections.as<IntImm>()->value);
+  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
     CHECK(reporter->Assert(data->shape[axis] %
-                           sections == make_zero(Int(64))))
+                           sections->value == make_zero(Int(64))))
         << "indices_or_sections need to be able to divide input.shape[axis]";
     std::vector<Type> fields;
-    for (int i = 0; i < *as_const_int(sections); ++i) {
+    for (int i = 0; i < sections->value; ++i) {
         std::vector<IndexExpr>&& oshape = AsVector(data->shape);
-        oshape[axis] /= sections;
+        oshape[axis] /= int32_t(sections->value);
         auto vec_type = TensorTypeNode::make(oshape, data->dtype);
         fields.push_back(vec_type);
     }
     reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
   } else {
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
-    const auto num_outputs = indices.size() + 1;
     auto begin = IndexExpr(make_zero(Int(32)));
     std::vector<Type> fields;
-    for (uint i = 0; i < num_outputs - 1; ++i) {
+    for (uint i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr>&& oshape = AsVector(data->shape);
