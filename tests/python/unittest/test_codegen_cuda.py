@@ -87,7 +87,26 @@ def test_cuda_vectorize_load():
     check_cuda("int8", 64, 8)
     check_cuda("int8", 64, 16)
 
+def test_cuda_make_int8x4():
+    def check_cuda(n, value):
+        lanes = 4
+        dtype = 'int8'
+        ctx = tvm.gpu(0)
+        A = tvm.compute((n, lanes), lambda i,j: tvm.const(value, dtype=dtype))
+        s = tvm.create_schedule(A.op)
+        y, x = s[A].op.axis
+        s[A].vectorize(x)
+        s[A].bind(y, tvm.thread_axis("blockIdx.x"))
+        fun = tvm.build(s, [A], "cuda", name="make_int8x4")
+        np_a = np.full((n, lanes), value, dtype=dtype)
+        a = tvm.nd.empty(np_a.shape, dtype, ctx)
+        fun(a)
+        np.testing.assert_equal(a.asnumpy(), np_a)
+    check_cuda(64, 0xAB)
+    check_cuda(64, 0)
+
 if __name__ == "__main__":
     test_cuda_vectorize_add()
     test_cuda_multiply_add()
     test_cuda_vectorize_load()
+    test_cuda_make_int8x4()
