@@ -21,6 +21,26 @@ def test_for():
     assert isinstance(body, tvm.stmt.Block)
     assert isinstance(body.rest, tvm.stmt.For)
 
+def test_for_unroll():
+    ib = tvm.ir_builder.create()
+    n = tvm.var("n")
+    A = ib.allocate("float32", 1, name="A", scope="global")
+    with ib.for_range(0, 1, name="i") as i:
+        A[i] = A[i] + 1
+        with ib.for_range(0, 10, name="j") as j:
+            A[j] = A[j] + 2
+    body = ib.get()
+
+    assert isinstance(body, tvm.stmt.AttrStmt)
+    body = body.body
+    assert isinstance(body, tvm.stmt.Allocate)
+    body = body.body
+    assert isinstance(body, tvm.stmt.For)
+    assert body.for_type == 3
+    body = body.body
+    assert isinstance(body, tvm.stmt.Block)
+    assert isinstance(body.rest, tvm.stmt.For)
+
 def test_if():
     ib = tvm.ir_builder.create()
     n = tvm.var("n")
@@ -133,5 +153,6 @@ if __name__ == "__main__":
     test_prefetch()
     test_if()
     test_for()
+    test_for_unroll()
     test_cpu()
     test_gpu()

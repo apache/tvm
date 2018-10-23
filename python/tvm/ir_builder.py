@@ -197,6 +197,16 @@ class IRBuilder(object):
         self._seq_stack.append([])
         loop_var = _api.var(name, dtype=dtype)
         extent = end if begin == 0 else _pass.Simplify(end - begin)
+
+        if for_type == "serial":
+            if isinstance(extent, int):
+                if extent == 1:
+                    for_type = "unroll"
+            else:
+                extent = _pass.Simplify(extent)
+                if isinstance(extent, (_expr.IntImm, _expr.UIntImm)) and extent.value == 1:
+                    for_type = "unroll"
+
         def _exit_cb():
             if for_type == "serial":
                 for_type_id = 0
