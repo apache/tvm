@@ -14,7 +14,7 @@
  * contains a data type such as `int`, `float`, `uint`.
  */
 #include <tvm/relay/pass.h>
-#include "./type_visitor.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -105,13 +105,13 @@ bool KindCheck(const Type& t, const Environment& env) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.check_kind")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      if (args.size() == 1) {
-        *ret = KindCheck(args[0], EnvironmentNode::make({}));
-      } else {
-        *ret = KindCheck(args[0], args[1]);
-      }
-    });
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    if (args.size() == 1) {
+      *ret = KindCheck(args[0], EnvironmentNode::make({}));
+    } else {
+      *ret = KindCheck(args[0], args[1]);
+    }
+  });
 
 }  // namespace relay
 }  // namespace tvm
