@@ -133,14 +133,18 @@ class GraphModule(object):
            Additonal arguments
         """
         if key:
-            self._get_input(key).copyfrom(value)
+            input_param = self._get_input(key)
+            if input_param:
+                input_param.copyfrom(value)
 
         if params:
             # upload big arrays first to avoid memory issue in rpc mode
             keys = list(params.keys())
             keys.sort(key=lambda x: -np.prod(params[x].shape))
             for k in keys:
-                self._get_input(k).copyfrom(params[k])
+                input_param = self._get_input(k)
+                if input_param:
+                    input_param.copyfrom(params[k])
 
     def run(self, **input_dict):
         """Run forward execution of the graph
@@ -175,11 +179,14 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
+        input_param = self._get_input(index)
+        if input_param is None:
+            raise ValueError("Cannot find %dth input." % (index))
         if out:
-            self._get_input(index).copyto(out)
+            input_param.copyto(out)
             return out
 
-        return self._get_input(index)
+        return input_param
 
     def get_output(self, index, out=None):
         """Get index-th output to out

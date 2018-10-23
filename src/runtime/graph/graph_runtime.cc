@@ -336,8 +336,9 @@ PackedFunc GraphRuntime::GetFunction(
         } else {
           in_idx = args[0];
         }
-        CHECK_GE(in_idx, 0);
-        *rv = this->GetInput(in_idx);
+        if (in_idx >= 0) {
+          *rv = this->GetInput(in_idx);
+        }
       });
   } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
