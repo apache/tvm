@@ -173,7 +173,7 @@ def ext_dev(dev_id=0):
     """
     return TVMContext(12, dev_id)
 
-def cce_dev(dev_id=0):
+def cce(dev_id=0):
     """Construct a CCE device
 
     Parameters
