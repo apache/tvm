@@ -30,7 +30,7 @@ def test_env():
     env["myf"] = f
     text = env.astext()
     assert "def @myf" in text
-    assert "%1 = add(%0, %0) # ty=float32" in text
+    assert "%1 = add<float32, float32>(%0, %0) # ty=float32" in text
     show(text)
 
 
