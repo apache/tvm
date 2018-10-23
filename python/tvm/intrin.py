@@ -376,6 +376,22 @@ def popcount(x):
     """
     return call_pure_intrin(x.dtype, "popcount", x)
 
+def mod(x, y):
+    """Take mod cast of input x and y
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "fmod", x, y)
 
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):

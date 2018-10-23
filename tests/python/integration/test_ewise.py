@@ -38,6 +38,43 @@ def test_exp():
     check_device("cuda", "llvm")
     check_device("vulkan")
 
+def test_mod():
+    # graph
+    def run(dtype):
+        n = tvm.var('n')
+        A = tvm.placeholder((n,), name='A', dtype=dtype)
+        B = tvm.placeholder((n,), name='B', dtype=dtype)
+        C = tvm.compute(A.shape, lambda *i: tvm.mod(A(*i), B(*i)), name='C')
+        s = tvm.create_schedule(C.op)
+        # create iter var and assign them tags.
+        num_thread = 8
+        bx, tx = s[C].split(C.op.axis[0], factor=num_thread)
+
+        def check_device(device):
+            ctx = tvm.context(device, 0)
+            if not ctx.exist:
+                print("skip because %s is not enabled.." % device)
+                return
+            target = tvm.target.create(device)
+            if "cpu" not in target.keys:
+                s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
+                s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
+            fmod = tvm.build(s, [A, B, C], device, name="mymod")
+
+            # launch the kernel.
+            n = 1024
+            a = tvm.nd.array((np.random.uniform(size=n) * 256).astype(A.dtype), ctx)
+            b = tvm.nd.array((np.random.uniform(size=n) * 256).astype(B.dtype), ctx)
+            c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
+            ftimer = fmod.time_evaluator(fmod.entry_name, ctx, number=1)
+            tcost = ftimer(a, b, c).mean
+            #fmod(a, b, c)
+            np.testing.assert_allclose(
+                c.asnumpy(), np.mod(a.asnumpy(), b.asnumpy()), rtol=1e-5)
+
+        check_device("cuda")
+
+    run("float32")
 
 def test_multiple_cache_write():
     # graph
@@ -245,3 +282,4 @@ if __name__ == "__main__":
     test_add()
     test_log_pow_llvm()
     test_popcount()
+    test_mod()
