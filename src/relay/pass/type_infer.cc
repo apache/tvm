@@ -62,19 +62,16 @@ TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
     TupleGetItemRel);
 
 struct ResolvedTypeInfo {
-  explicit ResolvedTypeInfo(Type checked_type)
-      : checked_type(checked_type), type_args() {}
   explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
-      : checked_type(checked_type), type_args() {}
-  explicit ResolvedTypeInfo(Array<Type> type_args)
-      : checked_type(), type_args(type_args) {}
+      : checked_type(checked_type), type_args(type_args) {}
   ResolvedTypeInfo(const ResolvedTypeInfo& rti)
       : checked_type(rti.checked_type), type_args(rti.type_args) {}
-  ResolvedTypeInfo() : checked_type(), type_args() {}
+  ResolvedTypeInfo() : checked_type() {}
 
   Type checked_type;
   // Only allocated when the expression is a call.
-  Array<Type> type_args;
+
+  Array<Type> type_args = Array<Type>(NodePtr<Node>(nullptr));
 };
 
 //
@@ -194,7 +191,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
     CHECK(!type_map_.count(op->var));
     // NOTE: no scoping is necessary because var are unique in program
-    type_map_[op->var].checked_type = { vtype };
+    type_map_[op->var].checked_type = vtype; // ResolvedTypeInfo(vtype, Array<Type>(NodePtr<Node>(nullptr)));
     return GetType(op->body);
   }
 
@@ -264,7 +261,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   void AddTypeArgs(const Expr& expr, Array<Type> type_args) {
     auto type_info = type_map_.find(expr);
     if (type_info == type_map_.end()) {
-      type_map_.insert({expr, ResolvedTypeInfo(type_args) });
+      type_map_.insert({expr, ResolvedTypeInfo(Type(), type_args)});
     } else {
       CHECK(!type_info->second.type_args.defined());
       type_info->second.type_args = type_args;
@@ -391,20 +388,7 @@ class TypeInferencer::Resolver : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    auto call = GetRef<Call>(op);
-    auto it = tmap_.find(call);
-    if (it != tmap_.end()) {
-      Call new_op = Downcast<Call>(AttachCheckedType(op));
-      new_op->type_args = it->second.type_args;
-
-      for (int i = 0; i < new_op->type_args.size(); i++) {
-        new_op->type_args.Set(i, solver_->Resolve(new_op->type_args[i]));
-      }
-
-      return new_op;
-    } else {
-      return AttachCheckedType(op);
-    }
+    return AttachCheckedType(op);
   }
 
   Expr VisitExpr_(const LetNode* op) final {
@@ -434,6 +418,18 @@ class TypeInferencer::Resolver : public ExprMutator {
       }
       new_e->checked_type_ = checked_type;
     }
+
+    if (it->second.type_args.defined()) {
+      Call call = Downcast<Call>(new_e);
+      const CallNode* const_call_ref = call.operator->();
+      CallNode* call_ref = const_cast<CallNode*>(const_call_ref);
+      call_ref->type_args = it->second.type_args;
+
+      for (size_t i = 0; i < call->type_args.size(); i++) {
+        call_ref->type_args.Set(i, solver_->Resolve(call->type_args[i]));
+      }
+    }
+
     return new_e;
   }
 

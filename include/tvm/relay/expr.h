@@ -267,7 +267,7 @@ class CallNode : public ExprNode {
    *
    * \endcode
    */
-  mutable tvm::Array<Type> type_args;
+  tvm::Array<Type> type_args;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("op", &op);
