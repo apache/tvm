@@ -63,6 +63,8 @@ typedef enum {
   kDLAOCL = 5,
   kDLSDAccel = 6,
   kOpenGL = 11,
+  /*! \brief CCE C is for Huawei DaVinci core */
+  kDLCce = 13,
   // AddExtraTVMType which is not in DLPack here
 } TVMDeviceExtType;
 

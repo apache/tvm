@@ -39,6 +39,7 @@ inline std::string DeviceName(int type) {
     case kDLROCM: return "rocm";
     case kOpenGL: return "opengl";
     case kDLExtDev: return "ext_dev";
+    case kDLCce: return "cce";
     default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
   }
 }

@@ -86,6 +86,11 @@ def test_add_pipeline():
     check_target("rocm", host="llvm")
     check_module_save("vulkan", host="stackvm")
 
+def test_cce_target():
+    target = tvm.target.create("cce")
+    ctx = tvm.context(target.target_name, 0)
+    assert ctx.device_type == 13
 
 if __name__ == "__main__":
     test_add_pipeline()
+    test_cce_target()
