@@ -27,6 +27,14 @@ def test_unary_identity():
         assert yy.checked_type == relay.TensorType((8, 9, 4), "float32")
 
 
+def test_cast():
+    x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
+    y = x.astype("int32")
+    yy = relay.ir_pass.infer_type(y)
+    assert "dtype=" in yy.astext()
+    assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
+
+
 def test_clip_type():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
     y = relay.clip(a, 1., 4.)
@@ -139,7 +147,9 @@ def test_infer_type_leaky_relu():
    yy = relay.ir_pass.infer_type(y)
    assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
+
 if __name__ == "__main__":
+    test_cast()
     test_zeros_ones()
     test_unary_identity()
     test_clip_type()

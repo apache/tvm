@@ -41,6 +41,21 @@ class TensorType(Type):
         self.__init_handle_by_constructor__(
             _make.TensorType, shape, dtype)
 
+    @property
+    def concrete_shape(self):
+        """Get shape of the type as concrete tuple of int.
+
+        Returns
+        -------
+        shape : List[int]
+            The concrete shape of the Type.
+
+        Raises
+        ------
+        TypeError : If the shape is symbolic
+        """
+        return tuple(int(x) for x in self.shape)
+
 
 class Kind(IntEnum):
     """The kind of a type parameter, represents a variable shape,

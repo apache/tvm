@@ -408,6 +408,7 @@ def upsampling(data,
     """
     return _make.upsampling(data, scale, layout, method)
 
+
 def batch_flatten(data):
     """BatchFlatten.
 
@@ -425,10 +426,36 @@ def batch_flatten(data):
 
     Returns
     -------
-    result: relay.Expr
+    result : relay.Expr
         The Flattened result.
     """
     return _make.batch_flatten(data)
+
+
+def bias_add(data, bias, axis=1):
+    """add_bias operator.
+
+    Add 1D bias to the axis of data.
+    This function is a special case of add which allows
+    inference of shape of the bias from data.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    bias : relay.Expr
+        The bias to be added.
+
+    axis : int, optional
+        The axis to add the bias.
+
+    Returns
+    -------
+    result : relay.Expr
+        The final result.
+    """
+    return _make.bias_add(data, bias, axis)
 
 
 def dense(data, weight, units=None):
@@ -590,6 +617,7 @@ def l2_normalize(data, eps, axis=None):
     """
     return _make.l2_normalize(data, eps, axis)
 
+
 def dropout(data, rate=0.5):
     """Applies the dropout operation to the input array.
 
@@ -607,17 +635,22 @@ def dropout(data, rate=0.5):
 
     Returns
     -------
-    result : relay.Tuple([relay.Expr, relay.Expr])
-        The first member of the tuple is the result of dropping elements from ``data``
-        and rescaling. The second member is a "mask" tensor, which is of the same
-        shape and data type as ``data`` and, for each element in ``data``, is 1.0
-        if the element was not dropped and 0.0 if it was.
+    result : relay.Expr
+        The result of dropout
     """
     result = _make.dropout(data, rate)
-    return TupleWrapper(result, 2)
+    return TupleWrapper(result, 2)[0]
 
-def batch_norm(data, gamma, beta, moving_mean, moving_var,
-               axis=1, epsilon=1e-5, center=True, scale=True):
+
+def batch_norm(data,
+               gamma,
+               beta,
+               moving_mean,
+               moving_var,
+               axis=1,
+               epsilon=1e-5,
+               center=True,
+               scale=True):
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
     Normalizes the input at each batch, i.e. applies a transformation
@@ -660,32 +693,48 @@ def batch_norm(data, gamma, beta, moving_mean, moving_var,
     ----------
     data : relay.Expr
         Input to which batch_norm will be applied.
+
     gamma : relay.Expr
         The gamma scale factor.
+
     beta : relay.Expr
         The beta offset factor.
+
     moving_mean : relay.Expr
         Running mean of input,
+
     moving_var : relay.Expr
         Running variance of input.
+
     axis : int, optional, default=1
         Specify along which shape axis the channel is specified.
+
     epsilon : double, optional, default=1e-5
         Small float added to variance to avoid diving by zero.
+
     center : boolean, optional, default=True
         If True, add offset of beta to normalized tensor, If False,
         beta is ignored.
+
     scale : boolean, optional, default=True
         If true, multiply by gamma. If False, gamma is not used.
         When the next layer is piecewise linear (also e.g. nn.relu),
-        this can be disabled since the scalingwill be done by the next layer.
+        this can be disabled since the scaling will be done by the next layer.
 
     Returns
     -------
     result : relay.Tuple([relay.Expr, relay.Expr, relay.Expr])
-        Tuple of normed data (same shape as input), new running mean (k-length vector),
+        Tuple of normed data (same shape as input),
+        new running mean (k-length vector),
         and new running variance (k-length vector)
     """
-    result = _make.batch_norm(data, gamma, beta, moving_mean, moving_var,
-                              axis, epsilon, center, scale)
+    result = _make.batch_norm(data,
+                              gamma,
+                              beta,
+                              moving_mean,
+                              moving_var,
+                              axis,
+                              epsilon,
+                              center,
+                              scale)
     return TupleWrapper(result, 3)
