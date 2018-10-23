@@ -29,11 +29,11 @@ struct KindChecker : TypeVisitor<> {
 
   // checks if t is an incomplete node of kind k or a type param of kind k
   bool MatchKind(const Type& t, Kind k) {
-    if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
+    if (const IncompleteTypeNode* tv = t.as<IncompleteTypeNode>()) {
       return tv->kind == k;
     }
 
-    if (const TypeVarNode *tp = t.as<TypeVarNode>()) {
+    if (const TypeVarNode* tp = t.as<TypeVarNode>()) {
       return tp->kind == k;
     }
 
@@ -93,7 +93,7 @@ struct KindChecker : TypeVisitor<> {
     }
   }
 
-  bool Check(const Type &t) {
+  bool Check(const Type& t) {
     this->VisitType(t);
     return valid;
   }

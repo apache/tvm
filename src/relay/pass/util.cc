@@ -14,10 +14,10 @@ namespace relay {
 
 class FreeVar;
 class FreeTypeVar : private TypeVisitor<> {
-  std::unordered_set<TypeVar, NodeHash, NodeEqual> * free_vars;
-  std::unordered_set<TypeVar, NodeHash, NodeEqual> * bound_vars;
-  FreeTypeVar(std::unordered_set<TypeVar, NodeHash, NodeEqual> * free_vars,
-              std::unordered_set<TypeVar, NodeHash, NodeEqual> * bound_vars) :
+  std::unordered_set<TypeVar, NodeHash, NodeEqual>* free_vars;
+  std::unordered_set<TypeVar, NodeHash, NodeEqual>* bound_vars;
+  FreeTypeVar(std::unordered_set<TypeVar, NodeHash, NodeEqual>* free_vars,
+              std::unordered_set<TypeVar, NodeHash, NodeEqual>* bound_vars) :
     free_vars(free_vars), bound_vars(bound_vars) { }
 
   void VisitType_(const TypeVarNode* tp) final {
@@ -45,7 +45,7 @@ class FreeTypeVar : private TypeVisitor<> {
 };
 
 class FreeVar : public ExprVisitor {
-  void VisitExpr_(const VarNode *v) final {
+  void VisitExpr_(const VarNode* v) final {
     auto var = GetRef<Var>(v);
     if (bound_vars.count(var) == 0) {
       free_vars.insert(var);
@@ -55,7 +55,7 @@ class FreeVar : public ExprVisitor {
     }
   }
 
-  void VisitExpr_(const FunctionNode *f) final {
+  void VisitExpr_(const FunctionNode* f) final {
     for (const auto& tp : f->type_params) {
       bound_types.insert(tp);
     }
@@ -66,7 +66,7 @@ class FreeVar : public ExprVisitor {
     VisitType(f->ret_type);
   }
 
-  void VisitExpr_(const LetNode *l) final {
+  void VisitExpr_(const LetNode* l) final {
     bound_vars.insert(l->var);
     VisitExpr(l->value);
     VisitExpr(l->body);
