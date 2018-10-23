@@ -73,12 +73,12 @@ Function EnvironmentNode::Lookup(const GlobalVar& var) {
   return (*it).second;
 }
 
-Function EnvironmentNode::Lookup(const std::string &name) {
+Function EnvironmentNode::Lookup(const std::string& name) {
   GlobalVar id = this->GetGlobalVar(name);
   return this->Lookup(id);
 }
 
-void EnvironmentNode::Update(const Environment &env) {
+void EnvironmentNode::Update(const Environment& env) {
   for (auto pair : env->functions) {
     this->Update(pair.first, pair.second);
   }
