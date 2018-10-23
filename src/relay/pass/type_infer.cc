@@ -379,7 +379,7 @@ class TypeInferencer::Resolver : public ExprMutator {
     return new_e;
   }
 
-  Type VisitType(const Type &t) final {
+  Type VisitType(const Type& t) final {
     return solver_->Resolve(t);
   }
 

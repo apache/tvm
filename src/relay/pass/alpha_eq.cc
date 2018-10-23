@@ -193,11 +193,13 @@ struct TypeAlphaEq : TypeVisitor<const Type&> {
 };
 
 bool AlphaEqual(const Type& t1, const Type& t2) {
-  if (t1.defined() != t2.defined())
+  if (t1.defined() != t2.defined()) {
     return false;
+  }
 
-  if (!t1.defined())
+  if (!t1.defined()) {
     return true;
+  }
 
   TypeAlphaEq aeq;
   aeq.VisitType(t1, t2);
@@ -273,7 +275,10 @@ struct AlphaEq : ExprFunctor<void(const Expr&, const Expr&)> {
       for (size_t i = 0; i < func1->params.size(); ++i) {
         MergeVarDecl(func1->params[i], func2->params[i]);
       }
-      if (!equal) return;
+
+      if (!equal) {
+        return;
+      }
 
       for (size_t i = 0U; i < func1->type_params.size(); i++) {
         equal = equal && AlphaEqual(func1->type_params[i], func2->type_params[i]);
