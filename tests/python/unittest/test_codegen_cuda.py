@@ -89,6 +89,9 @@ def test_cuda_vectorize_load():
 
 def test_cuda_make_int8x4():
     def check_cuda(n, value):
+        if not tvm.gpu(0).exist or not tvm.module.enabled("cuda"):
+            print("skip because cuda is not enabled..")
+            return
         lanes = 4
         dtype = 'int8'
         ctx = tvm.gpu(0)
