@@ -17,6 +17,12 @@ def test_attrs_equal():
     assert tvm.ir_pass.AttrsEqual({"x": [x, x]}, {"x": [y, x]})
     assert not tvm.ir_pass.AttrsEqual({"x": [x, 1]}, {"x": [y, 2]})
 
+    n = tvm.var("n")
+    assert tvm.ir_pass.AttrsEqual({"x": n+1}, {"x": n+1})
+
+
+
+
 
 def test_attrs_hash():
     fhash = tvm.ir_pass.AttrsHash

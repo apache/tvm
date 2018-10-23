@@ -68,10 +68,14 @@ TVM_REGISTER_API("ir_pass.Equal")
 
 
 TVM_REGISTER_API("ir_pass.AttrsEqual")
-.set_body_typed<bool(const NodeRef&, const NodeRef&)>(AttrsEqual::Equal);
+.set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
+    return AttrsEqual()(lhs, rhs);
+  });
 
 TVM_REGISTER_API("ir_pass.AttrsHash")
-.set_body_typed<int64_t(const NodeRef&)>(AttrsHash::Hash);
+.set_body_typed<int64_t(const NodeRef&)>([](const NodeRef &node) {
+    return AttrsHash()(node);
+  });
 
 
 TVM_REGISTER_API("ir_pass.ExprUseVar")

@@ -7,7 +7,7 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
-#include "./type_visitor.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {

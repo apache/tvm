@@ -6,7 +6,7 @@
 #include <tvm/relay/environment.h>
 #include <tvm/relay/expr_functor.h>
 #include <sstream>
-#include "../pass/type_functor.h"
+#include "type_functor.h"
 #include "../../lang/attr_functor.h"
 
 namespace tvm {
@@ -244,6 +244,9 @@ class TextPrinter :
       if (i + 1 != fields.size()) {
         stream_ << ", ";
       }
+    }
+    if (fields.size() == 1) {
+      stream_ << ',';
     }
     stream_ << ')';
     this->PrintEndInst("\n");
@@ -648,7 +651,7 @@ class TextPrinter :
       name = "%" + name;
     }
     TextValue val(GetUniqueName(name));
-    CHECK(!memo_.count(var));
+    CHECK(!memo_.count(var)) << "Duplicated variable " << var;
     memo_[var] = val;
     return val;
   }

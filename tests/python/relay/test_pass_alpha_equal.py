@@ -139,7 +139,8 @@ def test_type_relation_alpha_equal():
 
     # attrs are also compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
     tr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
     same = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1)
@@ -147,6 +148,7 @@ def test_type_relation_alpha_equal():
     diff_order = relay.TypeRelation(broadcast, tvm.convert([t2, t1]), 1, attr1)
     diff_args = relay.TypeRelation(broadcast, tvm.convert([t2, t3]), 1, attr1)
     diff_attr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr2)
+    same_attr = relay.TypeRelation(broadcast, tvm.convert([t1, t2]), 1, attr1_same)
 
     bigger = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 2, attr1)
     diff_num_inputs = relay.TypeRelation(identity, tvm.convert([t1, t3, t2]), 1, attr2)
@@ -157,6 +159,7 @@ def test_type_relation_alpha_equal():
     assert tr != diff_order
     assert tr != diff_args
     assert tr != diff_attr
+    assert tr == same_attr
     assert tr != bigger
 
     assert bigger != diff_num_inputs
@@ -216,22 +219,26 @@ def test_global_var_alpha_equal():
 
 
 def test_tuple_alpha_equal():
+    v0 = relay.Var("v0")
     v1 = relay.Var("v1")
     v2 = relay.Var("v2")
 
     # unit value is a valid tuple
     assert alpha_equal(relay.Tuple([]), relay.Tuple([]))
 
-    tup = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
-    same = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
+    tup = relay.Tuple([v0, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
+    same = relay.Tuple([v0, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)])])
 
     assert alpha_equal(tup, same)
 
     # use the eq_map
+
+
     let_tup = relay.Let(v1, tup, v1)
-    let_mapped = relay.Let(v2, relay.Tuple([v2, relay.const(2), relay.const(3),
+    let_mapped = relay.Let(v2, relay.Tuple([v0, relay.const(2), relay.const(3),
                                             relay.Tuple([relay.const(4)])]),
                            v2)
+
     assert alpha_equal(let_tup, let_mapped)
 
     more_fields = relay.Tuple([v1, relay.const(2), relay.const(3), relay.Tuple([relay.const(4)]), v2])
@@ -340,7 +347,8 @@ def test_call_alpha_equal():
 
     # attrs are compared only by pointer equality
     attr1 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
-    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr1_same = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4))
+    attr2 = tvm.make.node("attrs.TestAttrs", name="attr", padding=(3,4,4))
 
     tt1 = relay.TensorType((1, 2, 3), "float32")
     tt2 = relay.TensorType((), "int8")
@@ -374,6 +382,9 @@ def test_call_alpha_equal():
 
     different_attrs = relay.Call(v1, basic_args, attr2, [tt1])
     assert not alpha_equal(call, different_attrs)
+
+    same_attrs = relay.Call(v1, basic_args, attr1_same, [tt1])
+    assert alpha_equal(call, same_attrs)
 
     no_type_args = relay.Call(v1, basic_args, attr1)
     assert not alpha_equal(call, no_type_args)
@@ -445,6 +456,27 @@ def test_op_alpha_equal():
     assert not alpha_equal(op1, op3)
 
 
+def test_graph_equal():
+    x = relay.var("x")
+
+    y0 = relay.add(x, x)
+    z0 = relay.add(y0, y0)
+
+    y1 = relay.add(x, x)
+    z1 = relay.add(y1, y1)
+
+    z3 = relay.add(relay.add(x, x), relay.add(x, x))
+
+    assert alpha_equal(z0, z1)
+
+    # z3's dataflow format is different from z0
+    # z0 is computed from a common y0 node
+    # Relay view them as different programs
+    # Check the difference in the text format.
+    assert not alpha_equal(z0, z3)
+
+
+
 if __name__ == "__main__":
     test_tensor_type_alpha_equal()
     test_incomplete_type_alpha_equal()
@@ -462,3 +494,4 @@ if __name__ == "__main__":
     test_if_alpha_equal()
     test_op_alpha_equal()
     test_var_alpha_equal()
+    test_graph_equal()

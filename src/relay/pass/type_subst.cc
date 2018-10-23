@@ -4,7 +4,7 @@
  * \brief Function for substituting a concrete type in place of a type ID
  */
 #include "./type_subst.h"
-#include "./type_visitor.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
