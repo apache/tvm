@@ -16,7 +16,7 @@ namespace tvm {
 namespace contrib {
 
 inline const char* get_cublas_error_string(int error) {
-  switch(error) {
+  switch (error) {
   case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
   case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
   case CUBLAS_STATUS_INVALID_VALUE: return "CUBLAS_STATUS_INVALID_VALUE";
@@ -31,12 +31,12 @@ inline const char* get_cublas_error_string(int error) {
 }
 
 #ifndef CHECK_CUBLAS_ERROR
-#define CHECK_CUBLAS_ERROR(fn)			\
-  do {						\
-    int error = (int)(fn);			\
+#define CHECK_CUBLAS_ERROR(fn)                  \
+  do {                                          \
+    int error = static_cast<int>(fn);                      \
     CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << get_cublas_error_string(error); \
-  } while(0);
-#endif
+  } while (0);
+#endif  // CHECK_CUBLAS_ERROR
 
 
 struct CuBlasThreadEntry {
@@ -47,6 +47,7 @@ struct CuBlasThreadEntry {
 };  // CuBlasThreadEntry
 
 
-}}
+}  // namespace contrib
+}  // namespace tvm
 
-#endif //
+#endif  // TVM_CONTRIB_CUBLAS_CUBLAS_UTILS_H_

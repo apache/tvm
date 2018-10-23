@@ -14,64 +14,61 @@ namespace contrib {
 
 using namespace runtime;
 
-  inline cublasOperation_t boolean_to_transpose(bool item) {
-    return item ? CUBLAS_OP_T : CUBLAS_OP_N;
+inline cublasOperation_t boolean_to_transpose(bool item) {
+  return item ? CUBLAS_OP_T : CUBLAS_OP_N;
+}
+
+struct cublas_sgemm_op {
+  typedef float TDatatype;
+  cublasHandle_t handle;
+  explicit cublas_sgemm_op(cublasHandle_t hdl)
+    : handle(hdl)
+    {}
+
+  void operator()(bool ta, bool tb,
+                  int M, int N, int K,
+                  float alpha, float* A, int lda,
+                  float* B, int ldb,
+                  float beta, float* C, int ldc) {
+    CHECK_CUBLAS_ERROR(cublasSgemm(handle,
+                                   boolean_to_transpose(ta),
+                                   boolean_to_transpose(tb),
+                                   M, N, K,
+                                   &alpha, A, lda,
+                                   B, ldb,
+                                   &beta, C, ldc));
   }
-
-  struct cublas_sgemm_op
-  {
-    typedef float TDatatype;
-    cublasHandle_t handle;
-    cublas_sgemm_op( cublasHandle_t hdl )
-      : handle(hdl)
-      {}
-
-    void operator()(bool ta, bool tb,
-		    int M, int N, int K,
-		    float alpha, float* A, int lda,
-		    float* B, int ldb,
-		    float beta, float* C, int ldc) {
-      CHECK_CUBLAS_ERROR(cublasSgemm(handle,
-				     boolean_to_transpose(ta),
-				     boolean_to_transpose(tb),
-				     M, N, K,
-				     &alpha, A, lda,
-				     B, ldb,
-				     &beta, C, ldc));
-    }
-  };
+};
 
 
-  struct cublas_dgemm_op
-  {
-    typedef double TDatatype;
-    cublasHandle_t handle;
-    cublas_dgemm_op( cublasHandle_t hdl )
-      : handle(hdl)
-      {}
-    void operator()(bool ta, bool tb,
-		    int M, int N, int K,
-		    double alpha, double* A, int lda,
-		    double* B, int ldb,
-		    double beta, double* C, int ldc) {
-      CHECK_CUBLAS_ERROR(cublasDgemm(handle,
-				     boolean_to_transpose(ta),
-				     boolean_to_transpose(tb),
-				     M, N, K,
-				     &alpha, A, lda,
-				     B, ldb,
-				     &beta, C, ldc));
-    }
-  };
+struct cublas_dgemm_op {
+  typedef double TDatatype;
+  cublasHandle_t handle;
+  explicit cublas_dgemm_op(cublasHandle_t hdl)
+    : handle(hdl)
+    {}
+  void operator()(bool ta, bool tb,
+                  int M, int N, int K,
+                  double alpha, double* A, int lda,
+                  double* B, int ldb,
+                  double beta, double* C, int ldc) {
+    CHECK_CUBLAS_ERROR(cublasDgemm(handle,
+                                   boolean_to_transpose(ta),
+                                   boolean_to_transpose(tb),
+                                   M, N, K,
+                                   &alpha, A, lda,
+                                   B, ldb,
+                                   &beta, C, ldc));
+  }
+};
 
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-
     DLTensor* A = args[0];
 
     CHECK(TypeMatch(A->dtype, kDLFloat, 32) ||
-	  TypeMatch(A->dtype, kDLFloat, 64));
+          TypeMatch(A->dtype, kDLFloat, 64));
 
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 

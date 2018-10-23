@@ -12,8 +12,7 @@ namespace contrib {
 
   using namespace runtime;
 
-  inline int column_stride(DLTensor* tensor)
-  {
+  inline int column_stride(DLTensor* tensor) {
     if (tensor->strides)
       return tensor->strides[0];
     else
@@ -28,11 +27,10 @@ namespace contrib {
     return tensor->shape[trans ? 0 : 1];
   }
 
-  //Call a column major blas.  Note that data is stored in tvm as row
-  //major, so this we switch the arguments.
+  // Call a column major blas.  Note that data is stored in tvm as row
+  // major, so this we switch the arguments.
   template<typename TGemmOp>
   inline void call_gemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
-
     DLTensor* A = args[0];
     DLTensor* B = args[1];
     DLTensor* C = args[2];
@@ -53,17 +51,18 @@ namespace contrib {
        row_count(A, transa),
        static_cast<float>(alpha),
        reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(B->data)
-						      + B->byte_offset),
+                                                      + B->byte_offset),
        column_stride(B),
        reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(A->data)
-						      + A->byte_offset),
+                                                      + A->byte_offset),
        column_stride(A),
        static_cast<float>(beta),
        reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(C->data)
-						      + C->byte_offset),
+                                                      + C->byte_offset),
        column_stride(C));
   }
 
-}}
+}  // namespace contrib
+}  // namespace tvm
 
-#endif
+#endif  // TVM_CONTRIB_GEMM_H_
