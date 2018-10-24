@@ -54,6 +54,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         assert HSTR == 1 and WSTR == 1 and HPAD == 1 and WPAD == 1 and KH == 3 and KW == 3
     else:                   # kernel tensor is pre-transfomred. this op is created by
                             # alter op layout, do not check
+        # dilation is not supported
         HSTR = WSTR = 1
         HPAD = WPAD = 1
         KH = KW = 3
