@@ -136,6 +136,17 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  */
 Expr DeadCodeElimination(const Expr& e);
 
+/*! \brief Hash a Relay type.
+ *
+ */
+size_t HashType(const Expr &);
+
+/*! \brief Hash a Relay expression.
+ *
+ */
+size_t HashExpr(const Expr &);
+
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_H_
