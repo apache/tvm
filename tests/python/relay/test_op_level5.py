@@ -46,34 +46,30 @@ def test_multibox_prior():
 def test_nms():
     num_anchors = 60
 
-    nms_threshold = 0.5
+    overlap_threshold = 0.5
     force_suppress = True
     nms_topk = 10
 
-    ib = relay.ir_builder.IRBuilder()
     n = tvm.var("n")
-    x0 = ib.param("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
-    x1 = ib.param("x1", relay.ty.TensorType((n,), "int"))
+    x0 = relay.var("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((n,), "int"))
 
-    with ib.function(x0, x1) as func:
-        ib.ret(relay.vision.nms(x0, x1, nms_threshold, force_suppress, nms_topk))
-    ib.ret(func)
-    func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType(
+    z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, nms_topk)
+
+    print(z.astext())
+    assert "overlap_threshold" in z.astext()
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(
         (n, num_anchors, 6), "float32")
 
-    ib = relay.ir_builder.IRBuilder()
     n = tvm.var("n")
-    x0 = ib.param("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
-    x1 = ib.param("x1", relay.ty.TensorType((n,), "int"))
+    x0 = relay.var("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((n,), "int"))
 
-    with ib.function(x0, x1) as func:
-        ib.ret(relay.vision.nms(x0, x1))
-    ib.ret(func)
-    func = relay.ir_pass.infer_type(ib.env, func.to_func())
-    ftype = func.checked_type
-    assert ftype.ret_type == relay.ty.TensorType(
+    z = relay.vision.nms(x0, x1)
+
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(
         (n, num_anchors, 6), "float32")
 
 
