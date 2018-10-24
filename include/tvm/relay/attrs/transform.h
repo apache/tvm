@@ -12,6 +12,16 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief data type cast */
+struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(CastAttrs, "relay.attrs.CastAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("Target data type");
+  }
+};  // struct CastAttrs.
+
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   int axis;

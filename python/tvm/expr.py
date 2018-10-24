@@ -299,6 +299,9 @@ class IntImm(ConstExpr):
         self.__init_handle_by_constructor__(
             _make.IntImm, dtype, value)
 
+    def __int__(self):
+        return self.value
+
 
 @register_node
 class UIntImm(ConstExpr):

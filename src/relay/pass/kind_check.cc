@@ -22,7 +22,7 @@ namespace relay {
 using namespace tvm::runtime;
 using Kind = TypeVarNode::Kind;
 
-struct KindChecker : TypeVisitor<> {
+struct KindChecker : TypeVisitor {
   bool valid;
 
   KindChecker() : valid(true) {}
