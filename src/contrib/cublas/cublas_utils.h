@@ -35,7 +35,7 @@ inline const char* getCublasErrorString(int error) {
   do {                                          \
     int error = static_cast<int>(fn);                      \
     CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << get_cublas_error_string(error); \
-  } while (0) //Semi colon intentially left off.
+  } while (0)  // ; intentially left off.
 #endif  // CHECK_CUBLAS_ERROR
 
 
