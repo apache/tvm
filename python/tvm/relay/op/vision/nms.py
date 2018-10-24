@@ -4,10 +4,10 @@ from . import _make
 
 def nms(data,
         valid_count,
-        nms_threshold=0.5,
+        overlap_threshold=0.5,
         force_suppress=False,
         nms_topk=-1):
-    """Generate prior(anchor) boxes from data, sizes and ratios.
+    """Non-maximum suppression operator for object detection.
 
     Parameters
     ----------
@@ -17,7 +17,7 @@ def nms(data,
         [class_id, score, box_left, box_top, box_right, box_bottom].
 
     valid_count : relay.Expr
-        Number of valid anchor boxes.
+        1-D tensor for valid number of boxes.
 
     nms_threshold : float, optional
         Non-maximum suppression threshold.
@@ -33,4 +33,4 @@ def nms(data,
     out : relay.Expr
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
-    return _make.nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
+    return _make.nms(data, valid_count, overlap_threshold, force_suppress, nms_topk)
