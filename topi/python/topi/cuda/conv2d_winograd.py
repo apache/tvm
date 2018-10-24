@@ -359,10 +359,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
 
     new_attrs = {k: attrs[k] for k in attrs.keys()}
 
-    assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
-                                                      "when alter_op_layout is enabled"
     strides = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
+    dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int('groups')
     layout = attrs["layout"]
     out_dtype = attrs["out_dtype"]
@@ -371,7 +370,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     if groups == 1:
         # query config of this workload
         workload = ('conv2d',) + autotvm.task.args_to_workload(
-            [tinfos[0], tinfos[1], strides, padding, layout, out_dtype])
+            [tinfos[0], tinfos[1], strides, padding, dilation, layout, out_dtype])
 
         cfg = autotvm.DispatchContext.current.query(tvm.target.current_target(), workload)
 
@@ -389,6 +388,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             new_attrs['kernel_layout'] = 'OIHW4o4i'
             return sym.conv2d(*copy_inputs, **new_attrs)
 
+        assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
+                                                      "when alter_op_layout is enabled"
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 

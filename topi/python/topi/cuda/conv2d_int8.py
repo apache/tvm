@@ -12,7 +12,7 @@ from ..nn.util import get_pad_tuple
 from ..util import get_const_tuple, traverse_inline
 
 
-def _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype):
+def _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, dilation, out_dtype):
     """convert argument to workload"""
     shape = get_const_tuple(data.shape)
     if len(shape) == 5:
@@ -31,10 +31,11 @@ def _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype)
         raw_kernel = kernel
 
     return ('conv2d', ) + autotvm.task.task.args_to_workload(
-        [raw_data, raw_kernel, stride, padding, "NCHW", out_dtype])
+        [raw_data, raw_kernel, stride, padding, dilation, "NCHW", out_dtype])
 
 
-def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre_computed):
+def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout,
+                      out_dtype, pre_computed):
     """Convolution operator in NCHW[x]c layout for int8.
 
     Parameters
@@ -57,6 +58,9 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     padding: int or a list/tuple of two ints
         padding size, or [pad_height, pad_width]
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     layout : str
         layout of data
 
@@ -72,7 +76,6 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
     assert layout in ["NCHW", "NCHW4c"]
-
     ic_block_factor = 4
     oc_block_factor = 4
 
@@ -113,6 +116,11 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     else:
         stride_h, stride_w = stride
 
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute graph
@@ -121,8 +129,8 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     pad_data = pad(packed_data, pad_before, pad_after, name="pad_data")
 
     # compute the output shape
-    out_height = (in_height - kernel_h + pad_top + pad_down) // stride_h + 1
-    out_width = (in_width - kernel_w + pad_left + pad_right) // stride_w + 1
+    out_height = (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1
+    out_width = (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1
 
     oshape = (batch, oc_chunk, out_height, out_width, oc_block)
 
@@ -132,7 +140,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
     kw = tvm.reduce_axis((0, kernel_w), name='kw')
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(pad_data[n, icc, oh*stride_h+kh, ow*stride_w+kw, icb]
+                       tvm.sum(pad_data[n, icc, oh*stride_h+kh*dilation_h, ow*stride_w+kw*dilation_w, icb]
                                .astype('int32') *
                                packed_kernel[oc_chunk, icc,
                                              kh, kw, oc_block, icb]
@@ -143,7 +151,7 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype, pre
                          conv[n, oc_chunk, oh, ow, oc_block].astype(out_dtype),
                          tag="conv2d_NCHWc_int8",
                          attrs={"workload": _conv2d_NCHWc_int8_arg_to_workload(
-                             data, kernel, stride, padding, out_dtype)})
+                             data, kernel, stride, padding, dilation, out_dtype)})
 
     # num flop
     num_flop = batch * oc_chunk * oc_block * out_height * out_width * \
@@ -314,14 +322,14 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
 
 @conv2d_NCHWc_int8_prepacked.register(["cuda"])
 @autotvm.task.dispatcher
-def conv2d_NCHWc_int8_prepacked_dispatcher(data, kernel, stride, padding, layout, out_dtype):
+def conv2d_NCHWc_int8_prepacked_dispatcher(data, kernel, stride, padding, dilation, layout, out_dtype):
     assert layout == 'NCHW4c'
-    return _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, out_dtype)
+    return _conv2d_NCHWc_int8_arg_to_workload(data, kernel, stride, padding, dilation, out_dtype)
 
 
 @conv2d_NCHWc_int8_prepacked_dispatcher.register("int8")
-def _decl_conv2d_NCHWc_int8_prepacked(cfg, data, kernel, stride, padding, layout, out_dtype):
-    return conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, layout, out_dtype,
+def _decl_conv2d_NCHWc_int8_prepacked(cfg, data, kernel, stride, padding, dilation, layout, out_dtype):
+    return conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_dtype,
                              pre_computed=True)
 
 @autotvm.register_topi_schedule(schedule_conv2d_NCHWc_int8_prepacked, ["cuda"], ["int8"])
