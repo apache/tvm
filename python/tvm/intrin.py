@@ -376,7 +376,7 @@ def popcount(x):
     """
     return call_pure_intrin(x.dtype, "popcount", x)
 
-def mod(x, y):
+def fmod(x, y):
     """Take mod cast of input x and y
 
     Parameters

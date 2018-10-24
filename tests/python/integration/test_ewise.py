@@ -38,13 +38,13 @@ def test_exp():
     check_device("cuda", "llvm")
     check_device("vulkan")
 
-def test_mod():
+def test_fmod():
     # graph
     def run(dtype):
         n = tvm.var('n')
         A = tvm.placeholder((n,), name='A', dtype=dtype)
         B = tvm.placeholder((n,), name='B', dtype=dtype)
-        C = tvm.compute(A.shape, lambda *i: tvm.mod(A(*i), B(*i)), name='C')
+        C = tvm.compute(A.shape, lambda *i: tvm.fmod(A(*i), B(*i)), name='C')
         s = tvm.create_schedule(C.op)
         # create iter var and assign them tags.
         num_thread = 8
@@ -59,7 +59,7 @@ def test_mod():
             if "cpu" not in target.keys:
                 s[C].bind(bx, tvm.thread_axis("blockIdx.x"))
                 s[C].bind(tx, tvm.thread_axis("threadIdx.x"))
-            fmod = tvm.build(s, [A, B, C], device, name="mymod")
+            fmod = tvm.build(s, [A, B, C], device, name="myfmod")
 
             # launch the kernel.
             n = 1024
