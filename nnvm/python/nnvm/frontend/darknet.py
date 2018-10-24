@@ -267,6 +267,13 @@ def _darknet_upsampling(inputs, attrs):
     new_attrs['scale'] = attrs.get('scale', 1)
     return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
 
+def _darknet_l2normalize(inputs, attrs):
+    """Process the l2 normalization operation."""
+    op_name, new_attrs = 'l2_normalize', {}
+    new_attrs['eps'] = attrs.get('eps', 0)
+    new_attrs['axis'] = attrs.get('axis', 1)
+    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+
 def _darknet_softmax_output(inputs, attrs):
     """Process the softmax operation."""
     temperature = attrs.get('temperature', 1)
@@ -370,6 +377,7 @@ _DARKNET_CONVERT_MAP = {
     LAYERTYPE.REGION          : _darknet_region,
     LAYERTYPE.SHORTCUT        : _darknet_shortcut,
     LAYERTYPE.UPSAMPLE        : _darknet_upsampling,
+    LAYERTYPE.L2NORM          : _darknet_l2normalize,
     LAYERTYPE.YOLO            : _darknet_yolo,
     LAYERTYPE.DETECTION       : _darknet_op_not_support,
     LAYERTYPE.CROP            : _darknet_op_not_support,
@@ -630,6 +638,10 @@ class GraphProto(object):
 
         elif LAYERTYPE.UPSAMPLE == layer.type:
             attr.update({'scale' : layer.stride})
+
+        elif LAYERTYPE.L2NORM == layer.type:
+            pass
+
         else:
             err = "Darknet layer type {} is not supported in nnvm.".format(layer.type)
             raise NotImplementedError(err)

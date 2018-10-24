@@ -512,6 +512,7 @@ layer make_crnn_layer(int batch, int h, int w, int c, int hidden_filters, int ou
 layer make_lstm_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
 layer make_gru_layer(int batch, int inputs, int outputs, int steps, int batch_normalize, int adam);
 layer make_upsample_layer(int batch, int w, int h, int c, int stride);
+layer make_l2norm_layer(int batch, int inputs);
 void free_network(network *net);
 """
                    )
