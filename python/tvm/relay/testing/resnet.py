@@ -39,15 +39,20 @@ def residual_unit(data,
     ----------
     data : str
         Input data
+
     num_filter : int
         Number of output channels
+
     bnf : int
         Bottle neck channels factor with regard to num_filter
+
     stride : tuple
         Stride used in convolution
-    dim_match : Boolean
+
+    dim_match : bool
         True means channel number between input and output is the same,
         otherwise means differ
+
     name : str
         Base name of the operators
     """

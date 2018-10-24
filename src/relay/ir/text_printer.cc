@@ -359,7 +359,7 @@ class TextPrinter :
   //------------------------------------
   // Overload of Expr printing functions
   //------------------------------------
-    void VisitType_(const TensorTypeNode* node, std::ostream& os) final {  // NOLINT(*)
+  void VisitType_(const TensorTypeNode* node, std::ostream& os) final {  // NOLINT(*)
     // scalar type
     if (node->shape.size() == 0) {
       os << runtime::TVMType2String(Type2TVMType(node->dtype));

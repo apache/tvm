@@ -42,7 +42,7 @@ class Expr(RelayNode):
 
         Returns
         -------
-        result : relay.Expr
+        result : tvm.relay.Expr
             The result expression.
         """
         return _make.dtype_cast(self, dtype)

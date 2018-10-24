@@ -116,7 +116,7 @@ def create_workload(net, initializer=None, seed=0):
 
     Parameters
     ----------
-    net : relay.Function
+    net : tvm.relay.Function
         The selected function of the network.
 
     initializer : Initializer

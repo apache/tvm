@@ -102,7 +102,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& e);
 
-/*! \brief Get free Vars from expression expr in PostDFS order.
+/*! \brief Get free Vars from expr in PostDFS order.
  *
  * Free variables are variables that are not bound by a
  * let or a function parameter in the context.
