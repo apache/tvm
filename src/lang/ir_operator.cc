@@ -452,7 +452,7 @@ Expr prod(Expr source, Array<IterVar> rdom) {
 
 Expr fmod(Expr x, Expr y) {
   BinaryOpMatchTypes(x, y);
-  CHECK(x.type().is_float()) << "mod only applies to float";
+  CHECK(x.type().is_float()) << "fmod only applies to float";
   return ir::Call::make(x.type(), "fmod", { x, y }, ir::Call::PureIntrinsic);
 }
 

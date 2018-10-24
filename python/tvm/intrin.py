@@ -377,7 +377,7 @@ def popcount(x):
     return call_pure_intrin(x.dtype, "popcount", x)
 
 def fmod(x, y):
-    """Take mod cast of input x and y
+    """Return the remainder of x divided by y with the same sign as x.
 
     Parameters
     ----------

@@ -282,4 +282,4 @@ if __name__ == "__main__":
     test_add()
     test_log_pow_llvm()
     test_popcount()
-    test_mod()
+    test_fmod()
