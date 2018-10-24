@@ -169,3 +169,6 @@ def graph_equal(lhs, rhs):
       True iff lhs is data-flow equivalent to rhs.
     """
     return bool(_make._graph_equal(lhs, rhs))
+
+def expr_hash(expr):
+  return bool(_ir_pass._expr_hash(expr))

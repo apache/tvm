@@ -30,6 +30,7 @@ class RelayHashHandler:
    */
   size_t Hash(const NodeRef& ref) {
     if (!ref.defined()) return ref.hash();
+
     if (ref->derived_from<TypeNode>()) {
       return TypeHash(Downcast<Type>(ref));
     }
@@ -45,6 +46,7 @@ class RelayHashHandler:
    * \return the hash value
    */
   size_t AttrHash(const NodeRef& ref) {
+    if (!ref.defined()) { return ref.hash(); }
     return AttrsHashHandler::Hash(ref);
   }
   /*!
@@ -54,6 +56,7 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t TypeHash(const Type& type) {
+    if (!type.defined()) { return type.hash(); }
     auto found = hash_map_.find(type);
     if (found != hash_map_.end()) {
       return found->second;
@@ -312,16 +315,16 @@ size_t HashExpr(const Expr& expr) {
   return RelayHashHandler(false).ExprHash(expr);
 }
 
-// // TODO(@jroesch): move to correct namespace?
-// TVM_REGISTER_API("relay._make._alpha_equal")
-// .set_body([](TVMArgs args, TVMRetValue* ret) {
-//     *ret = RelayHashHandler(false).Hash(args[0]);
-//   });
+// TODO(@jroesch): move to correct namespace?
+TVM_REGISTER_API("relay._ir_pass._expr_hash")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = static_cast<int64_t>(RelayHashHandler(false).Hash(args[0]));
+  });
 
-// TVM_REGISTER_API("relay._make._type_alpha_equal")
-// .set_body([](TVMArgs args, TVMRetValue* ret) {
-//     *ret = RelayHashHandler(false).TypeHash(args[0]);
-//   });
+TVM_REGISTER_API("relay._ir_pass._type_hash")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    *ret = static_cast<int64_t>(RelayHashHandler(false).TypeHash(args[0]));
+  });
 
 // TVM_REGISTER_API("relay._make._graph_equal")
 // .set_body([](TVMArgs args, TVMRetValue* ret) {
