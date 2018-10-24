@@ -6,6 +6,7 @@ from collections import namedtuple
 import numpy as np
 import tvm
 
+from .dilate import dilate
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify, const_matrix, get_const_tuple
@@ -16,7 +17,7 @@ Workload = namedtuple('Workload',
                        'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
 
 @tvm.target.generic_func
-def conv2d(input, filter, strides, padding, layout='NCHW', out_dtype=None):
+def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=None):
     """Conv2D operator.
 
     Parameters
@@ -33,6 +34,9 @@ def conv2d(input, filter, strides, padding, layout='NCHW', out_dtype=None):
     padding : int or a list/tuple of two ints
         padding size, or [pad_height, pad_width]
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     layout : str
         layout of data
 
@@ -44,11 +48,11 @@ def conv2d(input, filter, strides, padding, layout='NCHW', out_dtype=None):
     # search platform specific declaration first
     # default declaration
     if layout == 'NCHW':
-        return conv2d_nchw(input, filter, strides, padding, out_dtype)
+        return conv2d_nchw(input, filter, strides, padding, dilation, out_dtype)
     elif layout == 'HWCN':
-        return conv2d_hwcn(input, filter, strides, padding, out_dtype)
+        return conv2d_hwcn(input, filter, strides, padding, dilation, out_dtype)
     elif layout == 'NHWC':
-        return conv2d_nhwc(input, filter, strides, padding, out_dtype)
+        return conv2d_nhwc(input, filter, strides, padding, dilation, out_dtype)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
@@ -85,7 +89,22 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
+<<<<<<< HEAD
 def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
+=======
+@tvm.target.generic_func
+def _get_schedule(wkl):
+    # pylint: disable=unreachable
+    """ Get the platform specific schedule. """
+    target = tvm.target.current_target()
+    raise RuntimeError(
+        "No schedule for current target:{}".format(target))
+    # This return has no use, merely to supress pylint warning
+    return wkl
+
+
+def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
+>>>>>>> Add dilation argument to conv2d and depthwise_conv2d
     """Convolution operator in NCHW layout.
 
     Parameters
@@ -102,6 +121,9 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     Returns
     -------
     Output : tvm.Tensor
@@ -110,12 +132,21 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
     batch, in_channel, in_height, in_width = Input.shape
     num_filter, channel, kernel_h, kernel_w = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        Filter = dilate(Filter, (1, 1, dilation_h, dilation_w))
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
@@ -138,7 +169,7 @@ def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
             axis=[rc, ry, rx]), tag="conv2d_nchw")
 
 
-def conv2d_hwcn(Input, Filter, stride, padding, out_dtype=None):
+def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Convolution operator in HWCN layout.
 
     Parameters
@@ -155,6 +186,9 @@ def conv2d_hwcn(Input, Filter, stride, padding, out_dtype=None):
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     Returns
     -------
     output : tvm.Tensor
@@ -163,12 +197,21 @@ def conv2d_hwcn(Input, Filter, stride, padding, out_dtype=None):
     if out_dtype is None:
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
     in_height, in_width, in_channel, batch = Input.shape
     kernel_h, kernel_w, channel, num_filter = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
@@ -191,7 +234,7 @@ def conv2d_hwcn(Input, Filter, stride, padding, out_dtype=None):
     return Output
 
 
-def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
+def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     """Convolution operator in NHWC layout.
 
     Parameters
@@ -208,18 +251,31 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+
     Returns
     -------
     output : tvm.Tensor
         4-D with shape [batch, out_height, out_width, out_channel]
     """
     assert isinstance(stride, int) or len(stride) == 2
+    assert isinstance(dilation, int) or len(dilation) == 2
     batch, in_height, in_width, in_channel = Input.shape
     kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        Filter = dilate(Filter, (1, dilation_h, dilation_w, 1))
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))

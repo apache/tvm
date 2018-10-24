@@ -10,7 +10,7 @@ from ..util import simplify
 
 
 @tvm.target.generic_func
-def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
+def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nchw forward operator.
 
     Parameters
@@ -26,6 +26,9 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
 
     out_dtype: str, optional
         Output data type
@@ -43,6 +46,14 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        Filter = dilate(Filter, (1, 1, dilation_h, dilation_w))
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
@@ -68,7 +79,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
 
 
 @tvm.target.generic_func
-def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
+def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=None):
     """Depthwise convolution nhwc forward operator.
 
     Parameters
@@ -84,6 +95,9 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
 
     out_dtype: str, optional
         Output data type
@@ -101,6 +115,14 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, out_dtype=None):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
+
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        Filter = dilate(Filter, (1, dilation_h, dilation_w, 1))
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
