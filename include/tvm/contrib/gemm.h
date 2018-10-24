@@ -5,7 +5,7 @@
  */
 #ifndef TVM_CONTRIB_GEMM_H_
 #define TVM_CONTRIB_GEMM_H_
-#include <tvm/runtime/registry.h>
+#include <algorithm>
 
 namespace tvm {
 namespace contrib {
@@ -30,7 +30,7 @@ namespace contrib {
 
   // Reversed strides indicates an in-place transpose operation.
   inline bool isInPlaceTransposed(DLTensor* tensor) {
-    return tensor->strides && tensor->strides[1] > tensor->strides[0];
+    return tensor->strides && (tensor->strides[1] > tensor->strides[0]);
   }
 
   inline int rowCount(DLTensor* tensor, bool trans) {
@@ -58,6 +58,7 @@ namespace contrib {
     CHECK_EQ(elementStride(A), 1);
     CHECK_EQ(elementStride(B), 1);
     CHECK_EQ(elementStride(C), 1);
+
     // C can never be transposed.
     CHECK(!isInPlaceTransposed(C));
 
