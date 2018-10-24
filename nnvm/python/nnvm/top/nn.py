@@ -94,34 +94,26 @@ def compute_conv2d(attrs, inputs, _):
     (dilation_h, dilation_w) = dilation
     if dilation_h < 1 or dilation_w < 1:
         raise ValueError("dilation should be positive value")
-    elif layout == "NCHW4c" and (dilation_h > 1 or dilation_w > 1):
-        raise ValueError("not support dilate now")
-    elif dilation == (1, 1):
-        kernel = inputs[1]
-    elif layout == "NCHW":
-        kernel = topi.nn.dilate(inputs[1], [1, 1, dilation_h, dilation_w])
-    else: #layout == NHWC
-        kernel = topi.nn.dilate(inputs[1], [1, dilation_h, dilation_w, 1])
 
     if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc_int8_prepacked(inputs[0], kernel, strides, padding,
-                                                  layout, out_dtype=out_dtype)
+        out = topi.nn.conv2d_NCHWc_int8_prepacked(inputs[0], inputs[1], strides, padding,
+                                                  dilation, layout, out_dtype=out_dtype)
         # pylint: enable=assignment-from-no-return
     elif groups == 1:
         out = topi.nn.conv2d(
-            inputs[0], kernel, strides, padding, layout, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
          groups == get_const_int(inputs[0].shape[1]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, dilation, padding, out_dtype=out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nhwc(
-            inputs[0], kernel, strides, padding, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
 
