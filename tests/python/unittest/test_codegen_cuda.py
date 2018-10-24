@@ -107,6 +107,7 @@ def test_cuda_make_int8x4():
         np.testing.assert_equal(a.asnumpy(), np_a)
     check_cuda(64, 0xAB)
     check_cuda(64, 0)
+    check_cuda(64, -3)
 
 if __name__ == "__main__":
     test_cuda_vectorize_add()
