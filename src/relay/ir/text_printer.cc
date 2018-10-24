@@ -278,10 +278,7 @@ class TextPrinter :
   }
 
   TextValue VisitExpr_(const CallNode* op) final {
-    // TODO(tqchen, M.K.): support generic call
     // possibly through meta-data
-    CHECK_EQ(op->type_args.size(), 0U)
-        << "generic call not yet supported";
     TextValue call_op = GetValue(op->op);
     std::vector<TextValue> args;
     for (Expr arg : op->args) {
@@ -289,7 +286,23 @@ class TextPrinter :
     }
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
-    stream_ << id << " = " << call_op << "(";
+
+    stream_ << id << " = " << call_op;
+
+    auto type_args = op->type_args;
+
+    if (!IsPrimitiveOp(op->op) && type_args.size() > 0U) {
+      stream_ << "<";
+      for (size_t i = 0; i < op->type_args.size(); ++i) {
+        this->PrintType(type_args[i], stream_);
+        if (i + 1 != type_args.size()) {
+          stream_ << ", ";
+        }
+      }
+      stream_ << ">";
+    }
+
+    stream_ << "(";
     for (size_t i = 0; i < args.size(); ++i) {
       stream_ << args[i];
       if (i + 1 != args.size()) {
