@@ -94,6 +94,7 @@ This level enables additional math and transform operators.
    tvm.relay.full
    tvm.relay.full_like
    tvm.relay.cast
+   tvm.relay.split
 
 
 **Level 4: Broadcast and Reductions**
@@ -198,6 +199,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.full
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast
+.. autofunction:: tvm.relay.split
 
 
 Level 4 Definitions
