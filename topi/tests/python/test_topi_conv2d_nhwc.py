@@ -13,8 +13,7 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    dW = topi.nn.dilate(W, (1, dilation, dilation, 1))
-    B = topi.nn.conv2d_nhwc(A, dW, stride, padding)
+    B = topi.nn.conv2d_nhwc(A, dW, stride, padding, dilation)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
