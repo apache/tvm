@@ -47,8 +47,8 @@ namespace contrib {
     op(transb,
        transa,
        column_count(B, transb),
-       column_count(A, transa),
        row_count(A, transa),
+       column_count(A, transa),
        static_cast<float>(alpha),
        reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(B->data)
                                                       + B->byte_offset),
