@@ -485,6 +485,36 @@ inline ValueType OpMap<ValueType>::get(const Op& op,
   return map_.get<ValueType>(op, def_value);
 }
 
+/*!
+ * \brief Check that an expression is a "primtive operator".
+ *
+ * Will return true if the expression is an operator which
+ * matches the form of primtive operators registered directly
+ * by the Relay codebase.
+ *
+ * That is the arguments are all type variables, and there is a single
+ * type relation applied to the input and output types.
+ */
+inline bool IsPrimitiveOp(const Expr& expr) {
+  const auto* op = expr.as<OpNode>();
+
+  if (!op) {
+    return false;
+  }
+
+  const auto& fn_ty = op->op_type;
+  if (fn_ty->type_constraints.size() != 1) return false;
+
+  const TypeRelationNode* rel = fn_ty->type_constraints[0].as<TypeRelationNode>();
+  if (rel == nullptr) return false;
+  // validate if the type parameter matches up
+  for (size_t i = 0; i < fn_ty->type_params.size(); ++i) {
+    if (!fn_ty->type_params[i].same_as(rel->args[i])) return false;
+  }
+
+  return true;
+}
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_H_

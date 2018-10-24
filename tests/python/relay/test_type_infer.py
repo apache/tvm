@@ -91,6 +91,21 @@ def test_free_expr():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.scalar_type("float32")
 
+def test_type_args():
+    x = relay.var("x", shape=(10, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    ty_z = relay.ir_pass.infer_type(z)
+    ty_args = ty_z.type_args
+    assert len(ty_args) == 2
+    assert ty_args[0].dtype == "float32"
+    assert ty_args[1].dtype == "float32"
+    sh1 = ty_args[0].shape
+    sh2 = ty_args[1].shape
+    assert sh1[0].value == 10
+    assert sh1[1].value == 10
+    assert sh2[0].value == 1
+    assert sh2[1].value == 10
 
 if __name__ == "__main__":
     test_free_expr()
@@ -100,3 +115,5 @@ if __name__ == "__main__":
     test_decl()
     test_recursion()
     test_tuple()
+    test_free_expr()
+    test_type_args()
