@@ -13,8 +13,52 @@
 namespace tvm {
 namespace relay {
 
-/* relay.expand_dims */
+// relay.cast
+TVM_REGISTER_NODE_TYPE(CastAttrs);
 
+bool CastRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<CastAttrs>();
+  reporter->Assign(types[1], TensorTypeNode::make(
+      data->shape, param->dtype));
+  return true;
+}
+
+Expr MakeCast(Expr data,
+              DataType dtype) {
+  auto attrs = make_node<CastAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("cast");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay._make.dtype_cast")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeCast, args, rv);
+});
+
+RELAY_REGISTER_OP("cast")
+.describe(R"code(Cast the data into a new data type.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.CastAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Cast", CastRel);
+
+
+// relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 
 bool ExpandDimsRel(const Array<Type>& types,
@@ -25,6 +69,9 @@ bool ExpandDimsRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "expand_dims: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ExpandDimsAttrs>();
@@ -91,6 +138,9 @@ bool ConcatenateRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
+    CHECK(types[0].as<TupleTypeNode>())
+        << "cast: expect input type to be TupleType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ConcatenateAttrs>();
@@ -161,6 +211,9 @@ bool TransposeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "transpose: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<TransposeAttrs>();
@@ -243,6 +296,9 @@ bool ReshapeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reshape: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ReshapeAttrs>();

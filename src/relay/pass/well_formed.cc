@@ -10,7 +10,6 @@
 namespace tvm {
 namespace relay {
 
-struct NotWellFormed { };
 
 //! brief make sure each Var is bind at most once.
 class WellFormedChecker : private ExprVisitor {

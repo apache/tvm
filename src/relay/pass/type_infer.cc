@@ -471,6 +471,5 @@ TVM_REGISTER_API("relay._ir_pass.infer_type")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = InferType(args[0], args[1]);
   });
-
 }  // namespace relay
 }  // namespace tvm

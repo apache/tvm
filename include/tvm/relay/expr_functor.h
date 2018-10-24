@@ -112,15 +112,17 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   }
 };
 
-/*! \brief A simple visitor wrapper around ExprFunctor.
+/*!
+ * \brief A simple visitor wrapper around ExprFunctor.
+ *  Recursively visit the content.
  *
- * Exposes two visitors with default traversal strategies, one
- * which doesn't compute a result but can mutate internal state,
- * and another which functionally builds a new Expr.
+ * ExprVisitor treats Expr as dataflow graph,
+ * and only visit each Expr node once.
  */
-
-class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
+class ExprVisitor
+    : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
  public:
+  void VisitExpr(const Expr& expr) override;
   void VisitExpr_(const VarNode* op) override;
   void VisitExpr_(const GlobalVarNode* op) override;
   void VisitExpr_(const ConstantNode* op) override;
@@ -132,13 +134,19 @@ class ExprVisitor : public ::tvm::relay::ExprFunctor<void(const Expr& n)> {
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
   virtual void VisitType(const Type& t);
+
+ private:
+  // internal visited flag.
+  std::unordered_set<const Node*> visited_;
 };
 
-/*! \brief A wrapper around ExprFunctor which functionally updates the AST.
-*
-* ExprMutator uses memoization and self return in order to amortize
-* the cost of using functional updates.
-*/
+/*!
+ * \brief A wrapper around ExprFunctor which functionally updates the AST.
+ *
+ * ExprMutator treats Expr as dataflow graph, and only Mutate each Expr once.
+ * The mutated results are memoized in a map and reused so that
+ * local transformation on the dataflow preserves the graph structure.
+ */
 class ExprMutator
     : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  public:

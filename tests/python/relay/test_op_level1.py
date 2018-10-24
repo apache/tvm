@@ -42,6 +42,15 @@ def test_binary_op():
         check_binary_op(opfunc)
 
 
+def test_bias_add():
+    x = relay.var("x", shape=(10, 2, 3, 4))
+    bias = relay.var("bias")
+    z = relay.nn.bias_add(x, bias)
+    zz = relay.ir_pass.infer_type(z)
+    assert "axis=" not in zz.astext()
+    assert zz.args[1].checked_type == relay.TensorType((2,))
+
+
 def test_expand_dims_infer_type():
     n, t, d = tvm.var("n"), tvm.var("t"), 100
     x = relay.var("x", shape=(n, t, d))
@@ -91,7 +100,7 @@ def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
     input_ty = relay.TensorType((n, t, d), "float32")
     x = relay.var("x", input_ty)
-    y, _ = relay.nn.dropout(x, rate=0.75)
+    y = relay.nn.dropout(x, rate=0.75)
     assert "rate=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == input_ty
@@ -106,7 +115,7 @@ def test_batch_norm():
     moving_var = relay.var("moving_var", relay.TensorType((2,)))
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y)
+    yy = relay.ir_pass.infer_type(y.astuple())
     assert "center=" in yy.astext()
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.TensorType((3, 2, 1), "float32"),
@@ -121,7 +130,7 @@ def test_batch_norm():
 
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             axis=0, center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y)
+    yy = relay.ir_pass.infer_type(y.astuple())
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.ty.TensorType((3, 2, 1), "float32"),
         relay.ty.TensorType((3,), "float32"),
@@ -136,7 +145,7 @@ def test_batch_norm():
     moving_var = relay.var("moving_var", relay.TensorType((3,)))
     y = relay.nn.batch_norm(data, gamma, beta, moving_mean, moving_var,
                             axis=-1, center=False, scale=False)
-    yy = relay.ir_pass.infer_type(y)
+    yy = relay.ir_pass.infer_type(y.astuple())
     assert yy.checked_type == relay.ty.TupleType(tvm.convert([
         relay.ty.TensorType((1, 2, 3), "float32"),
         relay.ty.TensorType((3,), "float32"),
@@ -145,6 +154,7 @@ def test_batch_norm():
 
 
 if __name__ == "__main__":
+    test_bias_add()
     test_unary_op()
     test_binary_op()
     test_expand_dims_infer_type()

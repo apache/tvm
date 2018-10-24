@@ -15,16 +15,16 @@ def infer_type(expr, env=None):
     Parameters
     ----------
     expr: tvm.relay.Expr
-      The input expression.
+        The input expression.
 
     env: Optional[tvm.relay.Environment]
-      The global environment.
+        The global environment.
 
 
     Returns
     -------
     checked_expr : tvm.relay.Expr
-      The checked expression.
+        The checked expression.
     """
     return _ir_pass.infer_type(expr, env)
 
@@ -35,12 +35,12 @@ def well_formed(expr):
     Parameters
     ----------
     expr: tvm.relay.Expr
-      The input expression
+        The input expression
 
     Returns
     -------
     well_form : bool
-      whether the input expression is well formed
+        Whether the input expression is well formed
     """
     return _ir_pass.well_formed(expr)
 
@@ -52,15 +52,15 @@ def check_kind(t, env=None):
     Parameters
     ----------
     t: tvm.relay.Type
-      The type to check
+        The type to check
 
     env: tvm.relay.Environment, optional
-      The global environment
+        The global environment
 
     Returns
     -------
     well_kinded : bool
-      whether the input type is well kinded.
+        whether the input type is well kinded.
 
     Examples
     --------
@@ -75,20 +75,26 @@ def check_kind(t, env=None):
         return _ir_pass.check_kind(t)
 
 
-def free_vars(e):
-    """Get free variables from expression e.
+def free_vars(expr):
+    """Get free Vars from expression expr in Post DFS order.
 
     Parameters
     ----------
-    e: tvm.relay.Expr
-      The input expression
+    expr: tvm.relay.Expr
+        The input expression
 
     Returns
     -------
     free : List[tvm.relay.Var]
-        The list of free variables
+        The list of free variables in post DFS order.
+
+    Note
+    ----
+    The fact that Vars are post-DFS ordred are useful in
+    neural networks: usually this means weights of previous
+    are ordered first.
     """
-    return _ir_pass.free_vars(e)
+    return _ir_pass.free_vars(expr)
 
 
 def free_type_vars(expr):
@@ -130,15 +136,15 @@ def alpha_equal(lhs, rhs):
     Parameters
     ----------
     lhs: tvm.relay.Expr
-      One of the input Expression.
+        One of the input Expression.
 
     rhs: tvm.relay.Expr
-      One of the input Expression.
+        One of the input Expression.
 
     Returns
     -------
     result: bool
-      True iff lhs is alpha equal to rhs.
+        True iff lhs is alpha equal to rhs.
     """
     return bool(_make._alpha_equal(lhs, rhs))
 

@@ -96,40 +96,41 @@ class TypeFunctor<R(const Type& n, Args...)> {
  *
  * We recursively visit each type contained inside the visitor.
  */
-template <typename... Args>
-struct TypeVisitor : ::tvm::relay::TypeFunctor<void(const Type& n, Args...)> {
-  void VisitType_(const TypeVarNode* op, Args... args) override {}
+class TypeVisitor :
+    public ::tvm::relay::TypeFunctor<void(const Type& n)> {
+ public:
+  void VisitType_(const TypeVarNode* op) override {}
 
-  void VisitType_(const FuncTypeNode* op, Args... args) override {
+  void VisitType_(const FuncTypeNode* op) override {
     for (auto type_param : op->type_params) {
-      this->VisitType(type_param, std::forward<Args>(args)...);
+      this->VisitType(type_param);
     }
 
     for (auto type_cs : op->type_constraints) {
-      this->VisitType(type_cs, std::forward<Args>(args)...);
+      this->VisitType(type_cs);
     }
 
     for (auto arg_type : op->arg_types) {
-      this->VisitType(arg_type, std::forward<Args>(args)...);
+      this->VisitType(arg_type);
     }
-    this->VisitType(op->ret_type, std::forward<Args>(args)...);
+    this->VisitType(op->ret_type);
   }
 
-  void VisitType_(const TensorTypeNode* op, Args... args) override {}
+  void VisitType_(const TensorTypeNode* op) override {}
 
-  void VisitType_(const TupleTypeNode* op, Args... args) override {
+  void VisitType_(const TupleTypeNode* op) override {
     for (const Type& t : op->fields) {
-      this->VisitType(t, std::forward<Args>(args)...);
+      this->VisitType(t);
     }
   }
 
-  void VisitType_(const TypeRelationNode* op, Args... args) override {
+  void VisitType_(const TypeRelationNode* op) override {
     for (const Type& t : op->args) {
-      this->VisitType(t, std::forward<Args>(args)...);
+      this->VisitType(t);
     }
   }
 
-  void VisitType_(const IncompleteTypeNode* op, Args... args) override {}
+  void VisitType_(const IncompleteTypeNode* op) override {}
 };
 
 // A functional visitor for rebuilding an AST in place.
