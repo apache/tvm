@@ -183,7 +183,7 @@ class AlphaEqualHandler:
 
   bool VisitType_(const TypeRelationNode* lhs, const Type& other) final {
     if (const TypeRelationNode* rhs = other.as<TypeRelationNode>()) {
-      if (!lhs->func.same_as(rhs->func)) return false;
+      if (lhs->func->name != rhs->func->name) return false;
       if (lhs->num_inputs != rhs->num_inputs) return false;
       if (!this->AttrEqual(lhs->attrs, rhs->attrs)) return false;
       if (lhs->args.size() != rhs->args.size()) return false;
