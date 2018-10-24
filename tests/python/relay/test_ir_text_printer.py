@@ -1,6 +1,8 @@
 import tvm
+import tvm.relay.testing
 import numpy as np
 from tvm import relay
+
 
 do_print = [False]
 
@@ -94,9 +96,18 @@ def test_variable_name():
     v1 = relay.var("1")
     assert "%v1" in v1.astext()
 
+def test_mlp():
+    net, params = tvm.relay.testing.mlp.get_workload(batch_size=1)
+    net.astext()
+
+def test_resnet():
+    net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
+    net.astext()
 
 if __name__ == "__main__":
     do_print[0] = True
+    test_resnet()
+    test_mlp()
     test_func()
     test_env()
     test_meta_data()

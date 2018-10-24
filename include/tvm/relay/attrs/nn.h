@@ -12,6 +12,23 @@
 namespace tvm {
 namespace relay {
 
+/*!
+ * \brief Add a 1D Tensor to an axis of a data.
+ *
+ * \note bias_add is a special add operator that is in nn
+ *   and enables automatic derivation of bias's shape.
+ *   You can directly use add for more generalized case.
+ */
+struct BiasAddAttrs : public tvm::AttrsNode<BiasAddAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(BiasAddAttrs, "relay.attrs.BiasAddAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .describe("The axis to add the bias")
+        .set_default(1);
+  }
+};
+
 /*! \brief Attributes used in convolution operators */
 struct Conv2DAttrs : public tvm::AttrsNode<Conv2DAttrs> {
   Array<IndexExpr> strides;
