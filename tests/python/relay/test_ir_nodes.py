@@ -2,12 +2,13 @@
 import tvm
 from tvm import relay
 from tvm.expr import *
-from tvm.relay.ir_pass import alpha_equal
+from tvm.relay.ir_pass import graph_equal
 
 
-def json_roundtrip(node):
+def check_json_roundtrip(node):
     json_str = tvm.save_json(node)
-    return tvm.load_json(json_str)
+    back = tvm.load_json(json_str)
+    assert graph_equal(back, node)
 
 
 def test_bad_constructor():
@@ -28,7 +29,9 @@ def test_span():
     assert isinstance(span, relay.base.Span)
     str(span)
 
-    back = json_roundtrip(span)
+    # span is not a node so we can't use graph_equal
+    # to test the round trip
+    back = tvm.load_json(tvm.save_json(span))
     assert back.source == span.source
     assert back.lineno == span.lineno
     assert back.col_offset == span.col_offset
@@ -43,10 +46,7 @@ def test_tensor_type():
     assert tt.shape == shape
     assert tt.span == None
     str(tt)
-
-    # roundtrip preserves alpha-equality
-    back = json_roundtrip(tt)
-    assert back == tt
+    check_json_roundtrip(tt)
 
 
 def test_type_param():
@@ -54,10 +54,7 @@ def test_type_param():
     assert tp.kind == relay.Kind.Type
     # assert tp.span  # TODO allow us to set span
     str(tp)
-
-    back = json_roundtrip(tp)
-    # pointer equality will not be preserved so alpha-equality will fail
-    assert back.kind == tp.kind
+    check_json_roundtrip(tp)
 
 
 def test_func_type():
@@ -73,9 +70,7 @@ def test_func_type():
     assert tf.span == None
     # TODO make sure we can set span
     str(tf)
-
-    back = json_roundtrip(tf)
-    assert back == tf
+    check_json_roundtrip(tf)
 
 
 def test_tuple_type():
@@ -86,9 +81,8 @@ def test_tuple_type():
 
     tup_ty = relay.TupleType(fields)
     assert tup_ty.fields == fields
-
-    back = json_roundtrip(tup_ty)
-    assert back == tup_ty
+    str(tup_ty)
+    check_json_roundtrip(tup_ty)
 
 
 def test_type_relation():
@@ -104,14 +98,8 @@ def test_type_relation():
     tr = relay.TypeRelation(func, args, num_inputs, attrs)
     assert tr.args == args
     assert tr.num_inputs == num_inputs
-
-    back = json_roundtrip(tr)
-    # assert back == tr
-    assert tr.num_inputs == back.num_inputs
-    assert len(back.args) == len(tr.args)
-    for i in range(len(back.args)):
-        assert back.args[i] == tr.args[i]
-    assert back.attrs.name == tr.attrs.name
+    str(tr)
+    check_json_roundtrip(tr)
 
 
 def test_constant():
@@ -120,9 +108,7 @@ def test_constant():
     assert const.data == arr
     assert const.span == None
     str(const)
-
-    back = json_roundtrip(const)
-    assert alpha_equal(const, back)
+    check_json_roundtrip(const)
 
 
 def test_tuple():
@@ -131,9 +117,7 @@ def test_tuple():
     assert tup.fields == fields
     assert tup.span == None
     str(tup)
-
-    back = json_roundtrip(tup)
-    assert alpha_equal(tup, back)
+    check_json_roundtrip(tup)
 
 
 def test_local_var():
@@ -143,16 +127,12 @@ def test_local_var():
     assert lv.type_annotation is None
     # assert lv.span == None todo(@jroesch): what do we do about spans
     str(lv)
+    check_json_roundtrip(lv)
 
     t1 = relay.ty.TensorType((), "float")
     lv = relay.Var(name_hint, t1)
     assert lv.name_hint == name_hint
     assert lv.type_annotation == t1
-
-    back = json_roundtrip(lv)
-    # assert alpha_equal(lv, back)
-    assert back.name_hint == lv.name_hint
-    assert back.type_annotation == lv.type_annotation
 
 
 def test_global_var():
@@ -161,10 +141,7 @@ def test_global_var():
     gv.name_hint == name_hint
     # assert lv.span == None todo(@jroesch): what do we do about spans
     str(gv)
-
-    back = json_roundtrip(gv)
-    # assert alpha_equal(gv, back)
-    assert back.name_hint == gv.name_hint
+    check_json_roundtrip(gv)
 
 
 def test_function():
@@ -179,9 +156,7 @@ def test_function():
     assert fn.type_params == type_params
     assert fn.span == None
     str(fn)
-
-    back = json_roundtrip(fn)
-    assert alpha_equal(fn, back)
+    check_json_roundtrip(fn)
 
 
 def test_call():
@@ -193,13 +168,7 @@ def test_call():
     assert call.args == args
     assert call.span == None
     str(call)
-
-    back = json_roundtrip(call)
-    # assert alpha_equal(call, back)
-    assert back.op.name_hint == call.op.name_hint
-    assert len(back.args) == len(call.args)
-    for i in range(len(call.args)):
-        assert back.args[i].name_hint == call.args[i].name_hint
+    check_json_roundtrip(call)
 
 
 def test_let():
@@ -215,12 +184,7 @@ def test_let():
     assert let.body == lv
     assert let.span == None
     str(let)
-
-    back = json_roundtrip(let)
-    # assert alpha_equal(let, back)
-    assert back.var.name_hint == let.var.name_hint
-    assert alpha_equal(back.value, let.value)
-    assert back.body.name_hint == let.body.name_hint
+    check_json_roundtrip(let)
 
 
 def test_if():
@@ -233,12 +197,7 @@ def test_if():
     assert ife.false_branch == right
     assert ife.span == None
     str(ife)
-
-    back = json_roundtrip(ife)
-    #assert alpha_equal(ife, back)
-    assert back.cond.name_hint == ife.cond.name_hint
-    assert back.true_branch.name_hint == ife.true_branch.name_hint
-    assert back.false_branch.name_hint == ife.false_branch.name_hint
+    check_json_roundtrip(ife)
 
 
 def test_tuple_get_item():
@@ -247,11 +206,7 @@ def test_tuple_get_item():
     assert get.tuple_value == tup
     assert get.index == 1
     str(get)
-
-    back = json_roundtrip(get)
-    #assert alpha_equal(get, back)
-    assert back.tuple.name_hint == get.tuple.name_hint
-    assert back.index == get.index
+    check_json_roundtrip(get)
 
 
 if __name__ == "__main__":
