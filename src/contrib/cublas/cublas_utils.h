@@ -34,7 +34,7 @@ inline const char* getCublasErrorString(int error) {
 #define CHECK_CUBLAS_ERROR(fn)                  \
   do {                                          \
     int error = static_cast<int>(fn);                      \
-    CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << get_cublas_error_string(error); \
+    CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << getCublasErrorString(error); \
   } while (0)  // ; intentially left off.
 #endif  // CHECK_CUBLAS_ERROR
 
