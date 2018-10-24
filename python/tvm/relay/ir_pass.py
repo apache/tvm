@@ -141,3 +141,25 @@ def alpha_equal(lhs, rhs):
       True iff lhs is alpha equal to rhs.
     """
     return bool(_make._alpha_equal(lhs, rhs))
+
+
+def graph_equal(lhs, rhs):
+    """Compare two Relay expr for data-flow equivalence.
+    The difference between this and alpha-equality is that
+    variables are not expected to match between lhs and rhs;
+    they are treated as sources and are mapped between each other.
+
+    Parameters
+    ----------
+    lhs: tvm.relay.Expr
+      One of the input Expression.
+
+    rhs: tvm.relay.Expr
+      One of the input Expression.
+
+    Returns
+    -------
+    result: bool
+      True iff lhs is data-flow equivalent to rhs.
+    """
+    return bool(_make._graph_equal(lhs, rhs))
