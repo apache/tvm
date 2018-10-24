@@ -21,11 +21,11 @@ namespace contrib {
 
 using namespace runtime;
 
-inline CBLAS_TRANSPOSE boolean_to_transpose(bool trans) {
+inline CBLAS_TRANSPOSE booleanToTranspose(bool trans) {
   return trans ? CblasTrans : CblasNoTrans;
 }
 
-struct cblas_sgemm_op {
+struct CblasSgemmOp {
   typedef float TDatatype;
   void operator()(bool ta, bool tb,
                   int M, int N, int K,
@@ -33,8 +33,8 @@ struct cblas_sgemm_op {
                   float* B, int ldb,
                   float beta, float* C, int ldc) {
     cblas_sgemm(CblasColMajor,
-                boolean_to_transpose(ta),
-                boolean_to_transpose(tb),
+                booleanToTranspose(ta),
+                booleanToTranspose(tb),
                 M, N, K,
                 alpha, A, lda,
                 B, ldb,
@@ -42,7 +42,7 @@ struct cblas_sgemm_op {
   }
 };
 
-struct cblas_dgemm_op {
+struct CblasDgemmOp {
   typedef double TDatatype;
   void operator()(bool ta, bool tb,
                   int M, int N, int K,
@@ -50,8 +50,8 @@ struct cblas_dgemm_op {
                   double* B, int ldb,
                   double beta, double* C, int ldc) {
     cblas_dgemm(CblasColMajor,
-                boolean_to_transpose(ta),
-                boolean_to_transpose(tb),
+                booleanToTranspose(ta),
+                booleanToTranspose(tb),
                 M, N, K,
                 alpha, A, lda,
                 B, ldb,
@@ -68,9 +68,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
           TypeMatch(A->dtype, kDLFloat, 64));
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      call_gemm(args, ret, cblas_sgemm_op());
+      callGemm(args, ret, CblasSgemmOp());
     else
-      call_gemm(args, ret, cblas_dgemm_op());
+      callGemm(args, ret, CblasDgemmOp());
   });
 }  // namespace contrib
 }  // namespace tvm

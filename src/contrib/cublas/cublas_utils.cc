@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2017 by Contributors
+ *  Copyright (c) 2018 by Contributors
  * \file Use external cudnn utils function
  */
 #include "cublas_utils.h"
@@ -10,9 +10,11 @@
 namespace tvm {
 namespace contrib {
 
+
 CuBlasThreadEntry::CuBlasThreadEntry() {
   CHECK_CUBLAS_ERROR(cublasCreate(&handle));
 }
+
 
 CuBlasThreadEntry::~CuBlasThreadEntry() {
   if (handle) {

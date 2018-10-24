@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2017 by Contributors
+ *  Copyright (c) 2018 by Contributors
  * \file Use external cblas library call.
  */
 #include <tvm/runtime/registry.h>
@@ -14,14 +14,14 @@ namespace contrib {
 
 using namespace runtime;
 
-inline cublasOperation_t boolean_to_transpose(bool item) {
+inline cublasOperation_t booleanToTranspose(bool item) {
   return item ? CUBLAS_OP_T : CUBLAS_OP_N;
 }
 
-struct cublas_sgemm_op {
+struct CublasSgemmOp {
   typedef float TDatatype;
   cublasHandle_t handle;
-  explicit cublas_sgemm_op(cublasHandle_t hdl)
+  explicit CublasSgemmOp(cublasHandle_t hdl)
     : handle(hdl)
     {}
 
@@ -31,8 +31,8 @@ struct cublas_sgemm_op {
                   float* B, int ldb,
                   float beta, float* C, int ldc) {
     CHECK_CUBLAS_ERROR(cublasSgemm(handle,
-                                   boolean_to_transpose(ta),
-                                   boolean_to_transpose(tb),
+                                   booleanToTranspose(ta),
+                                   booleanToTranspose(tb),
                                    M, N, K,
                                    &alpha, A, lda,
                                    B, ldb,
@@ -41,10 +41,10 @@ struct cublas_sgemm_op {
 };
 
 
-struct cublas_dgemm_op {
+struct CublasDgemmOp {
   typedef double TDatatype;
   cublasHandle_t handle;
-  explicit cublas_dgemm_op(cublasHandle_t hdl)
+  explicit CublasDgemmOp(cublasHandle_t hdl)
     : handle(hdl)
     {}
   void operator()(bool ta, bool tb,
@@ -53,8 +53,8 @@ struct cublas_dgemm_op {
                   double* B, int ldb,
                   double beta, double* C, int ldc) {
     CHECK_CUBLAS_ERROR(cublasDgemm(handle,
-                                   boolean_to_transpose(ta),
-                                   boolean_to_transpose(tb),
+                                   booleanToTranspose(ta),
+                                   booleanToTranspose(tb),
                                    M, N, K,
                                    &alpha, A, lda,
                                    B, ldb,
@@ -73,9 +73,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      call_gemm(args, ret, cublas_sgemm_op(entry_ptr->handle));
+      callGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
     else
-      call_gemm(args, ret, cublas_dgemm_op(entry_ptr->handle));
+      callGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
 });
 }  // namespace contrib
 }  // namespace tvm

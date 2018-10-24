@@ -1,5 +1,5 @@
 /*!
- *  Copyright (c) 2017 by Contributors
+ *  Copyright (c) 2018 by Contributors
  * \file Use external cudnn utils function
  */
 
@@ -15,7 +15,7 @@ extern "C" {
 namespace tvm {
 namespace contrib {
 
-inline const char* get_cublas_error_string(int error) {
+inline const char* getCublasErrorString(int error) {
   switch (error) {
   case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
   case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
@@ -35,7 +35,7 @@ inline const char* get_cublas_error_string(int error) {
   do {                                          \
     int error = static_cast<int>(fn);                      \
     CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << get_cublas_error_string(error); \
-  } while (0);
+  } while (0) //Semi colon intentially left off.
 #endif  // CHECK_CUBLAS_ERROR
 
 
