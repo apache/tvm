@@ -275,7 +275,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         dilation_h, dilation_w = dilation
 
     if dilation_h != 1 or dilation_w != 1:
-        Filter = dilate(Filter, (1, dilation_h, dilation_w, 1))
+        Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
 
     batch, in_height, in_width, in_channel = Input.shape
     kernel_h, kernel_w, channel, num_filter = Filter.shape

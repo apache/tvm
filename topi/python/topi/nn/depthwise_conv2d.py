@@ -122,7 +122,7 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
         dilation_h, dilation_w = dilation
 
     if dilation_h != 1 or dilation_w != 1:
-        Filter = dilate(Filter, (1, dilation_h, dilation_w, 1))
+        Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
