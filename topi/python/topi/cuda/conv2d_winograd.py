@@ -11,7 +11,7 @@ from ..nn import conv2d_winograd_without_weight_transform
 from ..util import get_const_int, get_const_tuple, const_matrix, traverse_inline
 from ..generic import schedule_conv2d_winograd_without_weight_transform
 
-def _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype):
+def _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype):
     """convert argument to workload"""
     K = 3
 
@@ -23,7 +23,7 @@ def _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout, out_d
         raw_kernel = tvm.placeholder((CO, CI, K, K), dtype=kernel.dtype)
 
     return ('conv2d', ) + autotvm.task.args_to_workload(
-        [data, raw_kernel, strides, padding, layout, out_dtype])
+        [data, raw_kernel, strides, padding, dilation, layout, out_dtype])
 
 def _infer_tile_size(data, kernel):
     N, CI, H, W = get_const_tuple(data.shape)
@@ -32,7 +32,7 @@ def _infer_tile_size(data, kernel):
         return 4
     return 2
 
-def winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype, pre_computed):
+def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, pre_computed):
     """Compute declaration for winograd"""
     assert layout == 'NCHW'
 
@@ -41,6 +41,13 @@ def winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype, pre_co
     N, CI, H, W = get_const_tuple(data.shape)
 
     if not pre_computed: # kernel tensor is raw tensor, do strict check
+        if isinstance(dilation, int):
+            dilation_h, dilation_w = dilation
+        else:
+            dilation_h, dilation_w = dilation
+        if dilation_h != 1 or dilation_w != 1:
+            kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
+
         CO, CI, KH, KW = get_const_tuple(kernel.shape)
         HPAD, WPAD, _, _ = nn.get_pad_tuple(padding, kernel)
         HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
@@ -152,7 +159,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype, pre_co
                          inverse[co][n * nH * nW + (h // m) * nW + w // m][h % m][w % m],
                          name='output', tag='conv2d_nchw_winograd',
                          attrs={"workload": _winograd_conv_arg_to_workload(
-                             data, kernel, strides, padding, layout, out_dtype)})
+                             data, kernel, strides, padding, dilation, layout, out_dtype)})
     cfg.add_flop(2 * N * CO * H * W * CI * KH * KW)
 
     return output
@@ -316,14 +323,14 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @conv2d_winograd_without_weight_transform.register(['cuda', 'gpu'])
 @autotvm.task.dispatcher
-def winograd_ww_config_dispatcher_cuda(data, kernel, strides, padding, layout, out_dtype,
+def winograd_ww_config_dispatcher_cuda(data, kernel, strides, padding, dilation, layout, out_dtype,
                                        tile_size):
-    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
+    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype)
 
 
 @winograd_ww_config_dispatcher_cuda.register(['winograd'])
-def decl_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
-    return winograd_cuda(cfg, data, kernel, strides, padding, layout, out_dtype, pre_computed=True)
+def decl_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
+    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, pre_computed=True)
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
