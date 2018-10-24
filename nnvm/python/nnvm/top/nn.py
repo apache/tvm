@@ -107,7 +107,7 @@ def compute_conv2d(attrs, inputs, _):
          groups == get_const_int(inputs[0].shape[1]) and \
          groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
-            inputs[0], inputs[1], strides, dilation, padding, out_dtype=out_dtype)
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
