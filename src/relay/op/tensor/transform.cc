@@ -378,11 +378,12 @@ Example::
 
 
 /*!
-* \brief ReshapeLikeRel Output type and shape relation evaluation function.
+* \brief ReshapeLikeRel User defined type constraint function.
 * \param num_inputs Number of input types in the args.
 * \param attrs The additional attributes of the operator.
 * \param reporter The reporter to report solution to.
-* \return false if This relation cannot be resolved. true if this relation has been resolved.
+* \return False if the relation has not been resolved, it might be resolved later.
+*  True if this relation has been resolved.
 */
 bool ReshapeLikeRel(const Array<Type>& types,
                     int num_inputs,
@@ -398,7 +399,7 @@ bool ReshapeLikeRel(const Array<Type>& types,
     return false;
   }
   CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
-    << "Reshape inputs size should be compatible";
+    << "Reshape inputs size should be compatible.";
   reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
   return true;
 }
