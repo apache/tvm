@@ -13,7 +13,7 @@
 namespace tvm {
 namespace relay {
 
-// Alpha equal handler for relay.
+// Hash handler for Relay.
 class RelayHashHandler:
       public AttrsHashHandler,
       public TypeFunctor<size_t(const Type&)>,
@@ -23,10 +23,9 @@ class RelayHashHandler:
       : map_free_var_(map_free_var) {}
 
   /*!
-   * Check equality of two nodes.
-   * \param lhs The left hand operand.
-   * \param rhs The right hand operand.
-   * \return the compare result.
+   * Compute hash of a node.
+   * \param ref The node to hash.
+   * \return the hash value.
    */
   size_t Hash(const NodeRef& ref) {
     if (!ref.defined()) return ref.hash();
@@ -91,10 +90,9 @@ class RelayHashHandler:
 
  protected:
   /*!
-   * \brief Check if data type equals each other.
-   * \param lhs The left hand operand.
-   * \param rhs The right hand operand.
-   * \return the compare result.
+   * \brief Hash a DataType.
+   * \param dtype The dtype to hash.
+   * \return the hash value.
    */
   size_t DataTypeHash(const DataType& dtype) {
      return std::hash<int>()(
@@ -132,7 +130,7 @@ class RelayHashHandler:
     return 0; // return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
   }
 
-  // Type equality
+  // Type hashing
   size_t VisitType_(const TensorTypeNode* tensor_type) final {
     size_t hash = std::hash<std::string>()(tensor_type->_type_key);
     hash = Combine(hash, DataTypeHash(tensor_type->dtype));
@@ -144,14 +142,9 @@ class RelayHashHandler:
     return GetRef<IncompleteType>(incomplete);
   }
 
-  size_t VisitType_(const TypeVarNode* lhs) final {
-    return 0;
-    // if (const TypeVarNode* rhs = other.as<TypeVarNode>()) {
-    //   if (lhs->kind != rhs->kind) return false;
-    //   return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
-    // } else {
-    //   return false;
-    // }
+  size_t VisitType_(const TypeVarNode* tyvar) final {
+    int index = BindVar(GetRef<TypeVar>(tyvar));
+    return std::hash<int>()(index);
   }
 
   size_t VisitType_(const FuncTypeNode* func_type) final {
@@ -198,23 +191,17 @@ class RelayHashHandler:
 
   // Expr equal checking.
   size_t NDArrayHash(const runtime::NDArray& array) {
-    return 0;
-    // if (lhs.defined() != rhs.defined()) {
-    //   return false;
-    // } else if (lhs.same_as(rhs)) {
-    //   return true;
-    // } else {
-    //   auto ldt = lhs->dtype;
-    //   auto rdt = rhs->dtype;
-    //   CHECK_EQ(lhs->ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    //   CHECK_EQ(rhs->ctx.device_type, kDLCPU) << "can only compare CPU tensor";
-    //   if (ldt.code == rdt.code && ldt.lanes == rdt.lanes && ldt.bits == rdt.bits) {
-    //     size_t data_size = runtime::GetDataSize(*lhs.operator->());
-    //     return std::memcmp(lhs->data, rhs->data, data_size) == 0;
-    //   } else {
-    //     return false;
-    //   }
-    // }
+
+    size_t hash = std::hash<uint8_t>()(array->dtype.code);
+    hash = Combine(hash, std::hash<uint8_t>()(array->dtype.bits));
+    hash = Combine(hash, std::hash<uint16_t>()(array->dtype.lanes));
+    CHECK_EQ(array->ctx.device_type, kDLCPU) << "can only compare CPU tensor";
+    size_t data_size = runtime::GetDataSize(*array.operator->());
+    uint8_t * data = reinterpret_cast<uint8_t*>(array->data);
+    for (size_t i = 0; i < data_size; i++) {
+      hash = Combine(hash, std::hash<uint8_t>()(data[i]));
+    }
+    return hash;
   }
 
   int BindVar(const NodeRef& var) {
