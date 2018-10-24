@@ -133,8 +133,6 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
-    batch, in_channel, in_height, in_width = Input.shape
-    num_filter, channel, kernel_h, kernel_w = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -147,6 +145,9 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
 
     if dilation_h != 1 or dilation_w != 1:
         Filter = dilate(Filter, (1, 1, dilation_h, dilation_w))
+
+    batch, in_channel, in_height, in_width = Input.shape
+    num_filter, channel, kernel_h, kernel_w = Filter.shape
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
@@ -198,8 +199,7 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
         out_dtype = Input.dtype
     assert isinstance(stride, int) or len(stride) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
-    in_height, in_width, in_channel, batch = Input.shape
-    kernel_h, kernel_w, channel, num_filter = Filter.shape
+
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -213,6 +213,8 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
     if dilation_h != 1 or dilation_w != 1:
         Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
 
+    in_height, in_width, in_channel, batch = Input.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
@@ -261,8 +263,6 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     """
     assert isinstance(stride, int) or len(stride) == 2
     assert isinstance(dilation, int) or len(dilation) == 2
-    batch, in_height, in_width, in_channel = Input.shape
-    kernel_h, kernel_w, channel, num_filter = Filter.shape
 
     if isinstance(stride, int):
         stride_h = stride_w = stride
@@ -277,6 +277,8 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
     if dilation_h != 1 or dilation_w != 1:
         Filter = dilate(Filter, (1, dilation_h, dilation_w, 1))
 
+    batch, in_height, in_width, in_channel = Input.shape
+    kernel_h, kernel_w, channel, num_filter = Filter.shape
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
@@ -416,7 +418,7 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
 
 
 @tvm.target.generic_func
-def conv2d_NCHWc_int8_prepacked(data, kernel, stride, padding, layout, out_dtype):
+def conv2d_NCHWc_int8_prepacked(data, kernel, stride, padding, dilation, layout, out_dtype):
     """Convolution operator in NCHW[x]c layout for int8. Data and kernel should be packed in
     advance.
 
@@ -434,6 +436,9 @@ def conv2d_NCHWc_int8_prepacked(data, kernel, stride, padding, layout, out_dtype
 
     padding: int or a list/tuple of two ints
         padding size, or [pad_height, pad_width]
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
 
     layout : str
         layout of data
