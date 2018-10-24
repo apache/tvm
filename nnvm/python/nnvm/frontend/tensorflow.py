@@ -9,7 +9,7 @@ import numpy as np
 import tvm
 from .. import symbol as _sym
 from .. import graph as _graph
-from .. compiler import graph_util
+from .. compiler import graph_util, build_module
 from .common import get_nnvm_op, AttrConverter as AttrConvert
 
 __all__ = ['from_tensorflow']
@@ -380,7 +380,7 @@ def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
         inputs_reshaped = [_sym.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
-        return _sym.concatenate(*inputs_reshaped, axis=axis)
+        return _sym.concatenate(*inputs_reshaped, axis=axis, name=attr["_node_name"])
 
     return _impl
 
@@ -396,9 +396,19 @@ def _reshape():
                 extras={'shape':tuple(shape_arg.asnumpy())},
                 ignores=['Tshape'])(inputs, attr)
         except KeyError:
-            return AttrCvt(
-                op_name="reshape_like",
-                ignores=['Tshape'])(inputs, attr)
+            # Shape operator is already pruned, hence
+            # try to infer shape by precompute prune if possible.
+            if all(in_node in params for in_node in inputs[1].list_input_names()):
+                graph = _graph.create(_sym.Group(inputs[1]))
+                params_pre = {k: params[k] for k in inputs[1].list_input_names()}
+                params_new = build_module._run_graph(graph, params_pre)
+                inputs.pop(1)
+                return AttrCvt(
+                    op_name="reshape",
+                    extras={'shape':tuple(params_new[0].asnumpy().flatten())},
+                    ignores=['Tshape'])(inputs, attr)
+            else:
+                raise RuntimeError("Reshape with dynamic shape input not supported yet.")
     return _impl
 
 def _bias_add():
@@ -470,7 +480,7 @@ def _relu6():
 
 def _shape():
     def _impl(inputs, attr, params):
-        return np.array(attr['_input_shapes'][inputs[0]][0])
+        return np.array(attr['_input_shapes'][inputs[0]][0], dtype='int32')
     return _impl
 
 def _fill():
@@ -1082,7 +1092,6 @@ class GraphProto(object):
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
             input_shapes = {}
-
             attr = self._parse_attr(node.attr)
 
             #Variable converted to Const will not have only value attr
@@ -1096,8 +1105,9 @@ class GraphProto(object):
                     [tensor_util.TensorShapeProtoToList(shape) \
                     for shape in attr['_output_shapes']]
             elif shape:
-                # Keep some value to avoid key error and infer shape after node creation.
-                self._output_shapes[node.name] = [[1,]]
+                # Keep the list indexable to avoid key error.
+                # Actual value will be filled after node creation.
+                self._output_shapes[node.name] = [None]
             else:
                 raise NotImplementedError( \
                     "Please freeze the graph with add_shapes=True")
