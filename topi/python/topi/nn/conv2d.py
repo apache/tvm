@@ -301,7 +301,12 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
 
 
 @tvm.target.generic_func
+<<<<<<< HEAD
 def conv2d_NCHWc(data, kernel, stride, padding, layout, out_layout, out_dtype='float32'):
+=======
+def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride,
+                 padding, dilation, layout, out_layout, out_dtype='float32'):
+>>>>>>> Update x86 conv2d NCHWc
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
@@ -319,6 +324,9 @@ def conv2d_NCHWc(data, kernel, stride, padding, layout, out_layout, out_dtype='f
 
     padding : int or a list/tuple of two ints
         padding size, or [pad_height, pad_width]
+
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
 
     layout : str
         Input data layout

@@ -167,7 +167,7 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding, dilation,
                                    layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     else:
