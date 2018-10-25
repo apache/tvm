@@ -188,8 +188,10 @@ def structural_hash(value):
       The hash value
     """
     if isinstance(value, Expr):
-      return int(_ir_pass._expr_hash(value))
+        return int(_ir_pass._expr_hash(value))
     elif isinstance(value, Type):
-      return int(_ir_pass._type_hash(value))
+        return int(_ir_pass._type_hash(value))
     else:
-      raise TypeError("found value of type {0} expected relay.Expr or relay.Type".format(type(value)))
+        msg = ("found value of type {0} expected" +
+               "relay.Expr or relay.Type").format(type(value))
+        raise TypeError(msg)
