@@ -35,6 +35,7 @@
 #include <string>
 #include "ir.h"
 #include "base.h"
+#include "expr.h"
 #include "packed_func_ext.h"
 
 namespace tvm {
@@ -72,7 +73,6 @@ template<>
 inline Type NullValue<Type>() {
   return Type(Type::Handle, 0, 0);
 }
-
 
 /*! \brief Error thrown during attribute checking. */
 struct AttrError : public dmlc::Error {
