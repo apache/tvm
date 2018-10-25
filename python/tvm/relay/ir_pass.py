@@ -149,10 +149,6 @@ def alpha_equal(lhs, rhs):
     """
     return bool(_make._alpha_equal(lhs, rhs))
 
-lower_ops = _ir_pass.LowerOps
-fuse_ops = _ir_pass.FuseOps
-monomorph = _ir_pass.Monomorph
-
 def graph_equal(lhs, rhs):
     """Compare two Relay expr for data-flow equivalence.
     The difference between this and alpha-equality is that
