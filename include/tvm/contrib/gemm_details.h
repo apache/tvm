@@ -6,7 +6,7 @@
 #ifndef TVM_CONTRIB_GEMM_DETAILS_H_
 #define TVM_CONTRIB_GEMM_DETAILS_H_
 #include <algorithm>
-#include <dlpack/dlpack.h>
+#include "dlpack/dlpack.h"
 
 
 namespace tvm {
@@ -21,8 +21,7 @@ inline int columnStride(DLTensor* tensor) {
   // (the other stride is 1) is the column stride.
   if (tensor->strides) {
     return std::max(tensor->strides[0], tensor->strides[1]);
-  }
-  else {
+  } else {
     return tensor->shape[1];
   }
 }
@@ -31,8 +30,7 @@ inline int columnStride(DLTensor* tensor) {
 inline int elementStride(DLTensor* tensor) {
   if (tensor->strides) {
     return std::min(tensor->strides[0], tensor->strides[1]);
-  }
-  else {
+  } else {
     return 1;
   }
 }
