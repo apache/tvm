@@ -406,28 +406,57 @@ class TypeInferencer::Resolver : public ExprMutator {
     CHECK(checked_type.as<IncompleteTypeNode>() == nullptr)
         << "Cannot resolve type of " << GetRef<Expr>(op)
         << " at " << op->span;
+
     Expr new_e = ExprMutator::VisitExpr_(op);
-    if (!checked_type.same_as(new_e->checked_type_)) {
+    // new_call and new_var's code is only going to be valid for VarNode/CallNode.
+    // Compiler optimization will likely fold the these away for other nodes.
+    CallNode* new_call =(
+        std::is_base_of<CallNode, T>::value ?
+        static_cast<CallNode*>(new_e.node_.get()) : nullptr);
+    VarNode* new_var =(
+        std::is_base_of<VarNode, T>::value ?
+        static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+
+    // check if we need update the new_e
+    bool need_update_type = !checked_type.same_as(new_e->checked_type_);
+    bool need_update_call = (
+        std::is_base_of<CallNode, T>::value &&
+        it->second.type_args.defined() &&
+        !it->second.type_args.same_as(new_call->type_args));
+    bool need_update_var = (
+        std::is_base_of<VarNode, T>::value &&
+        update_missing_type_annotation_ &&
+        !new_var->type_annotation.defined());
+
+    if (!need_update_type && !need_update_var && !need_update_call) return new_e;
+
+    if (!new_e.node_.unique()) {
       // Copy on write optimization
       // If new_e is an old expression,
       // we make a copy mutating an existing reference.
-      if (!new_e.node_.unique()) {
-        new_e = Expr(make_node<T>(*new_e.as<T>()));
-      }
+      new_e = Expr(make_node<T>(*new_e.as<T>()));
+      new_call = (
+          std::is_base_of<CallNode, T>::value ?
+          static_cast<CallNode*>(new_e.node_.get()) : nullptr);
+      new_var = (
+          std::is_base_of<VarNode, T>::value ?
+          static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+    }
+
+    // attach the information.
+    if (need_update_type) {
       new_e->checked_type_ = checked_type;
     }
 
-    if (it->second.type_args.defined()) {
-      Call call = Downcast<Call>(new_e);
-      const CallNode* const_call_ref = call.operator->();
-      CallNode* call_ref = const_cast<CallNode*>(const_call_ref);
-      call_ref->type_args = it->second.type_args;
-
-      for (size_t i = 0; i < call->type_args.size(); i++) {
-        call_ref->type_args.Set(i, solver_->Resolve(call->type_args[i]));
+    if (need_update_call) {
+      new_call->type_args = it->second.type_args;
+      for (size_t i = 0; i < new_call->type_args.size(); i++) {
+        new_call->type_args.Set(i, solver_->Resolve(new_call->type_args[i]));
       }
     }
-
+    if (need_update_var) {
+      new_var->type_annotation = checked_type;
+    }
     return new_e;
   }
 
@@ -438,6 +467,9 @@ class TypeInferencer::Resolver : public ExprMutator {
  private:
   const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap_;
   TypeSolver* solver_;
+  // whether attach the checked type as type_annotation
+  // if original type anntation is missing.
+  bool update_missing_type_annotation_{true};
 };
 
 
