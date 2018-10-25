@@ -16,7 +16,7 @@ using namespace runtime;
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
 template<typename TGemmOp>
-inline void callGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
+inline void CallGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
   DLTensor* A = args[0];
   DLTensor* B = args[1];
   DLTensor* C = args[2];
@@ -27,16 +27,16 @@ inline void callGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
   CHECK_EQ(B->ndim, 2);
   CHECK_EQ(C->ndim, 2);
 
-  CHECK_EQ(elementStride(A), 1);
-  CHECK_EQ(elementStride(B), 1);
-  CHECK_EQ(elementStride(C), 1);
+  CHECK_EQ(ElementStride(A), 1);
+  CHECK_EQ(ElementStride(B), 1);
+  CHECK_EQ(ElementStride(C), 1);
 
   // C can never be transposed.
-  CHECK(!isInPlaceTransposed(C));
+  CHECK(!IsInPlaceTransposed(C));
 
   // Reversed strides indicates an in-place transpose operation.
-  transa = isInPlaceTransposed(A) ? !transa : transa;
-  transb = isInPlaceTransposed(B) ? !transb : transb;
+  transa = IsInPlaceTransposed(A) ? !transa : transa;
+  transb = IsInPlaceTransposed(B) ? !transb : transb;
 
   CHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   CHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
@@ -44,20 +44,20 @@ inline void callGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
   double beta = args.size() > 6 ? args[6] : 0.0;
   op(transb,
      transa,
-     columnCount(B, transb),
-     rowCount(A, transa),
-     columnCount(A, transa),
+     ColumnCount(B, transb),
+     RowCount(A, transa),
+     ColumnCount(A, transa),
      static_cast<float>(alpha),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(B->data)
                                                     + B->byte_offset),
-     columnStride(B),
+     ColumnStride(B),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(A->data)
                                                     + A->byte_offset),
-     columnStride(A),
+     ColumnStride(A),
      static_cast<float>(beta),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(C->data)
                                                     + C->byte_offset),
-     columnStride(C));
+     ColumnStride(C));
 }
 
 }  // namespace contrib

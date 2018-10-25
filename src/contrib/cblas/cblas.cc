@@ -21,7 +21,7 @@ namespace contrib {
 
 using namespace runtime;
 
-inline CBLAS_TRANSPOSE booleanToTranspose(bool trans) {
+inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) {
   return trans ? CblasTrans : CblasNoTrans;
 }
 
@@ -33,8 +33,8 @@ struct CblasSgemmOp {
                   float* B, int ldb,
                   float beta, float* C, int ldc) {
     cblas_sgemm(CblasColMajor,
-                booleanToTranspose(ta),
-                booleanToTranspose(tb),
+                BooleanToTranspose(ta),
+                BooleanToTranspose(tb),
                 M, N, K,
                 alpha, A, lda,
                 B, ldb,
@@ -50,8 +50,8 @@ struct CblasDgemmOp {
                   double* B, int ldb,
                   double beta, double* C, int ldc) {
     cblas_dgemm(CblasColMajor,
-                booleanToTranspose(ta),
-                booleanToTranspose(tb),
+                BooleanToTranspose(ta),
+                BooleanToTranspose(tb),
                 M, N, K,
                 alpha, A, lda,
                 B, ldb,
@@ -68,9 +68,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
           TypeMatch(A->dtype, kDLFloat, 64));
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      callGemm(args, ret, CblasSgemmOp());
+      CallGemm(args, ret, CblasSgemmOp());
     else
-      callGemm(args, ret, CblasDgemmOp());
+      CallGemm(args, ret, CblasDgemmOp());
   });
 }  // namespace contrib
 }  // namespace tvm

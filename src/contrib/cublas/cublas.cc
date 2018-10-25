@@ -14,7 +14,7 @@ namespace contrib {
 
 using namespace runtime;
 
-inline cublasOperation_t booleanToTranspose(bool item) {
+inline cublasOperation_t BooleanToTranspose(bool item) {
   return item ? CUBLAS_OP_T : CUBLAS_OP_N;
 }
 
@@ -31,8 +31,8 @@ struct CublasSgemmOp {
                   float* B, int ldb,
                   float beta, float* C, int ldc) {
     CHECK_CUBLAS_ERROR(cublasSgemm(handle,
-                                   booleanToTranspose(ta),
-                                   booleanToTranspose(tb),
+                                   BooleanToTranspose(ta),
+                                   BooleanToTranspose(tb),
                                    M, N, K,
                                    &alpha, A, lda,
                                    B, ldb,
@@ -53,8 +53,8 @@ struct CublasDgemmOp {
                   double* B, int ldb,
                   double beta, double* C, int ldc) {
     CHECK_CUBLAS_ERROR(cublasDgemm(handle,
-                                   booleanToTranspose(ta),
-                                   booleanToTranspose(tb),
+                                   BooleanToTranspose(ta),
+                                   BooleanToTranspose(tb),
                                    M, N, K,
                                    &alpha, A, lda,
                                    B, ldb,
@@ -73,9 +73,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
     if (TypeMatch(A->dtype, kDLFloat, 32))
-      callGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
+      CallGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
     else
-      callGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
+      CallGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
 });
 }  // namespace contrib
 }  // namespace tvm
