@@ -73,7 +73,7 @@ def _fallback_schedule(wkl, simd_width):
                                       ["tile_oh", "ot", oh_factor],
                                       ["tile_ow", "sp", [out_width // ow_factor,
                                                          ow_factor]],],
-                                "t": ""}
+                                "t": "direct"}
                     return ConfigEntity.from_json_dict(cfg_dict)
 
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))

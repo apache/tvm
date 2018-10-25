@@ -561,16 +561,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
 
 
 @conv2d_NCHWc.register("cpu")
+@autotvm.task.dispatcher
 def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
                      padding, layout, out_layout, out_dtype):
     """x86 conv2d_NCHWc declaration."""
-    workload = conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                          padding, layout, out_layout, out_dtype)
-    cfg = _query_dispatcher(workload)
-    return _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
-                                   padding, layout, out_layout, out_dtype)
+    return conv_NCHWc_arg_to_workload(data, kernel, strides,
+                                      padding, layout, out_layout, out_dtype)
 
 
+@conv2d_NCHWc_cpu.register(['direct'])
 def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
                             padding, layout, out_layout, out_dtype):
     n, ic_chunk, h, w, ic_block = [x.value for x in data.shape]
@@ -597,6 +596,12 @@ def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
 
 def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, padding, layout,
                                  out_layout, out_dtype):
+    assert cfg is not None
+    if cfg.is_fallback:
+        workload = conv_NCHWc_arg_to_workload(data, kernel, strides, padding,
+                                              layout, out_layout, out_dtype)
+        cfg = _get_default_sch(workload)
+
     HPAD, WPAD = padding
     HSTR, WSTR = strides
 
@@ -645,13 +650,13 @@ def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, paddin
 
 
 @generic.schedule_conv2d_NCHWc.register("cpu")
-def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding,
-                          layout, out_layout, outs):
+def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding, layout, out_layout, outs):
     """x86 conv2d_NCHWc schedule"""
     return _schedule_conv2d_NCHWc(None, num_filter, kernel_size, strides, padding,
                                   layout, out_layout, outs)
 
 
+# TODO: @autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc, 'cpu', ['direct'])
 def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
                            layout, out_layout, outs):
     """Create schedule for tensors"""
@@ -702,9 +707,10 @@ def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
                 current_cfg = cfg
                 if current_cfg is None:
                     workload = conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                                          padding, layout, out_layout,
-                                                          conv_out.dtype)
+                                                          padding, layout,
+                                                          out_layout, conv_out.dtype)
                     current_cfg = _query_dispatcher(workload)
+
                 args = [s, current_cfg, data_vec, conv_out, outs[0]]
                 if is_kernel_1x1:
                     conv2d_avx_1x1._schedule_conv_NCHWc(*args)

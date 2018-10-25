@@ -70,7 +70,7 @@ def _fallback_schedule(wkl, simd_width):
                       ["tile_oc", "sp", [out_channel // oc_bn, oc_bn]],
                       ["tile_ow", "sp", [out_width // reg_n, reg_n]],
                       ["unroll_kw", "ot", False]],
-                "t": ""}
+                "t": "direct"}
     return ConfigEntity.from_json_dict(cfg_dict)
 
 
