@@ -230,11 +230,18 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     s[output].bind(vf, tvm.thread_axis("vthread"))
     s[output].bind(vy, tvm.thread_axis("vthread"))
     s[output].bind(vx, tvm.thread_axis("vthread"))
-    s[output].bind(tf, tvm.thread_axis("threadIdx.z"))
-    s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
-    s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
 
-    s[conv].compute_at(s[output], tx)
+    s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
+    s[output].bind(tf, tvm.thread_axis("threadIdx.y"))
+    tyx = s[output].fuse(ty, tx)
+    s[output].bind(tyx, tvm.thread_axis("threadIdx.x"))
+
+    # number of threads
+    n_tz = cfg["tile_n"].size[2]
+    n_ty = cfg["tile_f"].size[2]
+    n_tx = cfg["tile_y"].size[2] * cfg["tile_x"].size[2]
+
+    s[conv].compute_at(s[output], tyx)
 
     # tile and bind reduction axes
     n, f, y, x, c = s[conv].op.axis
@@ -270,9 +277,9 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
             fused = s[load].fuse(n, f, y, x, oc_chunk)
             s[load].vectorize(c)
 
-        fused, tx = s[load].split(fused, factor=cfg["tile_x"].size[2])
-        fused, ty = s[load].split(fused, factor=cfg["tile_y"].size[2])
-        fused, tz = s[load].split(fused, factor=cfg["tile_f"].size[2])
+        fused, tx = s[load].split(fused, factor=n_tx)
+        fused, ty = s[load].split(fused, factor=n_ty)
+        fused, tz = s[load].split(fused, factor=n_tz)
         s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
         s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
         s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
