@@ -118,17 +118,27 @@ class Var;
 /*! \brief Container for Var */
 class VarNode : public ExprNode {
  public:
-  /*! \brief The name of the variable, this only acts as a hint to the user,
-   * and is not used for equality.
+  /*!
+   * \brief The name of the variable,
+   *  this only acts as a hint to the user,
+   *  and is not used for equality.
    */
   std::string name_hint;
+  /*!
+   * \brief type annotaion of the variable.
+   * This field records user provided type annotation of the Var.
+   * This field is optional and can be None.
+   */
+  Type type_annotation;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
+    v->Visit("type_annotation", &type_annotation);
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Var make(std::string name_hint);
+  TVM_DLL static Var make(std::string name_hint,
+                          Type type_annotation);
 
   static constexpr const char* _type_key = "relay.Var";
   TVM_DECLARE_NODE_TYPE_INFO(VarNode, ExprNode);
@@ -163,32 +173,6 @@ class GlobalVarNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(GlobalVar, GlobalVarNode, Expr);
 
 /*!
- * \brief Function parameter declaration.
- */
-class Param;
-/*! \brief A parameter. */
-class ParamNode : public ExprNode {
- public:
-  /*! \brief The variable */
-  Var var;
-  /*! \brief The type of the parameter */
-  Type type;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("var", &var);
-    v->Visit("type", &type);
-    v->Visit("span", &span);
-  }
-
-  TVM_DLL static Param make(Var var, Type type);
-
-  static constexpr const char* _type_key = "relay.Param";
-  TVM_DECLARE_NODE_TYPE_INFO(ParamNode, ExprNode);
-};
-
-RELAY_DEFINE_NODE_REF(Param, ParamNode, Expr);
-
-/*!
  * \brief Function (subgraph in computational graph)
  */
 class Function;
@@ -196,9 +180,7 @@ class Function;
 class FunctionNode : public ExprNode {
  public:
   /*! \brief Function parameters */
-  tvm::Array<Param> params;
-  /*! \brief User annotated return type of the function. */
-  Type ret_type;
+  tvm::Array<Var> params;
   /*!
    * \brief
    * The expression which represents the computation of the function,
@@ -206,6 +188,8 @@ class FunctionNode : public ExprNode {
    * or sub-expressions may reference the type variables.
    */
   Expr body;
+  /*! \brief User annotated return type of the function. */
+  Type ret_type;
   /*!
    * \brief Type parameters of the function.
    *  Enables the function to vary its type based on these.
@@ -213,21 +197,29 @@ class FunctionNode : public ExprNode {
    *
    * \note This can be usually empty for non-polymorphic functions.
    */
-  tvm::Array<TypeParam> type_params;
+  tvm::Array<TypeVar> type_params;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);
-    v->Visit("ret_type", &ret_type);
     v->Visit("body", &body);
+    v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  Type fn_type() const;
+  /*!
+   * \brief Return the derived function annotation of this expression.
+   *
+   * \return The function type annotation.
+   * \note The function type annotation can contain IncompleteType.
+   */
+  TVM_DLL FuncType func_type_annotation() const;
 
-  TVM_DLL static Function make(tvm::Array<Param> params, Type ret_type,
-                               Expr body, tvm::Array<TypeParam> ty_params);
+  TVM_DLL static Function make(tvm::Array<Var> params,
+                               Expr body,
+                               Type ret_type,
+                               tvm::Array<TypeVar> ty_params);
 
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);
@@ -289,7 +281,7 @@ class CallNode : public ExprNode {
   TVM_DLL static Call make(Expr op,
                            Array<Expr> args,
                            Attrs attrs = Attrs(),
-                           Array<Type> ty_args = Array<Type>());
+                           Array<Type> type_args = Array<Type>());
 
   static constexpr const char* _type_key = "relay.Call";
   TVM_DECLARE_NODE_TYPE_INFO(CallNode, ExprNode);
@@ -318,19 +310,16 @@ class LetNode : public ExprNode {
   Expr value;
   /*! \brief The body of the let binding */
   Expr body;
-  /*! \brief Type annotation of value, this can be null */
-  Type value_type;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("var", &var);
     v->Visit("value", &value);
     v->Visit("body", &body);
-    v->Visit("value_type", &value_type);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
-  TVM_DLL static Let make(Var var, Expr value, Expr body, Type value_type);
+  TVM_DLL static Let make(Var var, Expr value, Expr body);
 
   static constexpr const char* _type_key = "relay.Let";
   TVM_DECLARE_NODE_TYPE_INFO(LetNode, ExprNode);
@@ -360,8 +349,6 @@ class IfNode : public ExprNode {
   /*! \brief The expression evaluated when condition is false */
   Expr false_branch;
 
-  IfNode() {}
-
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
@@ -377,6 +364,29 @@ class IfNode : public ExprNode {
 };
 
 RELAY_DEFINE_NODE_REF(If, IfNode, Expr);
+
+/*! \brief Get index-th field out of a tuple. */
+class TupleGetItem;
+class TupleGetItemNode : public ExprNode {
+ public:
+  /*! \brief The tuple Expression */
+  Expr tuple;
+  /*! \brief which value to get */
+  int index;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("tuple_value", &tuple);
+    v->Visit("index", &index);
+    v->Visit("_checked_type_", &checked_type_);
+  }
+
+  TVM_DLL static TupleGetItem make(Expr tuple, int index);
+
+  static constexpr const char * _type_key = "relay.TupleGetItem";
+  TVM_DECLARE_NODE_TYPE_INFO(TupleGetItemNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
 
 /*! \brief Print a debug representation of the expression to the stream.
  *  \param env The environment.

@@ -84,6 +84,10 @@ def test_split():
     sdict = infer_shape(z)
     assert(sdict["y"][0] == [10, 10])
     assert(sdict["y"][1] == [10, 10])
+    z = sym.split(x1, indices_or_sections=[6], axis=-1, name="y")
+    sdict = infer_shape(z)
+    assert(sdict["y"][0] == [10, 6])
+    assert(sdict["y"][1] == [10, 14])
 
 
 def test_batchnorm():

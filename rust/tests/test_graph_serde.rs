@@ -20,7 +20,8 @@ fn test_load_graph() {
 
   let graph = Graph::try_from(
     &fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/graph.json")).unwrap(),
-  ).unwrap();
+  )
+  .unwrap();
 
   assert_eq!(graph.nodes[3].op, "tvm_op");
   assert_eq!(

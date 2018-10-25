@@ -13,13 +13,13 @@ import nnvm.testing
 
 from util import get_network, print_progress
 
-def evaluate_network(network, target, target_host, number):
+def evaluate_network(network, target, target_host, dtype, repeat):
     # connect to remote device
     tracker = tvm.rpc.connect_tracker(args.host, args.port)
     remote = tracker.request(args.rpc_key)
 
     print_progress(network)
-    net, params, input_shape, output_shape = get_network(network, batch_size=1)
+    net, params, input_shape, output_shape = get_network(network, batch_size=1, dtype=dtype)
 
     print_progress("%-20s building..." % network)
     with nnvm.compiler.build_config(opt_level=3):
@@ -40,7 +40,6 @@ def evaluate_network(network, target, target_host, number):
     print_progress("%-20s uploading..." % network)
     ctx = remote.context(str(target), 0)
     remote.upload(tmp.relpath(filename))
-    rparams = {k: tvm.nd.array(v, ctx) for k, v in params.items()}
 
     rlib = remote.load_module(filename)
     module = runtime.create(graph, rlib, ctx)
@@ -50,7 +49,7 @@ def evaluate_network(network, target, target_host, number):
 
     # evaluate
     print_progress("%-20s evaluating..." % network)
-    ftimer = module.module.time_evaluator("run", ctx, number=number, repeat=3)
+    ftimer = module.module.time_evaluator("run", ctx, number=1, repeat=repeat)
     prof_res = np.array(ftimer().results) * 1000  # multiply 1000 for converting to millisecond
     print("%-20s %-19s (%s)" % (network, "%.2f ms" % np.mean(prof_res), "%.2f ms" % np.std(prof_res)))
 
@@ -69,10 +68,9 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default='localhost')
     parser.add_argument("--port", type=int, default=9190)
     parser.add_argument("--rpc-key", type=str, required=True)
-    parser.add_argument("--number", type=int, default=30)
+    parser.add_argument("--repeat", type=int, default=30)
+    parser.add_argument("--dtype", type=str, default='float32')
     args = parser.parse_args()
-
-    dtype = 'float32'
 
     if args.network is None:
         networks = ['squeezenet_v1.1', 'mobilenet', 'resnet-18', 'vgg-16']
@@ -87,4 +85,4 @@ if __name__ == "__main__":
     print("--------------------------------------------------")
 
     for network in networks:
-        evaluate_network(network, target, target_host, args.number)
+        evaluate_network(network, target, target_host, args.dtype, args.repeat)

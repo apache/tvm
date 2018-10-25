@@ -37,6 +37,11 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.mod
    tvm.relay.tanh
    tvm.relay.sigmoid
+   tvm.relay.nn.relu
+   tvm.relay.nn.dropout
+   tvm.relay.nn.batch_norm
+   tvm.relay.nn.bias_add
+
 
 
 **Level 2: Convolutions**
@@ -47,12 +52,17 @@ This level enables typical convnet models.
    :nosignatures:
 
    tvm.relay.nn.conv2d
+   tvm.relay.nn.conv2d_transpose
+   tvm.relay.nn.dense
    tvm.relay.nn.max_pool2d
    tvm.relay.nn.avg_pool2d
    tvm.relay.nn.global_max_pool2d
    tvm.relay.nn.global_avg_pool2d
    tvm.relay.nn.upsampling
    tvm.relay.nn.batch_flatten
+   tvm.relay.nn.pad
+   tvm.relay.nn.lrn
+   tvm.relay.nn.l2_normalize
 
 
 **Level 3: Additional Math And Transform Operators**
@@ -62,7 +72,10 @@ This level enables additional math and transform operators.
 .. autosummary::
    :nosignatures:
 
+   tvm.relay.zeros
+   tvm.relay.nn.leaky_relu
    tvm.relay.zeros_like
+   tvm.relay.ones
    tvm.relay.ones_like
    tvm.relay.reshape
    tvm.relay.copy
@@ -73,6 +86,14 @@ This level enables additional math and transform operators.
    tvm.relay.round
    tvm.relay.abs
    tvm.relay.negative
+   tvm.relay.take
+   tvm.relay.zeros
+   tvm.relay.zeros_like
+   tvm.relay.ones
+   tvm.relay.ones_like
+   tvm.relay.full
+   tvm.relay.full_like
+   tvm.relay.cast
 
 
 **Level 4: Broadcast and Reductions**
@@ -91,6 +112,15 @@ This level enables additional math and transform operators.
    tvm.relay.maximum
    tvm.relay.minimum
    tvm.relay.pow
+   tvm.relay.where
+   tvm.relay.argmax
+   tvm.relay.argmin
+   tvm.relay.sum
+   tvm.relay.max
+   tvm.relay.min
+   tvm.relay.mean
+   tvm.relay.prod
+
 
 **Level 5: Vision/Image Operators**
 
@@ -98,6 +128,17 @@ This level enables additional math and transform operators.
    :nosignatures:
 
    tvm.relay.image.resize
+
+
+**Level 10: Temporary Operators**
+
+This level support backpropagation of broadcast operators. It is temporary.
+
+.. autosummary::
+   :nosignatures:
+
+   tvm.relay.broadcast_to_like
+   tvm.relay.collapse_sum_like
 
 
 Level 1 Definitions
@@ -116,21 +157,30 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.nn.softmax
 .. autofunction:: tvm.relay.nn.log_softmax
+.. autofunction:: tvm.relay.nn.relu
+.. autofunction:: tvm.relay.nn.dropout
+.. autofunction:: tvm.relay.nn.batch_norm
+.. autofunction:: tvm.relay.nn.bias_add
 
 
 Level 2 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.conv2d
+.. autofunction:: tvm.relay.nn.conv2d_transpose
+.. autofunction:: tvm.relay.nn.dense
 .. autofunction:: tvm.relay.nn.max_pool2d
 .. autofunction:: tvm.relay.nn.avg_pool2d
 .. autofunction:: tvm.relay.nn.global_max_pool2d
 .. autofunction:: tvm.relay.nn.global_avg_pool2d
 .. autofunction:: tvm.relay.nn.upsampling
 .. autofunction:: tvm.relay.nn.batch_flatten
+.. autofunction:: tvm.relay.nn.lrn
+.. autofunction:: tvm.relay.nn.l2_normalize
 
 
 Level 3 Definitions
 -------------------
+.. autofunction:: tvm.relay.nn.leaky_relu
 .. autofunction:: tvm.relay.floor
 .. autofunction:: tvm.relay.ceil
 .. autofunction:: tvm.relay.trunc
@@ -140,6 +190,15 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.reshape
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
+.. autofunction:: tvm.relay.take
+.. autofunction:: tvm.relay.zeros
+.. autofunction:: tvm.relay.zeros_like
+.. autofunction:: tvm.relay.ones
+.. autofunction:: tvm.relay.ones_like
+.. autofunction:: tvm.relay.full
+.. autofunction:: tvm.relay.full_like
+.. autofunction:: tvm.relay.cast
+
 
 Level 4 Definitions
 -------------------
@@ -154,7 +213,23 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.maximum
 .. autofunction:: tvm.relay.minimum
 .. autofunction:: tvm.relay.pow
+.. autofunction:: tvm.relay.where
+.. autofunction:: tvm.relay.argmax
+.. autofunction:: tvm.relay.argmin
+.. autofunction:: tvm.relay.sum
+.. autofunction:: tvm.relay.max
+.. autofunction:: tvm.relay.min
+.. autofunction:: tvm.relay.mean
+.. autofunction:: tvm.relay.prod
+
+
 
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
+
+
+Level 10 Definitions
+--------------------
+.. autofunction:: tvm.relay.broadcast_to_like
+.. autofunction:: tvm.relay.collapse_sum_like

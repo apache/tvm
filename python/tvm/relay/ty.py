@@ -1,11 +1,11 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The type nodes of the Relay language."""
 from enum import IntEnum
-from .base import NodeBase, register_relay_node
+from .base import RelayNode, register_relay_node
 from . import _make
 
 
-class Type(NodeBase):
+class Type(RelayNode):
     """The base type for all Relay types."""
 
     def __eq__(self, other):
@@ -21,27 +21,46 @@ class Type(NodeBase):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
 
+
 @register_relay_node
 class TensorType(Type):
-    """A concrete TensorType in Relay, see tvm/relay/type.h for more details.
+    """A concrete TensorType in Relay.
 
     This is the type assigned to tensor's with a known dype and shape. For
     example a tensor of `float32` and `(5, 5)`.
+
+    Parameters
+    ----------
+    shape : List[tvm.Expr]
+        The shape of the Tensor
+
+    dtype : Optional[str]
+        The content data type.
+        Default to "float32".
+
+    Returns
+    -------
+    tensor_type : tvm.relay.TensorType
+        The tensor type.
     """
+    def __init__(self, shape, dtype="float32"):
+        self.__init_handle_by_constructor__(
+            _make.TensorType, shape, dtype)
 
-    def __init__(self, shape, dtype):
-        """Construct a tensor type.
-
-        Parameters
-        ----------
-        shape: list of tvm.Expr
-        dtype: str
+    @property
+    def concrete_shape(self):
+        """Get shape of the type as concrete tuple of int.
 
         Returns
         -------
-        tensor_type: The TensorType
+        shape : List[int]
+            The concrete shape of the Type.
+
+        Raises
+        ------
+        TypeError : If the shape is symbolic
         """
-        self.__init_handle_by_constructor__(_make.TensorType, shape, dtype)
+        return tuple(int(x) for x in self.shape)
 
 
 class Kind(IntEnum):
@@ -58,32 +77,33 @@ class Kind(IntEnum):
     Shape = 3
 
 @register_relay_node
-class TypeParam(Type):
-    """A type parameter used for generic types in Relay,
+class TypeVar(Type):
+    """A type variable used for generic types in Relay,
     see tvm/relay/type.h for more details.
 
-    A type parameter represents a type placeholder which will
+    A type variable represents a type placeholder which will
     be filled in later on. This allows the user to write
     functions which are generic over types.
     """
 
     def __init__(self, var, kind=Kind.Type):
-        """Construct a TypeParam.
+        """Construct a TypeVar.
 
         Parameters
         ----------
-        var: tvm.expr.Var
+        var : tvm.expr.Var
             The tvm.Var which backs the type parameter.
 
-        kind: Kind, optional
+        kind : Optional[Kind]
             The kind of the type parameter.
+            Default to Kind.Type.
 
         Returns
         -------
-        type_param: TypeParam
-            The type parameter.
+        type_var : tvm.relay.TypeVar
+            The type variable.
         """
-        self.__init_handle_by_constructor__(_make.TypeParam, var, kind)
+        self.__init_handle_by_constructor__(_make.TypeVar, var, kind)
 
 
 @register_relay_node
@@ -104,11 +124,13 @@ class TupleType(Type):
 
         Parameters
         ----------
-        fields: list of tvm.Type
+        fields : List[tvm.relay.Type]
+            The fields in the tuple
 
         Returns
         -------
-        tuple_type: the tuple type
+        tuple_type : tvm.relay.TupleType
+            the tuple type
         """
         self.__init_handle_by_constructor__(_make.TupleType, fields)
 
@@ -124,26 +146,30 @@ class FuncType(Type):
 
     We informally write them as:
     `forall (type_params), (arg_types) -> ret_type where type_constraints`
+
+    Parameters
+    ----------
+    arg_types : List[tvm.relay.Type]
+        The argument types
+
+    ret_type : tvm.relay.Type
+        The return type.
+
+    type_params : Optional[List[tvm.relay.TypeVar]]
+        The type parameters
+
+    type_constraints : Optional[List[tvm.relay.TypeConstraint]]
+        The type constraints.
     """
     def __init__(self,
                  arg_types,
                  ret_type,
-                 type_params,
-                 type_constraints):
-        """Construct a function type.
-
-        Parameters
-        ----------
-        arg_types:  list of Type
-        ret_type: Type
-        type_params: list of TypeParam
-        type_constraints: list of TypeConstraint
-
-        Returns
-        -------
-        func_type: FuncType
-            The function type.
-        """
+                 type_params=None,
+                 type_constraints=None):
+        if type_params is None:
+            type_params = []
+        if type_constraints is None:
+            type_constraints = []
         self.__init_handle_by_constructor__(
             _make.FuncType, arg_types, ret_type, type_params, type_constraints)
 
@@ -164,16 +190,39 @@ class TypeRelation(TypeConstraint):
     func : EnvFunc
         User defined relation function.
 
-    args : list of types
+    args : [tvm.relay.Type]
         List of types to the func.
 
-    num_inputs: int
+    num_inputs : int
         Number of input arguments in args,
         this act as a hint for type inference.
 
     attrs : Attrs
         The attribute attached to the relation information
+
+    Returns
+    -------
+    type_relation : tvm.relay.TypeRelation
+        The type relation.
     """
     def __init__(self, func, args, num_inputs, attrs):
         self.__init_handle_by_constructor__(_make.TypeRelation,
                                             func, args, num_inputs, attrs)
+
+
+def scalar_type(dtype):
+    """Creates a scalar type.
+
+    This function returns TensorType((), dtype)
+
+    Parameters
+    ----------
+    dtype : str
+        The content data type.
+
+    Returns
+    -------
+    s_type : tvm.relay.TensorType
+        The result type.
+    """
+    return TensorType((), dtype)

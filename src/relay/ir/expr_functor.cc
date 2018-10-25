@@ -24,6 +24,16 @@ Expr ExprMutator::Mutate(const Expr& expr) {
 }
 
 Expr ExprMutator::VisitExpr_(const VarNode* op) {
+  // NOTE: var will only be mutated once
+  // Thanks to the memo and reused during rewriting if necessary.
+  // It is safe to assume that the
+  if (op->type_annotation.defined()) {
+    auto type = this->VisitType(op->type_annotation);
+    if (!op->type_annotation.same_as(type)) {
+      return VarNode::make(op->name_hint, type);
+    }
+  }
+  // default case return self.
   return GetRef<Expr>(op);
 }
 
@@ -55,30 +65,20 @@ Expr ExprMutator::VisitExpr_(const TupleNode* op) {
   }
 }
 
-Expr ExprMutator::VisitExpr_(const ParamNode* op) {
-  Var var = Downcast<Var>(this->Mutate(op->var));
-  auto type = this->VisitType(op->type);
-  if (op->var.same_as(var) && op->type.same_as(type)) {
-    return GetRef<Expr>(op);
-  } else {
-    return ParamNode::make(var, type);
-  }
-}
-
 Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
-  tvm::Array<TypeParam> ty_params;
+  tvm::Array<TypeVar> ty_params;
   bool all_ty_params_changed = true;
 
   for (auto ty_param : op->type_params) {
-    TypeParam new_ty_param = Downcast<TypeParam>(VisitType(ty_param));
+    TypeVar new_ty_param = Downcast<TypeVar>(VisitType(ty_param));
     ty_params.push_back(new_ty_param);
     all_ty_params_changed &= new_ty_param.same_as(ty_param);
   }
 
-  tvm::Array<Param> params;
+  tvm::Array<Var> params;
   bool all_params_changed = true;
   for (auto param : op->params) {
-    Param new_param = Downcast<Param>(this->Mutate(param));
+    Var new_param = Downcast<Var>(this->Mutate(param));
     params.push_back(new_param);
     all_params_changed &= param.same_as(new_param);
   }
@@ -92,7 +92,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return FunctionNode::make(params, ret_type, body, ty_params);
+    return FunctionNode::make(params, body, ret_type, ty_params);
   }
 }
 
@@ -123,17 +123,15 @@ Expr ExprMutator::VisitExpr_(const CallNode* call_node) {
 
 Expr ExprMutator::VisitExpr_(const LetNode* op) {
   Var var = Downcast<Var>(this->Mutate(op->var));
-  auto type = this->VisitType(op->value_type);
   auto value = this->Mutate(op->value);
   auto body = this->Mutate(op->body);
 
   if (var.same_as(op->var) &&
-      type.same_as(op->value_type) &&
       value.same_as(op->value) &&
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return LetNode::make(var, value, body, type);
+    return LetNode::make(var, value, body);
   }
 }
 
@@ -150,11 +148,28 @@ Expr ExprMutator::VisitExpr_(const IfNode* op) {
   }
 }
 
-Type ExprMutator::VisitType(const Type& t) {
-  return t;
+Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
+  auto t = this->Mutate(g->tuple);
+  if (g->tuple == t) {
+    return GetRef<Expr>(g);
+  } else {
+    return TupleGetItemNode::make(t, g->index);
+  }
+}
+
+Type ExprMutator::VisitType(const Type& t) { return t; }
+
+void ExprVisitor::VisitExpr(const Expr& expr) {
+  if (visited_.count(expr.get())) return;
+  using TParent = ExprFunctor<void(const Expr&)>;
+  TParent::VisitExpr(expr);
+  visited_.insert(expr.get());
 }
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const VarNode* op) {
+  if (op->type_annotation.defined()) {
+    this->VisitType(op->type_annotation);
+  }
 }
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const GlobalVarNode* op) {
@@ -167,10 +182,6 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const TupleNode* op) {
   for (auto field : op->fields) {
     this->VisitExpr(field);
   }
-}
-
-void ExprVisitor::ExprVisitor::VisitExpr_(const ParamNode* op) {
-  this->VisitExpr(op->var);
 }
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const FunctionNode* op) {
@@ -193,8 +204,8 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const LetNode* op) {
-  this->VisitExpr(op->var);
   this->VisitExpr(op->value);
+  this->VisitExpr(op->var);
   this->VisitExpr(op->body);
 }
 
@@ -205,6 +216,10 @@ void ExprVisitor::VisitExpr_(const IfNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const OpNode* op) { return; }
+
+void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
+  this->VisitExpr(op->tuple);
+}
 
 void ExprVisitor::VisitType(const Type& t) { return; }
 

@@ -84,7 +84,7 @@ def test_cpu():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd(a, b, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_target("llvm")
 
 def test_gpu():
@@ -125,7 +125,7 @@ def test_gpu():
         b = tvm.nd.array(np.random.uniform(size=n).astype(B.dtype), ctx)
         c = tvm.nd.array(np.zeros(n, dtype=C.dtype), ctx)
         fadd(a, b, c)
-        np.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
+        tvm.testing.assert_allclose(c.asnumpy(), a.asnumpy() + b.asnumpy())
     check_target("opencl")
     check_target("cuda")
 

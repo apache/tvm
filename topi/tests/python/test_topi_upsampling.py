@@ -43,7 +43,7 @@ def verify_upsampling(batch, in_channel, in_height, in_width, scale, layout='NCH
         f = tvm.build(s, [A, B], device)
         f(a, b)
 
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5, atol=1e-5)
 
     for device in ['llvm', 'cuda', 'vulkan', 'nvptx']:
         check_device(device)

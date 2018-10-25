@@ -70,6 +70,10 @@ lint: cpplint pylint jnilint
 doc:
 	doxygen docs/Doxyfile
 
+javadoc:
+	# build artifact is in jvm/core/target/site/apidocs
+	cd jvm && mvn javadoc:javadoc
+
 # Cython build
 cython:
 	cd python; python setup.py build_ext --inplace

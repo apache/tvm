@@ -5,6 +5,7 @@
  */
 #include <tvm/expr.h>
 #include <tvm/ir.h>
+#include <tvm/attrs.h>
 #include <tvm/ir_pass.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/ir_mutator.h>
@@ -64,6 +65,18 @@ TVM_REGISTER_API("ir_pass.Equal")
       *ret = Equal(args[0].operator Expr(), args[1].operator Expr());
     }
   });
+
+
+TVM_REGISTER_API("ir_pass.AttrsEqual")
+.set_body_typed<bool(const NodeRef&, const NodeRef&)>([](const NodeRef& lhs, const NodeRef& rhs) {
+    return AttrsEqual()(lhs, rhs);
+  });
+
+TVM_REGISTER_API("ir_pass.AttrsHash")
+.set_body_typed<int64_t(const NodeRef&)>([](const NodeRef &node) {
+    return AttrsHash()(node);
+  });
+
 
 TVM_REGISTER_API("ir_pass.ExprUseVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {

@@ -1,21 +1,25 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from __future__ import absolute_import
-from .base import NodeBase, register_relay_node
-from . import _expr
+
+import numpy as _np
+from .base import RelayNode, register_relay_node
 from . import _make
+from . import ty as _ty
+from .._ffi import base as _base
+from .. import nd as _nd
 from .. import convert
 
 
-class Expr(NodeBase):
+class Expr(RelayNode):
     """The base type for all Relay expressions."""
     @property
     def checked_type(self):
-        """Get the checked type of relay.
+        """Get the checked type of tvm.relay.Expr.
 
         Returns
         -------
-        checked_type : relay.Type
+        checked_type : tvm.relay.Type
             The checked type.
         """
         ret = self._checked_type_
@@ -24,105 +28,358 @@ class Expr(NodeBase):
                              " the checked_type for this node")
         return ret
 
-    def __call__(self, *args):
-        converted_args = []
-        for arg in args:
-            if isinstance(arg, Param):
-                converted_args.append(arg.var)
-            else:
-                converted_args.append(arg)
+    def astype(self, dtype):
+        """Cast the content type of the current data to dtype.
 
-        return Call(self, args, None, None)
+        Parameters
+        ----------
+        dtype : str
+            The target data type.
+
+        Note
+        ----
+        This function only works for TensorType Exprs.
+
+        Returns
+        -------
+        result : tvm.relay.Expr
+            The result expression.
+        """
+        return _make.dtype_cast(self, dtype)
 
 
 @register_relay_node
 class Constant(Expr):
-    """A constant tensor in Relay, see tvm/relay/type.h for more details.
-    """
+    """A constant expression in Relay.
 
+    Parameters
+    ----------
+    data : tvm.nd.NDArray
+        The data content of the constant expression.
+    """
     def __init__(self, data):
         self.__init_handle_by_constructor__(_make.Constant, data)
 
 
 @register_relay_node
 class Tuple(Expr):
-    """A hetereogenous sequence of values.
-       see tvm/relay/type.h for more details.
-    """
+    """Tuple expression that groups several fields together.
 
+    Parameters
+    ----------
+    fields : List[tvm.relay.Expr]
+        The fields in the tuple.
+    """
     def __init__(self, fields):
         self.__init_handle_by_constructor__(_make.Tuple, fields)
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return self.fields[index]
+
+    def __len__(self):
+        return len(self.fields)
+
+    def astype(self, _):
+        raise TypeError("astype cannot be used on tuple")
 
 
 @register_relay_node
 class Var(Expr):
-    """A local variable in Relay."""
+    """A local variable in Relay.
 
-    def __init__(self, name_hint):
-        self.__init_handle_by_constructor__(_make.Var, name_hint)
+    Local variable can be used to declare input
+    arguments to a function, or intermediate variables.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable.
+        This name only acts as a hint, and is not used
+        for equality.
+
+    type_annotation: tvm.relay.Type, optional
+        The type annotation on the variable.
+    """
+    def __init__(self, name_hint, type_annotation=None):
+        self.__init_handle_by_constructor__(
+            _make.Var, name_hint, type_annotation)
 
 
 @register_relay_node
 class GlobalVar(Expr):
-    """A global variable in Relay."""
+    """A global variable in Tvm.Relay.
 
+    GlobalVar is used to refer to the global functions
+    stored in the environment.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable.
+    """
     def __init__(self, name_hint):
         self.__init_handle_by_constructor__(_make.GlobalVar, name_hint)
 
+    def __call__(self, *args):
+        """Invoke the gobal function.
 
-@register_relay_node
-class Param(Expr):
-    """A function type in Relay, see tvm/relay/type.h for more details.
-    """
-
-    def __init__(self, var, ty):
-        self.__init_handle_by_constructor__(_make.Param, var, ty)
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            Arguments.
+        """
+        return Call(self, args, None, None)
 
 
 @register_relay_node
 class Function(Expr):
-    """A function in Relay, see tvm/relay/expr.h for more details."""
+    """A function declaration expression.
 
+    Parameters
+    ----------
+    params: List[tvm.relay.Var]
+        List of input parameters to the function.
+
+    body: tvm.relay.Expr
+        The body of the function.
+
+    ret_type: Optional[tvm.relay.Type]
+        The return type annotation of the function.
+
+    type_params: Optional[List[tvm.relay.TypeParam]]
+        The additional type parameters, this is only
+        used in advanced usecase of template functions.
+    """
     def __init__(self,
                  params,
-                 ret_type,
                  body,
-                 type_params=None
-                ):
+                 ret_type=None,
+                 type_params=None):
         if type_params is None:
             type_params = convert([])
 
         self.__init_handle_by_constructor__(
-            _make.Function, params, ret_type, body, type_params)
+            _make.Function, params, body, ret_type, type_params)
+
+    def __call__(self, *args):
+        """Invoke the gobal function.
+
+        Parameters
+        ----------
+        args: List[relay.Expr]
+            Arguments.
+        """
+        return Call(self, args, None, None)
 
 
 @register_relay_node
 class Call(Expr):
-    """A function call in Relay, see tvm/relay/expr.h for more details."""
+    """Function call node in Relay.
 
-    def __init__(self, op, args, attrs, ty_args=None):
-        if not ty_args:
-            ty_args = []
+    Call node corresponds the operator application node
+    in computational graph terminology.
 
+    Parameters
+    ----------
+    op: tvm.relay.Op or any tvm.relay.Expr with function type.
+        The operation to be called.
+
+    args: List[tvm.relay.Expr]
+        The arguments to the call.
+
+    attrs: Optional[tvm.Attrs]
+        Attributes to the call, can be None
+
+    type_args: Optional[List[tvm.relay.Type]]
+        The additional type arguments, this is only
+        used in advanced usecase of template functions.
+    """
+    def __init__(self, op, args, attrs=None, type_args=None):
+        if not type_args:
+            type_args = []
         self.__init_handle_by_constructor__(
-            _make.Call, op, args, attrs, ty_args)
+            _make.Call, op, args, attrs, type_args)
 
 
 @register_relay_node
 class Let(Expr):
-    """A variable bindings in Relay, see tvm/relay/expr.h for more details."""
+    """Let variable binding expression.
 
-    def __init__(self, var, value, body, value_type):
+    Parameters
+    ----------
+    variable: tvm.relay.Var
+        The local variable to be bound.
+
+    value: tvm.relay.Expr
+        The value to be bound.
+
+    body: tvm.relay.Expr
+        The body of the let binding.
+    """
+    def __init__(self, variable, value, body):
         self.__init_handle_by_constructor__(
-            _make.Let, var, value, body, value_type)
+            _make.Let, variable, value, body)
 
 
 @register_relay_node
 class If(Expr):
-    """A conditional expression in Relay, see tvm/relay/expr.h for more details."""
+    """A conditional expression in Relay.
 
-    def __init__(self, cond, true_value, false_value):
+    Parameters
+    ----------
+    cond: tvm.relay.Expr
+        The condition.
+
+    true_branch: tvm.relay.Expr
+        The expression evaluated when condition is true.
+
+    false_branch: tvm.relay.Expr
+        The expression evaluated when condition is false.
+    """
+    def __init__(self, cond, true_branch, false_branch):
         self.__init_handle_by_constructor__(
-            _make.If, cond, true_value, false_value)
+            _make.If, cond, true_branch, false_branch)
 
-debug_print = _expr._debug_print
+
+@register_relay_node
+class TupleGetItem(Expr):
+    """Get index-th item from a tuple.
+
+    Parameters
+    ----------
+    tuple_value: tvm.relay.Expr
+        The input tuple expression.
+
+    index: int
+        The index.
+    """
+    def __init__(self, tuple_value, index):
+        self.__init_handle_by_constructor__(
+            _make.TupleGetItem, tuple_value, index)
+
+
+class TupleWrapper(object):
+    """TupleWrapper.
+
+    This class is a Python wrapper for a Relay tuple of known size.
+    It allows for accessing the fields of the Relay tuple as though
+    it were a Python tuple.
+
+    Parameters
+    ----------
+    tuple_value: tvm.relay.Expr
+        The input tuple
+
+    size: int
+        The size of the tuple.
+    """
+    def __init__(self, tuple_value, size):
+        self.tuple_value = tuple_value
+        self.size = size
+
+    def astuple(self):
+        """Returns the underlying Relay tuple if this wrapper is passed
+        as an argument to an FFI function."""
+        return self.tuple_value
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Tuple index out of range")
+        return TupleGetItem(self.tuple_value, index)
+
+    def __len__(self):
+        return self.size
+
+    def __repr__(self):
+        return ("TupleWrapper(" + self.tuple_value.__repr__() +
+                ", " + self.size + ")")
+
+    def astype(self, _):
+        raise TypeError("astype cannot be used on tuple")
+
+
+def var(name_hint,
+        type_annotation=None,
+        shape=None,
+        dtype="float32"):
+    """Create a new tvm.relay.Var.
+
+    This is a simple wrapper function that allows specify
+    shape and dtype directly.
+
+    Parameters
+    ----------
+    name_hint: str
+        The name of the variable.
+        This name only acts as a hint, and is not used
+        for equality.
+
+    type_annotation: Optional[tvm.relay.Type, str]
+        The type annotation on the variable.
+        When type_annotation is a str, we will create a scalar variable.
+
+    shape: Optional[List[tvm.Expr]]
+        The shape of the tensor type.
+
+    dtype: str, optional
+        The data type of the tensor.
+
+    Examples
+    --------
+    .. code-block:: python
+
+      # The following 4 lines are equivalent to each other
+      x = tvm.relay.Var("x", tvm.relay.TensorType([1, 2]))
+      x = tvm.relay.var("x", tvm.relay.TensorType([1, 2]))
+      x = tvm.relay.var("x", shape=[1, 2])
+      x = tvm.relay.var("x", shape=[1, 2], dtype="float32")
+
+      # The following 2 lines are equivalent to each other.
+      y = tvm.relay.var("x", "float32")
+      y = tvm.relay.var("x", shape=(), dtype="float32")
+    """
+    if type_annotation is not None and shape is not None:
+        raise ValueError("Can only specify either type_annotation or shape.")
+    if shape is not None:
+        type_annotation = _ty.TensorType(shape, dtype)
+    elif isinstance(type_annotation, str):
+        type_annotation = _ty.TensorType((), type_annotation)
+    return Var(name_hint, type_annotation)
+
+
+def const(value, dtype=None):
+    """Create a constant value.
+
+    Parameters
+    ----------
+    value: Union[bool, int, float, numpy.ndarray, tvm.nd.NDArray]
+        The constant value.
+
+    dtype: str, optional
+        The data type of the value.
+
+    Note
+    ----
+    When dtype is None, we use the following rule:
+
+    - int maps to "int32"
+    - float maps to "float32"
+    - bool maps to "bool"
+    - other using the same default rule as numpy.
+    """
+    if isinstance(value, (_base.numeric_types, (bool, list))):
+        value = _np.array(value, dtype=dtype)
+        # convert default to int32 and float32
+        if dtype is None:
+            if value.dtype == "float64":
+                value = value.astype("float32")
+            elif value.dtype == "int64":
+                value = value.astype("int32")
+    if isinstance(value, (_np.ndarray, _np.generic)):
+        value = _nd.array(value)
+
+    if not isinstance(value, _nd.NDArray):
+        raise ValueError("value has to be scalar or NDArray")
+    return Constant(value)

@@ -52,7 +52,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
         for kout, tout in zip(keras_out, tvm_out):
             if need_transpose:
                 tout = to_channels_last(tout)
-            np.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(kout, tout, rtol=1e-5, atol=1e-5)
 
 def test_forward_elemwise_add():
     r = []

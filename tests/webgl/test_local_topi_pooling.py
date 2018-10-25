@@ -60,7 +60,7 @@ def verify_pool(n, ic, ih, kh, sh, padding, pool_type, ceil_mode):
 
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ['opengl']:
         check_device(device)
@@ -98,7 +98,7 @@ def verify_global_pool(n, c, h, w, pool_type):
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), ctx)
         f = tvm.build(s, [A, B], device)
         f(a, b)
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-5)
 
     for device in ['opengl']:
         check_device(device)

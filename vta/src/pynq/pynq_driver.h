@@ -37,11 +37,6 @@ void VTAUnmapRegister(void *vta, size_t length);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 
-/*! \brief (Pynq only) Partial bitstream status file path */
-#define VTA_PYNQ_BS_IS_PARTIAL "/sys/devices/soc0/amba/f8007000.devcfg/is_partial_bitstream"
-/*! \brief (Pynq only) Bitstream destination file path */
-#define VTA_PYNQ_BS_XDEVCFG "/dev/xdevcfg"
-
 /*! \brief (Pynq only) Path to /dev/mem */
 #define VTA_PYNQ_DEV_MEM_PATH "/dev/mem"
 /*! \brief (Pynq only) MMIO driver constant */

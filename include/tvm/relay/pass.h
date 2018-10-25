@@ -12,24 +12,33 @@
 namespace tvm {
 namespace relay {
 
-/*! \brief Infer the type of an expression with the provided environment.
+/*!
+ * \brief Infer the type of an expression.
  *
  * The result of type checking is a new expression with unambigous
  * type information filled in, as well as it's checked type field
  * populated with the result type.
  *
- * \param env The environment used for global settings and referencing
- * global functions.
- *
- * \param e The expression to type check.
+ * \param expr The expression to type check.
+ * \param env The environment used for referencing global functions, can be None.
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Environment& env, const Expr& e);
-Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
+Expr InferType(const Expr& expr, const Environment& env);
+/*!
+ * \brief Infer the type of a function as if it is mapped to var in the env.
+ *
+ * \param f the function.
+ * \param env The environment used for referencing global functions.
+ * \param var The global variable corresponding to the function.
+ *
+ * \return A type checked Function with its checked_type field populated.
+ * \note this function mutates env and is not thread-safe.
+ */
+Function InferType(const Function& f, const Environment& env, const GlobalVar& var);
 
 /*!
- * \brief Check that types are well formed by applying "kinding rules".
+ * \brief Check that types are well kinded by applying "kinding rules".
  *
  * This pass ensures we do not do things that violate the design of the
  * type system when writing down types.
@@ -39,11 +48,12 @@ Expr InferType(const Environment& env, const GlobalVar& var, const Function& f);
  * We check this by ensuring the `dtype` field of a Tensor always contains
  * a data type such as `int`, `float`, `uint`.
  *
- * \param env The global environment.
  * \param t The type to check.
+ * \param env The global environment.
+ *
  * \return true if the rules are satisified otherwise false
  */
-bool KindCheck(const Environment& env, const Type& t);
+bool KindCheck(const Type& t, const Environment& env);
 
 /*! \brief Compare two expressions for structural equivalence.
  *
@@ -92,35 +102,26 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& e);
 
-/*! \brief Get free variables from expression e.
+/*! \brief Get free Vars from expr in PostDFS order.
  *
- * Free variables are variables that are not bound by a let or a function parameter in the context.
+ * Free variables are variables that are not bound by a
+ * let or a function parameter in the context.
  *
- * \param e the expression.
+ * \param expr the expression.
  *
- * \return the set of free variable.
+ * \return List of free vars, in the PostDFS order visited by expr.
  */
-tvm::Array<Var> FreeVariables(const Expr& e);
+tvm::Array<Var> FreeVars(const Expr& expr);
 
-/*! \brief Get free type parameters from expression e.
+/*! \brief Get free TypeVars from expression expr.
  *
  * Free type parameters are type parameters that are not bound by a function type in the context.
  *
- * \param e the expression.
+ * \param expr the expression.
  *
- * \return the set of free type variables.
+ * \return List of free vars, in the PostDFS order visited by expr.
  */
-tvm::Array<TypeParam> FreeTypeVariables(const Expr& e);
-
-/*! \brief Get free type parameters from type t.
- *
- * Free type parameters are type parameters that are not bound by a function type in the context.
- *
- * \param t the type.
- *
- * \return the set of free type variables.
- */
-tvm::Array<TypeParam> FreeTypeVariables(const Type& t);
+tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
 
 /*! \brief Remove expressions which does not effect the program result.
  *

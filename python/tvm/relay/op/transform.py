@@ -18,7 +18,7 @@ def expand_dims(data, axis, num_newaxis=1):
         If `axis >= 0`, it is the last axis inserted in Python's negative indexing.
 
     num_newaxis : int
-        Number of axises to be inserted. Should be >= 0.
+        Number of axes to be inserted. Should be >= 0.
 
     Returns
     -------
@@ -42,10 +42,33 @@ def transpose(data, axes=None):
     Returns
     -------
     result : relay.Expr
-        The reshaped result.
+        The transposed result.
     """
     axes = axes or []
     return _make.transpose(data, list(axes))
+
+
+def squeeze(data, axes=None):
+    """Squeeze axes in the array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    axes : None or List[int]
+        Axes to remove.
+        If axes = [] or = None, remove all axis of dimensions 1.
+        Otherwise, remove all axis in axes.
+        If any axis in axes has dimension that does not equal 1, it is an error.
+
+    Returns
+    -------
+    result : relay.Expr
+        The squeezed result.
+    """
+    axes = axes or []
+    return _make.squeeze(data, list(axes))
 
 
 def reshape(data, newshape):
@@ -116,3 +139,144 @@ def reshape(data, newshape):
     if isinstance(newshape, int):
         newshape = [newshape]
     return _make.reshape(data, list(newshape))
+
+
+def take(data, indices, axis=None):
+    """Take elements from an array along an axis.
+
+    Parameters
+    ----------
+    a : relay.Expr
+        The source array.
+
+    indices : rely.Expr
+        The indices of the values to extract.
+
+    axis : int, optional
+        The axis over which to select values. By default,
+        the flattened input array is used.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.take(data, indices, axis)
+
+
+def full(fill_value, shape=(), dtype=""):
+    """Fill array with scalar value.
+
+    Parameters
+    ----------
+    fill_value : relay.Expr
+        The value to fill. Must be a scalar.
+
+    shape : tuple of int
+        The shape of the target.
+
+    dtype : data type, optional (defaults to data type of the fill value)
+        The data type of the target.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.full(fill_value, shape, dtype)
+
+
+def full_like(data, fill_value):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    fill_value : relay.Expr
+        The scalar value to fill.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.full_like(data, fill_value)
+
+
+def where(condition, x, y):
+    """Selecting elements from either x or y depending on the value of the
+    condition.
+
+    Parameters
+    ----------
+    condition : relay.Expr
+        The condition array. The n-th element in `y` is selected when the n-th
+        value in the `condition` array is zero. Otherwise, the corresponding
+        element from `x` will be picked.
+
+    x : relay.Expr
+        The first array to be selected.
+
+    y : relay.Expr
+        The second array to be selected.
+
+    Returns
+    -------
+    result : relay.Expr
+		The selected array.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x = [[1, 2], [3, 4]]
+        y = [[5, 6], [7, 8]]
+        condition = [[0, 1], [-1, 0]]
+        relay.where(conditon, x, y) = [[5, 2], [3, 8]]
+
+        condition = [1, 0]
+        relay.where(conditon, x, y) = [[1, 2], [7, 8]]
+
+    Note that the shape of condition, x, and y needs to be the same.
+    """
+    return _make.where(condition, x, y)
+
+
+def broadcast_to_like(data, broadcast_type):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    broadcast_type : relay.Expr
+        Provide the type to broadcast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.broadcast_to_like(data, broadcast_type)
+
+
+def collapse_sum_like(data, collapse_type):
+    """Return an scalar value array with the same shape and type as the input array.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    collapse_type : relay.Expr
+        Provide the type to collapse to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.collapse_sum_like(data, collapse_type)

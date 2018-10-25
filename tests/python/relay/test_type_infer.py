@@ -4,33 +4,17 @@
 import tvm
 import numpy as np
 from tvm.relay.ir_pass import infer_type
-from tvm.relay.ir_builder import IRBuilder, func_type
-from tvm.relay.ir_builder import scalar_type, convert, tensor_type
-from tvm.relay.env import Environment
-from tvm.relay.op import log, add, equal, subtract, concatenate
-from tvm.relay.expr import Function
-
-def assert_has_type(expr, typ, env=Environment({})):
-    checked_expr = infer_type(env, expr)
-    checked_type = checked_expr.checked_type
-    if checked_type != typ:
-        raise RuntimeError("Type mismatch %s vs %s" % (
-            checked_type, typ))
-
-
-def assert_decl_has_type(env, name, typ):
-    func = env[name]
-    assert func.checked_type == typ
+from tvm import relay
 
 
 def test_monomorphic_let():
     "Program: let x = 1; return x"
-    b = IRBuilder()
-    x = b.let('x', 1.0, value_type=scalar_type('float64'))
-    b.ret(x)
+    sb = relay.ScopeBuilder()
+    x = sb.let('x', relay.const(1.0, "float64"))
+    sb.ret(x)
+    xchecked = relay.ir_pass.infer_type(sb.get())
+    assert xchecked.checked_type == relay.scalar_type("float64")
 
-    prog, env = b.get()
-    assert_has_type(prog, scalar_type('float64'))
 
 def test_dual_op():
     """Program:
@@ -40,31 +24,29 @@ def test_dual_op():
          return t1;
        }
     """
-    b = IRBuilder()
-    with b.function(('x', tensor_type(10, 10))) as func:
-        x, = func.param_ids()
-        t1 = b.let('t1', log(x))
-        t2 = b.let('t2', add(t1, x))
-        b.ret(t2)
-
-    assert_has_type(func.to_func(),
-                    func_type([tensor_type(10, 10)], tensor_type(10, 10)))
+    tp = relay.TensorType((10, 10), "float32")
+    x = relay.var("x", tp)
+    sb = relay.ScopeBuilder()
+    t1 = sb.let("t1", relay.log(x))
+    t2 = sb.let("t2", relay.add(t1, x))
+    sb.ret(t2)
+    f = relay.Function([x], sb.get())
+    fchecked = relay.ir_pass.infer_type(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
 def test_decl():
     """Program:
-       def f(x : Tensor[f32, (10, 10)]) {
-           let lx = log(x);
-           return lx;
+       def f(x : Tensor[(10, 10), f32]) {
+           return log(x);
        }
     """
-    b = IRBuilder()
-    x = b.param('x')
-    with b.decl('f', x):
-        lx = b.let('lx', log(x))
-        b.ret(lx)
-    _, env = b.get()
-    assert_decl_has_type(env, 'f', func_type(['float32'], 'float32'))
+    sb = relay.ScopeBuilder()
+    tp = relay.TensorType((10, 10))
+    x = relay.var("x", tp)
+    f = relay.Function([x], relay.log(x))
+    fchecked = relay.ir_pass.infer_type(f)
+    assert fchecked.checked_type == relay.FuncType([tp], tp)
 
 
 def test_recursion():
@@ -77,43 +59,61 @@ def test_recursion():
               return f(n - 1, log(data));
           }
        }
-       f(2, 10000);
     """
-    b = IRBuilder()
-    f = b.global_var('f')
-    n = b.param('n', ty='int32')
-    data = b.param('data', ty='float32')
-    with b.decl(f, n, data):
-        with b.if_scope(equal(n, convert(0))):
-            b.ret(data)
-        with b.else_scope():
-            b.ret(f(subtract(n, convert(1)), log(data)))
-    b.ret(f(convert(2.0), convert(10000.0)))
-    assert_decl_has_type(b.env, 'f', func_type(
-        ['int32', 'float32'], 'float32'))
-    # TODO(@jroesch): need evaluator or new runtime
-    # to execute this.
+    sb = relay.ScopeBuilder()
+    f = relay.GlobalVar("f")
+    ti32 = relay.scalar_type("int32")
+    tf32 = relay.scalar_type("float32")
+    n = relay.var("n", ti32)
+    data = relay.var("data", tf32)
 
-def test_concat():
-    """
-    Program:
-        def try_concat2(x: Float(3, 2), y: Float(2, 2)) -> Float(5, 2) {
-            return concatenate((x, y), axis=0);
-        }
-    """
-    ib = IRBuilder()
-    try_concat2 = ib.global_var('try_concat2')
-    x = ib.param('x', ty=tensor_type(3, 2))
-    y = ib.param('y', ty=tensor_type(2, 2))
-    with ib.decl(try_concat2, x, y):
-        ib.ret(concatenate((x, y), axis=0))
-    fn_ty = func_type([tensor_type(3, 2), tensor_type(2, 2)], tensor_type(5, 2))
-    assert_decl_has_type(ib.env, try_concat2, fn_ty)
+    with sb.if_scope(relay.equal(n, relay.const(0, ti32))):
+        sb.ret(data)
+    with sb.else_scope():
+        sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
+    env = relay.Environment()
+    env[f] = relay.Function([n, data], sb.get())
+    assert "%3 = @f(%1, %2)" in env.astext()
+    assert env[f].checked_type == relay.FuncType([ti32, tf32], tf32)
+
+
+def test_tuple():
+    tp = relay.TensorType((10,))
+    x = relay.var("x", tp)
+    res = relay.Tuple([x, x])
+    assert (relay.ir_pass.infer_type(res).checked_type ==
+            relay.TupleType([tp, tp]))
+
+
+def test_free_expr():
+    x = relay.var("x", "float32")
+    y = relay.add(x, x)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.scalar_type("float32")
+
+def test_type_args():
+    x = relay.var("x", shape=(10, 10))
+    y = relay.var("y", shape=(1, 10))
+    z = relay.add(x, y)
+    ty_z = relay.ir_pass.infer_type(z)
+    ty_args = ty_z.type_args
+    assert len(ty_args) == 2
+    assert ty_args[0].dtype == "float32"
+    assert ty_args[1].dtype == "float32"
+    sh1 = ty_args[0].shape
+    sh2 = ty_args[1].shape
+    assert sh1[0].value == 10
+    assert sh1[1].value == 10
+    assert sh2[0].value == 1
+    assert sh2[1].value == 10
 
 if __name__ == "__main__":
+    test_free_expr()
     test_dual_op()
     test_recursion()
     test_monomorphic_let()
     test_decl()
     test_recursion()
-    test_concat()
+    test_tuple()
+    test_free_expr()
+    test_type_args()

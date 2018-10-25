@@ -14,7 +14,7 @@ import model_zoo
 
 
 def verify_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape=(1, 1000),
-                               gluon_impl=False, name=None):
+                               gluon_impl=False, name=None, dtype='float32'):
     """Use name different from test to avoid let nose pick it up"""
     if gluon_impl:
         def get_gluon_output(name, x):
@@ -57,19 +57,18 @@ def verify_mxnet_frontend_impl(mx_symbol, data_shape=(1, 3, 224, 224), out_shape
         return out.asnumpy()
 
     # random input
-    dtype = 'float32'
     x = np.random.uniform(size=data_shape)
     if gluon_impl:
         gluon_out, gluon_sym = get_gluon_output(name, x)
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(gluon_sym, x, None, None, target, ctx, dtype)
-            np.testing.assert_allclose(gluon_out, tvm_out, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(gluon_out, tvm_out, rtol=1e-5, atol=1e-5)
     else:
         mx_out, args, auxs = get_mxnet_output(mx_symbol, x, dtype)
         assert "data" not in args
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(mx_symbol, x, args, auxs, target, ctx, dtype)
-            np.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(mx_out, tvm_out, rtol=1e-5, atol=1e-5)
 
 def test_forward_mlp():
     mlp = model_zoo.mx_mlp
@@ -154,6 +153,28 @@ def test_forward_lrn():
     mx_sym = mx.sym.LRN(data, alpha=2, beta=2, knorm=1, nsize=5)
     verify_mxnet_frontend_impl(mx_sym, (1, 10, 24, 24), (1, 10, 24, 24))
 
+def test_forward_ones():
+    data = mx.sym.var('data')
+    ones = mx.sym.ones(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.elemwise_add(data, ones)
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+    
+def test_forward_zeros():
+    data = mx.sym.var('data')
+    zeros = mx.sym.zeros(shape=(2, 3, 4), dtype='float32')
+    mx_sym = mx.sym.elemwise_add(data, zeros)
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_ones_like():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.ones_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_zeros_like():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.zeros_like(data, dtype='float32')
+    verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+    
 if __name__ == '__main__':
     test_forward_mlp()
     test_forward_vgg()
@@ -169,3 +190,7 @@ if __name__ == '__main__':
     test_forward_expand_dims()
     test_forward_pooling()
     test_forward_lrn()
+    test_forward_ones()
+    test_forward_zeros()
+    test_forward_ones_like()
+    test_forward_zeros_like()

@@ -9,27 +9,22 @@ These are utility functions used for testing and tutorial file.
 from __future__ import division
 import math
 from collections import namedtuple
+from functools import cmp_to_key
 import numpy as np
 
-def _entry_index(batch, w, h, outputs, classes, coords, location, entry):
-    n = int(location/(w*h))
-    loc = location%(w*h)
-    return batch*outputs + n*w*h*(coords+classes+1) + entry*w*h + loc
-
 Box = namedtuple('Box', ['x', 'y', 'w', 'h'])
-def _get_region_box(x, biases, n, index, i, j, w, h, stride):
-    b = Box(0, 0, 0, 0)
-    b = b._replace(x=(i + x[index + 0*stride]) / w)
-    b = b._replace(y=(j + x[index + 1*stride]) / h)
-    b = b._replace(w=np.exp(x[index + 2*stride]) * biases[2*n] / w)
-    b = b._replace(h=np.exp(x[index + 3*stride]) * biases[2*n+1] / h)
-    return b
 
-def _correct_region_boxes(boxes, n, w, h, netw, neth, relative):
-    new_w, new_h = (netw, (h*netw)/w) if (netw/w < neth/h) else ((w*neth/h), neth)
-    for i in range(n):
-        b = boxes[i]
-        b = boxes[i]
+def nms_comparator(a, b):
+    if 'sort_class' in b and b['sort_class'] >= 0:
+        diff = a['prob'][b['sort_class']] - b['prob'][b['sort_class']]
+    else:
+        diff = a['objectness'] - b['objectness']
+    return diff
+
+def _correct_boxes(dets, w, h, netw, neth, relative):
+    new_w, new_h = (netw, (h*netw)//w) if (netw/w < neth/h) else ((w*neth//h), neth)
+    for det in dets:
+        b = det['bbox']
         b = b._replace(x=(b.x - (netw - new_w)/2/netw) / (new_w/netw))
         b = b._replace(y=(b.y - (neth - new_h)/2/neth) / (new_h/neth))
         b = b._replace(w=b.w * netw/new_w)
@@ -39,7 +34,8 @@ def _correct_region_boxes(boxes, n, w, h, netw, neth, relative):
             b = b._replace(w=b.w * w)
             b = b._replace(y=b.y * h)
             b = b._replace(h=b.h * h)
-        boxes[i] = b
+        det['bbox'] = b
+    return dets
 
 def _overlap(x1, w1, x2, w2):
     l1 = x1 - w1/2
@@ -65,75 +61,106 @@ def _box_union(a, b):
 def _box_iou(a, b):
     return _box_intersection(a, b)/_box_union(a, b)
 
-def get_region_boxes(layer_in, imw, imh, netw, neth, thresh, probs,
-                     boxes, relative, tvm_out):
-    "To get the boxes for the image based on the prediction"
-    lw = layer_in.w
-    lh = layer_in.h
-    probs = [[0 for i in range(layer_in.classes + 1)] for y in range(lw*lh*layer_in.n)]
-    boxes = [Box(0, 0, 0, 0) for i in range(lw*lh*layer_in.n)]
-    for i in range(lw*lh):
-        row = int(i / lw)
-        col = int(i % lw)
-        for n in range(layer_in.n):
-            index = n*lw*lh + i
-            obj_index = _entry_index(0, lw, lh, layer_in.outputs, layer_in.classes,
-                                     layer_in.coords, n*lw*lh + i, layer_in.coords)
-            box_index = _entry_index(0, lw, lh, layer_in.outputs, layer_in.classes,
-                                     layer_in.coords, n*lw*lh + i, 0)
-            mask_index = _entry_index(0, lw, lh, layer_in.outputs, layer_in.classes,
-                                      layer_in.coords, n*lw*lh + i, 4)
-            scale = 1 if layer_in.background  else tvm_out[obj_index]
-            boxes[index] = _get_region_box(tvm_out, layer_in.biases, n, box_index, col,
-                                           row, lw, lh, lw*lh)
-            if not layer_in.softmax_tree:
-                max_element = 0
-                for j in range(layer_in.classes):
-                    class_index = _entry_index(0, lw, lh, layer_in.outputs, layer_in.classes,
-                                               layer_in.coords, n*lw*lh + i, layer_in.coords+1+j)
-                    prob = scale*tvm_out[class_index]
-                    probs[index][j] = prob if prob > thresh else 0
-                    max_element = max(max_element, prob)
-                probs[index][layer_in.classes] = max_element
+def _get_box(data, biases, n, location, lw, lh, w, h):
+    bx = (location[2] + data[location[0]][0][location[1]][location[2]]) / lw
+    by = (location[1] + data[location[0]][1][location[1]][location[2]]) / lh
+    bw = np.exp(data[location[0]][2][location[1]][location[2]]) * biases[2*n] / w
+    bh = np.exp(data[location[0]][3][location[1]][location[2]]) * biases[2*n+1] / h
+    return Box(bx, by, bw, bh)
 
-    _correct_region_boxes(boxes, lw*lh*layer_in.n, imw, imh, netw, neth, relative)
-    return boxes, probs
+def _get_yolo_detections(l, im_shape, net_shape, thresh, relative, dets):
+    data = l['output']
+    active_data_loc = np.asarray(np.where(data[:, 4, :, :] > thresh))
+    before_correct_dets = []
+    for i in range(active_data_loc.shape[1]):
+        location = [active_data_loc[0][i], active_data_loc[1][i], active_data_loc[2][i]]
+        box_b = _get_box(data, l['biases'], np.asarray(l['mask'])[location[0]], location,
+                         data.shape[2], data.shape[3], net_shape[0], net_shape[1])
+        objectness = data[location[0]][4][location[1]][location[2]]
+        classes = l['classes']
+        prob = objectness*data[location[0], 5:5 + 1 + classes, location[1], location[2]]
+        prob[prob < thresh] = 0
+        detection = {}
+        detection['bbox'] = box_b
+        detection['classes'] = classes
+        detection['prob'] = prob
+        detection['objectness'] = objectness
+        before_correct_dets.append(detection)
+    dets.extend(_correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
+                               net_shape[0], net_shape[1], relative))
+    return
 
+def _get_region_detections(l, im_shape, net_shape, thresh, relative, dets):
+    data = l['output']
+    before_correct_dets = []
+    for row in range(data.shape[2]):
+        for col in range(data.shape[3]):
+            for n in range(data.shape[0]):
+                prob = [0]*l['classes']
+                scale = data[n, l['coords'], row, col] if not l['background'] else 1
+                location = [n, row, col]
+                box_b = _get_box(data, l['biases'], n, location,
+                                 data.shape[2], data.shape[3], data.shape[2], data.shape[3])
+                objectness = scale if scale > thresh else 0
+                if objectness:
+                    prob = scale * data[n, l['coords']+1: l['coords']+1+l['classes'],
+                                        row, col]
+                    prob[prob < thresh] = 0
+                detection = {}
+                detection['bbox'] = box_b
+                detection['prob'] = prob
+                detection['objectness'] = objectness
+                before_correct_dets.append(detection)
+    _correct_boxes(before_correct_dets, im_shape[0], im_shape[1],
+                   net_shape[0], net_shape[1], relative)
+    dets.extend(before_correct_dets)
+    return
 
-def do_nms_sort(boxes, probs, total, classes, thresh):
+def fill_network_boxes(net_shape, im_shape,
+                       thresh, relative, tvm_out):
+    dets = []
+    for layer in tvm_out:
+        if layer['type'] == 'Yolo':
+            _get_yolo_detections(layer, im_shape, net_shape, thresh, relative, dets)
+        elif layer['type'] == 'Region':
+            _get_region_detections(layer, im_shape, net_shape, thresh, relative, dets)
+    return dets
+
+def do_nms_sort(dets, classes, thresh):
     "Does the sorting based on the threshold values"
-    SortableBbox = namedtuple('SortableBbox', ['index_var', 'class_var', 'probs'])
-
-    s = [SortableBbox(0, 0, []) for i in range(total)]
-    for i in range(total):
-        s[i] = s[i]._replace(index_var=i)
-        s[i] = s[i]._replace(class_var=0)
-        s[i] = s[i]._replace(probs=probs)
-
+    k = len(dets)-1
+    cnt = 0
+    while cnt < k:
+        if dets[cnt]['objectness'] == 0:
+            dets[k], dets[cnt] = dets[cnt], dets[k]
+            k = k - 1
+        else:
+            cnt = cnt + 1
+    total = k+1
     for k in range(classes):
         for i in range(total):
-            s[i] = s[i]._replace(class_var=k)
-        s = sorted(s, key=lambda x: x.probs[x.index_var][x.class_var], reverse=True)
+            dets[i]['sort_class'] = k
+        dets[0:total] = sorted(dets[0:total],
+                               key=cmp_to_key(nms_comparator), reverse=True)
         for i in range(total):
-            if probs[s[i].index_var][k] == 0:
+            if dets[i]['prob'][k] == 0:
                 continue
-            a = boxes[s[i].index_var]
+            a = dets[i]['bbox']
             for j in range(i+1, total):
-                b = boxes[s[j].index_var]
+                b = dets[j]['bbox']
                 if _box_iou(a, b) > thresh:
-                    probs[s[j].index_var][k] = 0
-    return boxes, probs
+                    dets[j]['prob'][k] = 0
 
-def draw_detections(im, num, thresh, boxes, probs, names, classes):
+def draw_detections(im, dets, thresh, names, classes):
     "Draw the markings around the detected region"
-    for i in range(num):
+    for det in dets:
         labelstr = []
         category = -1
         for j in range(classes):
-            if probs[i][j] > thresh:
+            if det['prob'][j] > thresh:
                 if category == -1:
                     category = j
-                labelstr.append(names[j])
+                labelstr.append(names[j] + " " + str(round(det['prob'][j], 4)))
         if category > -1:
             imc, imh, imw = im.shape
             width = int(imh * 0.006)
@@ -142,7 +169,7 @@ def draw_detections(im, num, thresh, boxes, probs, names, classes):
             green = _get_color(1, offset, classes)
             blue = _get_color(0, offset, classes)
             rgb = [red, green, blue]
-            b = boxes[i]
+            b = det['bbox']
             left = int((b.x-b.w/2.)*imw)
             right = int((b.x+b.w/2.)*imw)
             top = int((b.y-b.h/2.)*imh)

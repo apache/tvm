@@ -38,7 +38,7 @@ def verify_bilinear_scale(batch, in_channel, in_height, in_width, out_height, ou
         f = tvm.build(s, [A, B], device)
         f(a, b)
 
-        np.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
+        tvm.testing.assert_allclose(b.asnumpy(), b_np, rtol=1e-3, atol=1e-3)
 
     for device in ['llvm', 'cuda', 'vulkan', 'nvptx']:
         check_device(device)

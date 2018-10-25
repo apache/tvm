@@ -60,11 +60,11 @@ pub fn ocall_packed_func<S: AsRef<str>>(fn_name: S, args: &[TVMArgValue]) -> Res
 #[macro_export]
 macro_rules! ocall_packed {
   ($fn_name:expr, $($args:expr),+) => {
-    ::runtime::sgx::ocall_packed_func($fn_name, &[$($args.into(),)+])
+    ocall_packed_func($fn_name, &[$($args.into(),)+])
       .expect(concat!("Error calling `", $fn_name, "`"))
   };
   ($fn_name:expr) => {
-    ::runtime::sgx::ocall_packed_func($fn_name, &Vec::new())
+    ocall_packed_func($fn_name, &Vec::new())
       .expect(concat!("Error calling `", $fn_name, "`"))
   }
 }

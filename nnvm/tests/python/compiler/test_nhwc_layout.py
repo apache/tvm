@@ -50,7 +50,7 @@ def test_nhwc():
     oshape_nhwc = (1, 224, 224, out_channel)
     nchw_output = build_and_run(nchw_sym, nchw_params, data, oshape)
     nhwc_output = build_and_run(nhwc_sym, nhwc_params, data.transpose(0, 2, 3, 1), oshape_nhwc)
-    np.testing.assert_allclose(nchw_output, nhwc_output.transpose(0, 3, 1, 2), rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(nchw_output, nhwc_output.transpose(0, 3, 1, 2), rtol=1e-5, atol=1e-5)
 
 
 if __name__ == "__main__":

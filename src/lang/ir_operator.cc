@@ -310,20 +310,26 @@ Expr operator!=(Expr a, Expr b) {
 
 Expr operator&&(Expr a, Expr b) {
   using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
-  const UIntImm* pb = b.as<UIntImm>();
-  if (pa && pb) {
-    return UIntImm::make(UInt(1), pa->value && pb->value);
+  if (a.type().is_bool() && b.type().is_bool()) {
+    const UIntImm* pa = a.as<UIntImm>();
+    const UIntImm* pb = b.as<UIntImm>();
+    if (pa && pa->value) return b;
+    if (pa && !pa->value) return a;
+    if (pb && pb->value) return a;
+    if (pb && !pb->value) return b;
   }
   return ir::And::make(a, b);
 }
 
 Expr operator||(Expr a, Expr b) {
   using ir::UIntImm;
-  const UIntImm* pa = a.as<UIntImm>();
-  const UIntImm* pb = b.as<UIntImm>();
-  if (pa && pb) {
-    return UIntImm::make(UInt(1), pa->value || pb->value);
+  if (a.type().is_bool() && b.type().is_bool()) {
+    const UIntImm* pa = a.as<UIntImm>();
+    const UIntImm* pb = b.as<UIntImm>();
+    if (pa && pa->value) return a;
+    if (pa && !pa->value) return b;
+    if (pb && pb->value) return b;
+    if (pb && !pb->value) return a;
   }
   return ir::Or::make(a, b);
 }

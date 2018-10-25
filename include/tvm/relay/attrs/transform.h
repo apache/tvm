@@ -12,6 +12,16 @@
 namespace tvm {
 namespace relay {
 
+/*! \brief data type cast */
+struct CastAttrs : public tvm::AttrsNode<CastAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(CastAttrs, "relay.attrs.CastAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .describe("Target data type");
+  }
+};  // struct CastAttrs.
+
 /*! \brief Attributes used in expand_dims operators */
 struct ExpandDimsAttrs : public tvm::AttrsNode<ExpandDimsAttrs> {
   int axis;
@@ -58,6 +68,43 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
         .describe("The new shape. Should be compatible with the original shape.");
   }
 };  // struct ReshapeAttrs
+
+struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
+  IndexExpr axis;
+
+  TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(NullValue<IndexExpr>())
+        .describe("The axis over which to select values.");
+  }
+};
+
+/*! \brief Attributes that specify a tensor */
+struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
+  Array<IndexExpr> shape;
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(InitOpAttrs, "relay.attrs.InitOpAttrs") {
+    TVM_ATTR_FIELD(shape)
+      .describe("Target shape.");
+    TVM_ATTR_FIELD(dtype)
+      .describe("Target data type.")
+      .set_default(NullValue<DataType>());
+  }
+};  // struct InitOpAttrs
+
+/*! \brief Attributes used in squeeze operators */
+struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
+  Array<IndexExpr> axes;
+
+  TVM_DECLARE_ATTRS(SqueezeAttrs, "relay.attrs.SqueezeAttrs") {
+    TVM_ATTR_FIELD(axes)
+        .describe("The axes to squeeze in the input tensor."
+                  "If `axes = []`, all axis of dimension 1 get squeezed;"
+                  "Else, the dimension in axes get squeezed."
+                  "It is an error if an axes does not has dimension 1.")
+        .set_default(Array<IndexExpr>({}));
+  }
+};  // struct SqueezeAttrs
 
 }  // namespace relay
 }  // namespace tvm

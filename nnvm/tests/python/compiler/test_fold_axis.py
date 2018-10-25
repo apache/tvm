@@ -1,4 +1,5 @@
 """Unittest cases for fold_axis"""
+import tvm
 import nnvm
 import nnvm.testing.resnet
 import numpy as np
@@ -147,7 +148,7 @@ def test_fold_resnet():
 
     x = run_prune(graph, params, 0)
     y = run_prune(graph, params, 3)
-    np.testing.assert_allclose(y[0].asnumpy(), x[0].asnumpy())
+    tvm.testing.assert_allclose(y[0].asnumpy(), x[0].asnumpy())
 
 
 if __name__ == "__main__":
