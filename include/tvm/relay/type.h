@@ -251,7 +251,7 @@ class TupleTypeNode : public TypeNode {
 
   TVM_DLL static TupleType make(tvm::Array<Type> fields);
 
-  static constexpr const char* _type_key = "relay.TypeTuple";
+  static constexpr const char* _type_key = "relay.TupleType";
   TVM_DECLARE_NODE_TYPE_INFO(TupleTypeNode, TypeNode);
 };
 
