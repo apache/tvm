@@ -317,7 +317,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
 /*! \brief Attributes for LRN operator */
 struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
   IndexExpr size;
-  IndexExpr axis;
+  int axis;
   double bias;
   double alpha;
   double beta;
@@ -340,7 +340,7 @@ struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
 /*! \brief Attributes for L2Normalize operator */
 struct L2NormalizeAttrs : public tvm::AttrsNode<L2NormalizeAttrs> {
   double eps;
-  Array<IndexExpr> axis;
+  Array<Integer> axis;
 
   TVM_DECLARE_ATTRS(L2NormalizeAttrs, "relay.attrs.L2NormalizeAttrs") {
     TVM_ATTR_FIELD(eps)
