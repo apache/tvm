@@ -91,6 +91,7 @@ def test_free_expr():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.scalar_type("float32")
 
+
 def test_type_args():
     x = relay.var("x", shape=(10, 10))
     y = relay.var("y", shape=(1, 10))
@@ -106,6 +107,18 @@ def test_type_args():
     assert sh1[1].value == 10
     assert sh2[0].value == 1
     assert sh2[1].value == 10
+
+
+def test_dup_type():
+    a = relay.TypeVar("a")
+    av = relay.Var("av", a)
+    ide = relay.Function([av], av, None, [a])
+    dup = relay.Function([av], relay.Tuple([av, av]), None, [a])
+    t = relay.scalar_type("float32")
+    b = relay.Var("b", t)
+    assert relay.ir_pass.infer_type(ide(b)).checked_type == t
+    assert relay.ir_pass.infer_type(dup(b)).checked_type == relay.TupleType([t, t])
+
 
 if __name__ == "__main__":
     test_free_expr()
