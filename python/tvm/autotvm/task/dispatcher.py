@@ -432,9 +432,10 @@ class ApplyGraphBest(DispatchContext):
             The specific configuration.
         """
         key = (str(target), workload)
-        if self._counter < len(self._records) and (key not in self._global_cfg_dict):
+        if self._counter < len(self._records):
             cfg = self._records[self._counter][0].config
             self._counter += 1
+            self.update(key, cfg)
             return cfg
         return self._global_cfg_dict[key]
 
