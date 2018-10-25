@@ -261,13 +261,13 @@ def schedule_conv2d_nhwc(outs):
 @autotvm.task.register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, origin_layout, dtype = deserialize_args(args)
+    data, kernel, strides, padding, dilation, origin_layout, dtype = deserialize_args(args)
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
     # get config here
     cfg = get_config()
-    _create_tuning_space(cfg, data, kernel, strides, padding, origin_layout)
+    _create_tuning_space(cfg, data, kernel, strides, padding, dilation, origin_layout)
 
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],

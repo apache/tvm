@@ -73,8 +73,13 @@ def conv2d_arm_cpu(data, kernel, strides, padding, dilation, layout, out_dtype):
 @conv2d_arm_cpu.register(['direct'])
 def decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """spatial packing template"""
+<<<<<<< HEAD
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, num_tile=2)
 >>>>>>> Update arm cpu conv2d with dilation
+=======
+    return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                              num_tile=2)
+>>>>>>> Fix style
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
@@ -140,7 +145,8 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
         dilation_h, dilation_w = dilation
 
     if dilation_h != 1 or dilation_w != 1:
-        dilation_args = (1, 1, dilation_h, dilation_w) if len(kernel.shape) == 4 else (1, 1, dilation_h, dilation_w, 1)
+        dilation_args = (1, 1, dilation_h, dilation_w) if len(kernel.shape) == 4\
+                else (1, 1, dilation_h, dilation_w, 1)
         kernel = dilate(kernel, dilation_args)
 
     if len(kernel.shape) == 4:
@@ -292,7 +298,7 @@ def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, layout, out_dty
 def decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
 >>>>>>> Update arm cpu conv2d with dilation
     tile_size = 4
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, 
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout,
                           out_dtype, tile_size)
 
 <<<<<<< HEAD
@@ -521,6 +527,7 @@ def _schedule_winograd(cfg, s, output, last):
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'arm_cpu', ['winograd'])
 def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
@@ -528,6 +535,10 @@ def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, t
     return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
 =======
 def _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
+=======
+def _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype,
+                                   tile_size):
+>>>>>>> Fix style
     """convert argument to workload"""
     K = 3
     shape = get_const_tuple(kernel.shape)
@@ -549,8 +560,8 @@ def _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, lay
 @conv2d_winograd_without_weight_transform.register(['arm_cpu'])
 @autotvm.task.dispatcher
 def winograd_ww_config_dispatcher_(data, kernel, strides, padding, layout, out_dtype, tile_size):
-    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype,
-                                          tile_size)
+    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout,
+                                          out_dtype, tile_size)
 
 
 @winograd_ww_config_dispatcher_.register(['winograd'])

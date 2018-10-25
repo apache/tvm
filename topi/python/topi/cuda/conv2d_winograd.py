@@ -326,12 +326,14 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 @autotvm.task.dispatcher
 def winograd_ww_config_dispatcher_cuda(data, kernel, strides, padding, dilation, layout, out_dtype,
                                        tile_size):
-    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype)
+    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilation, layout,
+                                          out_dtype)
 
 
 @winograd_ww_config_dispatcher_cuda.register(['winograd'])
 def decl_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
-    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, pre_computed=True)
+    return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                         pre_computed=True)
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
