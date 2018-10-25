@@ -96,8 +96,8 @@ int main()
     run();
 
     DLTensor* y;
-    int out_ndim = 1;
-    int64_t out_shape[1] = {1000, };
+    int out_ndim = 2;
+    int64_t out_shape[2] = {1, 1000, };
     TVMArrayAlloc(out_shape, out_ndim, dtype_code, dtype_bits, dtype_lanes, device_type, device_id, &y);
 
     // get the function from the module(get output data)
