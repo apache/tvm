@@ -166,19 +166,15 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const TypeRelationNode* type_rel) final {
-    return GetRef<TypeRelation>(type_rel).hash();
-    // if (const TypeRelationNode* rhs = other.as<TypeRelationNode>()) {
-    //   if (lhs->func->name != rhs->func->name) return false;
-    //   if (lhs->num_inputs != rhs->num_inputs) return false;
-    //   if (!this->AttrEqual(lhs->attrs, rhs->attrs)) return false;
-    //   if (lhs->args.size() != rhs->args.size()) return false;
-    //   for (size_t i = 0; i < lhs->args.size(); ++i) {
-    //     if (!TypeEqual(lhs->args[i], rhs->args[i])) return false;
-    //   }
-    //   return true;
-    // } else {
-    //   return false;
-    // }
+    size_t hash = std::hash<std::string>()(type_rel->_type_key);
+    hash = Combine(hash, std::hash<std::string>()(type_rel->func->name));
+    hash = Combine(hash, AttrHash(type_rel->attrs));
+
+    for (auto arg : type_rel->args) {
+      hash = Combine(hash, TypeHash(arg));
+    }
+
+    return hash;
   }
 
   size_t VisitType_(const TupleTypeNode* tuple_type) final {
