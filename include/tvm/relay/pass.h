@@ -138,13 +138,23 @@ Expr DeadCodeElimination(const Expr& e);
 
 /*! \brief Hash a Relay type.
  *
+ * Implements structural hashing of a Relay type.
+ *
+ *  \param type the type to hash.
+ *
+ *  \return the hash value.
  */
-size_t HashType(const Expr &);
+size_t HashType(const Type& type);
 
 /*! \brief Hash a Relay expression.
  *
+ * Implements structural hashing of a Relay expression.
+ *
+ * \param expr the expression to hash.
+ *
+ * \return the hash value.
  */
-size_t HashExpr(const Expr &);
+size_t HashExpr(const Expr& expr);
 
 
 }  // namespace relay

@@ -8,6 +8,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/pass.h>
 #include "type_functor.h"
+#include <tvm/attrs.h>
 #include "../../lang/attr_functor.h"
 
 namespace tvm {
@@ -19,8 +20,7 @@ class RelayHashHandler:
       public TypeFunctor<size_t(const Type&)>,
       public ExprFunctor<size_t(const Expr&)> {
  public:
-  explicit RelayHashHandler(bool map_free_var)
-      : map_free_var_(map_free_var) {}
+  explicit RelayHashHandler() {}
 
   /*!
    * Compute hash of a node.
@@ -95,10 +95,7 @@ class RelayHashHandler:
    * \return the hash value.
    */
   size_t DataTypeHash(const DataType& dtype) {
-     return std::hash<int>()(
-         static_cast<int>(dtype.code()) |
-         (static_cast<int>(dtype.bits()) << 8) |
-         (static_cast<int>(dtype.lanes()) << 16));
+    return ::tvm::AttrsHash()(dtype);
   }
 
   /*!
@@ -149,8 +146,9 @@ class RelayHashHandler:
 
   size_t VisitType_(const FuncTypeNode* func_type) final {
     size_t hash = std::hash<std::string>()(func_type->_type_key);
+
     for (auto type_param : func_type->type_params) {
-      hash = Combine(hash, TypeHash(type_param));
+      hash = Combine(hash, BindVar(type_param));
     }
 
     for (auto arg : func_type->arg_types) {
@@ -200,17 +198,19 @@ class RelayHashHandler:
     return hash;
   }
 
-  int BindVar(const NodeRef& var) {
-    var_map_[var] = var_counter;
-    return var_counter++;
+  size_t BindVar(const NodeRef& var) {
+    size_t hash = std::hash<int>()(var_counter++);
+    CHECK(hash_map_.find(var) == hash_map_.end());
+    hash_map_[var] = hash;
+    return hash;
   }
 
   size_t VisitExpr_(const VarNode* var) final {
-    return std::hash<int>()(var_map_[GetRef<Var>(var)]);
+
   }
 
   size_t VisitExpr_(const GlobalVarNode* global) final {
-    return GetRef<GlobalVar>(global).hash();
+    return std::hash<std::string>()(global->name_hint);
   }
 
   size_t VisitExpr_(const TupleNode* tuple) final {
@@ -224,11 +224,11 @@ class RelayHashHandler:
   size_t VisitExpr_(const FunctionNode* func) final {
     size_t hash = std::hash<std::string>()(func->_type_key);
     for (auto type_param : func->type_params) {
-      hash = Combine(hash, TypeHash(type_param));
+      hash = Combine(hash, BindVar(type_param));
     }
 
     for (auto param : func->params) {
-      hash = Combine(hash, std::hash<int>()(BindVar(param)));
+      hash = Combine(hash, BindVar(param));
     }
 
     hash = Combine(hash, TypeHash(func->ret_type));
@@ -252,7 +252,7 @@ class RelayHashHandler:
 
   size_t VisitExpr_(const LetNode* let) final {
     size_t hash = std::hash<std::string>()(let->_type_key);
-    hash = Combine(hash, std::hash<int>()(BindVar(let->var)));
+    hash = Combine(hash, BindVar(let->var));
     hash = Combine(hash, ExprHash(let->value));
     hash = Combine(hash, ExprHash(let->body));
     return hash;
@@ -282,31 +282,28 @@ class RelayHashHandler:
   }
 
  private:
-  // whether to map open terms.
-  bool map_free_var_{false};
   // renaming of NodeRef to indicate two nodes equals to each other
   std::unordered_map<NodeRef, size_t, NodeHash, NodeEqual> hash_map_;
-  std::unordered_map<NodeRef, int, NodeHash, NodeEqual> var_map_;
   int var_counter = 0;
 };
 
 size_t HashType(const Type& type) {
-  return RelayHashHandler(false).TypeHash(type);
+  return RelayHashHandler().TypeHash(type);
 }
 
 size_t HashExpr(const Expr& expr) {
-  return RelayHashHandler(false).ExprHash(expr);
+  return RelayHashHandler().ExprHash(expr);
 }
 
 // TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._ir_pass._expr_hash")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler(false).Hash(args[0]));
+    *ret = static_cast<int64_t>(RelayHashHandler().Hash(args[0]));
   });
 
 TVM_REGISTER_API("relay._ir_pass._type_hash")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = static_cast<int64_t>(RelayHashHandler(false).TypeHash(args[0]));
+    *ret = static_cast<int64_t>(RelayHashHandler().TypeHash(args[0]));
   });
 
 // TVM_REGISTER_API("relay._make._graph_equal")
