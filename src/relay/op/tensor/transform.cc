@@ -218,24 +218,23 @@ bool TransposeRel(const Array<Type>& types,
   }
   const auto* param = attrs.as<TransposeAttrs>();
   const int ndim = data->shape.size();
-  const Array<IndexExpr>& axes = param->axes;
+  const Array<Integer>& axes = param->axes;
   // check dimension match
-  CHECK(axes.empty() || static_cast<int>(axes.size()) == ndim)
+  CHECK(!axes.defined() || static_cast<int>(axes.size()) == ndim)
     << "Dimension mismatch: axes has " << axes.size() << " elements"
     << ", but data.ndim = " << ndim;
   // construct int_axes
   std::vector<int> int_axes;
   int_axes.reserve(ndim);
-  if (axes.empty()) {
+  // used not defined to check if it is None.
+  if (!axes.defined()) {
     for (int i = ndim - 1; i >= 0; --i) {
       int_axes.push_back(i);
     }
   } else {
     std::vector<int> axis_used(ndim, 0);
-    for (const IndexExpr& e : axes) {
-      const int64_t *axis_ptr = as_const_int(e);
-      CHECK(axis_ptr != nullptr);
-      int axis = *axis_ptr;
+    for (const Integer& e : axes) {
+      int64_t axis = e;
       // sanity check for axis and ndim
       CHECK(-ndim <= axis && axis < ndim)
         << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
@@ -245,7 +244,7 @@ bool TransposeRel(const Array<Type>& types,
       // sanity check for duplication
       CHECK(!axis_used[axis]) << "Duplicate axes in transpose: " << axis;
       axis_used[axis] = 1;
-      int_axes.push_back(axis);
+      int_axes.push_back(static_cast<int>(axis));
     }
   }
   std::vector<IndexExpr> oshape;
@@ -258,7 +257,7 @@ bool TransposeRel(const Array<Type>& types,
 }
 
 Expr MakeTranspose(Expr data,
-                   Array<IndexExpr> axes) {
+                   Array<Integer> axes) {
   auto attrs = make_node<TransposeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("transpose");
@@ -401,7 +400,7 @@ bool TakeRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape;
   const auto ndim_data = static_cast<int>(data->shape.size());
   const auto ndim_indices = static_cast<int>(indices->shape.size());
-  auto axis = (*as_const_int(param->axis));
+  int axis = static_cast<int>(param->axis->value);
   if (axis < 0) axis += ndim_data;
   CHECK_LE(axis, ndim_data)
     << "axis should be with in data shape"
@@ -424,9 +423,9 @@ bool TakeRel(const Array<Type>& types,
 
 Expr MakeTake(Expr data,
               Expr indices,
-              IndexExpr axis) {
+              Integer axis) {
   auto attrs = make_node<TakeAttrs>();
-  attrs->axis = axis;
+  attrs->axis = std::move(axis);
   static const Op& op = Op::Get("take");
   return CallNode::make(op, {data, indices}, Attrs(attrs), {});
 }

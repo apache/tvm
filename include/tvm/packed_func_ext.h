@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <memory>
+#include <limits>
 #include <type_traits>
 
 #include "base.h"
@@ -126,6 +127,8 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
 inline TVMArgValue::operator HalideIR::Expr() const {
   if (type_code_ == kNull) return Expr();
   if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return Expr(static_cast<int>(value_.v_int64));
   }
   if (type_code_ == kDLFloat) {
@@ -143,6 +146,20 @@ inline TVMArgValue::operator HalideIR::Expr() const {
       << "Expected type " << NodeTypeName<Expr>()
       << " but get " << sptr->type_key();
   return Expr(sptr);
+}
+
+inline TVMArgValue::operator tvm::Integer() const {
+  if (type_code_ == kNull) return Integer();
+  if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
+    return Integer(static_cast<int>(value_.v_int64));
+  }
+  NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
+  CHECK(NodeTypeChecker<Integer>::Check(sptr.get()))
+      << "Expected type " << NodeTypeName<Expr>()
+      << " but get " << sptr->type_key();
+  return Integer(sptr);
 }
 
 inline NodePtr<Node>& TVMArgValue::node_sptr() {

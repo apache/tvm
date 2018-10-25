@@ -29,6 +29,7 @@ using HalideIR::VarExpr;
 using HalideIR::IR::RangeNode;
 using HalideIR::IR::FunctionRef;
 using HalideIR::IR::FunctionBaseNode;
+using HalideIR::Internal::IntImm;
 using HalideIR::Internal::Stmt;
 using HalideIR::Internal::IRPrinter;
 using HalideIR::Internal::Variable;
@@ -80,6 +81,51 @@ class Var : public HalideIR::VarExpr {
   }
   /*! \brief type indicate the container type */
   using ContainerType = Variable;
+};
+
+
+/*!
+ * \brief Container of constant ineteger (IntImm).
+ *
+ * This is used to store and automate type check
+ * attributes that must be constant integer.
+ */
+class Integer : public Expr {
+ public:
+  Integer() : Expr() {}
+  /*!
+   * \brief constructor from node.
+   */
+  explicit Integer(NodePtr<Node> node) : Expr(node) {}
+  /*!
+   * \brief Construct integer from int value.
+   */
+  Integer(int value) : Expr(value) {}  // NOLINT(*)
+  /*!
+   * \brief Assign an expression to integer.
+   * \param other another expression.
+   */
+  Integer& operator=(const Integer& other) {
+    node_ = other.node_;
+    return *this;
+  }
+  /*!
+   * \brief Get pointer to the internal value.
+   * \return the content of the integer.
+   */
+  const IntImm* operator->() const {
+    return static_cast<const IntImm*>(node_.get());
+  }
+  /*!
+   * \brief convert to int64_t
+   */
+  operator int64_t() const {
+    CHECK(node_ != nullptr)
+        << " Trying get reference a null Integer";
+    return (*this)->value;
+  }
+  /*! \brief type indicate the container type */
+  using ContainerType = IntImm;
 };
 
 
