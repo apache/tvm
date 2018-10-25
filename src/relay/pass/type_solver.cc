@@ -108,7 +108,15 @@ Type TypeSolver::Resolve(const Type& type) {
   auto it = tmap_.find(type);
   if (it != tmap_.end()) {
     return it->second->FindRoot()->resolved_type;
-  } else {
+  } else if (auto* tuple = type.as<TupleTypeNode>()) {
+    std::vector<Type> fields;
+    for (const auto& t : tuple->fields) {
+      fields.push_back(Resolve(t));
+    }
+    return TupleTypeNode::make(fields);
+  }
+  else {
+    CHECK(!type.as<TupleTypeNode>()) << type;
     return type;
   }
 }
