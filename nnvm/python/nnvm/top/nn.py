@@ -219,7 +219,7 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
 
     # pylint: disable=assignment-from-no-return
     out = topi.nn.conv2d_winograd_without_weight_transform(
-        inputs[0], inputs[1], strides, padding, layout, out_dtype,
+        inputs[0], inputs[1], strides, padding, dilation, layout, out_dtype,
         tile_size)
 
     if attrs.get_bool("use_bias"):

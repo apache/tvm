@@ -343,7 +343,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
 def _declaration_conv_NCHWc(cfg, data, kernel, strides,
-                            padding, layout, out_layout, out_dtype):
+                            padding, dilation, layout, out_layout, out_dtype):
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)

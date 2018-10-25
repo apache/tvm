@@ -26,7 +26,6 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
     # placeholder
     Input = tvm.placeholder((batch, in_channel, in_height, in_width), name='Input')
     Filter = tvm.placeholder((filter_channel, channel_multiplier, filter_height, filter_width), name='Filter')
-    DilatedFilter = topi.nn.dilate(Filter, (1, 1, dilation, dilation), name='DilatedFilter')
     Scale = tvm.placeholder((in_channel * channel_multiplier,), name='Scale')
     Shift = tvm.placeholder((in_channel * channel_multiplier,), name='Shift')
 
@@ -40,8 +39,8 @@ def depthwise_conv2d_with_workload_nchw(batch, in_channel, in_height, channel_mu
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             # declare
-            DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, DilatedFilter,
-                (stride_h, stride_w), padding_args, dtype)
+            DepthwiseConv2d = topi.nn.depthwise_conv2d_nchw(Input, Filter,
+                (stride_h, stride_w), padding_args, dilation, dtype)
             ScaleShift = topi.nn.scale_shift_nchw(DepthwiseConv2d, Scale, Shift)
             Relu = topi.nn.relu(ScaleShift)
             # schedule

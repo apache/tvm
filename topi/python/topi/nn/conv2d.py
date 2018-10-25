@@ -139,7 +139,7 @@ def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 
@@ -206,7 +206,7 @@ def conv2d_hwcn(Input, Filter, stride, padding, dilation, out_dtype=None):
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 
@@ -270,7 +270,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype='float32'):
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 
@@ -399,7 +399,7 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
 
 
 @tvm.target.generic_func
-def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
+def conv2d_winograd_without_weight_transform(input, filter, strides, padding, dilation,
                                              layout, out_dtype, tile_size):
     """Compute convolution in winograd algorithm. The filter is supposed to be transformed
     in advance.
@@ -414,6 +414,8 @@ def conv2d_winograd_without_weight_transform(input, filter, strides, padding,
         Stride size, or [stride_height, stride_width]
     padding : int or str
         Padding size, or ['VALID', 'SAME']
+    dilation : int or a list/tuple of two ints
+        Dilation size, or [dilation_height, dilation_width]
     tile_size: int
         Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
 

@@ -42,7 +42,7 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     if not pre_computed: # kernel tensor is raw tensor, do strict check
         if isinstance(dilation, int):
-            dilation_h, dilation_w = dilation
+            dilation_h = dilation_w = dilation
         else:
             dilation_h, dilation_w = dilation
         if dilation_h != 1 or dilation_w != 1:

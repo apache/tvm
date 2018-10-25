@@ -48,7 +48,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 

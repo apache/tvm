@@ -197,7 +197,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
     N, CI, IH, IW = get_const_tuple(data.shape)
     if len(kernel.shape) == 4:
         if isinstance(dilation, int):
-            dilation_h, dilation_w = dilation
+            dilation_h = dilation_w = dilation
         else:
             dilation_h, dilation_w = dilation
         if dilation_h != 1 or dilation_w != 1:
