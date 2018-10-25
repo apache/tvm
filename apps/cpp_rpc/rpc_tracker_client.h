@@ -77,7 +77,9 @@ class TrackerClient {
   */
   void Close() {
     // close tracker resource
-    tracker_sock_.Close();
+    if (!tracker_sock_.IsClosed()) {
+      tracker_sock_.Close();
+    }
   }
  /*!
   * \brief ReportResourceAndGetKey Report resource to tracker.

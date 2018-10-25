@@ -25,6 +25,51 @@
 namespace tvm {
 namespace runtime {
 
+RPCEnv::RPCEnv() {
+  #if defined(__linux__) || defined(__ANDROID__)
+    base_ = "rpc";
+    mkdir(&base_[0], 0777);
+
+    TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+        static RPCEnv env;
+        *rv = env.GetPath(args[0]);
+      });
+
+    TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
+    .set_body([](TVMArgs args, TVMRetValue *rv) {
+        static RPCEnv env;
+        std::string file_name = env.GetPath(args[0]);
+        *rv = Load(&file_name, "");
+        LOG(INFO) << "Load module from " << file_name << " ...";
+      });
+  #else
+    LOG(FATAL) << "Only support RPC in linux environment";
+  #endif
+}
+/*!
+ * \brief GetPath To get the workpath from packed function
+ * \param name The file name
+ * \return The full path of file.
+ */
+std::string RPCEnv::GetPath(const std::string& file_name) {
+  return base_ + "/" + file_name;
+}
+/*!
+ * \brief Remove The RPC Environment cleanup function
+ */
+void RPCEnv::Remove() {
+  #if defined(__linux__) || defined(__ANDROID__)
+    CleanDir(&base_[0]);
+    int ret = rmdir(&base_[0]);
+    if (ret != 0) {
+      LOG(WARNING) << "Remove directory " << base_ << " failed";
+    }
+  #else
+    LOG(FATAL) << "Only support RPC in linux environment";
+  #endif
+}
+
 /*!
  * \brief ListDir get the list of files in a directory
  * \param dirname The root directory name
@@ -117,8 +162,8 @@ void CreateShared(const std::string output, const std::vector<std::string> &file
           cc.create_shared if the path is in format .o or .tar
           High level handling for .o and .tar file.
           We support this to be consistent with RPC module load.
- * \param fileIn The input file
- * \param file The format of file
+ * \param fileIn The input file, file name will be updated
+ * \param fmt The format of file
  * \return Module The loaded module
  */
 Module Load(std::string *fileIn, const std::string fmt) {
@@ -153,17 +198,20 @@ Module Load(std::string *fileIn, const std::string fmt) {
 
 /*!
  * \brief CleanDir Removes the files from the directory
- * \param dirname THe name of the directory
+ * \param dirname The name of the directory
  */
-void CleanDir(const std::string dirname) {
+void CleanDir(const std::string &dirname) {
   #if defined(__linux__) || defined(__ANDROID__)
     DIR *dp = opendir(dirname.c_str());
     dirent *d;
     while ((d = readdir(dp)) != NULL) {
       std::string filename = d->d_name;
       if (filename != "." && filename != "..") {
-        filename = dirname + d->d_name;
-        std::remove(&filename[0]);
+        filename = dirname + "/" + d->d_name;
+        int ret = std::remove(&filename[0]);
+        if (ret != 0) {
+          LOG(WARNING) << "Remove file " << filename << " failed";
+        }
       }
     }
   #else

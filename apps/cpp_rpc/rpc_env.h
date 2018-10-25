@@ -32,57 +32,31 @@ Module Load(std::string *path, const std::string fmt = "");
  * \brief CleanDir Removes the files from the directory
  * \param dirname THe name of the directory
  */
-void CleanDir(const std::string dirname);
+void CleanDir(const std::string &dirname);
 
 /*!
  * \brief RPCEnv The RPC Environment parameters for c++ rpc server
  */
 struct RPCEnv {
  public:
-  RPCEnv() {
-    #if defined(__linux__) || defined(__ANDROID__)
-      base_ = "rpc";
-      mkdir(&base_[0], 0777);
-
-      TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
-      .set_body([](TVMArgs args, TVMRetValue* rv) {
-          static RPCEnv env;
-          *rv = env.GetPath(args[0]);
-        });
-
-      TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
-      .set_body([](TVMArgs args, TVMRetValue *rv) {
-          std::string file_name = "rpc/" + args[0].operator std::string();
-          *rv = Load(&file_name, "");
-          LOG(INFO) << "Load module from " << file_name << " ...";
-        });
-    #else
-      LOG(FATAL) << "Only support RPC in linux environment";
-    #endif
-  }
-
+   /*!
+    * \brief Constructor Init The RPC Environment initialize function
+    */
+  RPCEnv();
   /*!
    * \brief GetPath To get the workpath from packed function
    * \param name The file name
    * \return The full path of file.
    */
-  std::string GetPath(const std::string& file_name) {
-    return base_ + "/" + file_name;
-  }
-
+  std::string GetPath(const std::string& file_name);
   /*!
    * \brief Remove The RPC Environment cleanup function
    */
-  void Remove() {
-    #if defined(__linux__) || defined(__ANDROID__)
-      CleanDir(&base_[0]);
-      rmdir(&base_[0]);
-    #else
-      LOG(FATAL) << "Only support RPC in linux environment";
-    #endif
-  }
+  void Remove();
 
- private:
+  /*!
+   * \base_ Holds the environment path.
+   */
   std::string base_;
 };  // RPCEnv
 

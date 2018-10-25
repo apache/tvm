@@ -99,6 +99,7 @@ class RPCServer {
         AcceptConnection(&tracker, &conn, &addr, &opts);
       }
       catch (const char* msg) {
+        LOG(WARNING) << "Socket exception: " << msg;
         // close tracker resource
         tracker.Close();
         continue;
@@ -120,6 +121,7 @@ class RPCServer {
         if (timeout) {
           sleep(timeout);
           kill(pid, SIGTERM);  // Terminate after timeout
+          LOG(INFO) << "Child pid=" << pid << " killed after timeout=" << timeout;
         } else {
           // Wait for the result
           int status = 0;
@@ -143,7 +145,6 @@ class RPCServer {
       LOG(INFO) << "Socket Connection Closed";
       conn.Close();
     }
-    tracker.Close();
   }
 
 
