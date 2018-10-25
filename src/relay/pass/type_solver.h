@@ -128,7 +128,7 @@ class TypeSolver {
       if (this->parent == nullptr) return this;
       // slow path with path compression.
       TypeNode* root = this;
-      while (root->parent != nullptr) {
+      while (root->parent != nullptr && root->parent != root) {
         root = root->parent;
       }
       for (TypeNode* p = this; p != root;) {
