@@ -60,6 +60,21 @@ class DispatchContext(object):
             ret = self._old_ctx.query(target, workload)
         return ret
 
+    def update(self, target, workload, cfg):
+        """
+        Update context with a specific config.
+
+        Parameters
+        ----------
+        target: Target
+            The current target
+        workload : Workload
+            The current workload.
+        cfg : ConfigSpace
+            The specific configuration.
+        """
+        raise NotImplementedError()
+
     def _query_inside(self, target, workload):
         """
         Query the context to get the specific config for a template.
@@ -179,6 +194,11 @@ class ApplyConfig(DispatchContext):
         self.workload = workload
         return self._config
 
+    def update(self, target, workload, cfg):
+        """Override update"""
+        self.workload = workload
+        self._config = cfg
+
 
 class ApplyHistoryBest(DispatchContext):
     """
@@ -197,6 +217,7 @@ class ApplyHistoryBest(DispatchContext):
 
         self.best_by_targetkey = {}
         self.best_by_model = {}
+        self._best_user_defined = {}
 
         if records:
             self.load(records)
@@ -264,16 +285,31 @@ class ApplyHistoryBest(DispatchContext):
             if opt.startswith("-model"):
                 model = opt[7:]
                 key = (model, workload)
+                if key in self._best_user_defined:
+                    return self._best_user_defined[key]
                 if key in self.best_by_model:
                     return self.best_by_model[key][0].config
 
         # then try matching by target key
         for k in target.keys:
             key = (k, workload)
+            if key in self._best_user_defined:
+                return self._best_user_defined[key]
             if key in self.best_by_targetkey:
                 return self.best_by_targetkey[key][0].config
 
         return None
+
+    def update(self, target, workload, cfg):
+        for opt in target.options:
+            if opt.startswith("-model"):
+                model = opt[7:]
+                key = (model, workload)
+                self._best_user_defined[key] = cfg
+
+        for k in target.keys:
+            key = (k, workload)
+            self._best_user_defined[key] = cfg
 
 
 class FallbackContext(DispatchContext):
@@ -323,6 +359,10 @@ class FallbackContext(DispatchContext):
         key = (str(target), workload)
         if key in self.memory:
             del self.memory[key]
+
+    def update(self, target, workload, cfg):
+        key = (str(target), workload)
+        self.memory[key] = cfg
 
 DispatchContext.current = FallbackContext()
 
@@ -391,37 +431,13 @@ class ApplyGraphBest(DispatchContext):
         cfg : ConfigSpace
             The specific configuration.
         """
-        cfg = self._records[self._counter][0].config
-        self._counter += 1
-        return cfg
-
-    def query_global_dict(self, key):
-        """
-        Query the context to get config from global
-        config dictionary.
-
-        Parameters
-        ----------
-        key : str
-            Key to query the config.
-
-        Returns
-        -------
-        cfg : ConfigSpace
-            The specific configuration.
-        """
+        key = (str(target), workload)
+        if self._counter < len(self._records) and (key not in self._global_cfg_dict):
+            cfg = self._records[self._counter][0].config
+            self._counter += 1
+            return cfg
         return self._global_cfg_dict[key]
 
-    def update_global_dict(self, key, val):
-        """
-        Update the global config dictionary.
-
-        Parameters
-        ----------
-        key : str
-            Key of config.
-
-        val : ConfigSpace
-            Value of config.
-        """
-        self._global_cfg_dict[key] = val
+    def update(self, target, workload, cfg):
+        key = (str(target), workload)
+        self._global_cfg_dict[key] = cfg
