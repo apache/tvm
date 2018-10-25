@@ -161,6 +161,7 @@ class IncompleteTypeNode : public TypeNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("kind", &kind);
+    v->Visit("span", &span);
   }
 
   TVM_DLL static IncompleteType make(TypeVarNode::Kind kind);
@@ -243,7 +244,10 @@ class TupleTypeNode : public TypeNode {
 
   TupleTypeNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("fields", &fields); }
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("fields", &fields);
+    v->Visit("span", &span);
+  }
 
   TVM_DLL static TupleType make(tvm::Array<Type> fields);
 
@@ -361,6 +365,7 @@ class TypeRelationNode : public TypeConstraintNode {
     v->Visit("args", &args);
     v->Visit("num_inputs", &num_inputs);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
   }
 
   TVM_DLL static TypeRelation make(TypeRelationFn func,
