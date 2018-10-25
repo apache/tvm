@@ -215,13 +215,6 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
     for (uint32_t nid : n.control_deps) {
       n.node->control_deps.push_back(jgraph.nodes[nid].node);
     }
-    // rebuild attribute parser
-    if (!no_parse && n.node->op() != nullptr && n.node->op()->attr_parser != nullptr) {
-      n.node->op()->attr_parser(&(n.node->attrs));
-    } else if (!no_parse && n.node->is_variable()) {
-      n.node->attrs.parsed =
-        Symbol::CreateVariable(n.node->attrs.name).outputs[0].node->attrs.parsed;
-    }
     for (const JSONGraph &subgraph : n.subgraphs) {
       // The "no_parse" option here, is to be compatible with
       // commit cfd3075e85807dcd8f9534c37e053583dee87524
@@ -229,6 +222,13 @@ std::shared_ptr<Symbol> JSONGraph2Symbol(const JSONGraph &jgraph, bool no_parse)
       // where the parsing of main graph is deferred until
       // incubator-mxnet/src/nnvm/legacy_json_util.cc:UpgradeJSON_Parse
       n.node->attrs.subgraphs.push_back(JSONGraph2Symbol(subgraph, false));
+    }
+    // rebuild attribute parser
+    if (!no_parse && n.node->op() != nullptr && n.node->op()->attr_parser != nullptr) {
+      n.node->op()->attr_parser(&(n.node->attrs));
+    } else if (!no_parse && n.node->is_variable()) {
+      n.node->attrs.parsed =
+        Symbol::CreateVariable(n.node->attrs.name).outputs[0].node->attrs.parsed;
     }
   }
   // consistency check
