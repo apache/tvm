@@ -7,7 +7,14 @@ from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
+<<<<<<< HEAD
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
+=======
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
+    _get_workload_int8, _get_schedule, _get_schedule_NCHWc, \
+    _get_schedule_NCHWc_int8, _get_alter_layout_schedule, Workload
+from ..nn.dilate import dilate
+>>>>>>> Fix x86 conv2d
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
@@ -69,7 +76,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
     out_dtype = data.dtype if out_dtype is None else out_dtype
     padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-    dilation = strides if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     if layout == 'NCHW':
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
