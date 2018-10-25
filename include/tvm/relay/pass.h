@@ -144,7 +144,7 @@ Expr DeadCodeElimination(const Expr& e);
  *
  *  \return the hash value.
  */
-size_t HashType(const Type& type);
+size_t StructuralHash(const Type& type);
 
 /*! \brief Hash a Relay expression.
  *
@@ -154,7 +154,7 @@ size_t HashType(const Type& type);
  *
  * \return the hash value.
  */
-size_t HashExpr(const Expr& expr);
+size_t StructuralHash(const Expr& expr);
 
 
 }  // namespace relay

@@ -1,4 +1,4 @@
-# pylint: disable=no-else-return,
+# pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
 """The set of passes for Relay.
 
@@ -7,6 +7,7 @@ scripting them in Python.
 """
 from . import _ir_pass
 from . import _make
+from .. import Expr, Type
 # pylint: disable=invalid-name
 
 def infer_type(expr, env=None):
@@ -148,6 +149,9 @@ def alpha_equal(lhs, rhs):
     """
     return bool(_make._alpha_equal(lhs, rhs))
 
+lower_ops = _ir_pass.LowerOps
+fuse_ops = _ir_pass.FuseOps
+monomorph = _ir_pass.Monomorph
 
 def graph_equal(lhs, rhs):
     """Compare two Relay expr for data-flow equivalence.
@@ -170,12 +174,12 @@ def graph_equal(lhs, rhs):
     """
     return bool(_make._graph_equal(lhs, rhs))
 
-def expr_hash(expr):
+def structural_hash(value):
     """Hash a Relay expression structurally.
 
     Parameters
     ----------
-    expr: tvm.relay.Expr
+    expr: tvm.relay.Expr or tvm.relay.Type
       The expression to hash.
 
     Returns
@@ -183,4 +187,9 @@ def expr_hash(expr):
     result: int
       The hash value
     """
-    return int(_ir_pass._expr_hash(expr))
+    if isinstance(value, Expr):
+      return int(_ir_pass._expr_hash(value))
+    elif isinstance(value, Type):
+      return int(_ir_pass._type_hash(value))
+    else:
+      raise TypeError("found value of type {0} expected relay.Expr or relay.Type".format(type(value)))

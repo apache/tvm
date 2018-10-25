@@ -121,8 +121,18 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const TypeVarNode* tyvar) final {
-    int index = BindVar(GetRef<TypeVar>(tyvar));
-    return std::hash<int>()(index);
+    /*
+      TypeVar/Var/Variable have two locations where they are hashed:
+
+        The declaration site of a function, let, or function type.
+        The first occurence in the term.
+
+      We will only reach this code if the TypeVar itself is unbound, we assign
+      a free variable index to it, meaning this hashing function implements
+      structural equality for both open (i.e graph equality) and closed terms
+      (i.e alpha_equality).
+    */
+    return BindVar(GetRef<TypeVar>(tyvar));
   }
 
   size_t VisitType_(const FuncTypeNode* func_type) final {
@@ -164,7 +174,7 @@ class RelayHashHandler:
     return hash;
   }
 
-  // Expr equal checking.
+  // Expr hashing.
   size_t NDArrayHash(const runtime::NDArray& array) {
     size_t hash = std::hash<uint8_t>()(array->dtype.code);
     hash = Combine(hash, std::hash<uint8_t>()(array->dtype.bits));
@@ -180,7 +190,7 @@ class RelayHashHandler:
 
   size_t BindVar(const NodeRef& var) {
     size_t hash = std::hash<int>()(var_counter++);
-    CHECK(hash_map_.find(var) == hash_map_.end());
+    CHECK(hash_map_.count(var) == 0);
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
@@ -273,15 +283,14 @@ class RelayHashHandler:
   int var_counter = 0;
 };
 
-size_t HashType(const Type& type) {
+size_t StructuralHash(const Type& type) {
   return RelayHashHandler().TypeHash(type);
 }
 
-size_t HashExpr(const Expr& expr) {
+size_t StructuralHash(const Expr& expr) {
   return RelayHashHandler().ExprHash(expr);
 }
 
-// TODO(@jroesch): move to correct namespace?
 TVM_REGISTER_API("relay._ir_pass._expr_hash")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = static_cast<int64_t>(RelayHashHandler().Hash(args[0]));
@@ -291,11 +300,6 @@ TVM_REGISTER_API("relay._ir_pass._type_hash")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = static_cast<int64_t>(RelayHashHandler().TypeHash(args[0]));
   });
-
-// TVM_REGISTER_API("relay._make._graph_equal")
-// .set_body([](TVMArgs args, TVMRetValue* ret) {
-//     *ret = AlphaEqualHandler(true).Equal(args[0], args[1]);
-//   });
 
 }  // namespace relay
 }  // namespace tvm
