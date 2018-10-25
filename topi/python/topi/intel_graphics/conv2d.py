@@ -101,7 +101,7 @@ def _decl_conv2d(data, kernel, num_filter, kernel_size, stride, padding, layout,
     return _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype)
 
 @generic.schedule_conv2d_NCHWc.register(["intel_graphics"])
-def schedule_conv2d_NCHWc(num_filter, kernel_size, stride, padding, layout, out_layout, outs):
+def schedule_conv2d_NCHWc(outs, num_filter, kernel_size, stride, padding, layout, out_layout):
     """Schedule for conv2d_nchw for Intel Graphics
 
     Parameters

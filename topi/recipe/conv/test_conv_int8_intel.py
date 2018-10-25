@@ -114,13 +114,13 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
         LOGGER.debug(tvm.lower(sch, [data, kernel], simple_mode=True))
 
         # Generate and run the optimized schedule
-        sconv = topi.generic.nn.schedule_conv2d_NCHWc(num_filter=out_filter,
+        sconv = topi.generic.nn.schedule_conv2d_NCHWc(outs=[out],
+                                                      num_filter=out_filter,
                                                       kernel_size=(k_h, k_w),
                                                       strides=hstride,
                                                       padding=hpad,
                                                       layout='NCHWc',
-                                                      out_layout='NCHWc',
-                                                      outs=[out])
+                                                      out_layout='NCHWc')
         func = tvm.build(sconv, [data, kernel, out], target=TARGET_NAME, name='conv')
         func(data_array, kernel_array, c_sch)
 

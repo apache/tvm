@@ -55,12 +55,16 @@ def schedule_conv2d_nhwc(outs):
 
 
 @tvm.target.generic_func
-def schedule_conv2d_NCHWc(num_filter, kernel_size, strides,
-                          padding, layout, out_layout, outs):
+def schedule_conv2d_NCHWc(outs, num_filter, kernel_size, strides,
+                          padding, layout, out_layout):
     """Schedule for conv2d_NCHW[x]c
 
     Parameters
     ----------
+    outs : Array of Tensor
+        The computation graph description of conv2d_NCHWc
+        in the format of an array of tensors.
+
     num_filter : int
         The number of filter, i.e., the output channel.
 
@@ -78,10 +82,6 @@ def schedule_conv2d_NCHWc(num_filter, kernel_size, strides,
 
     out_layout : str
         Output data layout
-
-    outs : Array of Tensor
-        The computation graph description of conv2d_NCHWc
-        in the format of an array of tensors.
 
     Returns
     -------

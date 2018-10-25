@@ -1,4 +1,4 @@
-# pylint: disable=unused-variable,invalid-name
+# pylint: disable=unused-variable,invalid-name,unused-argument
 """
 Decorators for registering tunable templates to TOPI.
 
@@ -153,7 +153,7 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
             if topi_schedule not in _REGISTED_DISPATHCER[target_key]:
                 @topi_schedule.register(target_key)
                 @dispatcher
-                def config_dispatcher(outs):
+                def config_dispatcher(outs, *args, **kwargs):
                     """override topi call as a workload dispatcher"""
                     def traverse(tensors):
                         """traverse all ops to find attached workload"""
@@ -179,11 +179,11 @@ def register_topi_schedule(topi_schedule, target_keys, template_keys, func=None)
             config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_schedule]
 
             @config_dispatcher.register(template_keys)
-            def template_call(cfg, outs):
+            def template_call(cfg, outs, *args, **kwargs):
                 """call the schedule func"""
                 if f == topi_schedule.fdefault:
-                    return f(outs)
-                return f(cfg, outs)
+                    return f(outs, *args, **kwargs)
+                return f(cfg, outs, *args, **kwargs)
 
         return f
 

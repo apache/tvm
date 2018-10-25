@@ -198,8 +198,9 @@ def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     out_layout = attrs.get_string("out_layout")
     with tvm.target.create(target):
         if groups == 1:
-            return topi.generic.schedule_conv2d_NCHWc(oc, (kh, kw), strides, padding,
-                                                      layout, out_layout, outs)
+            return topi.generic.schedule_conv2d_NCHWc(outs, oc, (kh, kw),
+                                                      strides, padding,
+                                                      layout, out_layout)
         else:
             raise ValueError("not support group number > 1 for now")
 
