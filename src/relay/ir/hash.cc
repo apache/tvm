@@ -7,8 +7,8 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/relay/pass.h>
-#include "type_functor.h"
 #include <tvm/attrs.h>
+#include "type_functor.h"
 #include "../../lang/attr_functor.h"
 
 namespace tvm {
@@ -98,33 +98,14 @@ class RelayHashHandler:
     return ::tvm::AttrsHash()(dtype);
   }
 
-  /*!
-   * \brief Check Equality of leaf node of the graph.
-   *  if map_free_var_ is set to true, try to map via equal node.
-   * \param lhs The left hand operand.
-   * \param rhs The right hand operand.
-   * \return the compare result.
-   */
-  size_t LeafNodeEqual(const NodeRef& lhs, const NodeRef& rhs) {
-    return 0;
-    // if (lhs.same_as(rhs)) return true;
-    // auto it = equal_map_.find(lhs);
-    // if (it != equal_map_.end()) {
-    //   return it->second.same_as(rhs);
-    // } else {
-    //   if (map_free_var_) {
-    //     if (lhs->type_index() != rhs->type_index()) return false;
-    //     equal_map_[lhs] = rhs;
-    //     return true;
-    //   } else {
-    //     return false;
-    //   }
-    // }
-  }
-
   using AttrsHashHandler::VisitAttr_;
-  size_t VisitAttr_(const Variable* lhs) final {
-    return 0; // return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
+  size_t VisitAttr_(const Variable* var) final {
+    auto it = hash_map_.find(GetRef<VarExpr>(var));
+    if (it != hash_map_.end()) {
+      return it->second;
+    }
+
+    return std::hash<std::string>()(var->name_hint);
   }
 
   // Type hashing
@@ -185,7 +166,6 @@ class RelayHashHandler:
 
   // Expr equal checking.
   size_t NDArrayHash(const runtime::NDArray& array) {
-
     size_t hash = std::hash<uint8_t>()(array->dtype.code);
     hash = Combine(hash, std::hash<uint8_t>()(array->dtype.bits));
     hash = Combine(hash, std::hash<uint16_t>()(array->dtype.lanes));
@@ -202,11 +182,17 @@ class RelayHashHandler:
     size_t hash = std::hash<int>()(var_counter++);
     CHECK(hash_map_.find(var) == hash_map_.end());
     hash_map_[var] = hash;
+
+    const auto* ty_param = var.as<TypeVarNode>();
+    if (ty_param && ty_param->kind == TypeVarNode::Kind::kShapeVar) {
+      hash_map_[ty_param->var] = hash;
+    }
     return hash;
   }
 
   size_t VisitExpr_(const VarNode* var) final {
-
+    size_t name_hash = std::hash<std::string>()(var->name_hint);
+    return Combine(name_hash, TypeHash(var->type_annotation));
   }
 
   size_t VisitExpr_(const GlobalVarNode* global) final {
