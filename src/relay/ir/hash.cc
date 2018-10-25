@@ -117,7 +117,8 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const IncompleteTypeNode* incomplete) final {
-    return GetRef<IncompleteType>(incomplete);
+    size_t hash = std::hash<std::string>()(incomplete->_type_key);
+    return Combine(hash, std::hash<int>()(incomplete->kind));
   }
 
   size_t VisitType_(const TypeVarNode* tyvar) final {
@@ -190,7 +191,7 @@ class RelayHashHandler:
 
   size_t BindVar(const NodeRef& var) {
     size_t hash = std::hash<int>()(var_counter++);
-    CHECK(hash_map_.count(var) == 0);
+    CHECK_EQ(hash_map_.count(var), 0);
     hash_map_[var] = hash;
 
     const auto* ty_param = var.as<TypeVarNode>();
