@@ -53,7 +53,7 @@ struct ConcatenateAttrs : public tvm::AttrsNode<ConcatenateAttrs> {
 
 /*! \brief Attributes used in transpose operators */
 struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
-  Array<IndexExpr> axes;
+  Array<Integer> axes;
   TVM_DECLARE_ATTRS(TransposeAttrs, "relay.attrs.TransposeAttrs") {
     TVM_ATTR_FIELD(axes)
         .describe("The target axes order, reverse order if not specified.");
@@ -70,10 +70,10 @@ struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
 };  // struct ReshapeAttrs
 
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
-  IndexExpr axis;
+  Integer axis;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relay.attrs.TakeAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(NullValue<IndexExpr>())
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Integer>())
         .describe("The axis over which to select values.");
   }
 };
