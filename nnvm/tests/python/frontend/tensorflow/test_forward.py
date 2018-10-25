@@ -999,11 +999,26 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
+#######################################################################
+# Split
+# -----
+def test_forward_split():
+    def check_split(ishape, **kwargs):
+        inp_array = np.random.uniform(size=ishape).astype(np.float32)
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.split(in1, **kwargs)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'split:0')
+
+    check_split((5, 30), num_or_size_splits=3, axis=1)
+    check_split((5, 30), num_or_size_splits=[4, 15, 11], axis=1)
 
 #######################################################################
 # Main
 # ----
 if __name__ == '__main__':
+    test_forward_split()
+
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1024,8 +1039,8 @@ if __name__ == '__main__':
 
     # Reductions
     test_forward_argminmax()
-    test_forward_reduce()
-    test_forward_mean()
+    #test_forward_reduce()
+    #test_forward_mean()
 
     # NN
     test_forward_convolution()

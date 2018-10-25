@@ -694,7 +694,7 @@ def _pad(name):
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
-            raise RuntimeError("Required parameter {} not fount.".format(padlist_key))
+            raise RuntimeError("Required parameter {} not found.".format(padlist_key))
         paddings = tuple([tuple(l) for l in padlist])
         attr['pad_width'] = paddings
         attr['pad_value'] = 0
@@ -768,6 +768,20 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
+def _split(name):
+    def _impl(inputs, attr, params):
+        if name == 'Split':
+            axis = params.pop(inputs[0].list_output_names()[0]).asnumpy()[0]
+            num_split = attr["num_split"]
+            return _sym.split(inputs[1], indices_or_sections=num_split, axis=axis)
+        elif name == 'SplitV':
+            indices = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+            axis = params.pop(inputs[2].list_output_names()[0]).asnumpy()[0]
+            return _sym.split(inputs[0], indices_or_sections=tuple(sorted(indices)), axis=axis)
+        else:
+            raise NotImplementedError("Unexpected split type: {}".format(name))
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -834,6 +848,8 @@ _convert_map = {
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Equal'                             : _broadcast('equal'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'Split'                             : _split('Split'),
+    'SplitV'                            : _split('SplitV')
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
