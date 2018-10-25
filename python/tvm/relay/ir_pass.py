@@ -171,4 +171,16 @@ def graph_equal(lhs, rhs):
     return bool(_make._graph_equal(lhs, rhs))
 
 def expr_hash(expr):
-  return bool(_ir_pass._expr_hash(expr))
+    """Hash a Relay expression structurally.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr
+      The expression to hash.
+
+    Returns
+    -------
+    result: int
+      The hash value
+    """
+    return int(_ir_pass._expr_hash(expr))
