@@ -70,7 +70,8 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
 
         OH = (H + 2 * pad_h - KH) // stride_h + 1
         OW = (W + 2 * pad_w - KW) // stride_w + 1
-        cfg.add_flop(2 * N * OH * OW * CO * CI * KH * KW)
+        cfg.add_flop(2 * N * OH * OW * CO * CI * ((KH - 1) * dilation_h + 1) *\
+                    ((KW - 1) * dilation_w + 1))
 
         return cudnn.conv2d_forward(data,
                                     kernel,
