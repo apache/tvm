@@ -7,8 +7,8 @@ scripting them in Python.
 """
 from . import _ir_pass
 from . import _make
-from .. import Expr, Type
-# pylint: disable=invalid-name
+from .expr import Expr
+from .ty import Type
 
 def infer_type(expr, env=None):
     """Infer the type of expr under the context of env.
