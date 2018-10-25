@@ -114,8 +114,7 @@ Type TypeSolver::Resolve(const Type& type) {
       fields.push_back(Resolve(t));
     }
     return TupleTypeNode::make(fields);
-  }
-  else {
+  } else {
     CHECK(!type.as<TupleTypeNode>()) << type;
     return type;
   }
