@@ -60,7 +60,7 @@ def residual_unit(data,
         bn1 = layers.batch_norm_infer(data=data,
                                       epsilon=2e-5,
                                       name=name + '_bn1')
-        act1 = relay.relu(data=bn1)
+        act1 = relay.nn.relu(data=bn1)
         conv1 = layers.conv2d(
             data=act1,
             channels=int(num_filter*0.25),
@@ -69,12 +69,12 @@ def residual_unit(data,
             padding=(0, 0),
             name=name + '_conv1')
         bn2 = layers.batch_norm_infer(data=conv1, epsilon=2e-5, name=name + '_bn2')
-        act2 = relay.relu(data=bn2)
+        act2 = relay.nn.relu(data=bn2)
         conv2 = layers.conv2d(
             data=act2, channels=int(num_filter*0.25), kernel_size=(3, 3),
             strides=(1, 1), padding=(1, 1), name=name + '_conv2')
         bn3 = layers.batch_norm_infer(data=conv2, epsilon=2e-5, name=name + '_bn3')
-        act3 = relay.relu(data=bn3)
+        act3 = relay.nn.relu(data=bn3)
         conv3 = layers.conv2d(
             data=act3, channels=num_filter, kernel_size=(1, 1),
             strides=(1, 1), padding=(0, 0), name=name + '_conv3')
