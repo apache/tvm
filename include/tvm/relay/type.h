@@ -374,14 +374,6 @@ class TypeRelationNode : public TypeConstraintNode {
 
 RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
 
-/*! \brief Print a debug representation of the type to the stream.
- *  \param env The environment.
- *  \param t The type
- *  \param os the stream
- *  \returns A reference to the stream.
- */
-std::ostream& DebugPrint(const Environment& env, const Type& t, std::ostream& os);
-
 // The following fields contains advanced typing
 // Only keep the class name and reserved for future usage.
 class GenericTensorType;
