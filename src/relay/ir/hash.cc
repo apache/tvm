@@ -105,7 +105,9 @@ class RelayHashHandler:
       return it->second;
     }
 
-    return std::hash<std::string>()(var->name_hint);
+
+    size_t hash = std::hash<std::string>()(var->_type_key);
+    return Combine(hash, std::hash<std::string>()(var->name_hint));
   }
 
   // Type hashing
