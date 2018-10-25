@@ -531,6 +531,11 @@ def _query_dispatcher(workload, in_alter_op=False):
             cfg = dispatch_ctx.query_global_dict(workload)
     else:
         target = tvm.target.current_target()
+        layout = out_layout = "NCHW"
+        tmp_wkl = list(workload)
+        tmp_wkl[5] = layout
+        tmp_wkl[6] = out_layout
+        workload = tuple(tmp_wkl)
         cfg = dispatch_ctx.query(target, workload)
         if cfg.is_fallback:
             cfg = _get_default_sch(workload)
@@ -581,9 +586,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
 def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
                      padding, layout, out_layout, out_dtype):
     """x86 conv2d_NCHWc declaration."""
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if not isinstance(dispatch_ctx, ApplyGraphBest):
-        layout = out_layout = "NCHW"
     workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
                                           padding, layout, out_layout, out_dtype)
     cfg = _query_dispatcher(workload)
@@ -677,9 +679,6 @@ def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if not isinstance(dispatch_ctx, ApplyGraphBest):
-        layout = out_layout = "NCHW"
 
     def traverse(op):
         """Traverse operators from computation graph"""
