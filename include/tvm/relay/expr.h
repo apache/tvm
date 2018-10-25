@@ -388,14 +388,6 @@ class TupleGetItemNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
 
-/*! \brief Print a debug representation of the expression to the stream.
- *  \param env The environment.
- *  \param e The expression
- *  \param os the stream
- *  \returns A reference to the stream.
- */
-std::ostream& DebugPrint(const Environment& env, const Expr& e, std::ostream& os);
-
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_
