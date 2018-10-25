@@ -107,6 +107,14 @@ def test_type_args():
     assert sh2[0].value == 1
     assert sh2[1].value == 10
 
+def test_findroot_error():
+    a = relay.TypeVar("a")
+    f = relay.Var("f", relay.FuncType([a], a))
+    x = relay.Var("x", a)
+    fx = relay.Call(f, [x])
+    assert relay.ir_pass.infer_type(x).checked_type == a
+    assert relay.ir_pass.infer_type(fx).checked_type == a
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -117,3 +125,4 @@ if __name__ == "__main__":
     test_tuple()
     test_free_expr()
     test_type_args()
+    test_findroot_error()

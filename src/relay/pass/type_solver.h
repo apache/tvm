@@ -129,6 +129,7 @@ class TypeSolver {
       // slow path with path compression.
       TypeNode* root = this;
       while (root->parent != nullptr) {
+        CHECK(root->parent != root) << "should not refer back to itself";
         root = root->parent;
       }
       for (TypeNode* p = this; p != root;) {
