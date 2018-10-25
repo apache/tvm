@@ -120,7 +120,7 @@ def resnet(units,
         Number of units in each stage
 
     num_stages : int
-        Number of stage
+        Number of stages
 
     filter_list : list
         Channel size of each stage
