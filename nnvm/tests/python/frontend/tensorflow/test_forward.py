@@ -1017,8 +1017,6 @@ def test_forward_split():
 # Main
 # ----
 if __name__ == '__main__':
-    test_forward_split()
-
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1039,8 +1037,8 @@ if __name__ == '__main__':
 
     # Reductions
     test_forward_argminmax()
-    #test_forward_reduce()
-    #test_forward_mean()
+    test_forward_reduce()
+    test_forward_mean()
 
     # NN
     test_forward_convolution()
@@ -1070,3 +1068,6 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
+
+    # Split
+    test_forward_split()
