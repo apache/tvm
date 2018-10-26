@@ -161,6 +161,7 @@ class IncompleteTypeNode : public TypeNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("kind", &kind);
+    v->Visit("span", &span);
   }
 
   TVM_DLL static IncompleteType make(TypeVarNode::Kind kind);
@@ -243,11 +244,14 @@ class TupleTypeNode : public TypeNode {
 
   TupleTypeNode() {}
 
-  void VisitAttrs(tvm::AttrVisitor* v) final { v->Visit("fields", &fields); }
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("fields", &fields);
+    v->Visit("span", &span);
+  }
 
   TVM_DLL static TupleType make(tvm::Array<Type> fields);
 
-  static constexpr const char* _type_key = "relay.TypeTuple";
+  static constexpr const char* _type_key = "relay.TupleType";
   TVM_DECLARE_NODE_TYPE_INFO(TupleTypeNode, TypeNode);
 };
 
@@ -361,6 +365,7 @@ class TypeRelationNode : public TypeConstraintNode {
     v->Visit("args", &args);
     v->Visit("num_inputs", &num_inputs);
     v->Visit("attrs", &attrs);
+    v->Visit("span", &span);
   }
 
   TVM_DLL static TypeRelation make(TypeRelationFn func,
@@ -373,14 +378,6 @@ class TypeRelationNode : public TypeConstraintNode {
 };
 
 RELAY_DEFINE_NODE_REF(TypeRelation, TypeRelationNode, TypeConstraint);
-
-/*! \brief Print a debug representation of the type to the stream.
- *  \param env The environment.
- *  \param t The type
- *  \param os the stream
- *  \returns A reference to the stream.
- */
-std::ostream& DebugPrint(const Environment& env, const Type& t, std::ostream& os);
 
 // The following fields contains advanced typing
 // Only keep the class name and reserved for future usage.

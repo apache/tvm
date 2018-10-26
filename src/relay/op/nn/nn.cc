@@ -317,7 +317,7 @@ TVM_REGISTER_NODE_TYPE(LRNAttrs);
 
 Expr MakeLRN(Expr data,
              IndexExpr size,
-             IndexExpr axis,
+             int axis,
              double alpha,
              double beta,
              double bias) {
@@ -337,7 +337,7 @@ TVM_REGISTER_API("relay.op.nn._make.lrn")
   });
 
 RELAY_REGISTER_OP("nn.lrn")
-    .describe(R"code(LRN layer.
+.describe(R"code(LRN layer.
 
 Normalize the input in a local region across or within feature maps.
 Each input value is divided by (1 + (\alpha/n) \sum_i x_i^2)^\beta,
@@ -362,7 +362,7 @@ TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
 
 Expr MakeL2Normalize(Expr data,
                      double eps,
-                     Array<IndexExpr> axis) {
+                     Array<Integer> axis) {
   auto attrs = make_node<L2NormalizeAttrs>();
   attrs->eps = eps;
   attrs->axis = std::move(axis);

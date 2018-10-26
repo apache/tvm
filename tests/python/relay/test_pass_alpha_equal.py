@@ -1,7 +1,14 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.ir_pass import alpha_equal
+from tvm.relay import ir_pass
+
+def alpha_equal(x, y):
+    """
+    Wrapper around alpha equality which ensures that
+    the hash function respects equality.
+    """
+    return ir_pass.alpha_equal(x, y) and ir_pass.structural_hash(x) == ir_pass.structural_hash(y)
 
 def test_tensor_type_alpha_equal():
     t1 = relay.TensorType((3, 4), "float32")
