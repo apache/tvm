@@ -335,7 +335,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # look through all type prefixes for a match
         for type_prefix in TYPE_PREFIXES:
             if ident_type.startswith(type_prefix):
-                return relay.TensorType((), ident_type)
+                return relay.scalar_type(ident_type)
 
         raise ParseError("Unknown builtin type: {}".format(ident_type))
 
