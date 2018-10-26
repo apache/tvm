@@ -48,11 +48,7 @@ def get_scalar(x):
 def is_close(x, y, precision=0.001):
     return x - y < precision and y - x < precision
 
-def to_tensor_type(x):
-    # type: (str) -> relay.TensorType
-    return relay.TensorType([], x)
-
-int32 = to_tensor_type("int32")
+int32 = relay.scalar_type("int32")
 
 _ = relay.Var("_")
 X = relay.Var("x")
