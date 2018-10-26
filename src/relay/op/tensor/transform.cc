@@ -6,12 +6,14 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
+#include <tvm/ir.h>
 #include <vector>
 #include "../op_common.h"
 
 
 namespace tvm {
 namespace relay {
+using ir::IntImm;
 
 // relay.cast
 TVM_REGISTER_NODE_TYPE(CastAttrs);
@@ -833,6 +835,101 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
 .set_support_level(10)
 .add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+
+// Split
+TVM_REGISTER_NODE_TYPE(SplitAttrs);
+
+bool SplitRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  const auto param = attrs.as<SplitAttrs>();
+  CHECK(param != nullptr);
+  auto axis = param->axis;
+  if (axis < 0) {
+    axis += data->shape.size();
+  }
+  CHECK_LT(axis, data->shape.size())
+    << "axis should be within the input dimension range.";
+  CHECK_GT(axis, 0)
+    << "axis should be within the input dimension range.";
+
+  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+    CHECK(reporter->Assert(data->shape[axis] %
+                           sections->value == make_zero(Int(64))))
+        << "indices_or_sections need to be able to divide input.shape[axis]";
+    std::vector<Type> fields;
+    for (int i = 0; i < sections->value; ++i) {
+        std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+        oshape[axis] /= int32_t(sections->value);
+        auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+        fields.push_back(vec_type);
+    }
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  } else {
+    auto indices = param->indices_or_sections.as<ArrayNode>()->data;
+    auto begin = IndexExpr(make_zero(Int(32)));
+    std::vector<Type> fields;
+    for (uint i = 0; i < indices.size(); ++i) {
+      CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
+          << "indices_or_sections need to be a sorted ascending list";
+      std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+      oshape[axis] = IndexExpr(indices[i]) - begin;
+      begin = IndexExpr(indices[i]);
+      auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+      fields.push_back(vec_type);
+    }
+    CHECK(reporter->Assert(begin < data->shape[axis]))
+        << "The sum of sections must match the input.shape[axis]";
+    std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+    oshape[axis] = data->shape[axis] - begin;
+    auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+    fields.push_back(vec_type);
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  }
+  return true;
+}
+
+Expr MakeSplit(Expr data,
+               NodeRef indices_or_sections,
+               int axis) {
+  auto attrs = make_node<SplitAttrs>();
+  attrs->axis = axis;
+  attrs->indices_or_sections = std::move(indices_or_sections);
+  static const Op& op = Op::Get("split");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.split")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    if (args.type_codes[1] == kDLInt) {
+      *rv = MakeSplit(args[0], make_const(Int(64), int64_t(args[1])), args[2]);
+    } else {
+      *rv = MakeSplit(args[0], args[1], args[2]);
+    }
+});
+
+RELAY_REGISTER_OP("split")
+.describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
+
+Indices or sections to split into. Accepts an int or a tuple
+If indices_or_sections is an integer, the input will be divided equally
+along given axis. If such a split is not possible, an error is raised.
+
+If indices_or_sections is a tuple of sorted integers,
+the entries indicate where along axis the array is split.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SplitAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Split", SplitRel);
 
 }  // namespace relay
 }  // namespace tvm

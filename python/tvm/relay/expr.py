@@ -5,6 +5,7 @@ from __future__ import absolute_import
 import numpy as _np
 from .base import RelayNode, register_relay_node
 from . import _make
+from . import _expr
 from . import ty as _ty
 from .._ffi import base as _base
 from .. import nd as _nd
@@ -283,6 +284,16 @@ class TupleWrapper(object):
         """Returns the underlying Relay tuple if this wrapper is passed
         as an argument to an FFI function."""
         return self.tuple_value
+
+    def astext(self):
+        """Get the text format of the tuple expression.
+
+        Returns
+        -------
+        text : str
+            The text format of the tuple expression.
+        """
+        return _expr._text_print(self.tuple_value)
 
     def __getitem__(self, index):
         if index >= len(self):

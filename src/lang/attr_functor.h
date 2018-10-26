@@ -64,6 +64,7 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
   virtual R VisitAttr_(const ir::Add* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Sub* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Mul* op, Args... args) ATTR_FUNCTOR_DEFAULT;
+  virtual R VisitAttr_(const ir::Div* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Mod* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Min* op, Args... args) ATTR_FUNCTOR_DEFAULT;
   virtual R VisitAttr_(const ir::Max* op, Args... args) ATTR_FUNCTOR_DEFAULT;
@@ -96,6 +97,7 @@ class AttrFunctor<R(const NodeRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(Add);
     ATTR_FUNCTOR_DISPATCH(Sub);
     ATTR_FUNCTOR_DISPATCH(Mul);
+    ATTR_FUNCTOR_DISPATCH(Div);
     ATTR_FUNCTOR_DISPATCH(Min);
     ATTR_FUNCTOR_DISPATCH(Max);
     ATTR_FUNCTOR_DISPATCH(GE);
@@ -135,6 +137,7 @@ class AttrsEqualHandler :
   bool VisitAttr_(const ir::Add* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Sub* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Mul* lhs, const NodeRef& other) final;
+  bool VisitAttr_(const ir::Div* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Mod* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Min* lhs, const NodeRef& other) final;
   bool VisitAttr_(const ir::Max* lhs, const NodeRef& other) final;
@@ -174,6 +177,7 @@ class AttrsHashHandler :
   size_t VisitAttr_(const ir::Add* op) final;
   size_t VisitAttr_(const ir::Sub* op) final;
   size_t VisitAttr_(const ir::Mul* op) final;
+  size_t VisitAttr_(const ir::Div* op) final;
   size_t VisitAttr_(const ir::Mod* op) final;
   size_t VisitAttr_(const ir::Min* op) final;
   size_t VisitAttr_(const ir::Max* op) final;

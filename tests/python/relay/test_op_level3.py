@@ -107,6 +107,38 @@ def test_take_infer_type():
     verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
+def test_split_infer_type():
+    def verify_split(dshape, indices_or_sections, ret_type, axis=None):
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.split(x, indices_or_sections, axis=axis)
+        y.astext()
+        yy = relay.ir_pass.infer_type(y.astuple())
+        assert yy.checked_type == ret_type
+
+    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    axis = tvm.var("axis")
+    verify_split((5, 5, 2, 2), 5,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32")])),
+                  axis=1)
+    verify_split((d1, d2, d3, d4), 4,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32")])),
+                  axis=2)
+    verify_split((d1, d2, d3, d4), (2, 4, 7),
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, 3, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, (d2-7), d3, d4), "float32")])),
+                  axis=1)
 
 def test_full():
     # default settings: match input dtype
@@ -161,3 +193,4 @@ if __name__ == "__main__":
     test_infer_type_leaky_relu()
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
+    test_split_infer_type()

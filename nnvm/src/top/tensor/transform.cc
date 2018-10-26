@@ -427,7 +427,7 @@ along which to split the array.
       return Array<Tensor>{ topi::split(inputs[0], indices, param.axis) };
     }
 })
-.set_support_level(1);
+.set_support_level(3);
 
 // cast
 DMLC_REGISTER_PARAMETER(CastParam);
