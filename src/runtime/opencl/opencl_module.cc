@@ -47,20 +47,34 @@ class OpenCLWrappedFunc {
     }
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
-      OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
+      if (args[i].type_code() == kHandle) {
+        cl::OpenCLBuffer *buf = (*static_cast<cl::OpenCLBuffer**>(void_args[i]));
+        cl_mem mem = buf->get();
+        OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], &mem));
+      } else {
+        OPENCL_CALL(clSetKernelArg(kernel, i, arg_size_[i], void_args[i]));
+      }
     }
-    cl_command_queue queue = w_->GetQueue(t->context);
+    cl_command_queue queue = m_->GetQueue(t->context);
     ThreadWorkLoad wl = thread_axis_cfg_.Extract(args);
     cl_uint work_dim = static_cast<cl_uint>(thread_axis_cfg_.work_dim());
     for (cl_uint i = 0; i < work_dim; ++i) {
       wl.work_size[i] *= wl.work_size[i + 3];
     }
     // launch kernel
+    cl_event event;
     OPENCL_CALL(clEnqueueNDRangeKernel(
         queue, kernel, work_dim, nullptr,
         wl.work_size,
         wl.work_size + 3,
-        0, nullptr, nullptr));
+        0, nullptr, &event));
+
+    for (cl_uint i = 0; i < arg_size_.size(); ++i) {
+      if (args[i].type_code() == kHandle) {
+        cl::OpenCLBuffer *buf = (*static_cast<cl::OpenCLBuffer**>(void_args[i]));
+        buf->last_kernel_event = event;
+      }
+    }
   }
 
  private:
@@ -172,6 +186,13 @@ void OpenCLModuleNode::Init() {
     }
     e.version = workspace_->timestamp++;
     kid_map_[key] = e;
+  }
+  // create command queues for kernel execution.
+  cl_int err_code;
+  for (size_t i = 0; i < workspace_->devices.size(); ++i) {
+    cl_device_id did = workspace_->devices[i];
+    queues.push_back(clCreateCommandQueue(workspace_->context, did, 0, &err_code));
+    OPENCL_CHECK_ERROR(err_code);
   }
 }
 

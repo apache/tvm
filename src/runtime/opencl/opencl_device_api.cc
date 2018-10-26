@@ -102,16 +102,12 @@ void* OpenCLWorkspace::AllocDataSpace(
     TVMContext ctx, size_t size, size_t alignment, TVMType type_hint) {
   this->Init();
   CHECK(context != nullptr) << "No OpenCL device";
-  cl_int err_code;
-  cl_mem mptr = clCreateBuffer(
-      this->context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
-  OPENCL_CHECK_ERROR(err_code);
-  return mptr;
+  void *p = new OpenCLBuffer(this->context, size);
+  return p;
 }
 
 void OpenCLWorkspace::FreeDataSpace(TVMContext ctx, void* ptr) {
-  cl_mem mptr = static_cast<cl_mem>(ptr);
-  OPENCL_CALL(clReleaseMemObject(mptr));
+  delete static_cast<OpenCLBuffer*>(ptr);
 }
 
 void OpenCLWorkspace::CopyDataFromTo(const void* from,
@@ -123,29 +119,42 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
                                      TVMContext ctx_to,
                                      TVMType type_hint,
                                      TVMStreamHandle stream) {
+  cl_event *pevent = nullptr;
+  size_t nr_events = 0;
+
   this->Init();
   CHECK(stream == nullptr);
+
+  if (IsOpenCLDevice(ctx_from)) {
+    // wait on the last kernel event to complete.
+    OpenCLBuffer *buf = static_cast<OpenCLBuffer*>((void*)from);  // NOLINT(*)
+    if (buf->last_kernel_event) {
+      nr_events++;
+      pevent = &buf->last_kernel_event;
+    }
+  }
+
   if (IsOpenCLDevice(ctx_from) && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueCopyBuffer(
         this->GetQueue(ctx_to),
-        static_cast<cl_mem>((void*)from),  // NOLINT(*)
-        static_cast<cl_mem>(to),
-        from_offset, to_offset, size, 0, nullptr, nullptr));
+        static_cast<OpenCLBuffer*>((void*)from)->get(),  // NOLINT(*)
+        static_cast<OpenCLBuffer*>(to)->get(),
+        from_offset, to_offset, size, nr_events, pevent, nullptr));
   } else if (IsOpenCLDevice(ctx_from) && ctx_to.device_type == kDLCPU) {
     OPENCL_CALL(clEnqueueReadBuffer(
         this->GetQueue(ctx_from),
-        static_cast<cl_mem>((void*)from),  // NOLINT(*)
+        static_cast<OpenCLBuffer*>((void*)from)->get(),  // NOLINT(*)
         CL_FALSE, from_offset, size,
         static_cast<char*>(to) + to_offset,
-        0, nullptr, nullptr));
+        nr_events, pevent, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_from)));
   } else if (ctx_from.device_type == kDLCPU && IsOpenCLDevice(ctx_to)) {
     OPENCL_CALL(clEnqueueWriteBuffer(
         this->GetQueue(ctx_to),
-        static_cast<cl_mem>(to),
+        static_cast<OpenCLBuffer*>(to)->get(),
         CL_FALSE, to_offset, size,
         static_cast<const char*>(from) + from_offset,
-        0, nullptr, nullptr));
+        nr_events, pevent, nullptr));
     OPENCL_CALL(clFinish(this->GetQueue(ctx_to)));
   } else {
     LOG(FATAL) << "Expect copy from/to OpenCL or between OpenCL";

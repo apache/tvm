@@ -30,9 +30,6 @@ namespace tvm {
 namespace runtime {
 namespace cl {
 
-static_assert(sizeof(cl_mem) ==sizeof(void*),
-              "Required to store cl_mem inside void*");
-
 inline const char* CLGetErrorString(cl_int error) {
   switch (error) {
     case CL_SUCCESS: return "CL_SUCCESS";
@@ -100,6 +97,26 @@ inline const char* CLGetErrorString(cl_int error) {
     cl_int e = (func);                                                \
     OPENCL_CHECK_ERROR(e);                                            \
   }
+
+/*! \brief Wrapper for OpenCL buffer object. */
+class OpenCLBuffer {
+ public:
+  OpenCLBuffer(cl_context context, size_t size) {
+    cl_int err_code;
+    mptr_ = clCreateBuffer(context, CL_MEM_READ_WRITE, size, nullptr, &err_code);
+    OPENCL_CHECK_ERROR(err_code);
+  }
+  ~OpenCLBuffer() {
+    OPENCL_CALL(clReleaseMemObject(mptr_));
+  }
+  cl_mem get() { return mptr_; }
+  // the last event of the kernel execution for this buffer.
+  cl_event last_kernel_event = 0;
+
+ private:
+  // the OpenCL buffer object
+  cl_mem mptr_;
+};
 
 class OpenCLThreadEntry;
 
@@ -259,6 +276,13 @@ class OpenCLModuleNode : public ModuleNode {
                           cl::OpenCLThreadEntry* t,
                           const std::string& func_name,
                           const KTRefEntry& e);
+  // get the queue of the context
+  cl_command_queue GetQueue(TVMContext ctx) {
+    CHECK(workspace_->IsOpenCLDevice(ctx));
+    CHECK(ctx.device_id >= 0  && static_cast<size_t>(ctx.device_id) < queues.size())
+        << "Invalid OpenCL device_id=" << ctx.device_id;
+    return queues[ctx.device_id];
+  }
 
  private:
   // The workspace, need to keep reference to use it in destructor.
@@ -282,6 +306,8 @@ class OpenCLModuleNode : public ModuleNode {
   std::unordered_map<std::string, KTRefEntry> kid_map_;
   // kernels build so far.
   std::vector<cl_kernel> kernels_;
+  // the queues for kernel execution
+  std::vector<cl_command_queue> queues;
 };
 
 }  // namespace runtime
