@@ -1,6 +1,7 @@
 """Transform operators."""
 
 from . import _make
+from ..expr import TupleWrapper
 
 
 def expand_dims(data, axis, num_newaxis=1):
@@ -146,7 +147,7 @@ def take(data, indices, axis=None):
 
     Parameters
     ----------
-    a : relay.Expr
+    data : relay.Expr
         The source array.
 
     indices : rely.Expr
@@ -280,3 +281,35 @@ def collapse_sum_like(data, collapse_type):
         The resulting tensor.
     """
     return _make.collapse_sum_like(data, collapse_type)
+
+
+def split(data, indices_or_sections, axis=0):
+    """Split input tensor along axis by sections or indices.
+
+    If indices_or_sections is an integer, the input will be divided equally
+    along given axis. If such a split is not possible, an error is raised.
+
+    If indices_or_sections is a tuple of sorted integers,
+    the entries indicate where along axis the array is split.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array.
+
+    indices_or_sections : int or tuple of int
+        Indices or sections to split into. Accepts an int or a tuple
+
+    axis : int, optional
+        The axis over which to split.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+    """
+    if isinstance(indices_or_sections, int):
+        ret_size = indices_or_sections
+    else:
+        ret_size = len(indices_or_sections) + 1
+    return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
