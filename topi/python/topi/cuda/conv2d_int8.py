@@ -231,17 +231,28 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output, pre_computed):
     s[output].bind(vy, tvm.thread_axis("vthread"))
     s[output].bind(vx, tvm.thread_axis("vthread"))
 
-    s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
-    s[output].bind(tf, tvm.thread_axis("threadIdx.y"))
-    tyx = s[output].fuse(ty, tx)
-    s[output].bind(tyx, tvm.thread_axis("threadIdx.x"))
+    cfg.define_knob("fuse_yx", [0, 1]) # fuse ty,tx or tn,tf
+    if cfg["fuse_yx"].val:
+        s[output].bind(tn, tvm.thread_axis("threadIdx.z"))
+        s[output].bind(tf, tvm.thread_axis("threadIdx.y"))
+        tyx = s[output].fuse(ty, tx)
+        s[output].bind(tyx, tvm.thread_axis("threadIdx.x"))
+        s[conv].compute_at(s[output], tyx)
 
-    # number of threads
-    n_tz = cfg["tile_n"].size[2]
-    n_ty = cfg["tile_f"].size[2]
-    n_tx = cfg["tile_y"].size[2] * cfg["tile_x"].size[2]
+        # number of threads
+        n_tz = cfg["tile_n"].size[2]
+        n_ty = cfg["tile_f"].size[2]
+        n_tx = cfg["tile_y"].size[2] * cfg["tile_x"].size[2]
+    else:
+        s[output].bind(s[output].fuse(tn, tf), tvm.thread_axis("threadIdx.z"))
+        s[output].bind(ty, tvm.thread_axis("threadIdx.y"))
+        s[output].bind(tx, tvm.thread_axis("threadIdx.x"))
+        s[conv].compute_at(s[output], tx)
 
-    s[conv].compute_at(s[output], tyx)
+        # number of threads
+        n_tz = cfg["tile_n"].size[2] * cfg["tile_f"].size[2]
+        n_ty = cfg["tile_y"].size[2]
+        n_tx = cfg["tile_x"].size[2]
 
     # tile and bind reduction axes
     n, f, y, x, c = s[conv].op.axis
