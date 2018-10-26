@@ -112,7 +112,7 @@ def test_split_infer_type():
         x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
         y = relay.split(x, indices_or_sections, axis=axis)
         y.astext()
-        yy = relay.ir_pass.infer_type(y)
+        yy = relay.ir_pass.infer_type(y.astuple())
         assert yy.checked_type == ret_type
 
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
