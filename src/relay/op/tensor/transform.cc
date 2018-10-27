@@ -1153,5 +1153,89 @@ the entries indicate where along axis the array is split.
 .set_support_level(3)
 .add_type_rel("Split", SplitRel);
 
+
+TVM_REGISTER_NODE_TYPE(SliceLikeAttrs);
+
+/*!
+* \brief SliceLikeRel User defined type constraint function.
+* \param num_inputs Number of input types in the args.
+* \param attrs The additional attributes of the operator.
+* \param reporter The reporter to report solution to.
+* \return False if the relation has not been resolved, it might be resolved later.
+*  True if this relation has been resolved.
+*/
+bool SliceLikeRel(const Array<Type>& types,
+                  int num_inputs,
+                  const Attrs& attrs,
+                  const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+
+  const auto* target = types[1].as<TensorTypeNode>();
+  CHECK(target != nullptr);
+
+  const auto param = attrs.as<SliceLikeAttrs>();
+  CHECK(param != nullptr);
+
+  const Array<IndexExpr> dshape = data->shape;
+  const Array<IndexExpr> target_shape = target->shape;
+  std::vector<IndexExpr>&& oshape = AsVector(dshape);
+
+  if (!param->axes.defined() || param->axes.size() == 0) {
+    for (size_t i = 0; i < dshape.size(); ++i) {
+      if (i < target_shape.size()) {
+        oshape[i] = target_shape[i];
+        CHECK(reporter->Assert(oshape[i] <= dshape[i]))
+          << "End index of axis " << i << " exceeds input shape: "
+          << oshape[i] << " vs " << dshape[i];
+      }
+    }
+  } else {
+    for (Integer i : param->axes) {
+      if (reporter->Assert(i < make_const(Int(64), 0))) {
+        i += make_const(Int(64), dshape.size());
+      }
+      CHECK(reporter->Assert(i < make_const(Int(64), target_shape.size())))
+        << "Axis " << i << " exceeds dimension "
+        << target_shape.size()<< " of target_shape.";
+      oshape[i] = target_shape[i];
+      CHECK(reporter->Assert(oshape[i] <= dshape[i]))
+        << "End index of axis " << i << " exceeds input shape: "
+        << oshape[i] << " vs " << dshape[i];
+    }
+  }
+
+  reporter->Assign(types[2], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+
+Expr MakeSliceLike(Expr data,
+                   Expr shape_like,
+                   Array<Integer> axes) {
+  auto attrs = make_node<SliceLikeAttrs>();
+  attrs->axes = std::move(axes);
+  static const Op& op = Op::Get("slice_like");
+  return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op._make.slice_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeSliceLike, args, rv);
+});
+
+
+RELAY_REGISTER_OP("slice_like")
+.describe(R"code(Slice the first input respect to the second input.
+)code" TVM_ADD_FILELINE)
+  .set_attrs_type_key("relay.attrs.SlicelikeAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("shape_like", "Tensor", "Shape tensor.")
+.set_support_level(4)
+.add_type_rel("SliceLike", SliceLikeRel);
+
 }  // namespace relay
 }  // namespace tvm
