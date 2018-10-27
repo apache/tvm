@@ -7,4 +7,7 @@ from . import dqn
 from . import dcgan
 from . import mobilenet
 from . import lstm
+from . import inception_v3
+from . import squeezenet
+from . import vgg
 from .config import ctx_list
