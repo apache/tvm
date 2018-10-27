@@ -31,13 +31,13 @@ def get_net(batch_size, num_actions=18, image_shape=(4, 84, 84), dtype="float32"
     data_shape = (batch_size,) + image_shape
     data = relay.var("data", shape=data_shape, dtype=dtype)
     conv1 = layers.conv2d(data, kernel_size=(8, 8), strides=(4, 4), padding=(0, 0),
-                     channels=32, name='conv1')
+                          channels=32, name='conv1')
     relu1 = relay.nn.relu(conv1)
     conv2 = layers.conv2d(relu1, kernel_size=(4, 4), strides=(2, 2), padding=(0, 0),
-                     channels=64, name='conv2')
+                          channels=64, name='conv2')
     relu2 = relay.nn.relu(conv2)
     conv3 = layers.conv2d(relu2, kernel_size=(3, 3), strides=(1, 1), padding=(0, 0),
-                     channels=64, name='conv3')
+                          channels=64, name='conv3')
     relu3 = relay.nn.relu(conv3)
     bf1 = relay.nn.batch_flatten(relu3)
     dense1_weight = relay.var("dense1_weight")
