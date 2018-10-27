@@ -136,7 +136,7 @@ class NodeLookup(object):
             return ''
         return self.node_lookup[node_id]
 
-def get_workload_official(model_url, model_sub_path, temp):
+def get_workload_official(model_url, model_sub_path, temp_dir):
     """ Import workload from tensorflow official
 
     Parameters
@@ -147,8 +147,8 @@ def get_workload_official(model_url, model_sub_path, temp):
     model_sub_path:
         Sub path in extracted tar for the ftozen protobuf file.
 
-    temp: TempDirectory
-        The temp directory object to download the content.
+    temp_dir: TempDirectory
+        The temporary directory object to download the content.
 
     Returns
     -------
@@ -160,7 +160,7 @@ def get_workload_official(model_url, model_sub_path, temp):
     model_tar_name = os.path.basename(model_url)
 
     from mxnet.gluon.utils import download
-    temp_path = temp.relpath("./")
+    temp_path = temp_dir.relpath("./")
     path_model = temp_path + model_tar_name
 
     download(model_url, path_model)
@@ -171,7 +171,7 @@ def get_workload_official(model_url, model_sub_path, temp):
         tar.extractall(path=temp_path)
         tar.close()
     else:
-        raise RuntimeError('Could not un compress the file: ' + path_model)
+        raise RuntimeError('Could not decompress the file: ' + path_model)
     return temp_path + model_sub_path
 
 def get_workload(model_path, model_sub_path=None):
@@ -181,6 +181,9 @@ def get_workload(model_path, model_sub_path=None):
     ----------
     model_path: str
         model_path on remote repository to download from.
+
+    model_sub_path: str
+        Model path in the compressed archive.
 
     Returns
     -------

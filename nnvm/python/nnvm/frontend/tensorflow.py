@@ -1063,7 +1063,7 @@ class GraphProto(object):
         layout : target layout to be used (Optional)
             NCHW only supported now to enable NHWC models on GPU.
 
-        shape : Dictionary of input dimentions (Optional)
+        shape : Dictionary of input dimensions (Optional)
             Graph level input shape dictionary.
 
         Returns

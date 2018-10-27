@@ -10,9 +10,9 @@ Current frontend is tested with all versions of below models
 - Mobilenet (V1/V2 All)
 - Vgg (16/19)
 
-Tensorflow frontend expects a feeezed protobuf format as input.
+Tensorflow frontend expects a freezed protobuf format as input.
 
-Not all models are released as freezed protobuf. Soem of tyhem are checkpoints (.ckpt).
+Not all models are released as freezed protobuf. Some of them are checkpoints (.ckpt).
 Please refer to [export](https://github.com/tensorflow/models/tree/master/research/slim#exporting-the-inference-graph) 
 and [freeze](https://github.com/tensorflow/models/tree/master/research/slim#freezing-the-exported-graph) 
 instructions to generate protobuf from checkpoint.
