@@ -21,7 +21,6 @@ bool Conv2DRel(const Array<Type>& types,
   const auto* data = types[0].as<TensorTypeNode>();
   const auto* weight = types[1].as<TensorTypeNode>();
   if (data == nullptr) return false;
-
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
 
@@ -42,14 +41,17 @@ bool Conv2DRel(const Array<Type>& types,
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 
+  std::vector<IndexExpr> dshape_nchw = ConvertLayout(
+      data->shape, in_layout, kNCHW);
+
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     CHECK_EQ(param->kernel_size.size(), 2);
     CHECK_EQ(param->dilation.size(), 2);
     std::vector<IndexExpr> wshape(
-        {param->channels / param->groups,
-         data->shape[1] / param->groups,
+       {param->channels / param->groups,
+         dshape_nchw[1] / param->groups,
          param->kernel_size[0],
          param->kernel_size[1]});
     wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
@@ -78,16 +80,16 @@ bool Conv2DRel(const Array<Type>& types,
           << " channels=" << param->channels
           << " wshape=" << Array<IndexExpr>(wshape);
     }
-    CHECK(reporter->AssertEQ(data->shape[1] / param->groups, wshape[1]));
+    CHECK(reporter->AssertEQ(dshape_nchw[1] / param->groups, wshape[1]));
     channels = wshape[0];
     dilated_ksize_y = 1 + (wshape[2] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (wshape[3] - 1) * param->dilation[1];
   }
   // dilation
-  std::vector<IndexExpr> oshape({data->shape[0], channels, 0, 0});
+  std::vector<IndexExpr> oshape({dshape_nchw[0], channels, 0, 0});
 
-  oshape[2] = (data->shape[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1;
-  oshape[3] = (data->shape[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1;
+  oshape[2] = (dshape_nchw[2] + param->padding[0] * 2 - dilated_ksize_y) / param->strides[0] + 1;
+  oshape[3] = (dshape_nchw[3] + param->padding[1] * 2 - dilated_ksize_x) / param->strides[1] + 1;
   DataType out_dtype = param->out_dtype;
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
@@ -183,7 +185,9 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     << " But got "<< kernel_layout;
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
-  const auto dshape_nchw = ConvertLayout(data->shape, in_layout, kNCHW);
+
+  auto dshape_nchw = ConvertLayout(data->shape, in_layout, kNCHW);
+
   // infer weight if the kernel_size and channels are defined
   if (param->kernel_size.defined() && param->channels.defined()) {
     CHECK_EQ(param->kernel_size.size(), 2);

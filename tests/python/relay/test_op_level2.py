@@ -32,9 +32,9 @@ def test_conv2d_infer_type():
 
     # Infer with a different layout
     n, c, h, w = 4, 32, 224, 224
-    x = relay.var("x", relay.TensorType((n, c, h, w), "int8"))
-    w = relay.var("w")
-    y = relay.nn.conv2d(x, w,
+    x = relay.var("x", relay.TensorType((n//4, c//4, h, w, 4, 4), "int8"))
+    wt = relay.var("w")
+    y = relay.nn.conv2d(x, wt,
                         kernel_size=(3, 3),
                         padding=(1, 1),
                         channels=16,
@@ -46,6 +46,21 @@ def test_conv2d_infer_type():
         (1, 4, 224, 224, 4, 4), "int32")
     assert yy.args[1].checked_type == relay.TensorType(
         (4, 8, 3, 3, 4, 4), "int8")
+
+    # Infer with NHWC
+    n, c, h, w = 4, 32, 224, 224
+    x = relay.var("x", relay.TensorType((n, h, w, c), "int8"))
+    wt = relay.var("w")
+    y = relay.nn.conv2d(x, wt,
+                        kernel_size=(3, 3),
+                        padding=(1, 1),
+                        channels=16,
+                        data_layout="NHWC",
+                        out_dtype="int32")
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type ==  relay.TensorType(
+        (n, h, w, 16), "int32")
+
 
 def test_conv2d_transpose_infer_type():
     # symbolic in batch dimension

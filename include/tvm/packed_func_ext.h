@@ -35,6 +35,8 @@ struct NodeTypeChecker {
     // It can be turned off, but will make non strict checking.
     // TODO(tqchen) possibly find alternative to turn of RTTI
     using ContainerType = typename T::ContainerType;
+    // always allow nullptr.
+    if (sptr == nullptr) return true;
     return sptr->derived_from<ContainerType>();
   }
   static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
@@ -46,7 +48,7 @@ struct NodeTypeChecker {
 template<typename T>
 struct NodeTypeChecker<Array<T> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<ArrayNode>()) return false;
     ArrayNode* n = static_cast<ArrayNode*>(sptr);
     for (const auto& p : n->data) {
@@ -64,7 +66,7 @@ struct NodeTypeChecker<Array<T> > {
 template<typename V>
 struct NodeTypeChecker<Map<std::string, V> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<StrMapNode>()) return false;
     StrMapNode* n = static_cast<StrMapNode*>(sptr);
     for (const auto& kv : n->data) {
@@ -83,7 +85,7 @@ struct NodeTypeChecker<Map<std::string, V> > {
 template<typename K, typename V>
 struct NodeTypeChecker<Map<K, V> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<MapNode>()) return false;
     MapNode* n = static_cast<MapNode*>(sptr);
     for (const auto& kv : n->data) {
