@@ -374,12 +374,12 @@ def slice_like(data, shape_like, axes=None):
     data : tvm.relay.Expr
         The source array.
 
-    shape_like : tuple of int
+    shape_like : tvm.relay.Expr
         The new shape.
 
-    axes : tuple of int, optional
+    axes : Optional[Tuple[int]]
         List of axes on which input data will be sliced according to the corresponding size of
-        the second input. By default will slice on all axes. Negative axes are supported.
+        the second input. By default will slice on all axes. Negative axes mean counting in reverse.
 
     Returns
     -------

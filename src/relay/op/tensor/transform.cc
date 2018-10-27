@@ -1170,13 +1170,19 @@ bool SliceLikeRel(const Array<Type>& types,
                   const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 3);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+  if (data == nullptr) {
+    return false;
+  }
 
   const auto* target = types[1].as<TensorTypeNode>();
-  CHECK(target != nullptr);
+  if (target == nullptr) {
+    return false;
+  }
 
   const auto param = attrs.as<SliceLikeAttrs>();
-  CHECK(param != nullptr);
+  if (param == nullptr) {
+    return false;
+  }
 
   const Array<IndexExpr> dshape = data->shape;
   const Array<IndexExpr> target_shape = target->shape;
@@ -1198,7 +1204,7 @@ bool SliceLikeRel(const Array<Type>& types,
       }
       CHECK(reporter->Assert(i < make_const(Int(64), target_shape.size())))
         << "Axis " << i << " exceeds dimension "
-        << target_shape.size()<< " of target_shape.";
+        << target_shape.size() << " of target_shape.";
       oshape[i] = target_shape[i];
       CHECK(reporter->Assert(oshape[i] <= dshape[i]))
         << "End index of axis " << i << " exceeds input shape: "
