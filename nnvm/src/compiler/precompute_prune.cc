@@ -24,14 +24,9 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
   std::unordered_set<nnvm::Node*> pruned;
   nnvm::NodeEntryMap<nnvm::NodePtr> entry_var;
   std::unordered_set<std::string> unique_name;
-  // number of edges that are not variable
-  int non_var_edge = 0;
 
   auto replace_pruned_entry = [&] (const NodeEntry& e) {
     if (!entry_var.count(e)) {
-      if (!e.node->is_variable()) {
-        ++non_var_edge;
-      }
       nnvm::NodePtr var = nnvm::Node::Create();
       var->attrs.name = e.node->attrs.name;
       if (e.version) {
@@ -79,11 +74,6 @@ nnvm::Graph PrecomputePrune(nnvm::Graph src) {
     if (pruned.count(e.node.get())) {
       e = replace_pruned_entry(e);
     }
-  }
-
-  // nothing being pruned.
-  if (non_var_edge == 0) {
-    return src;
   }
 
   nnvm::Graph pre_graph;

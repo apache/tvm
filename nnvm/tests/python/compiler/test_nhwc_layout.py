@@ -18,11 +18,11 @@ def get_sym(layout, kernel_layout, channels):
     return data
 
 
-def build_and_run(sym, params, data, out_shape):
+def build_and_run(sym, inputs, data, out_shape):
     ctx = tvm.cpu(0)
-    graph, lib, params = nnvm.compiler.build(sym, "llvm", shape={"data":data.shape}, params=params)
+    graph, lib, params = nnvm.compiler.build(sym, "llvm", shape={"data":data.shape})
     module = runtime.create(graph, lib, ctx)
-    module.set_input(**params)
+    module.set_input(**inputs)
     module.set_input("data", data)
     module.run()
     out =  module.get_output(0, tvm.nd.empty(out_shape))

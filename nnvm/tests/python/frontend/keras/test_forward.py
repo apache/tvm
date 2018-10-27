@@ -27,7 +27,7 @@ def verify_keras_frontend(keras_model, need_transpose=True):
     def get_tvm_output(xs, target, ctx, dtype='float32'):
         sym, params = nnvm.frontend.from_keras(keras_model)
         shape_dict = {name: x.shape for (name, x) in zip(keras_model.input_names, xs)}
-        with nnvm.compiler.build_config(opt_level=2):
+        with nnvm.compiler.build_config(opt_level=1):
             graph, lib, params = nnvm.compiler.build(sym, target, shape_dict, params=params)
         m = graph_runtime.create(graph, lib, ctx)
         for name, x in zip(keras_model.input_names, xs):

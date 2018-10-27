@@ -102,9 +102,8 @@ def test_ndarray_output():
     dtype = tvm.float32
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
-    params = {"x": nx, "ny": ny}
     graph, lib, params = nnvm.compiler.build(
-        z, "llvm", shape={"y": ny.shape, "x": nx.shape}, params=params)
+        z, "llvm", shape={"y": ny.shape, "x": nx.shape})
     m = graph_runtime.create(graph, lib, tvm.cpu(0))
     m.set_input("x", nx)
     m.set_input("y", ny)
@@ -121,9 +120,8 @@ def test_ndarray_input():
     dtype = tvm.float32
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
     ny = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
-    params = {"x": nx, "ny": ny}
     graph, lib, params = nnvm.compiler.build(
-        z, "llvm", shape={"y": ny.shape, "x": nx.shape}, params=params)
+        z, "llvm", shape={"y": ny.shape, "x": nx.shape})
     m = graph_runtime.create(graph, lib, tvm.cpu(0))
     m.set_input("x", nx)
     m.set_input("y", ny)
@@ -144,10 +142,10 @@ def test_num_outputs():
     shape = (10, 10)
     dtype = tvm.float32
     nx = tvm.nd.array(np.random.uniform(size=shape).astype(dtype))
-    params = {"x": nx}
     graph, lib, params = nnvm.compiler.build(
-        z, "llvm", shape={"x": nx.shape}, params=params)
+        z, "llvm", shape={"x": nx.shape})
     m = graph_runtime.create(graph, lib, tvm.cpu(0))
+    m.set_input("x", nx)
     assert m.get_num_outputs() == 5
 
 if __name__ == "__main__":

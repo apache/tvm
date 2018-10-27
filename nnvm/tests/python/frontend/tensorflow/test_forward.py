@@ -45,8 +45,12 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
         shape_dict = {input_node: input_data.shape}
         dtype_dict = {input_node: input_data.dtype}
 
-    graph, lib, params = nnvm.compiler.build(sym, target=target, target_host=target_host, shape=shape_dict,
-                                             dtype=dtype_dict, params=params)
+    with nnvm.compiler.build_config(opt_level=1):
+        graph, lib, params = nnvm.compiler.build(sym, target=target,
+                                                 target_host=target_host,
+                                                 shape=shape_dict,
+                                                 dtype=dtype_dict,
+                                                 params=params)
 
     ctx = tvm.context(target, 0)
     from tvm.contrib import graph_runtime

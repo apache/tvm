@@ -39,15 +39,16 @@ def main():
     net = _get_model(dshape)
     ishape_dict = {'data': dshape}
     params = _init_params(net, ishape_dict)
-    graph, lib, params = nnvm.compiler.build(net, 'llvm',
-                                             shape=ishape_dict,
-                                             params=params,
-                                             dtype='float32')
+    with nnvm.compiler.build_config(opt_level=1):
+        graph, lib, params = nnvm.compiler.build(net, 'llvm',
+                                                 shape=ishape_dict,
+                                                 params=params,
+                                                 dtype='float32')
 
-    with open(osp.join(CWD, 'graph.json'), 'w') as f_resnet:
-        f_resnet.write(graph.json())
-    with open(osp.join(CWD, 'graph.params'), 'wb') as f_params:
-        f_params.write(nnvm.compiler.save_param_dict(params))
+        with open(osp.join(CWD, 'graph.json'), 'w') as f_resnet:
+            f_resnet.write(graph.json())
+        with open(osp.join(CWD, 'graph.params'), 'wb') as f_params:
+            f_params.write(nnvm.compiler.save_param_dict(params))
 
 if __name__ == '__main__':
     main()
