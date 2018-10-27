@@ -28,9 +28,40 @@ from .init import create_workload
 
 def lstm_cell(inputs, states, i2h_weight, h2h_weight,
               i2h_bias, h2h_bias, num_hidden):
+    """Long-Short Term Memory (LSTM) network cell.
+
+    Parameters
+    ----------
+    inputs : relay.Expr
+        Input data to LSTM cell.
+
+    states : Tuple[relay.Expr, relay.Expr]
+        State for LSTM cell. Should be of shape (batch size, num_hidden)
+
+    i2h_weight : relay.Expr
+        i2h weight to LSTM cell.
+
+    h2h_weight : relay.Expr
+        h2h weight to LSTM cell.
+
+    i2h_bias : relay.Expr
+        i2h bias to LSTM cell.
+
+    h2h_bias : relay.Expr
+        h2h bias to LSTM cell.
+
+    num_hidden : int
+        Number of units in output symbol.
+
+    Returns
+    -------
+    result : Tuple[relay.Expr, Tuple[relay.Expr, relay.Expr]]
+        The result.
+    """
+
     i2h = layers.dense_add_bias(data=inputs, weight=i2h_weight,
                                 bias=i2h_bias, units=num_hidden * 4)
-    h2h = layers.dense_add_bias(data=inputs, weight=h2h_weight,
+    h2h = layers.dense_add_bias(data=states[0], weight=h2h_weight,
                                 bias=h2h_bias, units=num_hidden * 4)
 
     gates = relay.add(i2h, h2h)
