@@ -22,6 +22,18 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
   return TensorTypeNode::make({}, dtype);
 }
 
+IndexExpr TensorTypeNode::Size() const {
+  if (shape.size() == 0) {
+    return make_const(Int(64), 1);
+  }
+
+  IndexExpr size = shape[0];
+  for (size_t i = 1; i < shape.size(); ++i) {
+    size *= shape[i];
+  }
+  return size;
+}
+
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TVM_REGISTER_API("relay._make.TensorType")
