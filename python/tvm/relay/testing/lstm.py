@@ -22,7 +22,7 @@ Adapted from:
 https://gist.github.com/merrymercy/5eb24e3b019f84200645bd001e9caae9
 """
 
-from tvm import realy
+from tvm import relay
 from . import layers
 from .init import create_workload
 
