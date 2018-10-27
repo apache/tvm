@@ -73,6 +73,8 @@ def test_fmod():
                 c.asnumpy(), np.mod(a.asnumpy(), b.asnumpy()), rtol=1e-5)
 
         check_device("cuda")
+        check_device("opencl -device=intel_graphics")
+        check_device("metal")
 
     run("float32")
 

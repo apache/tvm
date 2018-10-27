@@ -42,6 +42,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.popcount")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.opencl.fmod")
+.set_body(DispatchExtern<Direct>);
+
 // There is no warp shuffle instruction in standard OpenCL
 // When shuffle is used, we assume it is intel's shuffle extension
 struct IntelShuffle {
