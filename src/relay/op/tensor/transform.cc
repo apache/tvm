@@ -377,6 +377,62 @@ Example::
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel);
 
+
+/*!
+* \brief ReshapeLikeRel User defined type constraint function.
+* \param num_inputs Number of input types in the args.
+* \param attrs The additional attributes of the operator.
+* \param reporter The reporter to report solution to.
+* \return False if the relation has not been resolved, it might be resolved later.
+*  True if this relation has been resolved.
+*/
+bool ReshapeLikeRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* reshape_like = types[1].as<TensorTypeNode>();
+  if (reshape_like == nullptr) {
+    return false;
+  }
+  CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
+    << "Reshape inputs size should be compatible.";
+  reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
+  return true;
+}
+
+
+Expr MakeReshapeLike(Expr data,
+                     Expr shape_like) {
+  static const Op& op = Op::Get("reshape_like");
+  return CallNode::make(op, {data, shape_like}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op._make.reshape_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReshapeLike, args, rv);
+});
+
+
+RELAY_REGISTER_OP("reshape_like")
+.describe(R"code(Reshapes the input array by the size of another array.
+For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
+the input array into an output array with the same shape as the second input array.
+.. note::
+    Sizes for both array should be compatible.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("shape_like", "Tensor", "Shape tensor.")
+.set_support_level(3)
+.add_type_rel("ReshapeLike", ReshapeLikeRel);
+
+
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
