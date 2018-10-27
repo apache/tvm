@@ -40,36 +40,14 @@ def _get_default_schedule(wkl, simd_width):
 
 
 def _fallback_schedule(wkl, simd_width):
-    batch_size, in_channel, height, width, _ = wkl[1]
-    out_channel, _, hkernel, wkernel, _ = wkl[2]
-    HPAD, WPAD = wkl[4]
-    HSTR, WSTR = wkl[3]
-    out_width = (width + 2 * WPAD - wkernel) // WSTR + 1
-
-    oc_bn = 1
-    for bn in range(simd_width, 0, -1):
-        if out_channel % bn == 0:
-            oc_bn = bn
-            break
-
-    ic_bn = 1
-    for bn in range(oc_bn, 0, -1):
-        if in_channel % bn == 0:
-            ic_bn = bn
-            break
-
-    reg_n = 1
-    for n in range(31, 0, -1):
-        if out_width % n == 0:
-            reg_n = n
-            break
-
+    sch = _get_default_schedule(wkl, simd_width)
+    out_width = (wkl.width + 2 * wkl.hpad - wkl.wkernel) // wkl.hstride + 1
     cfg_dict = {"i": -1,
                 "c": None,
-                "e": [["tile_ic", "sp", [in_channel // ic_bn, ic_bn]],
-                      ["tile_oc", "sp", [out_channel // oc_bn, oc_bn]],
-                      ["tile_ow", "sp", [out_width // reg_n, reg_n]],
-                      ["unroll_kw", "ot", False]],
+                "e": [["tile_ic", "sp", [wkl.in_filter // sch.ic_bn, sch.ic_bn]],
+                      ["tile_oc", "sp", [wkl.out_filter // sch.oc_bn, sch.oc_bn]],
+                      ["tile_ow", "sp", [out_width // sch.reg_n, sch.reg_n]],
+                      ["unroll_kw", "ot", sch.unroll_kw]],
                 "t": "direct"}
     return ConfigEntity.from_json_dict(cfg_dict)
 

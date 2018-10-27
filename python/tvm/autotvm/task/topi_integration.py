@@ -13,7 +13,6 @@ See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
 
 from ... import _api_internal, tensor
 
-from ..util import get_func_name
 from .task import args_to_workload, dispatcher
 
 
@@ -55,8 +54,6 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
     --------
     See tvm/topi/python/topi/arm_cpu/depthwise_conv2d.py for example usage.
     """
-    fname = get_func_name(topi_compute)
-
     def _decorator(f):
         targets = [target_keys] if isinstance(target_keys, str) else target_keys
         for target_key in targets:
@@ -68,7 +65,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
                 def config_dispatcher(*args, **kwargs):
                     """override topi call as a config dispatcher"""
                     assert not kwargs, "Do not support kwargs in template function call"
-                    return (fname, ) + args_to_workload(args)
+                    return args_to_workload(args, topi_compute)
                 _REGISTED_DISPATHCER[target_key][topi_compute] = config_dispatcher
 
             config_dispatcher = _REGISTED_DISPATHCER[target_key][topi_compute]
@@ -88,7 +85,7 @@ def register_topi_compute(topi_compute, target_keys, template_keys, func=None):
                 attrs = {}
                 for k, v in node.op.attrs.items():
                     attrs[k] = v
-                attrs['workload'] = (fname, ) + args_to_workload(args)
+                attrs['workload'] = args_to_workload(args, topi_compute)
                 if isinstance(op, tensor.ComputeOp):
                     op = _api_internal._ComputeOp(
                         op.name, op.tag, attrs, op.axis, op.body)

@@ -43,40 +43,17 @@ def _get_default_schedule(wkl, simd_width):
 
 
 def _fallback_schedule(wkl, simd_width):
-    batch_size, in_channel, height, width, _ = wkl[1]
-    out_channel, _, hkernel, wkernel, _ = wkl[2]
-    HPAD, WPAD = wkl[4]
-    HSTR, WSTR = wkl[3]
-    out_height = (height + 2 * HPAD - hkernel) // HSTR + 1
-    out_width = (width + 2 * WPAD - wkernel) // WSTR + 1
-
-    oc_bn = 1
-    for bn in range(simd_width, 0, -1):
-        if out_channel % bn == 0:
-            oc_bn = bn
-            break
-
-    ic_bn = 1
-    for bn in range(oc_bn, 0, -1):
-        if in_channel % bn == 0:
-            ic_bn = bn
-            break
-
-    for ow_factor in range(out_width, 0, -1):
-        if out_width % ow_factor == 0:
-            for oh_factor in range(out_height, 0, -1):
-                if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
-                    cfg_dict = {"i": -1,
-                                "c": None,
-                                "e": [["tile_ic", "sp", [in_channel // ic_bn, ic_bn]],
-                                      ["tile_oc", "sp", [out_channel // oc_bn, oc_bn]],
-                                      ["tile_oh", "ot", oh_factor],
-                                      ["tile_ow", "sp", [out_width // ow_factor,
-                                                         ow_factor]],],
-                                "t": "direct"}
-                    return ConfigEntity.from_json_dict(cfg_dict)
-
-    raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
+    sch = _get_default_schedule(wkl, simd_width)
+    out_width = (wkl.width + 2 * wkl.hpad - wkl.wkernel) // wkl.hstride + 1
+    cfg_dict = {"i": -1,
+                "c": None,
+                "e": [["tile_ic", "sp", [wkl.in_filter // sch.ic_bn, sch.ic_bn]],
+                      ["tile_oc", "sp", [wkl.out_filter // sch.oc_bn, sch.oc_bn]],
+                      ["tile_oh", "ot", sch.oh_factor],
+                      ["tile_ow", "sp", [out_width // sch.ow_factor,
+                                         sch.ow_factor]],],
+                "t": "direct"}
+    return ConfigEntity.from_json_dict(cfg_dict)
 
 
 def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):

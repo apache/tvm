@@ -431,12 +431,12 @@ class ApplyGraphBest(DispatchContext):
         cfg : ConfigSpace
             The specific configuration.
         """
-        key = (str(target), workload)
         if self._counter < len(self._records):
             cfg = self._records[self._counter][0].config
             self._counter += 1
-            self.update(key, cfg)
+            self.update(target, workload, cfg)
             return cfg
+        key = (str(target), workload)
         return self._global_cfg_dict[key]
 
     def update(self, target, workload, cfg):

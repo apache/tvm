@@ -209,10 +209,16 @@ def _get_fp32_len():
     return fp32_vec_len
 
 
-def _get_default_sch(workload):
+def _get_default_config(workload):
+    """
+    Get default schedule config for the workload
+    Parameters
+    ----------
+    workload : topi.nn.conv2d.Workload
+        Convolution workload
+    """
     fp32_vec_len = _get_fp32_len()
-    _, _, kh, kw, _ = workload[2]
-    is_kernel_1x1 = kh == 1 and kw == 1
+    is_kernel_1x1 = workload.hkernel == 1 and workload.wkernel == 1
     if is_kernel_1x1:
         cfg = conv2d_avx_1x1._fallback_schedule(workload, fp32_vec_len)
     else:
@@ -220,7 +226,7 @@ def _get_default_sch(workload):
     return cfg
 
 
-def _create_schedule_template(cfg, data, kernel, strides, padding, layout):
+def _create_tuning_space(cfg, data, kernel, strides, padding, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
@@ -246,36 +252,13 @@ def _create_schedule_template(cfg, data, kernel, strides, padding, layout):
         cfg.define_knob("unroll_kw", [True, False])
 
 
-def _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype):
-    """convert argument to workload"""
-    if len(kernel.shape) == 4:
-        raw_kernel = kernel
-    else:  # the input kernel is transformed by alter_op_layout
-        shape = get_const_tuple(kernel.shape)
-        raw_kernel = tvm.placeholder((shape[0] * shape[4], shape[1], shape[2], shape[3]),
-                                     dtype=kernel.dtype)
-    return ('conv2d', ) + autotvm.task.args_to_workload(
-        [data, raw_kernel, strides, padding, layout, out_dtype])
-
-
-@conv2d.register("cpu")
-@autotvm.task.dispatcher
-def conv2d_x86(data, kernel, strides, padding, layout, out_dtype):
-    """x86 conv2d declaration."""
-    return _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
-
-
-@conv2d_x86.register(["direct"])
+@autotvm.register_topi_compute(conv2d, 'cpu', 'direct')
 def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     if layout == 'NCHW':
-        _create_schedule_template(cfg, data, kernel, strides, padding, layout)
-        if cfg.is_fallback:
-            workload = _conv_arg_to_workload(data, kernel, strides, padding,
-                                             layout, out_dtype)
-            cfg = _get_default_sch(workload)
+        _create_tuning_space(cfg, data, kernel, strides, padding, layout)
         args = [cfg, data, kernel, strides, padding, layout, out_dtype]
         return _declaration_conv_impl(*args)
     elif layout == 'HWCN':
@@ -308,6 +291,11 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtyp
         data_pad = pad(data, (0, 0, HPAD, WPAD), name="data_pad")
     else:
         data_pad = data
+
+    if cfg.is_fallback:
+        wkl = Workload(data.dtype, out_dtype, in_height, in_width, in_channel, num_filter,
+                       kernel_height, kernel_width, HPAD, WPAD, HSTR, WSTR)
+        cfg = _get_default_config(wkl)
 
     # fetch schedule
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
@@ -344,11 +332,7 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtyp
                          lambda n, c, h, w: conv[n, c // oc_bn, h, w, c % oc_bn]
                          .astype(out_dtype),
                          name='output_unpack',
-                         tag='conv2d_nchw',
-                         attrs={'workload':
-                                    _conv_arg_to_workload(data, kernel, strides,
-                                                          padding, layout,
-                                                          out_dtype)})
+                         tag='conv2d_nchw')
     return unpack
 
 
@@ -385,15 +369,16 @@ def schedule_conv2d(cfg, outs):
             _, _, kh, kw = get_const_tuple(kernel.shape)
             is_kernel_1x1 = kh == 1 and kw == 1
             current_cfg = cfg
-            if cfg.is_fallback:
+            if current_cfg.is_fallback:
                 workload_attr = op.attrs["workload"]
-                strides = (int(workload_attr[3][0].value), int(workload_attr[3][1].value))
-                padding = (int(workload_attr[4][0].value), int(workload_attr[4][1].value))
-                layout = workload_attr[5].value
+                HSTR, WSTR = int(workload_attr[3][0].value), int(workload_attr[3][1].value)
+                HPAD, WPAD = int(workload_attr[4][0].value), int(workload_attr[4][1].value)
                 out_dtype = workload_attr[6].value
-                workload = _conv_arg_to_workload(data, kernel, strides, padding,
-                                                 layout, out_dtype)
-                current_cfg = _get_default_sch(workload)
+                _, in_channel, in_height, in_width = get_const_tuple(data.shape)
+                num_filter, _, kernel_height, kernel_width = get_const_tuple(kernel.shape)
+                wkl = Workload(data.dtype, out_dtype, in_height, in_width, in_channel, num_filter,
+                               kernel_height, kernel_width, HPAD, WPAD, HSTR, WSTR)
+                current_cfg = _get_default_config(wkl)
             args = [s, current_cfg, data, data_pad, data_vec, kernel_vec, conv_out,
                     output, outs[0]]
             if is_kernel_1x1:
@@ -476,7 +461,8 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
 
     # get config here
     cfg = get_config()
-    _create_schedule_template(cfg, data, kernel, strides, padding, origin_layout)
+    cfg.template_key = "direct"
+    _create_tuning_space(cfg, data, kernel, strides, padding, origin_layout)
 
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
@@ -497,26 +483,6 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     return s, [new_data, new_kernel, C]
 
 
-def _conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                padding, layout, out_layout, out_dtype):
-    """convert argument to workload"""
-    dshape = get_const_tuple(data.shape)
-    kshape = get_const_tuple(kernel.shape)
-    if len(dshape) > 4:
-        raw_data = tvm.placeholder((dshape[0], dshape[1] * dshape[4], dshape[2],
-                                    dshape[3]), dtype=kernel.dtype)
-    else:
-        raw_data = data
-    if len(kshape) > 4:
-        raw_kernel = tvm.placeholder((kshape[0] * kshape[5], kshape[1] * kshape[4],
-                                      kshape[2], kshape[3]), dtype=kernel.dtype)
-    else:
-        raw_kernel = kernel
-    return ('conv2d_NCHWc', ) + autotvm.task.args_to_workload(
-        [raw_data, raw_kernel, strides, padding, layout, out_layout,
-         out_dtype])
-
-
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfo):
     import nnvm.symbol as sym
@@ -526,6 +492,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     # only optimize for NCHW, groups=1 conv
     if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
         return None
+    batch_size, in_channel, height, width = get_const_tuple(data.shape)
+    out_channel, _, kh, kw = get_const_tuple(kernel.shape)
 
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
@@ -534,12 +502,15 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     dtype = data.dtype
     out_dtype = dtype if attrs["out_dtype"] == "same" else attrs["out_dtype"]
 
-    workload = _conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
+    workload = autotvm.task.args_to_workload(
+        [data, kernel, strides, padding, layout, out_dtype], conv2d)
     dispatch_ctx = autotvm.task.DispatchContext.current
     target = tvm.target.current_target()
     cfg = dispatch_ctx.query(target, workload)
     if cfg.is_fallback:
-        cfg = _get_default_sch(workload)
+        wkl = Workload(dtype, out_dtype, height, width, in_channel, out_channel,
+                       kh, kw, padding[0], padding[1], strides[0], strides[1])
+        cfg = _get_default_config(wkl)
 
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_attrs['layout'] = 'NCHW%dc' % ic_bn
@@ -548,25 +519,20 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
 
     # Store altered operator's config
-    new_workload = _conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                               padding, new_attrs['layout'],
-                                               new_attrs['out_layout'], out_dtype)
+    new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
+                               dtype=data.dtype)
+    new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
+                                 dtype=kernel.dtype)
+    new_workload = autotvm.task.args_to_workload(
+        [new_data, new_kernel, out_channel, (kh, kw), strides,
+         padding, new_attrs['layout'], new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
     dispatch_ctx = autotvm.task.DispatchContext.current
     dispatch_ctx.update(target, new_workload, cfg)
 
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 
-@conv2d_NCHWc.register("cpu")
-@autotvm.task.dispatcher
-def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
-                     padding, layout, out_layout, out_dtype):
-    """x86 conv2d_NCHWc declaration."""
-    return _conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                       padding, layout, out_layout, out_dtype)
-
-
-@conv2d_NCHWc_cpu.register(['direct'])
+@autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
 def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
                             padding, layout, out_layout, out_dtype):
     n, ic_chunk, h, w, ic_block = [x.value for x in data.shape]
@@ -593,12 +559,6 @@ def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
 
 def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, padding, layout,
                                  out_layout, out_dtype):
-    assert cfg is not None
-    if cfg.is_fallback:
-        workload = _conv_NCHWc_arg_to_workload(data, kernel, strides, padding,
-                                               layout, out_layout, out_dtype)
-        cfg = _get_default_sch(workload)
-
     HPAD, WPAD = padding
     HSTR, WSTR = strides
 
@@ -609,6 +569,12 @@ def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, paddin
     oc = oc_chunk * oc_block
     oh = (ih + 2 * HPAD - kh) // HSTR + 1
     ow = (iw + 2 * WPAD - kw) // WSTR + 1
+
+    assert cfg is not None
+    if cfg.is_fallback:
+        wkl = Workload(data.dtype, out_dtype, ih, iw, ic, oc,
+                       kh, kw, HPAD, WPAD, HSTR, WSTR)
+        cfg = _get_default_config(wkl)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
@@ -633,16 +599,12 @@ def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, paddin
     kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
     kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
 
-    workload = _conv_NCHWc_arg_to_workload(data, kernel,
-                                           strides, padding, layout,
-                                           out_layout, out_dtype)
-    attrs = {'workload': workload}
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
                                         ic%ic_bn].astype(out_dtype) *
                                kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
                                axis=[ic, kh, kw]),
-                       name='conv2d_NCHWc', tag="conv2d_NCHWc", attrs=attrs)
+                       name='conv2d_NCHWc', tag="conv2d_NCHWc")
     return conv
 
 
@@ -697,10 +659,9 @@ def _schedule_conv2d_NCHWc(cfg, outs, num_filter, kernel_size, strides, padding,
                 current_cfg = cfg
                 assert current_cfg is not None
                 if current_cfg.is_fallback:
-                    workload = _conv_NCHWc_arg_to_workload(data, kernel, strides,
-                                                           padding, layout,
-                                                           out_layout, conv_out.dtype)
-                    current_cfg = _get_default_sch(workload)
+                    wkl = Workload(data.dtype, conv_out.dtype, h, w, ic, num_filter,
+                                   kh, kw, padding[0], padding[1], strides[0], strides[1])
+                    current_cfg = _get_default_config(wkl)
 
                 args = [s, current_cfg, data_vec, conv_out, outs[0]]
                 if is_kernel_1x1:
