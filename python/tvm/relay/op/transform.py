@@ -142,6 +142,29 @@ def reshape(data, newshape):
     return _make.reshape(data, list(newshape))
 
 
+def reshape_like(data, shape_like):
+    """Reshapes the input array by the size of another array.
+    For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
+    the input array into an output array with the same shape as the second input array.
+    .. note::
+    Sizes for both array should be compatible.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    shape_like : tuple of int
+        The new shape. Should be compatible with the original shape.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.reshape_like(data, shape_like)
+
+
 def take(data, indices, axis=None):
     """Take elements from an array along an axis.
 
