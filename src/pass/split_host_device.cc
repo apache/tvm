@@ -154,8 +154,7 @@ class HostDeviceSplitter : public IRMutator {
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent ||
         op->attr_key == attr::pipeline_exec_scope ||
-        (op->attr_key == attr::pragma_scope_prefix &&
-        op->value.as<StringImm>()->value == "device")) {
+        op->attr_key == attr::device_scope) {
       return SplitDeviceFunc(s);
     }
     return IRMutator::Mutate_(op, s);

@@ -16,9 +16,9 @@ def test_detect_device():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
     stmt1 = tvm.ir_pass.Simplify(stmt)
-    stmt2 = tvm.ir_pass.DeviceMark(stmt1)
+    stmt2 = tvm.ir_pass.MarkDevice(stmt1)
     assert isinstance(stmt2, tvm.stmt.AttrStmt)
-    assert stmt2.attr_key == "pragma_"
+    assert stmt2.attr_key == "device_scope"
     assert stmt1 == stmt2.body
 
 if __name__ == "__main__":

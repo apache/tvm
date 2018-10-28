@@ -15,14 +15,14 @@ class DetectDevice : public IRMutator {
   DetectDevice() {}
   Stmt Detect(Stmt stmt) {
     Stmt body = AttrStmt::make(make_zero(Int(32)),
-                               ir::attr::pragma_scope_prefix,
-                               StringImm::make("device"),
+                               ir::attr::device_scope,
+                               0,
                                stmt);
     return body;
   }
 };
 
-Stmt DeviceMark(Stmt stmt) {
+Stmt MarkDevice(Stmt stmt) {
   return DetectDevice().Detect(stmt);
 }
 

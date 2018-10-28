@@ -333,7 +333,7 @@ Stmt LowerStorageAccessInfo(Stmt stmt);
  * \param stmt The stmt to be trasnformed
  * \return Transformed stmt.
  */
-Stmt DeviceMark(Stmt stmt);
+Stmt MarkDevice(Stmt stmt);
 
 /*!
  * \brief Make an user callable API LoweredFunc.
