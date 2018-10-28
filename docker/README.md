@@ -89,5 +89,5 @@ Here are some common use examples to perform CI tasks.
 - build golang test suite.
 
   ```bash
-  ./docker/build.sh ci_cpu make -C golang tests
+  ./docker/build.sh ci_cpu tests/scripts/task_golang.sh
   ```
