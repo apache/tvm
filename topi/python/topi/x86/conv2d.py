@@ -251,8 +251,7 @@ def schedule_conv2d_nhwc(outs):
 @register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, num_filter, kernel_size, strides, padding, \
-        origin_layout, dtype = deserialize_args(args)
+    data, kernel, strides, padding, origin_layout, dtype = deserialize_args(args)
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
@@ -272,9 +271,9 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
-    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, num_filter, kernel_size,
-                                strides, padding, data_layout, out_layout, dtype)
-    s = _schedule_conv2d_NCHWc(cfg, [C], kernel_size)
+    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding,
+                                data_layout, out_layout, dtype)
+    s = _schedule_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
 
 
@@ -318,76 +317,90 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
                                  dtype=kernel.dtype)
     new_workload = autotvm.task.args_to_workload(
-        [new_data, new_kernel, out_channel, (kh, kw), strides,
-         padding, new_attrs['layout'], new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
-    dispatch_ctx = autotvm.task.DispatchContext.current
+        [new_data, new_kernel, strides, padding, new_attrs['layout'],
+         new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
     dispatch_ctx.update(target, new_workload, cfg)
 
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
-def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
+def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                             padding, layout, out_layout, out_dtype):
+    # layout and out_layout are not used here,
+    # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
     n, ic_chunk, ih, iw, ic_block = get_const_tuple(data.shape)
-    ic = ic_chunk * ic_block
-    kh, kw = kernel_size
+    in_channel = ic_chunk * ic_block
+    if data.dtype == 'uint8':
+        oc_chunk, _, kernel_height, kernel_width, _, oc_block, _ = get_const_tuple(kernel.shape)
+    else:
+        oc_chunk, _, kernel_height, kernel_width, _, oc_block = get_const_tuple(kernel.shape)
+    num_filter = oc_chunk * oc_block
 
-    wkl = _get_workload(tvm.placeholder((n, ic, ih, iw), dtype=data.dtype),
-                        tvm.placeholder((num_filter, ic, kh, kw), dtype=kernel.dtype),
+    # get workload and related schedule config
+    wkl = _get_workload(tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+                        tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                                        dtype=kernel.dtype),
                         strides, padding, out_dtype)
     if cfg.is_fallback:
         _get_default_config(cfg, wkl)
 
-    if data.dtype == 'uint8':
-        is_kernel_1x1 = kh == 1 and kw == 1
-        if cfg.is_fallback:
-            _get_default_config(cfg, wkl)
-        return conv2d_avx_1x1._declaration_conv_NCHWc_int8(wkl, cfg, data, kernel) \
-            if is_kernel_1x1 \
-            else conv2d_avx_common._declaration_conv_NCHWc_int8(wkl, cfg, data, kernel)
+    # output shape
+    out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
+    out_width = (iw + 2 * WPAD - kernel_width) // WSTR + 1
+    oshape = (n, oc_chunk, out_height, out_width, oc_block)
+
+    # DOPAD
+    DOPAD = (HPAD != 0 or WPAD != 0)
+    if DOPAD:
+        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
     else:
-        oc_chunk, _, _, _, _, oc_block = get_const_tuple(kernel.shape)
-        oh = (ih + 2 * HPAD - kh) // HSTR + 1
-        ow = (iw + 2 * WPAD - kw) // WSTR + 1
+        data_pad = data
 
-        # DOPAD
-        DOPAD = (HPAD != 0 or WPAD != 0)
-        if DOPAD:
-            data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
-        else:
-            data_pad = data
+    # check whether schedule matches inputs
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    assert ic_bn == ic_block, \
+        "ic_bn in config is not equal to actual data ic_block: %d vs %d." % (ic_bn, ic_block)
+    assert oc_bn == oc_block, \
+        "oc_bn in config is not equal to actual kernel oc_block: %d vs %d." % (oc_bn, oc_block)
 
-        # fetch schedule
-        ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-        if ic_bn != ic_block:
-            raise RuntimeError("ic_bn in config is not equal to actual data ic_block: %d vs %d."
-                               % (ic_bn, ic_block))
-        if oc_bn != oc_block:
-            raise RuntimeError("oc_bn in config is not equal to actual kernel oc_block: %d vs %d."
-                               % (oc_bn, oc_block))
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
-        # convolution
-        oshape = (n, oc_chunk, oh, ow, oc_block)
+    if data.dtype == 'uint8':
+        assert out_dtype == "int32", \
+            "INT8 convolution requires input dtype = uint8 and output dtype=int32"
+        # Intel performs dot product of 2 "4" Int8 values
+        # Current implementation requires ic_bn to be a multiple of 4
+        n_elems = 4
+        assert ic_bn % n_elems == 0
 
-        ic = tvm.reduce_axis((0, ic), name='ic')
-        kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
-        kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
-
-        conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                           tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
-                                            ic%ic_bn].astype(out_dtype) *
-                                   kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
-                                   axis=[ic, kh, kw]),
-                           name='conv2d_NCHWc', tag="conv2d_NCHWc")
-        return conv
+        ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
+        ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+        ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+        return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                           tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh, ow*WSTR+kw,
+                                            ic_f_inner * n_elems +  ic_s_inner]
+                                   .astype(out_dtype) *
+                                   kernel[oc_chunk, ic_outer, kh, kw, ic_f_inner,
+                                          oc_block, ic_s_inner].astype(out_dtype),
+                                   axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+    # else: fp implementation
+    return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                       tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
+                                        ic%ic_bn].astype(out_dtype) *
+                               kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
+                               axis=[ic, kh, kw]),
+                       name='conv2d_NCHWc', tag="conv2d_NCHWc")
 
 
 @autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc, 'cpu', ['direct'])
-def _schedule_conv2d_NCHWc(cfg, outs, kernel_size):
+def _schedule_conv2d_NCHWc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
@@ -413,18 +426,17 @@ def _schedule_conv2d_NCHWc(cfg, outs, kernel_size):
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) \
-                else (kernel_size, kernel_size)
-            is_kernel_1x1 = kh == 1 and kw == 1
-
             args = [s, cfg, data_vec, conv_out, outs[0]]
             if data.dtype == 'uint8':
-                if is_kernel_1x1:
+                # int8 conv kernel is 7-dim
+                _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+                if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_NCHWc_int8(*args)
                 else:
                     conv2d_avx_common._schedule_conv_NCHWc_int8(*args)
             else:
-                if is_kernel_1x1:
+                _, _, kh, kw, _, _, = get_const_tuple(kernel.shape)
+                if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_NCHWc(*args)
                 else:
                     conv2d_avx_common._schedule_conv_NCHWc(*args)

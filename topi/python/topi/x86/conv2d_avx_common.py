@@ -5,7 +5,6 @@ import tvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.util import infer_pad
-from ..nn.pad import pad
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 
@@ -160,52 +159,6 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
 
     return s
 
-
-def _declaration_conv_NCHWc_int8(wkl, cfg, data, kernel):
-    """
-    This function sets up the compute for INT8 conv 2d
-    Inputs are in INT8 datatype
-    Output is in INT32 datatype
-    """
-    ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
-                                      cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
-    out_dtype = wkl.out_dtype
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-
-    batch_size = data.shape[0]
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
-
-    # pack data
-    DOPAD = (HPAD != 0 or WPAD != 0)
-    if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
-    else:
-        data_pad = data
-
-    # convolution
-    oshape = (batch_size, wkl.out_filter//oc_bn, out_height, out_width, oc_bn)
-    kh = tvm.reduce_axis((0, wkl.hkernel), name='kh')
-    kw = tvm.reduce_axis((0, wkl.wkernel), name='kw')
-
-    # Intel performs dot product of 2 "4" Int8 values
-    # Current implementation requires ic_bn to be a multiple of 4
-    n_elems = 4
-    assert ic_bn%n_elems == 0
-
-    ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
-    ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
-    ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
-    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh, ow*WSTR+kw,
-                                        ic_f_inner * n_elems +  ic_s_inner].astype(out_dtype) *
-                               kernel[oc_chunk, ic_outer, kh, kw, ic_f_inner,
-                                      oc_block, ic_s_inner].astype(out_dtype),
-                               axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
-                       name='conv2d_NCHWc_int8',
-                       tag="conv2d_NCHWc_int8")
-    return conv
 
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     """

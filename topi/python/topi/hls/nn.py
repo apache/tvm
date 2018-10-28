@@ -73,7 +73,7 @@ def schedule_conv2d_nhwc(outs):
 
 
 @generic.schedule_conv2d_NCHWc.register(["hls"])
-def schedule_conv2d_NCHWc(outs, kernel_size):
+def schedule_conv2d_NCHWc(outs):
     """Schedule for conv2d_NCHW[x]c
 
     Parameters
@@ -81,9 +81,6 @@ def schedule_conv2d_NCHWc(outs, kernel_size):
     outs : Array of Tensor
         The computation graph description of conv2d_NCHWc
         in the format of an array of tensors.
-
-    kernel_size : tuple of int
-        (kernel_height, kernel_width)
 
     Returns
     -------

@@ -4,10 +4,7 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
-import topi
-
 from ..nn.util import infer_pad
-from ..nn.pad import pad
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 
@@ -163,51 +160,6 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     return s
 
 
-def _declaration_conv_NCHWc_int8(wkl, cfg, data, kernel):
-    """ Declaration for int8 conv"""
-    ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
-                                          cfg["tile_oh"].val, cfg["tile_ow"].size[-1])
-    out_dtype = wkl.out_dtype
-    HPAD, WPAD = wkl.hpad, wkl.wpad
-    HSTR, WSTR = wkl.hstride, wkl.wstride
-
-    batch_size = data.shape[0]
-    out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
-    out_width = (wkl.width + 2 * WPAD - wkl.wkernel) // WSTR + 1
-
-    DOPAD = (HPAD != 0 or WPAD != 0)
-    if DOPAD:
-        data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
-    else:
-        data_pad = data
-
-    oshape = (batch_size, wkl.out_filter//oc_bn, out_height, out_width, oc_bn)
-
-    # Intel performs dot product of 2 "4" Int8 values
-    n_elems = 4
-    assert ic_bn%n_elems == 0
-    ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
-    ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
-    ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
-
-    # Reshaping kernel as the last 2 dimensions are 1x1 (k_h x k_w)
-    k_shape = kernel.shape
-    kernel = topi.reshape(kernel, (k_shape[0], k_shape[1], k_shape[2], k_shape[3],
-                                   k_shape[4] * k_shape[5] * k_shape[6]))
-
-    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_pad[n, ic_outer, oh*HSTR, ow*WSTR,
-                                        ic_f_inner * n_elems + ic_s_inner].astype(out_dtype) *
-                               kernel[oc_chunk, ic_outer, ic_f_inner,
-                                      oc_block, ic_s_inner].astype(out_dtype),
-                               axis=[ic_outer, ic_f_inner, ic_s_inner]),
-                       name='conv2d_NCHWc_int8',
-                       tag="conv2d_NCHWc_int8")
-
-
-    return conv
-
-
 def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     """
     Defines the schedule for INT8 for intel machines
@@ -247,7 +199,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
         s[C].parallel(parallel_axis)
 
     _, oc_chunk, oh, ow, oc_block = s[CC].op.axis
-    ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
+    kh, kw, ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     # Skylake and future processors have 16 vector lanes
     assert oc_bn % int32_lanes == 0
@@ -257,7 +209,7 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
     ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
 
-    s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_outer, ic_f_inner, oh_inner,
+    s[CC].reorder(oc_chunk, oh_outer, ow_outer, kh, kw, ic_outer, ic_f_inner, oh_inner,
                   ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
     s[CC].fuse(oc_chunk, oh_outer)
 

@@ -55,7 +55,7 @@ def schedule_conv2d_nhwc(outs):
 
 
 @tvm.target.generic_func
-def schedule_conv2d_NCHWc(outs, kernel_size):
+def schedule_conv2d_NCHWc(outs):
     """Schedule for conv2d_NCHW[x]c
 
     Parameters
@@ -64,9 +64,6 @@ def schedule_conv2d_NCHWc(outs, kernel_size):
         The computation graph description of conv2d_NCHWc
         in the format of an array of tensors.
         The number of filter, i.e., the output channel.
-
-    kernel_size : tuple of int
-        (kernel_height, kernel_width)
 
     Returns
     -------

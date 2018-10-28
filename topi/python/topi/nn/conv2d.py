@@ -254,8 +254,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
 
 
 @tvm.target.generic_func
-def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride,
-                 padding, layout, out_layout, out_dtype='float32'):
+def conv2d_NCHWc(data, kernel, stride, padding, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
@@ -267,12 +266,6 @@ def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride,
         6-D with shape
         [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
         in_channel_block, num_filter_block]
-
-    num_filter : int
-        number of filters, i.e., output channel size
-
-    kernel_size : tuple of two ints
-       [kernel_height, kernel_width]
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]

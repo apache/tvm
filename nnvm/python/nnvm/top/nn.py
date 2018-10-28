@@ -167,16 +167,16 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
-    kh, kw = attrs.get_int_tuple('kernel_size')
     groups = attrs.get_int("groups")
-    channels = attrs.get_int("channels")
     layout = attrs.get_string("layout")
     out_layout = attrs.get_string("out_layout")
+    out_dtype = attrs.get_string("out_dtype")
+    out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], channels, (kh, kw),
-                                   strides, padding, layout, out_layout)
+        out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+                                   layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")
@@ -192,7 +192,7 @@ def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     groups = attrs.get_int("groups")
     with tvm.target.create(target):
         if groups == 1:
-            return topi.generic.schedule_conv2d_NCHWc(outs, attrs.get_int_tuple('kernel_size'))
+            return topi.generic.schedule_conv2d_NCHWc(outs)
         else:
             raise ValueError("not support group number > 1 for now")
 

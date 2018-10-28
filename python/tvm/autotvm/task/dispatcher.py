@@ -72,6 +72,38 @@ class DispatchContext(object):
             The current workload.
         cfg : ConfigSpace
             The specific configuration.
+
+        Note
+        ----
+        This interface is for cases when TVM decides to replace an operator in the graph.
+        For example, `AlterOpLayout` pass (enables when `opt_level = 3`) replaces `NCHW`
+        convolution with `NCHW[x]c` implementation on x86 CPUs.
+        Thus in TOPI, we first query schedule using original `NCHW` workload,
+        then update the dispatcher with the new `NCHW[x]c` workload.
+        So that later on, `NCHW[x]c` convolution can get schedule from the dispatcher using
+        its own workload directly.
+
+        .. code-block:: python
+
+            @conv2d_alter_layout.register("cpu")
+            def _alter_conv2d_layout(attrs, inputs, tinfo):
+                workload = get_conv2d_workload(...)
+                dispatch_ctx = autotvm.task.DispatchContext.current
+                target = tvm.target.current_target()
+                config = dispatch_ctx.query(target, workload)
+
+                # Get conv2d_NCHWc workload from config
+                # new_workload = ...
+                # new_inputs = ...
+                # new_attrs = ...
+
+                # Store altered operator's config
+                dispatch_ctx.update(target, new_workload, config)
+                return sym.contrib.conv2d_NCHWc(*new_inputs, **new_attrs)
+
+        We directly store `config` back because `conv2d_NCHW` and `conv2d_NCHWc`
+        share the same schedule parameters.
+        One can construct a new `ConfigEntity` if this is not the case.
         """
         raise NotImplementedError()
 
