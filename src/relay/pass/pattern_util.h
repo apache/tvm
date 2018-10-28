@@ -47,14 +47,12 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
         return false;
       }
       ++j;
-    } else {
-      if (i >= base) {
-        if (!is_const_int(trhs->shape[i - base], 1)) {
-          return false;
-        }
-        if (rhs_value != nullptr) {
-          squeeze_attrs->axis.push_back(static_cast<int>(i - base));
-        }
+    } else if (i >= base) {
+      if (!is_const_int(trhs->shape[i - base], 1)) {
+        return false;
+      }
+      if (rhs_value != nullptr) {
+        squeeze_attrs->axis.push_back(static_cast<int>(i - base));
       }
     }
   }

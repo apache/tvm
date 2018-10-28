@@ -58,10 +58,9 @@ def squeeze(data, axis=None):
         The input data to the operator.
 
     axis : None or List[int]
-        Axes to remove.
-        If axes = None, remove all axis of dimensions 1.
-        Otherwise, remove all axis in axes.
-        If any axis in axes has dimension that does not equal 1, it is an error.
+        The set of axes to remove.
+        If axis = None, remove all axis of dimensions 1.
+        If any specified axis has dimension that does not equal 1, it is an error.
 
     Returns
     -------

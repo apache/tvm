@@ -198,14 +198,6 @@ class FScaleAxisForwardPrep : private ExprVisitor {
     flist_.push_back(flazy);
   }
 
-  void VisitExpr_(const TupleGetItemNode* op) {
-    // pass, do nothing
-  }
-
-  void VisitExpr_(const VarNode* op) {
-    // pass, do nothing.
-  }
-
   void VisitExpr_(const CallNode* call) {
     ExprVisitor::VisitExpr_(call);
     // function to be lazily invoked
@@ -250,7 +242,7 @@ class FScaleAxisForwardPrep : private ExprVisitor {
 
   void VisitExpr_(const IfNode* op) {
     ExprVisitor::VisitExpr_(op);
-    // do pass through condition.
+    // do pass through condition
     // by assigning NullValue<AxesSet>
     // it means fuse signal cannot pass
     // through into these subexpressions.
