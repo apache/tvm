@@ -377,8 +377,9 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 
 // AddSub
 Array<AxesSet> AddSubForwardPrep(const Call& call, AxesSet out_axes) {
-  const auto* tlhs = call->args[0]->checked_type().as<TensorTypeNode>();
-  const auto* trhs = call->args[1]->checked_type().as<TensorTypeNode>();
+  const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
+  const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
+
   auto none = NullValue<AxesSet>();
   if (MatchBroadcastToLeftAxes(tlhs, trhs, out_axes)) {
     return {out_axes, none};
@@ -395,11 +396,10 @@ STuple AddSubForwardTransform(const Call& ref_call,
   if (!sargs[0]->axes.defined() && !sargs[1]->axes.defined()) {
     return STuple();
   }
-  const auto* tlhs = ref_call->args[0]->checked_type().as<TensorTypeNode>();
-  const auto* trhs = ref_call->args[1]->checked_type().as<TensorTypeNode>();
+  const auto* tlhs = ref_call->args[0]->type_as<TensorTypeNode>();
+  const auto* trhs = ref_call->args[1]->type_as<TensorTypeNode>();
 
   auto rnode = make_node<STupleNode>();
-
   if (sargs[0]->axes.defined()) {
     CHECK(!sargs[1]->axes.defined());
     CHECK(MatchBroadcastToLeftAxes(tlhs, trhs, sargs[0]->axes));
@@ -447,8 +447,8 @@ STuple MultiplyForwardTransform(const Call& ref_call,
   // not as important because it is less common in nn.
   CHECK(!sargs[0]->axes.defined());
   CHECK(!sargs[1]->axes.defined());
-  const auto* tlhs = ref_call->args[0]->checked_type().as<TensorTypeNode>();
-  const auto* trhs = ref_call->args[1]->checked_type().as<TensorTypeNode>();
+  const auto* tlhs = ref_call->args[0]->type_as<TensorTypeNode>();
+  const auto* trhs = ref_call->args[1]->type_as<TensorTypeNode>();
 
   Expr lhs = sargs[0]->value;
   Expr rhs = sargs[1]->value;
@@ -479,7 +479,7 @@ Array<AxesSet> Conv2DForwardPrep(const Call& call, AxesSet out) {
   Layout weight_layout(param->weight_layout);
   int c_big_axis = data_layout.indexof('C');
   int c_small_axis = data_layout.indexof('c');
-  const auto* tdata = call->args[0]->checked_type().as<TensorTypeNode>();
+  const auto* tdata = call->args[0]->type_as<TensorTypeNode>();
   CHECK(tdata) << "require checked type";
 
   CHECK_GE(c_big_axis, 0);
@@ -503,8 +503,8 @@ Array<AxesSet> Conv2DForwardPrep(const Call& call, AxesSet out) {
 
 // Conv2D consumes the scale axis during transformation.
 STuple Conv2DForwardTransform(const Call& ref_call,
-                                const AxesSet& expected_axes,
-                                const Array<STuple>& sargs) {
+                              const AxesSet& expected_axes,
+                              const Array<STuple>& sargs) {
   // if data do not have scale, normal transform path.
   STuple sdata = sargs[0];
   if (!sdata->scale.defined()) return STuple();
@@ -521,8 +521,8 @@ STuple Conv2DForwardTransform(const Call& ref_call,
   CHECK(sdata->axes.size() == 1 &&
         c_big_axis == sdata->axes[0]->value);
   int big_ic_axis = weight_layout.indexof('I');
-  const auto* tdata = ref_call->args[0]->checked_type().as<TensorTypeNode>();
-  CHECK(tdata) << "require checked type";
+
+  const auto* tdata = ref_call->args[0]->type_as<TensorTypeNode>();
   // Check it must be depthwise or full conv2d.
   bool is_depthwise_conv2d =
       is_const_int(tdata->shape[c_big_axis], param->groups);
