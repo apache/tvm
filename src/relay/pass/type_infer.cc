@@ -409,7 +409,7 @@ class TypeInferencer::Resolver : public ExprMutator {
 
     Expr new_e = ExprMutator::VisitExpr_(op);
     // new_call and new_var's code is only going to be valid for VarNode/CallNode.
-    // Compiler optimization will likely fold the these away for other nodes.
+    // Compiler optimization will likely fold these away for other nodes.
     CallNode* new_call =(
         std::is_base_of<CallNode, T>::value ?
         static_cast<CallNode*>(new_e.node_.get()) : nullptr);

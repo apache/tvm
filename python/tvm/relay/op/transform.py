@@ -54,7 +54,7 @@ def squeeze(data, axis=None):
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.relay.Expr
         The input data to the operator.
 
     axis : None or List[int]
@@ -65,7 +65,7 @@ def squeeze(data, axis=None):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.relay.Expr
         The squeezed result.
     """
     return _make.squeeze(data, axis)

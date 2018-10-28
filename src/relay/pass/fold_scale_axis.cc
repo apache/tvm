@@ -46,7 +46,7 @@ using runtime::TypedPackedFunc;
 // - Transform phase: forward transformation,
 
 /*!
- * \brief sorted axis, can also be nullptr.
+ * \brief sorted array axis, can also be nullptr.
  *
  *  nullptr means no scaling request can be done.
  */
@@ -56,6 +56,8 @@ using AxesSet = Array<Integer>;
  * \brief Merge two axis set together by taking
  *  intersection.
  *
+ * \note The axes in a AxesSet should be sorted.
+ *
  * \param lhs The left axis.
  * \param rhs The right axis.
  * \return The result of the inersection.
@@ -63,6 +65,7 @@ using AxesSet = Array<Integer>;
 AxesSet Intersect(const AxesSet& lhs, const AxesSet& rhs) {
   if (!lhs.defined()) return lhs;
   if (!rhs.defined()) return rhs;
+  // This code relies on axes in a AxesSet to be sorted.
   AxesSet ret;
   size_t i = 0, j = 0;
   while (i < lhs.size() && j < rhs.size()) {
@@ -128,7 +131,7 @@ RELAY_DEFINE_NODE_REF(STuple, STupleNode, NodeRef);
 
 /*!
  * \brief The transform function, transform an old call to
- *  new one given the new args.
+ *  a new one given the new args.
  * \param ref_call Reference call node that represent the op and the types.
  * \param expected_out_axes The scale axes allowed in the output.
  * \param sargs The input arguments.
@@ -165,7 +168,7 @@ class FScaleAxisForwardPrep : private ExprVisitor {
   std::unordered_map<const Node*, AxesSet> message_;
   // Update the message stored at node.
   void Update(const Expr& node, const AxesSet& axes) {
-    // We run interection of messages:
+    // We run intersection of messages:
     //
     // %y = multiply(%x, %scale)
     // %z1 = conv2d(%y, %w)
