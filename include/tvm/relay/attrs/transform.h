@@ -147,7 +147,7 @@ struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
     TVM_ATTR_FIELD(axes).set_default(Array<Integer>())
         .describe("List of axes on which input data will be sliced according to the "
                   "corresponding size of the second input. By default will slice "
-                  "on all axes. Negative axes are supported.");
+                  "on all axes. Negative axes mean counting in reverse.");
   }
 };
 
