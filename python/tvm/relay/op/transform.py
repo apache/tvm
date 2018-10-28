@@ -338,7 +338,7 @@ def split(data, indices_or_sections, axis=0):
     return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)
 
 
-def strided_slice(data, begin, end, stride=None):
+def strided_slice(data, begin, end, strides=None):
     """Strided slice of an array..
 
     Parameters
@@ -352,7 +352,7 @@ def strided_slice(data, begin, end, stride=None):
     end: list of int
         Indicies indicating end of the slice.
 
-    stride: list of int, optional
+    strides: list of int, optional
         Specifies the stride values, it can be negative in that case,
         the input tensor will be reversed in that particular axis.
 
@@ -361,5 +361,5 @@ def strided_slice(data, begin, end, stride=None):
     ret : relay.Expr
         The computed result.
     """
-    stride = stride or []
-    return _make.strided_slice(data, list(begin), list(end), list(stride))
+    strides = strides or []
+    return _make.strided_slice(data, list(begin), list(end), list(strides))

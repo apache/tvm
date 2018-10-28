@@ -891,6 +891,8 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
 .set_support_level(10)
 .add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+
+
 // strided_slice
 TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 bool StridedSliceRel(const Array<Type>& types,
@@ -908,7 +910,7 @@ bool StridedSliceRel(const Array<Type>& types,
   auto dshape = data->shape;
   auto num_axis = dshape.size();
 
-  std::vector<IndexExpr> begin_vec;
+  std::vector<Integer> begin_vec;
   for (auto i : param->begin) {
     begin_vec.push_back(i);
   }
@@ -924,8 +926,8 @@ bool StridedSliceRel(const Array<Type>& types,
     end_vec.push_back(dshape[i]);
   }
 
-  std::vector<IndexExpr> stride_vec;
-  for (auto i : param->stride) {
+  std::vector<Integer> stride_vec;
+  for (auto i : param->strides) {
     stride_vec.push_back(i);
   }
   for (auto i = stride_vec.size(); i < num_axis; ++i) {
@@ -934,10 +936,22 @@ bool StridedSliceRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape(dshape.size());
 
   for (size_t i = 0; i < num_axis; ++i) {
-      auto begin_range = reporter->Assert(stride_vec[i] < 0) ? -1 : 0;
-      auto end_range = reporter->Assert(stride_vec[i] < 0) ? dshape[i] - 1 : dshape[i];
-      auto begin = reporter->Assert(begin_vec[i] < 0) ? dshape[i] + begin_vec[i] : begin_vec[i];
-      auto end = reporter->Assert(end_vec[i] < 0) ? dshape[i] + end_vec[i] : end_vec[i];
+      const int64_t* stride_t = as_const_int(stride_vec[i]);
+      CHECK(stride_t != nullptr) << "Stride cannot be symbolic.";
+      int64_t stride_v = stride_t[0];
+
+      const int64_t* begin_t = as_const_int(begin_vec[i]);
+      CHECK(begin_t != nullptr) << "Begin index cannot be symbolic.";
+      int64_t begin_v = begin_t[0];
+
+      const int64_t* end_t = as_const_int(end_vec[i]);
+      CHECK(end_t != nullptr) << "End index cannot be symbolic.";
+      int64_t end_v = end_t[0];
+
+      auto begin_range = make_const(Int(64), (stride_v < 0) ? -1 : 0);
+      auto end_range = (stride_v < 0) ? dshape[i] - 1 : dshape[i];
+      auto begin = (begin_v < 0) ? dshape[i] + begin_vec[i] : begin_vec[i];
+      auto end = (end_v < 0) ? dshape[i] + end_vec[i] : end_vec[i];
 
       begin = min(max(begin, begin_range), end_range);
       end = min(max(end, begin_range), end_range);
@@ -958,13 +972,13 @@ bool StridedSliceRel(const Array<Type>& types,
 
 // Positional relay function to create StridedSlice operator used by frontend FFI.
 Expr MakeStridedSlice(Expr data,
-                     Array<IndexExpr> begin,
-                     Array<IndexExpr> end,
-                     Array<IndexExpr> stride) {
+                     Array<Integer> begin,
+                     Array<Integer> end,
+                     Array<Integer> strides) {
   auto attrs = make_node<StridedSliceAttrs>();
   attrs->begin = std::move(begin);
   attrs->end = std::move(end);
-  attrs->stride = std::move(stride);
+  attrs->strides = std::move(strides);
   static const Op& op = Op::Get("strided_slice");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
