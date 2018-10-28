@@ -306,7 +306,8 @@ def _cast():
     def _impl(inputs, attr, params):
         # Convert from tensorflow Dtype to str
         attr['DstT'] = attr['DstT'].name
-        return AttrCvt(op_name='cast', transforms={'DstT': 'dtype'}, ignores=['SrcT'])(inputs, attr)
+        return AttrCvt(op_name='cast', transforms={'DstT': 'dtype'},
+                       ignores=['SrcT', 'Truncate'])(inputs, attr)
     return _impl
 
 def _expand_dims():
