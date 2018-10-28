@@ -11,6 +11,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include "../op/nn/layout.h"
 
 namespace tvm {
 namespace relay {
@@ -100,10 +101,30 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
   return bias;
 }
 
+/*!
+ * \brief Check if the call is depthwise conv2d.
+ *
+ * \param call The conv2d call.
+ * \param param The conv2d attributes.
+ * \return Whether it is depthwise_conv2d.
+ */
+inline bool IsDepthwiseConv2D(const Call& call,
+                              const Conv2DAttrs* param,
+                              const Layout& weight_layout) {
+  static const Layout kOIHW("OIHW");
+  auto wshape = ConvertLayout(
+      call->args[1]->type_as<TensorTypeNode>()->shape,
+      weight_layout, kOIHW);
+  return is_const_int(wshape[0], param->groups) &&
+      is_const_int(wshape[1], 1);
+}
+
+
 inline Expr Multiply(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("multiply");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
+
 
 inline Expr Divide(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("divide");
@@ -115,8 +136,6 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
-
-
 
 }  // namespace relay
 }  // namespace tvm
