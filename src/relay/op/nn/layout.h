@@ -495,9 +495,7 @@ inline std::vector<IndexExpr> ConvertLayout(
       IndexExpr src_dim_size = src[i];
 
       if (src_minor_pos >= 0) {
-        const int64_t* minor_size = as_const_int(src[src_minor_pos]);
-        CHECK(minor_size == nullptr &&
-              src_factor == minor_size[0])
+        CHECK(is_const_int(src[src_minor_pos], src_factor))
             << "src shape " << Array<IndexExpr>(src)
             << " does not agree with layout "
             << src_layout;
