@@ -40,6 +40,18 @@ class ExprNode : public RelayNode {
                                       "field for this node";
     return this->checked_type_;
   }
+  /*!
+   * \brief Check if the inferred(checked) type of the Expr
+   *  is backed by a TTypeNode and return it.
+   *
+   * \note This function will thrown an error if the node type
+   *       of this Expr is not TTypeNode.
+   *
+   * \return The corresponding TTypeNode pointer.
+   * \tparam The specific TypeNode we look for.
+   */
+  template<typename TTypeNode>
+  inline const TTypeNode* type_as() const;
 
   static constexpr const char* _type_key = "relay.Expr";
   TVM_DECLARE_BASE_NODE_INFO(ExprNode, RelayNode);
@@ -390,6 +402,20 @@ class TupleGetItemNode : public ExprNode {
 };
 
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
+
+// implementataions
+template<typename TTypeNode>
+inline const TTypeNode* ExprNode::type_as() const {
+  static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
+                "TType must be a special case of type");
+  CHECK(checked_type_.defined())
+      << "Type inference for this Expr has not completed";
+  const TTypeNode* node = checked_type_.as<TTypeNode>();
+  CHECK(node != nullptr)
+      << "Expected type to be " << TTypeNode::_type_key
+      << ", but get " << checked_type_->type_key();
+  return node;
+}
 
 }  // namespace relay
 }  // namespace tvm

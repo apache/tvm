@@ -150,7 +150,14 @@ class ExprVisitor
 class ExprMutator
     : public ::tvm::relay::ExprFunctor<Expr(const Expr&)> {
  public:
-  Expr Mutate(const Expr& expr);
+  /*!
+   * \brief Mutate is alias for VisitExpr
+   * \return expr.
+   */
+  Expr Mutate(const Expr& expr) {
+    return this->VisitExpr(expr);
+  }
+  Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const ConstantNode* op) override;
   Expr VisitExpr_(const GlobalVarNode* op) override;
@@ -161,7 +168,8 @@ class ExprMutator
   Expr VisitExpr_(const LetNode* op) override;
   Expr VisitExpr_(const IfNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
-  /*! \brief Used to visit the types inside of expressions.
+  /*!
+   * \brief Used to visit the types inside of expressions.
    *
    * Can be overloaded to transform the types in arbitrary
    * ways, one way would be to define a sub-class of type
@@ -169,7 +177,7 @@ class ExprMutator
    */
   virtual Type VisitType(const Type& t);
 
- private:
+ protected:
   /*! \brief Internal map used for memoization. */
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo_;
 };

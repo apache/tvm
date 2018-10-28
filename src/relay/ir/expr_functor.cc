@@ -12,12 +12,12 @@
 namespace tvm {
 namespace relay {
 
-Expr ExprMutator::Mutate(const Expr& expr) {
+Expr ExprMutator::VisitExpr(const Expr& expr) {
   auto it = this->memo_.find(expr);
   if (it != this->memo_.end()) {
     return it->second;
   } else {
-    Expr new_expr = ExprMutator::VisitExpr(expr);
+    Expr new_expr = ExprFunctor::VisitExpr(expr);
     memo_[expr] = new_expr;
     return new_expr;
   }

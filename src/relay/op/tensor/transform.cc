@@ -761,9 +761,9 @@ Examples::
 TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr MakeSqueeze(Expr data,
-                 Array<IndexExpr> axes) {
+                 Array<Integer> axis) {
   auto attrs = make_node<SqueezeAttrs>();
-  attrs->axes = std::move(axes);
+  attrs->axis = std::move(axis);
   static const Op& op = Op::Get("squeeze");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -785,8 +785,8 @@ bool SqueezeRel(const Array<Type>& types,
   const auto* param = attrs.as<SqueezeAttrs>();
   CHECK(param != nullptr);
   std::vector<IndexExpr> result_shape;
-  // if axes is empty, squeeze all axes of dimension 1
-  if (param->axes.size() == 0) {
+  // if axes is None, squeeze all axes of dimension 1
+  if (!param->axis.defined()) {
     for (const auto& e : data->shape) {
       const int64_t* axis_ptr = as_const_int(e);
       CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
@@ -800,10 +800,8 @@ bool SqueezeRel(const Array<Type>& types,
     for (const auto& e : data->shape) {
       original_shape.push_back(std::pair<IndexExpr, bool>(e, true));
     }
-    for (const auto& e : param->axes) {
-      const int64_t* axis_ptr = as_const_int(e);
-      CHECK(axis_ptr != nullptr);
-      original_shape.at(*axis_ptr).second = false;
+    for (const auto& e : param->axis) {
+      original_shape.at(e->value).second = false;
     }
     for (const auto p : original_shape) {
       if (p.second) {

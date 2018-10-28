@@ -55,8 +55,8 @@ def test_transpose_infer_type():
 def test_squeeze_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
-    y = relay.squeeze(x, axes=(2,))
-    assert "axes=" in y.astext()
+    y = relay.squeeze(x, axis=(2,))
+    assert "axis=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (1, 4), "float32")
@@ -64,7 +64,7 @@ def test_squeeze_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.squeeze(x)
-    assert "axes=" not in y.astext()
+    assert "axis=" not in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (4,), "float32")
@@ -74,7 +74,7 @@ def test_squeeze_infer_type():
 def test_squeeze_bad_axes_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
-    y = relay.squeeze(x, axes=(1,))
+    y = relay.squeeze(x, axis=(1,))
     yy = relay.ir_pass.infer_type(y)
 
 

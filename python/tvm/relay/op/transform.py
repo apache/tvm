@@ -49,27 +49,25 @@ def transpose(data, axes=None):
     return _make.transpose(data, list(axes))
 
 
-def squeeze(data, axes=None):
+def squeeze(data, axis=None):
     """Squeeze axes in the array.
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.relay.Expr
         The input data to the operator.
 
-    axes : None or List[int]
-        Axes to remove.
-        If axes = [] or = None, remove all axis of dimensions 1.
-        Otherwise, remove all axis in axes.
-        If any axis in axes has dimension that does not equal 1, it is an error.
+    axis : None or List[int]
+        The set of axes to remove.
+        If axis = None, remove all axis of dimensions 1.
+        If any specified axis has dimension that does not equal 1, it is an error.
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.relay.Expr
         The squeezed result.
     """
-    axes = axes or []
-    return _make.squeeze(data, list(axes))
+    return _make.squeeze(data, axis)
 
 
 def reshape(data, newshape):
