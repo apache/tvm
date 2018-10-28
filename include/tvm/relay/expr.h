@@ -134,6 +134,7 @@ class VarNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
     v->Visit("type_annotation", &type_annotation);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -161,6 +162,7 @@ class GlobalVarNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("name_hint", &name_hint);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -377,6 +379,7 @@ class TupleGetItemNode : public ExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
+    v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
