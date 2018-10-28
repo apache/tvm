@@ -94,15 +94,16 @@ struct InitOpAttrs : public tvm::AttrsNode<InitOpAttrs> {
 
 /*! \brief Attributes used in squeeze operators */
 struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
-  Array<IndexExpr> axes;
+  // use axis to make the name numpy compatible.
+  Array<Integer> axis;
 
   TVM_DECLARE_ATTRS(SqueezeAttrs, "relay.attrs.SqueezeAttrs") {
-    TVM_ATTR_FIELD(axes)
-        .describe("The axes to squeeze in the input tensor."
-                  "If `axes = []`, all axis of dimension 1 get squeezed;"
+    TVM_ATTR_FIELD(axis)
+        .describe("The axis to squeeze in the input tensor."
+                  "If `axis = None`, all axis of dimension 1 get squeezed;"
                   "Else, the dimension in axes get squeezed."
-                  "It is an error if an axes does not has dimension 1.")
-        .set_default(Array<IndexExpr>({}));
+                  "It is an error if an axis does not has dimension 1.")
+        .set_default(NullValue<Array<Integer> >());
   }
 };  // struct SqueezeAttrs
 
