@@ -1,9 +1,8 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,invalid-name
 """1x1 Conv2D schedule on for Intel CPU"""
 from __future__ import absolute_import as _abs
-from collections import namedtuple
 import tvm
-from tvm.autotvm.task import ConfigEntity
+from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 import topi
 
@@ -12,10 +11,7 @@ from ..nn.pad import pad
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 
-AVXConv1x1Fwd = namedtuple('AVXConv1x1Fwd', ['ic_bn', 'oc_bn', 'oh_factor', 'ow_factor'])
-
-
-def _get_default_schedule(wkl, simd_width):
+def _fallback_schedule(cfg, wkl, simd_width):
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
     out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
@@ -37,23 +33,12 @@ def _get_default_schedule(wkl, simd_width):
         if out_width % ow_factor == 0:
             for oh_factor in range(out_height, 0, -1):
                 if out_height % oh_factor == 0 and ow_factor * oh_factor < 32:
-                    return AVXConv1x1Fwd(ic_bn, oc_bn, oh_factor, ow_factor)
-
+                    cfg["tile_ic"] = SplitEntity([wkl.in_filter // ic_bn, ic_bn])
+                    cfg["tile_oc"] = SplitEntity([wkl.out_filter // oc_bn, oc_bn])
+                    cfg["tile_oh"] = OtherOptionEntity(oh_factor)
+                    cfg["tile_ow"] = SplitEntity([out_width // ow_factor, ow_factor])
+                    return
     raise ValueError("cannot decide default schedule for workload: {}".format(wkl))
-
-
-def _fallback_schedule(wkl, simd_width):
-    sch = _get_default_schedule(wkl, simd_width)
-    out_width = (wkl.width + 2 * wkl.hpad - wkl.wkernel) // wkl.hstride + 1
-    cfg_dict = {"i": -1,
-                "c": None,
-                "e": [["tile_ic", "sp", [wkl.in_filter // sch.ic_bn, sch.ic_bn]],
-                      ["tile_oc", "sp", [wkl.out_filter // sch.oc_bn, sch.oc_bn]],
-                      ["tile_oh", "ot", sch.oh_factor],
-                      ["tile_ow", "sp", [out_width // sch.ow_factor,
-                                         sch.ow_factor]],],
-                "t": "direct"}
-    return ConfigEntity.from_json_dict(cfg_dict)
 
 
 def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, last):
@@ -178,8 +163,10 @@ def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     return s
 
 
-def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
+def _declaration_conv_NCHWc_int8(wkl, cfg, data, kernel):
     """ Declaration for int8 conv"""
+    ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                                          cfg["tile_oh"].val, cfg["tile_ow"].size[-1])
     out_dtype = wkl.out_dtype
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
@@ -194,13 +181,13 @@ def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
     else:
         data_pad = data
 
-    oshape = (batch_size, wkl.out_filter//sch.oc_bn, out_height, out_width, sch.oc_bn)
+    oshape = (batch_size, wkl.out_filter//oc_bn, out_height, out_width, oc_bn)
 
     # Intel performs dot product of 2 "4" Int8 values
     n_elems = 4
-    assert sch.ic_bn%n_elems == 0
-    ic_outer = tvm.reduce_axis((0, wkl.in_filter//(sch.ic_bn)), name='ic_outer')
-    ic_f_inner = tvm.reduce_axis((0, sch.ic_bn//n_elems), name='ic_f_inner')
+    assert ic_bn%n_elems == 0
+    ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
+    ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
     ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
 
     # Reshaping kernel as the last 2 dimensions are 1x1 (k_h x k_w)
@@ -221,14 +208,13 @@ def _declaration_conv_NCHWc_int8(wkl, sch, data, kernel):
     return conv
 
 
-def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
+def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
     """
     Defines the schedule for INT8 for intel machines
     Uses the Intel intrinsics to use INT8 operations
     More details - https://software.intel.com/en-us/articles/
     lower-numerical-precision-deep-learning-inference-and-training
     """
-
     target = tvm.target.current_target(allow_none=False)
     int32_lanes = -1
     if check_skylake(target):
@@ -236,6 +222,8 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     else:
         return s
     assert int32_lanes != -1
+    ic_bn, oc_bn, oh_factor, ow_factor = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                                          cfg["tile_oh"].val, cfg["tile_ow"].size[-1])
 
     # schedule data
     A = data
@@ -248,8 +236,8 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     CC = s.cache_write(C, 'global')
 
     batch, oc_chunk, oh, ow, oc_block = s[C].op.axis
-    oh_outer, oh_inner = s[C].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[C].split(ow, factor=sch.ow_factor)
+    oh_outer, oh_inner = s[C].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[C].split(ow, factor=ow_factor)
     s[C].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
     s[C].vectorize(oc_block)
 
@@ -262,12 +250,12 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
     ic_outer, ic_f_inner, ic_s_inner = s[CC].op.reduce_axis
 
     # Skylake and future processors have 16 vector lanes
-    assert sch.oc_bn % int32_lanes == 0
+    assert oc_bn % int32_lanes == 0
 
     oc_f_inner, oc_s_inner = s[CC].split(oc_block, factor=int32_lanes)
 
-    oh_outer, oh_inner = s[CC].split(oh, factor=sch.oh_factor)
-    ow_outer, ow_inner = s[CC].split(ow, factor=sch.ow_factor)
+    oh_outer, oh_inner = s[CC].split(oh, factor=oh_factor)
+    ow_outer, ow_inner = s[CC].split(ow, factor=ow_factor)
 
     s[CC].reorder(oc_chunk, oh_outer, ow_outer, ic_outer, ic_f_inner, oh_inner,
                   ow_inner, oc_f_inner, oc_s_inner, ic_s_inner)
@@ -280,8 +268,8 @@ def _schedule_conv_NCHWc_int8(s, wkl, sch, data, kernel, conv_out, last):
 
     if C != O:
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
-        oh_outer, oh_inner = s[O].split(oh, factor=sch.oh_factor)
-        ow_outer, ow_inner = s[O].split(ow, factor=sch.ow_factor)
+        oh_outer, oh_inner = s[O].split(oh, factor=oh_factor)
+        ow_outer, ow_inner = s[O].split(ow, factor=ow_factor)
         s[O].reorder(oc_chunk, oh_outer, ow_outer, oh_inner, ow_inner, oc_block)
 
         parallel_axis = s[O].fuse(oc_chunk, oh_outer)

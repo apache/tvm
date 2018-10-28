@@ -190,17 +190,9 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
 def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     """Schedule definition of conv2d NCHWc"""
     groups = attrs.get_int("groups")
-    kh, kw = attrs.get_int_tuple('kernel_size')
-    oc = attrs.get_int("channels")
-    padding = attrs.get_int_tuple("padding")
-    strides = attrs.get_int_tuple("strides")
-    layout = attrs.get_string("layout")
-    out_layout = attrs.get_string("out_layout")
     with tvm.target.create(target):
         if groups == 1:
-            return topi.generic.schedule_conv2d_NCHWc(outs, oc, (kh, kw),
-                                                      strides, padding,
-                                                      layout, out_layout)
+            return topi.generic.schedule_conv2d_NCHWc(outs, attrs.get_int_tuple('kernel_size'))
         else:
             raise ValueError("not support group number > 1 for now")
 

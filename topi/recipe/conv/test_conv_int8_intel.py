@@ -61,12 +61,8 @@ def get_shape(im_height, im_width, in_filter, out_filter, k_h, k_w, hpad, wpad,
             kernel_shape = (out_filter//NUM_VEC_LANES, in_filter//NUM_VEC_LANES, NUM_VEC_LANES//4,
                             NUM_VEC_LANES, 4, k_h, k_w)
     elif out_dtype == 'float32':
-        if k_h != 1:
-            kernel_shape = (out_filter//NUM_VEC_LANES, in_filter//NUM_VEC_LANES, k_h, k_w,
-                            NUM_VEC_LANES, NUM_VEC_LANES)
-        else:
-            kernel_shape = (out_filter//NUM_VEC_LANES, in_filter//NUM_VEC_LANES, NUM_VEC_LANES,
-                            NUM_VEC_LANES, k_h, k_w)
+        kernel_shape = (out_filter//NUM_VEC_LANES, in_filter//NUM_VEC_LANES, k_h, k_w,
+                        NUM_VEC_LANES, NUM_VEC_LANES)
     out_height = (im_height + 2 * hpad - k_h) // hstride + 1
     out_width = (im_width + 2 * wpad - k_w) // wstride + 1
     o_shape = (1, out_filter//NUM_VEC_LANES, out_height, out_width, NUM_VEC_LANES)
@@ -114,13 +110,7 @@ def run_inference(data_dtype, kernel_dtype, out_dtype, im_height, im_width, in_f
         LOGGER.debug(tvm.lower(sch, [data, kernel], simple_mode=True))
 
         # Generate and run the optimized schedule
-        sconv = topi.generic.nn.schedule_conv2d_NCHWc(outs=[out],
-                                                      num_filter=out_filter,
-                                                      kernel_size=(k_h, k_w),
-                                                      strides=hstride,
-                                                      padding=hpad,
-                                                      layout='NCHWc',
-                                                      out_layout='NCHWc')
+        sconv = topi.generic.nn.schedule_conv2d_NCHWc(outs=[out], kernel_size=(k_h, k_w))
         func = tvm.build(sconv, [data, kernel, out], target=TARGET_NAME, name='conv')
         func(data_array, kernel_array, c_sch)
 
