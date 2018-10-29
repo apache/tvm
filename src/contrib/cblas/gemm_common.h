@@ -3,8 +3,8 @@
  * \file tvm/contrib/gemm.h
  * \brief Shared implementation of gemm
  */
-#ifndef TVM_CONTRIB_GEMM_COMMON_H_
-#define TVM_CONTRIB_GEMM_COMMON_H_
+#ifndef TVM_CONTRIB_CBLAS_GEMM_COMMON_H_
+#define TVM_CONTRIB_CBLAS_GEMM_COMMON_H_
 #include <algorithm>
 
 namespace tvm {
@@ -98,4 +98,4 @@ inline void CallGemm(TVMArgs args, TVMRetValue *ret, TGemmOp op) {
 }  // namespace contrib
 }  // namespace tvm
 
-#endif  // TVM_CONTRIB_GEMM_COMMON_H_
+#endif  // TVM_CONTRIB_CBLAS_GEMM_COMMON_H_
