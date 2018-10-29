@@ -2,203 +2,15 @@
 """Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
-from tvm.autotvm.task.dispatcher import ApplyGraphBest
 from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.task import register, get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
-from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
-    _get_workload_int8, _get_schedule, _get_schedule_NCHWc, \
-    _get_schedule_NCHWc_int8, _get_alter_layout_schedule, Workload
+from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
-from .conv2d_avx_common import AVXConvCommonFwd
-from .conv2d_avx_1x1 import AVXConv1x1Fwd
-from .check_targets import check_skylake
-
-@_get_schedule.register("cpu")
-def _get_schedule_conv(wkl):
-    _WORKLOADS_AVX = [
-        # workloads of resnet18_v1 on imagenet
-        Workload('float32', 'float32', 224, 224, 3, 64, 7, 7, 3, 3, 2, 2),
-        Workload('float32', 'float32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-        Workload('float32', 'float32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-        Workload('float32', 'float32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-        Workload('float32', 'float32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-        Workload('float32', 'float32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-        Workload('float32', 'float32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-        Workload('float32', 'float32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
-        # workloads of resnet34_v1 on imagenet, no extra workload required
-        # workloads of resnet50_v1 on imagenet
-        Workload('float32', 'float32', 56, 56, 64, 256, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 56, 56, 256, 64, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 56, 56, 256, 128, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 28, 28, 128, 512, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 56, 56, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 28, 28, 512, 128, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 28, 28, 512, 256, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 14, 14, 256, 1024, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 28, 28, 512, 1024, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 14, 14, 1024, 256, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 14, 14, 1024, 512, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1),
-        Workload('float32', 'float32', 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2),
-        Workload('float32', 'float32', 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1),
-        # workloads of resnet101_v1 on imagenet, no extra workload required
-        # workloads of resnet152_v1 on imagenet, no extra workload required
-        # workloads of resnet18_v2 on imagenet, no extra workload required
-        # workloads of resnet34_v2 on imagenet, no extra workload required
-    ]
-
-    fp32_vec_len = 8
-    target = tvm.target.current_target(allow_none=False)
-    for opt in target.options:
-        if opt == '-mcpu=skylake-avx512':
-            fp32_vec_len = 16
-
-    _SCHEDULES_AVX = [
-        # workloads of resnet18_v1 on imagenet
-        AVXConvCommonFwd(3, fp32_vec_len, 28, False),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, True),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 7),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
-        # workloads of resnet34_v1 on imagenet, no extra workload required
-        # workloads of resnet50_v1 on imagenet
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        # workloads of resnet101_v1 on imagenet, no extra workload required
-        # workloads of resnet152_v1 on imagenet, no extra workload required
-        # workloads of resnet18_v2 on imagenet, no extra workload required
-        # workloads of resnet34_v2 on imagenet, no extra workload required
-    ]
-
-    if wkl not in _WORKLOADS_AVX:
-        if wkl.hkernel == 1 and wkl.wkernel == 1:
-            return conv2d_avx_1x1._get_default_schedule(wkl, fp32_vec_len)
-        return conv2d_avx_common._get_default_schedule(wkl, fp32_vec_len)
-    idx = _WORKLOADS_AVX.index(wkl)
-    sch = _SCHEDULES_AVX[idx]
-    return sch
-
-def _get_schedule_conv_int8(wkl):
-    _WORKLOADS_AVX = [
-        ## Following are for INT8 kernels
-        Workload('uint8', 'int32', 56, 56, 64, 64, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 64, 64, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 64, 128, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 56, 56, 64, 128, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 128, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 128, 256, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 256, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 256, 3, 3, 1, 1, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 256, 512, 3, 3, 1, 1, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 512, 512, 3, 3, 1, 1, 1, 1),
-        # workloads of resnet34_v1 on imagenet, no extra workload required
-        # workloads of resnet50_v1 on imagenet
-        Workload('uint8', 'int32', 56, 56, 64, 256, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 64, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 128, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 128, 512, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 56, 56, 256, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 28, 28, 512, 128, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 512, 256, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 256, 1024, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 28, 28, 512, 1024, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 14, 14, 1024, 256, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 1024, 512, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1),
-        Workload('uint8', 'int32', 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2),
-        Workload('uint8', 'int32', 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1),
-    ]
-
-    fp32_vec_len = 8
-    target = tvm.target.current_target(allow_none=False)
-    if check_skylake(target):
-        fp32_vec_len = 16
-
-    _SCHEDULES_AVX = [
-        # Following are for INT8 operations
-        # workloads of resnet18_v1 on imagenet
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 28),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 28, False),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, False),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 14, True),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 1, 7),
-        AVXConvCommonFwd(fp32_vec_len, fp32_vec_len, 7, True),
-        # workloads of resnet34_v1 on imagenet, no extra workload required
-        # workloads of resnet50_v1 on imagenet
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 28),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 14),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        AVXConv1x1Fwd(fp32_vec_len, fp32_vec_len, 2, 7),
-        # workloads of resnet101_v1 on imagenet, no extra workload required
-        # workloads of resnet152_v1 on imagenet, no extra workload required
-        # workloads of resnet18_v2 on imagenet, no extra workload required
-        # workloads of resnet34_v2 on imagenet, no extra workload required
-    ]
-
-    if wkl not in _WORKLOADS_AVX:
-        if wkl.hkernel == 1 and wkl.wkernel == 1:
-            return conv2d_avx_1x1._get_default_schedule(wkl, fp32_vec_len)
-        return conv2d_avx_common._get_default_schedule(wkl, fp32_vec_len)
-    idx = _WORKLOADS_AVX.index(wkl)
-    sch = _SCHEDULES_AVX[idx]
-    return sch
-
-@_get_schedule_NCHWc.register("cpu")
-def _get_schedule_NCHWc_x86(wkl, layout, out_layout):
-    return _get_schedule_conv(wkl)
-
-@_get_schedule_NCHWc_int8.register("cpu")
-def _get_schedule_NCHWc_x86_int8(wkl, layout, out_layout):
-    return _get_schedule_conv_int8(wkl)
-
-@_get_alter_layout_schedule.register("cpu")
-def _get_alter_layout_schedule_x86(wkl):
-    return _get_schedule_conv(wkl)
-
 
 def _get_fp32_len():
     fp32_vec_len = 8
@@ -210,18 +22,23 @@ def _get_fp32_len():
     return fp32_vec_len
 
 
-def _get_default_sch(workload):
+def _get_default_config(cfg, workload):
+    """
+    Get default schedule config for the workload
+    Parameters
+    ----------
+    workload : topi.nn.conv2d.Workload
+        Convolution workload
+    """
     fp32_vec_len = _get_fp32_len()
-    _, _, kh, kw, _ = workload[2]
-    is_kernel_1x1 = kh == 1 and kw == 1
+    is_kernel_1x1 = workload.hkernel == 1 and workload.wkernel == 1
     if is_kernel_1x1:
-        cfg = conv2d_avx_1x1._fallback_schedule(workload, fp32_vec_len)
+        conv2d_avx_1x1._fallback_schedule(cfg, workload, fp32_vec_len)
     else:
-        cfg = conv2d_avx_common._fallback_schedule(workload, fp32_vec_len)
-    return cfg
+        conv2d_avx_common._fallback_schedule(cfg, workload, fp32_vec_len)
 
 
-def _create_schedule_template(cfg, data, kernel, strides, padding, layout):
+def _create_tuning_space(cfg, data, kernel, strides, padding, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
@@ -247,38 +64,17 @@ def _create_schedule_template(cfg, data, kernel, strides, padding, layout):
         cfg.define_knob("unroll_kw", [True, False])
 
 
-def conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype):
-    """convert argument to workload"""
-    if len(kernel.shape) == 4:
-        raw_kernel = kernel
-    else:  # the input kernel is transformed by alter_op_layout
-        shape = get_const_tuple(kernel.shape)
-        raw_kernel = tvm.placeholder((shape[0] * shape[4], shape[1], shape[2], shape[3]),
-                                     dtype=kernel.dtype)
-    return ('conv2d', ) + autotvm.task.args_to_workload(
-        [data, raw_kernel, strides, padding, layout, out_dtype])
-
-
-@conv2d.register("cpu")
-@autotvm.task.dispatcher
-def conv2d_x86(data, kernel, strides, padding, layout, out_dtype):
-    """x86 conv2d declaration."""
-    return conv_arg_to_workload(data, kernel, strides, padding, layout, out_dtype)
-
-
-@conv2d_x86.register(["direct"])
+@autotvm.register_topi_compute(conv2d, 'cpu', 'direct')
 def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     if layout == 'NCHW':
-        _create_schedule_template(cfg, data, kernel, strides, padding, layout)
+        _create_tuning_space(cfg, data, kernel, strides, padding, layout)
         if cfg.is_fallback:
-            workload = conv_arg_to_workload(data, kernel, strides, padding,
-                                            layout, out_dtype)
-            cfg = _get_default_sch(workload)
-        args = [cfg, data, kernel, strides, padding, layout, out_dtype]
-        return _declaration_conv_impl(*args)
+            wkl = _get_workload(data, kernel, strides, padding, out_dtype)
+            _get_default_config(cfg, wkl)
+        return _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, out_dtype)
     elif layout == 'NHWC':
@@ -345,11 +141,7 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtyp
                          lambda n, c, h, w: conv[n, c // oc_bn, h, w, c % oc_bn]
                          .astype(out_dtype),
                          name='output_unpack',
-                         tag='conv2d_nchw',
-                         attrs={'workload':
-                                    conv_arg_to_workload(data, kernel, strides,
-                                                         padding, layout,
-                                                         out_dtype)})
+                         tag='conv2d_nchw')
     return unpack
 
 
@@ -385,18 +177,7 @@ def schedule_conv2d(cfg, outs):
 
             _, _, kh, kw = get_const_tuple(kernel.shape)
             is_kernel_1x1 = kh == 1 and kw == 1
-            current_cfg = cfg
-            if cfg.is_fallback:
-                workload_attr = op.attrs["workload"]
-                strides = (int(workload_attr[3][0].value), int(workload_attr[3][1].value))
-                padding = (int(workload_attr[4][0].value), int(workload_attr[4][1].value))
-                layout = workload_attr[5].value
-                out_dtype = workload_attr[6].value
-                workload = conv_arg_to_workload(data, kernel, strides, padding,
-                                                layout, out_dtype)
-                current_cfg = _get_default_sch(workload)
-            args = [s, current_cfg, data, data_pad, data_vec, kernel_vec, conv_out,
-                    output, outs[0]]
+            args = [s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, output, outs[0]]
             if is_kernel_1x1:
                 conv2d_avx_1x1._schedule_conv(*args)
             else:
@@ -470,17 +251,13 @@ def schedule_conv2d_nhwc(outs):
 @register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    args = deserialize_args(args)
-    data, kernel = args[:2]
-    strides = args[4]
-    padding = args[5]
-    layout = args[6]
+    data, kernel, strides, padding, origin_layout, dtype = deserialize_args(args)
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
     # get config here
     cfg = get_config()
-    _create_schedule_template(cfg, data, kernel, strides, padding, layout)
+    _create_tuning_space(cfg, data, kernel, strides, padding, origin_layout)
 
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
@@ -491,50 +268,13 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     out_layout = "NCHW%dc" % oc_bn
     new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
                         raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
-    args[0] = tvm.placeholder(new_data_shape, data.dtype)
-    args[1] = tvm.placeholder(new_kernel_shape, kernel.dtype)
-    args[6] = data_layout
-    args[7] = out_layout
+    new_data = tvm.placeholder(new_data_shape, data.dtype)
+    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
-    C = _declaration_conv_NCHWc(cfg, *args, **kwargs)
-    s = _schedule_conv2d_NCHWc(cfg, args[2], args[3], args[4], args[5],
-                               args[6], args[7], [C])
-    return s, [args[0], args[1], C]
-
-
-def conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                               padding, layout, out_layout, out_dtype):
-    """convert argument to workload"""
-    dshape = get_const_tuple(data.shape)
-    kshape = get_const_tuple(kernel.shape)
-    if len(dshape) > 4:
-        raw_data = tvm.placeholder((dshape[0], dshape[1] * dshape[4], dshape[2],
-                                    dshape[3]), dtype=kernel.dtype)
-    else:
-        raw_data = data
-    if len(kshape) > 4:
-        raw_kernel = tvm.placeholder((kshape[0] * kshape[5], kshape[1] * kshape[4],
-                                      kshape[2], kshape[3]), dtype=kernel.dtype)
-    else:
-        raw_kernel = kernel
-    return ('conv2d_NCHWc', ) + autotvm.task.args_to_workload(
-        [raw_data, raw_kernel, strides, padding, layout, out_layout,
-         out_dtype])
-
-
-def _query_dispatcher(workload, in_alter_op=False):
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if isinstance(dispatch_ctx, ApplyGraphBest):
-        if in_alter_op:
-            cfg = dispatch_ctx.query(None, None)
-        else:
-            cfg = dispatch_ctx.query_global_dict(workload)
-    else:
-        target = tvm.target.current_target()
-        cfg = dispatch_ctx.query(target, workload)
-        if cfg.is_fallback:
-            cfg = _get_default_sch(workload)
-    return cfg
+    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding,
+                                data_layout, out_layout, dtype)
+    s = _schedule_conv2d_NCHWc(cfg, [C])
+    return s, [new_data, new_kernel, C]
 
 
 @conv2d_alter_layout.register("cpu")
@@ -546,87 +286,72 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     # only optimize for NCHW, groups=1 conv
     if attrs['layout'] != 'NCHW' or attrs.get_int("groups") != 1:
         return None
+    batch_size, in_channel, height, width = get_const_tuple(data.shape)
+    out_channel, _, kh, kw = get_const_tuple(kernel.shape)
 
-    kernel_size = attrs.get_int_tuple("kernel_size")
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     layout = attrs['layout']
-    out_layout = layout if attrs["out_layout"] == "__undef__" else attrs["out_layout"]
 
     dtype = data.dtype
     out_dtype = dtype if attrs["out_dtype"] == "same" else attrs["out_dtype"]
-    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                          padding, layout, out_layout, out_dtype)
-    cfg = _query_dispatcher(workload, True)
+
+    workload = autotvm.task.args_to_workload(
+        [data, kernel, strides, padding, layout, out_dtype], conv2d)
+    dispatch_ctx = autotvm.task.DispatchContext.current
+    target = tvm.target.current_target()
+    cfg = dispatch_ctx.query(target, workload)
+    if cfg.is_fallback:
+        wkl = _get_workload(data, kernel, strides, padding, out_dtype)
+        _get_default_config(cfg, wkl)
+
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_attrs['layout'] = 'NCHW%dc' % ic_bn
     new_attrs['out_layout'] = 'NCHW%dc' % oc_bn
-
-    # Store global schedule dictionary for ApplyGraphBest dispatcher
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if isinstance(dispatch_ctx, ApplyGraphBest):
-        workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                              padding, new_attrs['layout'],
-                                              new_attrs['out_layout'], out_dtype)
-        global_dict_key = workload
-        dispatch_ctx.update_global_dict(global_dict_key, cfg)
-
     # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
     new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+
+    # Store altered operator's config
+    new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
+                               dtype=data.dtype)
+    new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
+                                 dtype=kernel.dtype)
+    new_workload = autotvm.task.args_to_workload(
+        [new_data, new_kernel, strides, padding, new_attrs['layout'],
+         new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+    dispatch_ctx.update(target, new_workload, cfg)
 
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 
-@conv2d_NCHWc.register("cpu")
-def conv2d_NCHWc_cpu(data, kernel, num_filter, kernel_size, strides,
-                     padding, layout, out_layout, out_dtype):
-    """x86 conv2d_NCHWc declaration."""
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if not isinstance(dispatch_ctx, ApplyGraphBest):
-        layout = out_layout = "NCHW"
-    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                          padding, layout, out_layout, out_dtype)
-    cfg = _query_dispatcher(workload)
-    return _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
-                                   padding, layout, out_layout, out_dtype)
-
-
-def _declaration_conv_NCHWc(cfg, data, kernel, num_filter, kernel_size, strides,
+@autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
+def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                             padding, layout, out_layout, out_dtype):
-    n, ic_chunk, h, w, ic_block = [x.value for x in data.shape]
-    ic = ic_chunk * ic_block
-    kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) else \
-        (kernel_size, kernel_size)
-    is_kernel_1x1 = kh == 1 and kw == 1
-    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
-    sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    # layout and out_layout are not used here,
+    # we keep them for debug convenience when dumping autotvm workload
+    HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
+    n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
+    in_channel = ic_chunk * ic_bn
     if data.dtype == 'uint8':
-        wkl = _get_workload_int8(tvm.placeholder((n, ic, h, w), dtype=data.dtype),
-                                 tvm.placeholder((num_filter, ic, kh, kw),
-                                                 dtype=kernel.dtype),
-                                 strides, padding, out_dtype)
-        sch = _get_schedule_NCHWc_int8(wkl, layout, out_layout)
-        return conv2d_avx_1x1._declaration_conv_NCHWc_int8(wkl, sch, data, kernel) \
-            if is_kernel_1x1 \
-            else conv2d_avx_common._declaration_conv_NCHWc_int8(wkl, sch, data, kernel)
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(kernel.shape)
+    else:
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+    num_filter = oc_chunk * oc_bn
 
-    args = [cfg, data, kernel, (kh, kw), (sh, sw), (ph, pw), layout, out_layout, out_dtype]
-    return _declaration_conv_NCHWc_impl(*args)
+    # get workload and related schedule config
+    wkl = _get_workload(tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+                        tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                                        dtype=kernel.dtype),
+                        strides, padding, out_dtype)
+    if cfg.is_fallback:
+        _get_default_config(cfg, wkl)
 
-
-def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, padding, layout,
-                                 out_layout, out_dtype):
-    HPAD, WPAD = padding
-    HSTR, WSTR = strides
-
-    n, ic_chunk, ih, iw, ic_block = get_const_tuple(data.shape)
-    ic = ic_chunk * ic_block
-    kh, kw = kernel_size
-    oc_chunk, _, _, _, _, oc_block = get_const_tuple(kernel.shape)
-    oc = oc_chunk * oc_block
-    oh = (ih + 2 * HPAD - kh) // HSTR + 1
-    ow = (iw + 2 * WPAD - kw) // WSTR + 1
+    # output shape
+    out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
+    out_width = (iw + 2 * WPAD - kernel_width) // WSTR + 1
+    oshape = (n, oc_chunk, out_height, out_width, oc_bn)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
@@ -635,51 +360,43 @@ def _declaration_conv_NCHWc_impl(cfg, data, kernel, kernel_size, strides, paddin
     else:
         data_pad = data
 
-    # fetch schedule
-    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    if ic_bn != ic_block:
-        raise RuntimeError("ic_bn in config is not equal to actual data ic_block: %d vs %d."
-                           % (ic_bn, ic_block))
-    if oc_bn != oc_block:
-        raise RuntimeError("oc_bn in config is not equal to actual kernel oc_block: %d vs %d."
-                           % (oc_bn, oc_block))
+    ic = tvm.reduce_axis((0, in_channel), name='ic')
+    kh = tvm.reduce_axis((0, kernel_height), name='kh')
+    kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
-    # convolution
-    oshape = (n, oc//oc_bn, oh, ow, oc_bn)
+    if data.dtype == 'uint8':
+        assert out_dtype == "int32", \
+            "INT8 convolution requires input dtype = uint8 and output dtype=int32"
+        # Intel performs dot product of 2 "4" Int8 values
+        # Current implementation requires ic_bn to be a multiple of 4
+        n_elems = 4
+        assert ic_bn % n_elems == 0
 
-    ic = tvm.reduce_axis((0, ic), name='ic')
-    kh = tvm.reduce_axis((0, kernel_size[0]), name='kh')
-    kw = tvm.reduce_axis((0, kernel_size[1]), name='kw')
-
-    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
-                                          strides, padding, layout,
-                                          out_layout, out_dtype),
-    attrs = {'workload': workload}
-    conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+        ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
+        ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
+        ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
+        return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
+                           tvm.sum(data_pad[n, ic_outer, oh*HSTR+kh, ow*WSTR+kw,
+                                            ic_f_inner * n_elems +  ic_s_inner]
+                                   .astype(out_dtype) *
+                                   kernel[oc_chunk, ic_outer, kh, kw, ic_f_inner,
+                                          oc_block, ic_s_inner].astype(out_dtype),
+                                   axis=[kh, kw, ic_outer, ic_f_inner, ic_s_inner]),
+                           name='conv2d_NCHWc_int8', tag="conv2d_NCHWc_int8")
+    # else: fp implementation
+    return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
                        tvm.sum(data_pad[n, ic//ic_bn, oh*HSTR+kh, ow*WSTR+kw,
                                         ic%ic_bn].astype(out_dtype) *
                                kernel[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn, oc_block],
                                axis=[ic, kh, kw]),
-                       name='conv2d_NCHWc', tag="conv2d_NCHWc", attrs=attrs)
-    return conv
+                       name='conv2d_NCHWc', tag="conv2d_NCHWc")
 
 
-@generic.schedule_conv2d_NCHWc.register("cpu")
-def schedule_conv2d_NCHWc(num_filter, kernel_size, strides, padding,
-                          layout, out_layout, outs):
-    """x86 conv2d_NCHWc schedule"""
-    return _schedule_conv2d_NCHWc(None, num_filter, kernel_size, strides, padding,
-                                  layout, out_layout, outs)
-
-
-def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
-                           layout, out_layout, outs):
+@autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc, 'cpu', ['direct'])
+def _schedule_conv2d_NCHWc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
-    dispatch_ctx = autotvm.task.DispatchContext.current
-    if not isinstance(dispatch_ctx, ApplyGraphBest):
-        layout = out_layout = "NCHW"
 
     def traverse(op):
         """Traverse operators from computation graph"""
@@ -702,34 +419,17 @@ def _schedule_conv2d_NCHWc(cfg, num_filter, kernel_size, strides, padding,
                 data_pad = data
                 data = data_pad.op.input_tensors[0]
 
-            kh, kw = kernel_size if isinstance(kernel_size, (tuple, list)) else \
-                (kernel_size, kernel_size)
-            is_kernel_1x1 = kh == 1 and kw == 1
-            n, ic_chunk, h, w, ic_block = [x.value for x in data.shape]
-            ic = ic_chunk * ic_block
-            original_data = tvm.placeholder((n, ic, h, w), dtype=data.dtype)
-
-            kh, kw = kernel_size
-            original_kernel = tvm.placeholder((num_filter, ic, kh, kw),
-                                              dtype=kernel.dtype)
+            args = [s, cfg, data_vec, conv_out, outs[0]]
             if data.dtype == 'uint8':
-                wkl = _get_workload_int8(original_data, original_kernel,
-                                         strides, padding, conv_out.dtype)
-                sch = _get_schedule_NCHWc_int8(wkl, layout, out_layout)
-                args = [s, wkl, sch, data_vec, kernel, conv_out, outs[0]]
-                if is_kernel_1x1:
+                # int8 conv kernel is 7-dim
+                _, _, kh, kw, _, _, _ = get_const_tuple(kernel.shape)
+                if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_NCHWc_int8(*args)
                 else:
                     conv2d_avx_common._schedule_conv_NCHWc_int8(*args)
             else:
-                current_cfg = cfg
-                if current_cfg is None:
-                    workload = conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                                          padding, layout, out_layout,
-                                                          conv_out.dtype)
-                    current_cfg = _query_dispatcher(workload)
-                args = [s, current_cfg, data_vec, conv_out, outs[0]]
-                if is_kernel_1x1:
+                _, _, kh, kw, _, _, = get_const_tuple(kernel.shape)
+                if kh == 1 and kw == 1:
                     conv2d_avx_1x1._schedule_conv_NCHWc(*args)
                 else:
                     conv2d_avx_common._schedule_conv_NCHWc(*args)

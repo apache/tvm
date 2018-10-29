@@ -1,5 +1,5 @@
 # pylint: disable=too-few-public-methods,invalid-name,unused-argument,arguments-differ
-# pylint: disable=consider-using-enumerate
+# pylint: disable=consider-using-enumerate,too-many-lines
 """
 Template configuration space.
 
@@ -995,6 +995,18 @@ class FallbackConfigEntity(ConfigSpace):
         for knob_name in self.space_map.keys():
             if not isinstance(self.space_map[knob_name], SplitSpace):
                 self._entity_map[knob_name] = best_match_cfg[knob_name]
+
+    def __setitem__(self, name, entity):
+        """set the entity(knob) of by name
+
+        Parameters
+        ----------
+        name: str
+            name of the entity
+        entity: SplitEntity, ReorderEntity, AnnotateEntity, OtherOptionEntity
+            value of the entity
+        """
+        self._entity_map[name] = entity
 
     def __repr__(self):
         return "%s,%s,%s" % (str(self._entity_map)[12:-1], self.template_key, self.code_hash)
