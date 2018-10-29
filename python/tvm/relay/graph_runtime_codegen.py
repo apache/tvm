@@ -380,6 +380,29 @@ def compile_to_tvm(env, func, target=None):
 
 
 def evaluate_rts(env, func, *args):
+    """
+    Corresponding function to tvm.relay.eval.evaluate.
+
+    This function evaluates a Relay expression on the
+    TVM graph_runtime.
+
+    Parameters
+    ----------
+    env: tvm.relay.Environment
+        The global environment used.
+
+    expr: tvm.relay.Expr
+        The expression to evaluate.
+
+    args: list of tvm.relay.Expr
+        The arguments to apply to the expression, only works
+        if the expression has a function type.
+
+    Returns
+    -------
+    value: tvm.NDArray
+        The output Tensor produced by evaluating the expression.
+    """
     func = infer_type(func, env)
     func = ir_pass.fuse_ops(env, func)
     func = infer_type(func, env)
