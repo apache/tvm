@@ -1,3 +1,5 @@
+#pylint: disable=no-else-return
+"""An interface to the Realy interpreter."""
 from __future__ import absolute_import
 import numpy as np
 from .. import register_func, nd
@@ -16,6 +18,7 @@ class Value(NodeBase):
     @staticmethod
     @register_func("relay.from_scalar")
     def from_scalar(i, dtype=None):
+        """Convert a Python scalar to a Realy scalar."""
         if dtype is None:
             if isinstance(i, int):
                 dtype = 'int32'

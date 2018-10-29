@@ -58,7 +58,7 @@ def _tensor_value_repr(tv):
     return str(tv.data.asnumpy())
 
 @register_func("relay._constant_repr")
-def _tensor_value_repr(tv):
+def _tensor_constant_repr(tv):
     return str(tv.data.asnumpy())
 
 @register_func("relay.debug")

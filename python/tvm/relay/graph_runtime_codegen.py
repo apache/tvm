@@ -25,7 +25,7 @@ import json
 import attr
 from . import ir_pass
 from .op import Op
-from .expr import Var, Function, Let, Call, If, GlobalVar, Constant, Let
+from .expr import Var, Function, Call, If, GlobalVar, Constant, Let
 from ..build_module import build
 from .. contrib import graph_runtime
 from .ir_pass import infer_type
