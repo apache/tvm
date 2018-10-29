@@ -45,7 +45,7 @@ using runtime::TypedPackedFunc;
 // - Prepare phase: backward propagation of demand.
 // - Transform phase: forward transformation,
 //
-// Similarly, borward folding process is done in two steps:
+// Similarly, backward folding process is done in two steps:
 // - Prepare phase: forward propagation of demand.
 // - Transform phase: transformation by push down the axes scale signal to inputs.
 //
@@ -104,7 +104,7 @@ ValueType GetFunc(const OpMap<ValueType>& op_map,
 }
 
 /*!
- * \brief Preparation function for for pass scale forward.
+ * \brief Preparation function for pass scale forward.
  * \param call The call node.
  * \param out_scale_axes Possible scaling on axes of the output.
  * \return The result scaling on axes of the input.
