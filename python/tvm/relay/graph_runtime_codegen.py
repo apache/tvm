@@ -147,7 +147,7 @@ class Node(object):
     attrs = attr.ib()
     is_output = attr.ib()
 
-    def to_json(self) -> Any:
+    def to_json(self):
         raise Exception("Abstract method, please implement me.")
 
 
