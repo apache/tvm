@@ -407,7 +407,7 @@ def _topo_sort(symbol):
         if childs is None:
             dep_cnts[name] = 0
         else:
-            dep_cnts[name] = len(childs)
+            dep_cnts[name] = len(set([c.attr('name') for c in childs]))
             for child in childs:
                 child_name = child.attr('name')
                 if child_name not in deps:
@@ -451,7 +451,7 @@ def _from_mxnet_impl(symbol, graph):
         name = sym.attr('name')
         if name not in graph:
             return None
-        output_index = json.loads(symbol.tojson())['heads'][0][1]
+        output_index = json.loads(sym.tojson())['heads'][0][1]
         return graph[name][output_index]
 
     assert symbol is not None
