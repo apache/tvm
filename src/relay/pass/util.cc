@@ -7,7 +7,6 @@
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
-#include <tvm/relay/logging.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
