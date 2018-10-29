@@ -772,12 +772,15 @@ def _split(name):
     def _impl(inputs, attr, params):
         if name == 'Split':
             axis = params.pop(inputs[0].list_output_names()[0]).asnumpy()[0]
-            num_split = attr["num_split"]
-            return _sym.split(inputs[1], indices_or_sections=num_split, axis=axis)
+            return AttrCvt(op_name="split", ignores=['Tdim', 'Tidx'],
+                           transforms={'num_split': 'indices_or_sections'},
+                           extras={'axis': axis})(inputs[1], attr)
         elif name == 'SplitV':
             indices = params.pop(inputs[1].list_output_names()[0]).asnumpy()
             axis = params.pop(inputs[2].list_output_names()[0]).asnumpy()[0]
-            return _sym.split(inputs[0], indices_or_sections=tuple(sorted(indices)), axis=axis)
+            return AttrCvt(op_name="split", ignores=['Tdim', 'Tidx', 'Tlen', 'num_split'],
+                           extras={'indices_or_sections': tuple(sorted(indices)),
+                                   'axis': axis})(inputs[0], attr)
         else:
             raise NotImplementedError("Unexpected split type: {}".format(name))
     return _impl
@@ -1147,14 +1150,16 @@ class GraphProto(object):
                     node.input[0] = in_name
 
                 # Fill shapes for all inputs in a list
-                try:
-                    inputs = [self._nodes[i] for i in node.input]
-                    for i in node.input:
-                        input_shapes[self._nodes[i]] = self._output_shapes[i]
-                    attr['_input_shapes'] = input_shapes
-                except KeyError:
-                    # TODO: Need to find clean way to handle '^CheckNumerics'
-                    pass
+                inputs = []
+                for i in node.input:
+                    try:
+                        symbol = self._nodes[i]
+                        inputs.append(symbol)
+                        input_shapes[symbol] = self._output_shapes[i]
+                    except KeyError:
+                        # TODO: Need to find clean way to handle '^CheckNumerics'
+                        pass
+                attr['_input_shapes'] = input_shapes
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 

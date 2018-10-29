@@ -639,6 +639,30 @@ def test_forward_pad():
 
 
 #######################################################################
+# Split
+# -----
+def test_forward_split():
+    def check_split(ishape, **kwargs):
+        inp_array = np.random.uniform(size=ishape).astype(np.float32)
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            tf.split(in1, **kwargs)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'split:0')
+
+    def check_split_concat(ishape, **kwargs):
+        inp_array = np.random.uniform(size=ishape).astype(np.float32)
+        with tf.Graph().as_default():
+            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
+            splited = tf.split(in1, **kwargs)
+            tf.concat(splited, axis=1)
+            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'concat:0')
+
+    check_split((5, 30), num_or_size_splits=3, axis=1)
+    check_split((5, 30), num_or_size_splits=[4, 15, 11], axis=1)
+    check_split_concat((5, 30), num_or_size_splits=[15, 15], axis=1)
+
+
+#######################################################################
 # Inception V3
 # ------------
 def test_forward_inception_v3():
@@ -999,19 +1023,6 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
-#######################################################################
-# Split
-# -----
-def test_forward_split():
-    def check_split(ishape, **kwargs):
-        inp_array = np.random.uniform(size=ishape).astype(np.float32)
-        with tf.Graph().as_default():
-            in1 = tf.placeholder(shape=inp_array.shape, dtype=inp_array.dtype)
-            tf.split(in1, **kwargs)
-            compare_tf_with_tvm(inp_array, 'Placeholder:0', 'split:0')
-
-    check_split((5, 30), num_or_size_splits=3, axis=1)
-    check_split((5, 30), num_or_size_splits=[4, 15, 11], axis=1)
 
 #######################################################################
 # Main
@@ -1026,6 +1037,7 @@ if __name__ == '__main__':
     test_forward_pad()
     test_forward_gather()
     #test_forward_stridedslice()
+    test_forward_split()
 
     # Activations
     test_forward_sigmoid()
@@ -1068,6 +1080,3 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
-
-    # Split
-    test_forward_split()
