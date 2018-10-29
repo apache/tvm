@@ -151,7 +151,8 @@ struct LiveFunctions : ExprVisitor {
   }
 };
 
-// using FSchedule = TypedPackedFunc<Schedule(const Attrs&, const Array<Tensor>&, Type, tvm::Context>>;
+using FCompute = TypedPackedFunc<Array<Tensor>(const Attrs&, const Array<Tensor>&, Type, std::string)>;
+using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, std::string)>;
 
 /*! \brief Return the set of operators in their TVM format. */
 Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::string& target) {
@@ -164,8 +165,8 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::stri
   auto live_funcs = LiveFunctions(env);
   live_funcs.VisitExpr(abstracted_e);
 
-  auto schedule_reg = Op::GetAttr<PackedFunc>("FTVMSchedule");
-  auto compute_reg = Op::GetAttr<PackedFunc>("FTVMCompute");
+  auto schedule_reg = Op::GetAttr<FSchedule>("FTVMSchedule");
+  auto compute_reg = Op::GetAttr<FCompute>("FTVMCompute");
 
   Array<LoweredOp> lowered_funcs;
 
