@@ -80,6 +80,30 @@ def conv2d(data, weight=None, **kwargs):
         weight = relay.var(name + "_weight")
     return relay.nn.conv2d(data, weight, **kwargs)
 
+def conv2d_transpose(data, weight=None, **kwargs):
+    """Wrapper of conv2d_transpose which automatically creates weights if not given.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input expression.
+
+    weight : relay.Expr
+        The weight to conv2d_transpose.
+
+    kwargs : dict
+        Additional arguments.
+
+    Returns
+    -------
+    result : relay.Expr
+        The result.
+    """
+    name = kwargs.get("name")
+    kwargs.pop("name")
+    if not weight:
+        weight = relay.var(name + "_weight")
+    return relay.nn.conv2d_transpose(data, weight, **kwargs)
 
 def dense_add_bias(data, weight=None, bias=None, **kwargs):
     """Wrapper of dense which automatically creates weights if not given.

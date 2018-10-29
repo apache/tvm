@@ -106,13 +106,18 @@ def test_resnet():
 
 def test_dqn():
     net, params = tvm.relay.testing.dqn.get_workload(batch_size=1)
-    show(net.astext())
+    net.astext()
+
+def test_dcgan():
+    net, params = tvm.relay.testing.dcgan.get_workload(batch_size=1)
+    net.astext()
 
 if __name__ == "__main__":
     do_print[0] = True
     test_resnet()
     test_mlp()
     test_dqn()
+    test_dcgan()
     test_func()
     test_env()
     test_meta_data()
