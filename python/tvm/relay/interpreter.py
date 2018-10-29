@@ -123,8 +123,8 @@ def evaluate(env, expr, *args):
         env._add(expr, func, True)
         opt_expr = Call(expr, relay_args)
         # import pdb; pdb.set_trace()
-        return _eval.evaluate(env, opt_expr)
+        return _interpreter.evaluate(env, opt_expr)
     else:
         expr = Call(expr, relay_args)
         opt_expr = apply_passes(expr, env)
-        return _eval.evaluate(env, opt_expr)
+        return _interpreter.evaluate(env, opt_expr)

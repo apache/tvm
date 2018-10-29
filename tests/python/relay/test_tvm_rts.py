@@ -2,7 +2,7 @@ import numpy as np
 
 from tvm import relay
 from tvm.relay.ir_pass import infer_type
-from tvm.relay.eval import evaluate
+from tvm.relay.interpreter import evaluate
 from tvm.relay.graph_runtime_codegen import evaluate_rts
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add

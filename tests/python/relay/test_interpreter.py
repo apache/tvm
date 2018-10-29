@@ -1,7 +1,7 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.eval import Value, TupleValue, evaluate
+from tvm.relay.interpreter import Value, TupleValue, evaluate
 from tvm.relay import op
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing
