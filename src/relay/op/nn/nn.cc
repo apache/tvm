@@ -15,6 +15,62 @@
 namespace tvm {
 namespace relay {
 
+TVM_REGISTER_NODE_TYPE(BiasAddAttrs);
+
+bool BiasAddRel(const Array<Type>& types,
+                int num_inputs,
+                const Attrs& attrs,
+                const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const BiasAddAttrs* param = attrs.as<BiasAddAttrs>();
+  CHECK(param != nullptr);
+  int axis = param->axis;
+  if (axis < 0) {
+    axis = data->shape.size() + axis;
+  }
+  CHECK_LE(axis, static_cast<int>(data->shape.size()))
+      << "axis " << param->axis << " is out of range";
+
+  // assign output type
+  reporter->Assign(types[1], TensorTypeNode::make(
+      {data->shape[axis]}, data->dtype));
+  reporter->Assign(types[2], types[0]);
+  return true;
+}
+
+
+// Positional relay function to create dense operator used by frontend FFI.
+Expr MakeBiasAdd(Expr data,
+                 Expr bias,
+                 int axis) {
+  auto attrs = make_node<BiasAddAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.bias_add");
+  return CallNode::make(op, {data, bias}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.bias_add")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakeBiasAdd, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("nn.bias_add")
+.describe(R"code(Add bias to an axis of the input.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.BiasAddAttrs")
+.set_num_inputs(2)
+.add_argument("data", "nD Tensor", "Input data.")
+.add_argument("bias", "1D Tensor", "Bias.")
+.set_support_level(1)
+.add_type_rel("BiasAdd", BiasAddRel);
+
+
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 
@@ -82,7 +138,7 @@ RELAY_REGISTER_OP("nn.dense")
 .set_num_inputs(2)
 .add_argument("data", "nD Tensor", "Input data.")
 .add_argument("weight", "2D Tensor", "Weight matrix.")
-.set_support_level(2)
+.set_support_level(1)
 .add_type_rel("Dense", DenseRel);
 
 
@@ -235,13 +291,23 @@ Example::
 .set_support_level(2)
 .add_type_rel("BatchFlatten", BatchFlattenRel);
 
-RELAY_REGISTER_UNARY_OP("relay.op.nn._make.", "relu")
+
+// relu
+TVM_REGISTER_API("relay.op.nn._make.relu")
+.set_body_typed<Expr(Expr)>([](Expr data) {
+    static const Op& op = Op::Get("nn.relu");
+    return CallNode::make(op, {data}, Attrs(), {});
+  });
+
+RELAY_REGISTER_OP("nn.relu")
 .describe(R"code(Returns the relu input array, computed element-wise.
 
 .. math::
    max(x, 0)
 
 )code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel);
 
@@ -251,7 +317,7 @@ TVM_REGISTER_NODE_TYPE(LRNAttrs);
 
 Expr MakeLRN(Expr data,
              IndexExpr size,
-             IndexExpr axis,
+             int axis,
              double alpha,
              double beta,
              double bias) {
@@ -271,7 +337,7 @@ TVM_REGISTER_API("relay.op.nn._make.lrn")
   });
 
 RELAY_REGISTER_OP("nn.lrn")
-    .describe(R"code(LRN layer.
+.describe(R"code(LRN layer.
 
 Normalize the input in a local region across or within feature maps.
 Each input value is divided by (1 + (\alpha/n) \sum_i x_i^2)^\beta,
@@ -296,7 +362,7 @@ TVM_REGISTER_NODE_TYPE(L2NormalizeAttrs);
 
 Expr MakeL2Normalize(Expr data,
                      double eps,
-                     Array<IndexExpr> axis) {
+                     Array<Integer> axis) {
   auto attrs = make_node<L2NormalizeAttrs>();
   attrs->eps = eps;
   attrs->axis = std::move(axis);
@@ -371,24 +437,6 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 // batch_norm
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-bool CheckVectorLength(int64_t dim, const DataType& dtype, Type vector, const char* name) {
-  const auto* candidate = vector.as<TensorTypeNode>();
-  CHECK(candidate != nullptr)
-    << name << " should be a vector but is not a tensor type,";
-  CHECK_EQ(dtype, candidate->dtype)
-    << name << " should be of the same data type as the original but it is not.";
-  CHECK_EQ(candidate->shape.size(), 1)
-    << name << " should be a vector but has a shape of "
-    << candidate->shape.size() << " dimensions instead of 1.";
-
-  const int64_t* length = as_const_int(candidate->shape[0]);
-  if (length == nullptr) return false;
-  CHECK(*length == dim)
-    << name << " should be as long as the channel but has length "
-    << *length << " instead of " << dim << ".";
-  return true;
-}
-
 bool BatchNormRel(const Array<Type>& types,
                   int num_inputs,
                   const Attrs& attrs,
@@ -396,33 +444,19 @@ bool BatchNormRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 6);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) return false;
-  if (data->shape.size() == 0) return false;
 
   const BatchNormAttrs* param = attrs.as<BatchNormAttrs>();
 
   // axis of -1 means use the last dimension
   CHECK(param->axis >= -1 && param->axis < (int)data->shape.size());
   int axis = (param->axis != -1) ? param->axis : data->shape.size() - 1;
-
-  auto dim = as_const_int(data->shape[axis]);
-  if (dim == nullptr) return false;
+  auto axis_size = data->shape[axis];
 
   // if we are using beta and gamma, they need to be of shape (dim,)
-  if (param->scale && !CheckVectorLength(*dim, data->dtype, types[1], "The gamma scale factor")) {
-    return false;
-  }
-
-  if (param->center && !CheckVectorLength(*dim, data->dtype, types[2], "The beta offset factor")) {
-    return false;
-  }
-
-  // the two running averages must also be vectors of length dim
-  if (!CheckVectorLength(*dim, data->dtype, types[3], "The moving mean")) {
-    return false;
-  }
-  if (!CheckVectorLength(*dim, data->dtype, types[4], "The moving variance")) {
-    return false;
-  }
+  reporter->Assign(types[1], TensorTypeNode::make({axis_size}, data->dtype));
+  reporter->Assign(types[2], TensorTypeNode::make({axis_size}, data->dtype));
+  reporter->Assign(types[3], TensorTypeNode::make({axis_size}, data->dtype));
+  reporter->Assign(types[4], TensorTypeNode::make({axis_size}, data->dtype));
 
   // output is a tuple of the normed data (same shape as input), new running mean,
   // and new running average (the latter two are both vectors of length dim)

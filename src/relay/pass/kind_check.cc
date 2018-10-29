@@ -14,7 +14,7 @@
  * contains a data type such as `int`, `float`, `uint`.
  */
 #include <tvm/relay/pass.h>
-#include "./type_visitor.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -22,18 +22,18 @@ namespace relay {
 using namespace tvm::runtime;
 using Kind = TypeVarNode::Kind;
 
-struct KindChecker : TypeVisitor<> {
+struct KindChecker : TypeVisitor {
   bool valid;
 
   KindChecker() : valid(true) {}
 
   // checks if t is an incomplete node of kind k or a type param of kind k
   bool MatchKind(const Type& t, Kind k) {
-    if (const IncompleteTypeNode *tv = t.as<IncompleteTypeNode>()) {
+    if (const IncompleteTypeNode* tv = t.as<IncompleteTypeNode>()) {
       return tv->kind == k;
     }
 
-    if (const TypeVarNode *tp = t.as<TypeVarNode>()) {
+    if (const TypeVarNode* tp = t.as<TypeVarNode>()) {
       return tp->kind == k;
     }
 
@@ -93,7 +93,7 @@ struct KindChecker : TypeVisitor<> {
     }
   }
 
-  bool Check(const Type &t) {
+  bool Check(const Type& t) {
     this->VisitType(t);
     return valid;
   }
@@ -105,13 +105,13 @@ bool KindCheck(const Type& t, const Environment& env) {
 }
 
 TVM_REGISTER_API("relay._ir_pass.check_kind")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      if (args.size() == 1) {
-        *ret = KindCheck(args[0], EnvironmentNode::make({}));
-      } else {
-        *ret = KindCheck(args[0], args[1]);
-      }
-    });
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    if (args.size() == 1) {
+      *ret = KindCheck(args[0], EnvironmentNode::make({}));
+    } else {
+      *ret = KindCheck(args[0], args[1]);
+    }
+  });
 
 }  // namespace relay
 }  // namespace tvm

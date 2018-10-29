@@ -74,6 +74,17 @@ class OpNode : public relay::ExprNode {
     v->Visit("support_level", &support_level);
   }
 
+  /*!
+   * \brief Check that if current op is a "primtive operator".
+   * That is the arguments are all type variables, and there is a single
+   * type relation applied to the input and output types.
+   */
+  bool IsPrimitiveOp() const {
+    if (is_primitive_ != -1) return is_primitive_ != 0;
+    is_primitive_ = this->IsPrimitiveOp_() ? 1 : 0;
+    return is_primitive_ != 0;
+  }
+
   static constexpr const char* _type_key = "relay.Op";
   TVM_DECLARE_NODE_TYPE_INFO(OpNode, ExprNode);
 
@@ -81,9 +92,24 @@ class OpNode : public relay::ExprNode {
   // friend class
   friend class GenericOpMap;
   friend class OpRegistry;
+  friend bool IsPrimitiveOp(const Expr&);
   // Program internal unique index of operator.
   // Used to help index the program.
   uint32_t index_{0};
+  // whether this is a primitive op. -1 means unknown.
+  mutable int is_primitive_{-1};
+  // Internal function to compute if it is primitive op
+  bool IsPrimitiveOp_() const {
+    const auto& fn_ty = this->op_type;
+    if (fn_ty->type_constraints.size() != 1) return false;
+    const TypeRelationNode* rel = fn_ty->type_constraints[0].as<TypeRelationNode>();
+    if (rel == nullptr) return false;
+    // validate if the type parameter matches up
+    for (size_t i = 0; i < fn_ty->type_params.size(); ++i) {
+      if (!fn_ty->type_params[i].same_as(rel->args[i])) return false;
+    }
+    return true;
+  }
 };
 
 /*!
@@ -483,6 +509,21 @@ template <typename ValueType>
 inline ValueType OpMap<ValueType>::get(const Op& op,
                                        ValueType def_value) const {
   return map_.get<ValueType>(op, def_value);
+}
+
+/*!
+ * \brief Check that an expression is a "primtive operator".
+ *
+ * Will return true if the expression is an operator which
+ * matches the form of primtive operators registered directly
+ * by the Relay codebase.
+ *
+ * That is the arguments are all type variables, and there is a single
+ * type relation applied to the input and output types.
+ */
+inline bool IsPrimitiveOp(const Expr& expr) {
+  const auto* op = expr.as<OpNode>();
+  return op != nullptr && op->IsPrimitiveOp();
 }
 
 }  // namespace relay

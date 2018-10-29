@@ -10,7 +10,6 @@
 namespace tvm {
 namespace relay {
 
-struct NotWellFormed { };
 
 //! brief make sure each Var is bind at most once.
 class WellFormedChecker : private ExprVisitor {
@@ -18,14 +17,14 @@ class WellFormedChecker : private ExprVisitor {
 
   std::unordered_set<Var, NodeHash, NodeEqual> s;
 
-  void Check(const Var & v) {
+  void Check(const Var& v) {
     if (s.count(v) != 0) {
       well_formed = false;
     }
     s.insert(v);
   }
 
-  void VisitExpr_(const LetNode * l) final {
+  void VisitExpr_(const LetNode* l) final {
     // we do letrec only for FunctionNode,
     // but shadowing let in let binding is likely programming error, and we should forbidden it.
     Check(l->var);
@@ -33,21 +32,21 @@ class WellFormedChecker : private ExprVisitor {
     CheckWellFormed(l->body);
   }
 
-  void VisitExpr_(const FunctionNode * f) final {
-    for (const Var & param : f->params) {
+  void VisitExpr_(const FunctionNode* f) final {
+    for (const Var& param : f->params) {
       Check(param);
     }
     CheckWellFormed(f->body);
   }
 
  public:
-  bool CheckWellFormed(const Expr & e) {
+  bool CheckWellFormed(const Expr& e) {
     this->VisitExpr(e);
     return well_formed;
   }
 };
 
-bool WellFormed(const Expr & e) {
+bool WellFormed(const Expr& e) {
   return WellFormedChecker().CheckWellFormed(e);
 }
 

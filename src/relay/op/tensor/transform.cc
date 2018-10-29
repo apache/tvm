@@ -6,15 +6,61 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/ir_operator.h>
+#include <tvm/ir.h>
 #include <vector>
 #include "../op_common.h"
 
 
 namespace tvm {
 namespace relay {
+using ir::IntImm;
 
-/* relay.expand_dims */
+// relay.cast
+TVM_REGISTER_NODE_TYPE(CastAttrs);
 
+bool CastRel(const Array<Type>& types,
+             int num_inputs,
+             const Attrs& attrs,
+             const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "cast: expect input type to be TensorType but get "
+        << types[0];
+    return false;
+  }
+  const auto* param = attrs.as<CastAttrs>();
+  reporter->Assign(types[1], TensorTypeNode::make(
+      data->shape, param->dtype));
+  return true;
+}
+
+Expr MakeCast(Expr data,
+              DataType dtype) {
+  auto attrs = make_node<CastAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("cast");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay._make.dtype_cast")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeCast, args, rv);
+});
+
+RELAY_REGISTER_OP("cast")
+.describe(R"code(Cast the data into a new data type.
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_attrs_type_key("relay.attrs.CastAttrs")
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Cast", CastRel);
+
+
+// relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 
 bool ExpandDimsRel(const Array<Type>& types,
@@ -25,6 +71,9 @@ bool ExpandDimsRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "expand_dims: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ExpandDimsAttrs>();
@@ -91,6 +140,9 @@ bool ConcatenateRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
+    CHECK(types[0].as<TupleTypeNode>())
+        << "cast: expect input type to be TupleType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ConcatenateAttrs>();
@@ -161,28 +213,30 @@ bool TransposeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "transpose: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<TransposeAttrs>();
   const int ndim = data->shape.size();
-  const Array<IndexExpr>& axes = param->axes;
+  const Array<Integer>& axes = param->axes;
   // check dimension match
-  CHECK(axes.empty() || static_cast<int>(axes.size()) == ndim)
+  CHECK(!axes.defined() || static_cast<int>(axes.size()) == ndim)
     << "Dimension mismatch: axes has " << axes.size() << " elements"
     << ", but data.ndim = " << ndim;
   // construct int_axes
   std::vector<int> int_axes;
   int_axes.reserve(ndim);
-  if (axes.empty()) {
+  // used not defined to check if it is None.
+  if (!axes.defined()) {
     for (int i = ndim - 1; i >= 0; --i) {
       int_axes.push_back(i);
     }
   } else {
     std::vector<int> axis_used(ndim, 0);
-    for (const IndexExpr& e : axes) {
-      const int64_t *axis_ptr = as_const_int(e);
-      CHECK(axis_ptr != nullptr);
-      int axis = *axis_ptr;
+    for (const Integer& e : axes) {
+      int64_t axis = e;
       // sanity check for axis and ndim
       CHECK(-ndim <= axis && axis < ndim)
         << "transpose only allows each `axis` in `axes` in range [-data.ndim, data.ndim)"
@@ -192,7 +246,7 @@ bool TransposeRel(const Array<Type>& types,
       // sanity check for duplication
       CHECK(!axis_used[axis]) << "Duplicate axes in transpose: " << axis;
       axis_used[axis] = 1;
-      int_axes.push_back(axis);
+      int_axes.push_back(static_cast<int>(axis));
     }
   }
   std::vector<IndexExpr> oshape;
@@ -205,7 +259,7 @@ bool TransposeRel(const Array<Type>& types,
 }
 
 Expr MakeTranspose(Expr data,
-                   Array<IndexExpr> axes) {
+                   Array<Integer> axes) {
   auto attrs = make_node<TransposeAttrs>();
   attrs->axes = std::move(axes);
   static const Op& op = Op::Get("transpose");
@@ -243,6 +297,9 @@ bool ReshapeRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
   if (data == nullptr) {
+    CHECK(types[0].as<IncompleteTypeNode>())
+        << "reshape: expect input type to be TensorType but get "
+        << types[0];
     return false;
   }
   const auto* param = attrs.as<ReshapeAttrs>();
@@ -320,6 +377,62 @@ Example::
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel);
 
+
+/*!
+* \brief ReshapeLikeRel User defined type constraint function.
+* \param num_inputs Number of input types in the args.
+* \param attrs The additional attributes of the operator.
+* \param reporter The reporter to report solution to.
+* \return False if the relation has not been resolved, it might be resolved later.
+*  True if this relation has been resolved.
+*/
+bool ReshapeLikeRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) {
+    return false;
+  }
+  const auto* reshape_like = types[1].as<TensorTypeNode>();
+  if (reshape_like == nullptr) {
+    return false;
+  }
+  CHECK(reporter->AssertEQ(data->Size(), reshape_like->Size()))
+    << "Reshape inputs size should be compatible.";
+  reporter->Assign(types[2], TensorTypeNode::make(reshape_like->shape, data->dtype));
+  return true;
+}
+
+
+Expr MakeReshapeLike(Expr data,
+                     Expr shape_like) {
+  static const Op& op = Op::Get("reshape_like");
+  return CallNode::make(op, {data, shape_like}, Attrs(), {});
+}
+
+
+TVM_REGISTER_API("relay.op._make.reshape_like")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeReshapeLike, args, rv);
+});
+
+
+RELAY_REGISTER_OP("reshape_like")
+.describe(R"code(Reshapes the input array by the size of another array.
+For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
+the input array into an output array with the same shape as the second input array.
+.. note::
+    Sizes for both array should be compatible.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_argument("shape_like", "Tensor", "Shape tensor.")
+.set_support_level(3)
+.add_type_rel("ReshapeLike", ReshapeLikeRel);
+
+
 // Take
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
@@ -345,7 +458,7 @@ bool TakeRel(const Array<Type>& types,
   std::vector<IndexExpr> oshape;
   const auto ndim_data = static_cast<int>(data->shape.size());
   const auto ndim_indices = static_cast<int>(indices->shape.size());
-  auto axis = (*as_const_int(param->axis));
+  int axis = static_cast<int>(param->axis->value);
   if (axis < 0) axis += ndim_data;
   CHECK_LE(axis, ndim_data)
     << "axis should be with in data shape"
@@ -368,9 +481,9 @@ bool TakeRel(const Array<Type>& types,
 
 Expr MakeTake(Expr data,
               Expr indices,
-              IndexExpr axis) {
+              Integer axis) {
   auto attrs = make_node<TakeAttrs>();
-  attrs->axis = axis;
+  attrs->axis = std::move(axis);
   static const Op& op = Op::Get("take");
   return CallNode::make(op, {data, indices}, Attrs(attrs), {});
 }
@@ -648,9 +761,9 @@ Examples::
 TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr MakeSqueeze(Expr data,
-                 Array<IndexExpr> axes) {
+                 Array<Integer> axis) {
   auto attrs = make_node<SqueezeAttrs>();
-  attrs->axes = std::move(axes);
+  attrs->axis = std::move(axis);
   static const Op& op = Op::Get("squeeze");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
@@ -672,8 +785,8 @@ bool SqueezeRel(const Array<Type>& types,
   const auto* param = attrs.as<SqueezeAttrs>();
   CHECK(param != nullptr);
   std::vector<IndexExpr> result_shape;
-  // if axes is empty, squeeze all axes of dimension 1
-  if (param->axes.size() == 0) {
+  // if axes is None, squeeze all axes of dimension 1
+  if (!param->axis.defined()) {
     for (const auto& e : data->shape) {
       const int64_t* axis_ptr = as_const_int(e);
       CHECK(axis_ptr != nullptr) << "the axes attribute must be concrete";
@@ -687,10 +800,8 @@ bool SqueezeRel(const Array<Type>& types,
     for (const auto& e : data->shape) {
       original_shape.push_back(std::pair<IndexExpr, bool>(e, true));
     }
-    for (const auto& e : param->axes) {
-      const int64_t* axis_ptr = as_const_int(e);
-      CHECK(axis_ptr != nullptr);
-      original_shape.at(*axis_ptr).second = false;
+    for (const auto& e : param->axis) {
+      original_shape.at(e->value).second = false;
     }
     for (const auto p : original_shape) {
       if (p.second) {
@@ -778,6 +889,101 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
 .set_support_level(10)
 .add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+
+// Split
+TVM_REGISTER_NODE_TYPE(SplitAttrs);
+
+bool SplitRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  const auto param = attrs.as<SplitAttrs>();
+  CHECK(param != nullptr);
+  auto axis = param->axis;
+  if (axis < 0) {
+    axis += data->shape.size();
+  }
+  CHECK_LT(axis, data->shape.size())
+    << "axis should be within the input dimension range.";
+  CHECK_GT(axis, 0)
+    << "axis should be within the input dimension range.";
+
+  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+    CHECK(reporter->Assert(data->shape[axis] %
+                           sections->value == make_zero(Int(64))))
+        << "indices_or_sections need to be able to divide input.shape[axis]";
+    std::vector<Type> fields;
+    for (int i = 0; i < sections->value; ++i) {
+        std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+        oshape[axis] /= int32_t(sections->value);
+        auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+        fields.push_back(vec_type);
+    }
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  } else {
+    auto indices = param->indices_or_sections.as<ArrayNode>()->data;
+    auto begin = IndexExpr(make_zero(Int(32)));
+    std::vector<Type> fields;
+    for (uint i = 0; i < indices.size(); ++i) {
+      CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
+          << "indices_or_sections need to be a sorted ascending list";
+      std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+      oshape[axis] = IndexExpr(indices[i]) - begin;
+      begin = IndexExpr(indices[i]);
+      auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+      fields.push_back(vec_type);
+    }
+    CHECK(reporter->Assert(begin < data->shape[axis]))
+        << "The sum of sections must match the input.shape[axis]";
+    std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+    oshape[axis] = data->shape[axis] - begin;
+    auto vec_type = TensorTypeNode::make(oshape, data->dtype);
+    fields.push_back(vec_type);
+    reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
+  }
+  return true;
+}
+
+Expr MakeSplit(Expr data,
+               NodeRef indices_or_sections,
+               int axis) {
+  auto attrs = make_node<SplitAttrs>();
+  attrs->axis = axis;
+  attrs->indices_or_sections = std::move(indices_or_sections);
+  static const Op& op = Op::Get("split");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.split")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    if (args.type_codes[1] == kDLInt) {
+      *rv = MakeSplit(args[0], make_const(Int(64), int64_t(args[1])), args[2]);
+    } else {
+      *rv = MakeSplit(args[0], args[1], args[2]);
+    }
+});
+
+RELAY_REGISTER_OP("split")
+.describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
+
+Indices or sections to split into. Accepts an int or a tuple
+If indices_or_sections is an integer, the input will be divided equally
+along given axis. If such a split is not possible, an error is raised.
+
+If indices_or_sections is a tuple of sorted integers,
+the entries indicate where along axis the array is split.
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.SplitAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(3)
+.add_type_rel("Split", SplitRel);
 
 }  // namespace relay
 }  // namespace tvm

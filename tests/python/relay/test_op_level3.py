@@ -27,6 +27,14 @@ def test_unary_identity():
         assert yy.checked_type == relay.TensorType((8, 9, 4), "float32")
 
 
+def test_cast():
+    x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
+    y = x.astype("int32")
+    yy = relay.ir_pass.infer_type(y)
+    assert "dtype=" in yy.astext()
+    assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
+
+
 def test_clip_type():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
     y = relay.clip(a, 1., 4.)
@@ -47,8 +55,8 @@ def test_transpose_infer_type():
 def test_squeeze_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
-    y = relay.squeeze(x, axes=(2,))
-    assert "axes=" in y.astext()
+    y = relay.squeeze(x, axis=(2,))
+    assert "axis=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (1, 4), "float32")
@@ -56,7 +64,7 @@ def test_squeeze_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.squeeze(x)
-    assert "axes=" not in y.astext()
+    assert "axis=" not in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (4,), "float32")
@@ -66,7 +74,7 @@ def test_squeeze_infer_type():
 def test_squeeze_bad_axes_infer_type():
     n, t, d = 1, 4, 1
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
-    y = relay.squeeze(x, axes=(1,))
+    y = relay.squeeze(x, axis=(1,))
     yy = relay.ir_pass.infer_type(y)
 
 
@@ -79,6 +87,22 @@ def test_reshape_infer_type():
     assert yy.checked_type == relay.TensorType(
         (n, t, 2000), "float32")
 
+
+def test_reshape_like():
+    # concrete shape
+    x = relay.var("x", relay.TensorType((1, 2, 3), "float32"))
+    y = relay.var("y", relay.TensorType((1,6), "float32"))
+    z = relay.reshape_like(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((1, 6), "float32")
+
+    # symbolic shape
+    n, c, h, w = tvm.var("n"), 2, 3, tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.var("y", relay.TensorType((1, 8, 8), "float32"))
+    z = relay.reshape_like(x, y)
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.TensorType((1, 8, 8), "float32")
 
 
 def test_take_infer_type():
@@ -99,6 +123,38 @@ def test_take_infer_type():
     verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
 
+def test_split_infer_type():
+    def verify_split(dshape, indices_or_sections, ret_type, axis=None):
+        x = relay.var("x", relay.ty.TensorType(dshape, "float32"))
+        y = relay.split(x, indices_or_sections, axis=axis)
+        y.astext()
+        yy = relay.ir_pass.infer_type(y.astuple())
+        assert yy.checked_type == ret_type
+
+    d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
+    axis = tvm.var("axis")
+    verify_split((5, 5, 2, 2), 5,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32"),
+                     relay.ty.TensorType((5, 1, 2, 2), "float32")])),
+                  axis=1)
+    verify_split((d1, d2, d3, d4), 4,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
+                     relay.ty.TensorType((d1, d2, d3/4, d4), "float32")])),
+                  axis=2)
+    verify_split((d1, d2, d3, d4), (2, 4, 7),
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, 2, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, 3, d3, d4), "float32"),
+                     relay.ty.TensorType((d1, (d2-7), d3, d4), "float32")])),
+                  axis=1)
 
 def test_full():
     # default settings: match input dtype
@@ -139,15 +195,19 @@ def test_infer_type_leaky_relu():
    yy = relay.ir_pass.infer_type(y)
    assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
+
 if __name__ == "__main__":
+    test_cast()
     test_zeros_ones()
     test_unary_identity()
     test_clip_type()
     test_transpose_infer_type()
     test_reshape_infer_type()
+    test_reshape_like()
     test_take_infer_type()
     test_full()
     test_full_like()
     test_infer_type_leaky_relu()
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
+    test_split_infer_type()

@@ -12,12 +12,12 @@
 namespace tvm {
 namespace relay {
 
-Expr ExprMutator::Mutate(const Expr& expr) {
+Expr ExprMutator::VisitExpr(const Expr& expr) {
   auto it = this->memo_.find(expr);
   if (it != this->memo_.end()) {
     return it->second;
   } else {
-    Expr new_expr = ExprMutator::VisitExpr(expr);
+    Expr new_expr = ExprFunctor::VisitExpr(expr);
     memo_[expr] = new_expr;
     return new_expr;
   }
@@ -159,6 +159,13 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
 
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
+void ExprVisitor::VisitExpr(const Expr& expr) {
+  if (visited_.count(expr.get())) return;
+  using TParent = ExprFunctor<void(const Expr&)>;
+  TParent::VisitExpr(expr);
+  visited_.insert(expr.get());
+}
+
 void ExprVisitor::ExprVisitor::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     this->VisitType(op->type_annotation);
@@ -197,8 +204,8 @@ void ExprVisitor::VisitExpr_(const CallNode* op) {
 }
 
 void ExprVisitor::VisitExpr_(const LetNode* op) {
-  this->VisitExpr(op->var);
   this->VisitExpr(op->value);
+  this->VisitExpr(op->var);
   this->VisitExpr(op->body);
 }
 

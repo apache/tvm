@@ -102,35 +102,26 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& e);
 
-/*! \brief Get free variables from expression e.
+/*! \brief Get free Vars from expr in PostDFS order.
  *
- * Free variables are variables that are not bound by a let or a function parameter in the context.
+ * Free variables are variables that are not bound by a
+ * let or a function parameter in the context.
  *
- * \param e the expression.
+ * \param expr the expression.
  *
- * \return the set of free variable.
+ * \return List of free vars, in the PostDFS order visited by expr.
  */
-tvm::Array<Var> FreeVariables(const Expr& e);
+tvm::Array<Var> FreeVars(const Expr& expr);
 
-/*! \brief Get free type parameters from expression e.
+/*! \brief Get free TypeVars from expression expr.
  *
  * Free type parameters are type parameters that are not bound by a function type in the context.
  *
- * \param e the expression.
+ * \param expr the expression.
  *
- * \return the set of free type variables.
+ * \return List of free vars, in the PostDFS order visited by expr.
  */
-tvm::Array<TypeVar> FreeTypeVariables(const Expr& e);
-
-/*! \brief Get free type parameters from type t.
- *
- * Free type parameters are type parameters that are not bound by a function type in the context.
- *
- * \param t the type.
- *
- * \return the set of free type variables.
- */
-tvm::Array<TypeVar> FreeTypeVariables(const Type& t);
+tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
@@ -144,6 +135,27 @@ tvm::Array<TypeVar> FreeTypeVariables(const Type& t);
  * \return the optimized expression.
  */
 Expr DeadCodeElimination(const Expr& e);
+
+/*! \brief Hash a Relay type.
+ *
+ * Implements structural hashing of a Relay type.
+ *
+ *  \param type the type to hash.
+ *
+ *  \return the hash value.
+ */
+size_t StructuralHash(const Type& type);
+
+/*! \brief Hash a Relay expression.
+ *
+ * Implements structural hashing of a Relay expression.
+ *
+ * \param expr the expression to hash.
+ *
+ * \return the hash value.
+ */
+size_t StructuralHash(const Expr& expr);
+
 
 }  // namespace relay
 }  // namespace tvm

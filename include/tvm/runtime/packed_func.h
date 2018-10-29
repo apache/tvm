@@ -32,6 +32,9 @@ struct Expr;
 #endif
 
 namespace tvm {
+// forward declarations
+class Integer;
+
 namespace runtime {
 // forward declarations
 class TVMArgs;
@@ -559,6 +562,7 @@ class TVMArgValue : public TVMPODValue_ {
   inline bool IsNodeType() const;
   inline operator HalideIR::Type() const;
   inline operator HalideIR::Expr() const;
+  inline operator tvm::Integer() const;
   // get internal node ptr, if it is node
   inline NodePtr<Node>& node_sptr();
 };
@@ -599,7 +603,7 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator TVMContext;
   using TVMPODValue_::operator NDArray;
   // Disable copy and assign from another value, but allow move.
-  TVMRetValue(const TVMRetValue& other) {
+  TVMRetValue(const TVMRetValue& other) : TVMPODValue_() {
     this->Assign(other);
   }
   // conversion operators

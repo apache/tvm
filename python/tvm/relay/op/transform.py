@@ -1,6 +1,7 @@
 """Transform operators."""
 
 from . import _make
+from ..expr import TupleWrapper
 
 
 def expand_dims(data, axis, num_newaxis=1):
@@ -48,27 +49,25 @@ def transpose(data, axes=None):
     return _make.transpose(data, list(axes))
 
 
-def squeeze(data, axes=None):
+def squeeze(data, axis=None):
     """Squeeze axes in the array.
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.relay.Expr
         The input data to the operator.
 
-    axes : None or List[int]
-        Axes to remove.
-        If axes = [] or = None, remove all axis of dimensions 1.
-        Otherwise, remove all axis in axes.
-        If any axis in axes has dimension that does not equal 1, it is an error.
+    axis : None or List[int]
+        The set of axes to remove.
+        If axis = None, remove all axis of dimensions 1.
+        If any specified axis has dimension that does not equal 1, it is an error.
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.relay.Expr
         The squeezed result.
     """
-    axes = axes or []
-    return _make.squeeze(data, list(axes))
+    return _make.squeeze(data, axis)
 
 
 def reshape(data, newshape):
@@ -141,12 +140,35 @@ def reshape(data, newshape):
     return _make.reshape(data, list(newshape))
 
 
+def reshape_like(data, shape_like):
+    """Reshapes the input array by the size of another array.
+    For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
+    the input array into an output array with the same shape as the second input array.
+    .. note::
+    Sizes for both array should be compatible.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input data to the operator.
+
+    shape_like : tuple of int
+        The new shape. Should be compatible with the original shape.
+
+    Returns
+    -------
+    ret : relay.Expr
+        The computed result.
+    """
+    return _make.reshape_like(data, shape_like)
+
+
 def take(data, indices, axis=None):
     """Take elements from an array along an axis.
 
     Parameters
     ----------
-    a : relay.Expr
+    data : relay.Expr
         The source array.
 
     indices : rely.Expr
@@ -280,3 +302,35 @@ def collapse_sum_like(data, collapse_type):
         The resulting tensor.
     """
     return _make.collapse_sum_like(data, collapse_type)
+
+
+def split(data, indices_or_sections, axis=0):
+    """Split input tensor along axis by sections or indices.
+
+    If indices_or_sections is an integer, the input will be divided equally
+    along given axis. If such a split is not possible, an error is raised.
+
+    If indices_or_sections is a tuple of sorted integers,
+    the entries indicate where along axis the array is split.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source array.
+
+    indices_or_sections : int or tuple of int
+        Indices or sections to split into. Accepts an int or a tuple
+
+    axis : int, optional
+        The axis over which to split.
+
+    Returns
+    -------
+    ret : relay.Tuple([relay.Expr, relay.Expr])
+        The computed result.
+    """
+    if isinstance(indices_or_sections, int):
+        ret_size = indices_or_sections
+    else:
+        ret_size = len(indices_or_sections) + 1
+    return TupleWrapper(_make.split(data, indices_or_sections, axis), ret_size)

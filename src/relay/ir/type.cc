@@ -22,17 +22,29 @@ TensorType TensorTypeNode::Scalar(DataType dtype) {
   return TensorTypeNode::make({}, dtype);
 }
 
+IndexExpr TensorTypeNode::Size() const {
+  if (shape.size() == 0) {
+    return make_const(Int(64), 1);
+  }
+
+  IndexExpr size = shape[0];
+  for (size_t i = 1; i < shape.size(); ++i) {
+    size *= shape[i];
+  }
+  return size;
+}
+
 TVM_REGISTER_NODE_TYPE(TensorTypeNode);
 
 TVM_REGISTER_API("relay._make.TensorType")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   Array<IndexExpr> shape = args[0];
   *ret = TensorTypeNode::make(shape, args[1]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TensorTypeNode>([](const TensorTypeNode *node,
-                                 tvm::IRPrinter *p) {
+.set_dispatch<TensorTypeNode>([](const TensorTypeNode* node,
+                                 tvm::IRPrinter* p) {
   p->stream << "TensorType(" << node->shape << ", " << node->dtype << ")";
 });
 
@@ -46,15 +58,15 @@ TypeVar TypeVarNode::make(std::string name, TypeVarNode::Kind kind) {
 TVM_REGISTER_NODE_TYPE(TypeVarNode);
 
 TVM_REGISTER_API("relay._make.TypeVar")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   int kind = args[1];
   *ret =
     TypeVarNode::make(args[0], static_cast<TypeVarNode::Kind>(kind));
     });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TypeVarNode>([](const TypeVarNode *node,
-                                    tvm::IRPrinter *p) {
+.set_dispatch<TypeVarNode>([](const TypeVarNode* node,
+                                    tvm::IRPrinter* p) {
   p->stream << "TypeVarNode(" << node->var->name_hint << ", "
     << node->kind << ")";
 });
@@ -95,13 +107,13 @@ FuncType FuncTypeNode::make(tvm::Array<Type> arg_types,
 TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 
 TVM_REGISTER_API("relay._make.FuncType")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = FuncTypeNode::make(args[0], args[1], args[2], args[3]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<FuncTypeNode>([](const FuncTypeNode *node,
-                                   tvm::IRPrinter *p) {
+.set_dispatch<FuncTypeNode>([](const FuncTypeNode* node,
+                                   tvm::IRPrinter* p) {
   p->stream << "FuncTypeNode(" << node->type_params << ", "
             << node->arg_types << ", " << node->ret_type << ", "
             << node->type_constraints << ")";
@@ -122,12 +134,12 @@ TypeRelation TypeRelationNode::make(TypeRelationFn func,
 TVM_REGISTER_NODE_TYPE(TypeRelationNode);
 
 TVM_REGISTER_API("relay._make.TypeRelation")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = TypeRelationNode::make(args[0], args[1], args[2], args[3]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TypeRelationNode>([](const TypeRelationNode *node, tvm::IRPrinter *p) {
+.set_dispatch<TypeRelationNode>([](const TypeRelationNode* node, tvm::IRPrinter* p) {
     p->stream << "TypeRelationNode("
               << node->func->name
               << ", " << node->args << ")";
@@ -142,13 +154,13 @@ TupleType TupleTypeNode::make(Array<Type> fields) {
 TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
 TVM_REGISTER_API("relay._make.TupleType")
-.set_body([](TVMArgs args, TVMRetValue *ret) {
+.set_body([](TVMArgs args, TVMRetValue* ret) {
     *ret = TupleTypeNode::make(args[0]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<TupleTypeNode>([](const TupleTypeNode *node,
-                                    tvm::IRPrinter *p) {
+.set_dispatch<TupleTypeNode>([](const TupleTypeNode* node,
+                                tvm::IRPrinter* p) {
   p->stream << "TupleTypeNode(" << node->fields << ")";
 });
 

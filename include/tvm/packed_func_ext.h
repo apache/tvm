@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <memory>
+#include <limits>
 #include <type_traits>
 
 #include "base.h"
@@ -34,6 +35,8 @@ struct NodeTypeChecker {
     // It can be turned off, but will make non strict checking.
     // TODO(tqchen) possibly find alternative to turn of RTTI
     using ContainerType = typename T::ContainerType;
+    // always allow nullptr.
+    if (sptr == nullptr) return true;
     return sptr->derived_from<ContainerType>();
   }
   static inline void PrintName(std::ostringstream& os) { // NOLINT(*)
@@ -45,7 +48,7 @@ struct NodeTypeChecker {
 template<typename T>
 struct NodeTypeChecker<Array<T> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<ArrayNode>()) return false;
     ArrayNode* n = static_cast<ArrayNode*>(sptr);
     for (const auto& p : n->data) {
@@ -63,7 +66,7 @@ struct NodeTypeChecker<Array<T> > {
 template<typename V>
 struct NodeTypeChecker<Map<std::string, V> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<StrMapNode>()) return false;
     StrMapNode* n = static_cast<StrMapNode*>(sptr);
     for (const auto& kv : n->data) {
@@ -82,7 +85,7 @@ struct NodeTypeChecker<Map<std::string, V> > {
 template<typename K, typename V>
 struct NodeTypeChecker<Map<K, V> > {
   static inline bool Check(Node* sptr) {
-    if (sptr == nullptr) return false;
+    if (sptr == nullptr) return true;
     if (!sptr->is_type<MapNode>()) return false;
     MapNode* n = static_cast<MapNode*>(sptr);
     for (const auto& kv : n->data) {
@@ -126,6 +129,8 @@ inline TNodeRef TVMArgValue::AsNodeRef() const {
 inline TVMArgValue::operator HalideIR::Expr() const {
   if (type_code_ == kNull) return Expr();
   if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
     return Expr(static_cast<int>(value_.v_int64));
   }
   if (type_code_ == kDLFloat) {
@@ -143,6 +148,20 @@ inline TVMArgValue::operator HalideIR::Expr() const {
       << "Expected type " << NodeTypeName<Expr>()
       << " but get " << sptr->type_key();
   return Expr(sptr);
+}
+
+inline TVMArgValue::operator tvm::Integer() const {
+  if (type_code_ == kNull) return Integer();
+  if (type_code_ == kDLInt) {
+    CHECK_LE(value_.v_int64, std::numeric_limits<int>::max());
+    CHECK_GE(value_.v_int64, std::numeric_limits<int>::min());
+    return Integer(static_cast<int>(value_.v_int64));
+  }
+  NodePtr<Node>& sptr = *ptr<NodePtr<Node> >();
+  CHECK(NodeTypeChecker<Integer>::Check(sptr.get()))
+      << "Expected type " << NodeTypeName<Expr>()
+      << " but get " << sptr->type_key();
+  return Integer(sptr);
 }
 
 inline NodePtr<Node>& TVMArgValue::node_sptr() {

@@ -61,6 +61,11 @@ Type TypeSolver::Unify(const Type& dst, const Type& src) {
   // - handle shape pattern matching
   TypeNode* lhs = GetTypeNode(dst);
   TypeNode* rhs = GetTypeNode(src);
+
+  // do occur check so we don't create self-referencing structure
+  if (lhs->FindRoot() == rhs->FindRoot()) {
+    return lhs->resolved_type;
+  }
   if (lhs->resolved_type.as<IncompleteTypeNode>()) {
     MergeFromTo(lhs, rhs);
     return rhs->resolved_type;

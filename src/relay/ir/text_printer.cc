@@ -6,7 +6,7 @@
 #include <tvm/relay/environment.h>
 #include <tvm/relay/expr_functor.h>
 #include <sstream>
-#include "../pass/type_functor.h"
+#include "type_functor.h"
 #include "../../lang/attr_functor.h"
 
 namespace tvm {
@@ -63,7 +63,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  *
  * \code
  *
- * function(%x: Tensor[(meta.Variable(id=0),), float32]) {
+ * fn (%x: Tensor[(meta.Variable(id=0),), float32]) {
  *   %x
  * }
  * # Meta data section is a json-serialized string
@@ -154,7 +154,7 @@ class TextPrinter :
   }
 
   void PrintFunc(const Function& func) {
-    this->PrintFuncInternal("function", func);
+    this->PrintFuncInternal("fn ", func);
     stream_ << "\n";
   }
 
@@ -245,6 +245,9 @@ class TextPrinter :
         stream_ << ", ";
       }
     }
+    if (fields.size() == 1) {
+      stream_ << ',';
+    }
     stream_ << ')';
     this->PrintEndInst("\n");
     return id;
@@ -275,10 +278,7 @@ class TextPrinter :
   }
 
   TextValue VisitExpr_(const CallNode* op) final {
-    // TODO(tqchen, M.K.): support generic call
     // possibly through meta-data
-    CHECK_EQ(op->type_args.size(), 0U)
-        << "generic call not yet supported";
     TextValue call_op = GetValue(op->op);
     std::vector<TextValue> args;
     for (Expr arg : op->args) {
@@ -286,7 +286,23 @@ class TextPrinter :
     }
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
-    stream_ << id << " = " << call_op << "(";
+
+    stream_ << id << " = " << call_op;
+
+    auto type_args = op->type_args;
+
+    if (!IsPrimitiveOp(op->op) && type_args.size() > 0U) {
+      stream_ << "<";
+      for (size_t i = 0; i < op->type_args.size(); ++i) {
+        this->PrintType(type_args[i], stream_);
+        if (i + 1 != type_args.size()) {
+          stream_ << ", ";
+        }
+      }
+      stream_ << ">";
+    }
+
+    stream_ << "(";
     for (size_t i = 0; i < args.size(); ++i) {
       stream_ << args[i];
       if (i + 1 != args.size()) {
@@ -327,7 +343,7 @@ class TextPrinter :
     TextValue tuple = GetValue(op->tuple);
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
-    stream_ << id << " = " << tuple << "[" << op->index << "]";
+    stream_ << id << " = " << tuple << "." << op->index << "";
     this->PrintEndInst("\n");
     return id;
   }
@@ -361,6 +377,17 @@ class TextPrinter :
       os << ",";
     }
     os << "), " << runtime::TVMType2String(Type2TVMType(node->dtype)) << "]";
+  }
+
+  void VisitType_(const TupleTypeNode* node, std::ostream& os) final {  // NOLINT(*)
+    os << "Tuple[";
+    for (size_t i = 0; i < node->fields.size(); ++i) {
+      this->PrintType(node->fields[i], os);
+      if (i + 1 != node->fields.size()) {
+        os << ", ";
+      }
+    }
+    os << "]";
   }
 
   void VisitTypeDefault_(const Node* node, std::ostream& os) final {  // NOLINT(*)
@@ -648,7 +675,7 @@ class TextPrinter :
       name = "%" + name;
     }
     TextValue val(GetUniqueName(name));
-    CHECK(!memo_.count(var));
+    CHECK(!memo_.count(var)) << "Duplicated variable " << var;
     memo_[var] = val;
     return val;
   }

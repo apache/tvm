@@ -1,4 +1,4 @@
-# pylint: disable=no-else-return,
+# pylint: disable=no-else-return
 # pylint: disable=unidiomatic-typecheck
 """The set of passes for Relay.
 
@@ -7,7 +7,9 @@ scripting them in Python.
 """
 from . import _ir_pass
 from . import _make
-# pylint: disable=invalid-name
+from .expr import Expr
+from .ty import Type
+
 
 def infer_type(expr, env=None):
     """Infer the type of expr under the context of env.
@@ -15,18 +17,35 @@ def infer_type(expr, env=None):
     Parameters
     ----------
     expr: tvm.relay.Expr
-      The input expression.
+        The input expression.
 
     env: Optional[tvm.relay.Environment]
-      The global environment.
+        The global environment.
 
 
     Returns
     -------
     checked_expr : tvm.relay.Expr
-      The checked expression.
+        The checked expression.
     """
     return _ir_pass.infer_type(expr, env)
+
+
+def forward_fold_scale_axis(expr):
+    """Fold the scaling of axis into weights of conv2d/dense.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, we expect that expr's types
+        should be fully inferred by infer_type.
+
+    Returns
+    -------
+    folded_expr : tvm.relay.Expr
+        The folded expression after transformation.
+    """
+    return _ir_pass.forward_fold_scale_axis(expr)
 
 
 def well_formed(expr):
@@ -35,12 +54,12 @@ def well_formed(expr):
     Parameters
     ----------
     expr: tvm.relay.Expr
-      The input expression
+        The input expression
 
     Returns
     -------
     well_form : bool
-      whether the input expression is well formed
+        Whether the input expression is well formed
     """
     return _ir_pass.well_formed(expr)
 
@@ -52,15 +71,15 @@ def check_kind(t, env=None):
     Parameters
     ----------
     t: tvm.relay.Type
-      The type to check
+        The type to check
 
     env: tvm.relay.Environment, optional
-      The global environment
+        The global environment
 
     Returns
     -------
     well_kinded : bool
-      whether the input type is well kinded.
+        whether the input type is well kinded.
 
     Examples
     --------
@@ -75,20 +94,26 @@ def check_kind(t, env=None):
         return _ir_pass.check_kind(t)
 
 
-def free_vars(e):
-    """Get free variables from expression e.
+def free_vars(expr):
+    """Get free Vars from expression expr in Post DFS order.
 
     Parameters
     ----------
-    e: tvm.relay.Expr
-      The input expression
+    expr: tvm.relay.Expr
+        The input expression
 
     Returns
     -------
     free : List[tvm.relay.Var]
-        The list of free variables
+        The list of free variables in post DFS order.
+
+    Note
+    ----
+    The fact that Vars are post-DFS ordred are useful in
+    neural networks: usually this means weights of previous
+    are ordered first.
     """
-    return _ir_pass.free_vars(e)
+    return _ir_pass.free_vars(expr)
 
 
 def free_type_vars(expr):
@@ -130,6 +155,28 @@ def alpha_equal(lhs, rhs):
     Parameters
     ----------
     lhs: tvm.relay.Expr
+        One of the input Expression.
+
+    rhs: tvm.relay.Expr
+        One of the input Expression.
+
+    Returns
+    -------
+    result: bool
+        True iff lhs is alpha equal to rhs.
+    """
+    return bool(_make._alpha_equal(lhs, rhs))
+
+
+def graph_equal(lhs, rhs):
+    """Compare two Relay expr for data-flow equivalence.
+    The difference between this and alpha-equality is that
+    variables are not expected to match between lhs and rhs;
+    they are treated as sources and are mapped between each other.
+
+    Parameters
+    ----------
+    lhs: tvm.relay.Expr
       One of the input Expression.
 
     rhs: tvm.relay.Expr
@@ -138,6 +185,29 @@ def alpha_equal(lhs, rhs):
     Returns
     -------
     result: bool
-      True iff lhs is alpha equal to rhs.
+      True iff lhs is data-flow equivalent to rhs.
     """
-    return bool(_make._alpha_equal(lhs, rhs))
+    return bool(_make._graph_equal(lhs, rhs))
+
+
+def structural_hash(value):
+    """Hash a Relay expression structurally.
+
+    Parameters
+    ----------
+    expr: tvm.relay.Expr or tvm.relay.Type
+      The expression to hash.
+
+    Returns
+    -------
+    result: int
+      The hash value
+    """
+    if isinstance(value, Expr):
+        return int(_ir_pass._expr_hash(value))
+    elif isinstance(value, Type):
+        return int(_ir_pass._type_hash(value))
+    else:
+        msg = ("found value of type {0} expected" +
+               "relay.Expr or relay.Type").format(type(value))
+        raise TypeError(msg)
