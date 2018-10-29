@@ -91,6 +91,8 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.popcount")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.tvm_warp_shuffle")
 .set_body(DispatchExtern<CUDAShuffle>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.cuda.fmod")
+.set_body(DispatchExtern<CUDAMath>);
 
 }  // namespace intrin
 }  // namespace codegen
