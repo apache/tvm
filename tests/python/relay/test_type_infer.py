@@ -33,6 +33,7 @@ def test_single_op():
     ttype = relay.TensorType([], dtype='float32')
     assert_has_type(func, relay.FuncType([ttype], ttype))
 
+
 def test_add_broadcast_op():
     """
     Program:
@@ -114,6 +115,8 @@ def test_recursion():
 # This test is to illustrate problem with our weak form of
 # unification.
 #
+
+
 def test_incomplete_call():
     sb = ScopeBuilder()
     x = relay.var('x', dtype='int32')
@@ -127,6 +130,8 @@ def test_incomplete_call():
         assert True
 
 # This currently fails and should pass under the type system.
+
+
 def test_tuple():
     pass
     # tp = relay.TensorType((10,))
