@@ -6,8 +6,8 @@
 
 #include <tvm/codegen.h>
 #include <tvm/packed_func_ext.h>
-#include <tvm/relay/interpreter.h>
 #include <tvm/relay/expr_functor.h>
+#include <tvm/relay/interpreter.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass.h>
 #include "./ir/type_functor.h"
@@ -124,25 +124,7 @@ struct EvalError : dmlc::Error {
   explicit EvalError(const std::string& msg) : Error(msg) {}
 };
 
-// struct IsSimpleType : TypeVisitor<> {
-//   bool is_simple;
-//   IsSimpleType() : is_simple(true) {}
-//   void VisitType_(const FuncTypeNode* fn_ty) override {
-//     if (fn_ty->type_params.size() != 0) {
-//       is_simple = false;
-//     }
-//   }
-// };
-
-// bool is_simple_type(const Type& t) {
-//   IsSimpleType ist;
-//   ist.VisitType(t);
-//   return ist.is_simple;
-// }
-
 struct Frame {
-  // In the efficient version this should seperate args, locals, and return
-// address.
   tvm::Map<Var, Value> locals;
 
   explicit Frame(tvm::Map<Var, Value> locals) : locals(locals) {}
@@ -162,16 +144,8 @@ struct Stack {
       }
     }
 
-    // for (auto frame = frames.rbegin(); frame != frames.rend(); frame++) {
-    //   for (auto binding : frame->locals) {
-    //     std::cout << "Var= "
-    //       << binding.first
-    //       << " Adrress= " << binding.first.operator->()
-    //       << " Value= " << binding.second << std::endl;
-    //   }
-    // }
-
-    LOG(FATAL) << "could not find variable binding for " << local << "address= " << local.operator->();
+    LOG(FATAL) << "could not find variable binding for " << local
+               << "address= " << local.operator->();
     return Value();
   }
 
@@ -189,7 +163,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   Stack stack;
   using JitKey = Function;
 
-  using OpMap =  std::unordered_map<JitKey, PackedFunc, ExprHash, ExprEqual>;
+  using OpMap = std::unordered_map<JitKey, PackedFunc, ExprHash, ExprEqual>;
 
   OpMap operator_map_;
 
@@ -263,7 +237,8 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
     return ClosureNode::make(captured_env, func);
   }
 
-  inline Value InvokeCompiledOp(PackedFunc func, const Array<Value>& args, Type ret_type) {
+  inline Value InvokeCompiledOp(PackedFunc func, const Array<Value>& args,
+                                Type ret_type) {
     // Marshal the arguments.
     auto arg_len = args.size() + 1;
     std::vector<TVMValue> values(arg_len);
@@ -298,7 +273,6 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
     tvm::Array<Function> funcs;
     for (auto op : operator_map_) {
       funcs.push_back(op.first);
-
     }
 
     // This case we know we have precompiled the operator.
@@ -307,7 +281,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
       return InvokeCompiledOp(compiled->second, args, func_ty->ret_type);
     }
 
-  // Allocate a frame with the parameters and free variables.
+    // Allocate a frame with the parameters and free variables.
     tvm::Map<Var, Value> locals;
 
     CHECK(func->params.size() == args.size());
@@ -340,7 +314,9 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
     // We have some functions cotaining chunks of operators
     // which will be loaded into operator map.
     if (auto op_node = call->op.as<OpNode>()) {
-      LOG(FATAL) << "found " << op_node->name << "; operators should be removed by future passes; try fusing and lowering";
+      LOG(FATAL) << "found " << op_node->name
+                 << "; operators should be removed by future passes; try "
+                    "fusing and lowering";
     }
 
     // Now we just evaluate and expect to find a closure.
@@ -349,8 +325,9 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
       auto closure = GetRef<Closure>(closure_node);
       return this->Invoke(closure, args);
     } else {
-        throw EvalError(
-            "internal error: type error, expected function value in the call position");
+      throw EvalError(
+          "internal error: type error, expected function value in the call "
+          "position");
     }
   }
 
@@ -385,7 +362,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   }
 };
 
-Interpreter::OpMap CompileOperators(const Environment &env, const Expr& e) {
+Interpreter::OpMap CompileOperators(const Environment& env, const Expr& e) {
   Interpreter::OpMap op_map;
   auto lowered_ops = LowerOps(env, e);
   RELAY_LOG(INFO) << "LoweredFuncs: " << lowered_ops << std::endl;
@@ -455,5 +432,5 @@ TVM_REGISTER_API("relay._eval.evaluate")
 //       }
 //     });
 
-}  // namespace tvm
+}  // namespace relay
 }  // namespace tvm

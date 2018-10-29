@@ -154,7 +154,12 @@ Function FunctionNode::SetAttr(const std::string& key, const NodeRef& data) cons
     func_attrs = DictAttrsNode::make(dict);
   }
 
-  return FunctionNode::make(this->params, this->body, this->ret_type, this->type_params, func_attrs);
+  return FunctionNode::make(
+    this->params,
+    this->body,
+    this->ret_type,
+    this->type_params,
+    func_attrs);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);

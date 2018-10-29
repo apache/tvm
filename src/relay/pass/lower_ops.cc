@@ -6,15 +6,13 @@
  * \brief Lower a Relay program to set of TVM operators.
  *
  */
-#include <tvm/relay/pass.h>
-#include <tvm/runtime/module.h>
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/logging.h>
+#include <tvm/relay/pass.h>
+#include <tvm/runtime/module.h>
 #include "../ir/type_functor.h"
-
-
 
 namespace tvm {
 namespace relay {
@@ -33,7 +31,8 @@ struct AbstractLocalFunctions : ExprMutator {
   size_t expr_hash;
   int counter = 0;
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> visited_funcs;
-  AbstractLocalFunctions(Environment env) : env(env), expr_hash(0), counter(0), visited_funcs() {}
+  explicit AbstractLocalFunctions(Environment env)
+      : env(env), expr_hash(0), counter(0), visited_funcs() {}
 
   Expr Abstract(const Expr& e) {
     expr_hash = StructuralHash(e);
@@ -81,13 +80,14 @@ struct AbstractLocalFunctions : ExprMutator {
 
 struct LiveFunctions : ExprVisitor {
   Environment env;
-  LiveFunctions(Environment env) : env(env), global_funcs() {}
+  explicit LiveFunctions(Environment env) : env(env), global_funcs() {}
 
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> visited_funcs;
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> global_funcs;
 
-  void Live(Expr& e) {
-    CHECK(!e.as<FunctionNode>()) << "functions should of been transformed away by previous pass";
+  void Live(const Expr& e) {
+    CHECK(!e.as<FunctionNode>())
+        << "functions should of been transformed away by previous pass";
     VisitExpr(e);
   }
 
@@ -151,11 +151,13 @@ struct LiveFunctions : ExprVisitor {
   }
 };
 
-using FCompute = TypedPackedFunc<Array<Tensor>(const Attrs&, const Array<Tensor>&, Type, std::string)>;
+using FCompute = TypedPackedFunc<Array<Tensor>(
+    const Attrs&, const Array<Tensor>&, Type, std::string)>;
 using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, std::string)>;
 
 /*! \brief Return the set of operators in their TVM format. */
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::string& target) {
+Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
+                          const std::string& target) {
   RELAY_LOG(INFO) << "LowerOps: e=" << e;
   auto flower_ptr = Registry::Get("relay.op.compiler._lower");
   CHECK(flower_ptr);
@@ -177,26 +179,29 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::stri
     CHECK(op_node);
     auto op = GetRef<Op>(op_node);
 
-
     // RELAY_LOG(INFO) << "LowerOps: Lowering " << op->name;
 
     // CHECK(IsPrimitiveOp(op)) << "failed to lower "
-      // << op->name << "can only lower primitve operations";
+    // << op->name << "can only lower primitve operations";
 
     Array<Tensor> inputs;
     std::string input_name = "in";
     int i = 0;
     for (auto type_arg : call->type_args) {
       auto tt = Downcast<TensorType>(type_arg);
-      inputs.push_back(PlaceholderOpNode::make(input_name + std::to_string(i), tt->shape, tt->dtype).output(0));
+      inputs.push_back(PlaceholderOpNode::make(input_name + std::to_string(i),
+                                               tt->shape, tt->dtype)
+                           .output(0));
       i++;
     }
 
     auto output_tt = op->op_type->ret_type;
-    Array<Tensor> outputs = compute_reg[op](call->attrs, inputs, output_tt, target);
+    Array<Tensor> outputs =
+        compute_reg[op](call->attrs, inputs, output_tt, target);
     auto schedule = schedule_reg[op](outputs, target);
     size_t hash = ExprHash()(func);
-    LoweredFunc lf = flower(op->name + std::to_string(hash), schedule, inputs, outputs);
+    LoweredFunc lf =
+        flower(op->name + std::to_string(hash), schedule, inputs, outputs);
     func = func->SetAttr("LoweredFunc", lf);
     env->Add(func_name, func, true);
     lowered_funcs.push_back(LoweredOpNode::make(func, lf));

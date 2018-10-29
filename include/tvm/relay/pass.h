@@ -9,6 +9,7 @@
 #include <tvm/lowered_func.h>
 #include <tvm/relay/environment.h>
 #include <tvm/relay/expr.h>
+#include <string>
 
 namespace tvm {
 namespace relay {
@@ -176,9 +177,7 @@ size_t StructuralHash(const Expr& expr);
 
 /*! \brief The hash struct for expressions. */
 struct ExprHash {
-  size_t operator()(const Expr& a) const {
-    return StructuralHash(a);
-  }
+  size_t operator()(const Expr& a) const { return StructuralHash(a); }
 };
 
 /*! \brief The equal comparator for expressions. */
@@ -238,9 +237,10 @@ RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
  * \param target The target to lower the functions to.
  *
  * \return The set of lowered operations.
-*/
+ */
 
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr, const std::string& target = "llvm");
+Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr,
+                          const std::string& target = "llvm");
 
 }  // namespace relay
 }  // namespace tvm
