@@ -25,18 +25,16 @@ import json
 import attr
 from . import ir_pass
 from .op import Op
-from .ty import TensorType
 from .expr import Var, Function, Let, Call, If, GlobalVar, Constant, Let
 from ..build_module import build
-from typing import Any, Dict, List, Tuple
 from .. contrib import graph_runtime
 from .ir_pass import infer_type
 from .. import cpu
-from .. import register_node
 
 # @register_node
 # class DictAttrs(object):
 #     pass
+
 
 class AbstractExprVisitor(object):
     """A visitor over Expr in Python."""
@@ -90,6 +88,7 @@ class AbstractExprVisitor(object):
     def visit_global_var(self, _):
         raise Exception("Abstract method please implement me.")
 
+
 class ExprMutator(AbstractExprVisitor):
     """A functional visitor over Expr in Python."""
 
@@ -128,6 +127,7 @@ class ExprMutator(AbstractExprVisitor):
 
     def visit_constant(self, const):
         return const
+
 
 @attr.s
 class NodeRef(object):
@@ -280,16 +280,21 @@ class TVMRTSCompiler(ExprMutator):
             inputs.append(self.visit(arg).to_json())
 
         if isinstance(call.op, Op):
-            raise Exception("Operators should be transformed away; try applying the fuse_ops transformation to the expression.")
+            raise Exception(
+                "Operators should be transformed away; try applying" +
+                "the fuse_ops transformation to the expression.")
         elif isinstance(call.op, GlobalVar):
             func = self.env[call.op]
         elif isinstance(call.op, Function):
             func = call.op
         else:
-            raise Exception("TVM runtime does not support calls to {0}".format(type(call.op)))
+            raise Exception(
+                "TVM runtime does not support calls to {0}".format(type(call.op)))
 
         if int(func.attrs.Primitive) != 1:
-            raise Exception("TVM only support calls to primitive functions (i.e functions composed of fusable operator invocations)")
+            raise Exception(
+                "TVM only support calls to primitive functions " +
+                "(i.e functions composed of fusable operator invocations)")
 
         op_name = func.attrs.LoweredFunc.name
 
@@ -372,6 +377,7 @@ def compile_to_tvm(env, func, target=None):
     comp.compile(func)
     graph_json = comp.to_json()
     return graph_json, mod, None  # params currently isn't supported by API
+
 
 def evaluate_rts(env, func, *args):
     func = infer_type(func, env)

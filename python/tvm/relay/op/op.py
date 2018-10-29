@@ -79,8 +79,7 @@ _init_api("relay.op", __name__)
 
 @register_func("relay.op.compiler._lower")
 def _lower(name, schedule, inputs, outputs):
-    lf = lower(schedule, list(inputs) + list(outputs), name=name)
-    return lf
+    return lower(schedule, list(inputs) + list(outputs), name=name)
 
 @register_func("relay.op.compiler._build")
 def _build(lowered_funcs):

@@ -8,10 +8,10 @@ from . import ir_pass
 from .expr import Call, Constant, GlobalVar
 from . import const
 
+
 class Value(NodeBase):
     """Base class of all values.
     """
-    pass
 
     @staticmethod
     @register_func("relay.from_scalar")
@@ -61,12 +61,14 @@ class TensorValue(Value):
     def as_ndarray(self):
         """Convert a Relay TensorValue into a tvm.ndarray."""
         return self.data
+
     def asnumpy(self):
         """Convert a Relay TensorValue into a numpy.ndarray."""
         return self.data.asnumpy()
 
     def __eq__(self, other):
         return self.data == other.data
+
 
 def _arg_to_ast(arg):
     if isinstance(arg, TensorValue):
@@ -78,10 +80,12 @@ def _arg_to_ast(arg):
     else:
         return const(arg)
 
+
 def apply_passes(expr, env=None):
     ck_expr = ir_pass.infer_type(expr, env=env)
     fused_expr = ir_pass.fuse_ops(env, ck_expr)
     return fused_expr
+
 
 def evaluate(env, expr, *args):
     # assert len(args) == 0

@@ -1,4 +1,4 @@
-#pylint: disable=invalid-name
+#pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
 import tvm
 import topi
