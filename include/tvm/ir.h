@@ -238,6 +238,11 @@ constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 constexpr const char* opengl_stage_scope = "opengl_stage_scope";
 
 /*!
+ * \brief Mark that it is in the device scope.
+ */
+constexpr const char* device_scope = "device_scope";
+
+/*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
  * \return true if it is a pragma key

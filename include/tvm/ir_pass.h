@@ -327,6 +327,15 @@ Stmt RewriteUnsafeSelect(Stmt stmt);
 Stmt LowerStorageAccessInfo(Stmt stmt);
 
 /*!
+ * \brief Decorate the stmt with a device scope, this is helpful for 
+ * hardware accelerator without thread blocks.
+ *
+ * \param stmt The stmt to be trasnformed
+ * \return Transformed stmt.
+ */
+Stmt DecorateDeviceScope(Stmt stmt);
+
+/*!
  * \brief Make an user callable API LoweredFunc.
  *
  *  The main task of this function is to create code to :
