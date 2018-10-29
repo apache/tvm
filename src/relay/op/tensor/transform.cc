@@ -1240,7 +1240,7 @@ RELAY_REGISTER_OP("slice_like")
 .set_num_inputs(2)
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
-.set_support_level(4)
+.set_support_level(10)
 .add_type_rel("SliceLike", SliceLikeRel);
 
 }  // namespace relay

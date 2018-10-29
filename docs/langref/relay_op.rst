@@ -124,7 +124,6 @@ This level enables additional math and transform operators.
    tvm.relay.mean
    tvm.relay.prod
    tvm.relay.strided_slice
-   tvm.relay.slice_like
 
 
 **Level 5: Vision/Image Operators**
@@ -144,6 +143,7 @@ This level support backpropagation of broadcast operators. It is temporary.
 
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
+   tvm.relay.slice_like
 
 
 Level 1 Definitions
@@ -230,7 +230,6 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.mean
 .. autofunction:: tvm.relay.prod
 .. autofunction:: tvm.relay.strided_slice
-.. autofunction:: tvm.relay.slice_like
 
 
 Level 5 Definitions
@@ -242,4 +241,4 @@ Level 10 Definitions
 --------------------
 .. autofunction:: tvm.relay.broadcast_to_like
 .. autofunction:: tvm.relay.collapse_sum_like
-`
+.. autofunction:: tvm.relay.slice_like
