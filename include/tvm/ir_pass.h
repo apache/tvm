@@ -327,13 +327,13 @@ Stmt RewriteUnsafeSelect(Stmt stmt);
 Stmt LowerStorageAccessInfo(Stmt stmt);
 
 /*!
- * \brief insert the mark of device for the hardware accelarator when 
- * it is not binded with thread or block.
+ * \brief Decorate the stmt with a device scope, this is helpful for 
+ * hardware accelerator without thread blocks.
  *
  * \param stmt The stmt to be trasnformed
  * \return Transformed stmt.
  */
-Stmt MarkDevice(Stmt stmt);
+Stmt DecorateDeviceScope(Stmt stmt);
 
 /*!
  * \brief Make an user callable API LoweredFunc.

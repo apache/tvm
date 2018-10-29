@@ -9,21 +9,12 @@
 
 namespace tvm {
 namespace ir {
-
-class DetectDevice : public IRMutator {
- public:
-  DetectDevice() {}
-  Stmt Detect(Stmt stmt) {
-    Stmt body = AttrStmt::make(make_zero(Int(32)),
-                               ir::attr::device_scope,
-                               0,
-                               stmt);
-    return body;
-  }
-};
-
-Stmt MarkDevice(Stmt stmt) {
-  return DetectDevice().Detect(stmt);
+Stmt DecorateDeviceScope(Stmt stmt) {
+  Stmt body = AttrStmt::make(make_zero(Int(32)),
+                             ir::attr::device_scope,
+                             0,
+                             stmt);
+  return body;
 }
 
 }  // namespace ir
