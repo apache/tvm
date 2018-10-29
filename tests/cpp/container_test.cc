@@ -1,7 +1,6 @@
 #include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/tvm.h>
-#include <tvm/tuple.h>
 
 TEST(Array, Expr) {
   using namespace tvm;
@@ -66,13 +65,6 @@ TEST(Map, Mutate) {
   CHECK(it == dict.end());
 
   LOG(INFO) << dict;
-}
-
-TEST(Tuple, Make) {
-  using namespace tvm;
-  Var x("x");
-  Var y("x");
-  Tuple<Var, Var>({ x, y });
 }
 
 int main(int argc, char ** argv) {
