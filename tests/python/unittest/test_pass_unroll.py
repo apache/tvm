@@ -35,6 +35,23 @@ def test_unroll_loop():
     assert isinstance(ret.rest, tvm.stmt.For)
     assert ret.rest.for_type != tvm.stmt.For.Unrolled
 
+def test_unroll_fake_loop():
+    ib = tvm.ir_builder.create()
+    dtype = 'int32'
+    n = tvm.var('n')
+    Ab = tvm.decl_buffer((n, ), dtype)
+    Aptr = ib.buffer_ptr(Ab)
+    # for i in 0 to n-1:
+    with ib.for_range(0, 1, name="i") as i:
+        Aptr[i*2] = 3
+        with ib.for_range(0, 10, name="j") as j:
+            Aptr[j + 1] = Aptr[i] + 1
+
+    stmt = ib.get()
+    ret = tvm.ir_pass.UnrollLoop(stmt, 8, 0, 1, True)
+    assert isinstance(ret.first, tvm.stmt.Store)
+
 
 if __name__ == "__main__":
     test_unroll_loop()
+    test_unroll_fake_loop()
