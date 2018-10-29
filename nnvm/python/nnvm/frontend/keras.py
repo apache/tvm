@@ -136,7 +136,7 @@ def _convert_dense(insym, keras_layer, symtab):
     # In case of RNN dense, input shape will be (1, 1, n)
     if input_dim > 2:
         input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
-        if input_dim != 3 and input_shape[0] != input_shape[1] != 1:
+        if input_dim != 3 or input_shape[0] != 1:
             raise ValueError("Cannot flatten the inputs with shape.", input_shape, " for dense.")
         insym = _sym.squeeze(insym, axis=0)
     out = _sym.dense(data=insym, **params)
@@ -433,8 +433,9 @@ def _convert_lstm(insym, keras_layer, symtab):
     time_steps = inp_shape[1]
     in_data = _sym.squeeze(in_data, axis=0)
     in_data = _sym.split(in_data, indices_or_sections=time_steps, axis=0)
-    for step in range(time_steps):
-        ixh1 = _sym.dense(in_data[step], kernel_wt, use_bias=False, units=units)
+    #loop for the number of time_steps
+    for data in in_data:
+        ixh1 = _sym.dense(data, kernel_wt, use_bias=False, units=units)
         ixh2 = _sym.dense(next_h, recurrent_wt, in_bias, use_bias=True, units=units)
         gate = ixh1 + ixh2
         gates = _sym.split(gate, indices_or_sections=4, axis=1)
@@ -670,6 +671,12 @@ def from_keras(model):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node_idx, node in enumerate(inbound_nodes):
+                # If some nodes in imported model is not relevant to the current model,
+                # skip such layers. model._network_nodes contains keys of all nodes relevant
+                # to the current model.
+                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                    continue
+
                 insym = []
 
                 # Since Keras allows creating multiple layers from the same name instance,
@@ -680,13 +687,12 @@ def from_keras(model):
                 zip_node = zip(node.node_indices, node.tensor_indices, node.inbound_layers)
                 for n_idx, t_idx, layer in zip_node:
                     if isinstance(layer, keras.engine.InputLayer):
-                        sym_name = layer.name
+                        sym = symtab.get_var(layer.name, must_contain=True)
                     else:
                         sym_name = layer.name + ':' + str(n_idx) + ':' + str(t_idx)
-                    # In some models, sym_name may not be available in inbound_nodes
-                    # continue processing, it will be added as part of InputLayer
-                    if sym_name in symtab.vars:
-                        insym.append(symtab.get_var(sym_name))
+                        sym = symtab.get_var(sym_name, must_contain=True)
+                    insym.append(sym)
+
                 if len(insym) == 1:
                     insym = insym[0]
                 keras_op_to_nnvm(insym, keras_layer, keras_layer.name + ':' + str(node_idx), symtab)

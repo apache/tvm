@@ -64,7 +64,7 @@ download(model_url, model_file)
 download(data_url, model_file)
 
 latent_dim = 256  # Latent dimensionality of the encoding space.
-num_samples = 10000  # Number of samples to train on.
+num_samples = 10000  # Number of samples used for training.
 
 ######################################################################
 # Process the data file
@@ -79,13 +79,15 @@ target_characters = set()
 with open(data_file, 'r', encoding='utf-8') as f:
     lines = f.read().split('\n')
 num_samples = min(num_samples, len(lines))
+max_encoder_seq_length = 0
+max_decoder_seq_length = 0
 for line in lines[:num_samples]:
     input_text, target_text = line.split('\t')
     # We use "tab" as the "start sequence" character
     # for the targets, and "\n" as "end sequence" character.
     target_text = '\t' + target_text + '\n'
-    input_texts.append(input_text)
-    target_texts.append(target_text)
+    max_encoder_seq_length = max(max_encoder_seq_length, len(input_text))
+    max_decoder_seq_length = max(max_decoder_seq_length, len(target_text))
     for char in input_text:
         if char not in input_characters:
             input_characters.add(char)
@@ -97,25 +99,12 @@ input_characters = sorted(list(input_characters))
 target_characters = sorted(list(target_characters))
 num_encoder_tokens = len(input_characters)
 num_decoder_tokens = len(target_characters)
-max_encoder_seq_length = max([len(txt) for txt in input_texts])
-max_decoder_seq_length = max([len(txt) for txt in target_texts])
-
 input_token_index = dict(
     [(char, i) for i, char in enumerate(input_characters)])
 target_token_index = dict(
     [(char, i) for i, char in enumerate(target_characters)])
-encoder_input_data = np.zeros(
-    (len(input_texts), max_encoder_seq_length, num_encoder_tokens),
-    dtype='float32')
-
-# Encode text data
-for i, input_text in enumerate(input_texts):
-    for t, char in enumerate(input_text):
-        encoder_input_data[i, t, input_token_index[char]] = 1.
 
 # Reverse-lookup token index to decode sequences back to something readable.
-reverse_input_char_index = dict(
-    (i, char) for char, i in input_token_index.items())
 reverse_target_char_index = dict(
     (i, char) for char, i in target_token_index.items())
 
@@ -154,7 +143,7 @@ ctx = tvm.cpu(0)
 
 # Parse Encoder model
 sym, params = nnvm.frontend.from_keras(encoder_model)
-inp_enc_shape = ((1,) + encoder_input_data.shape[1:])
+inp_enc_shape = (1, max_encoder_seq_length, num_encoder_tokens)
 shape_dict = {'input_1': inp_enc_shape}
 
 # Build Encoder model
@@ -230,13 +219,20 @@ def decode_sequence(input_seq):
             break
     return decoded_sentence
 
+def generate_input_seq(input_text):
+    input_seq = np.zeros((1, max_encoder_seq_length, num_encoder_tokens), dtype='float32')
+    for t, char in enumerate(input_text):
+        input_seq[0, t, input_token_index[char]] = 1.
+    return input_seq
+
 ######################################################################
 # Run the model
 # -------------
 # Randonly take some text and translate
 for seq_index in range(100):
-    # Take one sequence and try to decode.
+    # Take one sentence randomly and try to decode.
     index = random.randint(1, num_samples)
-    input_seq = encoder_input_data[index: index + 1]
+    input_text, _ = lines[index].split('\t')
+    input_seq = generate_input_seq(input_text)
     decoded_sentence = decode_sequence(input_seq)
-    print((seq_index + 1), ": ", input_texts[index],  "==>", decoded_sentence)
+    print((seq_index + 1), ": ", input_text,  "==>", decoded_sentence)
