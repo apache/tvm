@@ -366,7 +366,7 @@ class TypeInferencer::Resolver : public ExprMutator {
   }
 
   Expr VisitExpr_(const GlobalVarNode* op) final {
-    return AttachCheckedType(op);
+    return GetRef<GlobalVar>(op);
   }
 
   Expr VisitExpr_(const OpNode* op) final {
