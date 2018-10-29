@@ -91,6 +91,26 @@ def apply_passes(expr, env=None):
 
 
 def evaluate(env, expr, *args):
+    """
+    Evaluate a Relay expression on the interpreter.
+
+    Parameters
+    ----------
+    env: tvm.relay.Environment
+        The global environment used.
+
+    expr: tvm.relay.Expr
+        The expression to evaluate.
+
+    args: list of tvm.relay.Expr
+        The arguments to apply to the expression, only works
+        if the expression has a function type.
+
+    Returns
+    -------
+    value: tvm.relay.eval.Value
+        The value produced by evaluating the expression.
+    """
     # assert len(args) == 0
     relay_args = []
     for arg in args:
