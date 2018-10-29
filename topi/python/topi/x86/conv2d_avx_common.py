@@ -5,6 +5,7 @@ import tvm
 from tvm.autotvm.task.space import SplitEntity, OtherOptionEntity
 
 from ..nn.util import infer_pad
+from ..util import get_const_tuple
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
 
@@ -110,8 +111,8 @@ def _schedule_conv(s, cfg, data, data_pad, data_vec, kernel_vec, conv_out, outpu
 
 def _schedule_conv_NCHWc(s, cfg, data, conv_out, last):
     # fetch schedule
-    ic_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_ow"].size[-1],
-                               cfg["unroll_kw"].val)
+    reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
+    _, _, _, _, ic_bn = get_const_tuple(data.shape)
 
     # schedule data
     A = data
@@ -181,8 +182,9 @@ def _schedule_conv_NCHWc_int8(s, cfg, data, conv_out, last):
         return s
     assert int32_lanes != -1
 
-    ic_bn, oc_bn, reg_n, unroll_kw = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
-                                      cfg["tile_ow"].size[-1], cfg["unroll_kw"].val)
+    reg_n, unroll_kw = cfg["tile_ow"].size[-1], cfg["unroll_kw"].val
+    _, _, _, _, ic_bn = get_const_tuple(data.shape)
+    _, _, _, _, oc_bn = get_const_tuple(conv_out.shape)
 
     A = data
     if isinstance(s[A].op, tvm.tensor.ComputeOp):

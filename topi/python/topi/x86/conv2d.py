@@ -332,13 +332,13 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
 
-    n, ic_chunk, ih, iw, ic_block = get_const_tuple(data.shape)
-    in_channel = ic_chunk * ic_block
+    n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
+    in_channel = ic_chunk * ic_bn
     if data.dtype == 'uint8':
-        oc_chunk, _, kernel_height, kernel_width, _, oc_block, _ = get_const_tuple(kernel.shape)
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn, _ = get_const_tuple(kernel.shape)
     else:
-        oc_chunk, _, kernel_height, kernel_width, _, oc_block = get_const_tuple(kernel.shape)
-    num_filter = oc_chunk * oc_block
+        oc_chunk, _, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
+    num_filter = oc_chunk * oc_bn
 
     # get workload and related schedule config
     wkl = _get_workload(tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
@@ -351,7 +351,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     # output shape
     out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
     out_width = (iw + 2 * WPAD - kernel_width) // WSTR + 1
-    oshape = (n, oc_chunk, out_height, out_width, oc_block)
+    oshape = (n, oc_chunk, out_height, out_width, oc_bn)
 
     # DOPAD
     DOPAD = (HPAD != 0 or WPAD != 0)
@@ -359,13 +359,6 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
         data_pad = pad(data, (0, 0, HPAD, WPAD, 0), name="data_pad")
     else:
         data_pad = data
-
-    # check whether schedule matches inputs
-    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
-    assert ic_bn == ic_block, \
-        "ic_bn in config is not equal to actual data ic_block: %d vs %d." % (ic_bn, ic_block)
-    assert oc_bn == oc_block, \
-        "oc_bn in config is not equal to actual kernel oc_block: %d vs %d." % (oc_bn, oc_block)
 
     ic = tvm.reduce_axis((0, in_channel), name='ic')
     kh = tvm.reduce_axis((0, kernel_height), name='kh')
