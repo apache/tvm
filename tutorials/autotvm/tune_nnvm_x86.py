@@ -14,7 +14,6 @@ import nnvm.compiler
 import tvm
 from tvm import autotvm
 from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
-from topi.x86.conv2d import conv_NCHWc_arg_to_workload
 import tvm.contrib.graph_runtime as runtime
 
 #################################################################
@@ -118,17 +117,9 @@ def tune_kernels(tasks,
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
 
         # converting conv2d tasks to conv2d_NCHWc tasks
-        # data, kernel are tuples of ("TENSOR", shape, dtype)
-        data, kernel, strides, padding, layout, dtype = tsk.args
-        kernel_size = (kernel[1][2], kernel[1][3])
-        data_plc = tvm.placeholder(data[1], name="data")
-        kernel_plc = tvm.placeholder(kernel[1], name="kernel")
-        args = [data_plc, kernel_plc, kernel[1][0], kernel_size, strides,
-                padding, layout, layout, dtype]
-        args = autotvm.task.nnvm_integration.serialize_args(args)
-        task = autotvm.task.create("topi_x86_conv2d_NCHWc", args=args, target=target)
-        task.workload = conv_NCHWc_arg_to_workload(data_plc, kernel_plc, kernel_size,
-                                                   strides, padding, layout, layout, dtype)
+        task = autotvm.task.create("topi_x86_conv2d_NCHWc", args=tsk.args,
+                                   target=target, template_key='direct')
+        task.workload = tsk.workload
 
         # create tuner
         if tuner == 'xgb' or tuner == 'xgb-rank':
