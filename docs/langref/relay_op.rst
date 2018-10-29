@@ -74,6 +74,7 @@ This level enables additional math and transform operators.
 
    tvm.relay.zeros
    tvm.relay.nn.leaky_relu
+   tvm.relay.nn.prelu
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
@@ -183,6 +184,7 @@ Level 2 Definitions
 Level 3 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.leaky_relu
+.. autofunction:: tvm.relay.nn.prelu
 .. autofunction:: tvm.relay.floor
 .. autofunction:: tvm.relay.ceil
 .. autofunction:: tvm.relay.trunc
