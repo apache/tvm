@@ -233,12 +233,12 @@ RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
  * \note This will do a reachability analysis and lower all definitions
  * reachable from the provided expression.
  *
+ * \param env  The environment.
  * \param expr The expression with operations to be lowered.
  * \param target The target to lower the functions to.
  *
  * \return The set of lowered operations.
  */
-
 Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr,
                           const std::string& target = "llvm");
 
