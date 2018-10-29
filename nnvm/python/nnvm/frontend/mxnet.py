@@ -454,6 +454,7 @@ def _from_mxnet_impl(symbol, graph):
         output_index = json.loads(symbol.tojson())['heads'][0][1]
         return graph[name][output_index]
 
+    assert symbol is not None
     # Traverse all symbols in topological order
     for sym in _topo_sort(symbol):
         name = sym.attr('name')
@@ -469,7 +470,14 @@ def _from_mxnet_impl(symbol, graph):
         else:
             node = _sym.Variable(name=name, **attr)
         graph[name] = node
-    return [get_node(sym) for sym in symbol]
+    nodes = []
+    for sym in symbol:
+        node = get_node(sym)
+        assert node is not None
+        nodes.append(node)
+    if len(nodes) > 1:
+        return _sym.Group(nodes)
+    return nodes[0]
 
 def from_mxnet(symbol, arg_params=None, aux_params=None):
     """Convert from MXNet's model into compatible NNVM format.
