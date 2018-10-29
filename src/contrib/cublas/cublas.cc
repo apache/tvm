@@ -5,7 +5,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
-#include <tvm/contrib/gemm.h>
+#include "../cblas/gemm_common.h"
 #include "cublas_utils.h"
 
 

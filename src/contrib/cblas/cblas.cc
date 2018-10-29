@@ -5,7 +5,7 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
-#include <tvm/contrib/gemm.h>
+#include "gemm_common.h"
 
 
 extern "C" {
