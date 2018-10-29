@@ -42,6 +42,9 @@ TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.pow")
 TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.popcount")
 .set_body(DispatchExtern<Direct>);
 
+TVM_REGISTER_GLOBAL("tvm.intrin.rule.metal.fmod")
+.set_body(DispatchExtern<Direct>);
+
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm

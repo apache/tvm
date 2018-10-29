@@ -450,4 +450,10 @@ Expr prod(Expr source, Array<IterVar> rdom) {
   return ir::Reduce::make(combiner, {source}, rdom, make_const(Bool(1), true), 0);
 }
 
+Expr fmod(Expr x, Expr y) {
+  BinaryOpMatchTypes(x, y);
+  CHECK(x.type().is_float()) << "fmod only applies to float";
+  return ir::Call::make(x.type(), "fmod", { x, y }, ir::Call::PureIntrinsic);
+}
+
 }  // namespace tvm

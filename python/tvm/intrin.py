@@ -376,6 +376,22 @@ def popcount(x):
     """
     return call_pure_intrin(x.dtype, "popcount", x)
 
+def fmod(x, y):
+    """Return the remainder of x divided by y with the same sign as x.
+
+    Parameters
+    ----------
+    x : Expr
+        Input argument.
+    y : Expr
+        Input argument.
+
+    Returns
+    -------
+    z : Expr
+        The result.
+    """
+    return call_pure_intrin(x.dtype, "fmod", x, y)
 
 # Intrinsic rule related code
 def register_intrin_rule(target, intrin, f=None, override=False):
