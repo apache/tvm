@@ -184,12 +184,8 @@ bool PReluRel(const Array<Type>& types,
   const PReluAttrs* param = attrs.as<PReluAttrs>();
   CHECK(param != nullptr);
 
-  size_t ndim = data->shape.size();
-  CHECK(ndim == 4)
-    << "Input data should be 4D, but got " << ndim;
-
-  CHECK(reporter->Assert(param->axis < make_const(Int(64), ndim)))
-      << "Wrong axis ("  << param->axis << ")value.";
+  CHECK(param->axis < static_cast<int>(data->shape.size()))
+    << "Wrong axis ("  << param->axis << ")value.";
 
   // assign alpha type
   Array<IndexExpr> alpha_shape({data->shape[param->axis]});
