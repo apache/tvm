@@ -154,5 +154,6 @@ REGISTER_PASS1(LowerTVMBuiltin);
 REGISTER_PASS1(CombineContextCall);
 REGISTER_PASS2(VerifyMemory);
 REGISTER_PASS2(VerifyGPUCode);
+REGISTER_PASS1(DecorateDeviceScope);
 }  // namespace ir
 }  // namespace tvm
