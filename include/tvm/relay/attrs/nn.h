@@ -278,6 +278,17 @@ struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
 };
 
 
+/*! \brief Attributes for prelu operator */
+struct PReluAttrs : public tvm::AttrsNode<PReluAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(PReluAttrs, "relay.attrs.PReluAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(1)
+        .describe("Specify which shape axis the channel is specified.");
+  }
+};
+
+
 /*! \brief Attributes used in dropout operator */
 struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   double rate;

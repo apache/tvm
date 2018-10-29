@@ -171,6 +171,62 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .add_type_rel("Identity", IdentityRel);
 
 
+TVM_REGISTER_NODE_TYPE(PReluAttrs);
+
+bool PReluRel(const Array<Type>& types,
+              int num_inputs,
+              const Attrs& attrs,
+              const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 3);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+
+  const PReluAttrs* param = attrs.as<PReluAttrs>();
+  CHECK(param != nullptr);
+
+  CHECK(param->axis < static_cast<int>(data->shape.size()))
+    << "Wrong axis ("  << param->axis << ")value.";
+
+  // assign alpha type
+  Array<IndexExpr> alpha_shape({data->shape[param->axis]});
+  reporter->Assign(types[1], TensorTypeNode::make(alpha_shape, data->dtype));
+
+  // assign output type
+  reporter->Assign(types[2], TensorTypeNode::make(data->shape, data->dtype));
+  return true;
+}
+
+// Positional relay function to create prelu operator used by frontend FFI.
+Expr MakePRelu(Expr data,
+               Expr alpha,
+               int axis) {
+  auto attrs = make_node<PReluAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.prelu");
+  return CallNode::make(op, {data, alpha}, Attrs(attrs), {});
+}
+
+
+TVM_REGISTER_API("relay.op.nn._make.prelu")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 3>(MakePRelu, args, rv);
+  });
+
+
+RELAY_REGISTER_OP("nn.prelu")
+.describe(R"code(Parametric version of a Rectified Linear Unit.
+It accepts two arguments: an input ``x`` and a channelwise slope ``alpha``
+and computes the output as :math:`PReLU(x) y = x > 0 ? x : alpha * x`,
+where :math:`*` is an channelwise multiplication for each sample in the batch.
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.PReluAttrs")
+.set_num_inputs(2)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("alpha", "Tensor", "Input channelwise alpha.")
+.set_support_level(3)
+.add_type_rel("PRelu", PReluRel);
+
+
 TVM_REGISTER_API("relay.op.nn._make.softmax")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   auto make_func = [](Expr data, int axis) {

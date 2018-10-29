@@ -188,13 +188,39 @@ def test_full_like():
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
 def test_infer_type_leaky_relu():
-   n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
-   x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
-   y = relay.nn.leaky_relu(x, alpha=0.1)
-   "alpha=0.1" in y.astext()
-   yy = relay.ir_pass.infer_type(y)
-   assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    y = relay.nn.leaky_relu(x, alpha=0.1)
+    "alpha=0.1" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
+def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
+    x = relay.var("data", relay.TensorType(data, dtype))
+    if alpha:
+        y = relay.var("alpha", relay.TensorType(alpha, dtype))
+    else:
+        y = relay.var("alpha", relay.IncompleteType())
+    z = relay.nn.prelu(x, y, axis=axis)
+    zz = relay.ir_pass.infer_type(z)
+    if axis != 1:
+        assert "axis" in z.astext()
+    assert zz.checked_type == relay.ty.TensorType(output, dtype)
+    if not alpha:
+        axis = axis if axis else 1
+        alpha_shape = (data[axis],)
+        assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
+
+def test_infer_type_prelu():
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    verify_infer_type_prelu((n, c, h, w), (c,), 1, (n, c, h, w))
+    verify_infer_type_prelu((n, h, w, c), (c,), 3, (n, h, w, c))
+    verify_infer_type_prelu((n, c, h, w), None, 1, (n, c, h, w))
+    verify_infer_type_prelu((n, h, w, c), None, 3, (n, h, w, c))
+    verify_infer_type_prelu((1, 3, 2, 2), (3,), 1, (1, 3, 2, 2))
+    verify_infer_type_prelu((1, 2, 2, 3), (3,), 3, (1, 2, 2, 3))
+    verify_infer_type_prelu((1, 3, 2, 2), None, 1, (1, 3, 2, 2))
+    verify_infer_type_prelu((1, 2, 2, 3), None, 3, (1, 2, 2, 3))
 
 if __name__ == "__main__":
     test_cast()
@@ -208,6 +234,7 @@ if __name__ == "__main__":
     test_full()
     test_full_like()
     test_infer_type_leaky_relu()
+    test_infer_type_prelu()
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()

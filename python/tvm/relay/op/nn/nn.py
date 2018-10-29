@@ -528,6 +528,33 @@ def leaky_relu(data, alpha):
     return _make.leaky_relu(data, alpha)
 
 
+def prelu(data, alpha, axis=1):
+    """This operator takes data as input and does Leaky version
+    of a Rectified Linear Unit.
+
+    .. math::
+
+        `y = x > 0 ? x : alpha * x`
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data to the operator.
+
+    alpha : tvm.relay.Expr
+        Slope coefficient for the negative half axis.
+
+    axis : int, optional
+        Specify which shape axis the channel is specified.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.prelu(data, alpha, axis)
+
+
 def pad(data,
         pad_width,
         pad_value=0.0):
