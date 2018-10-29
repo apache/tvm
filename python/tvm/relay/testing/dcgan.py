@@ -14,7 +14,6 @@ from tvm import relay
 from . import layers
 from .init import create_workload
 
-# TODO(@jmp): Should this be a new operator?
 def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
     """a deconv layer that enlarges the feature map"""
     target_shape = (oshape[-2], oshape[-1])
@@ -30,7 +29,6 @@ def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
                                channels=oshape[0],
                                padding=(pad_y, pad_x),
                                output_padding=(adj_y, adj_x),
-                               use_bias=False,
                                name=name)
     return net
 
@@ -38,7 +36,7 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
     """a block of deconv + batch norm + relu"""
     eps = 1e-5 + 1e-12
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
-    net = layers.batch_norm_infer(net, epsilon=eps)
+    net = layers.batch_norm_infer(net, epsilon=eps, name="batch_norm")
     net = relay.nn.relu(net)
     return net
 
@@ -66,7 +64,7 @@ def get_net(batch_size, random_len=100, oshape=(3, 64, 64), ngf=128, code=None, 
     dc64 = deconv2d(
         dc32, ishape=(ngf, 32, 32), oshape=oshape[-3:], kshape=(4, 4), name="g5_deconv")
     tanh = relay.tanh(dc64)
-    
+
     args = relay.ir_pass.free_vars(tanh)
     return relay.Function(args, tanh)
 
