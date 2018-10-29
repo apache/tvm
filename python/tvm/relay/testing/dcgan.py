@@ -24,12 +24,12 @@ def deconv2d(data, ishape, oshape, kshape, name, stride=(2, 2)):
     adj_x = (target_shape[1] + 2 * pad_x - kshape[1]) % stride[1]
 
     net = layers.conv2d_transpose(data,
-                               kernel_size=kshape,
-                               strides=stride,
-                               channels=oshape[0],
-                               padding=(pad_y, pad_x),
-                               output_padding=(adj_y, adj_x),
-                               name=name)
+                                  kernel_size=kshape,
+                                  strides=stride,
+                                  channels=oshape[0],
+                                  padding=(pad_y, pad_x),
+                                  output_padding=(adj_y, adj_x),
+                                  name=name)
     return net
 
 def deconv2d_bn_relu(data, prefix, **kwargs):
