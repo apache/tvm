@@ -399,7 +399,7 @@ Value Evaluate(Environment env, Expr e) {
   return interp.Eval(e);
 }
 
-TVM_REGISTER_API("relay._eval.evaluate")
+TVM_REGISTER_API("relay._interpreter.evaluate")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
       Environment env = args[0];
       Expr expr = args[1];

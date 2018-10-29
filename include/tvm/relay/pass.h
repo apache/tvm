@@ -107,17 +107,6 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& e);
 
-/*! \brief Get free Vars from expr in PostDFS order.
- *
- * Free variables are variables that are not bound by a let or a function
- * parameter in the context.
- *
- * \param e the expression.
- *
- * \return the set of free variable.
- */
-tvm::Array<Var> FreeVariables(const Expr& e);
-
 /*! \brief Get free type parameters from expression e.
  *
  * Free variables are variables that are not bound by a
@@ -125,7 +114,7 @@ tvm::Array<Var> FreeVariables(const Expr& e);
  *
  * \param expr the expression.
  *
- * \return List of free vars, in the PostDFS order visited by expr.
+ * \return List of free vars, in the PostDFS order in the expression.
  */
 tvm::Array<Var> FreeVars(const Expr& expr);
 

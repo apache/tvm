@@ -213,7 +213,10 @@ class FunctionNode : public ExprNode {
    */
   tvm::Array<TypeVar> type_params;
 
-  mutable tvm::Attrs attrs;
+  /*!
+   * \brief The attributes which store metadata about functions.
+   */
+  tvm::Attrs attrs;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);

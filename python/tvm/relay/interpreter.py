@@ -5,7 +5,7 @@ import numpy as np
 from .. import register_func, nd
 from .base import NodeBase, register_relay_node
 from . import _make
-from . import _eval
+from . import _interpreter
 from . import ir_pass
 from .expr import Call, Constant, GlobalVar
 from . import const
