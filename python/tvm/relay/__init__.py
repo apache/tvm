@@ -64,4 +64,5 @@ def _tensor_constant_repr(tv):
 # pylint: disable=unused-argument
 @register_func("relay.debug")
 def _debug(*args):
-    import pdb; pdb.set_trace()
+    import pdb
+    pdb.set_trace()
