@@ -123,6 +123,16 @@ def test_self_reference():
     assert relay.ir_pass.infer_type(f).checked_type == relay.FuncType([a], a)
     assert relay.ir_pass.infer_type(fx).checked_type == a
 
+def test_global_var_cow_issue():
+    env = relay.env.Environment({})
+    gv = relay.GlobalVar("foo")
+    x = relay.var('x', shape=[])
+    func = relay.Function([x], relay.Call(gv, [x]), relay.TensorType([], 'float32'))
+    env[gv] = func
+    # They should both point to the same global variable if global variables are
+    # stable across type checking.
+    assert gv == func.body.op
+
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -134,3 +144,4 @@ if __name__ == "__main__":
     test_free_expr()
     test_type_args()
     test_self_reference()
+    test_global_var_cow_issue()
