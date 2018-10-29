@@ -182,7 +182,7 @@ def create(func_name, args, target, target_host=None, template_key=None):
 
     return ret
 
-def args_to_workload(x):
+def args_to_workload(x, topi_compute_func=None):
     """Convert argument list to hashable workload tuple.
     This function will convert list to tuple, tvm node to python value and
     flatten tvm.tensor.Tensor to a tuple
@@ -191,6 +191,8 @@ def args_to_workload(x):
     ----------
     x: primitive hashable types or tensor.Tensor
         The original value
+    topi_compute_func: topi compute function
+        The function name will be added as first element of the workload tuple
 
     Returns
     -------
@@ -198,18 +200,19 @@ def args_to_workload(x):
         The hashable value
     """
     if isinstance(x, tensor.Tensor):
-        return get_const_tuple(x.shape) + (x.dtype, )
+        workload = get_const_tuple(x.shape) + (x.dtype, )
     elif isinstance(x, (tuple, list, container.Array)):
-        return tuple([args_to_workload(a) for a in x])
+        workload = tuple([args_to_workload(a) for a in x])
     elif isinstance(x, (str, int, float, np.int, np.float)):
-        return x
+        workload = x
     elif isinstance(x, (expr.StringImm, expr.IntImm, expr.FloatImm)):
-        return x.value
+        workload = x.value
     elif x is None:
-        return 0
+        workload = 0
     else:
         raise RuntimeError('Do not support type "%s" in argument. Consider to use'
                            'primitive types only' % type(x))
+    return (get_func_name(topi_compute_func), ) + workload  if topi_compute_func else workload
 
 def template(func):
     """
