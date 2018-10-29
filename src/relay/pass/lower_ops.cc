@@ -151,6 +151,8 @@ struct LiveFunctions : ExprVisitor {
   }
 };
 
+// using FSchedule = TypedPackedFunc<Schedule(const Attrs&, const Array<Tensor>&, Type, tvm::Context>>;
+
 /*! \brief Return the set of operators in their TVM format. */
 Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::string& target) {
   RELAY_LOG(INFO) << "LowerOps: e=" << e;
@@ -190,7 +192,7 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e, const std::stri
     }
 
     auto output_tt = op->op_type->ret_type;
-    Array<Tensor> outputs = compute_reg[op](call->attrs, inputs, output_tt);
+    Array<Tensor> outputs = compute_reg[op](call->attrs, inputs, output_tt, target);
     auto schedule = schedule_reg[op](outputs, target);
     size_t hash = ExprHash()(func);
     LoweredFunc lf = flower(op->name + std::to_string(hash), schedule, inputs, outputs);
