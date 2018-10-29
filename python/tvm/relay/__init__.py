@@ -1,12 +1,12 @@
 # pylint: disable=wildcard-import, redefined-builtin, invalid-name
 """The Relay IR namespace containing the IR definition and compiler."""
+from __future__ import absolute_import
 from ..api import register_func
 from . import base
 from . import ty
 from . import expr
 from . import env
 from . import ir_pass
-from . import testing
 
 # Root operators
 from .op import Op

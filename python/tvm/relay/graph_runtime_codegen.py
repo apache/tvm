@@ -59,7 +59,7 @@ class AbstractExprVisitor(object):
         elif isinstance(expr, Constant):
             return self.visit_constant(expr)
         else:
-            raise Exception(f"warning unhandled case: {type(expr)}")
+            raise Exception("warning unhandled case: {0}".format(type(expr)))
 
     def visit_function(self, _):
         raise Exception("Abstract method please implement me.")
@@ -236,7 +236,7 @@ class TVMRTSCompiler(ExprMutator):
 
         for param in params:
             dtype, shape = from_tensor(param.type_annotation)
-            node = InputNode(f"{param.name_hint}", {
+            node = InputNode("{0}".format(param.name_hint), {
                 "shape": shape,
                 "dtype": dtype,
             })
