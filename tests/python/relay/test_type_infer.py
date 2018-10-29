@@ -185,22 +185,20 @@ def test_self_reference():
     assert relay.ir_pass.infer_type(fx).checked_type == a
 
 
-
 def test_global_var_cow_issue():
     env = relay.env.Environment({})
     gv = relay.GlobalVar("foo")
     x = relay.var('x', shape=[])
-    func = relay.Function([x], relay.Call(gv, [x]), relay.TensorType([], 'float32'))
+    func = relay.Function([x], relay.Call(gv, [x]),
+                          relay.TensorType([], 'float32'))
     env[gv] = func
-    # This should fail ....
-    func = relay.Function([i], eq, ret_type=relay.TensorType([], 'int32'))
+
 
 def test_equal():
     i = relay.var('i', shape=[], dtype='int32')
     eq = op.equal(i, relay.const(0, dtype='int32'))
     # This should fail ....
     func = relay.Function([i], eq, ret_type=relay.TensorType([], 'int32'))
-
 
 
 if __name__ == "__main__":
