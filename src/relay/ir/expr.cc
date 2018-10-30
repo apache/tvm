@@ -63,9 +63,6 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 Var VarNode::make(std::string name_hint, Type type_annotation) {
   NodePtr<VarNode> n = make_node<VarNode>();
-  // if (name_hint == "accum") {
-  //   RELAY_DEBUG(10);
-  // }
   n->name_hint = std::move(name_hint);
   n->type_annotation = std::move(type_annotation);
   return Var(n);
