@@ -129,7 +129,7 @@ void OpenCLWorkspace::CopyDataFromTo(const void* from,
     // wait on the last kernel event to complete.
     OpenCLBuffer *buf = static_cast<OpenCLBuffer*>((void*)from);  // NOLINT(*)
     if (buf->last_kernel_event) {
-      nr_events++;
+      nr_events = 1;
       pevent = &buf->last_kernel_event;
     }
   }
