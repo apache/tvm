@@ -15,7 +15,7 @@ extern "C" {
 namespace tvm {
 namespace contrib {
 
-inline const char* getCublasErrorString(int error) {
+inline const char* GetCublasErrorString(int error) {
   switch (error) {
   case CUBLAS_STATUS_NOT_INITIALIZED: return "CUBLAS_STATUS_NOT_INITIALIZED";
   case CUBLAS_STATUS_ALLOC_FAILED: return "CUBLAS_STATUS_ALLOC_FAILED";
@@ -34,8 +34,8 @@ inline const char* getCublasErrorString(int error) {
 #define CHECK_CUBLAS_ERROR(fn)                  \
   do {                                          \
     int error = static_cast<int>(fn);                      \
-    CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << getCublasErrorString(error); \
-  } while (0)  // ; intentially left off.
+    CHECK_EQ(error, CUBLAS_STATUS_SUCCESS) << "CUBLAS: " << GetCublasErrorString(error); \
+  } while (0)  // ; intentionally left off.
 #endif  // CHECK_CUBLAS_ERROR
 
 
