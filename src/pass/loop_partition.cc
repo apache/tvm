@@ -239,11 +239,16 @@ class ThreadPartitionInserter : public IRMutator {
 // Try to do partition at the candidate IRs
 class LoopPartitioner : public IRMutator {
  public:
-  explicit LoopPartitioner(std::unordered_set<const Node*> candidates)
-    : candidates_(candidates) {}
+  explicit LoopPartitioner(bool split_const_loop)
+      : selector(CandidateSelector(split_const_loop)) {}
+
+  Stmt VisitAndMutate(const Stmt& stmt) {
+    selector.Visit(stmt);
+    return Mutate(stmt);
+  }
 
   Stmt Mutate_(const For* op, const Stmt& stmt) {
-    if (candidates_.count(op)) {
+    if (selector.candidates.count(op)) {
       Stmt s = TryPartition(op, stmt, op->loop_var,
           op->min, op->min + op->extent - 1, op->body, false);
       if (s.defined()) return s;
@@ -266,7 +271,7 @@ class LoopPartitioner : public IRMutator {
     const IterVarNode *iv = op->node.as<IterVarNode>();
     CHECK(iv);
     Var var = iv->var;
-    if (candidates_.count(op)) {
+    if (selector.candidates.count(op)) {
       Stmt s = TryPartition(op, stmt, var, 0, op->value - 1, op->body, true);
       if (s.defined()) return s;
     }
@@ -295,9 +300,9 @@ class LoopPartitioner : public IRMutator {
   inline Stmt MakeFor(const Node* op, Expr extent, Stmt body);
 
   /* Candidate IRs that may be partitioned potentially */
-  std::unordered_set<const Node*> candidates_;
   std::unordered_map<const Variable*, IntSet> hint_map_;
   std::unordered_map<const Variable*, IntSet> relax_map_;
+  CandidateSelector selector;
 };
 
 Stmt LoopPartitioner::TryPartition(const Node* node,
@@ -322,7 +327,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   Expr body_begin;
   Stmt pre_stmt;
   if (true_itrv.as<arith::IntervalSet>()->i.has_lower_bound()) {
-    body_begin = true_itrv.min();
+    body_begin = ir::Simplify(true_itrv.min());
     if (!can_prove(body_begin == min)) {
       Expr cond = (body_begin - min >= 0);
       if (!can_prove(cond)) {
@@ -343,7 +348,7 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
   Expr post_doubt_begin;
   Stmt post_stmt;
   if (true_itrv.as<arith::IntervalSet>()->i.has_upper_bound()) {
-    post_doubt_begin = true_itrv.max() + 1;
+    post_doubt_begin = ir::Simplify(true_itrv.max() + 1);
     if (!can_prove(true_itrv.max() == max)) {
       // require the extent to be non-negative
       Expr cond = (max - post_doubt_begin + 1 >= 0);
@@ -354,8 +359,17 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
       }
       // [post_doubt_begin, max]
       if (!partition_thread_scope) {
-        Stmt post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
-        post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+        Stmt post_body;
+        // If the loop is going from 0 to 1, replace the loop var with min value
+        if (as_const_int(max) && as_const_int(post_doubt_begin)) {
+            if (*as_const_int(max) == *as_const_int(post_doubt_begin)) {
+                post_body = Substitute(body, {{Var{var}, post_doubt_begin}});
+                post_stmt = post_body;
+            }
+        } else {
+            post_body = Substitute(body, {{Var{var}, var + post_doubt_begin}});
+            post_stmt = MakeFor(node, max - post_doubt_begin + 1, post_body);
+        }
       }
     }
   } else {
@@ -368,8 +382,15 @@ Stmt LoopPartitioner::TryPartition(const Node* node,
     Stmt simplified_body = ConditionEliminator(partitions).Mutate(body);
     Stmt new_body = Substitute(simplified_body, {{Var{var}, var + body_begin}});
     s = MakeFor(node, post_doubt_begin - body_begin, new_body);
-    if (pre_stmt.defined())  s = Block::make(pre_stmt, s);
-    if (post_stmt.defined()) s = Block::make(s, post_stmt);
+
+    if (!(pre_stmt.defined() && post_stmt.defined())) s = VisitAndMutate(s);
+    if (pre_stmt.defined()) s = Block::make(pre_stmt, s);
+    if (post_stmt.defined()) {
+      if (as_const_int(max) && as_const_int(post_doubt_begin)) {
+        post_stmt = VisitAndMutate(post_stmt);
+      }
+      s = Block::make(s, post_stmt);
+    }
   } else {
     Expr cond = const_true();
     if (!can_prove(body_begin == min)) cond = cond && (var >= body_begin);
@@ -402,9 +423,7 @@ class RemoveLikelyTags : public IRMutator {
 };
 
 Stmt LoopPartition(Stmt stmt, bool split_const_loop) {
-  CandidateSelector selector(split_const_loop);
-  selector.Visit(stmt);
-  stmt = LoopPartitioner(selector.candidates).Mutate(stmt);
+  stmt = LoopPartitioner(split_const_loop).VisitAndMutate(stmt);
   stmt = RemoveLikelyTags().Mutate(stmt);
   return stmt;
 }
