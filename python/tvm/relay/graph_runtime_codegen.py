@@ -26,7 +26,7 @@ import attr
 from . import ir_pass
 from .op import Op
 from .expr import Var, Function, Call, If, GlobalVar, Constant, Let
-from ..build_module import build
+from ..build_module import build as tvm_build_module
 from .. contrib import graph_runtime
 from .ir_pass import infer_type
 from .. import cpu
@@ -195,7 +195,7 @@ def from_tensor(typ):
     return (typ.dtype, shape_to_json(typ.shape))
 
 
-class TVMRTSCompiler(ExprMutator):
+class GraphRuntimeCodegen(ExprMutator):
     """The compiler from Relay to the TVM runtime system."""
     nodes = attr.ib()
     id_map = attr.ib()
@@ -224,7 +224,7 @@ class TVMRTSCompiler(ExprMutator):
     def lookup(self, ident):
         return self.id_map[ident]
 
-    def compile(self, func):
+    def codegen(self, func):
         """Compile a single function into a graph."""
         # First we convert all the parameters into input nodes.
         params = func.params
@@ -299,8 +299,9 @@ class TVMRTSCompiler(ExprMutator):
         return self.add_node(op_node)
 
     def to_json(self):
-        """Convert the sequence of nodes stored by the compiler into the
-           JSON format defined in: https://docs.tvm.ai/dev/nnvm_json_spec.html.
+        """
+        Convert the sequence of nodes stored by the compiler into the
+        TVM graph runtime format.
         """
         nodes = []
         # First we compute "nodes" field.
@@ -373,23 +374,23 @@ class TVMRTSCompiler(ExprMutator):
         return json.dumps(json_dict)
 
 
-def compile_to_tvm(env, func, target=None):
+def build(env, func, target=None):
     """Compile a single function to the components needed by the
        TVM RTS.
     """
     if target is None:
         target = 'llvm'
 
-    comp = TVMRTSCompiler(env)
+    comp = GraphRuntimeCodegen(env)
     # NB(@jroesch) This creates lowered functions, and generates names for them
     #
     # We need these names to emit the correct graph as these are names of the
     # functions contained in the module.
     lowered_ops = ir_pass.lower_ops(env, func)
-    mod = build([lf.lowered_func for lf in lowered_ops], target)
+    mod = tvm_build_module([lf.lowered_func for lf in lowered_ops], target)
 
     # Therefore the call to compile must come after.
-    comp.compile(func)
+    comp.codegen(func)
     graph_json = comp.to_json()
     return graph_json, mod, None  # params currently isn't supported by API
 
@@ -421,7 +422,7 @@ def evaluate_rts(env, func, *args):
     func = infer_type(func, env)
     func = ir_pass.fuse_ops(env, func)
     func = infer_type(func, env)
-    graph_json, mod, params = compile_to_tvm(env, func)
+    graph_json, mod, params = build(env, func)
     assert params is None
     gmodule = graph_runtime.create(graph_json, mod, cpu(0))
     # Create map of inputs.

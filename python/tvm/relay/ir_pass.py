@@ -215,5 +215,5 @@ def structural_hash(value):
 def fuse_ops(expr, env):
     return _ir_pass.FuseOps(env, expr)
 
-def lower_ops(expr, target='llvm'):
-    return _ir_pass.LowerOps(expr, target)
+def lower_ops(env, expr, target='llvm'):
+    return _ir_pass.LowerOps(env, expr, target)

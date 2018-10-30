@@ -212,7 +212,7 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
 
 TVM_REGISTER_API("relay._ir_pass.LowerOps")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = LowerOps(args[0], args[1]);
+    *ret = LowerOps(args[0], args[1], args[2]);
 });
 
 
