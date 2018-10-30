@@ -100,7 +100,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  * `let f = (\x -> x) in let g = (\x -> x + 1) in f(g(2))` also bound x twice,
  * although x is not shadowed.
  *
- * \param e the expression to check.
+  * \param expr the expression to check.
  *
   * \return true iff all Var in expr is bound at most once.
  */
