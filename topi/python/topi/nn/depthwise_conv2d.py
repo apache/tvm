@@ -55,7 +55,7 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
 
     batch, in_channel, in_height, in_width = Input.shape
     # shape of dilated kernel
-    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape 
+    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))

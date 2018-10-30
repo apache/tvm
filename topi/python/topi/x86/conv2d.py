@@ -76,7 +76,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         if cfg.is_fallback:
             wkl = _get_workload(data, kernel, strides, padding, out_dtype)
             _get_default_config(cfg, wkl)
-        return _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, 
+        return _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout,
                                       out_dtype)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
