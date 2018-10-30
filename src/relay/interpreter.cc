@@ -284,7 +284,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
     // Allocate a frame with the parameters and free variables.
     tvm::Map<Var, Value> locals;
 
-    CHECK(func->params.size() == args.size());
+    CHECK_EQ(func->params.size(), args.size());
 
     for (size_t i = 0; i < func->params.size(); i++) {
       CHECK_EQ(locals.count(func->params[i]), 0);
@@ -337,12 +337,12 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
 
   Value VisitExpr_(const TupleGetItemNode* op) override {
     Value val = Eval(op->tuple);
-    if (auto product_node = val.as<TupleValueNode>()) {
-      CHECK(op->index < product_node->fields.size());
-      return product_node->fields[op->index];
-    } else {
-      throw EvalError("not a product");
-    }
+    auto product_node = val.as<TupleValueNode>();
+    CHECK(product_node)
+      << "interal error: when evaluating TupleGetItem expected a tuple value";
+    CHECK_LT(static_cast<size_t>(op->index), product_node->fields.size())
+      << "internal error: index out of bounds";
+    return product_node->fields[op->index];
   }
 
   Value VisitExpr_(const IfNode* op) override {
