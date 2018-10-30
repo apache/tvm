@@ -100,26 +100,24 @@ class RelayHashHandler:
 
   using AttrsHashHandler::VisitAttr_;
   size_t VisitAttr_(const Variable* var) final {
+    size_t hash = std::hash<std::string>()(Variable::_type_key);
     auto it = hash_map_.find(GetRef<VarExpr>(var));
     if (it != hash_map_.end()) {
       return it->second;
     }
-
-
-    size_t hash = std::hash<std::string>()(var->_type_key);
     return Combine(hash, std::hash<std::string>()(var->name_hint));
   }
 
   // Type hashing
   size_t VisitType_(const TensorTypeNode* tensor_type) final {
-    size_t hash = std::hash<std::string>()(tensor_type->_type_key);
+    size_t hash = std::hash<std::string>()(TensorTypeNode::_type_key);
     hash = Combine(hash, DataTypeHash(tensor_type->dtype));
     hash = Combine(hash, Hash(tensor_type->shape));
     return hash;
   }
 
   size_t VisitType_(const IncompleteTypeNode* incomplete) final {
-    size_t hash = std::hash<std::string>()(incomplete->_type_key);
+    size_t hash = std::hash<std::string>()(IncompleteTypeNode::_type_key);
     return Combine(hash, std::hash<int>()(incomplete->kind));
   }
 
@@ -139,7 +137,7 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const FuncTypeNode* func_type) final {
-    size_t hash = std::hash<std::string>()(func_type->_type_key);
+    size_t hash = std::hash<std::string>()(FuncTypeNode::_type_key);
 
     for (auto type_param : func_type->type_params) {
       hash = Combine(hash, BindVar(type_param));
@@ -158,7 +156,7 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const TypeRelationNode* type_rel) final {
-    size_t hash = std::hash<std::string>()(type_rel->_type_key);
+    size_t hash = std::hash<std::string>()(TypeRelationNode::_type_key);
     hash = Combine(hash, std::hash<std::string>()(type_rel->func->name));
     hash = Combine(hash, AttrHash(type_rel->attrs));
 
@@ -170,7 +168,7 @@ class RelayHashHandler:
   }
 
   size_t VisitType_(const TupleTypeNode* tuple_type) final {
-    size_t hash = std::hash<std::string>()(tuple_type->_type_key);
+    size_t hash = std::hash<std::string>()(TupleTypeNode::_type_key);
     for (size_t i = 0; i < tuple_type->fields.size(); i++) {
       hash = Combine(hash, TypeHash(tuple_type->fields[i]));
     }
@@ -213,7 +211,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const TupleNode* tuple) final {
-    size_t hash = std::hash<std::string>()(tuple->_type_key);
+    size_t hash = std::hash<std::string>()(TupleNode::_type_key);
     for (size_t i = 0; i < tuple->fields.size(); i++) {
       hash = Combine(hash, ExprHash(tuple->fields[i]));
     }
@@ -221,7 +219,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const FunctionNode* func) final {
-    size_t hash = std::hash<std::string>()(func->_type_key);
+    size_t hash = std::hash<std::string>()(FunctionNode::_type_key);
     for (auto type_param : func->type_params) {
       hash = Combine(hash, BindVar(type_param));
     }
@@ -237,7 +235,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const CallNode* call) final {
-    size_t hash = std::hash<std::string>()(call->_type_key);
+    size_t hash = std::hash<std::string>()(CallNode::_type_key);
     hash = Combine(hash, ExprHash(call->op));
 
     for (auto arg : call->args) {
@@ -250,7 +248,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const LetNode* let) final {
-    size_t hash = std::hash<std::string>()(let->_type_key);
+    size_t hash = std::hash<std::string>()(LetNode::_type_key);
     hash = Combine(hash, BindVar(let->var));
     hash = Combine(hash, ExprHash(let->value));
     hash = Combine(hash, ExprHash(let->body));
@@ -258,7 +256,8 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const IfNode* ite) final {
-    size_t hash = std::hash<std::string>()(ite->_type_key);
+    size_t key = std::hash<std::string>()(IfNode::_type_key);
+    size_t hash = key;
     hash = Combine(hash, ExprHash(ite->cond));
     hash = Combine(hash, ExprHash(ite->true_branch));
     hash = Combine(hash, ExprHash(ite->false_branch));
@@ -274,7 +273,7 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const TupleGetItemNode* get_item) final {
-    size_t hash = std::hash<std::string>()(get_item->_type_key);
+    size_t hash = std::hash<std::string>()(TupleGetItemNode::_type_key);
     hash = Combine(hash, ExprHash(get_item->tuple));
     hash = Combine(hash, std::hash<int>()(get_item->index));
     return hash;

@@ -74,10 +74,12 @@ This level enables additional math and transform operators.
 
    tvm.relay.zeros
    tvm.relay.nn.leaky_relu
+   tvm.relay.nn.prelu
    tvm.relay.zeros_like
    tvm.relay.ones
    tvm.relay.ones_like
    tvm.relay.reshape
+   tvm.relay.reshape_like
    tvm.relay.copy
    tvm.relay.transpose
    tvm.relay.floor
@@ -94,6 +96,7 @@ This level enables additional math and transform operators.
    tvm.relay.full
    tvm.relay.full_like
    tvm.relay.cast
+   tvm.relay.split
 
 
 **Level 4: Broadcast and Reductions**
@@ -181,6 +184,7 @@ Level 2 Definitions
 Level 3 Definitions
 -------------------
 .. autofunction:: tvm.relay.nn.leaky_relu
+.. autofunction:: tvm.relay.nn.prelu
 .. autofunction:: tvm.relay.floor
 .. autofunction:: tvm.relay.ceil
 .. autofunction:: tvm.relay.trunc
@@ -188,6 +192,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.abs
 .. autofunction:: tvm.relay.negative
 .. autofunction:: tvm.relay.reshape
+.. autofunction:: tvm.relay.reshape_like
 .. autofunction:: tvm.relay.copy
 .. autofunction:: tvm.relay.transpose
 .. autofunction:: tvm.relay.take
@@ -198,6 +203,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.full
 .. autofunction:: tvm.relay.full_like
 .. autofunction:: tvm.relay.cast
+.. autofunction:: tvm.relay.split
 
 
 Level 4 Definitions

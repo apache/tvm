@@ -82,6 +82,11 @@ class TensorTypeNode : public BaseTensorTypeNode {
     v->Visit("span", &span);
   }
 
+  /*! \brief Return product of elements in the shape.
+   *  \return (d1 * d_2 ... * d_n) if shape is (d_1, d_2, ..., d_n) and 1 if shape size is zero.
+   */
+  TVM_DLL IndexExpr Size() const;
+
   TVM_DLL static TensorType make(Array<IndexExpr> shape, DataType dtype);
 
   /*! \brief Construct an scalar containing elements of dtype.  */
@@ -275,6 +280,7 @@ class TypeReporterNode : public Node {
   TVM_DLL virtual void Assign(const Type& dst, const Type& src) = 0;
   /*!
    * \brief assert shape expression comparison.
+   * \note Use assert only if any of the condition input is symbolic.
    * \param cond The condition of operation.
    * \return false if assertation can be proven to have failed
    *      true if solver can still proceed.

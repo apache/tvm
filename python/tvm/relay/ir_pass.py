@@ -10,6 +10,7 @@ from . import _make
 from .expr import Expr
 from .ty import Type
 
+
 def infer_type(expr, env=None):
     """Infer the type of expr under the context of env.
 
@@ -28,6 +29,23 @@ def infer_type(expr, env=None):
         The checked expression.
     """
     return _ir_pass.infer_type(expr, env)
+
+
+def forward_fold_scale_axis(expr):
+    """Fold the scaling of axis into weights of conv2d/dense.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, we expect that expr's types
+        should be fully inferred by infer_type.
+
+    Returns
+    -------
+    folded_expr : tvm.relay.Expr
+        The folded expression after transformation.
+    """
+    return _ir_pass.forward_fold_scale_axis(expr)
 
 
 def well_formed(expr):
@@ -149,6 +167,7 @@ def alpha_equal(lhs, rhs):
     """
     return bool(_make._alpha_equal(lhs, rhs))
 
+
 def graph_equal(lhs, rhs):
     """Compare two Relay expr for data-flow equivalence.
     The difference between this and alpha-equality is that
@@ -169,6 +188,7 @@ def graph_equal(lhs, rhs):
       True iff lhs is data-flow equivalent to rhs.
     """
     return bool(_make._graph_equal(lhs, rhs))
+
 
 def structural_hash(value):
     """Hash a Relay expression structurally.
