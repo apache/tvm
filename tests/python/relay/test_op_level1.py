@@ -87,6 +87,7 @@ def test_concatenate_infer_type():
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t, 200))
 
+    x = relay.exp(x)
     z = relay.concatenate((x, y), axis=2)
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t, 200))
@@ -94,6 +95,9 @@ def test_concatenate_infer_type():
     z = relay.concatenate((x, y), axis=1)
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
+
+
+
 
 
 def test_dropout():
