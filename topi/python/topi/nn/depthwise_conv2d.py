@@ -40,8 +40,6 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
 
-    batch, in_channel, in_height, in_width = Input.shape
-    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
@@ -54,6 +52,10 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
 
     if dilation_h != 1 or dilation_w != 1:
         Filter = dilate(Filter, (1, 1, dilation_h, dilation_w))
+
+    batch, in_channel, in_height, in_width = Input.shape
+    # shape of dilated kernel
+    filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape 
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
@@ -109,20 +111,22 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     """
     out_dtype = Input.dtype if out_dtype is None else out_dtype
 
-    batch, in_height, in_width, in_channel = Input.shape
-    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
     if isinstance(stride, int):
         stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 
     if dilation_h != 1 or dilation_w != 1:
         Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
+
+    batch, in_height, in_width, in_channel = Input.shape
+    # shape of dilated kernel
+    filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
 
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (filter_height, filter_width))
