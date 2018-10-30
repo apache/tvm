@@ -135,9 +135,9 @@ class ExprVisitor
   void VisitExpr_(const TupleGetItemNode* op) override;
   virtual void VisitType(const Type& t);
 
- private:
-  // internal visited flag.
-  std::unordered_set<const Node*> visited_;
+ protected:
+  // Internal visiting counter
+  std::unordered_map<const Node*, size_t> visit_counter_;
 };
 
 /*!
