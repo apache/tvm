@@ -92,7 +92,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return FunctionNode::make(params, body, ret_type, ty_params);
+    return FunctionNode::make(params, body, ret_type, ty_params, op->attrs);
   }
 }
 
@@ -198,6 +198,7 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const FunctionNode* op) {
 
 void ExprVisitor::VisitExpr_(const CallNode* op) {
   this->VisitExpr(op->op);
+
   for (auto ty_arg : op->type_args) {
     this->VisitType(ty_arg);
   }
