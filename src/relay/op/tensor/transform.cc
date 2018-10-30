@@ -140,7 +140,7 @@ bool ConcatenateRel(const Array<Type>& types,
   CHECK_EQ(types.size(), 2);
   const auto* tensor_tuple = types[0].as<TupleTypeNode>();
   if (tensor_tuple == nullptr) {
-    CHECK(types[0].as<TupleTypeNode>())
+    CHECK(types[0].as<IncompleteTypeNode>())
         << "cast: expect input type to be TupleType but get "
         << types[0];
     return false;
