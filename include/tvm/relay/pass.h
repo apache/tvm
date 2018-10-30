@@ -106,7 +106,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
  bool WellFormed(const Expr& expr);
 
-/*! \brief Get free type parameters from expression e.
+/*! \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
  * let or a function parameter in the context.
