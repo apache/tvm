@@ -9,7 +9,7 @@ The function's parameters correpond to the placeholder/inputs
 and model parameters found in the computation graph representation.
 The body of the function represents the computation graph.
 
-The compiler's output is a program in a the graph language. The
+The compiler's output is a program in the graph language, which is composed of
 graph langauge is composed of Node, NodeRef, InputNode, OpNode.
 This "little language" represents programs in TVM's graph format.
 
