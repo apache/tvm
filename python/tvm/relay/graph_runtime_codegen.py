@@ -25,7 +25,7 @@ import json
 import attr
 from . import ir_pass
 from .op import Op
-from .expr import Var, Function, Call, If, GlobalVar, Constant, Let
+from .expr import Var, Function, Call, If, GlobalVar, Constant, Let, Tuple
 from ..build_module import build as tvm_build_module
 from .. contrib import graph_runtime
 from .ir_pass import infer_type
@@ -34,27 +34,37 @@ from .. import cpu
 class AbstractExprVisitor(object):
     """A visitor over Expr in Python."""
 
+    def __init__(self):
+        self.memo_map = {}
+
     # pylint: disable=no-else-return
     def visit(self, expr):
         """Apply the visitor to an expression."""
+        found = self.memo_map.get(expr)
+        if found:
+            return found
+
         if isinstance(expr, Function):
-            return self.visit_function(expr)
+            res = self.visit_function(expr)
         elif isinstance(expr, Call):
-            return self.visit_call(expr)
+            res = self.visit_call(expr)
         elif isinstance(expr, Let):
-            return self.visit_let(expr)
+            res = self.visit_let(expr)
         elif isinstance(expr, Var):
-            return self.visit_var(expr)
+            res = self.visit_var(expr)
         elif isinstance(expr, GlobalVar):
-            return self.visit_global_var(expr)
+            res =  self.visit_global_var(expr)
         elif isinstance(expr, If):
-            return self.visit_if(expr)
+            res = self.visit_if(expr)
         elif isinstance(expr, Tuple):
-            return self.visit_tuple(expr)
+            res = self.visit_tuple(expr)
         elif isinstance(expr, Constant):
-            return self.visit_constant(expr)
+            res = self.visit_constant(expr)
         else:
             raise Exception("warning unhandled case: {0}".format(type(expr)))
+
+        self.memo_map[expr] = res
+        return res
 
     def visit_function(self, _):
         raise Exception("Abstract method please implement me.")
@@ -206,26 +216,99 @@ class GraphRuntimeCodegen(ExprMutator):
         self.env = env
 
     def add_node(self, node):
+        """
+        Add a node to the graph.
+
+        Parameters
+        ----------
+        node: Node
+            The node to add to the graph.
+
+        Returns
+        -------
+        node_ref: NodeRef
+            A reference to the node.
+
+        """
         self.nodes.append(node)
         ident = len(self.nodes) - 1
         return NodeRef(ident)
 
     def add_binding(self, ident, ref):
+        """
+        Add a identifier to node mapping.
+
+        Parameters
+        ----------
+        ident: relay.Var
+            The variable to map
+
+        ref: NodeRef
+            The node the identifier points.
+        """
         self.id_map[ident] = ref
 
     def let_bind(self, ident, node):
+        """
+        Let bind node to ident.
+
+        Parameters
+        ----------
+        ident: relay.Var
+            The variable to map.
+
+        ref: NodeRef
+            The node the identifier points.
+
+        Returns
+        -------
+        ref: NodeRef
+            Return reference to the node.
+        """
         ref = self.add_node(node)
         self.add_binding(ident, ref)
         return ref
 
     def get_node(self, ref):
+        """
+        Lookup a node by a node reference.
+
+        Parameters
+        ----------
+        ref: NodeRef
+            The reference to lookup.
+
+        Returns
+        -------
+        node: Node
+            The node.
+        """
         return self.nodes[ref.ident]
 
     def lookup(self, ident):
+        """
+        Lookup a node by identifier.
+
+        Parameters
+        ----------
+        ident: relay.Var
+            The reference to lookup.
+
+        Returns
+        -------
+        node: Node
+            The node.
+        """
         return self.id_map[ident]
 
     def codegen(self, func):
-        """Compile a single function into a graph."""
+        """Compile a single function into a graph.
+
+        Parameters
+        ----------
+        func: tvm.relay.Expr
+            The function to compile.
+        """
         # First we convert all the parameters into input nodes.
         params = func.params
 
@@ -246,11 +329,22 @@ class GraphRuntimeCodegen(ExprMutator):
         self.get_node(output_ref).is_output = True
 
     def visit_let(self, let):
-        """Visit the Let binding, by first traversing its value,
-           then setting the metadata on the returned NodeRef.
+        """
+        Visit the let binding, by first traversing its value,
+        then setting the metadata on the returned NodeRef.
 
-           Finally visit the body, and return the NodeRef corresponding
-           to it.
+        Finally visit the body, and return the NodeRef corresponding
+        to it.
+
+        Parameters
+        ----------
+        let: tvm.relay.Expr
+            The let binding to transform.
+
+        Returns
+        -------
+        ref: NodeRef
+            The node reference to the body.
         """
         ident = let.var
         val = let.value
@@ -302,6 +396,11 @@ class GraphRuntimeCodegen(ExprMutator):
         """
         Convert the sequence of nodes stored by the compiler into the
         TVM graph runtime format.
+
+        Returns
+        -------
+        graph_json : str
+            The generated JSON as a string.
         """
         nodes = []
         # First we compute "nodes" field.
@@ -375,8 +474,23 @@ class GraphRuntimeCodegen(ExprMutator):
 
 
 def build(env, func, target=None):
-    """Compile a single function to the components needed by the
-       TVM RTS.
+    """
+    Compile a single function to the components needed by the
+    TVM RTS.
+
+    Parameters
+    ----------
+    func: relay.Expr
+        The function to build.
+
+    target: optional str
+        The target platform.
+
+    Returns
+    -------
+    (graph_json, mod, params): tuple of (str, tvm.Module, dict)
+        The outputs of building a Relay function for the TVM runtime.
+
     """
     if target is None:
         target = 'llvm'
