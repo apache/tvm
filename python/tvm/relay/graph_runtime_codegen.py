@@ -211,6 +211,7 @@ class GraphRuntimeCodegen(ExprMutator):
     id_map = attr.ib()
 
     def __init__(self, env):
+        ExprMutator.__init__(self)
         self.nodes = []
         self.id_map = {}
         self.env = env
@@ -426,7 +427,7 @@ class GraphRuntimeCodegen(ExprMutator):
             discovered = set()
             stack = []
             stack.append(len(nodes) - 1)
-            while len(stack) != 0:
+            while stack:
                 i = stack.pop()
                 if i not in discovered:
                     discovered.add(i)
