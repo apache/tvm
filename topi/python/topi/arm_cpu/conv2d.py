@@ -242,7 +242,7 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
 
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['winograd'])
-def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
     """ TOPI compute callback. Use winograd template """
     tile_size = 4
     return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
