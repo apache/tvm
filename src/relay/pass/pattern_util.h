@@ -116,6 +116,13 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
+template<typename T>
+inline Constant MakeConstantScalar(DataType dtype, T value) {
+  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
+  runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
+  *static_cast<T*>(arr->data) = value;
+  return ConstantNode::make(arr);
+}
 
 
 }  // namespace relay

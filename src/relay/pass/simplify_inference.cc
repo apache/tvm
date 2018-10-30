@@ -10,28 +10,17 @@
 namespace tvm {
 namespace relay {
 
-// TODO: make type generic
-Constant make_const(float x) {
-  DLDataType dtype{kDLFloat, 32, 1};
-  runtime::NDArray data = runtime::NDArray::Empty({}, dtype, {kDLCPU, 0});
-  float* pdata = static_cast<float*>(data->data);
-  *pdata = x;
-  Constant n = ConstantNode::make(data);
-  return n;
-}
-
-Expr
-BatchNormToInferUnpack(const Attrs attrs,
-                       Expr data,
-                       Expr gamma,
-                       Expr beta,
-                       Expr moving_mean,
-                       Expr moving_var) {
+Expr BatchNormToInferUnpack(const Attrs attrs,
+                            Expr data,
+                            Expr gamma,
+                            Expr beta,
+                            Expr moving_mean,
+                            Expr moving_var) {
   const auto param = attrs.as<BatchNormAttrs>();
-  Expr epsilon = make_const(param->epsilon);
+  Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
   Expr var_add_eps = CallNode::make(Op::Get("add"), {moving_var, epsilon});
-  Expr sqrt = CallNode::make(Op::Get("sqrt"), {var_add_eps});
-  Expr scale = CallNode::make(Op::Get("divide"), {make_const(1.0f), sqrt});
+  Expr sqrt_var = CallNode::make(Op::Get("sqrt"), {var_add_eps});
+  Expr scale = CallNode::make(Op::Get("divide"), {MakeConstantScalar(Float(32), 1.0f), sqrt_var});
 
   if (param->scale) {
     scale = CallNode::make(
@@ -46,15 +35,8 @@ BatchNormToInferUnpack(const Attrs attrs,
   int axis = param->axis;
   const auto* tdata = data->type_as<TensorTypeNode>();
   CHECK(tdata) << "require checked type";
-  Array<Integer> dshape;
-  for (auto e : tdata->shape) {
-    CHECK(is_const(e));
-    const IntImm* imm = e.as<IntImm>();
-    CHECK(imm);
-    dshape.push_back(Integer(imm->value));
-  }
-  scale = ExpandBiasToMatchAxis(scale, axis, dshape);
-  shift = ExpandBiasToMatchAxis(shift, axis, dshape);
+  scale = ExpandBiasToMatchAxis(scale, tdata->shape.size(), {axis});
+  shift = ExpandBiasToMatchAxis(shift, tdata->shape.size(), {axis});
 
   Expr out = CallNode::make(Op::Get("multiply"), {data, scale});
   out = CallNode::make(Op::Get("add"), {out, shift});
@@ -63,17 +45,21 @@ BatchNormToInferUnpack(const Attrs attrs,
 
 class Simplifier : public ExprMutator {
  public:
-  Expr VisitExpr_(const CallNode* n) final {
-    if (const OpNode* op = n->op.as<OpNode>()) {
-      LOG(INFO) << "op: " << op->name;
-      if (op->name == "nn.batch_norm") {
-        LOG(INFO) << n->args;
-        return BatchNormToInferUnpack(n->attrs, n->args[0], n->args[1], n->args[2], n->args[3], n->args[4]);
-      } else if (op->name == "nn.dropout") {
-          return n->args[0];
+  Expr VisitExpr_(const TupleGetItemNode* n) final {
+    static const Op& batch_norm = Op::Get("nn.batch_norm");
+    static const Op& dropout = Op::Get("nn.dropout");
+
+    Expr new_e = ExprMutator::VisitExpr_(n);
+    const auto* new_n = new_e.as<TupleGetItemNode>();
+    if (const auto* call = new_n->tuple.as<CallNode>()) {
+      if (call->op.same_as(batch_norm)) {
+        return BatchNormToInferUnpack(call->attrs,
+          call->args[0], call->args[1], call->args[2], call->args[3], call->args[4]);
+      } else if (call->op.same_as(dropout)) {
+        return call->args[0];
       }
     }
-    return GetRef<Expr>(n);
+    return new_e;
   }
 };
 

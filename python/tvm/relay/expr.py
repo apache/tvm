@@ -88,7 +88,6 @@ class Expr(RelayNode):
         return self.__mul__(other)
 
     def __div__(self, other):
-        print('divide')
         if isinstance(other, Expr):
             return _op_make.divide(self, other)
         elif isinstance(other, _Number):

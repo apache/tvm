@@ -18,8 +18,8 @@ from ..base import register_relay_node
 
 
 def _register_op_make():
-    import sys
+    from . import _make
     from .. import expr
-    expr._op_make = sys.modules['tvm.relay.op._make']
+    expr._op_make = _make
 
 _register_op_make()
