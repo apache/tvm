@@ -236,9 +236,6 @@ class FunctionNode : public ExprNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
-  TVM_DLL NodeRef GetAttr(const std::string& key) const;
-  TVM_DLL Function SetAttr(const std::string& key, const NodeRef& data) const;
-
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
@@ -250,6 +247,11 @@ class FunctionNode : public ExprNode {
 };
 
 RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
+
+
+TVM_DLL NodeRef FunctionGetAttr(const Function& func, const std::string& key);
+TVM_DLL Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data);
+
 
 /*!
  * \brief Call corresponds to operator invocation.

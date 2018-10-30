@@ -10,6 +10,7 @@
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/build_module.h>
 #include "./ir/type_functor.h"
 
 namespace tvm {
@@ -158,12 +159,19 @@ struct Stack {
   };
 };
 
+/*! \brief The equal comparator for expressions. */
+struct ExprEqual {
+  bool operator()(const Expr& a, const Expr& b) const {
+    return AlphaEqual(a, b);
+  }
+};
+
 struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   Environment env;
   Stack stack;
   using JitKey = Function;
 
-  using OpMap = std::unordered_map<JitKey, PackedFunc, ExprHash, ExprEqual>;
+  using OpMap = std::unordered_map<JitKey, PackedFunc, StructuralHash, ExprEqual>;
 
   OpMap operator_map_;
 

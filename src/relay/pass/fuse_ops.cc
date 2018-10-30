@@ -47,7 +47,7 @@ struct AbstractFusableOps : ExprMutator {
 
       auto body = CallNode::make(call->op, inner_args, call->attrs);
       auto func = FunctionNode::make(params, body, call->checked_type(), {});
-      func = func->SetAttr("Primitive", tvm::Integer(1));
+      func = FunctionSetAttr(func, "Primitive", tvm::Integer(1));
       std::string func_name = "fused_";
       func_name += op_node->name;
       func_name += "_";
@@ -69,7 +69,7 @@ Expr FuseOps(const Environment& env, const Expr& e) {
   // abstracted functions which we mark as primtive
   // then we convert these primtive functions into
   // new operators.
-  auto abstract = AbstractFusableOps(env, StructuralHash(e));
+  auto abstract = AbstractFusableOps(env, StructuralHash()(e));
   auto abstracted_e = abstract.VisitExpr(e);
   RELAY_LOG(INFO) << "FuseOps: before=" << e
                   << "Fuse: after=" << abstracted_e;

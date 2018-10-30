@@ -6,7 +6,6 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
-#include <tvm/lowered_func.h>
 #include <tvm/relay/environment.h>
 #include <tvm/relay/expr.h>
 #include <string>
@@ -144,94 +143,28 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  */
 Expr DeadCodeElimination(const Expr& e);
 
-/*! \brief Hash a Relay type.
- *
- * Implements structural hashing of a Relay type.
- *
- *  \param type the type to hash.
- *
- *  \return the hash value.
- */
-size_t StructuralHash(const Type& type);
-
-/*! \brief Hash a Relay expression.
- *
- * Implements structural hashing of a Relay expression.
- *
- * \param expr the expression to hash.
- *
- * \return the hash value.
- */
-size_t StructuralHash(const Expr& expr);
-
-/*! \brief The hash struct for expressions. */
-struct ExprHash {
-  size_t operator()(const Expr& a) const {
-    return StructuralHash(a);
-  }
-};
-
-/*! \brief The equal comparator for expressions. */
-struct ExprEqual {
-  bool operator()(const Expr& a, const Expr& b) const {
-    return AlphaEqual(a, b);
-  }
-};
-
-/*! \brief A lowered Relay operation.
- *
- * A lowered operation is a pair containing the "primitive" function used
- * to produce the lowered function as well as the lowered function itself.
- */
-class LoweredOp;
-/*! \brief Call container. */
-class LoweredOpNode : public Node {
- public:
-  /*!
-   * \brief The primitive function to be lowered.
+/*! \brief A hashing structure in the style of std::hash. */
+struct StructuralHash {
+  /*! \brief Hash a Relay type.
    *
-   * A primitive function consists only of calls to relay::Op which
-   * can be fused.
+   * Implements structural hashing of a Relay type.
+   *
+   *  \param type the type to hash.
+   *
+   *  \return the hash value.
    */
-  Function func;
+  size_t operator()(const Type& type) const;
 
-  /*!
-   * \brief The lowered function.
+  /*! \brief Hash a Relay expression.
+   *
+   * Implements structural hashing of a Relay expression.
+   *
+   * \param expr the expression to hash.
+   *
+   * \return the hash value.
    */
-  LoweredFunc lowered_func;
-
-  void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("func", &func);
-    v->Visit("lowered_func", &lowered_func);
-  }
-
-  TVM_DLL static LoweredOp make(
-      Function func,
-      LoweredFunc lowered_func);
-
-  static constexpr const char* _type_key = "relay.LoweredOp";
-  TVM_DECLARE_NODE_TYPE_INFO(LoweredOpNode, Node);
+  size_t operator()(const Expr& expr) const;
 };
-
-RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
-
-/*!
- * \brief Lower the operations contained in a Relay expression.
- *
- * The lowering pass will only lower functions marked as primitive,
- * the FuseOps pass will provide this behavior, if run before LowerOps.
- *
- * \note This will do a reachability analysis and lower all definitions
- * reachable from the provided expression.
- *
- * \param env  The environment.
- * \param expr The expression with operations to be lowered.
- * \param target The target to lower the functions to.
- *
- * \return The set of lowered operations.
- */
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr,
-                          const std::string& target = "llvm");
 
 }  // namespace relay
 }  // namespace tvm

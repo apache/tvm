@@ -129,10 +129,10 @@ FuncType FunctionNode::func_type_annotation() const {
   return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
 }
 
-NodeRef FunctionNode::GetAttr(const std::string& key) const {
-  if (!this->attrs.defined()) { return NodeRef(); }
+NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
+  if (!func->attrs.defined()) { return NodeRef(); }
 
-  const DictAttrsNode* dict_attrs = this->attrs.as<DictAttrsNode>();
+  const DictAttrsNode* dict_attrs = func->attrs.as<DictAttrsNode>();
   CHECK(dict_attrs);
   auto it = dict_attrs->dict.find(key);
   if (it != dict_attrs->dict.end()) {
@@ -142,8 +142,8 @@ NodeRef FunctionNode::GetAttr(const std::string& key) const {
   }
 }
 
-Function FunctionNode::SetAttr(const std::string& key, const NodeRef& data) const {
-  const DictAttrsNode* dattrs = this->attrs.as<DictAttrsNode>();
+Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data) {
+  const DictAttrsNode* dattrs = func->attrs.as<DictAttrsNode>();
   Attrs func_attrs;
   if (dattrs) {
     Map<std::string, NodeRef> dict = dattrs->dict;
@@ -155,10 +155,10 @@ Function FunctionNode::SetAttr(const std::string& key, const NodeRef& data) cons
   }
 
   return FunctionNode::make(
-    this->params,
-    this->body,
-    this->ret_type,
-    this->type_params,
+    func->params,
+    func->body,
+    func->ret_type,
+    func->type_params,
     func_attrs);
 }
 

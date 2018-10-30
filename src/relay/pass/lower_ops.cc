@@ -12,6 +12,7 @@
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass.h>
 #include <tvm/runtime/module.h>
+#include <tvm/relay/build_module.h>
 #include "../ir/type_functor.h"
 
 namespace tvm {
@@ -35,7 +36,7 @@ struct AbstractLocalFunctions : ExprMutator {
       : env(env), expr_hash(0), counter(0), visited_funcs() {}
 
   Expr Abstract(const Expr& e) {
-    expr_hash = StructuralHash(e);
+    expr_hash = StructuralHash()(e);
     return VisitExpr(e);
   }
 
@@ -133,7 +134,7 @@ struct LiveFunctions : ExprVisitor {
       GlobalVar gvar = GetRef<GlobalVar>(gv_node);
       Function func = env->Lookup(gvar);
 
-      auto attr = func->GetAttr("Primitive");
+      auto attr = FunctionGetAttr(func, "Primitive");
 
       if (attr.defined() && Downcast<Integer>(attr)->value == 1) {
         global_funcs.insert(gvar);
@@ -199,10 +200,10 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
     Array<Tensor> outputs =
         compute_reg[op](call->attrs, inputs, output_tt, target);
     auto schedule = schedule_reg[op](outputs, target);
-    size_t hash = ExprHash()(func);
+    size_t hash = StructuralHash()(func);
     LoweredFunc lf =
         flower(op->name + std::to_string(hash), schedule, inputs, outputs);
-    func = func->SetAttr("LoweredFunc", lf);
+    func = FunctionSetAttr(func, "LoweredFunc", lf);
     env->Add(func_name, func, true);
     lowered_funcs.push_back(LoweredOpNode::make(func, lf));
   }
