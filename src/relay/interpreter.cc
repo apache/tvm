@@ -340,6 +340,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   Value VisitExpr_(const TupleGetItemNode* op) override {
     Value val = Eval(op->tuple);
     if (auto product_node = val.as<TupleValueNode>()) {
+      CHECK(op->index < product_node->fields.size());
       return product_node->fields[op->index];
     } else {
       throw EvalError("not a product");
@@ -405,32 +406,6 @@ TVM_REGISTER_API("relay._interpreter.evaluate")
       Expr expr = args[1];
       *ret = Evaluate(env, expr);
     });
-
-// TVM_REGISTER_API("relay._eval.invoke")
-//     .set_body([](TVMArgs args, TVMRetValue* ret) {
-//       // tood maybe tweak interface
-//       Environment env = args[0];
-//       GlobalVar id = args[1];
-//       tvm::Array<Value> relay_args = args[2];
-
-//       // Because we are interfacing with the runtime here, we first need to
-//       type
-//       // check the arguments to the function at runtime.
-//       //
-//       // Because we have values we can easily compute a type from them and
-//       just
-//       // type check the call before execution.
-//       Evaluator eval(env);
-//       Value fn_val = eval.Eval(id);
-//       if (const ClosureNode* closure_node = fn_val.as<ClosureNode>()) {
-//         auto closure = GetRef<Closure>(closure_node);
-//         auto result = eval.invoke(closure, relay_args);
-//         *ret = result;
-//       } else {
-//         throw EvalError(
-//             "Type error, expected function value in the call position");
-//       }
-//     });
 
 }  // namespace relay
 }  // namespace tvm

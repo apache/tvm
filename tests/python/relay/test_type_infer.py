@@ -129,19 +129,12 @@ def test_incomplete_call():
     except tvm.TVMError as e:
         assert True
 
-# This currently fails and should pass under the type system.
-
-
 def test_tuple():
-    pass
-    # tp = relay.TensorType((10,))
-    # x = relay.var("x", tp)
-    # f = ib.param('f')
-    # with ib.decl(dup, x):
-    #     res = relay.Tuple([x, x])
-    #     assert (relay.ir_pass.infer_type(res).checked_type ==
-    #         relay.TupleType([tp, tp]))
-
+    tp = relay.TensorType((10,))
+    x = relay.var("x", tp)
+    res = relay.Tuple([x, x])
+    assert (relay.ir_pass.infer_type(res).checked_type ==
+            relay.TupleType([tp, tp]))
 
 def test_free_expr():
     x = relay.var("x", "float32")
