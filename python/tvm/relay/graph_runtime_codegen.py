@@ -256,7 +256,6 @@ class TVMRTSCompiler(ExprMutator):
         val = let.value
         body = let.body
 
-        # Need to add type info?
         val_ref = self.visit(val)
         dtype, shape = from_tensor(val.checked_type())
         val_node = self.get_node(val_ref)
@@ -319,8 +318,28 @@ class TVMRTSCompiler(ExprMutator):
                 # Need to fix this.
                 heads.append(NodeRef(i).to_json())
 
+        def compute_node_row_ptr(nodes):
+            """Calculate the node_row_ptr field by doing a DFS backwards
+               from the output and reversing the path.
+            """
+            row_ptr = [len(nodes)]
+            discovered = set()
+            stack = []
+            stack.append(len(nodes) - 1)
+            while len(stack) != 0:
+                i = stack.pop()
+                if i not in discovered:
+                    discovered.add(i)
+                    row_ptr.append(i)
+                    node = nodes[i]
+                    if isinstance(node, OpNode):
+                        for inp in node.inputs:
+                            stack.append(inp[0])
+            row_ptr.reverse()
+            return row_ptr
+
         # Compute "node_row_ptr".
-        # TODO
+        node_row_ptr = compute_node_row_ptr(self.nodes)
 
         # Compute "attrs" field.
         attrs = {}
@@ -347,7 +366,8 @@ class TVMRTSCompiler(ExprMutator):
             "nodes": nodes,
             "arg_nodes": arg_nodes,
             "heads": heads,
-            "attrs": attrs
+            "attrs": attrs,
+            "node_row_ptr":  node_row_ptr
         }
 
         return json.dumps(json_dict)
@@ -403,10 +423,7 @@ def evaluate_rts(env, func, *args):
     func = infer_type(func, env)
     graph_json, mod, params = compile_to_tvm(env, func)
     assert params is None
-    # Temporary hack for node_row_ptr
-    import nnvm
-    graph = nnvm.graph.load_json(graph_json)
-    gmodule = graph_runtime.create(graph, mod, cpu(0))
+    gmodule = graph_runtime.create(graph_json, mod, cpu(0))
     # Create map of inputs.
     inputs = {}
     for i, arg in enumerate(args):

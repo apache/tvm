@@ -7,6 +7,7 @@ from . import ty
 from . import expr
 from . import env
 from . import ir_pass
+from . import testing
 
 # Root operators
 from .op import Op
@@ -16,6 +17,7 @@ from .op.transform import *
 from . import nn
 from . import vision
 from . import image
+
 
 from .scope_builder import ScopeBuilder
 
