@@ -3,7 +3,7 @@
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.nnvm_integration import deserialize_args
-from tvm.autotvm.task import register, get_config
+from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
@@ -145,7 +145,7 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtyp
     return unpack
 
 
-@autotvm.task.register_topi_schedule(generic.schedule_conv2d_nchw, 'cpu', ['direct'])
+@autotvm.register_topi_schedule(generic.schedule_conv2d_nchw, 'cpu', ['direct'])
 def schedule_conv2d(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
@@ -248,7 +248,7 @@ def schedule_conv2d_nhwc(outs):
 # We define schedule template in this function instead of
 # declaration function since actual input arguments need
 # to be altered by the schedule selected.
-@register("topi_x86_conv2d_NCHWc")
+@autotvm.task.register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
     data, kernel, strides, padding, origin_layout, dtype = deserialize_args(args)
@@ -311,7 +311,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
     new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
 
-    # Store altered operator's config
+    # Store the same config for the altered operator (workload)
     new_data = tvm.placeholder((batch_size, in_channel//ic_bn, height, width, ic_bn),
                                dtype=data.dtype)
     new_kernel = tvm.placeholder((out_channel//oc_bn, in_channel//ic_bn, kh, kw, ic_bn, oc_bn),
