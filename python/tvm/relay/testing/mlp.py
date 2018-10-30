@@ -17,6 +17,7 @@
 """
 a simple multilayer perceptron
 """
+from __future__ import absolute_import
 from tvm import relay
 from .init import create_workload
 

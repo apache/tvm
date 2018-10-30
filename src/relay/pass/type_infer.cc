@@ -298,8 +298,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     auto* fn_ty_node = ftype.as<FuncTypeNode>();
 
     CHECK(fn_ty_node != nullptr)
-        << "only expressions with function types can be called, at "
-        << call->span;
+        << "only expressions with function types can be called, found "
+        << ftype << " at " << call->span;
 
     Array<Type> type_args;
     FuncType fn_ty = Instantiate(fn_ty_node, &type_args);
@@ -505,12 +505,16 @@ Expr TypeInferencer::Infer(Expr expr) {
   // Step 1: Solve the constraints.
   solver_.Solve();
   // Step 2: Attach resolved types to checked_type field.
-  return Resolver(type_map_, &solver_).VisitExpr(expr);
+  auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(expr);
+  CHECK(WellFormed(resolved_expr));
+  return resolved_expr;
 }
 
 
 Expr InferType(const Expr& expr, const Environment& env) {
-  return TypeInferencer(env).Infer(expr);
+  auto e = TypeInferencer(env).Infer(expr);
+  CHECK(WellFormed(e));
+  return e;
 }
 
 Function InferType(const Function& func,
@@ -522,6 +526,7 @@ Function InferType(const Function& func,
   Expr func_ret = TypeInferencer(env).Infer(func_copy);
   auto map_node = env->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
+  CHECK(WellFormed(func_ret));
   return Downcast<Function>(func_ret);
 }
 

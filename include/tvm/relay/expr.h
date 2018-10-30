@@ -213,12 +213,18 @@ class FunctionNode : public ExprNode {
    */
   tvm::Array<TypeVar> type_params;
 
+  /*!
+   * \brief The attributes which store metadata about functions.
+   */
+  tvm::Attrs attrs;
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("params", &params);
     v->Visit("body", &body);
     v->Visit("ret_type", &ret_type);
     v->Visit("type_params", &type_params);
     v->Visit("span", &span);
+    v->Visit("attrs", &attrs);
     v->Visit("_checked_type_", &checked_type_);
   }
 
@@ -233,13 +239,19 @@ class FunctionNode : public ExprNode {
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,
-                               tvm::Array<TypeVar> ty_params);
+                               tvm::Array<TypeVar> ty_params,
+                               tvm::Attrs attrs = Attrs());
 
   static constexpr const char* _type_key = "relay.Function";
   TVM_DECLARE_NODE_TYPE_INFO(FunctionNode, ExprNode);
 };
 
 RELAY_DEFINE_NODE_REF(Function, FunctionNode, Expr);
+
+
+TVM_DLL NodeRef FunctionGetAttr(const Function& func, const std::string& key);
+TVM_DLL Function FunctionSetAttr(const Function& func, const std::string& key, const NodeRef& data);
+
 
 /*!
  * \brief Call corresponds to operator invocation.

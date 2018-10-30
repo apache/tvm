@@ -45,9 +45,12 @@ class Environment(RelayNode):
         func: Function
             The function.
         """
+        return self._add(var, func)
+
+    def _add(self, var, func, update=False):
         if isinstance(var, _base.string_types):
             var = _expr.GlobalVar(var)
-        _env.Environment_Add(self, var, func)
+        return _env.Environment_Add(self, var, func, update)
 
     def __getitem__(self, var):
         """Lookup a global function by name or by variable.

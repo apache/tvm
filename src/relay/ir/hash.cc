@@ -285,11 +285,11 @@ class RelayHashHandler:
   int var_counter = 0;
 };
 
-size_t StructuralHash(const Type& type) {
+size_t StructuralHash::operator()(const Type& type) const {
   return RelayHashHandler().TypeHash(type);
 }
 
-size_t StructuralHash(const Expr& expr) {
+size_t StructuralHash::operator()(const Expr& expr) const {
   return RelayHashHandler().ExprHash(expr);
 }
 

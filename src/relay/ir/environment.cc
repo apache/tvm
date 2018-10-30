@@ -49,9 +49,16 @@ void EnvironmentNode::Add(const GlobalVar& var,
         << "Environment#update changes type, not possible in this mode.";
   }
   this->functions.Set(var, checked_func);
-  // set gloval var map
-  CHECK(!global_var_map_.count(var->name_hint))
-      << "Duplicate global function name " << var->name_hint;
+
+  auto it = global_var_map_.find(var->name_hint);
+  if (it != global_var_map_.end()) {
+    CHECK_EQ((*it).second, var);
+  } else {
+    // set global var map
+    CHECK(!global_var_map_.count(var->name_hint))
+        << "Duplicate global function name " << var->name_hint;
+  }
+
   global_var_map_.Set(var->name_hint, var);
 }
 
@@ -94,7 +101,7 @@ TVM_REGISTER_API("relay._make.Environment")
 TVM_REGISTER_API("relay._env.Environment_Add")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     Environment env = args[0];
-    env->Add(args[1], args[2], false);
+    env->Add(args[1], args[2], args[3]);
   });
 
 TVM_REGISTER_API("relay._env.Environment_GetGlobalVar")
