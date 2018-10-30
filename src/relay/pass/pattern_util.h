@@ -137,7 +137,7 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
-  
+
 template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
   CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
