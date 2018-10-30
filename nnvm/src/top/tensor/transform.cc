@@ -1353,5 +1353,103 @@ Examples::
 })
 .set_support_level(4);
 
+// gather_nd
+inline bool GatherNDInferShape(const nnvm::NodeAttrs& attrs,
+                               std::vector<TShape>* in_attrs,
+                               std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const TShape& data_shape = in_attrs->at(0);
+  const TShape& indices_shape = in_attrs->at(1);
+  CHECK_GT(indices_shape.ndim(), 1) << "indices must have at least 2 dimensions";
+  CHECK_LE(indices_shape[0], data_shape.ndim()) <<
+      "dim 0 of indices must be no more than rank of data";
+  std::vector<dim_t> oshape;
+  for (size_t i = 1; i < indices_shape.ndim(); ++i) {
+    oshape.push_back(indices_shape[i]);
+  }
+  for (size_t i = indices_shape[0]; i < data_shape.ndim(); ++i) {
+    oshape.push_back(data_shape[i]);
+  }
+  if (oshape.size() == 0) {
+    oshape.push_back(1);
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0,
+                           TShape(oshape.begin(), oshape.end()));
+  return true;
+}
+
+inline bool GatherNDInferType(const NodeAttrs &attrs,
+                              std::vector<int> *in_attrs,
+                              std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  CHECK_EQ((*in_attrs)[1], kInt32);
+  NNVM_ASSIGN_INPUT_TYPE(attrs, *in_attrs, 0, (*in_attrs)[0]);
+  NNVM_ASSIGN_INPUT_TYPE(attrs, *in_attrs, 1, static_cast<int>(kInt32));
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
+inline bool GatherNDCorrectLayout(const NodeAttrs& attrs,
+                                  std::vector<Layout> *ilayouts,
+                                  const std::vector<Layout> *last_ilayouts,
+                                  std::vector<Layout> *olayouts) {
+  CHECK_EQ(ilayouts->size(), last_ilayouts->size());
+  CHECK_EQ(olayouts->size(), 1U);
+
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    const Layout& input = last_ilayouts->at(i).defined() ?
+                          last_ilayouts->at(i) : ilayouts->at(i);
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  }
+
+  return true;
+}
+
+NNVM_REGISTER_OP(gather_nd)
+.describe(R"code(
+Gather elements or slices from `data` and store to a tensor whose
+shape is defined by `indices`.
+Given `data` with shape `(X_0, X_1, ..., X_{N-1})` and indices with shape
+`(M, Y_0, ..., Y_{K-1})`, the output will have shape `(Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1})`,
+where `M <= N`. If `M == N`, output shape will simply be `(Y_0, ..., Y_{K-1})`.
+The elements in output is defined as follows::
+
+  output[y_0, ..., y_{K-1}, x_M, ..., x_{N-1}] = data[indices[0, y_0, ..., y_{K-1}],
+                                                      ...,
+                                                      indices[M-1, y_0, ..., y_{K-1}],
+                                                      x_M, ..., x_{N-1}]
+
+Examples::
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1, 1, 0], [0, 1, 0]]
+  gather_nd(data, indices) = [2, 3, 0]
+
+  data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+  indices = [[0, 1], [1, 0]]
+  gather_nd(data, indices) = [[3, 4], [5, 6]]
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("indices", "Tensor", "Indices of data")
+.set_num_inputs(2)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", GatherNDInferShape)
+.set_attr<FInferType>("FInferType", GatherNDInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", GatherNDCorrectLayout)
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      return Array<Tensor>{
+        topi::gather_nd(inputs[0], inputs[1]) };
+  })
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+  return std::vector<std::string>{"data", "indices"};
+})
+.set_support_level(3);
+
 }  // namespace top
 }  // namespace nnvm
