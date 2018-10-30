@@ -92,7 +92,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
       body.same_as(op->body)) {
     return GetRef<Expr>(op);
   } else {
-    return FunctionNode::make(params, body, ret_type, ty_params);
+    return FunctionNode::make(params, body, ret_type, ty_params, op->attrs);
   }
 }
 
@@ -160,10 +160,14 @@ Expr ExprMutator::VisitExpr_(const TupleGetItemNode* g) {
 Type ExprMutator::VisitType(const Type& t) { return t; }
 
 void ExprVisitor::VisitExpr(const Expr& expr) {
-  if (visited_.count(expr.get())) return;
-  using TParent = ExprFunctor<void(const Expr&)>;
-  TParent::VisitExpr(expr);
-  visited_.insert(expr.get());
+  auto it = visit_counter_.find(expr.get());
+  if (it != visit_counter_.end()) {
+    ++it->second;
+  } else {
+    using TParent = ExprFunctor<void(const Expr&)>;
+    TParent::VisitExpr(expr);
+    visit_counter_.insert({expr.get(), 1});
+  }
 }
 
 void ExprVisitor::ExprVisitor::VisitExpr_(const VarNode* op) {
@@ -194,6 +198,7 @@ void ExprVisitor::ExprVisitor::VisitExpr_(const FunctionNode* op) {
 
 void ExprVisitor::VisitExpr_(const CallNode* op) {
   this->VisitExpr(op->op);
+
   for (auto ty_arg : op->type_args) {
     this->VisitType(ty_arg);
   }

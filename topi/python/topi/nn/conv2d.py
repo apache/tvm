@@ -84,65 +84,6 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
         '{} vs. {}".format(data.dtype, kernel.dtype)
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
-def _get_workload_int8(data, kernel, stride, padding, out_dtype):
-    """ Get the workload structure. """
-    _, CI, IH, IW = [x.value for x in data.shape]
-    CO, _, KH, KW = [x.value for x in kernel.shape]
-    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
-    if isinstance(stride, (tuple, list)):
-        HSTR, WSTR = stride
-    else:
-        HSTR, WSTR = stride, stride
-    assert (data.dtype == kernel.dtype) or (data.dtype == 'uint8' and kernel.dtype == 'int8'), \
-        "Do not support inputs with different data types now. ' \
-        '{} vs. {}".format(data.dtype, kernel.dtype)
-    return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
-
-
-
-@tvm.target.generic_func
-def _get_alter_layout_schedule(wkl):
-    # pylint: disable=unreachable
-    """ Get the platform specific schedule for conv2d_alter_layout. """
-    target = tvm.target.current_target()
-    raise RuntimeError(
-        "No schedule for current target:{}".format(target))
-    # This return has no use, merely to supress pylint warning
-    return wkl
-
-
-@tvm.target.generic_func
-def _get_schedule(wkl):
-    # pylint: disable=unreachable
-    """ Get the platform specific schedule. """
-    target = tvm.target.current_target()
-    raise RuntimeError(
-        "No schedule for current target:{}".format(target))
-    # This return has no use, merely to supress pylint warning
-    return wkl
-
-
-@tvm.target.generic_func
-def _get_schedule_NCHWc(wkl, layout, out_layout):
-    # pylint: disable=unreachable
-    """ Get the platform specific schedule. """
-    target = tvm.target.current_target()
-    raise RuntimeError(
-        "No schedule for current target:{}".format(target))
-    # This return has no use, merely to supress pylint warning
-    return wkl
-
-
-@tvm.target.generic_func
-def _get_schedule_NCHWc_int8(wkl, layout, out_layout):
-    # pylint: disable=unreachable
-    """ Get the platform specific schedule. """
-    target = tvm.target.current_target()
-    raise RuntimeError(
-        "No schedule for current target:{}".format(target))
-    # This return has no use, merely to supress pylint warning
-    return wkl
-
 
 def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
     """Convolution operator in NCHW layout.
@@ -302,8 +243,7 @@ def conv2d_nhwc(Input, Filter, stride, padding, out_dtype='float32'):
 
 
 @tvm.target.generic_func
-def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride,
-                 padding, layout, out_layout, out_dtype='float32'):
+def conv2d_NCHWc(data, kernel, stride, padding, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for nChw[x]c layout.
 
     Parameters
@@ -315,12 +255,6 @@ def conv2d_NCHWc(data, kernel, num_filter, kernel_size, stride,
         6-D with shape
         [num_filter_chunk, in_channel_chunk, filter_height, filter_width,
         in_channel_block, num_filter_block]
-
-    num_filter : int
-        number of filters, i.e., output channel size
-
-    kernel_size : tuple of two ints
-       [kernel_height, kernel_width]
 
     stride : int or a list/tuple of two ints
         stride size, or [stride_height, stride_width]

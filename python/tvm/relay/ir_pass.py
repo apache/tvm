@@ -31,6 +31,29 @@ def infer_type(expr, env=None):
     return _ir_pass.infer_type(expr, env)
 
 
+def backward_fold_scale_axis(expr):
+    """Backward fold axis scaling into weights of conv2d/dense.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression, we expect that expr's types
+        should be fully inferred by infer_type.
+
+    Returns
+    -------
+    folded_expr : tvm.relay.Expr
+        The folded expression after transformation.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
+    """
+    return _ir_pass.backward_fold_scale_axis(expr)
+
+
 def forward_fold_scale_axis(expr):
     """Fold the scaling of axis into weights of conv2d/dense.
 
@@ -44,6 +67,12 @@ def forward_fold_scale_axis(expr):
     -------
     folded_expr : tvm.relay.Expr
         The folded expression after transformation.
+
+    Note
+    ----
+    It is recommended to call backward_fold_scale_axis
+    before using forward_fold_scale_axis.
+    As backward folding targets common conv-bn pattern.
     """
     return _ir_pass.forward_fold_scale_axis(expr)
 
@@ -213,3 +242,9 @@ def structural_hash(value):
         msg = ("found value of type {0} expected" +
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
+
+def fuse_ops(expr, env):
+    return _ir_pass.FuseOps(env, expr)
+
+def lower_ops(env, expr, target='llvm'):
+    return _ir_pass.LowerOps(env, expr, target)

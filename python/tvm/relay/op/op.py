@@ -3,7 +3,8 @@ from ..._ffi.function import _init_api
 
 from ..base import register_relay_node
 from ..expr import Expr
-
+from ...api import register_func
+from ...build_module import lower, build
 
 @register_relay_node
 class Op(Expr):
@@ -75,3 +76,11 @@ def register(op_name, attr_key, value=None, level=10):
 
 
 _init_api("relay.op", __name__)
+
+@register_func("relay.op.compiler._lower")
+def _lower(name, schedule, inputs, outputs):
+    return lower(schedule, list(inputs) + list(outputs), name=name)
+
+@register_func("relay.op.compiler._build")
+def _build(lowered_funcs):
+    return build(lowered_funcs, target="llvm")
