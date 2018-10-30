@@ -321,7 +321,7 @@ class VTInjector : public IRMutator {
     CHECK_EQ(max_loop_depth_, 0);
     Stmt then_case = this->Mutate(op->then_case);
     Stmt else_case;
-    if (else_case.defined()) {
+    if (op->else_case.defined()) {
       int temp = max_loop_depth_;
       max_loop_depth_ = 0;
       else_case = this->Mutate(op->else_case);
