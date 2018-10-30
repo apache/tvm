@@ -1188,7 +1188,7 @@ bool SliceLikeRel(const Array<Type>& types,
   const Array<IndexExpr> target_shape = target->shape;
   std::vector<IndexExpr>&& oshape = AsVector(dshape);
 
-  if (!param->axes.defined() || param->axes.size() == 0) {
+  if (!param->axes.defined()) {
     for (size_t i = 0; i < dshape.size(); ++i) {
       if (i < target_shape.size()) {
         oshape[i] = target_shape[i];
@@ -1198,6 +1198,7 @@ bool SliceLikeRel(const Array<Type>& types,
       }
     }
   } else {
+    CHECK(param->axes.size() != 0) << "Axes cannot be empty.";
     for (Integer i : param->axes) {
       if (reporter->Assert(i < make_const(Int(64), 0))) {
         i += make_const(Int(64), dshape.size());
