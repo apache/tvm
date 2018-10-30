@@ -37,7 +37,7 @@ struct AbstractFusableOps : ExprMutator {
 
       int param_number = 0;
       for (auto arg : call->args) {
-        auto name = std::string("p") + std::to_string(param_number);
+        auto name = std::string("p") + std::to_string(param_number++);
         auto type = arg->checked_type();
         auto var = VarNode::make(name, type);
         params.push_back(var);
