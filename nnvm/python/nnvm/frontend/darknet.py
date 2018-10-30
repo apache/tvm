@@ -317,12 +317,19 @@ def _darknet_region(inputs, attrs):
 
 def _darknet_yolo(inputs, attrs):
     """Process the yolo operation."""
-    op_name, new_attrs = 'yolov3_yolo', {}
-    if 'n' in attrs:
-        new_attrs['n'] = attrs.get('n', 1)
-    if 'classes' in attrs:
-        new_attrs['classes'] = attrs.get('classes', 1)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    num = attrs.get('n', 1)
+    classes = attrs.get('classes', 1)
+    input_shape = attrs.get('shape')
+    split_size = classes + 5
+    intermediate_shape = (input_shape[0], num, split_size, input_shape[2], input_shape[3])
+    data_block = _sym.reshape(inputs[0], shape=intermediate_shape)
+    split_indices = (2, 4)
+    split_res = _sym.split(data_block, indices_or_sections=split_indices, axis=2)
+    split_res0 = _sym.sigmoid(split_res[0])
+    split_res2 = _sym.sigmoid(split_res[2])
+    concat_list = [split_res0, split_res[1], split_res2]
+    out = _sym.concatenate(*concat_list, axis=2)
+    return _sym.reshape(out, shape=input_shape), None
 
 def _darknet_activations(inputs, attrs):
     """Process the activation function."""
@@ -635,6 +642,7 @@ class GraphProto(object):
         elif LAYERTYPE.YOLO == layer.type:
             attr.update({'n' : layer.n})
             attr.update({'classes' : layer.classes})
+            attr.update({'shape' : (1, layer.c, layer.h, layer.w)})
 
         elif LAYERTYPE.UPSAMPLE == layer.type:
             attr.update({'scale' : layer.stride})
