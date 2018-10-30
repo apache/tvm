@@ -38,21 +38,6 @@ def schedule_region(attrs, outs, target):
 
 reg.register_pattern("yolo_region", OpPattern.OPAQUE)
 
-@reg.register_compute("yolov3_yolo")
-def compute_yolo(attrs, inputs, _):
-    """Compute definition of yolo"""
-    n = attrs.get_int("n")
-    classes = attrs.get_int("classes")
-    return topi.vision.yolo.yolo(inputs[0], n, classes)
-
-@reg.register_schedule("yolov3_yolo")
-def schedule_yolo(attrs, outs, target):
-    """Schedule definition of yolo"""
-    with tvm.target.create(target):
-        return topi.generic.schedule_injective(outs)
-
-reg.register_pattern("yolov3_yolo", OpPattern.OPAQUE)
-
 # multibox_prior
 @reg.register_schedule("multibox_prior")
 def schedule_multibox_prior(_, outs, target):
