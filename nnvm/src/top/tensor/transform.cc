@@ -1003,7 +1003,7 @@ Examples::
        [ 3, 4]]
 
   flip(x) = [[ 3.,  4.],
-                  [ 1.,  2.]]
+             [ 1.,  2.]]
 
   x = [[[ 1.,  2.],
         [ 3.,  4.]],
@@ -1012,16 +1012,16 @@ Examples::
         [ 7.,  8.]]]
 
   flip(x) = [[[ 5.,  6.],
-                   [ 7.,  8.]],
+              [ 7.,  8.]],
 
-                  [[ 1.,  2.],
-                   [ 3.,  4.]]]
+             [[ 1.,  2.],
+              [ 3.,  4.]]]
 
   flip(x, axis=1) = [[[ 3.,  4.],
-                                 [ 1.,  2.]],
+                      [ 1.,  2.]],
 
-                                [[ 7.,  8.],
-                                 [ 5.,  6.]]]
+                     [[ 7.,  8.],
+                      [ 5.,  6.]]]
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Source input")
 .add_arguments(FlipParam::__FIELDS__())
@@ -1409,19 +1409,26 @@ inline bool GatherNDCorrectLayout(const NodeAttrs& attrs,
 
 NNVM_REGISTER_OP(gather_nd)
 .describe(R"code(
-Gather elements or slices from `data` and store to a tensor whose
-shape is defined by `indices`.
-Given `data` with shape `(X_0, X_1, ..., X_{N-1})` and indices with shape
-`(M, Y_0, ..., Y_{K-1})`, the output will have shape `(Y_0, ..., Y_{K-1}, X_M, ..., X_{N-1})`,
-where `M <= N`. If `M == N`, output shape will simply be `(Y_0, ..., Y_{K-1})`.
-The elements in output is defined as follows::
+Gather elements or slices from ``data`` into a tensor specified by ``indices``.
 
-  output[y_0, ..., y_{K-1}, x_M, ..., x_{N-1}] = data[indices[0, y_0, ..., y_{K-1}],
-                                                      ...,
-                                                      indices[M-1, y_0, ..., y_{K-1}],
-                                                      x_M, ..., x_{N-1}]
+The shape of output tensor is inferred from ``indices``. Given ``data`` with
+shape ``(X0, X1, ..., X_{N-1})`` and ``indices`` with shape ``(Y_0, ...,
+Y_{M-1})``, the output will have shape ``(Y_1, ..., Y_{M-1}, X_{Y_0}, ...,
+X_{N-1})`` when ``Y_0 < N``, or ``(Y_1, ..., Y_{M-1})`` when ``Y_0 == N``. The
+operator is invalid when ``Y_0 > N``.
+
+The element in output is defined as follows::
+
+  output[y_1, ..., y_{M-1}, x_{Y_0}, ..., x_{N-1}] = data[indices[0, y_1, ..., y_{M-1}],
+                                                     ...,
+                                                     indices[Y_0-1, y_1, ..., y_{M-1}],
+                                                     x_{Y_0}, ..., x_{N-1}]
 
 Examples::
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1], [0]]
+  gather_nd(data, indices) = [2]
 
   data = [[0, 1], [2, 3]]
   indices = [[1, 1, 0], [0, 1, 0]]
