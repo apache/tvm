@@ -15,3 +15,11 @@ from . import vision
 from . import _tensor
 from ..expr import Expr
 from ..base import register_relay_node
+
+
+def _register_op_make():
+    import sys
+    from .. import expr
+    expr._op_make = sys.modules['tvm.relay.op._make']
+
+_register_op_make()

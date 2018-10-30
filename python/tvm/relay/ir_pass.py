@@ -131,6 +131,8 @@ def free_type_vars(expr):
     """
     return _ir_pass.free_type_vars(expr)
 
+def simplify_inference(expr):
+    return _ir_pass.simplify_inference(expr)
 
 def dead_code_elimination(expr):
     """ Remove expressions which does not effect the program result (dead code).
