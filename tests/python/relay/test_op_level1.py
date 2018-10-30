@@ -97,9 +97,6 @@ def test_concatenate_infer_type():
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
 
-
-
-
 def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
     input_ty = relay.TensorType((n, t, d), "float32")
