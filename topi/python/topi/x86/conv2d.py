@@ -7,14 +7,7 @@ from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
-<<<<<<< HEAD
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
-=======
-from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, \
-    _get_workload_int8, _get_schedule, _get_schedule_NCHWc, \
-    _get_schedule_NCHWc_int8, _get_alter_layout_schedule, Workload
-from ..nn.dilate import dilate
->>>>>>> Fix x86 conv2d
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
@@ -288,7 +281,7 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
-    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding,
+    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding, dilation,
                                 data_layout, out_layout, dtype)
     s = _schedule_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
@@ -348,6 +341,8 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
     # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    assert (dh, dw) == (1, 1), "Does not support dilation"
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
