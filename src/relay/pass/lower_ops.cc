@@ -179,13 +179,12 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
     auto func = env->Lookup(func_name);
     auto call = Downcast<Call>(func->body);
     auto op_node = call->op.as<OpNode>();
-    CHECK(op_node);
+    CHECK(op_node) << "violated invariant that primtiive calls contain a single op call";
     auto op = GetRef<Op>(op_node);
+    RELAY_LOG(INFO) << "LowerOps: Lowering " << op->name;
 
-    // RELAY_LOG(INFO) << "LowerOps: Lowering " << op->name;
-
-    // CHECK(IsPrimitiveOp(op)) << "failed to lower "
-    // << op->name << "can only lower primitve operations";
+    CHECK(IsPrimitiveOp(op)) << "failed to lower "
+      << op->name << "can only lower primitve operations";
 
     Array<Tensor> inputs;
     std::string input_name = "in";
