@@ -18,7 +18,7 @@ class Value(NodeBase):
     @staticmethod
     @register_func("relay.from_scalar")
     def from_scalar(i, dtype=None):
-        """Convert a Python scalar to a Realy scalar."""
+        """Convert a Python scalar to a Relay scalar."""
         if dtype is None:
             if isinstance(i, int):
                 dtype = 'int32'
