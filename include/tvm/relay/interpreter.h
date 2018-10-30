@@ -36,7 +36,7 @@ class Value;
  * TVM runtime, although the interpreter is naively implemented it uses
  * TVM operators for evaluating all operators.
  *
- * Our intent is that this will never be an the most efficient implementation of
+ * Our intent is that this will never be the most efficient implementation of
  * Relay's semantics, but a readable and clear one.
  */
 Value Evaluate(Environment env, Expr e);
