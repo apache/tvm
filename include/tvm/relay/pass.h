@@ -166,7 +166,9 @@ size_t StructuralHash(const Expr& expr);
 
 /*! \brief The hash struct for expressions. */
 struct ExprHash {
-  size_t operator()(const Expr& a) const { return StructuralHash(a); }
+  size_t operator()(const Expr& a) const {
+    return StructuralHash(a);
+  }
 };
 
 /*! \brief The equal comparator for expressions. */

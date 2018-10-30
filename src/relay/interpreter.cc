@@ -217,7 +217,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   Value VisitExpr_(const TupleNode* op) override {
     std::vector<Value> values;
 
-    for (auto field : op->fields) {
+    for (const auto& field : op->fields) {
       Value field_value = Eval(field);
       values.push_back(field_value);
     }
@@ -297,8 +297,6 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
       locals.Set((*it).first, (*it).second);
     }
 
-    // RELAY_DEBUG("invoke", locals, func->body);
-
     return with_frame<Value>(Frame(locals), [&]() { return Eval(func->body); });
   }
 
@@ -350,8 +348,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   Value VisitExpr_(const IfNode* op) override {
     Value v = Eval(op->cond);
     if (const TensorValueNode* bv = v.as<TensorValueNode>()) {
-      // RELAY_DEBUG(v);
-      // TODO(@jroesch): Ask TQ
+      // TODO(@jroesch, @MK): Refactor code into helper from DCE.
       if (reinterpret_cast<uint8_t*>(bv->data->data)[0]) {
         return Eval(op->true_branch);
       } else {

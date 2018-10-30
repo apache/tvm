@@ -31,11 +31,6 @@ from .. contrib import graph_runtime
 from .ir_pass import infer_type
 from .. import cpu
 
-# @register_node
-# class DictAttrs(object):
-#     pass
-
-
 class AbstractExprVisitor(object):
     """A visitor over Expr in Python."""
 
