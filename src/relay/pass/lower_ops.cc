@@ -107,11 +107,13 @@ struct LiveFunctions : ExprVisitor {
       // let x = fn (p_1, ..., p_n) { ... };
       // ...
       //
-      // into:
+      // into, a top-level declaration:
       //
       // def abs_f(fv_1, ..., fv_n) {
-      //    return (fn (p_1...,p_N) { ... }; }
+      //    return (fn (p_1...,p_N) { ... };)
       // }
+      //
+      // and:
       //
       // let x = abs_f(fv_1, ... fv_n);
       //

@@ -125,13 +125,26 @@ struct EvalError : dmlc::Error {
   explicit EvalError(const std::string& msg) : Error(msg) {}
 };
 
+/*!
+ * \brief A stack frame in the Relay interpreter.
+ *
+ * Contains a mapping from relay::Var to relay::Value.
+ */
 struct Frame {
+  /*! \brief The set of local variables and arguments for the frame. */
   tvm::Map<Var, Value> locals;
 
   explicit Frame(tvm::Map<Var, Value> locals) : locals(locals) {}
 };
 
+/*!
+ * \brief The call stack in the Relay interpreter.
+ *
+ * Contains a stack of frames; each corresponding to
+ * a function call.
+ */
 struct Stack {
+  /*! \brief The stack frames. */
   std::vector<Frame> frames;
   Stack() : frames() { frames.push_back(Frame({})); }
 
@@ -149,7 +162,10 @@ struct Stack {
                << "address= " << local.operator->();
     return Value();
   }
-
+  /*!
+   * A wrapper around Frame to add RAII semantics to pushing and popping
+   * stack frames.
+   */
   struct LocalFrame {
     Stack& st;
     explicit LocalFrame(Stack& st, const Frame& fr) : st(st) {

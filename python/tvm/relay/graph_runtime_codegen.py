@@ -509,7 +509,7 @@ def build(env, func, target=None):
     return graph_json, mod, None  # params currently isn't supported by API
 
 
-def evaluate_rts(env, func, *args):
+def graph_evaluate(env, func, *args):
     """
     Corresponding function to tvm.relay.eval.evaluate.
 

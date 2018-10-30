@@ -3,7 +3,7 @@ import numpy as np
 from tvm import relay
 from tvm.relay.ir_pass import infer_type
 from tvm.relay.interpreter import evaluate
-from tvm.relay.graph_runtime_codegen import evaluate_rts
+from tvm.relay.graph_runtime_codegen import graph_evaluate
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
 from tvm.relay.env import Environment
@@ -26,7 +26,7 @@ def check_rts(env, expr, args, expected_result):
         The expected result of running the expression.
     """
     eval_result = evaluate(env, expr, *args)
-    rts_result = evaluate_rts(env, expr, *args)
+    rts_result = graph_evaluate(env, expr, *args)
     np.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())
 
 def test_add_op_scalar():
