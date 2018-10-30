@@ -53,7 +53,7 @@ class AbstractExprVisitor(object):
         elif isinstance(expr, Var):
             res = self.visit_var(expr)
         elif isinstance(expr, GlobalVar):
-            res =  self.visit_global_var(expr)
+            res = self.visit_global_var(expr)
         elif isinstance(expr, If):
             res = self.visit_if(expr)
         elif isinstance(expr, Tuple):
