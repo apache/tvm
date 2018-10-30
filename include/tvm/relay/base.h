@@ -22,8 +22,15 @@ namespace tvm {
  * You can find more about Relay by reading the language reference.
  */
 namespace relay {
+
+#define RELAY_DEBUG(...) \
+{ auto fdebug = runtime::Registry::Get("relay.debug"); \
+  CHECK(fdebug) << "Could not find Relay Python debugger function."; \
+  (*fdebug)("RELAY_DEBUG", __FILE__, __LINE__, __VA_ARGS__); \
+}
+
 /*!
- * \brief we always used NodeRef for referencing nodes.
+ * \brief We always used NodeRef for referencing nodes.
  *
  *  By default, NodeRef is a std::shared_ptr of node
  */
