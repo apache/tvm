@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name, line-too-long, unused-variable, too-many-locals
+"""gather_nd in python"""
 import numpy as np
 
 def gather_nd_python(a_np, indices_np):
@@ -6,24 +8,25 @@ def gather_nd_python(a_np, indices_np):
     Parameters
     ----------
     a_np : numpy.ndarray
-        Numpy array.
+        Numpy array
 
     indices_np : numpy.ndarray
-        Numpy array.
+        Numpy array
 
     Returns
     -------
     b_np : numpy.ndarray
-        Numpy array.
+        Numpy array
     """
     a_shape = a_np.shape
     indices_shape = indices_np.shape
+    assert len(indices_shape) > 1
+    assert indices_shape[0] <= len(a_shape)
     b_shape = list(indices_shape[1:])
     for i in range(indices_shape[0], len(a_shape)):
         b_shape.append(a_shape[i])
     b_np = np.zeros(b_shape)
     for idx in np.ndindex(*indices_shape[1:]):
-        # print('b idx: %s' % str(idx))
         a_idx = []
         for i in range(indices_shape[0]):
             indices_pos = tuple([i] + list(idx))
