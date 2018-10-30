@@ -390,7 +390,7 @@ Interpreter::OpMap CompileOperators(const Environment& env, const Expr& e) {
   RELAY_LOG(INFO) << "LoweredFuncs: " << lowered_ops << std::endl;
   if (lowered_ops.size()) {
     const PackedFunc* fbuild_ptr = Registry::Get("relay.op.compiler._build");
-    CHECK(fbuild_ptr);
+    CHECK(fbuild_ptr) << "Could not find registered function: relay.op.compiler._build";
     auto fbuild = *fbuild_ptr;
 
     // Collect the set of lowered functions to build a module.

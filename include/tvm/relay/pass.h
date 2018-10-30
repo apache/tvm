@@ -104,7 +104,7 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  *
   * \return true iff all Var in expr is bound at most once.
  */
- bool WellFormed(const Expr& expr);
+bool WellFormed(const Expr& expr);
 
 /*! \brief Get free type parameters from expression expr.
  *
