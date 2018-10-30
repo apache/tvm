@@ -124,11 +124,11 @@ def test_lstm():
     net, params = tvm.relay.testing.lstm.get_workload(4, 4)
     net.astext()
 
-def _test_inception_v3():
+def test_inception_v3():
     net, params = tvm.relay.testing.inception_v3.get_workload(batch_size=1)
     net.astext()
 
-def _test_squeezenet():
+def test_squeezenet():
     for version in ['1.0', '1.1']:
         net, params = tvm.relay.testing.squeezenet.get_workload(batch_size=1, version=version)
         net.astext()
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     test_mlp()
     test_dqn()
     test_dcgan()
-    #_test_squeezenet()
-    #_test_inception_v3()
+    test_squeezenet()
+    test_inception_v3()
     test_vgg()
     test_func()
     test_env()
