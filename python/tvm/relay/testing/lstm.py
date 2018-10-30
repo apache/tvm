@@ -24,45 +24,37 @@ https://gist.github.com/merrymercy/5eb24e3b019f84200645bd001e9caae9
 
 from tvm import relay
 from . import layers
-from .init import create_workload
+#from .init import create_workload
 
-def lstm_cell(inputs, states, i2h_weight, h2h_weight,
-              i2h_bias, h2h_bias, num_hidden):
+def lstm_cell(num_hidden, batch_size=1):
     """Long-Short Term Memory (LSTM) network cell.
 
     Parameters
     ----------
-    inputs : relay.Expr
-        Input data to LSTM cell.
-
-    states : Tuple[relay.Expr, relay.Expr]
-        State for LSTM cell. Should be of shape (batch size, num_hidden)
-
-    i2h_weight : relay.Expr
-        i2h weight to LSTM cell.
-
-    h2h_weight : relay.Expr
-        h2h weight to LSTM cell.
-
-    i2h_bias : relay.Expr
-        i2h bias to LSTM cell.
-
-    h2h_bias : relay.Expr
-        h2h bias to LSTM cell.
-
     num_hidden : int
         Number of units in output symbol.
 
+    batch_size : int
+        Batch size (length of states).
+
     Returns
     -------
-    result : Tuple[relay.Expr, Tuple[relay.Expr, relay.Expr]]
-        The result.
+    result : relay.Expr
+        A Relay function that evaluates an LSTM cell.
+        The function takes in a tensor of input data, a tuple of two
+        states, and weights and biases for dense operations on the
+        inputs and on the state. It returns a tuple with two members,
+        an output tensor and a tuple of two new states.
     """
+    inputs = relay.var("inputs")
+    states = relay.var("states",
+                       relay.TupleType([
+                           relay.TensorType((batch_size, num_hidden)),
+                           relay.TensorType((batch_size, num_hidden))]))
 
-    i2h = layers.dense_add_bias(data=inputs, weight=i2h_weight,
-                                bias=i2h_bias, units=num_hidden * 4)
-    h2h = layers.dense_add_bias(data=states[0], weight=h2h_weight,
-                                bias=h2h_bias, units=num_hidden * 4)
+    i2h = layers.dense_add_bias(data=inputs, units=num_hidden * 4)
+    h2h = layers.dense_add_bias(data=relay.TupleGetItem(states, 0),
+                                units=num_hidden * 4)
 
     gates = relay.add(i2h, h2h)
     slice_gates = relay.split(gates, indices_or_sections=4)
@@ -71,8 +63,11 @@ def lstm_cell(inputs, states, i2h_weight, h2h_weight,
     forget_gate = relay.sigmoid(slice_gates[1])
     in_transform = relay.tanh(slice_gates[2])
     out_gate = relay.sigmoid(slice_gates[3])
-    next_c = relay.add(relay.mul(forget_gate, states[1]),
+    next_c = relay.add(relay.mul(forget_gate,
+                                 relay.TupleGetItem(states, 1)),
                        relay.mul(in_gate, in_transform))
     next_h = relay.mul(out_gate, relay.tanh(next_c))
+    ret = relay.Tuple([next_h, relay.Tuple([next_h, next_c])])
 
-    return relay.Tuple([next_h, relay.Tuple([next_h, next_c])])
+    args = relay.ir_pass.free_vars(ret)
+    return relay.Function(args, ret)
