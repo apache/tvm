@@ -8,6 +8,7 @@ from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
+from ..nn.dilate import dilate
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
@@ -75,7 +76,8 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         if cfg.is_fallback:
             wkl = _get_workload(data, kernel, strides, padding, out_dtype)
             _get_default_config(cfg, wkl)
-        return _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
+        return _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, 
+                                      out_dtype)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
     elif layout == 'NHWC':
