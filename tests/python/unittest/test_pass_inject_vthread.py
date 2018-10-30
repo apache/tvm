@@ -60,7 +60,26 @@ def test_vthread_extern():
     assert stmt.body.body.body.body.body.body.extents[0].value == 2
     assert len(stmt.body.body.body.body.body.body.extents) == 3
 
+def test_vthread_if_then_else():
+    nthread = 2
+    tx = tvm.thread_axis("vthread")
+    ib = tvm.ir_builder.create()
+    A = ib.pointer("float32", name="A")
+    with ib.for_range(0, 100) as i:
+        ib.scope_attr(tx, "virtual_thread", nthread)
+        B = ib.allocate("float32", 128, name="B", scope="shared")
+        with ib.if_scope(i == 0):
+            B[i] = A[i * nthread + tx]
+        with ib.else_scope():
+            B[i] = A[i * nthread + tx] + 1
+        with ib.if_scope(i == 0):
+            B[i] = A[i * nthread + tx] + 2
+    stmt = ib.get()
+    stmt = tvm.ir_pass.InjectVirtualThread(stmt)
+    assert stmt.body.body.body.first.else_case != None
+    assert stmt.body.body.body.rest.else_case == None
 
 if __name__ == "__main__":
     test_vthread_extern()
     test_vthread()
+    test_vthread_if_then_else()
