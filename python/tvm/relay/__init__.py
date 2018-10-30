@@ -7,7 +7,6 @@ from . import ty
 from . import expr
 from . import env
 from . import ir_pass
-from . import testing
 
 # Root operators
 from .op import Op

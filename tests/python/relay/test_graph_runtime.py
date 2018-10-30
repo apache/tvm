@@ -74,13 +74,7 @@ def test_add_op_broadcast():
     y_data = np.random.rand(1, 5).astype('float32')
     check_rts(env, func, [x_data, y_data], x_data + y_data)
 
-def test_mlp():
-    net, params = relay.testing.mlp.get_workload(1, 10)
-    # import pdb; pdb.set_trace()
-
-
 if __name__ == "__main__":
     test_add_op_scalar()
     test_add_op_tensor()
     test_add_op_broadcast()
-    test_mlp()
