@@ -9,7 +9,7 @@ from . import _interpreter
 from . import ir_pass
 from .expr import Call, Constant, GlobalVar
 from . import const
-
+from .._ffi.base import integer_types
 
 class Value(NodeBase):
     """Base class of all values.
@@ -20,7 +20,7 @@ class Value(NodeBase):
     def from_scalar(i, dtype=None):
         """Convert a Python scalar to a Relay scalar."""
         if dtype is None:
-            if isinstance(i, int):
+            if isinstance(i, integer_types):
                 dtype = 'int32'
             elif isinstance(i, float):
                 dtype = 'float32'

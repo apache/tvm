@@ -16,8 +16,8 @@ def check_eval(expr, args, expected_result, env=None, rtol=1e-07):
 
 
 def test_from_scalar():
-    np.testing.assert_allclose(Value.from_scalar(1).asnumpy(), 1)
-    np.testing.assert_allclose(Value.from_scalar(10.0).asnumpy(), 10.0)
+    np.testing.assert_allclose(Value.from_scalar(1, 'int32').asnumpy(), 1)
+    np.testing.assert_allclose(Value.from_scalar(10.0, 'float32').asnumpy(), 10.0)
     np.testing.assert_allclose(Value.from_scalar(True).asnumpy(), True)
 
 
