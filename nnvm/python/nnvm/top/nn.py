@@ -4,7 +4,7 @@ from __future__ import absolute_import
 
 import tvm
 import topi
-from topi.util import get_const_int
+from topi.util import get_const_int, get_const_tuple
 from .tensor import _fschedule_broadcast, _fschedule_injective
 from . import registry as reg
 from .registry import OpPattern
@@ -167,16 +167,22 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     padding = attrs.get_int_tuple("padding")
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
+    channels = attrs.get_int("channels")
     groups = attrs.get_int("groups")
     layout = attrs.get_string("layout")
     out_layout = attrs.get_string("out_layout")
     out_dtype = attrs.get_string("out_dtype")
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
+    _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[0].shape)
+    in_channel = in_channel_chunk * in_channel_block
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
         out = topi.nn.conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
                                    layout, out_layout, out_dtype)
+    elif groups == in_channel and groups == channels:
+        out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
+                                             layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")
@@ -190,9 +196,12 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
 def schedule_contrib_conv2d_NCHWc(attrs, outs, target):
     """Schedule definition of conv2d NCHWc"""
     groups = attrs.get_int("groups")
+    channels = attrs.get_int("channels")
     with tvm.target.create(target):
         if groups == 1:
             return topi.generic.schedule_conv2d_NCHWc(outs)
+        elif groups == channels:
+            return topi.generic.schedule_depthwise_conv2d_NCHWc(outs)
         else:
             raise ValueError("not support group number > 1 for now")
 
