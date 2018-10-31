@@ -260,9 +260,15 @@ class TupleGetItem(Expr):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
 
-class AbstractExprVisitor(object):
-    """An abstract visitor over Expr."""
+class ExprFunctor(object):
+    """
+    An abstract visitor defined over Expr.
 
+    A Python version of the class defined in `expr_functor.h`.
+
+    Defines the default dispatch over expressions, and
+    implements memoization.
+    """
     def __init__(self):
         self.memo_map = {}
 
@@ -323,8 +329,13 @@ class AbstractExprVisitor(object):
         raise Exception("Abstract method please implement me.")
 
 
-class ExprMutator(AbstractExprVisitor):
-    """A functional visitor over Expr."""
+class ExprMutator(ExprFunctor):
+    """
+    A functional visitor over Expr.
+
+    The default behavior recursively traverses the AST
+    and reconstructs the AST.
+    """
 
     def visit_function(self, fn):
         new_body = self.visit(fn.body)

@@ -123,6 +123,9 @@ class Interpreter(object):
             sb.ret(expr)
             expr = sb.get()
 
+        if isinstance(expr, Function):
+            assert not ir_pass.free_vars(expr)
+
         if self.mode == 'debug':
             def _interp_wrapper(*args):
                 relay_args = []
