@@ -13,18 +13,17 @@ def verify_conv2d_nhwc(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     A = tvm.placeholder((batch, in_height, in_width, in_channel), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    dW = topi.nn.dilate(W, (1, dilation, dilation, 1))
-    B = topi.nn.conv2d_nhwc(A, dW, stride, padding)
+    B = topi.nn.conv2d_nhwc(A, W, stride, padding, dilation)
 
     a_shape = get_const_tuple(A.shape)
     w_shape = get_const_tuple(W.shape)
     dtype = A.dtype
 
-    @memoize("topi.tests.test_topi_conv2d_nhwc.verify_nhwc")
+    @memoize("topi.tests.test_topi_conv2d_nhwc.verify_nhwc.v2")
     def get_ref_data():
         a_np = np.random.uniform(size=a_shape).astype(dtype)
         w_np = np.random.uniform(size=w_shape).astype(dtype)
-        dw_np = topi.testing.dilate_python(w_np, (1, dilation, dilation, 1))
+        dw_np = topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
         b_np = topi.testing.conv2d_nhwc_python(a_np, dw_np, stride, padding)
         return a_np, w_np, b_np
     a_np, w_np, b_np = get_ref_data()

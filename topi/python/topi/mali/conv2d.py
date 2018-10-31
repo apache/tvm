@@ -16,7 +16,7 @@ from ..arm_cpu.conv2d import _decl_spatial_pack, _alter_conv2d_layout_arm
 
 
 @autotvm.register_topi_compute(conv2d, 'mali', ['direct'])
-def conv2d_mali(cfg, data, kernel, strides, padding, layout, out_dtype):
+def conv2d_mali(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """TOPI compute callback for conv2d
 
     Parameters
@@ -38,6 +38,9 @@ def conv2d_mali(cfg, data, kernel, strides, padding, layout, out_dtype):
     padding : list of two ints
         [pad_height, pad_width]
 
+    dilation : list of two ints
+        [dilation_height, dilation_width]
+
     layout : str
         layout of data
 
@@ -49,7 +52,8 @@ def conv2d_mali(cfg, data, kernel, strides, padding, layout, out_dtype):
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=3)
+    return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                              num_tile=3)
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'mali', ['direct', 'winograd'])
 def schedule_conv2d_nchw_mali(cfg, outs):
@@ -175,16 +179,26 @@ def _pick_tile_size(data, kernel):
         return 2
 
 @autotvm.register_topi_compute(conv2d, 'mali', ['winograd'])
-def conv2d_mali_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
+def conv2d_mali_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     tile_size = _pick_tile_size(data, kernel)
-    return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                          tile_size)
 
-def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     N, CI, IH, IW = get_const_tuple(data.shape)
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
     if len(kernel.shape) == 4:
+
+        if dilation_h != 1 or dilation_w != 1:
+            kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
         pre_computed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
     else:
+        assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
         pre_computed = True
         H_CAT, W_CAT, CO, CI, VC = get_const_tuple(kernel.shape)
         CO *= VC
@@ -428,7 +442,8 @@ def _schedule_winograd(cfg, s, op):
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'mali', ['winograd'])
 def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
     """TOPI compute callback"""
-    return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                          tile_size)
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,

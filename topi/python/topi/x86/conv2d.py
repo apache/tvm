@@ -8,6 +8,7 @@ from .. import generic, tag
 from .. import nn
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, conv2d_alter_layout, _get_workload
+from ..nn.dilate import dilate
 from ..nn.pad import pad
 
 from . import conv2d_avx_1x1, conv2d_avx_common
@@ -38,7 +39,7 @@ def _get_default_config(cfg, workload):
         conv2d_avx_common._fallback_schedule(cfg, workload, fp32_vec_len)
 
 
-def _create_tuning_space(cfg, data, kernel, strides, padding, layout):
+def _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout):
     """Create schedule configuration from input arguments"""
     dshape = get_const_tuple(data.shape)
     kshape = get_const_tuple(kernel.shape)
@@ -65,27 +66,38 @@ def _create_tuning_space(cfg, data, kernel, strides, padding, layout):
 
 
 @autotvm.register_topi_compute(conv2d, 'cpu', 'direct')
-def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
+def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     padding = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    dilation = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
     if layout == 'NCHW':
-        _create_tuning_space(cfg, data, kernel, strides, padding, layout)
+        _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
             wkl = _get_workload(data, kernel, strides, padding, out_dtype)
             _get_default_config(cfg, wkl)
-        return _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype)
+        return _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout,
+                                      out_dtype)
     elif layout == 'HWCN':
-        return nn.conv2d_hwcn(data, kernel, strides, padding, out_dtype)
+        return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
     elif layout == 'NHWC':
-        return nn.conv2d_nhwc(data, kernel, strides, padding, out_dtype)
+        return nn.conv2d_nhwc(data, kernel, strides, padding, dilation, out_dtype)
     else:
         raise ValueError("not support this layout {} yet".format(layout))
 
 
-def _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype):
+def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     assert layout == 'NCHW', "only support NCHW convolution for AVX"
+
+    assert isinstance(dilation, int) or len(dilation) == 2
+    if isinstance(dilation, int):
+        dilation_h, dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
 
     HPAD, WPAD = padding
     HSTR, WSTR = strides
@@ -251,13 +263,13 @@ def schedule_conv2d_nhwc(outs):
 @autotvm.task.register("topi_x86_conv2d_NCHWc")
 def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     assert not kwargs, "Do not support kwargs in template function call"
-    data, kernel, strides, padding, origin_layout, dtype = deserialize_args(args)
+    data, kernel, strides, padding, dilation, origin_layout, dtype = deserialize_args(args)
     raw_data_shape = get_const_tuple(data.shape)
     raw_kernel_shape = get_const_tuple(kernel.shape)
 
     # get config here
     cfg = get_config()
-    _create_tuning_space(cfg, data, kernel, strides, padding, origin_layout)
+    _create_tuning_space(cfg, data, kernel, strides, padding, dilation, origin_layout)
 
     # change shape with the value in config
     ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
@@ -271,7 +283,7 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     new_data = tvm.placeholder(new_data_shape, data.dtype)
     new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
 
-    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding,
+    C = _declaration_conv_NCHWc(cfg, new_data, new_kernel, strides, padding, dilation,
                                 data_layout, out_layout, dtype)
     s = _schedule_conv2d_NCHWc(cfg, [C])
     return s, [new_data, new_kernel, C]
@@ -326,11 +338,13 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
 def _declaration_conv_NCHWc(cfg, data, kernel, strides,
-                            padding, layout, out_layout, out_dtype):
+                            padding, dilation, layout, out_layout, out_dtype):
     # layout and out_layout are not used here,
     # we keep them for debug convenience when dumping autotvm workload
     HPAD, WPAD = padding if isinstance(padding, (tuple, list)) else (padding, padding)
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    assert (dh, dw) == (1, 1), "Does not support dilation"
 
     n, ic_chunk, ih, iw, ic_bn = get_const_tuple(data.shape)
     in_channel = ic_chunk * ic_bn
