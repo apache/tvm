@@ -11,7 +11,7 @@ def check_eval(expr, args, expected_result, env=None, rtol=1e-07):
     if env is None:
         env = relay.env.Environment({})
     intrp = Interpreter(env=env)
-    result = intrp.evaluate(expr)(args)
+    result = intrp.evaluate(expr)(*args)
     np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
 
 
