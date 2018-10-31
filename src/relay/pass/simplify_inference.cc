@@ -33,7 +33,6 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
 
   int axis = param->axis;
   const auto* tdata = data->type_as<TensorTypeNode>();
-  CHECK(tdata) << "require checked type";
   scale = ExpandBiasToMatchAxis(scale, tdata->shape.size(), {axis});
   shift = ExpandBiasToMatchAxis(shift, tdata->shape.size(), {axis});
 
@@ -50,6 +49,9 @@ class Simplifier : public ExprMutator {
 
     Expr new_e = ExprMutator::VisitExpr_(n);
     const auto* new_n = new_e.as<TupleGetItemNode>();
+    if (new_n->index != 0) {
+      return new_e;
+    }
     if (const auto* call = new_n->tuple.as<CallNode>()) {
       if (call->op.same_as(batch_norm)) {
         return BatchNormToInferUnpack(call->attrs,
