@@ -253,8 +253,8 @@ class GraphRuntimeCodegen(ExprMutator):
         self.add_binding(ident, val_ref)
         return self.visit(body)
 
-    def visit_var(self, var):
-        return self.lookup(var)
+    def visit_var(self, rvar):
+        return self.lookup(rvar)
 
     def visit_call(self, call):
         """Transform a ::tvm.relay.Call into an operator in the TVM graph."""
