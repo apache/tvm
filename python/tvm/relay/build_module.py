@@ -5,8 +5,9 @@ from a Relay expression.
 from ..build_module import build as tvm_build_module
 from . graph_runtime_codegen import GraphRuntimeCodegen
 from . import ir_pass
+from .env import Environment
 
-def build(env, func, target=None):
+def build(func, params=None, target=None, env=None):
     """
     Compile a single function to the components needed by the
     TVM RTS.
@@ -28,6 +29,9 @@ def build(env, func, target=None):
     if target is None:
         target = 'llvm'
 
+    if env is None:
+        env = Environment({})
+
     comp = GraphRuntimeCodegen(env)
     # NB(@jroesch) This creates lowered functions, and generates names for them
     #
@@ -39,4 +43,4 @@ def build(env, func, target=None):
     # Therefore the call to compile must come after.
     comp.codegen(func)
     graph_json = comp.to_json()
-    return graph_json, mod, None  # params currently isn't supported by API
+    return graph_json, mod, params

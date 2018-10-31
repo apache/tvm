@@ -185,7 +185,7 @@ class GraphRuntime(Executor):
     def _make_executor(self, expr):
         def _graph_wrapper(*args):
             func = self.optimize(expr)
-            graph_json, mod, params = build_module.build(self.env, func)
+            graph_json, mod, params = build_module.build(func, env=self.env)
             assert params is None
             gmodule = tvm_runtime.create(graph_json, mod, cpu(0))
             # Create map of inputs.
