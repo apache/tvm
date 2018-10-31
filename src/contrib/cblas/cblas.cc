@@ -5,6 +5,8 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/util.h>
 #include <dmlc/logging.h>
+#include "gemm_common.h"
+
 
 extern "C" {
 #if USE_MKL_BLAS == 1
@@ -19,38 +21,56 @@ namespace contrib {
 
 using namespace runtime;
 
+inline CBLAS_TRANSPOSE BooleanToTranspose(bool trans) {
+  return trans ? CblasTrans : CblasNoTrans;
+}
+
+struct CblasSgemmOp {
+  typedef float TDatatype;
+  void operator()(bool ta, bool tb,
+                  int M, int N, int K,
+                  float alpha, float* A, int lda,
+                  float* B, int ldb,
+                  float beta, float* C, int ldc) {
+    cblas_sgemm(CblasColMajor,
+                BooleanToTranspose(ta),
+                BooleanToTranspose(tb),
+                M, N, K,
+                alpha, A, lda,
+                B, ldb,
+                beta, C, ldc);
+  }
+};
+
+struct CblasDgemmOp {
+  typedef double TDatatype;
+  void operator()(bool ta, bool tb,
+                  int M, int N, int K,
+                  double alpha, double* A, int lda,
+                  double* B, int ldb,
+                  double beta, double* C, int ldc) {
+    cblas_dgemm(CblasColMajor,
+                BooleanToTranspose(ta),
+                BooleanToTranspose(tb),
+                M, N, K,
+                alpha, A, lda,
+                B, ldb,
+                beta, C, ldc);
+  }
+};
+
+
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     DLTensor* A = args[0];
-    DLTensor* B = args[1];
-    DLTensor* C = args[2];
-    bool transa = args[3];
-    bool transb = args[4];
-    // call gemm for simple compact code.
-    CHECK_EQ(A->ndim, 2);
-    CHECK_EQ(B->ndim, 2);
-    CHECK_EQ(C->ndim, 2);
-    CHECK(C->strides == nullptr);
-    CHECK(B->strides == nullptr);
-    CHECK(A->strides == nullptr);
-    CHECK(TypeMatch(A->dtype, kDLFloat, 32));
-    CHECK(TypeMatch(B->dtype, kDLFloat, 32));
-    CHECK(TypeMatch(C->dtype, kDLFloat, 32));
-    cblas_sgemm(CblasColMajor,
-                transb ? CblasTrans : CblasNoTrans,
-                transa ? CblasTrans : CblasNoTrans,
-                transb ? B->shape[0] : B->shape[1],
-                transa ? A->shape[1] : A->shape[0],
-                transb ? B->shape[1] : B->shape[0],
-                1.0f,
-                reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset),
-                B->shape[1],
-                reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset),
-                A->shape[1],
-                0.0f,
-                reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset),
-                C->shape[1]);
+    CHECK(TypeMatch(A->dtype, kDLFloat, 32) ||
+          TypeMatch(A->dtype, kDLFloat, 64));
+
+    if (TypeMatch(A->dtype, kDLFloat, 32))
+      CallGemm(args, ret, CblasSgemmOp());
+    else
+      CallGemm(args, ret, CblasDgemmOp());
   });
 }  // namespace contrib
 }  // namespace tvm
