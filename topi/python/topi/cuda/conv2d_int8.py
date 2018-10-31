@@ -7,7 +7,7 @@ from .injective import _schedule_injective
 from .tensor_intrin import dp4a
 from ..nn.pad import pad
 from ..nn.util import get_pad_tuple
-from ..util import get_const_tuple, traverse_inline
+from ..util import get_const_tuple
 
 
 def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout, out_dtype):
