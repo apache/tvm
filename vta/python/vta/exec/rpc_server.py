@@ -87,8 +87,8 @@ def server_start():
         ldflags = pkg.ldflags
         lib_name = dll_path
         source = pkg.lib_source
-        logging.info("Rebuild runtime: output=%s, cflags=%s, source=%s, ldflags=%s",
-                     dll_path, str(cflags), str(source), str(ldflags))
+        logging.info("Rebuild runtime:\n output=%s,\n cflags=%s,\n source=%s,\n ldflags=%s",
+                     dll_path, '\n\t'.join(cflags), '\n\t'.join(source), '\n\t'.join(ldflags))
         cc.create_shared(lib_name, source, cflags + ldflags)
         with open(cfg_path, "w") as outputfile:
             outputfile.write(pkg.cfg_json)
