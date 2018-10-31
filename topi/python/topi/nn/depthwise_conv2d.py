@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, unused-variable, too-many-locals
+# pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple

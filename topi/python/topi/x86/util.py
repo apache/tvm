@@ -1,4 +1,3 @@
-# pylint: disable=invalid-name
 """Common x86 related utilities"""
 from __future__ import absolute_import as _abs
 import tvm

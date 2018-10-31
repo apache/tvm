@@ -19,25 +19,18 @@ from . import conv2d_avx_1x1, conv2d_avx_common
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
     """
     Get default schedule config for the workload
-    Parameters
-    ----------
-    workload : topi.nn.conv2d.Workload
-        Convolution workload
-    is_depthwise : bool
-        Whether it is depthwise NCHW workload
     """
-    fp32_vec_len = get_fp32_len()
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
-        from depthwise_conv2d import fallback_schedule
-        fallback_schedule(cfg, wkl, fp32_vec_len)
+        from depthwise_conv2d import _fallback_schedule
+        _fallback_schedule(cfg, wkl)
     else:
         wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
         is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
         if is_kernel_1x1:
-            conv2d_avx_1x1._fallback_schedule(cfg, wkl, fp32_vec_len)
+            conv2d_avx_1x1._fallback_schedule(cfg, wkl)
         else:
-            conv2d_avx_common._fallback_schedule(cfg, wkl, fp32_vec_len)
+            conv2d_avx_common._fallback_schedule(cfg, wkl)
 
 
 def _create_tuning_space(cfg, data, kernel, strides, padding, layout):

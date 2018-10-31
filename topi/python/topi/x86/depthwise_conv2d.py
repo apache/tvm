@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
+"""Depthwise Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.space import SplitEntity
@@ -9,7 +11,18 @@ from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, _get_workload
 
 from .util import get_fp32_len
 
-def fallback_schedule(cfg, wkl, simd_width):
+def _fallback_schedule(cfg, wkl):
+    """
+    Get default schedule for the workload
+    Parameters
+    ----------
+    cfg : tvm.autotvm.task.space.FallbackConfigEntity
+        Fallback config to be updated
+    wkl : topi.nn.depthwise_conv2d.Workload
+        Convolution workload
+    """
+    simd_width = get_fp32_len()
+
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
     out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1
@@ -43,7 +56,8 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
                                 layout, out_layout, out_dtype=None):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
-    out_channel_chunk, filter_height, filter_width, out_channel_block = get_const_tuple(kernel.shape)
+    out_channel_chunk, filter_height, filter_width, out_channel_block \
+        = get_const_tuple(kernel.shape)
 
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     HSTR, WSTR = strides
@@ -62,7 +76,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
                                         dtype=kernel.dtype),
                         strides, padding, out_dtype)
     if cfg.is_fallback:
-        fallback_schedule(cfg, wkl, get_fp32_len())
+        _fallback_schedule(cfg, wkl)
 
     # padding stage
     DOPAD = (pad_top != 0 or pad_left != 0 or pad_down != 0 or pad_right != 0)
@@ -80,8 +94,8 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
         lambda b, oco, i, j, oci: tvm.sum(
             (data_pad[b, (oco * out_channel_block + oci) // channel_multiplier // in_channel_block,
-                         i*HSTR+di, j*WSTR+dj,
-                         ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
+                      i*HSTR+di, j*WSTR+dj,
+                      ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
              .astype(out_dtype) *
              kernel[oco, di, dj, oci].astype(out_dtype)),
             axis=[di, dj]),
