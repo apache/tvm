@@ -292,17 +292,13 @@ class ApplyHistoryBest(DispatchContext):
                         best_by_targetkey[key] = (inp, res)
 
             # use model as key to build best map
-            for opt in inp.target.options:
-                if opt.startswith("-model"):
-                    model = opt[7:]
-                    key = (model, inp.task.workload)
-                    if key not in best_by_model:
-                        best_by_model[key] = (inp, res)
-                    else:
-                        _, other_res = best_by_model[key]
-                        if np.mean(other_res.costs) > np.mean(res.costs):
-                            best_by_model[key] = (inp, res)
-                    break
+            key = (inp.target.model, inp.task.workload)
+            if key not in best_by_model:
+                best_by_model[key] = (inp, res)
+            else:
+                _, other_res = best_by_model[key]
+                if np.mean(other_res.costs) > np.mean(res.costs):
+                    best_by_model[key] = (inp, res)
 
         logger.debug("Finish loading %d records", counter)
 
@@ -313,14 +309,11 @@ class ApplyHistoryBest(DispatchContext):
                                " above the dispatcher call. So does other target. ")
 
         # first try matching by model
-        for opt in target.options:
-            if opt.startswith("-model"):
-                model = opt[7:]
-                key = (model, workload)
-                if key in self._best_user_defined:
-                    return self._best_user_defined[key]
-                if key in self.best_by_model:
-                    return self.best_by_model[key][0].config
+        key = (target.model, workload)
+        if key in self._best_user_defined:
+            return self._best_user_defined[key]
+        if key in self.best_by_model:
+            return self.best_by_model[key][0].config
 
         # then try matching by target key
         for k in target.keys:
@@ -333,11 +326,9 @@ class ApplyHistoryBest(DispatchContext):
         return None
 
     def update(self, target, workload, cfg):
-        for opt in target.options:
-            if opt.startswith("-model"):
-                model = opt[7:]
-                key = (model, workload)
-                self._best_user_defined[key] = cfg
+        model = target.model
+        key = (model, workload)
+        self._best_user_defined[key] = cfg
 
         for k in target.keys:
             key = (k, workload)

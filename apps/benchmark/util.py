@@ -34,7 +34,7 @@ def get_network(name, batch_size, dtype='float32'):
     elif name == 'mobilenet_v2':
         net, params = nnvm.testing.mobilenet_v2.get_workload(batch_size=batch_size, dtype=dtype)
     elif name == 'inception_v3':
-        input_shape = (1, 3, 299, 299)
+        input_shape = (batch_size, 3, 299, 299)
         net, params = nnvm.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
     elif "resnet" in name:
         n_layer = int(name.split('-')[1])

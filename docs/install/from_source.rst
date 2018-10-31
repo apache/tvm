@@ -124,13 +124,15 @@ TVM package
 ~~~~~~~~~~~
 
 The python package is located at `tvm/python`
-There are several ways to install the package:
+There are two ways to install the package:
 
-1. Set the environment variable `PYTHONPATH` to tell python where to find
+Method 1
+   This method is **recommended for developers** who may change the codes.
+
+   Set the environment variable `PYTHONPATH` to tell python where to find
    the library. For example, assume we cloned `tvm` on the home directory
    `~`. then we can added the following line in `~/.bashrc`.
-   It is **recommended for developers** who may change the codes.
-   The changes will be immediately reflected once you pulled the code and rebuild the project (no need to call ``setup`` again)
+   The changes will be immediately reflected once you pull the code and rebuild the project (no need to call ``setup`` again)
 
    .. code:: bash
 
@@ -138,7 +140,8 @@ There are several ways to install the package:
        export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/topi/python:$TVM_HOME/nnvm/python:${PYTHONPATH}
 
 
-2. Install tvm python bindings by `setup.py`:
+Method 2
+   Install tvm python bindings by `setup.py`:
 
    .. code:: bash
 

@@ -1,7 +1,8 @@
 """Initializer of parameters."""
+import numpy as np
+
 import tvm
 from tvm import relay
-import numpy as np
 
 class Initializer(object):
     """The base class of an initializer."""
@@ -103,7 +104,7 @@ class Xavier(Initializer):
             raise ValueError("Incorrect factor type")
         # Hack for mobilenet, because there is less connectivity
         if "depthwise" in name:
-            factor = 3 * 3
+            factor = hw_scale
         scale = np.sqrt(self.magnitude / factor)
         if self.rnd_type == "uniform":
             arr[:] = np.random.uniform(-scale, scale, size=arr.shape)
