@@ -46,7 +46,7 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
         inputs and on the state. It returns a tuple with two members,
         an output tensor and a tuple of two new states.
     """
-    sb = relay.ScopeBuilder()
+    builder = relay.ScopeBuilder()
 
     input_type = relay.TensorType((batch_size, num_hidden), dtype)
     weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
