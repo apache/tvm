@@ -5,3 +5,4 @@ from . import mlp
 from . import resnet
 from . import dqn
 from . import dcgan
+from . import mobilenet
