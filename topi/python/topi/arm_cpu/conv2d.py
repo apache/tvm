@@ -265,17 +265,19 @@ def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, dilation, layou
 
 def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     N, CI, IH, IW = get_const_tuple(data.shape)
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
     if len(kernel.shape) == 4:
-        if isinstance(dilation, int):
-            dilation_h = dilation_w = dilation
-        else:
-            dilation_h, dilation_w = dilation
         if dilation_h != 1 or dilation_w != 1:
             kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
         pre_computed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
     else:
-        # dilation is not supported
+        assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
         pre_computed = True
         H_CAT, W_CAT, CO, CI, VC = get_const_tuple(kernel.shape)
         CO *= VC

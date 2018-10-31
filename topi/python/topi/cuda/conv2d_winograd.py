@@ -386,8 +386,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             dispatch_ctx.update(target, new_workload, cfg)
             return sym.conv2d(*copy_inputs, **new_attrs)
 
-        assert attrs.get_int_tuple("dilation") == (1, 1), "Does not support dilation " \
-                                                      "when alter_op_layout is enabled"
+        if attrs.get_int_tuple("dilation") != (1, 1):
+            return None
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 
