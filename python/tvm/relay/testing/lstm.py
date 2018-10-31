@@ -46,9 +46,17 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
         inputs and on the state. It returns a tuple with two members,
         an output tensor and a tuple of two new states.
     """
+    sb = relay.ScopeBuilder()
+
     input_type = relay.TensorType((batch_size, num_hidden), dtype)
     weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
     bias_type = relay.TensorType((4*num_hidden,), dtype)
+
+    dense_type = relay.TensorType((batch_size, 4*num_hidden), dtype)
+    slice_type = relay.TupleType([input_type, input_type,
+                                  input_type, input_type])
+    ret_type = relay.TupleType([input_type,
+                                relay.TupleType([input_type, input_type])])
 
     inputs = relay.Var("inputs", input_type)
     states = relay.Var("states",
@@ -60,96 +68,94 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
     h2h_weight = relay.Var("h2h_weight", weight_type)
     h2h_bias = relay.Var("h2h_bias", bias_type)
 
-    i2h = layers.dense_add_bias(data=inputs, units=num_hidden * 4,
-                                weight=i2h_weight, bias=i2h_bias,
-                                name="%si2h" % name)
-    h2h = layers.dense_add_bias(data=relay.TupleGetItem(states, 0),
-                                units=num_hidden * 4,
-                                weight=h2h_weight, bias=h2h_bias,
-                                name="%sh2h" % name)
+    i2h = sb.let(("i2h", dense_type),
+                 layers.dense_add_bias(
+                     data=inputs,
+                     units=num_hidden * 4,
+                     weight=i2h_weight, bias=i2h_bias,
+                     name="%si2h" % name))
+    h2h = sb.let(("h2h", dense_type),
+                 layers.dense_add_bias(
+                     data=relay.TupleGetItem(states, 0),
+                     units=num_hidden * 4,
+                     weight=h2h_weight, bias=h2h_bias,
+                     name="%sh2h" % name))
 
-    gates = relay.add(i2h, h2h)
-    slice_gates = relay.split(gates, indices_or_sections=4, axis=1)
+    gates = sb.let(("gates", dense_type), relay.add(i2h, h2h))
+    slice_gates = sb.let(("slice_gates", slice_type),
+                         relay.split(gates,
+                                     indices_or_sections=4,
+                                     axis=1).astuple())
 
-    in_gate = relay.sigmoid(slice_gates[0])
-    forget_gate = relay.sigmoid(slice_gates[1])
-    in_transform = relay.tanh(slice_gates[2])
-    out_gate = relay.sigmoid(slice_gates[3])
-    next_c = relay.add(relay.multiply(forget_gate,
-                                      relay.TupleGetItem(states, 1)),
-                       relay.multiply(in_gate, in_transform))
-    next_h = relay.multiply(out_gate, relay.tanh(next_c))
-    ret = relay.Tuple([next_h, relay.Tuple([next_h, next_c])])
+    in_gate = sb.let(("in_gate", input_type),
+                     relay.sigmoid(relay.TupleGetItem(slice_gates, 0)))
+    forget_gate = sb.let(("forget_gate", input_type),
+                         relay.sigmoid(relay.TupleGetItem(slice_gates, 1)))
+    in_transform = sb.let(("in_transform", input_type),
+                          relay.tanh(relay.TupleGetItem(slice_gates, 2)))
+    out_gate = sb.let(("out_gate", input_type),
+                      relay.sigmoid(relay.TupleGetItem(slice_gates, 3)))
+
+    next_c = sb.let(("next_c", input_type),
+                    relay.add(relay.multiply(forget_gate,
+                                             relay.TupleGetItem(states, 1)),
+                              relay.multiply(in_gate, in_transform)))
+    next_h = sb.let(("next_h", input_type),
+                    relay.multiply(out_gate, relay.tanh(next_c)))
+    ret = sb.let(("ret", ret_type),
+                 relay.Tuple([next_h, relay.Tuple([next_h, next_c])]))
+    sb.ret(ret)
+
+    body = sb.get()
 
     return relay.Function([inputs, states, i2h_weight,
                            i2h_bias, h2h_weight, h2h_bias],
-                          ret,
-                          relay.TupleType([
-                              input_type,
-                              relay.TupleType([input_type,
-                                               input_type])]))
-
-
-def rnn_builder(iterations, num_hidden, batch_size, dtype, out, forward):
-    """Recursive builder of unrolled RNN: Returns let-chain of cell function calls.
-    """
-    i = iterations
-
-    input_type = relay.TensorType((batch_size, num_hidden), dtype)
-    weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
-    bias_type = relay.TensorType((4*num_hidden,), dtype)
-
-    inputs = relay.Var("inputs_%s" % i, input_type)
-    i2h_weight = relay.Var("i2h_%s_weight" % i, weight_type)
-    i2h_bias = relay.Var("i2h_%i_bias" % i, bias_type)
-    h2h_weight = relay.Var("h2h_%s_weight" % i, weight_type)
-    h2h_bias = relay.Var("h2h_%s_bias" % i, bias_type)
-
-    cell_fn = lstm_cell(num_hidden, batch_size, dtype, "lstm_%s" % i)
-
-    # base case: 0 is the first iteration, so use initial state
-    if i == 0:
-        return relay.Let(out,
-                         relay.Call(cell_fn,
-                                    [inputs,
-                                     relay.Tuple([
-                                         relay.zeros((batch_size, num_hidden), dtype),
-                                         relay.zeros((batch_size, num_hidden), dtype)
-                                     ]),
-                                     i2h_weight, i2h_bias,
-                                     h2h_weight, h2h_bias]),
-                         forward)
-
-    # otherwise: create the chain backwards and insert in the last iteration
-    prev_out = relay.Var("out_%s" % (i - 1),
-                         relay.TupleType([input_type,
-                                          relay.TupleType([input_type,
-                                                           input_type])]))
-    call = relay.Let(out,
-                     relay.Call(cell_fn,
-                                [inputs,
-                                 relay.TupleGetItem(prev_out, 1),
-                                 i2h_weight, i2h_bias,
-                                 h2h_weight, h2h_bias]),
-                     forward)
-    return rnn_builder(i - 1, num_hidden, batch_size, dtype,
-                       prev_out, call)
+                          body, ret_type)
 
 
 def get_net(iterations, num_hidden, batch_size=1, dtype="float32"):
     '''Constructs an unrolled RNN with LSTM cells'''
     input_type = relay.TensorType((batch_size, num_hidden), dtype)
-    out = relay.Var("lstm_out",
-                    relay.TupleType([input_type,
-                                     relay.TupleType([input_type,
-                                                      input_type])]))
-    get_value = relay.TupleGetItem(out, 0)
-    unrolled = rnn_builder(iterations - 1,
-                           num_hidden, batch_size, dtype,
-                           out, get_value)
+    weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
+    bias_type = relay.TensorType((4*num_hidden,), dtype)
 
-    args = relay.ir_pass.free_vars(unrolled)
-    return relay.Function(args, unrolled, input_type)
+    state_type = relay.TupleType([input_type, input_type])
+    cell_type = relay.TupleType([input_type, state_type])
+
+    sb = relay.ScopeBuilder()
+
+    zeros = sb.let(("zeros", input_type),
+                   relay.zeros((batch_size, num_hidden), dtype))
+    init_states = sb.let(("init_states", state_type),
+                         relay.Tuple([zeros, zeros]))
+
+    states = init_states
+    out = None
+
+    for i in range(iterations):
+        inputs = relay.Var("inputs_%s" % i, input_type)
+        i2h_weight = relay.Var("i2h_%s_weight" % i, weight_type)
+        i2h_bias = relay.Var("i2h_%i_bias" % i, bias_type)
+        h2h_weight = relay.Var("h2h_%s_weight" % i, weight_type)
+        h2h_bias = relay.Var("h2h_%s_bias" % i, bias_type)
+
+        cell_fn = lstm_cell(num_hidden, batch_size, dtype, "lstm_%s" % i)
+
+        call = sb.let(("call_%s" % i, cell_type),
+                      relay.Call(cell_fn,
+                                 [inputs, states, i2h_weight,
+                                  i2h_bias, h2h_weight, h2h_bias]))
+        new_out = sb.let(("out_%s" % i, input_type),
+                         relay.TupleGetItem(call, 0))
+        new_states = sb.let(("states_%s" % i, state_type),
+                            relay.TupleGetItem(call, 1))
+        states = new_states
+        out = new_out
+
+    sb.ret(out)
+    body = sb.get()
+    args = relay.ir_pass.free_vars(body)
+    return relay.Function(args, body, input_type)
 
 
 def get_workload(iterations, num_hidden, batch_size=1, dtype="float32"):

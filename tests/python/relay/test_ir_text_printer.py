@@ -121,7 +121,7 @@ def test_dcgan():
 
 def test_lstm():
     net, params = tvm.relay.testing.lstm.get_workload(4, 4)
-    show(net.astext())
+    net.astext()
 
 
 if __name__ == "__main__":
