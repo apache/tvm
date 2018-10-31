@@ -14,6 +14,7 @@ from .scope_builder import ScopeBuilder
 from .._ffi.base import integer_types
 from . import graph_runtime
 from ..contrib import graph_runtime as tvm_runtime
+from .. import cpu
 
 class Value(NodeBase):
     """Base class of all values.
@@ -102,7 +103,8 @@ class Interpreter(object):
         # TODO: We need to move this optimization code into the optimizer/pass manager
         ck_expr = ir_pass.infer_type(expr, env=self.env)
         fused_expr = ir_pass.fuse_ops(self.env, ck_expr)
-        return fused_expr
+        ck_fused = ir_pass.infer_type(fused_expr, env=self.env)
+        return ck_fused
 
 
     def evaluate(self, expr, params=None):
