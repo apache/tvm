@@ -252,13 +252,13 @@ Usage:
 This record executable module has three modes.
 
 * Print log file in readable format
-e.g. python -m autotvm.record --mode read --i collect_conv.log --begin 0 --end 5 --ir --code
+e.g. python -m tvm.autotvm.record --mode read --i collect_conv.log --begin 0 --end 5 --ir --code
 
 * Extract history best from a large log file
-e.g. python -m autotvm.record --mode pick --i collect.log
+e.g. python -m tvm.autotvm.record --mode pick --i collect.log
 
 * Split a log file into separate files, each of which contains only a single wkl
-e.g. python -m autotvm.record --mode split --i collect.log
+e.g. python -m tvm.autotvm.record --mode split --i collect.log
 """
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
