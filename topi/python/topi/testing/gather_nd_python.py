@@ -19,6 +19,7 @@ def gather_nd_python(a_np, indices_np):
         Numpy array
     """
     a_shape = a_np.shape
+    indices_np = indices_np.astype('int32')
     indices_shape = indices_np.shape
     assert len(indices_shape) > 1
     assert indices_shape[0] <= len(a_shape)

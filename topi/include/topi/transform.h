@@ -679,7 +679,12 @@ inline Tensor gather_nd(const Tensor& data,
           Array<Expr> real_indices;
           for (size_t i = 0; i < indices_dim0; ++i) {
             indices_position.Set(0, make_const(Int(32), i));
-            real_indices.push_back(indices(indices_position));
+            if (indices->dtype.is_int()) {
+              real_indices.push_back(indices(indices_position));
+            } else {
+              real_indices.push_back(
+                  tvm::cast(tvm::Int(32), indices(indices_position)));
+            }
           }
           for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
             real_indices.push_back(out_index[i]);
