@@ -33,6 +33,7 @@ def test_cpu_conv2d():
         res_conv = topi.nn.conv2d(
             data, kernel, padding=(wl.hpad, wl.wpad),
             strides=(wl.hstride, wl.wstride),
+            dilation=(1, 1),
             out_dtype="int32")
         res = topi.right_shift(res_conv, 8)
         res = my_clip(res, 0, 127)

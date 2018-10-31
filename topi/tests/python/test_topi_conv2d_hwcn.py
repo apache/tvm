@@ -13,8 +13,7 @@ def verify_conv2d_hwcn(batch, in_channel, in_size, num_filter, kernel, stride, p
 
     A = tvm.placeholder((in_height, in_width, in_channel, batch), name='A')
     W = tvm.placeholder((kernel, kernel, in_channel, num_filter), name='W')
-    dW = topi.nn.dilate(W, (dilation, dilation, 1, 1))
-    B = topi.nn.conv2d_hwcn(A, dW, stride, padding)
+    B = topi.nn.conv2d_hwcn(A, W, stride, padding, dilation)
     C = topi.nn.relu(B)
     s1 = topi.cuda.schedule_conv2d_hwcn([B])
     s2 = topi.cuda.schedule_conv2d_hwcn([C])

@@ -15,7 +15,7 @@ oc_block_factor = 4
 
 
 def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation=1, add_bias=False, add_relu=False):
-    print("Workload: (%d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding))
+    print("Workload: (%d, %d, %d, %d, %d, %d, %d, %d)" % (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation))
 
     in_height = in_width = in_size
 
@@ -63,8 +63,7 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
 
         print("Running on target: %s" % device)
         with tvm.target.create(device):
-            dW = topi.nn.dilate(W, (1, 1, dilation, dilation))
-            C = topi.nn.conv2d(A, dW, (stride, stride), (padding, padding),
+            C = topi.nn.conv2d(A, W, (stride, stride), (padding, padding), (dilation, dilation),
                                layout='NCHW', out_dtype=dtype)
             if add_bias:
                 C = topi.add(C, bias)

@@ -68,7 +68,7 @@ def conv2d_no_batching(N, H, W, CO, CI, KH, KW, stride, padding):
 
     data = tvm.placeholder((N, CI, H, W), name='data')
     kernel = tvm.placeholder((CO, CI, KH, KW), name='kernel')
-    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, 'float32')
+    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, dilation=1, out_dtype='float32')
     s = tvm.create_schedule([conv.op])
 
     ##### space definition begin #####

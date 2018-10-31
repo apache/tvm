@@ -117,7 +117,7 @@ data = tvm.placeholder((1, 3, 224, 224))
 kernel = tvm.placeholder((10, 3, 5, 5))
 
 with tvm.target.create("cuda"):
-    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2)
+    conv = topi.nn.conv2d(data, kernel, strides=1, padding=2, dilation=1)
     out = topi.nn.relu(conv)
     sconv = topi.generic.nn.schedule_conv2d_nchw(out)
     print(tvm.lower(sconv, [data, kernel], simple_mode=True))

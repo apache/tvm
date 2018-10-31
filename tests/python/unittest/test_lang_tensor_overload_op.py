@@ -175,10 +175,11 @@ def verify_conv2d_scalar_bop(batch, in_size, in_channel, num_filter, kernel, str
         print("Running on target: %s" % device)
 
         k = 10.0
+        dilation = (1, 1)
         with tvm.target.create(device):
             A = tvm.placeholder((batch, in_channel, in_size, in_size), name='A')
             W = tvm.placeholder((num_filter, in_channel, kernel, kernel), name='W')
-            B = topi.nn.conv2d(A, W, stride, padding)
+            B = topi.nn.conv2d(A, W, stride, padding, dilation)
             if typ == "add":
                 C = B + k
             elif typ == "sub":
