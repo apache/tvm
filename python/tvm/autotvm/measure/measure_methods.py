@@ -551,7 +551,9 @@ def check_remote(target, device_key, host=None, port=None, priority=100, timeout
     """
     def _check():
         remote = request_remote(device_key, host, port, priority)
-        remote.context(str(target))
+        ctx = remote.context(str(target))
+        while not ctx.exist:  # wait until we get an available device
+            pass
     t = threading.Thread(target=_check,)
     t.start()
     t.join(timeout)
