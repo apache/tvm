@@ -112,12 +112,12 @@ def conv2d_NCHWc_int8(cfg, data, kernel, stride, padding, dilation, layout,
         packed_kernel.shape)
 
     if isinstance(stride, int):
-        stride_h, stride_w = stride
+        stride_h = stride_w = stride
     else:
         stride_h, stride_w = stride
 
     if isinstance(dilation, int):
-        dilation_h, dilation_w = dilation
+        dilation_h = dilation_w = dilation
     else:
         dilation_h, dilation_w = dilation
 

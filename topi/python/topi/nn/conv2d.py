@@ -89,22 +89,7 @@ def _get_workload(data, kernel, stride, padding, out_dtype):
     return Workload(data.dtype, out_dtype, IH, IW, CI, CO, KH, KW, HPAD, WPAD, HSTR, WSTR)
 
 
-<<<<<<< HEAD
-def conv2d_nchw(Input, Filter, stride, padding, out_dtype=None):
-=======
-@tvm.target.generic_func
-def _get_schedule(wkl):
-    # pylint: disable=unreachable
-    """ Get the platform specific schedule. """
-    target = tvm.target.current_target()
-    raise RuntimeError(
-        "No schedule for current target:{}".format(target))
-    # This return has no use, merely to supress pylint warning
-    return wkl
-
-
 def conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=None):
->>>>>>> Add dilation argument to conv2d and depthwise_conv2d
     """Convolution operator in NCHW layout.
 
     Parameters

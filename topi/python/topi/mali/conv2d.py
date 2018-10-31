@@ -52,17 +52,8 @@ def conv2d_mali(cfg, data, kernel, strides, padding, dilation, layout, out_dtype
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-<<<<<<< HEAD
-    return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, num_tile=3)
-=======
-    return _conv_arg_to_workload(data, kernel, strides, padding, dilation, layout, out_dtype)
-
-@conv2d_mali.register(['direct'])
-def decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
-    """spatial packing template"""
     return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
                               num_tile=3)
->>>>>>> Fix style
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'mali', ['direct', 'winograd'])
 def schedule_conv2d_nchw_mali(cfg, outs):
@@ -342,14 +333,7 @@ def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dt
                          # thw following term is used to make the padding effective,
                          # otherwise the padding will be eliminated by bound inference
                          + tvm.const(0, out_dtype) * M[alpha-1][alpha-1][CO-1][P_round-1],
-<<<<<<< HEAD
                          name='output', tag='winograd_conv2d_output')
-=======
-                         name='output', tag='winograd_conv2d_output',
-                         attrs={'workload': _winograd_conv_arg_to_workload(
-                             data, kernel, strides, padding, dilation, layout, out_dtype,
-                             tile_size)})
->>>>>>> Fix style
 
     # we have to manually assign effective GFLOP for winograd
     cfg.add_flop(2 * N * CO * H * W * KH * KW * CI)
@@ -453,26 +437,11 @@ def _schedule_winograd(cfg, s, op):
     s[Y].compute_at(s[output], tt)
 
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
-<<<<<<< HEAD
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'mali', ['winograd'])
 def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
     """TOPI compute callback"""
-    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, 
-                          tile_size)
-=======
-@conv2d_winograd_without_weight_transform.register(['mali'])
-@autotvm.task.dispatcher
-def winograd_ww_config_dispatcher_(data, kernel, strides, padding, dilation, layout, out_dtype,
-                                   tile_size):
-    return _winograd_conv_arg_to_workload(data, kernel, strides, padding, dilatiion, layout,
-                                          out_dtype, tile_size)
-
-
-@winograd_ww_config_dispatcher_.register(['winograd'])
-def decl_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
                           tile_size)
->>>>>>> Update mali conv2d with dilation
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
