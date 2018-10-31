@@ -47,8 +47,8 @@ def lstm_cell(num_hidden, batch_size=1, dtype="float32", name=""):
         an output tensor and a tuple of two new states.
     """
     input_type = relay.TensorType((batch_size, num_hidden), dtype)
-    weight_type = relay.TensorType((num_hidden, 4), dtype)
-    bias_type = relay.TensorType((4,), dtype)
+    weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
+    bias_type = relay.TensorType((4*num_hidden,), dtype)
 
     inputs = relay.Var("inputs", input_type)
     states = relay.Var("states",
@@ -96,8 +96,8 @@ def rnn_builder(iterations, num_hidden, batch_size, dtype, out, forward):
     i = iterations
 
     input_type = relay.TensorType((batch_size, num_hidden), dtype)
-    weight_type = relay.TensorType((num_hidden, 4), dtype)
-    bias_type = relay.TensorType((4,), dtype)
+    weight_type = relay.TensorType((num_hidden, 4*num_hidden), dtype)
+    bias_type = relay.TensorType((4*num_hidden,), dtype)
 
     inputs = relay.Var("inputs_%s" % i, input_type)
     i2h_weight = relay.Var("i2h_%s_weight" % i, weight_type)
