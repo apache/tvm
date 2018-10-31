@@ -18,3 +18,4 @@ from .region_python import region_python
 from .shortcut_python import shortcut_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
+from .gather_nd_python import gather_nd_python
