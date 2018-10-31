@@ -18,18 +18,17 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
                             Expr moving_var) {
   const auto param = attrs.as<BatchNormAttrs>();
   Expr epsilon = MakeConstantScalar(Float(32), static_cast<float>(param->epsilon));
-  Expr var_add_eps = CallNode::make(Op::Get("add"), {moving_var, epsilon});
-  Expr sqrt_var = CallNode::make(Op::Get("sqrt"), {var_add_eps});
-  Expr scale = CallNode::make(Op::Get("divide"), {MakeConstantScalar(Float(32), 1.0f), sqrt_var});
+  Expr var_add_eps = Add(moving_var, epsilon);
+  Expr sqrt_var = Sqrt(var_add_eps);
+  Expr scale = Divide(MakeConstantScalar(Float(32), 1.0f), sqrt_var);
 
   if (param->scale) {
-    scale = CallNode::make(
-      Op::Get("multiply"), {scale, gamma});
+    scale = Multiply(scale, gamma);
   }
-  Expr neg_mean = CallNode::make(Op::Get("negative"), {moving_mean});
-  Expr shift = CallNode::make(Op::Get("multiply"), {neg_mean, scale});
+  Expr neg_mean = Negative(moving_mean);
+  Expr shift = Multiply(neg_mean, scale);
   if (param->center) {
-    shift = CallNode::make(Op::Get("add"), {shift, beta});
+    shift = Add(shift, beta);
   }
 
   int axis = param->axis;
@@ -38,8 +37,8 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   scale = ExpandBiasToMatchAxis(scale, tdata->shape.size(), {axis});
   shift = ExpandBiasToMatchAxis(shift, tdata->shape.size(), {axis});
 
-  Expr out = CallNode::make(Op::Get("multiply"), {data, scale});
-  out = CallNode::make(Op::Get("add"), {out, shift});
+  Expr out = Multiply(data, scale);
+  out = Add(out, shift);
   return out;
 }
 

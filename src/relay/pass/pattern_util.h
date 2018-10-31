@@ -120,6 +120,40 @@ inline bool IsDepthwiseConv2D(const Call& call,
 }
 
 
+/*!
+ * \brief Create a Constant with a scalar
+ *
+ * \param dtype The data type.
+ * \param value The value of the scalar.
+ * \return A Constant.
+ */
+template<typename T>
+inline Constant MakeConstantScalar(DataType dtype, T value) {
+  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
+  runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
+  *static_cast<T*>(arr->data) = value;
+  return ConstantNode::make(arr);
+}
+
+
+inline Expr Negative(Expr x) {
+  static const Op& op = Op::Get("negative");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Sqrt(Expr x) {
+  static const Op& op = Op::Get("sqrt");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Add(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("add");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+
 inline Expr Multiply(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("multiply");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
@@ -135,15 +169,6 @@ inline Expr Divide(Expr lhs, Expr rhs) {
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
-}
-
-
-template<typename T>
-inline Constant MakeConstantScalar(DataType dtype, T value) {
-  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
-  runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
-  *static_cast<T*>(arr->data) = value;
-  return ConstantNode::make(arr);
 }
 
 }  // namespace relay

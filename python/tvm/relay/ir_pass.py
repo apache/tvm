@@ -161,6 +161,19 @@ def free_type_vars(expr):
     return _ir_pass.free_type_vars(expr)
 
 def simplify_inference(expr):
+    """ Simplify the data-flow graph for inference phase.
+
+    Parameters
+    ----------
+    e: tvm.relay.Expr
+        The input Expression
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        An expression which is semantically equal to the input expression,
+        but with some simplification
+    """
     return _ir_pass.simplify_inference(expr)
 
 def dead_code_elimination(expr):
