@@ -100,9 +100,9 @@ def main():
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
     parser.add_argument('--port', type=int, default=9091,
-                        help='The port of the PRC')
+                        help='The port of the RPC')
     parser.add_argument('--port-end', type=int, default=9199,
-                        help='The end search port of the PRC')
+                        help='The end search port of the RPC')
     parser.add_argument('--key', type=str, default="",
                         help="RPC key used to identify the connection type.")
     parser.add_argument('--tracker', type=str, default="",
