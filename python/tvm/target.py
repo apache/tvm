@@ -419,7 +419,7 @@ def intel_graphics(model='unknown', options=None):
     return _api_internal._TargetCreate("opencl", *opts)
 
 
-def opengl(options=None):
+def opengl(model='unknown', options=None):
     """Returns a OpenGL target.
 
     Parameters
@@ -427,8 +427,8 @@ def opengl(options=None):
     options : str or list of str
         Additional options
     """
-    options = _merge_opts([], options)
-    return _api_internal._TargetCreate("opengl", *options)
+    opts = _merge_opts(["-model=%s" % model], options)
+    return _api_internal._TargetCreate("opengl", *opts)
 
 
 def arm_cpu(model='unknown', options=None):
