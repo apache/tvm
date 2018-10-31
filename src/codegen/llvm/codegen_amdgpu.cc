@@ -160,10 +160,10 @@ runtime::Module BuildAMDGPU(Array<LoweredFunc> funcs, std::string target) {
   config << "-mtriple=amdgcn-amd-amdhsa-hcc -mcpu=gfx"
          << DetectROCMComputeVersion(target)
          << target.substr(4, target.length() - 4);
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenAMDGPU> cg(new CodeGenAMDGPU());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
+  cg->Init(funcs[0]->name, tm.get(), ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
   }
