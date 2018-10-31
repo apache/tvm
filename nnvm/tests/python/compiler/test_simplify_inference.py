@@ -10,7 +10,6 @@ def test_simplify_batchnorm():
         scale = sym.elemwise_mul(1 / sym.sqrt(moving_var + epsilon), gamma)
         shift = sym.elemwise_add(
             sym.elemwise_mul(sym.negative(moving_mean), scale), beta)
-        shape = [-1 if i == axis else 1 for i in range(len(shape))]
         # for 2D
         num_newaxis=len(shape) - axis - 1
         if num_newaxis:

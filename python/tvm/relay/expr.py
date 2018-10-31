@@ -1,6 +1,7 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from __future__ import absolute_import
+from numbers import Number as _Number
 
 import numpy as _np
 from .base import RelayNode, register_relay_node
@@ -11,6 +12,8 @@ from .._ffi import base as _base
 from .. import nd as _nd
 from .. import convert
 
+# will be registered afterwards
+_op_make = None
 
 class Expr(RelayNode):
     """The base type for all Relay expressions."""
@@ -47,6 +50,62 @@ class Expr(RelayNode):
             The result expression.
         """
         return _make.dtype_cast(self, dtype)
+
+    def __add__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.add(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.subtract(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rsub__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __mul__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.multiply(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __div__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.divide(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rdiv__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __truediv__(self, other):
+        return self.__div__(other)
+
+    def __rtruediv__(self, other):
+        return self.__rdiv__(other)
 
 
 @register_relay_node
@@ -305,7 +364,7 @@ class TupleWrapper(object):
 
     def __repr__(self):
         return ("TupleWrapper(" + self.tuple_value.__repr__() +
-                ", " + self.size + ")")
+                ", " + str(self.size) + ")")
 
     def astype(self, _):
         raise TypeError("astype cannot be used on tuple")
