@@ -1,5 +1,5 @@
 from ..build_module import build as tvm_build_module
-from . codegen import GraphRuntimeCodegen
+from . graph_runtime_codegen import GraphRuntimeCodegen
 from . import ir_pass
 
 def build(env, func, target=None):

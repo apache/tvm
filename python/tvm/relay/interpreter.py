@@ -4,15 +4,15 @@ from __future__ import absolute_import
 import numpy as np
 from .. import register_func, nd
 from .base import NodeBase, register_relay_node
+from . import build_module
 from . import _make
 from . import _interpreter
 from . import ir_pass
 from .env import Environment
-from .expr import Call, Constant, GlobalVar
-from . import const
+from .expr import Call, Constant, GlobalVar, Function, const
 from .scope_builder import ScopeBuilder
 from .._ffi.base import integer_types
-from . import graph_runtime
+from . import graph_runtime_codegen
 from ..contrib import graph_runtime as tvm_runtime
 from .. import cpu
 
@@ -88,15 +88,20 @@ def _arg_to_ast(arg):
     else:
         return const(arg)
 
+class Executor(object):
+    """An abstract interface for executing Relay programs."""
 
-class Interpreter(object):
-    def __init__(self, mode='debug', env=None):
+    def __init__(self, env=None):
+        """
+        Parameters
+        ----------
+        env: relay.Environment
+            The environment.
+        """
         if env is None:
             self.env = Environment({})
         else:
             self.env = env
-
-        self.mode = mode
 
 
     def optimize(self, expr):
@@ -106,6 +111,22 @@ class Interpreter(object):
         ck_fused = ir_pass.infer_type(fused_expr, env=self.env)
         return ck_fused
 
+    def _make_executor(self, expr):
+        """
+        Construct a Python function that implements the evaluation
+        of expression.
+
+        Parameters
+        ----------
+        expr: relay.Expr
+            The Relay expression to execute.
+
+        Returns
+        -------
+        executor: function
+            A Python function which implements the behavior of `expr`.
+        """
+        raise Exception("abstract method: please implement me.")
 
     def evaluate(self, expr, params=None):
         """
@@ -126,41 +147,59 @@ class Interpreter(object):
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
 
-        if self.mode == 'debug':
-            def _interp_wrapper(*args):
-                relay_args = []
-                for arg in args:
-                    relay_args.append(_arg_to_ast(arg))
-
-                if isinstance(expr, GlobalVar):
-                    func = self.env[expr]
-                    func = self.optimize(func)
-                    self.env._add(expr, func, True)
-                    opt_expr = Call(expr, relay_args)
-                    return _interpreter.evaluate(self.env, opt_expr)
-                else:
-                    call = Call(expr, relay_args)
-                    opt_expr = self.optimize(call)
-                    return _interpreter.evaluate(self.env, opt_expr)
-
-            return _interp_wrapper
-        elif self.mode == 'graph':
-            def _graph_wrapper(*args):
-                func = self.optimize(expr)
-                graph_json, mod, params = graph_runtime.build(self.env, func)
-                assert params is None
-                gmodule = tvm_runtime.create(graph_json, mod, cpu(0))
-                # Create map of inputs.
-                inputs = {}
-                for i, arg in enumerate(args):
-                    inputs[func.params[i].name_hint] = arg
-                # Set the inputs here.
-                gmodule.set_input(**inputs)
-                # Run the module, and fetch the output.
-                gmodule.run()
-                return gmodule.get_output(0)
-            return _graph_wrapper
-        else:
-            raise Exception("unknown interpreter mode: {0}".format(self.mode))
+        return self._make_executor(expr)
 
 
+class Interpreter(Executor):
+    def __init__(self, env=None):
+        Executor.__init__(self, env)
+
+    def _make_executor(self, expr):
+        def _interp_wrapper(*args):
+            relay_args = []
+            for arg in args:
+                relay_args.append(_arg_to_ast(arg))
+
+            if isinstance(expr, GlobalVar):
+                func = self.env[expr]
+                func = self.optimize(func)
+                self.env._add(expr, func, True)
+                opt_expr = Call(expr, relay_args)
+                return _interpreter.evaluate(self.env, opt_expr)
+            else:
+                call = Call(expr, relay_args)
+                opt_expr = self.optimize(call)
+                return _interpreter.evaluate(self.env, opt_expr)
+
+        return _interp_wrapper
+
+
+class GraphRuntime(Executor):
+    def __init__(self, env=None):
+        Executor.__init__(self, env)
+
+    def _make_executor(self, expr):
+        def _graph_wrapper(*args):
+            func = self.optimize(expr)
+            graph_json, mod, params = build_module.build(self.env, func)
+            assert params is None
+            gmodule = tvm_runtime.create(graph_json, mod, cpu(0))
+            # Create map of inputs.
+            inputs = {}
+            for i, arg in enumerate(args):
+                inputs[func.params[i].name_hint] = arg
+            # Set the inputs here.
+            gmodule.set_input(**inputs)
+            # Run the module, and fetch the output.
+            gmodule.run()
+            return gmodule.get_output(0)
+
+        return _graph_wrapper
+
+def create_executor(mode='debug', env=None):
+    if mode == 'debug':
+        return Interpreter(env)
+    elif mode == 'graph':
+        return GraphRuntime(env)
+    else:
+        raise Exception("unknown mode {0}".format(mode))

@@ -23,12 +23,12 @@ We expose this functionality in compile_to_tvm.
 from __future__ import absolute_import
 import json
 import attr
-from .. import ir_pass
-from ..op import Op
-from ..expr import Var, Function, Call, If, GlobalVar, Constant, Let, Tuple, ExprMutator
-from ... contrib import graph_runtime
-from ..ir_pass import infer_type
-from ... import cpu
+from . import ir_pass
+from .op import Op
+from .expr import Var, Function, Call, If, GlobalVar, Constant, Let, Tuple, ExprMutator
+from .. contrib import graph_runtime
+from .ir_pass import infer_type
+from .. import cpu
 
 @attr.s
 class NodeRef(object):

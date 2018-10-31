@@ -1,16 +1,14 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.interpreter import Value, TupleValue, Interpreter
+from tvm.relay.interpreter import Value, TupleValue
 from tvm.relay import op
 from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay import testing
+from tvm.relay import testing, create_executor
 
 
 def check_eval(expr, args, expected_result, env=None, rtol=1e-07):
-    if env is None:
-        env = relay.env.Environment({})
-    intrp = Interpreter(env=env)
+    intrp = create_executor(env=env)
     result = intrp.evaluate(expr)(*args)
     np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
 
