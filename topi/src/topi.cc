@@ -291,6 +291,11 @@ TVM_REGISTER_GLOBAL("topi.where")
   *rv = where(args[0], args[1], args[2]);
 });
 
+TVM_REGISTER_GLOBAL("topi.gather_nd")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = gather_nd(args[0], args[1]);
+});
+
 TVM_REGISTER_GLOBAL("topi.matmul")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   switch ( args.size() ) {

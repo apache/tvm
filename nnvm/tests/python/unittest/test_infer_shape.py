@@ -356,6 +356,26 @@ def test_reduce():
     check((4, 5, 10), (1, 5, 1), axis=(0, 2), keepdims=True)
 
 
+def test_gather_nd():
+    def check(data_shape, indices_shape, out_shape):
+        x = sym.Variable("x", shape=data_shape)
+        indices = sym.Variable("indices", shape=indices_shape)
+        y = sym.gather_nd(x, indices, name="y")
+        sdict = infer_shape(y)
+        assert(tuple(sdict["y"][0]) == tuple(out_shape))
+
+    check((4,), (1, 1), (1,))
+    check((4,), (1, 3), (3,))
+    check((2, 3), (1, 1), (1, 3))
+    check((2, 3), (2, 1), (1,))
+    check((2, 3), (2, 5, 6), (5, 6))
+    check((2, 3, 4), (1, 1), (1, 3, 4))
+    check((2, 3, 4), (2, 1), (1, 4))
+    check((2, 3, 4), (2, 5), (5, 4))
+    check((2, 3, 4), (2, 5, 6), (5, 6, 4))
+    check((2, 3, 4, 5), (2, 6, 7), (6, 7, 4, 5))
+
+
 if __name__ == "__main__":
     test_conv2d_packed()
     test_expand_dims()
@@ -376,3 +396,4 @@ if __name__ == "__main__":
     test_transpose()
     test_prelu()
     test_squeeze()
+    test_gather_nd()

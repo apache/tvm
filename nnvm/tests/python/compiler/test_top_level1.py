@@ -533,6 +533,36 @@ def test_l2_normalize():
     verify_l2_normalize((1, 3, 20, 20), 0.001, (1,))
     verify_l2_normalize((1, 3, 20, 20), 0.001, (1, 2))
 
+def verify_gather_nd(src_shape, indices_src):
+    src_dtype = "float32"
+    indices_dtype = "int32"
+    indices_src = np.array(indices_src, dtype=indices_dtype)
+    a = sym.Variable("a", shape=src_shape)
+    indices = sym.Variable("indices", shape=indices_src.shape)
+    y = sym.gather_nd(a, indices)
+
+    def forward(a, indices):
+        return topi.testing.gather_nd_python(a, indices)
+
+    a_src = np.arange(np.prod(src_shape), dtype=src_dtype).reshape(src_shape)
+
+    check_function(y, forward,
+                   dtype={'a': src_dtype, 'indices': indices_dtype},
+                   values={'a': a_src, 'indices': indices_src})
+
+def test_gather_nd():
+    verify_gather_nd((4,), [[1]])
+    verify_gather_nd((4,), [[1, 3, 2]])
+    verify_gather_nd((2, 3), [[1]])
+    verify_gather_nd((2, 3), [[1], [0]])
+    verify_gather_nd((2, 3), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4), [[1, 0], [0, 2], [3, 1]])
+    verify_gather_nd((2, 3, 4), [[[1, 0], [0, 1]], [[0, 2], [1, 2]],
+                                 [[3, 1], [0, 2]]])
+    verify_gather_nd((2, 3, 4, 5), [[1, 0], [0, 2]])
+    verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]])
+
 if __name__ == "__main__":
     test_check_function()
     test_split()
@@ -556,3 +586,4 @@ if __name__ == "__main__":
     test_lrn()
     test_l2_normalize()
     test_strided_slice()
+    test_gather_nd()

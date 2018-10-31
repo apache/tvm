@@ -2,6 +2,7 @@
 import numpy as np
 import tvm
 import topi
+import topi.testing
 
 from common import get_all_backend
 
@@ -275,6 +276,38 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
+def verify_gather_nd(src_shape, indices_src, indices_dtype):
+    src_dtype = "float32"
+    indices_src = np.array(indices_src, dtype=indices_dtype)
+    A = tvm.placeholder(shape=src_shape, dtype=src_dtype, name="A")
+    indices = tvm.placeholder(shape=indices_src.shape, dtype=indices_dtype, name="indices")
+    out_tensor = topi.gather_nd(a=A, indices=indices)
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            s = topi.generic.schedule_injective(out_tensor)
+
+        func = tvm.build(s, [A, indices, out_tensor] , device, name="take")
+        shape_size = 1
+        for i in range(len(src_shape)):
+            shape_size = shape_size * src_shape[i]
+        data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
+        out_npys = topi.testing.gather_nd_python(data_npy, indices_src)
+        
+        data_nd = tvm.nd.array(data_npy, ctx)
+        indices_nd = tvm.nd.array(indices_src, ctx)
+        out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
+        func(data_nd, indices_nd, out_nd)
+        tvm.testing.assert_allclose(out_nd.asnumpy(), out_npys)
+
+    for device in get_all_backend():
+        check_device(device)
+
 def test_strided_slice():
     verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2])
     verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1])
@@ -363,6 +396,21 @@ def test_take():
     verify_take((2,2), [[[1,0],[0,1]]], 1)
     verify_take((4,3,5,6), [[2,1,0,0]], -2)
 
+def test_gather_nd():
+    for indices_dtype in ['int32', 'float32']:
+        verify_gather_nd((4,), [[1.8]], indices_dtype)
+        verify_gather_nd((4,), [[1, 3, 2]], indices_dtype)
+        verify_gather_nd((2, 3), [[1]], indices_dtype)
+        verify_gather_nd((2, 3), [[1], [0]], indices_dtype)
+        verify_gather_nd((2, 3), [[1, 0], [0, 2]], indices_dtype)
+        verify_gather_nd((2, 3, 4), [[1, 0], [0, 2]], indices_dtype)
+        verify_gather_nd((2, 3, 4), [[1, 0], [0, 2], [3, 1]], indices_dtype)
+        verify_gather_nd((2, 3, 4), [[[1, 0], [0, 1]], [[0, 2], [1, 2]],
+                                     [[3, 1], [0, 2]]], indices_dtype)
+        verify_gather_nd((2, 3, 4, 5), [[1, 0], [0, 2]], indices_dtype)
+        verify_gather_nd((2, 3, 4, 5), [[1, 0], [2, 1], [3, 2], [4, 2]],
+                         indices_dtype)
+
 if __name__ == "__main__":
     test_concatenate()
     test_tranpose()
@@ -374,3 +422,4 @@ if __name__ == "__main__":
     test_expand_like()
     test_take()
     test_strided_slice()
+    test_gather_nd()
