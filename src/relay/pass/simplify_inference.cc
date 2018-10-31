@@ -41,7 +41,7 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   return out;
 }
 
-class Simplifier : public ExprMutator {
+class InferenceSimplifier : public ExprMutator {
  public:
   Expr VisitExpr_(const TupleGetItemNode* n) final {
     static const Op& batch_norm = Op::Get("nn.batch_norm");
@@ -65,7 +65,7 @@ class Simplifier : public ExprMutator {
 };
 
 Expr SimplifyInference(const Expr& e) {
-  return Simplifier().Mutate(e);
+  return InferenceSimplifier().Mutate(e);
 }
 
 TVM_REGISTER_API("relay._ir_pass.simplify_inference")
