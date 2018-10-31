@@ -355,8 +355,8 @@ class ExprMutator(ExprFunctor):
         new_args = [self.visit(arg) for arg in call.args]
         return Call(new_fn, new_args, call.attrs)
 
-    def visit_var(self, var):
-        return var
+    def visit_var(self, rvar):
+        return rvar
 
     def visit_global_id(self, global_var):
         return global_var
@@ -370,8 +370,8 @@ class ExprMutator(ExprFunctor):
     def visit_tuple(self, tup):
         return Tuple([self.visit(field) for field in tup.fields])
 
-    def visit_constant(self, const):
-        return const
+    def visit_constant(self, rconst):
+        return rconst
 
 class TupleWrapper(object):
     """TupleWrapper.

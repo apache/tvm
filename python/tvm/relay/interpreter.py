@@ -12,7 +12,6 @@ from .env import Environment
 from .expr import Call, Constant, GlobalVar, Function, const
 from .scope_builder import ScopeBuilder
 from .._ffi.base import integer_types
-from . import graph_runtime_codegen
 from ..contrib import graph_runtime as tvm_runtime
 from .. import cpu
 
