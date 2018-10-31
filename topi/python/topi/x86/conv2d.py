@@ -10,26 +10,34 @@ from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
     conv2d_alter_layout, _get_workload as _get_conv2d_workload
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
-from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc
+from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
 
 from .util import get_fp32_len
 from . import conv2d_avx_1x1, conv2d_avx_common
 
-def _get_default_config(cfg, workload):
+def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
     """
     Get default schedule config for the workload
     Parameters
     ----------
     workload : topi.nn.conv2d.Workload
         Convolution workload
+    is_depthwise : bool
+        Whether it is depthwise NCHW workload
     """
     fp32_vec_len = get_fp32_len()
-    is_kernel_1x1 = workload.hkernel == 1 and workload.wkernel == 1
-    if is_kernel_1x1:
-        conv2d_avx_1x1._fallback_schedule(cfg, workload, fp32_vec_len)
+    if is_depthwise:
+        wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
+        from depthwise_conv2d import fallback_schedule
+        fallback_schedule(cfg, wkl, fp32_vec_len)
     else:
-        conv2d_avx_common._fallback_schedule(cfg, workload, fp32_vec_len)
+        wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
+        is_kernel_1x1 = wkl.hkernel == 1 and wkl.wkernel == 1
+        if is_kernel_1x1:
+            conv2d_avx_1x1._fallback_schedule(cfg, wkl, fp32_vec_len)
+        else:
+            conv2d_avx_common._fallback_schedule(cfg, wkl, fp32_vec_len)
 
 
 def _create_tuning_space(cfg, data, kernel, strides, padding, layout):
@@ -66,8 +74,7 @@ def _declaration_conv(cfg, data, kernel, strides, padding, layout, out_dtype):
     if layout == 'NCHW':
         _create_tuning_space(cfg, data, kernel, strides, padding, layout)
         if cfg.is_fallback:
-            wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
-            _get_default_config(cfg, wkl)
+            _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
         return _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, out_dtype)
@@ -296,19 +303,17 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
     if groups != 1 and not is_depthwise:
         return None
 
-    workload = autotvm.task.args_to_workload(
-        [data, kernel, strides, padding, layout, out_dtype], conv2d)
     dispatch_ctx = autotvm.task.DispatchContext.current
     target = tvm.target.current_target()
+    # query schedule and fallback if necessary
+    workload = autotvm.task.args_to_workload(
+        [data, kernel, strides, padding, out_dtype], depthwise_conv2d_nchw) \
+        if is_depthwise else \
+        autotvm.task.args_to_workload(
+            [data, kernel, strides, padding, layout, out_dtype], conv2d)
     cfg = dispatch_ctx.query(target, workload)
     if cfg.is_fallback:
-        if is_depthwise:
-            wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
-            from depthwise_conv2d import fallback_schedule
-            fallback_schedule(cfg, wkl, get_fp32_len())
-        else:
-            wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
-            _get_default_config(cfg, wkl)
+        _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise)
 
     ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
     new_attrs['layout'] = 'NCHW%dc' % ic_bn
@@ -362,13 +367,11 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
         oc_chunk, _, kernel_height, kernel_width, _, oc_bn = get_const_tuple(kernel.shape)
     num_filter = oc_chunk * oc_bn
 
-    # get workload and related schedule config
-    wkl = _get_conv2d_workload(tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
-                               tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
-                                               dtype=kernel.dtype),
-                        strides, padding, out_dtype)
     if cfg.is_fallback:
-        _get_default_config(cfg, wkl)
+        _get_default_config(cfg, tvm.placeholder((n, in_channel, ih, iw), dtype=data.dtype),
+                            tvm.placeholder((num_filter, in_channel, kernel_height, kernel_width),
+                                            dtype=kernel.dtype),
+                            strides, padding, out_dtype)
 
     # output shape
     out_height = (ih + 2 * HPAD - kernel_height) // HSTR + 1
@@ -394,7 +397,7 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
         n_elems = 4
         assert ic_bn % n_elems == 0
 
-        ic_outer = tvm.reduce_axis((0, wkl.in_filter//ic_bn), name='ic_outer')
+        ic_outer = tvm.reduce_axis((0, in_channel//ic_bn), name='ic_outer')
         ic_f_inner = tvm.reduce_axis((0, ic_bn//n_elems), name='ic_f_inner')
         ic_s_inner = tvm.reduce_axis((0, n_elems), name='ic_s_inner')
         return tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
