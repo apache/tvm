@@ -133,7 +133,7 @@ def get_net(iterations, num_hidden, batch_size=1, dtype="float32"):
     out = None
 
     for i in range(iterations):
-        inputs = relay.Var("inputs_%s" % i, input_type)
+        inputs = relay.Var("data", input_type)
         i2h_weight = relay.Var("i2h_%s_weight" % i, weight_type)
         i2h_bias = relay.Var("i2h_%i_bias" % i, bias_type)
         h2h_weight = relay.Var("h2h_%s_weight" % i, weight_type)
