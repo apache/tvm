@@ -309,7 +309,7 @@ def schedule_winograd_cuda(cfg, s, output, pre_computed):
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform,
                                ['cuda', 'gpu'], ['winograd'])
-def conv2d_winograd_ww(data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
+def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
                          pre_computed=True)
 
@@ -383,7 +383,6 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
                 [new_data, new_kernel, strides, padding, dilation, new_layout, out_dtype],
                 conv2d
             )
-            print('new wkl', new_workload)
             dispatch_ctx.update(target, new_workload, cfg)
             return sym.conv2d(*copy_inputs, **new_attrs)
 
@@ -402,7 +401,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
                                      dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, layout, out_dtype, tile_size],
+            [new_data, new_weight, strides, padding, dilation, layout, out_dtype, tile_size],
             conv2d_winograd_without_weight_transform
         )
         dispatch_ctx.update(target, new_workload, cfg)
