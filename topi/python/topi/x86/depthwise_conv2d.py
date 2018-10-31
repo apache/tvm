@@ -105,6 +105,7 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
 
 @autotvm.register_topi_schedule(generic.schedule_depthwise_conv2d_NCHWc, 'cpu', ['direct'])
 def schedule_depthwise_conv2d_NCHWc(cfg, outs):
+    """CPU schedule for depthwise conv2d in NCHW[x]c layout"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
     def traverse(op):
@@ -119,9 +120,8 @@ def schedule_depthwise_conv2d_NCHWc(cfg, outs):
         if 'depthwise_conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
             data = conv_out.op.input_tensors[0]
-            input = data
             kernel = conv_out.op.input_tensors[1]
-            _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, input, kernel, conv_out, outs[0])
+            _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, outs[0])
         scheduled_ops.append(op)
     traverse(outs[0].op)
     return s

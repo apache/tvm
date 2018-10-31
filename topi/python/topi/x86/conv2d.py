@@ -13,7 +13,6 @@ from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workloa
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
 
-from .util import get_fp32_len
 from . import conv2d_avx_1x1, conv2d_avx_common
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
