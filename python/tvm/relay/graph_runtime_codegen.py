@@ -25,10 +25,8 @@ import json
 import attr
 from . import ir_pass
 from .op import Op
-from .expr import Var, Function, Call, If, GlobalVar, Constant, Let, Tuple, ExprMutator
-from .. contrib import graph_runtime
-from .ir_pass import infer_type
-from .. import cpu
+from .expr import Function, GlobalVar, ExprMutator
+
 
 @attr.s
 class NodeRef(object):
@@ -368,7 +366,3 @@ class GraphRuntimeCodegen(ExprMutator):
         }
 
         return json.dumps(json_dict)
-
-
-
-

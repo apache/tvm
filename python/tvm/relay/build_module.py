@@ -1,3 +1,7 @@
+"""
+Construct the necessary state for the TVM graph runtime
+from a Relay expression.
+"""
 from ..build_module import build as tvm_build_module
 from . graph_runtime_codegen import GraphRuntimeCodegen
 from . import ir_pass

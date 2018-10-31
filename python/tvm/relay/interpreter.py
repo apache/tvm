@@ -111,7 +111,7 @@ class Executor(object):
         ck_fused = ir_pass.infer_type(fused_expr, env=self.env)
         return ck_fused
 
-    def _make_executor(self, expr):
+    def _make_executor(self, _):
         """
         Construct a Python function that implements the evaluation
         of expression.
@@ -138,11 +138,11 @@ class Executor(object):
             The expression to evaluate.
         """
         if params:
-            sb = ScopeBuilder()
+            scope_builder = ScopeBuilder()
             for key, value in params:
-                sb.let(key, value)
-            sb.ret(expr)
-            expr = sb.get()
+                scope_builder.let(key, value)
+            scope_builder.ret(expr)
+            expr = scope_builder.get()
 
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
@@ -151,6 +151,9 @@ class Executor(object):
 
 
 class Interpreter(Executor):
+    """
+    A wrapper around the Relay interpreter, implements the excecutor interface.
+    """
     def __init__(self, env=None):
         Executor.__init__(self, env)
 
@@ -175,6 +178,7 @@ class Interpreter(Executor):
 
 
 class GraphRuntime(Executor):
+    """A wrapper around the TVM graph runtime, implements the Executor interface."""
     def __init__(self, env=None):
         Executor.__init__(self, env)
 
