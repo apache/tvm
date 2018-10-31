@@ -25,7 +25,7 @@ You may use ```nnvm.testing.tf.AddShapesToGraphDef``` from nnvm for the same.
 Please refer to [tensorflow tutorial](https://github.com/dmlc/tvm/blob/master/tutorials/nnvm/from_tensorflow.py).
 
 ### Explicit Shape:
-There might be situations where the add_shape=True may not provide sufficient information about shape.
+There might be situations where the add_shapes=True may not provide sufficient information about shape.
 You may pass explicit dictionary of input shapes argument for ```from_tensorflow```.
 Please refer to [test cases](https://github.com/dmlc/tvm/blob/master/nnvm/tests/python/frontend/tensorflow/test_forward.py#L36).
 
