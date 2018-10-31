@@ -260,6 +260,107 @@ class TupleGetItem(Expr):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
 
+class AbstractExprVisitor(object):
+    """An abstract visitor over Expr."""
+
+    def __init__(self):
+        self.memo_map = {}
+
+    # pylint: disable=no-else-return
+    def visit(self, expr):
+        """Apply the visitor to an expression."""
+        found = self.memo_map.get(expr)
+        if found:
+            return found
+
+        if isinstance(expr, Function):
+            res = self.visit_function(expr)
+        elif isinstance(expr, Call):
+            res = self.visit_call(expr)
+        elif isinstance(expr, Let):
+            res = self.visit_let(expr)
+        elif isinstance(expr, Var):
+            res = self.visit_var(expr)
+        elif isinstance(expr, GlobalVar):
+            res = self.visit_global_var(expr)
+        elif isinstance(expr, If):
+            res = self.visit_if(expr)
+        elif isinstance(expr, Tuple):
+            res = self.visit_tuple(expr)
+        elif isinstance(expr, Constant):
+            res = self.visit_constant(expr)
+        else:
+            raise Exception("warning unhandled case: {0}".format(type(expr)))
+
+        self.memo_map[expr] = res
+        return res
+
+    def visit_function(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_let(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_call(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_var(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_type(self, typ):
+        return typ
+
+    def visit_if(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_tuple(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_constant(self, _):
+        raise Exception("Abstract method please implement me.")
+
+    def visit_global_var(self, _):
+        raise Exception("Abstract method please implement me.")
+
+
+class ExprMutator(AbstractExprVisitor):
+    """A functional visitor over Expr."""
+
+    def visit_function(self, fn):
+        new_body = self.visit(fn.body)
+        return Function(
+            list(fn.params),
+            fn.ret_type, new_body,
+            fn.type_params)
+
+    def visit_let(self, let):
+        new_var = self.visit(let.var)
+        new_val = self.visit(let.value)
+        new_body = self.visit(let.body)
+        return Let(new_var, new_val, new_body)
+
+    def visit_call(self, call):
+        new_fn = self.visit(call.op)
+        new_args = [self.visit(arg) for arg in call.args]
+        return Call(new_fn, new_args, call.attrs)
+
+    def visit_var(self, var):
+        return var
+
+    def visit_global_id(self, global_var):
+        return global_var
+
+    def visit_if(self, ite):
+        return If(
+            self.visit(ite.guard),
+            self.visit(ite.true_b),
+            self.visit(ite.false_b))
+
+    def visit_tuple(self, tup):
+        return Tuple([self.visit(field) for field in tup.fields])
+
+    def visit_constant(self, const):
+        return const
 
 class TupleWrapper(object):
     """TupleWrapper.

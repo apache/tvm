@@ -7,9 +7,13 @@ from .base import NodeBase, register_relay_node
 from . import _make
 from . import _interpreter
 from . import ir_pass
+from .env import Environment
 from .expr import Call, Constant, GlobalVar
 from . import const
+from .scope_builder import ScopeBuilder
 from .._ffi.base import integer_types
+from . import graph_runtime
+from ..contrib import graph_runtime as tvm_runtime
 
 class Value(NodeBase):
     """Base class of all values.
@@ -84,47 +88,74 @@ def _arg_to_ast(arg):
         return const(arg)
 
 
-def apply_passes(expr, env=None):
-    ck_expr = ir_pass.infer_type(expr, env=env)
-    fused_expr = ir_pass.fuse_ops(env, ck_expr)
-    return fused_expr
+class Interpreter(object):
+    def __init__(self, mode='debug', env=None):
+        if env is None:
+            self.env = Environment({})
+        else:
+            self.env = env
+
+        self.mode = mode
 
 
-def evaluate(env, expr, *args):
-    """
-    Evaluate a Relay expression on the interpreter.
+    def optimize(self, expr):
+        # TODO: We need to move this optimization code into the optimizer/pass manager
+        ck_expr = ir_pass.infer_type(expr, env=self.env)
+        fused_expr = ir_pass.fuse_ops(self.env, ck_expr)
+        return fused_expr
 
-    Parameters
-    ----------
-    env: tvm.relay.Environment
-        The global environment used.
 
-    expr: tvm.relay.Expr
-        The expression to evaluate.
+    def evaluate(self, expr, params=None):
+        """
+        Evaluate a Relay expression on the interpreter.
 
-    args: list of tvm.relay.Expr
-        The arguments to apply to the expression, only works
-        if the expression has a function type.
+        Parameters
+        ----------
+        expr: tvm.relay.Expr
+            The expression to evaluate.
+        """
+        if params:
+            sb = ScopeBuilder()
+            for key, value in params:
+                sb.let(key, value)
+            sb.ret(expr)
+            expr = sb.get()
 
-    Returns
-    -------
-    value: tvm.relay.eval.Value
-        The value produced by evaluating the expression.
-    """
-    # assert len(args) == 0
-    relay_args = []
-    for arg in args:
-        relay_args.append(_arg_to_ast(arg))
+        if self.mode == 'debug':
+            def _interp_wrapper(*args):
+                relay_args = []
+                for arg in args:
+                    relay_args.append(_arg_to_ast(arg))
 
-    # TODO: We need to move this optimization code into the optimizer/pass manager
-    if isinstance(expr, GlobalVar):
-        func = env[expr]
-        func = apply_passes(func, env)
-        env._add(expr, func, True)
-        opt_expr = Call(expr, relay_args)
-        # import pdb; pdb.set_trace()
-        return _interpreter.evaluate(env, opt_expr)
-    else:
-        expr = Call(expr, relay_args)
-        opt_expr = apply_passes(expr, env)
-        return _interpreter.evaluate(env, opt_expr)
+                if isinstance(expr, GlobalVar):
+                    func = self.env[expr]
+                    func = self.optimize(func)
+                    self.env._add(expr, func, True)
+                    opt_expr = Call(expr, relay_args)
+                    return _interpreter.evaluate(self.env, opt_expr)
+                else:
+                    call = Call(expr, relay_args)
+                    opt_expr = self.optimize(call)
+                    return _interpreter.evaluate(self.env, opt_expr)
+
+            return _interp_wrapper
+        elif self.mode == 'graph':
+            def _graph_wrapper(*args):
+                func = self.optimize(expr)
+                graph_json, mod, params = graph_runtime.build(self.env, func)
+                assert params is None
+                gmodule = tvm_runtime.create(graph_json, mod, cpu(0))
+                # Create map of inputs.
+                inputs = {}
+                for i, arg in enumerate(args):
+                    inputs[func.params[i].name_hint] = arg
+                # Set the inputs here.
+                gmodule.set_input(**inputs)
+                # Run the module, and fetch the output.
+                gmodule.run()
+                return gmodule.get_output(0)
+            return _graph_wrapper
+        else:
+            raise Exception("unknown interpreter mode: {0}".format(self.mode))
+
+
