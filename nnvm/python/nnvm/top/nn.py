@@ -97,8 +97,8 @@ def compute_conv2d(attrs, inputs, _):
 
     if groups == 1 and layout == 'NCHW4c' and inputs[0].dtype == 'int8':
         # pylint: disable=assignment-from-no-return
-        out = topi.nn.conv2d_NCHWc_int8_prepacked(inputs[0], inputs[1], strides, padding,
-                                                  dilation, layout, out_dtype=out_dtype)
+        out = topi.nn.conv2d(inputs[0], inputs[1], strides, padding,
+                             dilation, layout, out_dtype=out_dtype)
         # pylint: enable=assignment-from-no-return
     elif groups == 1:
         out = topi.nn.conv2d(
@@ -136,7 +136,7 @@ def schedule_conv2d(attrs, outs, target):
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
         elif groups == 1 and layout == "NCHW4c":
-            return topi.generic.schedule_conv2d_NCHWc_int8_prepacked(outs)
+            return topi.generic.schedule_conv2d_nchw(outs)
         elif groups == 1 and layout == "NHWC":
             return topi.generic.schedule_conv2d_nhwc(outs)
         elif groups == channels and layout == "NCHW":

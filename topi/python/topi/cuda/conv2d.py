@@ -89,8 +89,7 @@ def conv2d_cuda(cfg, data, kernel, strides, padding, dilation, layout='NCHW', ou
         return winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
                              pre_computed=False)
     if cfg.template_key == 'int8':
-        return conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
-                                 pre_computed=False)
+        return conv2d_NCHWc_int8(cfg, data, kernel, strides, padding, dilation, layout, out_dtype)
 
     if layout == 'NCHW':
         return nn.conv2d_nchw(data, kernel, strides, padding, dilation, out_dtype)
@@ -132,7 +131,7 @@ def schedule_conv2d_nchw_cuda(cfg, outs):
         if op.tag == 'conv2d_nchw_winograd':
             schedule_winograd_cuda(cfg, s, op.output(0), pre_computed=False)
         if op.tag == "conv2d_NCHWc_int8":
-            schedule_conv2d_NCHWc_int8(cfg, s, op.output(0), pre_computed=False)
+            schedule_conv2d_NCHWc_int8(cfg, s, op.output(0))
 
     traverse_inline(s, outs[0].op, _callback)
     return s
