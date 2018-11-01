@@ -144,16 +144,21 @@ inline void AxesParamParser(nnvm::NodeAttrs* attrs) {
 
 NNVM_REGISTER_REDUCE_OP(sum)
 .describe(R"code(Computes the sum of array elements over given axes.
+
 Example::
+
   data = [[[1,2],[2,3],[1,3]],
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
+
   sum(data, axis=1)
   [[  4.   8.]
    [ 10.   9.]
    [ 21.   6.]]
+
   sum(data, axis=[1,2])
   [ 12.  19.  27.]
+
 )code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -188,6 +193,7 @@ Example::
 
 NNVM_REGISTER_REDUCE_OP(max)
 .describe(R"code(Computes the max of array elements over given axes.
+
 )code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -220,6 +226,7 @@ NNVM_REGISTER_REDUCE_OP(max)
 
 NNVM_REGISTER_REDUCE_OP(min)
 .describe(R"code(Computes the min of array elements over given axes.
+
 )code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -278,6 +285,7 @@ inline bool InferFixedType(const NodeAttrs& attrs,
 NNVM_REGISTER_BASE_REDUCE_OP(argmax)
 .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
+
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
@@ -303,6 +311,7 @@ values over a given axis.
 NNVM_REGISTER_BASE_REDUCE_OP(argmin)
 .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
+
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
@@ -327,14 +336,19 @@ values over a given axis.
 
 NNVM_REGISTER_REDUCE_OP(mean)
   .describe(R"code(Computes the mean of array elements over given axes.
+
 Example::
+
   data = [[[1,2],[2,3],[1,3]],
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
+
   mean(data)
   [3.22]
+
   mean(data, axis=[1,2])
   [ 2.  3.16666667  4.5]
+
 )code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -357,14 +371,19 @@ Example::
 
 NNVM_REGISTER_REDUCE_OP(prod)
   .describe(R"code(Computes the products of array elements over given axes.
+
 Example::
+
   data = [[[1,2],[2,3],[1,3]],
           [[1,4],[4,3],[5,2]],
           [[7,1],[7,2],[7,3]]]
+
   mean(data, axis=1)
   [35562240]
+
   mean(data, axis=[1,2])
   [ 36  480  2058]
+
 )code" NNVM_ADD_FILELINE)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
@@ -381,4 +400,4 @@ Example::
 
 
 }  // namespace top
-} // namespace nnvm
+}  // namespace nnvm
