@@ -579,7 +579,8 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
         new_weight = tvm.placeholder((KH + tile_size - 1, KH + tile_size -1, CO // VC, CI, VC),
                                      kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, dilation, new_attrs['layout'], out_dtype, tile_size],
+            [new_data, new_weight, strides, padding, dilation,
+             new_attrs['layout'], out_dtype, tile_size],
             conv2d_winograd_without_weight_transform)
         dispatch_ctx.update(target, new_workload, cfg)
 
