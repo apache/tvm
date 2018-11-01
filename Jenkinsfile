@@ -131,6 +131,7 @@ stage('Build') {
            echo set\\(USE_SORT ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
            echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
+           echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """
