@@ -378,6 +378,8 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             new_attrs['out_layout'] = new_layout
             new_attrs['kernel_layout'] = 'OIHW4o4i'
             ic_block_factor = oc_block_factor = 4
+
+            # Store the same config for the altered operator (workload)
             new_data = tvm.placeholder((N, CI // ic_block_factor, H, W, ic_block_factor),
                                        dtype=data.dtype)
             new_kernel = tvm.placeholder((CO // oc_block_factor, CI // ic_block_factor, KH, KW,\
@@ -390,7 +392,9 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
             return sym.conv2d(*copy_inputs, **new_attrs)
 
         if attrs.get_int_tuple("dilation") != (1, 1):
+            warnings.warn("Does not support weight pre-transform for dilated convolution.")
             return None
+
         # pre-compute weight transformation in winograd
         tile_size = _infer_tile_size(tinfos[0], tinfos[1])
 
@@ -400,6 +404,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
         copy_inputs[1] = weight
         new_attrs['tile_size'] = tile_size
 
+        # Store the same config for the altered operator (workload)
         new_data = data
         new_weight = tvm.placeholder((KH + tile_size - 1, KW + tile_size - 1, CI, CO),
                                      dtype=kernel.dtype)

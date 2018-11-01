@@ -440,7 +440,7 @@ def _schedule_winograd(cfg, s, op):
 
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'mali', ['winograd'])
-def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     """TOPI compute callback"""
     return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
                           tile_size)
