@@ -8,6 +8,7 @@ from . import expr
 from . import module
 from . import ir_pass
 from .build_module import build, build_config, create_executor
+from . import parser
 
 # Root operators
 from .op import Op
@@ -62,3 +63,7 @@ bind = expr.bind
 def _debug(*args):
     import pdb
     pdb.set_trace()
+
+# Parser
+parse = parser.parse
+parse_file = parser.parse_file
