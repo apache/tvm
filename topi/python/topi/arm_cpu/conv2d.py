@@ -2,6 +2,8 @@
 """Conv2D schedule for ARM CPU"""
 from __future__ import absolute_import as _abs
 
+import warnings
+
 import numpy as np
 
 import tvm
@@ -522,7 +524,10 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     out_dtype = attrs["out_dtype"]
     out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
 
-    if layout != 'NCHW' or groups != 1 or dilation != (1, 1):
+    if layout != 'NCHW' or groups != 1:
+        return None
+    if dilation != (1, 1):
+        warnings.warning("Does not support weight pre-transform for dilated convolution.")
         return None
 
     data, kernel = tinfos[0:2]
@@ -531,7 +536,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
 
     # query config of this workload
     workload = autotvm.task.args_to_workload(
-        [data, kernel, strides, padding, layout, out_dtype], conv2d)
+        [data, kernel, strides, padding, dilation, layout, out_dtype], conv2d)
     target = tvm.target.current_target()
     dispatch_ctx = autotvm.DispatchContext.current
     cfg = dispatch_ctx.query(target, workload)
@@ -548,7 +553,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
         new_data = data
         new_kernel = tvm.placeholder((CO // VC, CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, 'NCHW', out_dtype], conv2d)
+            [new_data, new_kernel, strides, padding, dilation, 'NCHW', out_dtype], conv2d)
         dispatch_ctx.update(target, new_workload, cfg)
 
         return sym.conv2d(*copy_inputs, **new_attrs)
@@ -574,7 +579,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
         new_weight = tvm.placeholder((KH + tile_size - 1, KH + tile_size -1, CO // VC, CI, VC),
                                      kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, new_attrs['layout'], out_dtype, tile_size],
+            [new_data, new_weight, strides, padding, dilation, new_attrs['layout'], out_dtype, tile_size],
             conv2d_winograd_without_weight_transform)
         dispatch_ctx.update(target, new_workload, cfg)
 
