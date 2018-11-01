@@ -129,7 +129,7 @@ def _bind_params_by_name(func, params):
     return expr.bind(func, bind_dict)
 
 
-def optimize(func, target, params=None):
+def optimize(func, target=None, params=None):
     """Perform target invariant optimizations.
 
     Parameters

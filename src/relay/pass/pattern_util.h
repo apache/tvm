@@ -10,6 +10,7 @@
 
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/attrs/nn.h>
 #include <string>
@@ -18,6 +19,45 @@
 
 namespace tvm {
 namespace relay {
+
+/*!
+ * \brief Dispatch DataType to the C++ data type
+ *  during runtime.
+ */
+#define TVM_DTYPE_DISPATCH(type, DType, ...)            \
+  if (type == Float(64)) {                              \
+    typedef double DType;                               \
+    {__VA_ARGS__}                                       \
+  } else if (type == Float(32)) {                       \
+    typedef float DType;                                \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(64)) {                         \
+    typedef int64_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(32)) {                         \
+    typedef int32_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(16)) {                         \
+    typedef int16_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else if (type == Int(8)) {                          \
+    typedef int8_t DType;                               \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(64)) {                        \
+    typedef uint64_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(32)) {                        \
+    typedef uint32_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(16)) {                        \
+    typedef uint16_t DType;                             \
+    {__VA_ARGS__}                                       \
+  } else if (type == UInt(8)) {                         \
+    typedef uint8_t DType;                              \
+    {__VA_ARGS__}                                       \
+  } else {                                              \
+    LOG(FATAL) << "unknown data type " << type;         \
+  }
 
 /*!
  * \brief Try to match lhs and rhs via broadcasting rule, such that:
@@ -145,9 +185,10 @@ inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
  */
 template<typename T>
 inline Constant MakeConstantScalar(DataType dtype, T value) {
-  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
   runtime::NDArray arr = runtime::NDArray::Empty({}, Type2TVMType(dtype), {kDLCPU, 0});
-  *static_cast<T*>(arr->data) = value;
+  TVM_DTYPE_DISPATCH(dtype, DType, {
+    *static_cast<DType*>(arr->data) = value;
+  })
   return ConstantNode::make(arr);
 }
 
@@ -168,6 +209,25 @@ inline Expr Log(Expr e) {
   static const Op& op = Op::Get("log");
   return CallNode::make(op, {e});
 }
+/*!
+ * \brief Get an immediate scalar from a Constant expr.
+ *
+ * \param expr The Constant expr.
+ * \return A scalar with type T.
+ */
+template <typename T>
+T GetScalarFromConstant(Expr expr) {
+  const auto* n = expr.as<ConstantNode>();
+  CHECK(n->is_scalar());
+  return static_cast<T*>(n->data->data)[0];
+}
+
+inline Expr Cast(Expr x, DataType dtype) {
+  static const Op& op = Op::Get("cast");
+  auto attrs = make_node<CastAttrs>();
+  attrs->dtype = dtype;
+  return CallNode::make(op, {x}, Attrs(attrs), {});
+}
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
@@ -181,8 +241,35 @@ inline Expr Sqrt(Expr x) {
 }
 
 
+inline Expr Relu(Expr x) {
+  static const Op& op = Op::Get("nn.relu");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Round(Expr x) {
+  static const Op& op = Op::Get("round");
+  return CallNode::make(op, {x}, Attrs(), {});
+}
+
+
+inline Expr Clip(Expr x, double a_min, double a_max) {
+  static const Op& op = Op::Get("clip");
+  auto attrs = make_node<ClipAttrs>();
+  attrs->a_min = a_min;
+  attrs->a_max = a_max;
+  return CallNode::make(op, {x}, Attrs(attrs), {});
+}
+
+
 inline Expr Add(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("add");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+
+inline Expr Substract(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("subtract");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
 
@@ -207,6 +294,24 @@ inline Expr OneLike(Expr e) {
   static const Op& op = Op::Get("ones_like");
   return CallNode::make(op, {e});
 }
+
+inline Expr Power(Expr lhs, Expr rhs) {
+  static const Op& op = Op::Get("power");
+  return CallNode::make(op, {lhs, rhs}, Attrs(), {});
+}
+
+
+inline Expr RightShift(Expr x, Expr nbit) {
+  static const Op& op = Op::Get("right_shift");
+  return CallNode::make(op, {x, nbit}, Attrs(), {});
+}
+
+
+inline Expr LeftShift(Expr x, Expr nbit) {
+  static const Op& op = Op::Get("left_shift");
+  return CallNode::make(op, {x, nbit}, Attrs(), {});
+}
+
 
 inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
