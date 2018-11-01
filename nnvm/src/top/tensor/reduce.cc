@@ -301,7 +301,7 @@ values over a given axis.
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
     if (param.dtype == kFloat32)
-      return Array<Tensor> {
+      return Array<Tensor>{
         topi::cast(topi::argmax(
         inputs[0], axis, param.keepdims), out_info[0]->dtype)};
     return Array<Tensor>{
@@ -327,7 +327,7 @@ values over a given axis.
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
     if (param.dtype == kFloat32)
-      return Array<Tensor> {
+      return Array<Tensor>{
         topi::cast(topi::argmin(
         inputs[0], axis, param.keepdims), out_info[0]->dtype)};
     return Array<Tensor>{
