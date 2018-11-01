@@ -45,8 +45,8 @@ fragment DIGIT: [0-9] ;
 
 // Parsing
 
-// a program is a list of options, a list of global definitions, and an expression
-prog: /* option* */ defn* /* expr */ EOF ;
+// A Relay program is a list of global definitions or an expression.
+prog: (defn* | expr) EOF ;
 
 // option: 'set' ident BOOL_LIT ;
 

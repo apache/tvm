@@ -9,6 +9,7 @@ from . import env
 from . import ir_pass
 from .build_module import build
 from .interpreter import create_executor
+from . import parser
 
 # Root operators
 from .op import Op
@@ -69,3 +70,7 @@ def _tensor_constant_repr(tv):
 def _debug(*args):
     import pdb
     pdb.set_trace()
+
+# Parser
+parse = parser.parse
+parse_file = parser.parse_file
