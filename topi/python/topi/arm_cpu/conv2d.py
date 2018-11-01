@@ -527,7 +527,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     if layout != 'NCHW' or groups != 1:
         return None
     if dilation != (1, 1):
-        warnings.warning("Does not support weight pre-transform for dilated convolution.")
+        warnings.warn("Does not support weight pre-transform for dilated convolution.")
         return None
 
     data, kernel = tinfos[0:2]
