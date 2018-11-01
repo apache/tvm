@@ -7,6 +7,8 @@ from . import ty
 from . import expr
 from . import env
 from . import ir_pass
+from .build_module import build
+from .interpreter import create_executor
 
 # Root operators
 from .op import Op

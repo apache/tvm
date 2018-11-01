@@ -1,17 +1,15 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.interpreter import Value, TupleValue, evaluate
+from tvm.relay.interpreter import Value, TupleValue
 from tvm.relay import op
 from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay import testing
+from tvm.relay import testing, create_executor
 
 
 def check_eval(expr, args, expected_result, env=None, rtol=1e-07):
-    if env is None:
-        env = relay.env.Environment({})
-
-    result = evaluate(env, expr, *args)
+    intrp = create_executor(env=env)
+    result = intrp.evaluate(expr)(*args)
     np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
 
 
@@ -32,8 +30,6 @@ def test_tuple_value():
 def test_id():
     x = relay.var('x', 'float32')
     ident = relay.Function([x], x)
-    env = relay.env.Environment({})
-    res = evaluate(env, ident, 1.0)
     check_eval(ident, [1.0], 1.0)
 
 
