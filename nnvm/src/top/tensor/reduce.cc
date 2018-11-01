@@ -283,7 +283,7 @@ inline bool InferFixedType(const NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_BASE_REDUCE_OP(argmax)
-.describe(R"code(Creates an operation that finds the indices of the maximum
+.describe(R"code(Creates an operation that finds the indices of the minimum
 values over a given axis.
 
 )code" NNVM_ADD_FILELINE)
