@@ -46,13 +46,15 @@ def ProcessGraphDefParam(graph_def):
     return graph_def
 
 
-def AddShapesToGraphDef(out_node):
+def AddShapesToGraphDef(session, out_node):
     """ Add shapes attribute to nodes of the graph.
         Input graph here is the default graph in context.
 
     Parameters
     ----------
-    out_node: String
+    session : tf.Session
+        Tensorflow session
+    out_node : String
         Final output node of the graph.
 
     Returns
@@ -62,13 +64,12 @@ def AddShapesToGraphDef(out_node):
 
     """
 
-    with tf.Session() as sess:
-        graph_def = tf.graph_util.convert_variables_to_constants(
-            sess,
-            sess.graph.as_graph_def(add_shapes=True),
-            [out_node],
-            )
-        return graph_def
+    graph_def = tf.graph_util.convert_variables_to_constants(
+        session,
+        session.graph.as_graph_def(add_shapes=True),
+        [out_node],
+        )
+    return graph_def
 
 class NodeLookup(object):
     """Converts integer node ID's to human readable labels."""
@@ -135,13 +136,19 @@ class NodeLookup(object):
             return ''
         return self.node_lookup[node_id]
 
-def get_workload(model_path):
-    """ Import workload from frozen protobuf
+def get_workload_official(model_url, model_sub_path, temp_dir):
+    """ Import workload from tensorflow official
 
     Parameters
     ----------
-    model_path: str
-        model_path on remote repository to download from.
+    model_url: str
+        URL from where it will be downloaded.
+
+    model_sub_path:
+        Sub path in extracted tar for the ftozen protobuf file.
+
+    temp_dir: TempDirectory
+        The temporary directory object to download the content.
 
     Returns
     -------
@@ -150,16 +157,52 @@ def get_workload(model_path):
 
     """
 
-    repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
-    model_name = os.path.basename(model_path)
-    model_url = os.path.join(repo_base, model_path)
+    model_tar_name = os.path.basename(model_url)
 
     from mxnet.gluon.utils import download
-
-    temp = util.tempdir()
-    path_model = temp.relpath(model_name)
+    temp_path = temp_dir.relpath("./")
+    path_model = temp_path + model_tar_name
 
     download(model_url, path_model)
+
+    import tarfile
+    if path_model.endswith("tgz") or path_model.endswith("gz"):
+        tar = tarfile.open(path_model)
+        tar.extractall(path=temp_path)
+        tar.close()
+    else:
+        raise RuntimeError('Could not decompress the file: ' + path_model)
+    return temp_path + model_sub_path
+
+def get_workload(model_path, model_sub_path=None):
+    """ Import workload from frozen protobuf
+
+    Parameters
+    ----------
+    model_path: str
+        model_path on remote repository to download from.
+
+    model_sub_path: str
+        Model path in the compressed archive.
+
+    Returns
+    -------
+    graph_def: graphdef
+        graph_def is the tensorflow workload for mobilenet.
+
+    """
+
+    temp = util.tempdir()
+    if model_sub_path:
+        path_model = get_workload_official(model_path, model_sub_path, temp)
+    else:
+        repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/'
+        model_name = os.path.basename(model_path)
+        model_url = os.path.join(repo_base, model_path)
+
+        from mxnet.gluon.utils import download
+        path_model = temp.relpath(model_name)
+        download(model_url, path_model)
 
     # Creates graph from saved graph_def.pb.
     with tf.gfile.FastGFile(path_model, 'rb') as f:

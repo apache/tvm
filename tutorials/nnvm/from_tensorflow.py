@@ -32,13 +32,18 @@ repo_base = 'https://github.com/dmlc/web-data/raw/master/tensorflow/models/Incep
 img_name = 'elephant-299.jpg'
 image_url = os.path.join(repo_base, img_name)
 
-# InceptionV1 model protobuf
+######################################################################
+# Tutorials
+# ---------
 # .. note::
 #
 #   protobuf should be exported with :any:`add_shapes=True` option.
 #   Could use https://github.com/dmlc/web-data/tree/master/tensorflow/scripts/tf-to-nnvm.py
 #   to add shapes for existing models.
 #
+# Please refer docs/frontend/tensorflow.md for more details for various models
+# from tensorflow.
+
 model_name = 'classify_image_graph_def-with_shapes.pb'
 model_url = os.path.join(repo_base, model_name)
 
@@ -84,14 +89,15 @@ with tf.gfile.FastGFile(os.path.join("./", model_name), 'rb') as f:
     # Call the utility to import the graph definition into default graph.
     graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
     # Add shapes to the graph.
-    graph_def = nnvm.testing.tf.AddShapesToGraphDef('softmax')
+    with tf.Session() as sess:
+        graph_def = nnvm.testing.tf.AddShapesToGraphDef(sess, 'softmax')
 
 ######################################################################
 # Decode image
 # ------------
 # .. note::
 #
-#   tensorflow frontend import doesn't support preprocessing ops like JpegDecode
+#   tensorflow frontend import doesn't support preprocessing ops like JpegDecode.
 #   JpegDecode is bypassed (just return source node).
 #   Hence we supply decoded frame to TVM instead.
 #
