@@ -303,7 +303,7 @@ values over a given axis.
     if (param.dtype == kFloat32)
 　　　　　　return Array<Tensor> {
 　　　　　　　　topi::cast(topi::argmax(
-        inputs[0], axis, param.keepdims), out_info[0]->dtype)};
+　　　　　　　　inputs[0], axis, param.keepdims), out_info[0]->dtype)};
     return Array<Tensor>{
       topi::argmax(inputs[0], axis, param.keepdims) };
 });
