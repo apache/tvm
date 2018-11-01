@@ -78,7 +78,7 @@ void ParseLLVMTargetOptions(const std::string& target_str,
  * \param allow_null Whether allow null to be returned.
  * \return target machine
  */
-llvm::TargetMachine*
+std::unique_ptr<llvm::TargetMachine>
 GetLLVMTargetMachine(const std::string& target_str, bool allow_null = false);
 
 }  // namespace codegen

@@ -160,9 +160,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
     bool system_lib = (target.find("-system-lib") != std::string::npos);
     CHECK_NE(funcs.size(), 0U);
     ctx_ = std::make_shared<llvm::LLVMContext>();
-    std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_);
+    std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(tm_.get());
     entry_func_ = funcs[0]->name;
-    cg->Init(funcs[0]->name, tm_, ctx_.get(), system_lib, system_lib);
+    cg->Init(funcs[0]->name, tm_.get(), ctx_.get(), system_lib, system_lib);
     for (LoweredFunc f :  funcs) {
       cg->AddFunction(f);
     }
@@ -218,8 +218,8 @@ class LLVMModuleNode final : public runtime::ModuleNode {
       builder.setMAttrs(mattrs);
     }
     builder.setTargetOptions(opt);
-    llvm::TargetMachine *tm = builder.selectTarget();
-    llvm::TargetMachine *tm_sys = GetLLVMTargetMachine("llvm");
+    auto tm = std::unique_ptr<llvm::TargetMachine>(builder.selectTarget());
+    std::unique_ptr<llvm::TargetMachine> tm_sys = GetLLVMTargetMachine("llvm");
     if (tm_sys->getTargetTriple().getArch() != tm->getTargetTriple().getArch()) {
       LOG(FATAL) << "Cannot run module, architecture mismatch "
                  << " module=" << tm->getTargetTriple().str()
@@ -231,7 +231,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
         << mptr_->getDataLayout().getStringRepresentation() << ")"
         << " and ExecutionEngine ("
         << layout.getStringRepresentation() << ")";
-    ee_ = builder.create(tm);
+    ee_ = builder.create(tm.release());
     CHECK(ee_ != nullptr)
         << "Failed to initialize git engine for " << mptr_->getTargetTriple();
     ee_->runStaticConstructorsDestructors(false);
@@ -275,7 +275,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   // The raw pointer to the module.
   llvm::Module* mptr_{nullptr};
   // The target machine
-  llvm::TargetMachine* tm_{nullptr};
+  std::unique_ptr<llvm::TargetMachine> tm_{nullptr};
   // The module, can be moved to ee if JIT is enabled.
   std::unique_ptr<llvm::Module> module_;
   // the context.

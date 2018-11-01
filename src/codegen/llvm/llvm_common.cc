@@ -114,7 +114,7 @@ void ParseLLVMTargetOptions(const std::string& target_str,
 }
 
 
-llvm::TargetMachine*
+std::unique_ptr<llvm::TargetMachine>
 GetLLVMTargetMachine(const std::string& target_str,
                      bool allow_null) {
   std::string target_triple, mcpu, mattr;
@@ -143,7 +143,7 @@ GetLLVMTargetMachine(const std::string& target_str,
   }
   llvm::TargetMachine* tm = target->createTargetMachine(
       target_triple, mcpu, mattr, opt, llvm::Reloc::PIC_);
-  return tm;
+  return std::unique_ptr<llvm::TargetMachine>(tm);
 }
 
 }  // namespace codegen

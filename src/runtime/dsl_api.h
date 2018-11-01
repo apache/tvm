@@ -16,6 +16,7 @@ namespace runtime {
  */
 class DSLAPI {
  public:
+  virtual ~DSLAPI() = default;
   virtual void NodeFree(NodeHandle handle) const = 0;
 
   virtual void NodeTypeKey2Index(const char* type_key,

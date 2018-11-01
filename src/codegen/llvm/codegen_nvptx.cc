@@ -171,10 +171,10 @@ runtime::Module BuildNVPTX(Array<LoweredFunc> funcs, std::string target) {
   config << "-mtriple=nvptx64-nvidia-cuda -mcpu=sm_"
          << compute_ver
          << target.substr(5, target.length() - 5);
-  llvm::TargetMachine* tm = GetLLVMTargetMachine(config.str());
+  std::unique_ptr<llvm::TargetMachine> tm = GetLLVMTargetMachine(config.str());
   std::unique_ptr<CodeGenNVPTX> cg(new CodeGenNVPTX());
   std::unique_ptr<llvm::LLVMContext> ctx(new llvm::LLVMContext());
-  cg->Init(funcs[0]->name, tm, ctx.get(), false, false);
+  cg->Init(funcs[0]->name, tm.get(), ctx.get(), false, false);
   for (LoweredFunc f :  funcs) {
     cg->AddFunction(f);
   }
