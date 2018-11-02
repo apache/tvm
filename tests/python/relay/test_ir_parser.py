@@ -1,9 +1,13 @@
 import tvm
 from tvm import relay
-from tvm.relay.parser import ParseError
+from tvm.relay._parser import ParseError
+from tvm.relay.parser import enabled
 from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
 from typing import Union
+
+if not enabled():
+    exit()
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -59,7 +63,7 @@ UNIT = relay.Tuple([])
 
 def test_comments():
     assert alpha_equal(
-        relay.parse("""
+        relay.fromtext("""
             // This is a line comment!
             ()
         """),
@@ -67,7 +71,7 @@ def test_comments():
     )
 
     assert alpha_equal(
-        relay.parse("""
+        relay.fromtext("""
             /* This is a block comment!
                This is still a block comment!
             */
@@ -77,82 +81,82 @@ def test_comments():
     )
 
 def test_int_literal():
-    assert isinstance(relay.parse("1"), relay.Constant)
-    assert isinstance(relay.parse("1").data, tvm.ndarray.NDArray)
+    assert isinstance(relay.fromtext("1"), relay.Constant)
+    assert isinstance(relay.fromtext("1").data, tvm.ndarray.NDArray)
     
-    assert get_scalar(relay.parse("1")) == 1
-    assert get_scalar(relay.parse("10")) == 10
-    assert get_scalar(relay.parse("0")) == 0
-    assert get_scalar(relay.parse("-100")) == -100
-    assert get_scalar(relay.parse("-05")) == -5
+    assert get_scalar(relay.fromtext("1")) == 1
+    assert get_scalar(relay.fromtext("10")) == 10
+    assert get_scalar(relay.fromtext("0")) == 0
+    assert get_scalar(relay.fromtext("-100")) == -100
+    assert get_scalar(relay.fromtext("-05")) == -5
 
 def test_float_literal():
-    assert get_scalar(relay.parse("1.0")) == 1.0
-    assert is_close(get_scalar(relay.parse("1.56667")), 1.56667)
-    assert get_scalar(relay.parse("0.0")) == 0.0
-    assert get_scalar(relay.parse("-10.0")) == -10.0
+    assert get_scalar(relay.fromtext("1.0")) == 1.0
+    assert is_close(get_scalar(relay.fromtext("1.56667")), 1.56667)
+    assert get_scalar(relay.fromtext("0.0")) == 0.0
+    assert get_scalar(relay.fromtext("-10.0")) == -10.0
 
     # scientific notation
-    assert is_close(get_scalar(relay.parse("1e-1")), 1e-1)
-    assert get_scalar(relay.parse("1e+1")) == 1e+1
-    assert is_close(get_scalar(relay.parse("1E-1")), 1E-1)
-    assert get_scalar(relay.parse("1E+1")) == 1E+1
-    assert is_close(get_scalar(relay.parse("1.0e-1")), 1.0e-1)
-    assert get_scalar(relay.parse("1.0e+1")) == 1.0e+1
-    assert is_close(get_scalar(relay.parse("1.0E-1")), 1.0E-1)
-    assert get_scalar(relay.parse("1.0E+1")) == 1.0E+1
+    assert is_close(get_scalar(relay.fromtext("1e-1")), 1e-1)
+    assert get_scalar(relay.fromtext("1e+1")) == 1e+1
+    assert is_close(get_scalar(relay.fromtext("1E-1")), 1E-1)
+    assert get_scalar(relay.fromtext("1E+1")) == 1E+1
+    assert is_close(get_scalar(relay.fromtext("1.0e-1")), 1.0e-1)
+    assert get_scalar(relay.fromtext("1.0e+1")) == 1.0e+1
+    assert is_close(get_scalar(relay.fromtext("1.0E-1")), 1.0E-1)
+    assert get_scalar(relay.fromtext("1.0E+1")) == 1.0E+1
 
 def test_bool_literal():
-    assert get_scalar(relay.parse("True")) == True
-    assert get_scalar(relay.parse("False")) == False
+    assert get_scalar(relay.fromtext("True")) == True
+    assert get_scalar(relay.fromtext("False")) == False
 
 def test_negative():
-    assert isinstance(relay.parse("let %x = 1; -%x").body, relay.Call)
-    assert get_scalar(relay.parse("--10")) == 10
-    assert get_scalar(relay.parse("---10")) == -10
+    assert isinstance(relay.fromtext("let %x = 1; -%x").body, relay.Call)
+    assert get_scalar(relay.fromtext("--10")) == 10
+    assert get_scalar(relay.fromtext("---10")) == -10
 
 def test_bin_op():
     for bin_op in BINARY_OPS.keys():
         assert alpha_equal(
-            relay.parse("1 {} 1".format(bin_op)),
+            relay.fromtext("1 {} 1".format(bin_op)),
             BINARY_OPS.get(bin_op)(relay.const(1), relay.const(1))
         )
 
 def test_parens():
-    print(relay.parse("1 * 1 + 1"))
-    assert alpha_equal(relay.parse("1 * 1 + 1"), relay.parse("(1 * 1) + 1"))
-    assert not alpha_equal(relay.parse("1 * 1 + 1"), relay.parse("1 * (1 + 1)"))
+    print(relay.fromtext("1 * 1 + 1"))
+    assert alpha_equal(relay.fromtext("1 * 1 + 1"), relay.fromtext("(1 * 1) + 1"))
+    assert not alpha_equal(relay.fromtext("1 * 1 + 1"), relay.fromtext("1 * (1 + 1)"))
 
 def test_op_assoc():
-    assert alpha_equal(relay.parse("1 * 1 + 1 < 1 == 1"), relay.parse("(((1 * 1) + 1) < 1) == 1"))
-    assert alpha_equal(relay.parse("1 == 1 < 1 + 1 * 1"), relay.parse("1 == (1 < (1 + (1 * 1)))"))
+    assert alpha_equal(relay.fromtext("1 * 1 + 1 < 1 == 1"), relay.fromtext("(((1 * 1) + 1) < 1) == 1"))
+    assert alpha_equal(relay.fromtext("1 == 1 < 1 + 1 * 1"), relay.fromtext("1 == (1 < (1 + (1 * 1)))"))
 
 @nottest
 def test_vars():
     # temp vars won't work b/c they start with a digit
     # # temp var
-    # temp_var = relay.parse("%1")
+    # temp_var = relay.fromtext("%1")
     # assert isinstance(temp_var, relay.Var)
     # assert temp_var.name == "1"
 
     # var
-    var = relay.parse("let %foo = (); %foo")
+    var = relay.fromtext("let %foo = (); %foo")
     assert isinstance(var.body, relay.Var)
     assert var.body.name_hint == "foo"
 
     # global var
-    global_var = relay.parse("@foo")
+    global_var = relay.fromtext("@foo")
     assert isinstance(global_var, relay.GlobalVar)
     assert global_var.name_hint == "foo"
 
     # operator id
-    op = relay.parse("foo")
+    op = relay.fromtext("foo")
     assert isinstance(op, relay.Op)
     assert op.name == "foo"
 
 def test_let():
     assert alpha_equal(
-        relay.parse("let %x = 1; ()"),
+        relay.fromtext("let %x = 1; ()"),
         relay.Let(
             X,
             relay.const(1),
@@ -162,7 +166,7 @@ def test_let():
 
 def test_seq():
     assert alpha_equal(
-        relay.parse("(); ()"),
+        relay.fromtext("(); ()"),
         relay.Let(
             _,
             UNIT,
@@ -170,7 +174,7 @@ def test_seq():
     )
 
     assert alpha_equal(
-        relay.parse("let %_ = { 1 }; ()"),
+        relay.fromtext("let %_ = { 1 }; ()"),
         relay.Let(
             X,
             relay.const(1),
@@ -180,25 +184,25 @@ def test_seq():
 
 @raises(ParseError)
 def test_let_global_var():
-    relay.parse("let @x = 1; ()")
+    relay.fromtext("let @x = 1; ()")
 
 @raises(ParseError)
 def test_let_op():
-    relay.parse("let x = 1; ()")
+    relay.fromtext("let x = 1; ()")
 
 def test_tuple():
-    assert alpha_equal(relay.parse("()"), relay.Tuple([]))
+    assert alpha_equal(relay.fromtext("()"), relay.Tuple([]))
 
-    assert alpha_equal(relay.parse("(0,)"), relay.Tuple([relay.const(0)]))
+    assert alpha_equal(relay.fromtext("(0,)"), relay.Tuple([relay.const(0)]))
 
-    assert alpha_equal(relay.parse("(0, 1)"), relay.Tuple([relay.const(0), relay.const(1)]))
+    assert alpha_equal(relay.fromtext("(0, 1)"), relay.Tuple([relay.const(0), relay.const(1)]))
 
-    assert alpha_equal(relay.parse("(0, 1, 2)"), relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
+    assert alpha_equal(relay.fromtext("(0, 1, 2)"), relay.Tuple([relay.const(0), relay.const(1), relay.const(2)]))
 
 def test_func():
     # 0 args
     assert alpha_equal(
-        relay.parse("fn () { 0 }"),
+        relay.fromtext("fn () { 0 }"),
         relay.Function(
             [],
             relay.const(0),
@@ -209,7 +213,7 @@ def test_func():
 
     # 1 arg
     assert alpha_equal(
-        relay.parse("fn (%x) { %x }"),
+        relay.fromtext("fn (%x) { %x }"),
         relay.Function(
             [X],
             X,
@@ -220,7 +224,7 @@ def test_func():
 
     # 2 args
     assert alpha_equal(
-        relay.parse("fn (%x, %y) { %x + %y }"),
+        relay.fromtext("fn (%x, %y) { %x + %y }"),
         relay.Function(
             [X, Y],
             relay.add(X, Y),
@@ -231,7 +235,7 @@ def test_func():
 
     # annotations
     assert alpha_equal(
-        relay.parse("fn (%x: int32) -> int32 { %x }"),
+        relay.fromtext("fn (%x: int32) -> int32 { %x }"),
         relay.Function(
             [X_ANNO],
             X_ANNO,
@@ -243,7 +247,7 @@ def test_func():
 # TODO(@jmp): Crashes if %x isn't annnotated.
 # @nottest
 def test_defn():
-    id_defn = relay.parse(
+    id_defn = relay.fromtext(
         """
         def @id(%x: int32) -> int32 {
             %x
@@ -253,7 +257,7 @@ def test_defn():
 
 def test_ifelse():
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         if (True) {
             0
@@ -271,7 +275,7 @@ def test_ifelse():
 
 @raises(ParseError)
 def test_ifelse_scope():
-    relay.parse(
+    relay.fromtext(
         """
         if (True) {
             let %x = ();
@@ -286,7 +290,7 @@ def test_call():
     # 0 args
     constant = relay.Var("constant")
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         let %constant = fn () { 0 };
         %constant()
@@ -302,7 +306,7 @@ def test_call():
     # 1 arg
     id_var = relay.Var("id")
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
             """
             let %id = fn (%x) { %x };
             %id(1)
@@ -318,7 +322,7 @@ def test_call():
     # 2 args
     multiply = relay.Var("multiply")
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         let %multiply = fn (%x, %y) { %x * %y };
         %multiply(0, 0)
@@ -338,7 +342,7 @@ def test_call():
 
     # anonymous function
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         (fn (%x) { %x })(0)
         """
@@ -359,7 +363,7 @@ def test_call():
     # curried function
     curried_mult = relay.Var("curried_mult")
     alpha_equal(
-        relay.parse(
+        relay.fromtext(
             """
             let %curried_mult =
                 fn (%x) {
@@ -394,7 +398,7 @@ def test_call():
 
     # op
     alpha_equal(
-        relay.parse("abs(1)"),
+        relay.fromtext("abs(1)"),
         relay.Call(relay.op.get("abs"), [relay.const(1)], None, None)
     )
 
@@ -402,7 +406,7 @@ def test_call():
 
 def test_incomplete_type():
     assert alpha_equal(
-        relay.parse("let %_ : _ = (); ()"),
+        relay.fromtext("let %_ : _ = (); ()"),
         relay.Let(
             _,
             UNIT,
@@ -412,7 +416,7 @@ def test_incomplete_type():
 
 def test_builtin_types():
     for builtin_type in TYPES:
-        relay.parse("let %_ : {} = (); ()".format(builtin_type))
+        relay.fromtext("let %_ : {} = (); ()".format(builtin_type))
 
 @nottest
 def test_call_type():
@@ -420,7 +424,7 @@ def test_call_type():
 
 def test_tensor_type():
     assert alpha_equal(
-        relay.parse("let %_ : Tensor[(), float32] = (); ()"),
+        relay.fromtext("let %_ : Tensor[(), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((), "float32")),
             UNIT,
@@ -429,7 +433,7 @@ def test_tensor_type():
     )
 
     assert alpha_equal(
-        relay.parse("let %_ : Tensor[(1,), float32] = (); ()"),
+        relay.fromtext("let %_ : Tensor[(1,), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((1,), "float32")),
             UNIT,
@@ -438,7 +442,7 @@ def test_tensor_type():
     )
 
     assert alpha_equal(
-        relay.parse("let %_ : Tensor[(1, 1), float32] = (); ()"),
+        relay.fromtext("let %_ : Tensor[(1, 1), float32] = (); ()"),
         relay.Let(
             relay.Var("_", relay.TensorType((1, 1), "float32")),
             UNIT,
@@ -448,7 +452,7 @@ def test_tensor_type():
 
 def test_function_type():
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
             """
             let %_: fn () -> int32 = fn () -> int32 { 0 }; ()
             """
@@ -461,7 +465,7 @@ def test_function_type():
     )
 
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
             """
             let %_: fn (int32) -> int32 = fn (%x: int32) -> int32 { 0 }; ()
             """
@@ -474,7 +478,7 @@ def test_function_type():
     )
 
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
             """
             let %_: fn (int32, int32) -> int32 = fn (%x: int32, %y: int32) -> int32 { 0 }; ()
             """
@@ -488,7 +492,7 @@ def test_function_type():
 
 def test_tuple_type():
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         let %_: () = (); ()
         """),
@@ -500,7 +504,7 @@ def test_tuple_type():
     )
 
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         let %_: (int32,) = (0,); ()
         """),
@@ -512,7 +516,7 @@ def test_tuple_type():
     )
 
     assert alpha_equal(
-        relay.parse(
+        relay.fromtext(
         """
         let %_: (int32, int32) = (0, 1); ()
         """),

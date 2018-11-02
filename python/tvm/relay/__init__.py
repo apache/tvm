@@ -65,5 +65,4 @@ def _debug(*args):
     pdb.set_trace()
 
 # Parser
-parse = parser.parse
-parse_file = parser.parse_file
+fromtext = parser.fromtext
