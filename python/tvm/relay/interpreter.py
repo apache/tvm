@@ -138,7 +138,8 @@ class Executor(object):
         """
         if params:
             scope_builder = ScopeBuilder()
-            for key, value in params:
+            for key in params:
+                value = params[key]
                 scope_builder.let(key, value)
             scope_builder.ret(expr)
             expr = scope_builder.get()
@@ -168,10 +169,14 @@ class Interpreter(Executor):
                 self.mod._add(expr, func, True)
                 opt_expr = Call(expr, relay_args)
                 return _interpreter.evaluate(self.mod, opt_expr)
-            else:
+            elif isinstance(expr, Function):
                 call = Call(expr, relay_args)
                 opt_expr = self.optimize(call)
                 return _interpreter.evaluate(self.mod, opt_expr)
+            else:
+                assert len(args) == 0
+                opt_expr = self.optimize(expr)
+                return _interpreter.evaluate(self.env, opt_expr)
 
         return _interp_wrapper
 

@@ -17,15 +17,19 @@ def test_unary_op():
         assert ("%0 = {}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         assert relay.ir_pass.infer_type(y).checked_type == tp
-        intrp = create_executor()
 
-
+        if ref is not None:
+            data = np.random.rand(*shape).astype(dtype)
+            intrp = create_executor()
+            op_res = intrp.evaluate(y, { x: relay.const(data) })()
+            ref_res = ref(data)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
     for opfunc, ref in [(tvm.relay.log, ref_log),
                    (tvm.relay.exp, None),
-                   (tvm.relay.sqrt, None)
-                   (tvm.relay.sigmoid, None)
-                   (tvm.relay.tanh, None)
+                   (tvm.relay.sqrt, None),
+                   (tvm.relay.sigmoid, None),
+                   (tvm.relay.tanh, None),
                    (relay.nn.relu, None)]:
         check_single_op(opfunc, ref)
 

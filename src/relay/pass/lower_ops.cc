@@ -8,6 +8,7 @@
  */
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
+#include <tvm/build_module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass.h>
@@ -155,8 +156,8 @@ struct LiveFunctions : ExprVisitor {
 };
 
 using FCompute = TypedPackedFunc<Array<Tensor>(
-    const Attrs&, const Array<Tensor>&, Type, std::string)>;
-using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, std::string)>;
+    const Attrs&, const Array<Tensor>&, Type, tvm::Target)>;
+using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, tvm::Target)>;
 
 /*! \brief Return the set of operators in their TVM format. */
 Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,

@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import tvm
 import topi
 import topi.cuda
-from . import register
+from . import register, register_schedule, register_compute
 
 def schedule_injective(outputs, target):
     """Generic schedule for binary broadcast."""
@@ -19,7 +19,8 @@ def log_compute(attrs, inputs, output_type, target):
     assert len(inputs) == 1
     return [topi.log(inputs[0])]
 
-register_schedule("log",  schedule_broadcast)
+register_compute("log", log_compute)
+register_schedule("log", schedule_broadcast)
 
 # exp
 def exp_compute(attrs, inputs, output_type, target):
