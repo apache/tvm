@@ -29,9 +29,12 @@
  * Refer to this file for interface documentation.
  */
 
-#ifndef CMA_API_H_
-#define CMA_API_H_
+#ifndef VTA_DE10_NANO_CMA_API_H_
+#define VTA_DE10_NANO_CMA_API_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Initialize CMA api (basically perform open() syscall).
@@ -93,4 +96,7 @@ int cma_free(void *mem);
 unsigned cma_get_phy_addr(void *mem);
 
 
+#ifdef __cplusplus
+}
 #endif
+#endif  // VTA_DE10_NANO_CMA_API_H_

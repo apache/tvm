@@ -10,9 +10,9 @@
 
 
 void* VTAMemAlloc(size_t size, int cached) {
-  if (cached){
+  if (cached) {
     return cma_alloc_cached(size);
-  }else{
+  } else {
     return cma_alloc_noncached(size);
   }
 }

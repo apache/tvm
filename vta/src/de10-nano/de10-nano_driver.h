@@ -4,8 +4,8 @@
  * \brief VTA driver for DE10_Nano board.
  */
 
-#ifndef VTA_DE10_NANO_DRIVER_H_
-#define VTA_DE10_NANO_DRIVER_H_
+#ifndef VTA_DE10_NANO_DE10_NANO_DRIVER_H_
+#define VTA_DE10_NANO_DE10_NANO_DRIVER_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +23,7 @@ extern "C" {
 #include <unistd.h>
 
 #ifdef __arm__
-#include <cma_api.h>
+#include "cma_api.h"
 #else
 void* cma_alloc(size_t size, int cached);
 void cma_free(void* buf);
@@ -80,4 +80,4 @@ uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 #ifdef __cplusplus
 }
 #endif
-#endif  // VTA_DE10_NANO_DRIVER_H_
+#endif  // VTA_DE10_NANO_DE10_NANO_DRIVER_H_
