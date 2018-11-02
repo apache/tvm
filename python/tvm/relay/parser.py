@@ -4,7 +4,7 @@ def enabled():
     try:
         import tvm.relay._parser
         return True
-    except ImportError:
+    except Exception:
         return False
 
 def fromtext(data):
