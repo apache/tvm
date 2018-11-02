@@ -8,7 +8,7 @@
 #define TVM_RELAY_BUILD_MODULE_H_
 
 #include <tvm/lowered_func.h>
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 #include <string>
 
@@ -61,13 +61,13 @@ RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
  * \note This will do a reachability analysis and lower all definitions
  * reachable from the provided expression.
  *
- * \param env  The environment.
+ * \param mod  The module.
  * \param expr The expression with operations to be lowered.
  * \param target The target to lower the functions to.
  *
  * \return The set of lowered operations.
  */
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr,
+Array<LoweredOp> LowerOps(const Module& mod, const Expr& expr,
                           const std::string& target = "llvm");
 
 }  // namespace relay

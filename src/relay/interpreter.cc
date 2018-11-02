@@ -183,7 +183,7 @@ struct ExprEqual {
 };
 
 struct Interpreter : ExprFunctor<Value(const Expr& n)> {
-  Environment env;
+  Module mod;
   Stack stack;
   using JitKey = Function;
 
@@ -197,8 +197,8 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
     return f();
   }
 
-  Interpreter(Environment env) : env(env), operator_map_() {}
-  Interpreter(Environment env, OpMap operator_map) : env(env), operator_map_(operator_map) {}
+  Interpreter(Module mod) : mod(mod), operator_map_() {}
+  Interpreter(Module mod, OpMap operator_map) : mod(mod), operator_map_(operator_map) {}
 
   void extend(const Var& id, Value v) {
     this->stack.current_frame().locals.Set(id, v);
@@ -223,7 +223,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   }
 
   Value VisitExpr_(const GlobalVarNode* op) override {
-    return Eval(this->env->Lookup(GetRef<GlobalVar>(op)));
+    return Eval(this->mod->Lookup(GetRef<GlobalVar>(op)));
   }
 
   Value VisitExpr_(const OpNode* id) override {
@@ -251,14 +251,14 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
 
   Value VisitExpr_(const FunctionNode* func_node) override {
     auto func = GetRef<Function>(func_node);
-    tvm::Map<Var, Value> captured_env;
+    tvm::Map<Var, Value> captured_mod;
     Array<Var> free_vars = FreeVars(func);
 
     for (const auto& var : free_vars) {
-      captured_env.Set(var, Eval(var));
+      captured_mod.Set(var, Eval(var));
     }
 
-    return ClosureNode::make(captured_env, func);
+    return ClosureNode::make(captured_mod, func);
   }
 
   inline Value InvokeCompiledOp(PackedFunc func, const Array<Value>& args,
@@ -315,7 +315,7 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
       locals.Set(func->params[i], args[i]);
     }
 
-    // Add the var to value mappings from the Closure's environment.
+    // Add the var to value mappings from the Closure's modironment.
     for (auto it = closure->env.begin(); it != closure->env.end(); ++it) {
       CHECK_EQ(locals.count((*it).first), 0);
       locals.Set((*it).first, (*it).second);
@@ -384,9 +384,9 @@ struct Interpreter : ExprFunctor<Value(const Expr& n)> {
   }
 };
 
-Interpreter::OpMap CompileOperators(const Environment& env, const Expr& e) {
+Interpreter::OpMap CompileOperators(const Module& mod, const Expr& e) {
   Interpreter::OpMap op_map;
-  auto lowered_ops = LowerOps(env, e);
+  auto lowered_ops = LowerOps(mod, e);
   RELAY_LOG(INFO) << "LoweredFuncs: " << lowered_ops << std::endl;
   if (lowered_ops.size()) {
     const PackedFunc* fbuild_ptr = Registry::Get("relay.op.compiler._build");
@@ -399,7 +399,7 @@ Interpreter::OpMap CompileOperators(const Environment& env, const Expr& e) {
       lowered_funcs.push_back(lop->lowered_func);
     }
 
-    Module module = fbuild(lowered_funcs);
+    runtime::Module module = fbuild(lowered_funcs);
 
     // Loop over the lowered operations to map them into the operator map.
     for (auto lop : lowered_ops) {
@@ -415,17 +415,17 @@ Interpreter::OpMap CompileOperators(const Environment& env, const Expr& e) {
   return op_map;
 }
 
-Value Evaluate(Environment env, Expr e) {
-  auto op_map = CompileOperators(env, e);
-  Interpreter interp(env, op_map);
+Value Evaluate(Module mod, Expr e) {
+  auto op_map = CompileOperators(mod, e);
+  Interpreter interp(mod, op_map);
   return interp.Eval(e);
 }
 
 TVM_REGISTER_API("relay._interpreter.evaluate")
     .set_body([](TVMArgs args, TVMRetValue* ret) {
-      Environment env = args[0];
+      Module mod = args[0];
       Expr expr = args[1];
-      *ret = Evaluate(env, expr);
+      *ret = Evaluate(mod, expr);
     });
 
 }  // namespace relay

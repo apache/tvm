@@ -20,12 +20,12 @@ namespace relay {
 using namespace runtime;
 
 struct AbstractFusableOps : ExprMutator {
-  Environment env;
+  Module mod;
   Array<GlobalVar> fusable_funcs;
   int counter = 0;
   size_t expr_hash;
 
-  AbstractFusableOps(Environment env, size_t expr_hash) : env(env), expr_hash(expr_hash) {}
+  AbstractFusableOps(Module mod, size_t expr_hash) : mod(mod), expr_hash(expr_hash) {}
 
   Expr VisitExpr_(const CallNode* call) {
     if (auto op_node = call->op.as<OpNode>()) {
@@ -55,7 +55,7 @@ struct AbstractFusableOps : ExprMutator {
       func_name += "_";
       func_name += std::to_string(expr_hash);
       auto gv = GlobalVarNode::make(func_name);
-      env->Add(gv, func);
+      mod->Add(gv, func);
       fusable_funcs.push_back(gv);
       return CallNode::make(gv, args, Attrs());
     } else {
@@ -64,12 +64,12 @@ struct AbstractFusableOps : ExprMutator {
   }
 };
 
-Expr FuseOps(const Environment& env, const Expr& e) {
+Expr FuseOps(const Module& mod, const Expr& e) {
   // First we convert all chains of fusable ops into
   // abstracted functions which we mark as primtive
   // then we convert these primtive functions into
   // new operators.
-  auto abstract = AbstractFusableOps(env, StructuralHash()(e));
+  auto abstract = AbstractFusableOps(mod, StructuralHash()(e));
   auto abstracted_e = abstract.VisitExpr(e);
   RELAY_LOG(INFO) << "FuseOps: before=" << e
                   << "Fuse: after=" << abstracted_e;

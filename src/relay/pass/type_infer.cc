@@ -104,8 +104,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // constructors
   TypeInferencer() {
   }
-  explicit TypeInferencer(Environment env)
-      : env_(env) {
+  explicit TypeInferencer(Module mod)
+      : mod_(mod) {
   }
 
   // inference the type of expr.
@@ -115,7 +115,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // type resolver that maps back to type
   class Resolver;
   // internal environment
-  Environment env_;
+  Module mod_;
   // map from expression to checked type
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
@@ -164,9 +164,9 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const GlobalVarNode* op) final {
     GlobalVar var = GetRef<GlobalVar>(op);
-    CHECK(env_.defined())
+    CHECK(mod_.defined())
         << "Cannot do type inference without a global variable";
-    Expr e = env_->Lookup(var);
+    Expr e = mod_->Lookup(var);
     return e->checked_type();
   }
 
@@ -511,20 +511,20 @@ Expr TypeInferencer::Infer(Expr expr) {
 }
 
 
-Expr InferType(const Expr& expr, const Environment& env) {
-  auto e = TypeInferencer(env).Infer(expr);
+Expr InferType(const Expr& expr, const Module& mod) {
+  auto e = TypeInferencer(mod).Infer(expr);
   CHECK(WellFormed(e));
   return e;
 }
 
 Function InferType(const Function& func,
-                   const Environment& env,
+                   const Module& mod,
                    const GlobalVar& var) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
-  env->functions.Set(var, func_copy);
-  Expr func_ret = TypeInferencer(env).Infer(func_copy);
-  auto map_node = env->functions.CopyOnWrite();
+  mod->functions.Set(var, func_copy);
+  Expr func_ret = TypeInferencer(mod).Infer(func_copy);
+  auto map_node = mod->functions.CopyOnWrite();
   map_node->data.erase(var.node_);
   CHECK(WellFormed(func_ret));
   return Downcast<Function>(func_ret);
