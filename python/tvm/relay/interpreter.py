@@ -147,7 +147,12 @@ class Executor(object):
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
 
-        return self._make_executor(expr)
+        executor = self._make_executor(expr)
+
+        if isinstance(expr, Function):
+            return executor
+        else:
+            return executor()
 
 
 class Interpreter(Executor):

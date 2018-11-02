@@ -1,10 +1,17 @@
+import math
 import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.interpreter import create_executor
 
-def ref_log(x):
-    return np.log(x)
+def sigmoid(x):
+    one = np.ones_like(x)
+    return one / (one + np.exp(-x))
+
+def relu(x):
+    x_copy = np.copy(x)
+    np.maximum(x_copy, 0, x_copy)
+    return x_copy
 
 def test_unary_op():
     def check_single_op(opfunc, ref):
@@ -21,21 +28,21 @@ def test_unary_op():
         if ref is not None:
             data = np.random.rand(*shape).astype(dtype)
             intrp = create_executor()
-            op_res = intrp.evaluate(y, { x: relay.const(data) })()
+            op_res = intrp.evaluate(y, { x: relay.const(data) })
             ref_res = ref(data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
-    for opfunc, ref in [(tvm.relay.log, ref_log),
-                   (tvm.relay.exp, None),
-                   (tvm.relay.sqrt, None),
-                   (tvm.relay.sigmoid, None),
-                   (tvm.relay.tanh, None),
-                   (relay.nn.relu, None)]:
+    for opfunc, ref in [(tvm.relay.log, np.log),
+                   (tvm.relay.exp, np.exp),
+                   (tvm.relay.sqrt, np.sqrt),
+                   (tvm.relay.sigmoid, sigmoid),
+                   (tvm.relay.tanh, np.tanh),
+                   (relay.nn.relu, None)]: # Just add RELU here after registering.
         check_single_op(opfunc, ref)
 
 
 def test_binary_op():
-    def check_binary_op(opfunc):
+    def check_binary_op(opfunc, ref):
         n = tvm.var("n")
         t1 = relay.TensorType((5, n, 5))
         t2 = relay.TensorType((n, 1))
@@ -46,12 +53,20 @@ def test_binary_op():
         assert ("%0 = {}(%x, %y)".format(z.op.name)) in z.astext()
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
-    for opfunc in [relay.add,
-                   relay.subtract,
-                   relay.mod,
-                   relay.multiply,
-                   relay.divide]:
-        check_binary_op(opfunc)
+        if ref is not None:
+            x = np.random.rand(*t1.shape).astype(t1.dtype)
+            y = np.random.rand(*t2.shape).astype(t2.dtype)
+            intrp = create_executor()
+            op_res = intrp.evaluate(z, { x: relay.const(x), y: relay.const(y) })
+            ref_res = ref(x, y)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+    for opfunc, ref in [(relay.add, np.add)
+                   (relay.subtract, np.subtract),
+                   (relay.mod, np.mod),
+                   (relay.multiply, np.multiply),
+                   (relay.divide, np.divide)]:
+        check_binary_op(opfunc, ref)
 
 
 def test_bias_add():
