@@ -82,7 +82,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
-        self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeParam]
+        self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
 
         super(ParseTreeToRelayIR, self).__init__()
 
@@ -108,21 +108,21 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def enter_type_param_scope(self):
         # type: () -> None
-        """Enter a new TypeParam scope so it can be popped off later."""
+        """Enter a new TypeVar scope so it can be popped off later."""
 
         self.type_param_scopes.appendleft(deque())
 
     def exit_type_param_scope(self):
-        # type: () -> Scope[ty.TypeParam]
-        """Pop off the current TypeParam scope and return it."""
+        # type: () -> Scope[ty.TypeVar]
+        """Pop off the current TypeVar scope and return it."""
 
         return self.type_param_scopes.popleft()
 
     def mk_typ(self, name, kind):
-        # (str, ty.Kind) -> ty.TypeParam
-        """Create a new TypeParam and add it to the TypeParam scope."""
+        # (str, ty.Kind) -> ty.TypeVar
+        """Create a new TypeVar and add it to the TypeVar scope."""
 
-        typ = TypeParam(name, kind)
+        typ = ty.TypeVar(name, kind)
         self.type_param_scopes[0].appendleft((name, typ))
         return typ
 
@@ -135,7 +135,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         # variables
         if node_type == RelayLexer.GLOBAL_VAR:
-            return GlobalVar(node_text[1:])
+            return expr.GlobalVar(node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
             name = node_text[1:]
             var = lookup(self.var_scopes, name)
