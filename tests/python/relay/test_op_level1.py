@@ -42,10 +42,16 @@ def test_unary_op():
 
 
 def test_binary_op():
+    def inst(vars, sh):
+        return [vars.get(s, s) for s in sh]
+
     def check_binary_op(opfunc, ref):
+        # TODO(@jroesch): this piece of code improperly uses type variables.
         n = tvm.var("n")
-        t1 = relay.TensorType((5, n, 5))
-        t2 = relay.TensorType((n, 1))
+        s1 = (5, n, 5)
+        s2 = (n, 1)
+        t1 = relay.TensorType(s1)
+        t2 = relay.TensorType(s2)
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
@@ -54,14 +60,19 @@ def test_binary_op():
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
         if ref is not None:
-            x = np.random.rand(*t1.shape).astype(t1.dtype)
-            y = np.random.rand(*t2.shape).astype(t2.dtype)
+            t1 = relay.TensorType((5, 10, 5))
+            t2 = relay.TensorType((5, 10, 5))
+            x = relay.var("x", t1)
+            y = relay.var("y", t2)
+            z = opfunc(x, y)
+            x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+            y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
             intrp = create_executor()
-            op_res = intrp.evaluate(z, { x: relay.const(x), y: relay.const(y) })
-            ref_res = ref(x, y)
+            op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+            ref_res = ref(x_data, y_data)
             np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
-    for opfunc, ref in [(relay.add, np.add)
+    for opfunc, ref in [(relay.add, np.add),
                    (relay.subtract, np.subtract),
                    (relay.mod, np.mod),
                    (relay.multiply, np.multiply),

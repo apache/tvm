@@ -181,7 +181,7 @@ class Interpreter(Executor):
             else:
                 assert not args
                 opt_expr = self.optimize(expr)
-                return _interpreter.evaluate(self.env, opt_expr)
+                return _interpreter.evaluate(self.mod, opt_expr)
 
         return _interp_wrapper
 
