@@ -108,6 +108,8 @@ def compute_conv2d(attrs, inputs, _):
          groups == channels:
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+    elif layout == "NCHW":
+        out = topi.nn.group_conv2d_nchw(inputs[0], inputs[1], strides, padding, dilation, groups, out_dtype=out_dtype)
     elif layout == "NHWC" and \
          kernel_layout == "HWOI" and \
          groups == get_const_int(inputs[0].shape[3]) and \
@@ -143,6 +145,8 @@ def schedule_conv2d(attrs, outs, target):
             return topi.generic.schedule_depthwise_conv2d_nchw(outs)
         elif groups == channels and layout == "NHWC" and kernel_layout == "HWOI":
             return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
+        elif layout == "NCHW":
+            return topi.generic.schedule_group_conv2d_nchw(outs)
         else:
             raise ValueError("No compatible schedule")
 
