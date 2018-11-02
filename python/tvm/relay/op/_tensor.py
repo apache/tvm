@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import tvm
 import topi
 import topi.cuda
-from . import register, register_schedule, register_compute
+from . import register_schedule, register_compute
 
 def schedule_injective(outputs, target):
     """Generic schedule for binary broadcast."""

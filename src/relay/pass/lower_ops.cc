@@ -180,7 +180,7 @@ Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
     auto func = mod->Lookup(func_name);
     auto call = Downcast<Call>(func->body);
     auto op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "violated invariant that primtiive calls contain a single op call";
+    CHECK(op_node) << "violated invariant that primtive calls contain a single op call";
     auto op = GetRef<Op>(op_node);
     RELAY_LOG(INFO) << "LowerOps: Lowering " << op->name;
 
