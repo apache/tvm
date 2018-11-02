@@ -7,7 +7,7 @@
 #include "test_lib.h"
 
 #ifdef NO_SIM
-#ifdef VTA_TARGET_PYNQ
+#if defined(VTA_TARGET_PYNQ) || defined(VTA_TARGET_DE10_NANO)
 
 uint64_t vta(
   uint32_t insn_count,

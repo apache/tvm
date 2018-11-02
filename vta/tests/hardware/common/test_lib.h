@@ -17,9 +17,13 @@
 
 #include <vta/driver.h>
 
-#ifdef VTA_TARGET_PYNQ
+#if defined(VTA_TARGET_PYNQ)
 #include "../../../src/pynq/pynq_driver.h"
 #endif  // VTA_TARGET_PYNQ
+
+#if defined(VTA_TARGET_DE10_NANO)
+#include "../../../src/de10-nano/de10-nano_driver.h"
+#endif  // VTA_TARGET_DE10_NANO
 
 typedef uint64_t axi_T;
 typedef uint32_t uop_T;
