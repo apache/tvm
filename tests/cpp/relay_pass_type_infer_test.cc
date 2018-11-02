@@ -11,7 +11,7 @@ TEST(Relay, SelfReference) {
   auto x = relay::VarNode::make("x", type_a);
   auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, type_b, Array<relay::TypeVar>{});
   auto fx = relay::CallNode::make(f, Array<relay::Expr>{ x });
-  auto type_fx = relay::InferType(fx, relay::EnvironmentNode::make(Map<relay::GlobalVar, relay::Function>{}));
+  auto type_fx = relay::InferType(fx, relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{}));
   CHECK_EQ(type_fx->checked_type(), type_a);
 }
 

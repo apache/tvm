@@ -5,9 +5,9 @@ from a Relay expression.
 from ..build_module import build as tvm_build_module
 from . graph_runtime_codegen import GraphRuntimeCodegen
 from . import ir_pass
-from .env import Environment
+from .module import Module
 
-def build(func, params=None, target=None, env=None):
+def build(func, params=None, target=None, mod=None):
     """
     Compile a single function to the components needed by the
     TVM RTS.
@@ -29,15 +29,15 @@ def build(func, params=None, target=None, env=None):
     if target is None:
         target = 'llvm'
 
-    if env is None:
-        env = Environment({})
+    if mod is None:
+        mod = Module({})
 
-    comp = GraphRuntimeCodegen(env)
+    comp = GraphRuntimeCodegen(mod)
     # NB(@jroesch) This creates lowered functions, and generates names for them
     #
     # We need these names to emit the correct graph as these are names of the
     # functions contained in the module.
-    lowered_ops = ir_pass.lower_ops(env, func)
+    lowered_ops = ir_pass.lower_ops(mod, func)
     mod = tvm_build_module([lf.lowered_func for lf in lowered_ops], target)
 
     # Therefore the call to compile must come after.

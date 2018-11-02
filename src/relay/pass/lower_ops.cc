@@ -28,12 +28,12 @@ LoweredOp LoweredOpNode::make(Function func, LoweredFunc lowered_func) {
 }
 
 struct AbstractLocalFunctions : ExprMutator {
-  Environment env;
+  Module mod;
   size_t expr_hash;
   int counter = 0;
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> visited_funcs;
-  explicit AbstractLocalFunctions(Environment env)
-      : env(env), expr_hash(0), counter(0), visited_funcs() {}
+  explicit AbstractLocalFunctions(Module mod)
+      : mod(mod), expr_hash(0), counter(0), visited_funcs() {}
 
   Expr Abstract(const Expr& e) {
     expr_hash = StructuralHash()(e);
@@ -44,7 +44,7 @@ struct AbstractLocalFunctions : ExprMutator {
     auto gvar = GetRef<GlobalVar>(gvar_node);
     auto it = visited_funcs.find(gvar);
     if (it == visited_funcs.end()) {
-      auto func = env->Lookup(gvar);
+      auto func = mod->Lookup(gvar);
       visited_funcs.insert(gvar);
       auto new_func = FunctionNode::make(
         func->params,
@@ -52,7 +52,7 @@ struct AbstractLocalFunctions : ExprMutator {
         func->ret_type,
         func->type_params,
         func->attrs);
-      env->Update(gvar, new_func);
+      mod->Update(gvar, new_func);
     }
     return gvar;
   }
@@ -70,7 +70,7 @@ struct AbstractLocalFunctions : ExprMutator {
     abs_func += std::to_string(expr_hash);
     auto gv = GlobalVarNode::make(abs_func);
     auto lifted_func = FunctionNode::make(params, func, Type(), {}, {});
-    env->Add(gv, lifted_func);
+    mod->Add(gv, lifted_func);
     Array<Expr> args;
     for (auto free_var : free_vars) {
       args.push_back(free_var);
@@ -80,8 +80,8 @@ struct AbstractLocalFunctions : ExprMutator {
 };
 
 struct LiveFunctions : ExprVisitor {
-  Environment env;
-  explicit LiveFunctions(Environment env) : env(env), global_funcs() {}
+  Module mod;
+  explicit LiveFunctions(Module mod) : mod(mod), global_funcs() {}
 
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> visited_funcs;
   std::unordered_set<GlobalVar, NodeHash, NodeEqual> global_funcs;
@@ -100,7 +100,7 @@ struct LiveFunctions : ExprVisitor {
     GlobalVar var = GetRef<GlobalVar>(var_node);
     auto it = visited_funcs.find(var);
     if (it == visited_funcs.end()) {
-      auto func = env->Lookup(var);
+      auto func = mod->Lookup(var);
       visited_funcs.insert(var);
       // The last pass has trasnformed functions of the form:
       //
@@ -134,7 +134,7 @@ struct LiveFunctions : ExprVisitor {
     RELAY_LOG(INFO) << "LiveOps: CallNode=" << GetRef<Call>(call);
     if (auto gv_node = call->op.as<GlobalVarNode>()) {
       GlobalVar gvar = GetRef<GlobalVar>(gv_node);
-      Function func = env->Lookup(gvar);
+      Function func = mod->Lookup(gvar);
 
       auto attr = FunctionGetAttr(func, "Primitive");
 
@@ -159,15 +159,15 @@ using FCompute = TypedPackedFunc<Array<Tensor>(
 using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, std::string)>;
 
 /*! \brief Return the set of operators in their TVM format. */
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
+Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
                           const std::string& target) {
   RELAY_LOG(INFO) << "LowerOps: e=" << e;
   auto flower_ptr = Registry::Get("relay.op.compiler._lower");
   CHECK(flower_ptr);
   PackedFunc flower = *flower_ptr;
 
-  auto abstracted_e = AbstractLocalFunctions(env).Abstract(e);
-  auto live_funcs = LiveFunctions(env);
+  auto abstracted_e = AbstractLocalFunctions(mod).Abstract(e);
+  auto live_funcs = LiveFunctions(mod);
   live_funcs.VisitExpr(abstracted_e);
 
   auto schedule_reg = Op::GetAttr<FSchedule>("FTVMSchedule");
@@ -176,7 +176,7 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
   Array<LoweredOp> lowered_funcs;
 
   for (auto func_name : live_funcs.global_funcs) {
-    auto func = env->Lookup(func_name);
+    auto func = mod->Lookup(func_name);
     auto call = Downcast<Call>(func->body);
     auto op_node = call->op.as<OpNode>();
     CHECK(op_node) << "violated invariant that primtiive calls contain a single op call";
@@ -205,7 +205,7 @@ Array<LoweredOp> LowerOps(const Environment& env, const Expr& e,
     LoweredFunc lf =
         flower(op->name + std::to_string(hash), schedule, inputs, outputs);
     func = FunctionSetAttr(func, "LoweredFunc", lf);
-    env->Add(func_name, func, true);
+    mod->Add(func_name, func, true);
     lowered_funcs.push_back(LoweredOpNode::make(func, lf));
   }
 

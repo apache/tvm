@@ -6,7 +6,7 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 #include <string>
 
@@ -21,23 +21,23 @@ namespace relay {
  * populated with the result type.
  *
  * \param expr The expression to type check.
- * \param env The environment used for referencing global functions, can be
+ * \param mod The module used for referencing global functions, can be
  * None.
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Expr& expr, const Environment& env);
+Expr InferType(const Expr& expr, const Module& mod);
 /*!
- * \brief Infer the type of a function as if it is mapped to var in the env.
+ * \brief Infer the type of a function as if it is mapped to var in the mod.
  *
  * \param f the function.
- * \param env The environment used for referencing global functions.
+ * \param mod The module used for referencing global functions.
  * \param var The global variable corresponding to the function.
  *
  * \return A type checked Function with its checked_type field populated.
- * \note this function mutates env and is not thread-safe.
+ * \note this function mutates mod and is not thread-safe.
  */
-Function InferType(const Function& f, const Environment& env,
+Function InferType(const Function& f, const Module& mod,
                    const GlobalVar& var);
 
 /*!
@@ -52,11 +52,11 @@ Function InferType(const Function& f, const Environment& env,
  * a data type such as `int`, `float`, `uint`.
  *
  * \param t The type to check.
- * \param env The global environment.
+ * \param mod The global module.
  *
  * \return true if the rules are satisified otherwise false
  */
-bool KindCheck(const Type& t, const Environment& env);
+bool KindCheck(const Type& t, const Module& mod);
 
 /*! \brief Compare two expressions for structural equivalence.
  *

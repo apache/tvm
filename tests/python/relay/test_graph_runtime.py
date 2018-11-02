@@ -6,10 +6,10 @@ from tvm.relay.ir_pass import infer_type
 from tvm.relay.interpreter import Interpreter
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
-from tvm.relay.env import Environment
+from tvm.relay.module import Module
 
 # @tq, @jr should we put this in testing ns?
-def check_rts(expr, args, expected_result, env=None):
+def check_rts(expr, args, expected_result, mod=None):
     """
     Check that evaluating `expr` applied to the arguments produces
     `result` on both the evaluator and TVM runtime.
@@ -25,8 +25,8 @@ def check_rts(expr, args, expected_result, env=None):
     expected_result:
         The expected result of running the expression.
     """
-    intrp = create_executor('graph', env=env)
-    graph = create_executor('graph', env=env)
+    intrp = create_executor('graph', mod=mod)
+    graph = create_executor('graph', mod=mod)
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
     np.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())

@@ -8,7 +8,7 @@ from . import build_module
 from . import _make
 from . import _interpreter
 from . import ir_pass
-from .env import Environment
+from .module import Module
 from .expr import Call, Constant, GlobalVar, Function, const
 from .scope_builder import ScopeBuilder
 from .._ffi.base import integer_types
@@ -90,24 +90,24 @@ def _arg_to_ast(arg):
 class Executor(object):
     """An abstract interface for executing Relay programs."""
 
-    def __init__(self, env=None):
+    def __init__(self, mod=None):
         """
         Parameters
         ----------
-        env: relay.Environment
-            The environment.
+        mod: relay.Module
+            The module.
         """
-        if env is None:
-            self.env = Environment({})
+        if mod is None:
+            self.mod = Module({})
         else:
-            self.env = env
+            self.mod = mod
 
 
     def optimize(self, expr):
         # TODO: We need to move this optimization code into the optimizer/pass manager
-        ck_expr = ir_pass.infer_type(expr, env=self.env)
-        fused_expr = ir_pass.fuse_ops(self.env, ck_expr)
-        ck_fused = ir_pass.infer_type(fused_expr, env=self.env)
+        ck_expr = ir_pass.infer_type(expr, mod=self.mod)
+        fused_expr = ir_pass.fuse_ops(self.mod, ck_expr)
+        ck_fused = ir_pass.infer_type(fused_expr, mod=self.mod)
         return ck_fused
 
     def _make_executor(self, _):
@@ -153,8 +153,8 @@ class Interpreter(Executor):
     """
     A wrapper around the Relay interpreter, implements the excecutor interface.
     """
-    def __init__(self, env=None):
-        Executor.__init__(self, env)
+    def __init__(self, mod=None):
+        Executor.__init__(self, mod)
 
     def _make_executor(self, expr):
         def _interp_wrapper(*args):
@@ -163,28 +163,28 @@ class Interpreter(Executor):
                 relay_args.append(_arg_to_ast(arg))
 
             if isinstance(expr, GlobalVar):
-                func = self.env[expr]
+                func = self.mod[expr]
                 func = self.optimize(func)
-                self.env._add(expr, func, True)
+                self.mod._add(expr, func, True)
                 opt_expr = Call(expr, relay_args)
-                return _interpreter.evaluate(self.env, opt_expr)
+                return _interpreter.evaluate(self.mod, opt_expr)
             else:
                 call = Call(expr, relay_args)
                 opt_expr = self.optimize(call)
-                return _interpreter.evaluate(self.env, opt_expr)
+                return _interpreter.evaluate(self.mod, opt_expr)
 
         return _interp_wrapper
 
 
 class GraphRuntime(Executor):
     """A wrapper around the TVM graph runtime, implements the Executor interface."""
-    def __init__(self, env=None):
-        Executor.__init__(self, env)
+    def __init__(self, mod=None):
+        Executor.__init__(self, mod)
 
     def _make_executor(self, expr):
         def _graph_wrapper(*args):
             func = self.optimize(expr)
-            graph_json, mod, params = build_module.build(func, env=self.env)
+            graph_json, mod, params = build_module.build(func, mod=self.mod)
             assert params is None
             gmodule = tvm_runtime.create(graph_json, mod, cpu(0))
             # Create map of inputs.
@@ -199,10 +199,10 @@ class GraphRuntime(Executor):
 
         return _graph_wrapper
 
-def create_executor(mode='debug', env=None):
+def create_executor(mode='debug', mod=None):
     if mode == 'debug':
-        return Interpreter(env)
+        return Interpreter(mod)
     elif mode == 'graph':
-        return GraphRuntime(env)
+        return GraphRuntime(mod)
     else:
         raise Exception("unknown mode {0}".format(mode))

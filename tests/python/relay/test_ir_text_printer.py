@@ -28,7 +28,7 @@ def test_env():
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = relay.Environment()
+    env = relay.Module()
     env["myf"] = f
     text = env.astext()
     assert "def @myf" in text
