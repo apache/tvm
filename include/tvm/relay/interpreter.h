@@ -4,7 +4,7 @@
  * \brief An interpreter for Relay.
  *
  * This file implements a simple reference interpreter for Relay programs.
- * Given a Relay environment, and a Relay expression it produces a value.
+ * Given a Relay module, and a Relay expression it produces a value.
  *
  * The interpreter's values are a naive representation of the values that
  * can be produced by a Relay program and are exposed via tvm::Node's

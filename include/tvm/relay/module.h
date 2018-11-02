@@ -4,8 +4,8 @@
  * \brief The global environment: contains information needed to
  * compile & optimize Relay programs.
  */
-#ifndef TVM_RELAY_ENVIRONMENT_H_
-#define TVM_RELAY_ENVIRONMENT_H_
+#ifndef TVM_RELAY_MODULE_H_
+#define TVM_RELAY_MODULE_H_
 
 #include <tvm/relay/error.h>
 #include <tvm/relay/expr.h>
@@ -126,4 +126,4 @@ struct Module : public NodeRef {
 }  // namespace relay
 }  // namespace tvm
 
-#endif  // TVM_RELAY_ENVIRONMENT_H_
+#endif  // TVM_RELAY_MODULE_H_

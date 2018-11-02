@@ -61,7 +61,7 @@ RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
  * \note This will do a reachability analysis and lower all definitions
  * reachable from the provided expression.
  *
- * \param env  The environment.
+ * \param env  The module.
  * \param expr The expression with operations to be lowered.
  * \param target The target to lower the functions to.
  *

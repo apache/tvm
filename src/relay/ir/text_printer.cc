@@ -160,7 +160,7 @@ class TextPrinter :
 
   void PrintEnv(const Module& mod) {
     int counter = 0;
-    for (const auto& kv : env->functions) {
+    for (const auto& kv : mod->functions) {
       std::ostringstream os;
       if (counter++ != 0) {
         stream_ << "\n";

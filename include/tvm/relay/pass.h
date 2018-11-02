@@ -21,7 +21,7 @@ namespace relay {
  * populated with the result type.
  *
  * \param expr The expression to type check.
- * \param env The environment used for referencing global functions, can be
+ * \param env The module used for referencing global functions, can be
  * None.
  *
  * \return A type checked expression with its checked_type field populated.
@@ -31,7 +31,7 @@ Expr InferType(const Expr& expr, const Module& mod);
  * \brief Infer the type of a function as if it is mapped to var in the env.
  *
  * \param f the function.
- * \param env The environment used for referencing global functions.
+ * \param env The module used for referencing global functions.
  * \param var The global variable corresponding to the function.
  *
  * \return A type checked Function with its checked_type field populated.
@@ -52,7 +52,7 @@ Function InferType(const Function& f, const Module& mod,
  * a data type such as `int`, `float`, `uint`.
  *
  * \param t The type to check.
- * \param env The global environment.
+ * \param env The global module.
  *
  * \return true if the rules are satisified otherwise false
  */
