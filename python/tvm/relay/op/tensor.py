@@ -410,6 +410,7 @@ def greater_equal(lhs, rhs):
     return _make.greater_equal(lhs, rhs)
 
 
+# TODO TEST
 def maximum(lhs, rhs):
     """Maximum with numpy-style broadcasting.
 
@@ -428,6 +429,7 @@ def maximum(lhs, rhs):
     return _make.maximum(lhs, rhs)
 
 
+# TODO TEST
 def minimum(lhs, rhs):
     """Minimum with numpy-style broadcasting.
 
@@ -446,6 +448,7 @@ def minimum(lhs, rhs):
     return _make.minimum(lhs, rhs)
 
 
+# TODO TEST
 def right_shift(lhs, rhs):
     """Right shift with numpy-style broadcasting.
 
@@ -464,6 +467,7 @@ def right_shift(lhs, rhs):
     return _make.right_shift(lhs, rhs)
 
 
+# TODO TEST
 def left_shift(lhs, rhs):
     """Left shift with numpy-style broadcasting.
 
@@ -551,7 +555,7 @@ def ones_like(data):
     """
     return _make.ones_like(data)
 
-
+# TODO TEST
 def clip(a, a_min, a_max):
     """Clip the elements in `a` between `a_min` and `a_max`.
     `a_min` and `a_max` are cast to `a`'s dtype.
@@ -580,6 +584,7 @@ def clip(a, a_min, a_max):
     return _make.clip(a, a_min, a_max)
 
 
+# TODO TEST
 def concatenate(data, axis):
     """Concatenate the input tensors along the given axis.
 
@@ -603,6 +608,7 @@ def concatenate(data, axis):
     return _make.concatenate(Tuple(data), axis)
 
 
+# TODO TEST
 def copy(data):
     """Copy a tensor.
 

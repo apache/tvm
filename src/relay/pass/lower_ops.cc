@@ -198,7 +198,7 @@ Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
       i++;
     }
 
-    auto output_tt = op->op_type->ret_type;
+    auto output_tt = call->checked_type();
     auto target_node = Target::create(target);
     Array<Tensor> outputs =
         compute_reg[op](call->attrs, inputs, output_tt, target_node);

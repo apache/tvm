@@ -232,11 +232,11 @@ register_schedule("left_shift", schedule_injective)
 
 # zeros
 def zeros_compute(attrs, inputs, output_type, target):
-    assert len(inputs) == 2
-    return [topi.full(inputs[0], inputs[1], 0.0)]
+    assert len(inputs) == 0
+    return [topi.full(output_type.shape, output_type.dtype, 0.0)]
 
-register_compute("zeros_compute", zeros_compute)
-register_schedule("zeros_compute", schedule_injective)
+register_compute("zeros", zeros_compute)
+register_schedule("zeros", schedule_injective)
 
 # zeros_like
 def zeros_like_compute(attrs, inputs, output_type, target):
@@ -248,8 +248,8 @@ register_schedule("zeros_like", schedule_injective)
 
 # ones
 def ones_compute(attrs, inputs, output_type, target):
-    assert len(inputs) == 2
-    return [topi.full(inputs[0], inputs[1], 1.0)]
+    assert len(inputs) == 0
+    return [topi.full(output_type.shape, output_type.dtype, 1.0)]
 
 register_compute("ones", ones_compute)
 register_schedule("ones", schedule_injective)
