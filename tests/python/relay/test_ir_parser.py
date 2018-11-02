@@ -1,10 +1,10 @@
+from tvm.relay.parser import enabled
 if not enabled():
     exit()
 
 import tvm
 from tvm import relay
 from tvm.relay._parser import ParseError
-from tvm.relay.parser import enabled
 from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
 from typing import Union
