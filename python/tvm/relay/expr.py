@@ -172,7 +172,7 @@ class GlobalVar(Expr):
     """A global variable in Tvm.Relay.
 
     GlobalVar is used to refer to the global functions
-    stored in the environment.
+    stored in the module.
 
     Parameters
     ----------

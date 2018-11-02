@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file tvm/relay/environment.h
+ * \file tvm/relay/module.h
  * \brief The global environment: contains information needed to
  * compile & optimize Relay programs.
  */
@@ -17,7 +17,7 @@
 namespace tvm {
 namespace relay {
 
-struct Environment;
+struct Module;
 
 /*! \brief The global environment of Relay programs.
  *
@@ -28,29 +28,29 @@ struct Environment;
  *  options.
  *
  *  Many operations require access to the global
- *  Environment. We pass the Environment by value
+ *  Module. We pass the Module by value
  *  in a functional style as an explicit argument,
- *  but we mutate the Environment while optimizing
+ *  but we mutate the Module while optimizing
  *  Relay programs.
  *
  *  The functional style allows users to construct custom
  *  environments easily, for example each thread can store
- *  an Environment while auto-tuning.
+ *  an Module while auto-tuning.
  * */
 
-class EnvironmentNode : public RelayNode {
+class ModuleNode : public RelayNode {
  public:
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
 
-  EnvironmentNode() {}
+  ModuleNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
     v->Visit("global_var_map_", &global_var_map_);
   }
 
-  TVM_DLL static Environment make(tvm::Map<GlobalVar, Function> global_funcs);
+  TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs);
 
   /*!
    * \brief Add a function to the global environment.
@@ -100,10 +100,10 @@ class EnvironmentNode : public RelayNode {
    *        functions in another environment.
    * \param other The other environment.
    */
-  void Update(const Environment& other);
+  void Update(const Module& other);
 
-  static constexpr const char* _type_key = "relay.Environment";
-  TVM_DECLARE_NODE_TYPE_INFO(EnvironmentNode, Node);
+  static constexpr const char* _type_key = "relay.Module";
+  TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
 
  private:
   /*! \brief A map from string names to global variables that
@@ -112,15 +112,15 @@ class EnvironmentNode : public RelayNode {
   tvm::Map<std::string, GlobalVar> global_var_map_;
 };
 
-struct Environment : public NodeRef {
-  Environment() {}
-  explicit Environment(NodePtr<tvm::Node> p) : NodeRef(p) {}
+struct Module : public NodeRef {
+  Module() {}
+  explicit Module(NodePtr<tvm::Node> p) : NodeRef(p) {}
 
-  inline EnvironmentNode* operator->() const {
-    return static_cast<EnvironmentNode*>(node_.get());
+  inline ModuleNode* operator->() const {
+    return static_cast<ModuleNode*>(node_.get());
   }
 
-  using ContainerType = EnvironmentNode;
+  using ContainerType = ModuleNode;
 };
 
 }  // namespace relay

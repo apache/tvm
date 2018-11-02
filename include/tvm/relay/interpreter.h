@@ -16,7 +16,7 @@
 #ifndef TVM_RELAY_INTERPRETER_H_
 #define TVM_RELAY_INTERPRETER_H_
 
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 
 namespace tvm {
@@ -39,7 +39,7 @@ class Value;
  * Our intent is that this will never be the most efficient implementation of
  * Relay's semantics, but a readable and clear one.
  */
-Value Evaluate(Environment env, Expr e);
+Value Evaluate(Module mod, Expr e);
 
 /*! \brief The base container type of Relay values. */
 class ValueNode : public RelayNode {

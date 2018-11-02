@@ -9,8 +9,8 @@ from tvm.relay import op
 from tvm.relay.scope_builder import ScopeBuilder
 
 
-def assert_has_type(expr, typ, env=relay.env.Environment({})):
-    checked_expr = infer_type(expr, env)
+def assert_has_type(expr, typ, mod=relay.module.Module({})):
+    checked_expr = infer_type(expr, mod)
     checked_type = checked_expr.checked_type
     if checked_type != typ:
         raise RuntimeError("Type mismatch %s vs %s" % (
@@ -105,10 +105,10 @@ def test_recursion():
         sb.ret(data)
     with sb.else_scope():
         sb.ret(f(relay.subtract(n, relay.const(1, ti32)), relay.log(data)))
-    env = relay.Environment()
-    env[f] = relay.Function([n, data], sb.get())
-    assert "%3 = @f(%1, %2)" in env.astext()
-    assert env[f].checked_type == relay.FuncType([ti32, tf32], tf32)
+    mod = relay.Module()
+    mod[f] = relay.Function([n, data], sb.get())
+    assert "%3 = @f(%1, %2)" in mod.astext()
+    assert mod[f].checked_type == relay.FuncType([ti32, tf32], tf32)
 
 # This currently fails and should pass under the type system.
 #
@@ -179,12 +179,12 @@ def test_self_reference():
 
 
 def test_global_var_cow_issue():
-    env = relay.env.Environment({})
+    mod = relay.Module({})
     gv = relay.GlobalVar("foo")
     x = relay.var('x', shape=[])
     func = relay.Function([x], relay.Call(gv, [x]),
                           relay.TensorType([], 'float32'))
-    env[gv] = func
+    mod[gv] = func
 
 
 def test_equal():

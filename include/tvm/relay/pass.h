@@ -6,7 +6,7 @@
 #ifndef TVM_RELAY_PASS_H_
 #define TVM_RELAY_PASS_H_
 
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 #include <string>
 
@@ -26,7 +26,7 @@ namespace relay {
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Expr& expr, const Environment& env);
+Expr InferType(const Expr& expr, const Module& env);
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the env.
  *
@@ -37,7 +37,7 @@ Expr InferType(const Expr& expr, const Environment& env);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates env and is not thread-safe.
  */
-Function InferType(const Function& f, const Environment& env,
+Function InferType(const Function& f, const Module& env,
                    const GlobalVar& var);
 
 /*!
@@ -56,7 +56,7 @@ Function InferType(const Function& f, const Environment& env,
  *
  * \return true if the rules are satisified otherwise false
  */
-bool KindCheck(const Type& t, const Environment& env);
+bool KindCheck(const Type& t, const Module& env);
 
 /*! \brief Compare two expressions for structural equivalence.
  *

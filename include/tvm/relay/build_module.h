@@ -8,7 +8,7 @@
 #define TVM_RELAY_BUILD_MODULE_H_
 
 #include <tvm/lowered_func.h>
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 #include <string>
 
@@ -67,7 +67,7 @@ RELAY_DEFINE_NODE_REF(LoweredOp, LoweredOpNode, NodeRef);
  *
  * \return The set of lowered operations.
  */
-Array<LoweredOp> LowerOps(const Environment& env, const Expr& expr,
+Array<LoweredOp> LowerOps(const Module& env, const Expr& expr,
                           const std::string& target = "llvm");
 
 }  // namespace relay
