@@ -23,6 +23,7 @@ namespace codegen {
  */
 class CodeGenSourceBase {
  public:
+  virtual ~CodeGenSourceBase() = default;
   /*!
    * \brief Register constant value appeared in expresion tree
    *  This avoid generated a ssa id for each appearance of the value
