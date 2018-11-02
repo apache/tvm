@@ -199,9 +199,10 @@ Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
     }
 
     auto output_tt = op->op_type->ret_type;
+    auto target_node = Target::create(target);
     Array<Tensor> outputs =
-        compute_reg[op](call->attrs, inputs, output_tt, target);
-    auto schedule = schedule_reg[op](outputs, target);
+        compute_reg[op](call->attrs, inputs, output_tt, target_node);
+    auto schedule = schedule_reg[op](outputs, target_node);
     size_t hash = StructuralHash()(func);
     LoweredFunc lf =
         flower(op->name + std::to_string(hash), schedule, inputs, outputs);
