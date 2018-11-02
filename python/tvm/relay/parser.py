@@ -1,3 +1,4 @@
+"""A parser for Relay's text format."""
 from __future__ import absolute_import
 
 def enabled():

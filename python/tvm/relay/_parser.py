@@ -4,7 +4,6 @@
 from __future__ import absolute_import
 
 import sys
-PYTHON_VERSION = sys.version_info.major
 
 from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
@@ -22,6 +21,7 @@ class ParseError(Exception):
         super(ParseError, self).__init__()
         self.message = message
 
+PYTHON_VERSION = sys.version_info.major
 try:
     if PYTHON_VERSION == 2:
         from .grammar.py2.RelayVisitor import RelayVisitor
@@ -185,7 +185,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.env
-    
+
         return self.visit(ctx.expr())
 
     # Exprs
