@@ -1,25 +1,33 @@
 import tvm
 import numpy as np
 from tvm import relay
+from tvm.relay.interpreter import create_executor
 
+def ref_log(x):
+    return np.log(x)
 
 def test_unary_op():
-    def check_single_op(opfunc):
-        tp = relay.TensorType((10, 4), "float32")
+    def check_single_op(opfunc, ref):
+        shape = (10, 4)
+        dtype = 'float32'
+        tp = relay.TensorType(shape, dtype)
         x = relay.var("x", tp)
         y = opfunc(x)
         # test printer
         assert ("%0 = {}(%x)".format(y.op.name)) in y.astext()
         # test type inference
         assert relay.ir_pass.infer_type(y).checked_type == tp
+        intrp = create_executor()
 
-    for opfunc in [tvm.relay.log,
-                   tvm.relay.exp,
-                   tvm.relay.sqrt,
-                   tvm.relay.sigmoid,
-                   tvm.relay.tanh,
-                   relay.nn.relu]:
-        check_single_op(opfunc)
+
+
+    for opfunc, ref in [(tvm.relay.log, ref_log),
+                   (tvm.relay.exp, None),
+                   (tvm.relay.sqrt, None)
+                   (tvm.relay.sigmoid, None)
+                   (tvm.relay.tanh, None)
+                   (relay.nn.relu, None)]:
+        check_single_op(opfunc, ref)
 
 
 def test_binary_op():

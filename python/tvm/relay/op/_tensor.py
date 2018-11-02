@@ -6,12 +6,6 @@ import topi
 import topi.cuda
 from . import register
 
-def register_schedule(op_name, schedule):
-    register(op_name, "FTVMSchedule", schedule)
-
-def register_compute(op_name, compute):
-    register(op_name, "FTVMCompute", compute)
-
 def schedule_injective(outputs, target):
     """Generic schedule for binary broadcast."""
     with tvm.target.create(target):
