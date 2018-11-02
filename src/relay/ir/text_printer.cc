@@ -271,7 +271,7 @@ class TextPrinter :
   TextValue VisitExpr_(const FunctionNode* op) final {
     TextValue id = AllocTempVar();
     std::ostringstream os;
-    os << id << " = function";
+    os << id << " = fn";
     this->PrintFuncInternal(os.str(), GetRef<Function>(op));
     this->PrintEndInst("\n");
     return id;
@@ -516,11 +516,14 @@ class TextPrinter :
         stream_ << ",\n";
       }
     }
-    stream_ << ") ";
+    stream_ << ')';
     if (fn->ret_type.defined()) {
-      stream_ << " -> ";
+      stream_ << '\n';
+      this->PrintIndent(decl_indent);
+      stream_ << "-> ";
       this->PrintType(fn->ret_type, stream_);
     }
+    stream_ << ' ';
     this->PrintScope(fn->body);
   }
   /*!

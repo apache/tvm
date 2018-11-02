@@ -160,6 +160,7 @@ def free_type_vars(expr):
     """
     return _ir_pass.free_type_vars(expr)
 
+
 def simplify_inference(expr):
     """ Simplify the data-flow graph for inference phase.
 
@@ -175,6 +176,7 @@ def simplify_inference(expr):
         but with some simplification
     """
     return _ir_pass.simplify_inference(expr)
+
 
 def dead_code_elimination(expr):
     """ Remove expressions which does not effect the program result (dead code).
@@ -256,8 +258,18 @@ def structural_hash(value):
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
 
-def fuse_ops(expr, mod):
-    return _ir_pass.FuseOps(mod, expr)
 
-def lower_ops(mod, expr, target='llvm'):
-    return _ir_pass.LowerOps(mod, expr, target)
+def fuse_ops(expr):
+    """Fuse operators in expr together.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        Transformed expression, containing fused result.
+    """
+    return _ir_pass.FuseOps(expr)
