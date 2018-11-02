@@ -1,18 +1,18 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, undefined-variable, wildcard-import
-"""A global environment storing everything needed to interpret or compile a Relay program."""
+"""A global module storing everything needed to interpret or compile a Relay program."""
 from .base import register_relay_node, RelayNode
 from .._ffi import base as _base
 from . import _make
-from . import _env
+from . import _module
 from . import expr as _expr
 
 
 @register_relay_node
-class Environment(RelayNode):
-    """The global Relay environment containing collection of functions.
+class Module(RelayNode):
+    """The global Relay module containing collection of functions.
 
     Each global function is identified by an unique tvm.relay.GlobalVar.
-    tvm.relay.GlobalVar and Environment is necessary in order to enable
+    tvm.relay.GlobalVar and Module is necessary in order to enable
     recursions in function to avoid cyclic reference in the function.x
 
     Parameters
@@ -32,10 +32,10 @@ class Environment(RelayNode):
                     raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
                 mapped_funcs[k] = v
             functions = mapped_funcs
-        self.__init_handle_by_constructor__(_make.Environment, functions)
+        self.__init_handle_by_constructor__(_make.Module, functions)
 
     def __setitem__(self, var, func):
-        """Add a function to the environment.
+        """Add a function to the module.
 
         Parameters
         ---------
@@ -50,7 +50,7 @@ class Environment(RelayNode):
     def _add(self, var, func, update=False):
         if isinstance(var, _base.string_types):
             var = _expr.GlobalVar(var)
-        return _env.Environment_Add(self, var, func, update)
+        return _module.Module_Add(self, var, func, update)
 
     def __getitem__(self, var):
         """Lookup a global function by name or by variable.
@@ -66,21 +66,21 @@ class Environment(RelayNode):
                 The function referenced by :code:`var`.
         """
         if isinstance(var, _base.string_types):
-            return _env.Environment_Lookup_str(self, var)
+            return _module.Module_Lookup_str(self, var)
         else:
-            return _env.Environment_Lookup(self, var)
+            return _module.Module_Lookup(self, var)
 
     def update(self, other):
-        """Insert functions in another Environment to current one.
+        """Insert functions in another Module to current one.
 
         Parameters
         ----------
-        other: Environment
-            The environment to merge into the current Environment.
+        other: Module
+            The module to merge into the current Module.
         """
         if isinstance(other, dict):
-            other = Environment(other)
-        return _env.Environment_Update(self, other)
+            other = Module(other)
+        return _module.Module_Update(self, other)
 
     def get_global_var(self, name):
         """Get a global variable in the function by name.
@@ -99,4 +99,4 @@ class Environment(RelayNode):
         ------
         tvm.TVMError if we cannot find corresponding global var.
         """
-        return _env.Environment_GetGlobalVar(self, name)
+        return _module.Module_GetGlobalVar(self, name)
