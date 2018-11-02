@@ -26,7 +26,7 @@ namespace relay {
  *
  * \return A type checked expression with its checked_type field populated.
  */
-Expr InferType(const Expr& expr, const Module& env);
+Expr InferType(const Expr& expr, const Module& mod);
 /*!
  * \brief Infer the type of a function as if it is mapped to var in the env.
  *
@@ -37,7 +37,7 @@ Expr InferType(const Expr& expr, const Module& env);
  * \return A type checked Function with its checked_type field populated.
  * \note this function mutates env and is not thread-safe.
  */
-Function InferType(const Function& f, const Module& env,
+Function InferType(const Function& f, const Module& mod,
                    const GlobalVar& var);
 
 /*!
@@ -56,7 +56,7 @@ Function InferType(const Function& f, const Module& env,
  *
  * \return true if the rules are satisified otherwise false
  */
-bool KindCheck(const Type& t, const Module& env);
+bool KindCheck(const Type& t, const Module& mod);
 
 /*! \brief Compare two expressions for structural equivalence.
  *

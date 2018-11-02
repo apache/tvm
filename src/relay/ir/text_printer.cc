@@ -158,7 +158,7 @@ class TextPrinter :
     stream_ << "\n";
   }
 
-  void PrintEnv(const Module& env) {
+  void PrintEnv(const Module& mod) {
     int counter = 0;
     for (const auto& kv : env->functions) {
       std::ostringstream os;
