@@ -39,6 +39,7 @@ LoweredFunc MakeAPI(Stmt body,
   Var v_num_packed_args("num_args", Int(32));
   // The arguments of the function.
   Array<Var> args;
+  Array<Var> fixed_order_args;
   // The device context
   Var device_type("dev_type"), device_id("dev_id");
   // seq_init gives sequence of initialization
@@ -71,6 +72,16 @@ LoweredFunc MakeAPI(Stmt body,
     const Variable* v = api_args[i].as<Variable>();
     return Var(os.str(), v ? v->type: Handle());
   };
+  // get arg i by the input order
+  auto fixed_order_arg = [&](int i) {
+    if (const Variable* v = api_args[i].as<Variable>())
+      return Var(v->name_hint, v->type);
+    else if (const BufferNode* v = api_args[i].as<BufferNode>())
+      return Var(v->name, Handle());
+    else
+      return Var("unknown_args", Handle());
+  };
+
   // ---------------------------
   // start of logics
   // add signiture for packed arguments.
@@ -119,6 +130,7 @@ LoweredFunc MakeAPI(Stmt body,
     } else {
       args.push_back(v_arg);
     }
+    fixed_order_args.push_back(fixed_order_arg(i));
     // add checks for functions.
     if (api_args[i].as<Variable>()) {
       binder.Bind(Var(api_args[i].node_), v_arg, v_arg->name_hint, true);
@@ -135,6 +147,7 @@ LoweredFunc MakeAPI(Stmt body,
   NodePtr<LoweredFuncNode> n = make_node<LoweredFuncNode>();
   n->name = name;
   n->args = args;
+  n->fixed_order_args = fixed_order_args;
   n->handle_data_type = binder.def_handle_dtype();
   n->is_packed_func = num_unpacked_args == 0;
   n->is_restricted = is_restricted;

@@ -58,6 +58,10 @@ class LoweredFuncNode : public FunctionBaseNode {
    */
   Array<Var> args;
   /*!
+   * \brief The arguments per input order in tvm build
+   */
+  Array<Var> fixed_order_args;
+  /*!
    * \brief The IterVar axis of threads
    *  Each axis need host function to specify a size.
    * \note Calling convention into LoweredFunc

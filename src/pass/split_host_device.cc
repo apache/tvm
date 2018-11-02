@@ -208,7 +208,7 @@ class HostDeviceSplitter : public IRMutator {
     LoweredFunc f_device(n);
     Array<Expr> call_args;
     call_args.push_back(StringImm::make(f_device->name));
-    for (Var arg : n->args) {
+    for (Var arg : n->fixed_order_args) {
       call_args.push_back(arg);
     }
     for (Expr ext : m.thread_extent_) {
