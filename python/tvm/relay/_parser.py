@@ -8,6 +8,8 @@ class ParseError(Exception):
         super(ParseError, self).__init__()
         self.message = message
 
+from __future__ import absolute_import
+
 import sys
 PYTHON_VERSION = sys.version_info.major
 
