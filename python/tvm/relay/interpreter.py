@@ -174,7 +174,7 @@ class Interpreter(Executor):
                 opt_expr = self.optimize(call)
                 return _interpreter.evaluate(self.mod, opt_expr)
             else:
-                assert len(args) == 0
+                assert not args
                 opt_expr = self.optimize(expr)
                 return _interpreter.evaluate(self.env, opt_expr)
 
