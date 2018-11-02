@@ -80,6 +80,16 @@ def test_comments():
         UNIT
     )
 
+    assert alpha_equal(
+        relay.fromtext("""
+            /* This is a block comment!
+               This is still a block comment!
+            */
+            ()
+        """),
+        X
+    )
+
 def test_int_literal():
     assert isinstance(relay.fromtext("1"), relay.Constant)
     assert isinstance(relay.fromtext("1").data, tvm.ndarray.NDArray)
