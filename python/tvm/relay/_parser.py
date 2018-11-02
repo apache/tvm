@@ -1,13 +1,6 @@
+
 # pylint: disable=invalid-name, unused-import
 """A parser for Relay's text format."""
-class ParseError(Exception):
-    """Exception type for parse errors."""
-
-    def __init__(self, message):
-        # type: (str) -> None
-        super(ParseError, self).__init__()
-        self.message = message
-
 from __future__ import absolute_import
 
 import sys
@@ -20,6 +13,14 @@ from . import env
 from . import expr
 from . import ty
 from . import op
+
+class ParseError(Exception):
+    """Exception type for parse errors."""
+
+    def __init__(self, message):
+        # type: (str) -> None
+        super(ParseError, self).__init__()
+        self.message = message
 
 try:
     if PYTHON_VERSION == 2:
@@ -37,7 +38,9 @@ try:
     from antlr4 import ParserRuleContext, InputStream, CommonTokenStream
     from antlr4.tree.Tree import TerminalNode
 except ImportError:
-    raise ParseError("Couldn't find ANTLR runtime. Try running `pip{} install antlr{}-runtime`.".format(PYTHON_VERSION, PYTHON_VERSION))
+    raise ParseError("Couldn't find ANTLR runtime." +
+                     "Try running `pip{} install antlr4-python{}-runtime`."
+                     .format(PYTHON_VERSION, PYTHON_VERSION))
 
 BINARY_OPS = {
     RelayParser.MUL: op.multiply,
@@ -182,8 +185,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         if ctx.defn():
             self.visit_list(ctx.defn())
             return self.env
-        else:
-            return self.visit(ctx.expr())
+    
+        return self.visit(ctx.expr())
 
     # Exprs
 
