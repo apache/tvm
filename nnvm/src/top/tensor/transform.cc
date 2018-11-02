@@ -631,6 +631,15 @@ The significance of each is explained below:
 })
 .set_support_level(3);
 
+inline bool ReshapeLikeInferType(const NodeAttrs &attrs,
+                                 std::vector<int> *in_attrs,
+                                 std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
 NNVM_REGISTER_OP(reshape_like)
   .describe(R"code(Reshapes the input array by the size of another array.
 For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
@@ -651,7 +660,7 @@ the input array into an output array with the same shape as the second input arr
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, in_attrs->at(1));
     return true;
 })
-.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FInferType>("FInferType", ReshapeLikeInferType)
 // never transform layout of the second input array.
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FGradient>(
