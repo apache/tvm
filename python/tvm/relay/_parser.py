@@ -413,7 +413,6 @@ class ParseTreeToRelayIR(RelayVisitor):
 def make_parser(data):
     # type: (str) -> RelayParser
     """Construct a RelayParser a given data stream."""
-
     input_stream = InputStream(data)
     lexer = RelayLexer(input_stream)
     token_stream = CommonTokenStream(lexer)
