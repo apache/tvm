@@ -2,6 +2,8 @@
 """Conv2D schedule for ARM CPU"""
 from __future__ import absolute_import as _abs
 
+import warnings
+
 import numpy as np
 
 import tvm
@@ -9,11 +11,11 @@ from tvm import autotvm
 
 from ..generic import schedule_conv2d_nchw, schedule_conv2d_winograd_without_weight_transform
 from ..util import traverse_inline, get_const_tuple, const_matrix
-from ..nn import pad, conv2d, conv2d_alter_layout, conv2d_winograd_without_weight_transform
+from ..nn import dilate, pad, conv2d, conv2d_alter_layout, conv2d_winograd_without_weight_transform
 from ..nn.util import get_const_int, get_pad_tuple
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['direct'])
-def conv2d_arm_cpu(cfg, data, kernel, strides, padding, layout, out_dtype):
+def conv2d_arm_cpu(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """TOPI compute callback for conv2d
 
     Parameters
@@ -35,6 +37,9 @@ def conv2d_arm_cpu(cfg, data, kernel, strides, padding, layout, out_dtype):
     padding : list of two ints
         [pad_height, pad_width]
 
+    dilation : list of two ints
+        [dilation_height, dilation_width]
+
     layout : str
         layout of data
 
@@ -46,7 +51,8 @@ def conv2d_arm_cpu(cfg, data, kernel, strides, padding, layout, out_dtype):
     output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
-    return _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile=2)
+    return _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,
+                              num_tile=2)
 
 @autotvm.register_topi_schedule(schedule_conv2d_nchw, 'arm_cpu', ['direct', 'winograd'])
 def schedule_conv2d_nchw_arm_cpu(cfg, outs):
@@ -96,11 +102,22 @@ def schedule_conv2d_nchw_arm_cpu(cfg, outs):
     return s
 
 
-def _decl_spatial_pack(cfg, data, kernel, strides, padding, layout, out_dtype, num_tile):
+def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, num_tile):
     assert layout == "NCHW", "Only support NCHW"
     # create workload according to raw arguments
     out_dtype = out_dtype or data.dtype
     N, CI, IH, IW = get_const_tuple(data.shape)
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
+    if dilation_h != 1 or dilation_w != 1:
+        dilation_args = (1, 1, dilation_h, dilation_w) if len(kernel.shape) == 4\
+                else (1, 1, dilation_h, dilation_w, 1)
+        kernel = dilate(kernel, dilation_args)
+
     if len(kernel.shape) == 4:
         pre_packed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -242,17 +259,27 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
 
 
 @autotvm.register_topi_compute(conv2d, 'arm_cpu', ['winograd'])
-def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, layout, out_dtype):
+def conv2d_arm_cpu_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype):
     """ TOPI compute callback. Use winograd template """
     tile_size = 4
-    return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout,
+                          out_dtype, tile_size)
 
-def _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+def _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     N, CI, IH, IW = get_const_tuple(data.shape)
+
+    if isinstance(dilation, int):
+        dilation_h = dilation_w = dilation
+    else:
+        dilation_h, dilation_w = dilation
+
     if len(kernel.shape) == 4:
+        if dilation_h != 1 or dilation_w != 1:
+            kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
         pre_computed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
     else:
+        assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
         pre_computed = True
         H_CAT, W_CAT, CO, CI, VC = get_const_tuple(kernel.shape)
         CO *= VC
@@ -459,9 +486,10 @@ def _schedule_winograd(cfg, s, output, last):
 
 ##### REGISTER TOPI COMPUTE / SCHEDULE FOR WINOGRAD WITH WEIGHT TRANSFORM #####
 @autotvm.register_topi_compute(conv2d_winograd_without_weight_transform, 'arm_cpu', ['winograd'])
-def conv2d_winograd_ww(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size):
+def conv2d_winograd_ww(cfg, data, kernel, strides, padding, dilation, layout, out_dtype, tile_size):
     """TOPI compute callback"""
-    return _decl_winograd(cfg, data, kernel, strides, padding, layout, out_dtype, tile_size)
+    return _decl_winograd(cfg, data, kernel, strides, padding, dilation, layout, out_dtype,\
+                          tile_size)
 
 
 @autotvm.register_topi_schedule(schedule_conv2d_winograd_without_weight_transform,
@@ -496,7 +524,10 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     out_dtype = attrs["out_dtype"]
     out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
 
-    if layout != 'NCHW' or groups != 1 or dilation != (1, 1):
+    if layout != 'NCHW' or groups != 1:
+        return None
+    if dilation != (1, 1):
+        warnings.warn("Does not support weight pre-transform for dilated convolution.")
         return None
 
     data, kernel = tinfos[0:2]
@@ -505,7 +536,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
 
     # query config of this workload
     workload = autotvm.task.args_to_workload(
-        [data, kernel, strides, padding, layout, out_dtype], conv2d)
+        [data, kernel, strides, padding, dilation, layout, out_dtype], conv2d)
     target = tvm.target.current_target()
     dispatch_ctx = autotvm.DispatchContext.current
     cfg = dispatch_ctx.query(target, workload)
@@ -522,7 +553,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
         new_data = data
         new_kernel = tvm.placeholder((CO // VC, CI, KH, KW, VC), dtype=kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_kernel, strides, padding, 'NCHW', out_dtype], conv2d)
+            [new_data, new_kernel, strides, padding, dilation, 'NCHW', out_dtype], conv2d)
         dispatch_ctx.update(target, new_workload, cfg)
 
         return sym.conv2d(*copy_inputs, **new_attrs)
@@ -548,7 +579,8 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
         new_weight = tvm.placeholder((KH + tile_size - 1, KH + tile_size -1, CO // VC, CI, VC),
                                      kernel.dtype)
         new_workload = autotvm.task.args_to_workload(
-            [new_data, new_weight, strides, padding, new_attrs['layout'], out_dtype, tile_size],
+            [new_data, new_weight, strides, padding, dilation,
+             new_attrs['layout'], out_dtype, tile_size],
             conv2d_winograd_without_weight_transform)
         dispatch_ctx.update(target, new_workload, cfg)
 

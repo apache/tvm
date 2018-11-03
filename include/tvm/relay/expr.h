@@ -160,7 +160,7 @@ class VarNode : public ExprNode {
 RELAY_DEFINE_NODE_REF(Var, VarNode, Expr);
 
 /*!
- * \brief Global variable that leaves in the top-level environment.
+ * \brief Global variable that leaves in the top-level module.
  * This is used to enable recursive calls between function.
  *
  * \note A GlobalVar may only point to functions.

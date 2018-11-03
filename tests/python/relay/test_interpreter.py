@@ -1,17 +1,15 @@
 import numpy as np
 import tvm
 from tvm import relay
-from tvm.relay.interpreter import Value, TupleValue, evaluate
+from tvm.relay.interpreter import Value, TupleValue
 from tvm.relay import op
 from tvm.relay.scope_builder import ScopeBuilder
-from tvm.relay import testing
+from tvm.relay import testing, create_executor
 
 
-def check_eval(expr, args, expected_result, env=None, rtol=1e-07):
-    if env is None:
-        env = relay.env.Environment({})
-
-    result = evaluate(env, expr, *args)
+def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
+    intrp = create_executor(mod=mod)
+    result = intrp.evaluate(expr)(*args)
     np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
 
 
@@ -32,8 +30,6 @@ def test_tuple_value():
 def test_id():
     x = relay.var('x', 'float32')
     ident = relay.Function([x], x)
-    env = relay.env.Environment({})
-    res = evaluate(env, ident, 1.0)
     check_eval(ident, [1.0], 1.0)
 
 
@@ -91,7 +87,7 @@ def test_subtract():
     check_eval(func, [i_data], 0)
 
 def test_simple_loop():
-    env = relay.env.Environment({})
+    mod = relay.module.Module({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
@@ -102,12 +98,12 @@ def test_simple_loop():
         rec_call = relay.Call(sum_up, [one_less])
         sb.ret(op.add(rec_call, i))
     func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], 'int32'))
-    env[sum_up] = func
+    mod[sum_up] = func
     i_data = np.array(10, dtype='int32')
-    check_eval(sum_up, [i_data], sum(range(1, 11)), env=env)
+    check_eval(sum_up, [i_data], sum(range(1, 11)), mod=mod)
 
 def test_loop():
-    env = relay.env.Environment({})
+    mod = relay.module.Module({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
@@ -119,10 +115,10 @@ def test_loop():
         new_accum = op.add(accum, i)
         sb.ret(relay.Call(sum_up, [one_less, new_accum]))
     func = relay.Function([i, accum], sb.get())
-    env[sum_up] = func
+    mod[sum_up] = func
     i_data = np.array(10, dtype='int32')
     accum_data = np.array(0, dtype='int32')
-    check_eval(sum_up, [i_data, accum_data], sum(range(1, 11)), env=env)
+    check_eval(sum_up, [i_data, accum_data], sum(range(1, 11)), mod=mod)
 
 def test_mlp():
     pass

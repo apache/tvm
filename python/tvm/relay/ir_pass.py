@@ -11,16 +11,16 @@ from .expr import Expr
 from .ty import Type
 
 
-def infer_type(expr, env=None):
-    """Infer the type of expr under the context of env.
+def infer_type(expr, mod=None):
+    """Infer the type of expr under the context of mod.
 
     Parameters
     ----------
     expr: tvm.relay.Expr
         The input expression.
 
-    env: Optional[tvm.relay.Environment]
-        The global environment.
+    mod: Optional[tvm.relay.Module]
+        The global module.
 
 
     Returns
@@ -28,7 +28,7 @@ def infer_type(expr, env=None):
     checked_expr : tvm.relay.Expr
         The checked expression.
     """
-    return _ir_pass.infer_type(expr, env)
+    return _ir_pass.infer_type(expr, mod)
 
 
 def backward_fold_scale_axis(expr):
@@ -93,7 +93,7 @@ def well_formed(expr):
     return _ir_pass.well_formed(expr)
 
 
-def check_kind(t, env=None):
+def check_kind(t, mod=None):
     """Check that the type is well kinded.
     For example, this mean type cannot has tensor of tensor, or is a tuple type of 2 shapes.
 
@@ -102,8 +102,8 @@ def check_kind(t, env=None):
     t: tvm.relay.Type
         The type to check
 
-    env: tvm.relay.Environment, optional
-        The global environment
+    mod: tvm.relay.Module, optional
+        The global module
 
     Returns
     -------
@@ -117,8 +117,8 @@ def check_kind(t, env=None):
         assert not check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Shape)]))
         assert check_kind(relay.TupleType([relay.TypeParam('tp1', relay.Kind.Type)]))
     """
-    if env is not None:
-        return _ir_pass.check_kind(t, env)
+    if mod is not None:
+        return _ir_pass.check_kind(t, mod)
     else:
         return _ir_pass.check_kind(t)
 
@@ -256,8 +256,8 @@ def structural_hash(value):
                "relay.Expr or relay.Type").format(type(value))
         raise TypeError(msg)
 
-def fuse_ops(expr, env):
-    return _ir_pass.FuseOps(env, expr)
+def fuse_ops(expr, mod):
+    return _ir_pass.FuseOps(mod, expr)
 
-def lower_ops(env, expr, target='llvm'):
-    return _ir_pass.LowerOps(env, expr, target)
+def lower_ops(mod, expr, target='llvm'):
+    return _ir_pass.LowerOps(mod, expr, target)

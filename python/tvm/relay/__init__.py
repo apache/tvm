@@ -5,8 +5,10 @@ from ..api import register_func
 from . import base
 from . import ty
 from . import expr
-from . import env
+from . import module
 from . import ir_pass
+from .build_module import build
+from .interpreter import create_executor
 
 # Root operators
 from .op import Op
@@ -24,7 +26,7 @@ from .scope_builder import ScopeBuilder
 Span = base.Span
 
 # Env
-Environment = env.Environment
+Module = module.Module
 
 # Type
 Type = ty.Type
