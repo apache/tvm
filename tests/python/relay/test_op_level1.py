@@ -134,6 +134,15 @@ def test_concatenate_infer_type():
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
+    # x = relay.var("x", shape=(10, 5))
+    # y = relay.var("y", shape=(10, 5))
+    # z = relay.concatenate((x, y), axis=1)
+    # intrp = create_executor()
+    # x_data = np.random.rand(10, 5).astype('float32')
+    # y_data = np.random.rand(10, 5).astype('float32')
+    # op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+    # ref_res = np.concatenate(x_data, y_data, axis=1)
+    # np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")

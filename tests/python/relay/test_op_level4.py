@@ -64,16 +64,27 @@ def test_cmp_type():
 
 
 def test_binary_int_broadcast():
-    for op in [relay.right_shift,
-               relay.left_shift,
-               relay.maximum,
-               relay.minimum]:
+    for op, ref in [(relay.right_shift, np.right_shift),
+               (relay.left_shift, np.left_shift),
+               (relay.maximum, np.maximum),
+               (relay.minimum, np.minimum)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
         zz = relay.ir_pass.infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
 
+    if ref is not None:
+        x_shape = (10, 4)
+        y_shape = (5, 10, 1)
+        t1 = relay.TensorType(x_shape)
+        t2 = relay.TensorType(y_shape)
+        x_data = np.random.rand(*x_shape).astype(t1.dtype)
+        y_data = np.random.rand(*y_shape).astype(t2.dtype)
+        intrp = create_executor()
+        op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+        ref_res = ref(x_data, y_data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 def test_where():
     cond = relay.var("cond", relay.TensorType((3, 4), "float32"))

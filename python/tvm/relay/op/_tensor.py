@@ -265,7 +265,7 @@ register_schedule("ones_like", schedule_injective)
 # clip
 def clip_compute(attrs, inputs, output_type, target):
     assert len(inputs) == 1
-    return [topi.clip(inputs[0], inputs[1], inputs[2])]
+    return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
 
 register_compute("clip", clip_compute)
@@ -279,11 +279,3 @@ def concatenate_compute(attrs, inputs, output_type, target):
 register_compute("concatenate", concatenate_compute)
 register_schedule("concatenate", schedule_injective)
 
-# # copy
-# TODO(@jroesch): How to implement copy.
-# def copy_compute(attrs, inputs, output_type, target):
-#     assert len(inputs) == 1
-#     return [topi.copy(inputs[0])]
-
-# register_compute("copy", copy_compute)
-# register_schedule("copy", schedule_injective)
