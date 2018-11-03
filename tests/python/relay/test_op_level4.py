@@ -77,8 +77,8 @@ def test_binary_int_broadcast():
     if ref is not None:
         x_shape = (10, 4)
         y_shape = (5, 10, 1)
-        t1 = relay.TensorType(x_shape)
-        t2 = relay.TensorType(y_shape)
+        t1 = relay.TensorType(x_shape, 'int32')
+        t2 = relay.TensorType(y_shape, 'int32')
         x_data = np.random.rand(*x_shape).astype(t1.dtype)
         y_data = np.random.rand(*y_shape).astype(t2.dtype)
         intrp = create_executor()

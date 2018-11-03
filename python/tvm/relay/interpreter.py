@@ -149,7 +149,12 @@ class Executor(object):
 
         executor = self._make_executor(expr)
 
-        if isinstance(expr, Function):
+        # If we are evaluating a function or top-level defintion
+        # the user must call the function themselves.
+        #
+        # If we are evaluating an open term with parameters we will
+        # just return them the result.
+        if isinstance(expr, Function) or isinstance(expr, GlobalVar):
             return executor
         else:
             return executor()
