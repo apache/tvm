@@ -174,7 +174,7 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
                                    layout, out_layout, out_dtype)
     elif groups == in_channel and groups == channels:
         out = topi.nn.depthwise_conv2d_NCHWc(inputs[0], inputs[1], strides, padding,
-                                             layout, out_layout, out_dtype)
+                                             dilation, layout, out_layout, out_dtype)
         # pylint: enable=assignment-from-no-return
     else:
         raise ValueError("not support arbitrary group number > 1 for now")

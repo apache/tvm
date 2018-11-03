@@ -69,7 +69,8 @@ def _declaration_conv(cfg, data, kernel, strides, padding, dilation, layout, out
         _create_tuning_space(cfg, data, kernel, strides, padding, dilation, layout)
         if cfg.is_fallback:
             _get_default_config(cfg, data, kernel, strides, padding, out_dtype)
-        return _declaration_conv_impl(cfg, data, kernel, strides, padding, layout, out_dtype)
+        return _declaration_conv_impl(cfg, data, kernel, strides,
+                                      padding, dilation, layout, out_dtype)
     elif layout == 'HWCN':
         return nn.conv2d_hwcn(data, kernel, strides, padding, dilation, out_dtype)
     elif layout == 'NHWC':

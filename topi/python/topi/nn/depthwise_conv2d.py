@@ -283,7 +283,8 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
 
 
 @tvm.target.generic_func
-def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, layout, out_layout, out_dtype=None):
+def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
+                           layout, out_layout, out_dtype=None):
     """Depthwise convolution NCHW[x]c forward operator.
 
     Parameters
@@ -301,6 +302,9 @@ def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, layout, out_layout, o
 
     padding : int or str
         Padding size, or ['VALID', 'SAME']
+
+    dilation: int or a list/tuple of two ints
+         dilation size, or [dilation_height, dilation_width]
 
     layout : str
         Input data layout

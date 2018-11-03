@@ -52,7 +52,7 @@ def _fallback_schedule(cfg, wkl):
 
 
 @autotvm.register_topi_compute(depthwise_conv2d_NCHWc, 'cpu', 'direct')
-def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
+def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
                                 layout, out_layout, out_dtype=None):
     out_dtype = data.dtype if out_dtype is None else out_dtype
     batch, in_channel_chunk, in_height, in_width, in_channel_block = get_const_tuple(data.shape)
@@ -62,6 +62,9 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding,
     strides = strides if isinstance(strides, (tuple, list)) else (strides, strides)
     HSTR, WSTR = strides
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(padding, (filter_height, filter_width))
+
+    dh, dw = dilation if isinstance(dilation, (tuple, list)) else (dilation, dilation)
+    assert (dh, dw) == (1, 1), "Does not support dilation"
 
     in_channel = in_channel_chunk * in_channel_block
     out_channel = out_channel_chunk * out_channel_block
