@@ -278,4 +278,3 @@ def concatenate_compute(attrs, inputs, output_type, target):
 
 register_compute("concatenate", concatenate_compute)
 register_schedule("concatenate", schedule_injective)
-

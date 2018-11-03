@@ -154,7 +154,7 @@ class Executor(object):
         #
         # If we are evaluating an open term with parameters we will
         # just return them the result.
-        if isinstance(expr, Function) or isinstance(expr, GlobalVar):
+        if isinstance(expr, (Function, GlobalVar)):
             return executor
         else:
             return executor()
