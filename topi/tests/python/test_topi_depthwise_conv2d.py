@@ -206,19 +206,16 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
     batch_size, channel, height, width = data.shape
-    data = np.transpose(data, (0, 2, 3, 1))
-    data = np.reshape(data, (batch_size, height, width, channel//bn, bn))
-    data = np.transpose(data, (0, 3, 1, 2, 4))
+    data = np.reshape(data, (batch_size, channel//bn, bn, height, width))
+    data = np.transpose(data, (0, 1, 3, 4, 2))
     return data
 
 def _transform_kernel(kernel, bn):
     # channel, channel_multiplier, kh, kw -> out_channel_chunk, kh, kw, out_channel_block
     channel, channel_multiplier, kh, kw = kernel.shape
     out_channel = channel * channel_multiplier
-    kernel = np.transpose(kernel, (2, 3, 0, 1))
-    kernel = np.reshape(kernel, (kh, kw, out_channel))
-    kernel = np.reshape(kernel, (kh, kw, out_channel//bn, bn))
-    kernel = np.transpose(kernel, (2, 0, 1, 3))
+    kernel = np.reshape(kernel, (out_channel//bn, bn, kh, kw))
+    kernel = np.transpose(kernel, (0, 2, 3, 1))
     return kernel
 
 def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
@@ -264,7 +261,9 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
             # declare
             DepthwiseConv2d = topi.nn.depthwise_conv2d_NCHWc(Input, Filter,
                                                              (stride_h, stride_w),
-                                                             padding_args, in_layout,
+                                                             padding_args,
+                                                             (dilation, dilation),
+                                                             in_layout,
                                                              out_layout, dtype)
             # TODO: add scale_shift implement for NCHWc and add test here
             Relu = topi.nn.relu(DepthwiseConv2d)
@@ -302,11 +301,9 @@ def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_m
                                                      dtype=DepthwiseConv2d.dtype), ctx)
         relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
         # launch kernel 1 (depthwise_conv2d)
-        timer_1 = f1.time_evaluator(f1.entry_name, ctx, number=1)
-        tcost_1 = timer_1(input_tvm, filter_tvm, depthwise_conv2d_tvm).mean
+        f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
         # launch kernel 2 (depthwise_conv2d + relu)
-        timer_2 = f2.time_evaluator(f2.entry_name, ctx, number=1)
-        tcost_2 = timer_2(input_tvm, filter_tvm, relu_tvm).mean
+        f2(input_tvm, filter_tvm, relu_tvm)
         tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
         tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
 

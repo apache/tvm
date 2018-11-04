@@ -91,17 +91,17 @@ def _depthwise_conv2d_NCHWc_cpu(cfg, data, kernel, strides, padding, dilation,
         data_pad = data
 
     # depthconv stage
-    di = tvm.reduce_axis((0, filter_height), name='di')
-    dj = tvm.reduce_axis((0, filter_width), name='dj')
+    kh = tvm.reduce_axis((0, filter_height), name='kh')
+    kw = tvm.reduce_axis((0, filter_width), name='kw')
     Output = tvm.compute(
         (batch, out_channel_chunk, out_height, out_width, out_channel_block),
-        lambda b, oco, i, j, oci: tvm.sum(
+        lambda b, oco, oh, ow, oci: tvm.sum(
             (data_pad[b, (oco * out_channel_block + oci) // channel_multiplier // in_channel_block,
-                      i*HSTR+di, j*WSTR+dj,
+                      oh*HSTR+kh, ow*WSTR+kw,
                       ((oco * out_channel_block + oci) // channel_multiplier) % in_channel_block]
              .astype(out_dtype) *
-             kernel[oco, di, dj, oci].astype(out_dtype)),
-            axis=[di, dj]),
+             kernel[oco, kh, kw, oci].astype(out_dtype)),
+            axis=[kh, kw]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_NCHWc")
     return Output
 
@@ -144,10 +144,8 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, output
     _, ic_chunk, oh, ow, ic_block = s[C].op.axis
     ow_chunk, ow_block = s[C].split(ow, factor=tile_ow)
     s[C].reorder(ic_chunk, oh, ow_chunk, ow_block, ic_block)
-    s[C].vectorize(ic_block)
     parallel_axis = s[C].fuse(ic_chunk, oh)
     s[C].parallel(parallel_axis)
-    s[C].unroll(ow_block)
     s[CC].compute_at(s[C], ow_chunk)
 
     _, ic_chunk, oh, ow, ic_block = s[CC].op.axis
@@ -156,6 +154,7 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, output
     s[CC].reorder(ic_chunk, oh, kh, kw, ow_block, ic_block)
     s[CC].vectorize(ic_block)
     s[CC].unroll(ow_block)
+
     if C != O:
         batch, oc_chunk, oh, ow, oc_block = s[O].op.axis
         ow_chunk, ow_block = s[O].split(ow, factor=tile_ow)
