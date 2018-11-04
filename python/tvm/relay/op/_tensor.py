@@ -270,11 +270,3 @@ def clip_compute(attrs, inputs, output_type, target):
 
 register_compute("clip", clip_compute)
 register_schedule("clip", schedule_injective)
-
-# concatenate
-def concatenate_compute(attrs, inputs, output_type, target):
-    assert len(inputs) == 1
-    return [topi.concatenate(*inputs[0], attrs.axis)]
-
-register_compute("concatenate", concatenate_compute)
-register_schedule("concatenate", schedule_injective)
