@@ -28,7 +28,7 @@ class SimpleFuser : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) {
-    if (const auto* op_node = call->op.as<OpNode>()) {
+    if (call->op.as<OpNode>()) {
       // Placeholder fusion algorithm which abstracts
       // single definitions into functions only.
       Array<Var> params;
