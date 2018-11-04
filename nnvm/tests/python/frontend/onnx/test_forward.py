@@ -712,6 +712,103 @@ def test_constantfill():
     verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
+def verify_pad(indata, outdata, pads, value=0.0):
+    indata = np.array(indata).astype(np.float32)
+    outdata = np.array(outdata).astype(np.float32)
+    node = helper.make_node(
+        'Pad',
+        inputs=['input'],
+        outputs=['output'],
+        mode='constant',
+        pads=pads,
+        value=value
+    )
+    graph = helper.make_graph([node],
+                              'pad_test',
+                              inputs = [helper.make_tensor_value_info("input",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("output",
+                                            TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='pad_test')
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+    tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_pad():
+    verify_pad([[0., 1.], [2., 3.]], [[0., 0., 1.], [0., 2., 3.]], [0, 1, 0, 0], 0.0)
+    verify_pad([[0., 1.], [2., 3.]], [[0., 0.], [0., 1.], [2., 3.]], [1, 0, 0, 0], 0.0)
+    verify_pad([[0., 1.], [2., 3.]], [[0., 1.], [2., 3.], [5., 5.]], [0, 0, 1, 0], 5.0)
+
+def verify_reduce_x(name, indata, outdata, axis, keepdims):
+    indata = np.array(indata).astype(np.float32)
+    outdata = np.array(outdata).astype(np.float32)
+    if axis is None:
+        node = helper.make_node(name, inputs=['input'], outputs=['output'],
+                                keepdims=keepdims)
+    else:
+        node = helper.make_node(name, inputs=['input'], outputs=['output'],
+                                axis=axis, keepdims=keepdims)
+    graph = helper.make_graph([node],
+                              '{}_test'.format(name),
+                              inputs = [helper.make_tensor_value_info("input",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("output",
+                                            TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='{}_test'.format(name))
+
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+    tvm.testing.assert_allclose(outdata, tvm_out)
+
+def test_reduce_max():
+    verify_reduce_x("ReduceMax",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[60.]]], axis=None, keepdims=1)
+    verify_reduce_x("ReduceMax",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [60.], axis=None, keepdims=0)
+    verify_reduce_x("ReduceMax",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[20., 2.]], [[40., 2.]], [[60., 2.]]],
+                     axis=[1], keepdims=1)
+
+def test_reduce_min():
+    verify_reduce_x("ReduceMin",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[1.]]], axis=None, keepdims=1)
+    verify_reduce_x("ReduceMin",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [1.], axis=None, keepdims=0)
+    verify_reduce_x("ReduceMin",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[5., 1.]], [[30., 1.]], [[55., 1.]]],
+                     axis=[1], keepdims=1)
+
+def test_reduce_sum():
+    verify_reduce_x("ReduceSum",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[219.]]], axis=None, keepdims=1)
+    verify_reduce_x("ReduceSum",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [219.], axis=None, keepdims=0)
+    verify_reduce_x("ReduceSum",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[25., 3.]], [[70., 3.]], [[115., 3.]]],
+                     axis=[1], keepdims=1)
+
+def test_reduce_mean():
+    verify_reduce_x("ReduceMean",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[18.25]]], axis=None, keepdims=1)
+    verify_reduce_x("ReduceMean",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [18.25], axis=None, keepdims=0)
+    verify_reduce_x("ReduceMean",
+                     [[[5., 1.], [20., 2.]], [[30., 1.], [40., 2.]], [[55., 1.], [60., 2.]]],
+                     [[[12.5, 1.5]], [[35., 1.5]], [[57.5, 1.5]]],
+                     axis=[1], keepdims=1)
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -737,3 +834,8 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantfill()
+    test_pad()
+    test_max()
+    test_min()
+    test_sum()
+    test_mean()

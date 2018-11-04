@@ -203,18 +203,21 @@ class Pad(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # get number of channels
-        channels = _infer_channels(inputs[1], params, True)
-        attr['channels'] = channels
-        groups = attr.pop('group')
-        attr['groups'] = groups
+        pad_width = []
+        pads = attr.pop('pads')
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+
         return AttrCvt(
             op_name='pad',
             transforms={
                 'value': 'pad_value',
-                'pads': 'pad_width'
             },
-            custom_check=lambda attrs: attrs.get('mode') == 'constant')(
+            ignores=['mode'],
+            custom_check=(lambda attrs: attrs.get('mode') == 'constant',
+                          "split mode != constant"))(
                 inputs, attr, params)
 
 
@@ -741,10 +744,10 @@ def _get_convert_map(opset):
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
-        'ReduceMax': AttrCvt('max', {'axes', 'axis'}),
-        'ReduceMin': AttrCvt('min', {'axes', 'axis'}),
-        'ReduceSum': AttrCvt('sum', {'axes', 'axis'}),
-        # 'ReduceMean'
+        'ReduceMax': AttrCvt('max', {'axes': 'axis'}),
+        'ReduceMin': AttrCvt('min', {'axes': 'axis'}),
+        'ReduceSum': AttrCvt('sum', {'axes': 'axis'}),
+        'ReduceMean': AttrCvt('mean', {'axes': 'axis'}),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
         'ArgMax': ArgMax.get_converter(opset),
