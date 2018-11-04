@@ -327,11 +327,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
                                dtype=data.dtype)
     if is_depthwise:
         # channel, channel_multiplier, kh, kw -> out_channel_chunk, kh, kw, out_channel_block
+        # in which out_channel = merge(channel, channel_multiplier)
         kernel_sym = copy_inputs[1]
-        kernel_sym = sym.transpose(kernel_sym, axes=(2, 3, 0, 1))
-        kernel_sym = sym.reshape(kernel_sym, shape=(kh, kw, out_channel))
-        kernel_sym = sym.reshape(kernel_sym, shape=(kh, kw, out_channel//oc_bn, oc_bn))
-        kernel_sym = sym.transpose(kernel_sym, axes=(2, 0, 1, 3))
+        kernel_sym = sym.reshape(kernel_sym, shape=(out_channel//oc_bn, oc_bn, kh, kw))
+        kernel_sym = sym.transpose(kernel_sym, axes=(0, 2, 3, 1))
         copy_inputs[1] = kernel_sym
 
         # Store altered operator's config
