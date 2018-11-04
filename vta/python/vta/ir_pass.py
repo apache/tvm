@@ -1,6 +1,7 @@
 """Additional IR Pass for VTA"""
 # pylint: disable=len-as-condition
 from __future__ import absolute_import as _abs
+from collections import defaultdict
 
 import tvm
 from topi import util as util
@@ -486,7 +487,8 @@ def inject_dma_intrin(stmt_in):
                 "int32", "VTAStoreBuffer2D",
                 env.dev.command_handle,
                 src.access_ptr("r", "int32"),
-                mem_type, dst.data, offset, x_size, y_size, x_stride))
+                mem_type, dst.data, offset, x_size, y_size, x_stride,
+                0, 0))
             return irb.get()
         elif src.scope == "global":
             if dst.scope == env.acc_scope:
@@ -552,7 +554,8 @@ def inject_dma_intrin(stmt_in):
                 src.data, offset, x_size, y_size, x_stride,
                 x_pad_before, y_pad_before,
                 x_pad_after, y_pad_after,
-                dst.access_ptr("r", "int32"), mem_type))
+                dst.access_ptr("r", "int32"), mem_type,
+                0, 0))
             return irb.get()
 
         else:
@@ -829,3 +832,65 @@ def debug_print(stmt):
     # pylint: disable=superfluous-parens
     print(stmt)
     return stmt
+
+
+def register_tensors(stmt_in):
+    """Adds (tensor_id, boundary_tile) to DMA requests."""
+    tensor_scopes = defaultdict(int) # Var[addr] -> num other refs of tensor in scope
+    tensor_ids = defaultdict(lambda: len(tensor_ids))  # (dst, scope, info..) -> id
+
+    def _find_vars(expr):
+        if isinstance(expr, tvm.expr.Var):
+            return set((expr,))
+        elif isinstance(expr, tvm.expr.BinaryOpExpr):
+            return _find_vars(expr.a).union(_find_vars(expr.b))
+        return set()
+
+    def _is_dma_op(stmt):
+        return isinstance(stmt, tvm.expr.Call) and stmt.name.endswith('Buffer2D')
+
+    def _dma_info(dma_call_expr):
+        is_store = dma_call_expr.name == 'VTAStoreBuffer2D'
+        info = tuple(dma_call_expr.args)[1 + 2*is_store:-4 + 2*is_store]
+        return is_store, info[0], info[1:] # is_store, dest, offset+size+stride
+
+    loop_var_extents = {}
+    def _id_tensors(stmt):
+        if isinstance(stmt, tvm.stmt.For):
+            loop_var_extents[stmt.loop_var] = (stmt.min.value, stmt.extent.value)
+            return None
+
+        if not _is_dma_op(stmt):
+            return None
+        is_store, dst, dma_desc = _dma_info(stmt)
+
+        # super simple borrow checker
+        if is_store:
+            assert tensor_scopes[dst] == 0, \
+                    'Cannot mutably borrow tensor %s when already borrowed'
+        tensor_scopes[dst] += 1
+
+        # identify first/last tiles
+        outer_vars = set.union(*(_find_vars(expr) for expr in dma_desc))
+        if outer_vars:
+            is_mins, is_maxs = [], []
+            for v in outer_vars:
+                is_mins.append(v == loop_var_extents[v][0])
+                is_maxs.append(v == (loop_var_extents[v][1] - 1))
+            tx_state = tvm.expr.Select(tvm.all(*is_maxs), 2,
+                                       tvm.expr.Select(tvm.all(*is_mins), 1, 0))
+        else:
+            tx_state = 3  # both first and last
+
+        tensor_id = tensor_ids[(dst, tensor_scopes[dst]) + dma_desc]
+        new_args = list(stmt.args)[:-2] + [tensor_id, tx_state]
+        return tvm.call_extern(stmt.dtype, stmt.name, *new_args)
+
+    def _drop_tensor_scopes(stmt):
+        if _is_dma_op(stmt):
+            _is_store, dst, _offset = _storep_dst_offset(stmt)
+            tensor_scopes[dst] -= 1
+    assert not tensor_scopes
+
+    return tvm.ir_pass.IRTransform(
+        stmt_in, _id_tensors, _drop_tensor_scopes, ["For", "Call"])

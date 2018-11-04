@@ -133,6 +133,10 @@ extern "C" {
 #define VTA_ALUOP_IMM_BIT_WIDTH 16
 /*! GEMM/ALU Instruction: loop max iter bits */
 #define VTA_LOOP_ITER_WIDTH 14
+/*! VTA boundary tile width */
+#define VTA_BOUNDARY_TILE_BIT_WIDTH 2
+/*! VTA tensor_id width */
+#define VTA_TENSOR_ID_BIT_WIDTH 16
 
 /*! Mem ID constant: uop memory */
 #define VTA_MEM_ID_UOP 0
@@ -393,6 +397,10 @@ typedef struct {
   uint64_t x_pad_0        : VTA_MEMOP_PAD_BIT_WIDTH;
   /*! \brief 2D access pattern: end padding along x dimension */
   uint64_t x_pad_1        : VTA_MEMOP_PAD_BIT_WIDTH;
+  /*! \brief The global tensor id */
+  uint64_t tensor_id      : VTA_TENSOR_ID_BIT_WIDTH;
+  /*! \brief 1 if the tile is the first one, 2 if last, 0 o/w */
+  uint64_t boundary_tile  : VTA_BOUNDARY_TILE_BIT_WIDTH;
 } VTAMemInsn;
 
 /*! \brief VTA GEMM instruction

@@ -133,7 +133,9 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
                      uint32_t x_pad_after,
                      uint32_t y_pad_after,
                      uint32_t dst_sram_index,
-                     uint32_t dst_memory_type);
+                     uint32_t dst_memory_type,
+                     uint32_t tensor_id,
+                     uint32_t boundary_tile);
 
 /*!
  * \brief Perform a 2D data store into DRAM
@@ -154,7 +156,9 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
                       uint32_t dst_elem_offset,
                       uint32_t x_size,
                       uint32_t y_size,
-                      uint32_t x_stride);
+                      uint32_t x_stride,
+                      uint32_t tensor_id,
+                      uint32_t boundary_tile);
 
 /*!
  * \brief Push uop into kernel buffer.

@@ -923,7 +923,9 @@ class CommandQueue {
                     uint32_t x_pad_after,
                     uint32_t y_pad_after,
                     uint32_t dst_sram_index,
-                    uint32_t dst_memory_type) {
+                    uint32_t dst_memory_type,
+                    uint32_t tensor_id,
+                    uint32_t boundary_tile) {
     VTAMemInsn* insn = insn_queue_.CreateMemInsn(dst_memory_type);
     insn->opcode = VTA_OPCODE_LOAD;
     insn->memory_type = dst_memory_type;
@@ -937,6 +939,8 @@ class CommandQueue {
     insn->y_pad_1 = y_pad_after;
     insn->x_pad_0 = x_pad_before;
     insn->x_pad_1 = x_pad_after;
+    insn->tensor_id = tensor_id;
+    insn->boundary_tile = boundary_tile;
     this->CheckInsnOverFlow();
   }
 
@@ -946,7 +950,9 @@ class CommandQueue {
                      uint32_t dst_elem_offset,
                      uint32_t x_size,
                      uint32_t y_size,
-                     uint32_t x_stride) {
+                     uint32_t x_stride,
+                     uint32_t tensor_id,
+                     uint32_t boundary_tile) {
     VTAMemInsn* insn = insn_queue_.CreateStoreInsn();
     insn->opcode = VTA_OPCODE_STORE;
     insn->memory_type = src_memory_type;
@@ -960,6 +966,8 @@ class CommandQueue {
     insn->y_pad_1 = 0;
     insn->x_pad_0 = 0;
     insn->x_pad_1 = 0;
+    insn->tensor_id = tensor_id;
+    insn->boundary_tile = boundary_tile;
     this->CheckInsnOverFlow();
   }
 
@@ -1287,13 +1295,16 @@ void VTALoadBuffer2D(VTACommandHandle cmd,
                      uint32_t x_pad_after,
                      uint32_t y_pad_after,
                      uint32_t dst_sram_index,
-                     uint32_t dst_memory_type) {
+                     uint32_t dst_memory_type,
+                     uint32_t tensor_id,
+                     uint32_t boundary_tile) {
   static_cast<vta::CommandQueue*>(cmd)->
       LoadBuffer2D(src_dram_addr, src_elem_offset,
                    x_size, y_size, x_stride,
                    x_pad_before, y_pad_before,
                    x_pad_after, y_pad_after,
-                   dst_sram_index, dst_memory_type);
+                   dst_sram_index, dst_memory_type,
+                   tensor_id, boundary_tile);
 }
 
 void VTAStoreBuffer2D(VTACommandHandle cmd,
@@ -1303,11 +1314,14 @@ void VTAStoreBuffer2D(VTACommandHandle cmd,
                       uint32_t dst_elem_offset,
                       uint32_t x_size,
                       uint32_t y_size,
-                      uint32_t x_stride) {
+                      uint32_t x_stride,
+                      uint32_t tensor_id,
+                      uint32_t boundary_tile) {
   static_cast<vta::CommandQueue*>(cmd)->
       StoreBuffer2D(src_sram_index, src_memory_type,
                     dst_dram_addr, dst_elem_offset,
-                    x_size, y_size, x_stride);
+                    x_size, y_size, x_stride,
+                    tensor_id, boundary_tile);
 }
 
 void VTAUopPush(uint32_t mode,
