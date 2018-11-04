@@ -31,10 +31,9 @@ class OnnxOpConverter(object):
             max([i for i, v in enumerate(versions) if v == opset]) - 1]
         if hasattr(cls, '_impl_v{}'.format(version)):
             return getattr(cls, '_impl_v{}'.format(version))
-        else:
-            raise NotImplementedError(
-                'opset version {} of {} not implemented'.format(
-                    version, cls.__name__))
+        raise NotImplementedError(
+            'opset version {} of {} not implemented'.format(
+                version, cls.__name__))
 
 
 class Elemwise(OnnxOpConverter):
@@ -200,6 +199,8 @@ class Mul(Elemwise):
 
 
 class Pad(OnnxOpConverter):
+    """ Operator converter for Pad.
+    """
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
@@ -217,8 +218,7 @@ class Pad(OnnxOpConverter):
             },
             ignores=['mode'],
             custom_check=(lambda attrs: attrs.get('mode') == 'constant',
-                          "split mode != constant"))(
-                inputs, attr, params)
+                          'split mode != constant'))(inputs, attr, params)
 
 
 class ParametricSoftPlus(OnnxOpConverter):
@@ -371,8 +371,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        else:
-            raise NotImplementedError("Only 2d kernel supported.")
+        raise NotImplementedError("Only 2d kernel supported.")
 
     return _impl
 
@@ -645,14 +644,13 @@ class ConstantFill(OnnxOpConverter):
                 transforms={'value': 'fill_value'},
                 ignores=['dtype'])(inputs, attr)
             return _sym.cast(out, dtype=attr['dtype'].decode("utf-8"))
-        else:
-            if 'extra_shape' in attr:
-                shape = shape + attr.pop('extra_shape')
+        if 'extra_shape' in attr:
+            shape = shape + attr.pop('extra_shape')
 
-            return AttrCvt(
-                op_name='full',
-                transforms={'value': 'fill_value'},
-                extras={'shape':shape})(inputs, attr)
+        return AttrCvt(
+            op_name='full',
+            transforms={'value': 'fill_value'},
+            extras={'shape':shape})(inputs, attr)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
