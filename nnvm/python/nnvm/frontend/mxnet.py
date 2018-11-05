@@ -287,6 +287,7 @@ def _argmax(inputs, attrs):
     new_attrs['axis'] = attrs.get('axis', 0)
     new_attrs['keepdims'] = _parse_bool_str(attrs, 'keepdims', default="False")
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
 def _argmin(inputs, attrs):
     op_name, new_attrs = 'argmin', {}
     new_attrs['dtype'] = 'float32'

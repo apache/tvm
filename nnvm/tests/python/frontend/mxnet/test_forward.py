@@ -179,6 +179,7 @@ def test_forward_argmax():
     data = mx.sym.var('data')
     mx_sym = mx.sym.argmax(data, axis=1)
     verify_mxnet_frontend_impl(mx_sym, (5, 3), (5,))
+
 def test_forward_argmin():
     data = mx.sym.var('data')
     mx_sym = mx.sym.argmin(data, axis=0)

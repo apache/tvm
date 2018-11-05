@@ -283,9 +283,8 @@ inline bool InferFixedType(const NodeAttrs& attrs,
 }
 
 NNVM_REGISTER_BASE_REDUCE_OP(argmax)
-.describe(R"code(Creates an operation that finds the indices of the minimum
+.describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
-
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
@@ -300,18 +299,14 @@ values over a given axis.
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
-    if (param.dtype == kFloat32)
-      return Array<Tensor>{
-        topi::cast(topi::argmax(
-        inputs[0], axis, param.keepdims), out_info[0]->dtype)};
-    return Array<Tensor>{
-      topi::argmax(inputs[0], axis, param.keepdims) };
+    Tensor out = topi::argmax(inputs[0], axis, param.keepdims);
+    if (param.dtype == kFloat32) ret = topi::cast(out ,out_info[0]->dtype);
+    return Array<Tensor>{out};
 });
-
+    
 NNVM_REGISTER_BASE_REDUCE_OP(argmin)
 .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
-
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
@@ -326,12 +321,9 @@ values over a given axis.
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
-    if (param.dtype == kFloat32)
-      return Array<Tensor>{
-        topi::cast(topi::argmin(
-        inputs[0], axis, param.keepdims), out_info[0]->dtype)};
-    return Array<Tensor>{
-      topi::argmin(inputs[0], axis, param.keepdims) };
+    Tensor out = topi::argmin(inputs[0], axis, param.keepdims);
+    if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
+    return Array<Tensor>{out};
 });
 
 NNVM_REGISTER_REDUCE_OP(mean)
