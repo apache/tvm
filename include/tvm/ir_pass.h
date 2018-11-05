@@ -281,6 +281,7 @@ Stmt InjectCopyIntrin(Stmt stmt,
  *  a static allocation plan when possible.
  *
  * \param stmt The stmt to be trasnformed
+ * \param target The target name
  * \return Transformed stmt.
  */
 Stmt StorageRewrite(Stmt stmt, const std::string& target = "");
