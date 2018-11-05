@@ -83,7 +83,6 @@ def test_binary_op():
 
     for opfunc, ref in [(relay.add, np.add),
                    (relay.subtract, np.subtract),
-                   (relay.mod, np.mod),
                    (relay.multiply, np.multiply),
                    (relay.divide, np.divide)]:
         check_binary_op(opfunc, ref)
