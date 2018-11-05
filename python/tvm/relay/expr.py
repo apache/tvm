@@ -319,11 +319,10 @@ class TupleGetItem(Expr):
         self.__init_handle_by_constructor__(
             _make.TupleGetItem, tuple_value, index)
 
+
 class ExprFunctor(object):
     """
     An abstract visitor defined over Expr.
-
-    A Python version of the class defined in `expr_functor.h`.
 
     Defines the default dispatch over expressions, and
     implements memoization.
@@ -352,6 +351,8 @@ class ExprFunctor(object):
             res = self.visit_if(expr)
         elif isinstance(expr, Tuple):
             res = self.visit_tuple(expr)
+        elif isinstance(expr, TupleGetItem):
+            res = self.visit_tuple_getitem(expr)
         elif isinstance(expr, Constant):
             res = self.visit_constant(expr)
         else:
@@ -361,31 +362,34 @@ class ExprFunctor(object):
         return res
 
     def visit_function(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_let(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_call(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_var(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_type(self, typ):
         return typ
 
     def visit_if(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_tuple(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
+
+    def visit_tuple_getitem(self, _):
+        raise NotImplementedError()
 
     def visit_constant(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
     def visit_global_var(self, _):
-        raise Exception("Abstract method please implement me.")
+        raise NotImplementedError()
 
 
 class ExprMutator(ExprFunctor):
@@ -395,7 +399,6 @@ class ExprMutator(ExprFunctor):
     The default behavior recursively traverses the AST
     and reconstructs the AST.
     """
-
     def visit_function(self, fn):
         new_body = self.visit(fn.body)
         return Function(
@@ -429,8 +432,18 @@ class ExprMutator(ExprFunctor):
     def visit_tuple(self, tup):
         return Tuple([self.visit(field) for field in tup.fields])
 
+    def visit_tuple_getitem(self, op):
+        tuple_value = self.visit(op.tuple_value)
+        if not tuple_value.same_as(op.tuple_value):
+            return TupleGetItem(tuple_value, op.index)
+        return op
+
+    def visit_global_var(self, gvar):
+        return gvar
+
     def visit_constant(self, rconst):
         return rconst
+
 
 class TupleWrapper(object):
     """TupleWrapper.

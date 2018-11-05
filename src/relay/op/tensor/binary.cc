@@ -46,7 +46,7 @@ RELAY_REGISTER_BINARY_OP("relay.op._make.", "multiply")
 .describe("Elementwise multiply with broadcasting")
 .set_support_level(1);
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "pow")
+RELAY_REGISTER_BINARY_OP("relay.op._make.", "power")
 .describe("Elementwise power with broadcasting")
 .set_support_level(4);
 
@@ -65,7 +65,8 @@ RELAY_REGISTER_BINARY_OP("relay.op._make.", "mod")
     .set_num_inputs(2)                                              \
     .add_argument("lhs", "Tensor", "The left hand side tensor.")    \
     .add_argument("rhs", "Tensor", "The right hand side tensor.")   \
-    .add_type_rel("BroadcastComp", BroadcastCompRel)
+    .add_type_rel("BroadcastComp", BroadcastCompRel)                \
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
 
 RELAY_REGISTER_CMP_OP("equal")
 .describe("Elementwise equal compare with broadcasting")

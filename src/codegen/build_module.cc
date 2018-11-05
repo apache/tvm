@@ -154,13 +154,15 @@ std::unordered_set<std::string> TargetNode::libs() const {
   return result;
 }
 
-std::string TargetNode::str() const {
+const std::string& TargetNode::str() const {
+  if (str_repr_.length() != 0) return str_repr_;
   std::ostringstream result;
   result << target_name;
   for (const auto &x : options()) {
     result << " " << x;
   }
-  return result.str();
+  str_repr_ = result.str();
+  return str_repr_;
 }
 
 

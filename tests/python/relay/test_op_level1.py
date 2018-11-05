@@ -2,7 +2,7 @@ import math
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay.interpreter import create_executor
+from tvm.relay.testing import ctx_list
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -27,10 +27,15 @@ def test_unary_op():
 
         if ref is not None:
             data = np.random.rand(*shape).astype(dtype)
-            intrp = create_executor()
-            op_res = intrp.evaluate(y, { x: relay.const(data) })
             ref_res = ref(data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            func = relay.Function([x], y)
+            for target, ctx in ctx_list():
+                # use graph by execuor default for testing, as we need
+                # create function explicitly to avoid constant-folding.
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(data)
+                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
 
     for opfunc, ref in [(tvm.relay.log, np.log),
                    (tvm.relay.exp, np.exp),
@@ -67,14 +72,17 @@ def test_binary_op():
             z = opfunc(x, y)
             x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
             y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
-            intrp = create_executor()
-            op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
             ref_res = ref(x_data, y_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            func = relay.Function([x, y], z)
+            for target, ctx in ctx_list():
+                # use graph by execuor default for testing, as we need
+                # create function explicitly to avoid constant-folding.
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
     for opfunc, ref in [(relay.add, np.add),
                    (relay.subtract, np.subtract),
-                   (relay.mod, np.mod),
                    (relay.multiply, np.multiply),
                    (relay.divide, np.divide)]:
         check_binary_op(opfunc, ref)
@@ -116,7 +124,7 @@ def test_log_softmax():
     assert yy.checked_type == relay.TensorType((n, d))
 
 
-def test_concatenate_infer_type():
+def test_concatenate():
     n, t, d = tvm.var("n"), tvm.var("t"), 100
     x = relay.var("x", shape=(n, t, d))
     y = relay.var("y", shape=(n, t, d))
@@ -134,15 +142,23 @@ def test_concatenate_infer_type():
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
-    # x = relay.var("x", shape=(10, 5))
-    # y = relay.var("y", shape=(10, 5))
-    # z = relay.concatenate((x, y), axis=1)
-    # intrp = create_executor()
-    # x_data = np.random.rand(10, 5).astype('float32')
-    # y_data = np.random.rand(10, 5).astype('float32')
-    # op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
-    # ref_res = np.concatenate(x_data, y_data, axis=1)
-    # np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+    x = relay.var("x", shape=(10, 5))
+    y = relay.var("y", shape=(10, 5))
+    z = relay.concatenate((x, y), axis=1)
+
+    # Check result.
+    func = relay.Function([x, y], z)
+    x_data = np.random.rand(10, 5).astype('float32')
+    y_data = np.random.rand(10, 5).astype('float32')
+    ref_res = np.concatenate((x_data, y_data), axis=1)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, y_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=0.01)
+        op_res2 = intrp2.evaluate(func)(x_data, y_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=0.01)
 
 def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
@@ -206,7 +222,7 @@ if __name__ == "__main__":
     test_unary_op()
     test_binary_op()
     test_expand_dims_infer_type()
-    test_concatenate_infer_type()
+    test_concatenate()
     test_softmax()
     test_log_softmax()
     test_dropout()

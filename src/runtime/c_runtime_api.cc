@@ -22,27 +22,6 @@
 namespace tvm {
 namespace runtime {
 
-/*!
- * \brief The name of Device API factory.
- * \param type The device type.
- */
-inline std::string DeviceName(int type) {
-  switch (type) {
-    case kDLCPU: return "cpu";
-    case kDLGPU: return "gpu";
-    case kDLOpenCL: return "opencl";
-    case kDLSDAccel: return "sdaccel";
-    case kDLAOCL: return "aocl";
-    case kDLVulkan: return "vulkan";
-    case kDLMetal: return "metal";
-    case kDLVPI: return "vpi";
-    case kDLROCM: return "rocm";
-    case kOpenGL: return "opengl";
-    case kDLExtDev: return "ext_dev";
-    default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
-  }
-}
-
 class DeviceAPIManager {
  public:
   static const int kMaxDeviceAPI = 32;

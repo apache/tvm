@@ -7,8 +7,7 @@ from . import ty
 from . import expr
 from . import module
 from . import ir_pass
-from .build_module import build
-from .interpreter import create_executor
+from .build_module import build, create_executor
 
 # Root operators
 from .op import Op
@@ -18,7 +17,7 @@ from .op.transform import *
 from . import nn
 from . import vision
 from . import image
-
+from . import backend
 
 from .scope_builder import ScopeBuilder
 
@@ -56,13 +55,6 @@ TupleGetItem = expr.TupleGetItem
 var = expr.var
 const = expr.const
 
-@register_func("relay._tensor_value_repr")
-def _tensor_value_repr(tv):
-    return str(tv.data.asnumpy())
-
-@register_func("relay._constant_repr")
-def _tensor_constant_repr(tv):
-    return str(tv.data.asnumpy())
 
 # pylint: disable=unused-argument
 @register_func("relay.debug")

@@ -6,3 +6,4 @@ from . import resnet
 from . import dqn
 from . import dcgan
 from . import mobilenet
+from .config import ctx_list

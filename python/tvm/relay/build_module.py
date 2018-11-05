@@ -2,45 +2,257 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
-from ..build_module import build as tvm_build_module
-from . graph_runtime_codegen import GraphRuntimeCodegen
+from ..build_module import build as _tvm_build_module
+from .. import nd as _nd, target as _target, autotvm
+from ..contrib import graph_runtime as _graph_rt
 from . import ir_pass
-from .module import Module
+from .backend import interpreter as _interpreter
+from .backend import graph_runtime_codegen as _graph_gen
 
-def build(func, params=None, target=None, mod=None):
-    """
-    Compile a single function to the components needed by the
-    TVM RTS.
+# List of optimization pass and level when switch on
+OPT_PASS_LEVEL = {
+    "SimplifyInference": 0,
+    "OpFusion": 1,
+    "FoldScaleAxis": 3,
+}
+
+class BuildConfig(object):
+    """Configuration scope to set a build config option.
 
     Parameters
     ----------
-    func: relay.Expr
-        The function to build.
+    kwargs
+        Keyword arguments of configurations to set.
+    """
+    current = None
+    defaults = {
+        "opt_level": 2,
+        "add_pass": None,
+    }
+    def __init__(self, **kwargs):
+        self._old_scope = None
+        for k, _ in kwargs.items():
+            if k not in BuildConfig.defaults:
+                raise ValueError(
+                    "invalid argument %s, candidates are %s" % (k, BuildConfig.defaults.keys()))
+        self._attr = kwargs
 
-    target: optional str
-        The target platform.
+    def __getattr__(self, name):
+        if name not in self._attr:
+            return BuildConfig.defaults[name]
+        return self._attr[name]
+
+    def __enter__(self):
+        # pylint: disable=protected-access
+        self._old_scope = BuildConfig.current
+        attr = BuildConfig.current._attr.copy()
+        attr.update(self._attr)
+        self._attr = attr
+        BuildConfig.current = self
+        return self
+
+    def __exit__(self, ptype, value, trace):
+        assert self._old_scope
+        BuildConfig.current = self._old_scope
+
+    def pass_enabled(self, pass_name):
+        """Get whether pass is enabled.
+
+        Parameters
+        ----------
+        pass_name : str
+            The optimization pass name
+
+        Returns
+        -------
+        enabled : bool
+            Whether pass is enabled.
+        """
+        if self.add_pass and pass_name in self.add_pass:
+            return True
+        return self.opt_level >= OPT_PASS_LEVEL[pass_name]
+
+
+BuildConfig.current = BuildConfig()
+
+
+def build_config(**kwargs):
+    """Configure the build behavior by setting config variables.
+
+    Parameters
+    ----------
+    opt_level: int, default=2
+        Optimization level. See OPT_PASS_LEVEL for level of each pass.
+
+    add_pass: set of str
+        Optimization pass to be added regardless of optimization level.
 
     Returns
     -------
-    (graph_json, mod, params): tuple of (str, tvm.Module, dict)
-        The outputs of building a Relay function for the TVM runtime.
-
+    config: BuildConfig
+        The build configuration
     """
+    return BuildConfig(**kwargs)
+
+
+def optimize(func):
+    """Perform target invariant optimizations.
+
+    Parameters
+    ----------
+    func : tvm.relay.Function
+        The input to optimization.
+
+    Returns
+    -------
+    opt_func : tvm.relay.Function
+        The optimized version of the function.
+    """
+    cfg = BuildConfig.current
+
+    if cfg.pass_enabled("FoldScaleAxis"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.simplify_inference(func)
+
+    if cfg.pass_enabled("FoldScaleAxis"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.backward_fold_scale_axis(func)
+        func = ir_pass.infer_type(func)
+        func = ir_pass.forward_fold_scale_axis(func)
+    return func
+
+
+def build(func,
+          target=None,
+          target_host=None,
+          params=None):
+    """Build a function to run on TVM graph runtime.
+
+    Parameters
+    ----------
+    func: relay.Function
+        The function to build.
+
+    target : str or :any:`tvm.target.Target`, optional
+        The build target
+
+    target_host : str or :any:`tvm.target.Target` optional
+        Host compilation target, if target is device.
+        When TVM compiles device specific program such as CUDA,
+        we also need host(CPU) side code to interact with the driver
+        setup the dimensions and parameters correctly.
+        target_host is used to specify the host side codegen target.
+        By default, llvm is used if it is enabled,
+        otherwise a stackvm intepreter is used.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. Used for pre-compute
+        folding optimization.
+
+    Returns
+    -------
+    graph_json : str
+        The json string that can be accepted by graph runtime.
+
+    mod : tvm.Module
+        The module containing necessary libraries.
+
+    params : dict
+        The parameters of the final graph.
+    """
+    target = target if target else _target.current_target()
     if target is None:
-        target = 'llvm'
+        raise ValueError("Target is not set in env or passed as argument.")
+    target = _target.create(target)
 
-    if mod is None:
-        mod = Module({})
+    # If current dispatch context is fallback context (the default root context),
+    # then load pre-tuned parameters from TopHub
+    if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
+        tophub_context = autotvm.tophub.context(target)
+    else:
+        tophub_context = autotvm.util.EmptyContext()
 
-    comp = GraphRuntimeCodegen(mod)
-    # NB(@jroesch) This creates lowered functions, and generates names for them
-    #
-    # We need these names to emit the correct graph as these are names of the
-    # functions contained in the module.
-    lowered_ops = ir_pass.lower_ops(mod, func)
-    mod = tvm_build_module([lf.lowered_func for lf in lowered_ops], target)
-
-    # Therefore the call to compile must come after.
-    comp.codegen(func)
-    graph_json = comp.to_json()
+    with tophub_context:
+        func = optimize(func)
+        # Fuse ops before running code gen
+        func = ir_pass.infer_type(func)
+        func = ir_pass.fuse_ops(func)
+        # Graph code generation
+        func = ir_pass.infer_type(func)
+        graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
+        graph_json, lowered_funcs = graph_gen.codegen(func)
+        mod = _tvm_build_module(lowered_funcs, target=target, target_host=target_host)
     return graph_json, mod, params
+
+
+class GraphExecutor(_interpreter.Executor):
+    """Wrapper around Executor interface.
+
+    This executor is used for debug and testing purpoes.
+
+    Parameters
+    ----------
+    mod : tvm.relay.Module
+        The module to support the execution.
+
+    ctx : tvm.TVMContext
+        The runtime context to run the code on.
+
+    target : tvm.Target
+        The target option to build the function.
+    """
+    def __init__(self, mod, ctx, target):
+        self.mod = mod
+        self.ctx = ctx
+        self.target = target
+
+    def _make_executor(self, func):
+        def _graph_wrapper(*args):
+            graph_json, mod, params = build(func, target=self.target)
+            assert params is None
+            gmodule = _graph_rt.create(graph_json, mod, self.ctx)
+            # Create map of inputs.
+            for i, arg in enumerate(args):
+                gmodule.set_input(i, arg)
+            # Run the module, and fetch the output.
+            gmodule.run()
+            return gmodule.get_output(0)
+
+        return _graph_wrapper
+
+
+
+def create_executor(kind="debug",
+                    mod=None,
+                    ctx=None,
+                    target="llvm"):
+    """Factory function to create an executor.
+
+    Parameters
+    ----------
+    kind : str
+        The type of executor
+
+    mod : relay.Mod
+        The mod
+
+    ctx : tvm.TVMContext
+        The context to execute the code.
+
+    target : tvm.Target
+        The corresponding context
+    """
+    if ctx is not None:
+        assert ctx.device_type == _nd.context(str(target), 0).device_type
+    else:
+        ctx = _nd.context(str(target), 0)
+
+    if isinstance(target, str):
+        target = _target.create(target)
+    if kind == "debug":
+        return _interpreter.Interpreter(mod, ctx, target)
+    elif kind == "graph":
+        return GraphExecutor(mod, ctx, target)
+    else:
+        raise RuntimeError("unknown mode {0}".format(mode))

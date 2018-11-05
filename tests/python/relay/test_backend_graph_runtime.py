@@ -1,9 +1,7 @@
 import numpy as np
 
 from tvm import relay
-from tvm.relay import create_executor
 from tvm.relay.ir_pass import infer_type
-from tvm.relay.interpreter import Interpreter
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay.op import add
 from tvm.relay.module import Module
@@ -25,8 +23,8 @@ def check_rts(expr, args, expected_result, mod=None):
     expected_result:
         The expected result of running the expression.
     """
-    intrp = create_executor('graph', mod=mod)
-    graph = create_executor('graph', mod=mod)
+    intrp = relay.create_executor('debug', mod=mod)
+    graph = relay.create_executor('graph', mod=mod)
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
     np.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())

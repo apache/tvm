@@ -266,7 +266,7 @@ def divide(lhs, rhs):
     return _make.divide(lhs, rhs)
 
 
-def pow(lhs, rhs):
+def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
     Parameters
@@ -281,7 +281,7 @@ def pow(lhs, rhs):
     result : relay.Expr
         The computed result.
     """
-    return _make.pow(lhs, rhs)
+    return _make.power(lhs, rhs)
 
 
 def mod(lhs, rhs):

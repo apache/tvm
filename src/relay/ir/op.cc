@@ -67,13 +67,15 @@ const GenericOpMap& Op::GetGenericAttr(const std::string& key) {
   return *it->second.get();
 }
 
-void OpRegistry::UpdateAttr(const std::string& key, TVMRetValue value,
+void OpRegistry::UpdateAttr(const std::string& key,
+                            TVMRetValue value,
                             int plevel) {
   OpManager* mgr = OpManager::Global();
   std::lock_guard<std::mutex> lock(mgr->mutex);
   std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
   if (op_map == nullptr) {
     op_map.reset(new GenericOpMap());
+    op_map->attr_name_ = key;
   }
   uint32_t index = op_->index_;
   if (op_map->data_.size() <= index) {
@@ -112,31 +114,31 @@ TVM_REGISTER_API("relay.op._OpGetAttr")
     });
 
 TVM_REGISTER_API("relay.op._Register")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
-      std::string op_name = args[0];
-      std::string attr_key = args[1];
-      runtime::TVMArgValue value = args[2];
-      int plevel = args[3];
-      auto& reg =
-          OpRegistry::Registry()->__REGISTER_OR_GET__(op_name).set_name();
-      // enable resgiteration and override of certain properties
-      if (attr_key == "num_inputs" && plevel > 128) {
-        reg.set_num_inputs(value);
-      } else if (attr_key == "attrs_type_key" && plevel > 128) {
-        reg.set_attrs_type_key(value);
+.set_body([](TVMArgs args, TVMRetValue* rv) {
+    std::string op_name = args[0];
+    std::string attr_key = args[1];
+    runtime::TVMArgValue value = args[2];
+    int plevel = args[3];
+    auto& reg =
+        OpRegistry::Registry()->__REGISTER_OR_GET__(op_name).set_name();
+    // enable resgiteration and override of certain properties
+    if (attr_key == "num_inputs" && plevel > 128) {
+      reg.set_num_inputs(value);
+    } else if (attr_key == "attrs_type_key" && plevel > 128) {
+      reg.set_attrs_type_key(value);
+    } else {
+      // normal attr table override.
+      if (args[2].type_code() == kFuncHandle) {
+        // do an eager copy of the PackedFunc
+        PackedFunc f = args[2];
+        // If we get a function from frontend, avoid deleting it.
+        OpManager::Global()->frontend_funcs.push_back(new PackedFunc(f));
+        reg.set_attr(attr_key, f, plevel);
       } else {
-        // normal attr table override.
-        if (args[2].type_code() == kFuncHandle) {
-          // do an eager copy of the PackedFunc
-          PackedFunc f = args[2];
-          // If we get a function from frontend, avoid deleting it.
-          OpManager::Global()->frontend_funcs.push_back(new PackedFunc(f));
-          reg.set_attr(attr_key, f, plevel);
-        } else {
-          reg.set_attr(attr_key, args[2], plevel);
-        }
+        reg.set_attr(attr_key, args[2], plevel);
       }
-    });
+    }
+  });
 
 NodePtr<Node> CreateOp(const std::string& name) {
   auto op = Op::Get(name);
