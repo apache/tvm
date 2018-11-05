@@ -138,7 +138,8 @@ class Executor(object):
         """
         if params:
             scope_builder = ScopeBuilder()
-            for key, value in params:
+            for key in params:
+                value = params[key]
                 scope_builder.let(key, value)
             scope_builder.ret(expr)
             expr = scope_builder.get()
@@ -146,7 +147,17 @@ class Executor(object):
         if isinstance(expr, Function):
             assert not ir_pass.free_vars(expr)
 
-        return self._make_executor(expr)
+        executor = self._make_executor(expr)
+
+        # If we are evaluating a function or top-level defintion
+        # the user must call the function themselves.
+        #
+        # If we are evaluating an open term with parameters we will
+        # just return them the result.
+        if isinstance(expr, (Function, GlobalVar)):
+            return executor
+        else:
+            return executor()
 
 
 class Interpreter(Executor):
@@ -168,9 +179,13 @@ class Interpreter(Executor):
                 self.mod._add(expr, func, True)
                 opt_expr = Call(expr, relay_args)
                 return _interpreter.evaluate(self.mod, opt_expr)
-            else:
+            elif isinstance(expr, Function):
                 call = Call(expr, relay_args)
                 opt_expr = self.optimize(call)
+                return _interpreter.evaluate(self.mod, opt_expr)
+            else:
+                assert not args
+                opt_expr = self.optimize(expr)
                 return _interpreter.evaluate(self.mod, opt_expr)
 
         return _interp_wrapper
