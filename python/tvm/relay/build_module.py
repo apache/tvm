@@ -182,7 +182,7 @@ def build(func,
         func = ir_pass.infer_type(func)
         graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
         graph_json, lowered_funcs = graph_gen.codegen(func)
-        mod = _tvm_build_module(lowered_funcs, target, target_host=target_host)
+        mod = _tvm_build_module(lowered_funcs, target=target, target_host=target_host)
     return graph_json, mod, params
 
 

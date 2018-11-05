@@ -187,8 +187,8 @@ void GraphRuntime::SetupStorage() {
     CHECK_GE(storage_id, 0) << "Do not support runtime shape op";
     DLDataType t = vtype[i];
     size_t bits = t.bits * t.lanes;
-    CHECK_EQ(bits % 8U, 0U);
-    size_t bytes = (bits / 8U) * size;
+    CHECK(bits % 8U ==  0U || bits ==1U);
+    size_t bytes = ((bits + 7U) / 8U) * size;
 
     uint32_t sid = static_cast<uint32_t>(storage_id);
     if (sid >= pool_entry.size()) {

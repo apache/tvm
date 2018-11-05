@@ -232,8 +232,8 @@ class GraphRuntimeCodegen(ExprFunctor):
         # Tuple input function(e.g. concat)
         if tuple_arg_count:
             assert len(call.args) == 1
-            assert isinstance(inputs, tuple)
-            inputs = list(inputs)
+            assert isinstance(inputs[0], tuple)
+            inputs = list(inputs[0])
 
         inputs = [x.to_json() for x in inputs]
         op_name = cached_func.func_name

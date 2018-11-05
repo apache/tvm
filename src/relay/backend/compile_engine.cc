@@ -56,14 +56,34 @@ class ScheduleGetter :
         Op::GetAttr<FTVMSchedule>("FTVMSchedule");
     auto cache_node = make_node<CachedFuncNode>();
     cache_node->target = target_;
-    for (Var param : prim_func->params) {
-      const auto* ttype = param->type_as<TensorTypeNode>();
-      tvm::Tensor tensor = tvm::placeholder(
-          GetShape(ttype->shape), ttype->dtype);
-      cache_node->inputs.push_back(tensor);
-      memo_[param] = Array<Tensor>({tensor});
+
+    if (prim_func->params.size() == 1 &&
+        prim_func->params[0]->checked_type().as<TupleTypeNode>()) {
+      // Handle tuple input type by flattening them.
+      // This is the current calling convention of tuple input.
+      Array<tvm::Tensor> inputs;
+      for (Type field : prim_func->params[0]->type_as<TupleTypeNode>()->fields) {
+        const auto* ttype = field.as<TensorTypeNode>();
+        CHECK(ttype != nullptr);
+        tvm::Tensor tensor = tvm::placeholder(
+            GetShape(ttype->shape), ttype->dtype);
+        cache_node->inputs.push_back(tensor);
+        inputs.push_back(tensor);
+      }
+      memo_[prim_func->params[0]] = inputs;
+
+    } else {
+      for (Var param : prim_func->params) {
+        const auto* ttype = param->type_as<TensorTypeNode>();
+        tvm::Tensor tensor = tvm::placeholder(
+            GetShape(ttype->shape), ttype->dtype);
+        cache_node->inputs.push_back(tensor);
+        memo_[param] = Array<Tensor>({tensor});
+      }
     }
     readable_name_stream_ << "fused";
+    // enter the target context
+    TargetContext target_ctx(target_);
     cache_node->outputs = this->VisitExpr(prim_func->body);
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
@@ -118,7 +138,7 @@ class ScheduleGetter :
         call_node->checked_type(),
         target_);
 
-    int op_pattern = fpattern.get(op, kOpaque);
+    int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
       CHECK(!master_op_.defined())
           << "Two complicated op in a primitive function";

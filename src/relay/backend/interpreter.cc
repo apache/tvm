@@ -210,44 +210,89 @@ class Interpreter :
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
     // Marshal the arguments.
-    auto arg_len = args.size() + 1;
+    // Handle tuple input/output by flattening them.
+    size_t arg_len = 0;
+    for (size_t i = 0; i < args.size(); i++) {
+      if (args[i].as<TensorValueNode>()) {
+        ++arg_len;
+      } else {
+        const auto* tvalue = args[i].as<TupleValueNode>();
+        arg_len += tvalue->fields.size();
+      }
+    }
+    size_t num_inputs = arg_len;
+    if (const auto* tuple_type = func->body->checked_type().as<TupleTypeNode>()) {
+      arg_len += tuple_type->fields.size();
+    } else {
+      CHECK(func->body->checked_type().as<TensorTypeNode>());
+      arg_len += 1;
+    }
     std::vector<TVMValue> values(arg_len);
     std::vector<int> codes(arg_len);
     TVMArgsSetter setter(values.data(), codes.data());
-    // Decide the target context.
-    // Primitive functions always sit in the same context.
-    for (size_t i = 0; i < args.size(); i++) {
-      const TensorValueNode* tv = args[i].as<TensorValueNode>();
+
+    auto fset_input = [&](size_t i, Value val) {
+      const TensorValueNode* tv = val.as<TensorValueNode>();
       CHECK(tv != nullptr) << "expect Tensor argument";
       setter(i, tv->data);
       DLContext arg_ctx = tv->data->ctx;
       CHECK(arg_ctx.device_type ==  context_.device_type &&
             arg_ctx.device_id == context_.device_id)
-          << "Interpreter expect context to be "
-          << context_ << ", but get " << arg_ctx;
+        << "Interpreter expect context to be "
+        << context_ << ", but get " << arg_ctx;
+    };
+
+    if (func->params.size() == 1 &&
+        func->params[0]->checked_type().as<TupleTypeNode>()) {
+      // handle tuple input.
+      const TupleValueNode* tuple = args[0].as<TupleValueNode>();
+      CHECK(tuple);
+      for (size_t i = 0; i < tuple->fields.size(); ++i) {
+        fset_input(i, tuple->fields[i]);
+      }
+    } else {
+      CHECK_EQ(num_inputs, args.size());
+      // Decide the target context.
+      // Primitive functions always sit in the same context.
+      for (size_t i = 0; i < args.size(); i++) {
+        fset_input(i, args[i]);
+      }
     }
     // TVM's calling convention is that the final argument is the output
     // buffer. To preserve the illusion of being a functional language
     // we need to allocate space for the output buffer based on the
     // return type.
-    const TensorTypeNode* rtype = func->body->type_as<TensorTypeNode>();
-    CHECK(rtype != nullptr);
-    // Allocate output tensor.
-    std::vector<int64_t> shape;
-    for (auto dim : rtype->shape) {
-      const auto* ivalue = as_const_int(dim);
-      CHECK(ivalue) << "expected concrete dimensions";
-      shape.push_back(ivalue[0]);
-    }
-    DLDataType dtype = Type2TVMType(rtype->dtype);
-    auto out_tensor = TensorValueNode::make(
-        NDArray::Empty(shape, dtype, context_));
-    setter(arg_len - 1, out_tensor->data);
-    PackedFunc packed_func = engine_->JIT(
-        CCacheKeyNode::make(func, target_));
+    auto fset_output = [&](size_t i, Type val_type) {
+      const TensorTypeNode* rtype = val_type.as<TensorTypeNode>();
+      CHECK(rtype != nullptr);
+      // Allocate output tensor.
+      std::vector<int64_t> shape;
+      for (auto dim : rtype->shape) {
+        const auto* ivalue = as_const_int(dim);
+        CHECK(ivalue) << "expected concrete dimensions";
+        shape.push_back(ivalue[0]);
+      }
+      DLDataType dtype = Type2TVMType(rtype->dtype);
+      auto out_tensor = TensorValueNode::make(
+          NDArray::Empty(shape, dtype, context_));
+      setter(num_inputs + i, out_tensor->data);
+      return out_tensor;
+    };
+
+    PackedFunc packed_func = engine_->JIT(CCacheKeyNode::make(func, target_));
     TVMRetValue rv;
-    packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
-    return out_tensor;
+    if (const TupleTypeNode* rtype = func->body->checked_type().as<TupleTypeNode>()) {
+      Array<Value> fields;
+      for (size_t i = 0; i < rtype->fields.size(); ++i) {
+        fields.push_back(fset_output(i, rtype->fields[i]));
+      }
+      packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
+      return TupleValueNode::make(fields);
+    } else {
+      Value out_tensor = fset_output(0, func->body->checked_type());
+      packed_func.CallPacked(TVMArgs(values.data(), codes.data(), arg_len), &rv);
+      return out_tensor;
+    }
   }
 
   // Check if function is a primitive function.
