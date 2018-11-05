@@ -74,7 +74,7 @@ void OpRegistry::UpdateAttr(const std::string& key,
   std::lock_guard<std::mutex> lock(mgr->mutex);
   std::unique_ptr<GenericOpMap>& op_map = mgr->attr[key];
   if (op_map == nullptr) {
-    op_map.reset(new GenericOpMap());
+    op_map.reset(new GenericOpMap(key));
     op_map->attr_name_ = key;
   }
   uint32_t index = op_->index_;

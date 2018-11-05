@@ -284,7 +284,7 @@ class GenericOpMap {
   // internal data
   std::vector<std::pair<TVMRetValue, int> > data_;
   // The value
-  GenericOpMap() = default;
+  explicit GenericOpMap(const std::string& attr_name) : attr_name_(attr_name) { }
 };
 
 /*!
