@@ -350,7 +350,8 @@ Stmt BuildStmt(Schedule sch,
                const std::unordered_map<Tensor, Buffer>& binds,
                bool loop_partition,
                Array<NodeRef> *out_arg_list,
-               const BuildConfig& config) {
+               const BuildConfig& config,
+               const std::string& target="") {
   Map<Tensor, Buffer> out_binds;
   GetBinds(args, binds, &out_binds, out_arg_list, config);
 
@@ -370,7 +371,7 @@ Stmt BuildStmt(Schedule sch,
   stmt = ir::VectorizeLoop(stmt);
   stmt = ir::InjectVirtualThread(stmt);
   stmt = ir::InjectDoubleBuffer(stmt, config->double_buffer_split_loop);
-  stmt = ir::StorageRewrite(stmt);
+  stmt = ir::StorageRewrite(stmt, target);
   stmt = ir::UnrollLoop(stmt, config->auto_unroll_max_step, config->auto_unroll_max_depth,
     config->auto_unroll_max_extent, config->unroll_explicit);
 
@@ -387,9 +388,10 @@ Array<LoweredFunc> lower(Schedule sch,
                          const Array<Tensor>& args,
                          const std::string& name,
                          const std::unordered_map<Tensor, Buffer>& binds,
-                         const BuildConfig& config) {
+                         const BuildConfig& config,
+                         const std::string& target="") {
   Array<NodeRef> out_arg_list;
-  auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config);
+  auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config, target);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
 }
 

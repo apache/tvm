@@ -9,6 +9,7 @@
 #include <tvm/ir_mutator.h>
 #include <tvm/ir_visitor.h>
 #include <tvm/target_info.h>
+#include <tvm/packed_func_ext.h>
 #include <map>
 #include <unordered_set>
 #include <unordered_map>
@@ -214,6 +215,9 @@ class LinearAccessPatternFinder final : public IRVisitor {
 //
 class InplaceOpVerifier : public IRVisitor {
  public:
+  explicit InplaceOpVerifier(const std::string& target)
+    : target_(target) {}
+
   bool Check(const Node* stmt,
              const Variable* dst,
              const Variable* src) {
@@ -228,6 +232,12 @@ class InplaceOpVerifier : public IRVisitor {
       Visit_(static_cast<const IfThenElse*>(stmt));
     } else if (stmt->is_type<Store>()) {
       Visit_(static_cast<const Store*>(stmt));
+    } else if (stmt->is_type<Evaluate>()){
+      if (target_.empty()) return false;
+      const PackedFunc* f = runtime::Registry::Get("tvm."+target_+".intrin_inplace");
+      if (f == nullptr) return false;
+      LOG(INFO)<<"call callback";
+      result_ = (*f)(static_cast<const Evaluate*>(stmt)->value);
     } else {
       return false;
     }
@@ -307,6 +317,8 @@ class InplaceOpVerifier : public IRVisitor {
   int mem_nest_{0};
   // The current store to be inspected
   const Store* store_{nullptr};
+  // target name
+  const std::string& target_;
 };
 
 // Planner to plan and rewrite memory allocation.
@@ -314,6 +326,9 @@ class StoragePlanRewriter : public IRMutator {
  public:
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
+
+  explicit StoragePlanRewriter(const std::string& target)
+    : target_(target) {}
 
   Stmt Rewrite(Stmt stmt, bool detect_inplace) {
     detect_inplace_ = detect_inplace;
@@ -703,6 +718,7 @@ class StoragePlanRewriter : public IRMutator {
         bool detect_inplace = detect_inplace_ && (it->second.gen.size() <= 2);
 
         for (const Variable* var : it->second.gen) {
+          LOG(INFO)<<" ******************* ";
           CHECK(alloc_info.count(var));
           const AllocEntry& ae = alloc_info.at(var);
           StorageEntry* dst_entry = nullptr;
@@ -712,17 +728,18 @@ class StoragePlanRewriter : public IRMutator {
             bool inplace_found = false;
             for (const Variable* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
-                InplaceOpVerifier visitor;
+                InplaceOpVerifier visitor(target_);
+                LOG(INFO)<<"calling inplace";
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == ae.storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
-                    src_entry->elem_type == ae.alloc->type.element_of() &&
                     visitor.Check(s.stmt, var, src)) {
                   uint64_t const_nbits = static_cast<uint64_t>(
                       ae.alloc->constant_allocation_size() *
                       ae.alloc->type.bits() *
                       ae.alloc->type.lanes());
-                  if (src_entry->const_nbits == const_nbits && !inplace_found) {
+                  // enable inplace src when cast big dtype to small dtype
+                  if (src_entry->const_nbits >= const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
                     inplace_flag.insert(src);
@@ -888,6 +905,8 @@ class StoragePlanRewriter : public IRMutator {
   std::unordered_map<const Variable*, StorageEntry*> alloc_map_;
   // The allocations
   std::vector<std::unique_ptr<StorageEntry> > alloc_vec_;
+  // target name
+  const std::string& target_;
 };
 
 // Turn alloc into vector alloc
@@ -972,8 +991,8 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
-Stmt StorageRewrite(Stmt stmt) {
-  stmt = StoragePlanRewriter().Rewrite(stmt, true);
+Stmt StorageRewrite(Stmt stmt, const std::string& target="") {
+  stmt = StoragePlanRewriter(target).Rewrite(stmt, true);
   return VectorAllocRewriter().Mutate(stmt);
 }
 }  // namespace ir
