@@ -735,12 +735,12 @@ template<typename DerivedType>
 class AttrsNode : public BaseAttrsNode {
  public:
   void VisitAttrs(AttrVisitor* v) final {
-    detail::AttrNormalVisitor vis(v);
+    ::tvm::detail::AttrNormalVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
 
   void VisitNonDefaultAttrs(AttrVisitor* v) final {
-    detail::AttrNonDefaultVisitor vis(v);
+    ::tvm::detail::AttrNonDefaultVisitor vis(v);
     self()->__VisitAttrs__(vis);
   }
 
@@ -761,7 +761,7 @@ class AttrsNode : public BaseAttrsNode {
         }
         return false;
       };
-      auto vis = detail::CreateInitVisitor(DerivedType::_type_key, ffind);
+      auto vis = ::tvm::detail::CreateInitVisitor(DerivedType::_type_key, ffind);
       self()->__VisitAttrs__(vis);
       hit_count = vis.hit_count_;
     } else {
@@ -779,14 +779,14 @@ class AttrsNode : public BaseAttrsNode {
         }
         return false;
       };
-      auto vis = detail::CreateInitVisitor(DerivedType::_type_key, ffind);
+      auto vis = ::tvm::detail::CreateInitVisitor(DerivedType::_type_key, ffind);
       self()->__VisitAttrs__(vis);
       hit_count = vis.hit_count_;
     }
     // error handling, slow path
     if (hit_count * 2 != args.size() && !allow_unknown) {
       for (int i = 0; i < args.size(); i += 2) {
-        detail::AttrExistVisitor visitor;
+        ::tvm::detail::AttrExistVisitor visitor;
         visitor.key_ = args[i].operator std::string();
         self()->__VisitAttrs__(visitor);
         if (!visitor.exist_) {
@@ -803,7 +803,7 @@ class AttrsNode : public BaseAttrsNode {
   }
 
   Array<AttrFieldInfo> ListFieldInfo() const final {
-    detail::AttrDocVisitor visitor;
+    ::tvm::detail::AttrDocVisitor visitor;
     self()->__VisitAttrs__(visitor);
     return visitor.fields_;
   }
@@ -813,13 +813,13 @@ class AttrsNode : public BaseAttrsNode {
     if (pself == other) return true;
     if (other == nullptr) return false;
     if (pself->type_index() != other->type_index()) return false;
-    detail::AttrsEqualVisitor visitor(pself, other, equal);
+    ::tvm::detail::AttrsEqualVisitor visitor(pself, other, equal);
     self()->__VisitAttrs__(visitor);
     return visitor.result_;
   }
 
   size_t ContentHash(AttrsHash hasher) const final {
-    detail::AttrsHashVisitor visitor(hasher);
+    ::tvm::detail::AttrsHashVisitor visitor(hasher);
     visitor.result_ = std::hash<std::string>()(this->type_key());
     self()->__VisitAttrs__(visitor);
     return visitor.result_;
