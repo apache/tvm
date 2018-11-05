@@ -3,29 +3,40 @@
 import tvm
 import numpy as np
 from tvm import relay
+from tvm.relay import create_executor
 from nose.tools import raises
 
 def test_zeros_ones():
-    for op in [relay.zeros, relay.ones]:
+    for op, ref in [(relay.zeros, np.zeros), (relay.ones, np.ones)]:
         y = op(shape=(124, 50), dtype="float64")
         yy = relay.ir_pass.infer_type(y)
         assert yy.checked_type == relay.TensorType((124, 50), "float64")
+        intrp = create_executor()
+        intrp_res = intrp.evaluate(y).asnumpy()
+        np.testing.assert_allclose(intrp_res, ref((124, 50), 'float64'))
 
 def test_unary_identity():
-    for op in [relay.zeros_like,
-               relay.ones_like,
-               relay.ceil,
-               relay.floor,
-               relay.trunc,
-               relay.round,
-               relay.abs,
-               relay.copy,
-               relay.negative]:
-        x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
+    for op, ref in [(relay.zeros_like, np.zeros_like),
+               (relay.ones_like, np.ones_like),
+               (relay.ceil, np.ceil),
+               (relay.floor, np.floor),
+               (relay.trunc, np.trunc),
+               (relay.round, np.round),
+               (relay.abs, np.abs),
+               (relay.copy, None), # np.copy
+               (relay.negative, np.negative)]:
+        shape = (8, 9, 4)
+        x = relay.var("x", relay.TensorType(shape, "float32"))
         y = op(x)
         yy = relay.ir_pass.infer_type(y)
-        assert yy.checked_type == relay.TensorType((8, 9, 4), "float32")
+        assert yy.checked_type == relay.TensorType(shape, "float32")
 
+        if ref is not None:
+            data = np.random.rand(*shape).astype('float32')
+            intrp = create_executor()
+            op_res = intrp.evaluate(y, { x: relay.const(data) })
+            ref_res = ref(data)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 def test_cast():
     x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
@@ -35,11 +46,19 @@ def test_cast():
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
 
-def test_clip_type():
+def test_clip():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
     y = relay.clip(a, 1., 4.)
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((10, 4), "float32")
+
+    data = np.random.rand(10, 4).astype('float32')
+    intrp = create_executor()
+    op_res = intrp.evaluate(y, { a: relay.const(data) })
+    ref_res = np.clip(data, 1., 4.)
+    np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+
 
 
 def test_transpose_infer_type():
@@ -226,7 +245,7 @@ if __name__ == "__main__":
     test_cast()
     test_zeros_ones()
     test_unary_identity()
-    test_clip_type()
+    test_clip()
     test_transpose_infer_type()
     test_reshape_infer_type()
     test_reshape_like()

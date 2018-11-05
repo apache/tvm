@@ -8,6 +8,7 @@
  */
 #include <tvm/lowered_func.h>
 #include <tvm/operation.h>
+#include <tvm/build_module.h>
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/logging.h>
 #include <tvm/relay/pass.h>
@@ -155,8 +156,8 @@ struct LiveFunctions : ExprVisitor {
 };
 
 using FCompute = TypedPackedFunc<Array<Tensor>(
-    const Attrs&, const Array<Tensor>&, Type, std::string)>;
-using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, std::string)>;
+    const Attrs&, const Array<Tensor>&, Type, tvm::Target)>;
+using FSchedule = TypedPackedFunc<Schedule(const Array<Tensor>&, tvm::Target)>;
 
 /*! \brief Return the set of operators in their TVM format. */
 Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
@@ -179,7 +180,7 @@ Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
     auto func = mod->Lookup(func_name);
     auto call = Downcast<Call>(func->body);
     auto op_node = call->op.as<OpNode>();
-    CHECK(op_node) << "violated invariant that primtiive calls contain a single op call";
+    CHECK(op_node) << "violated invariant that primtive calls contain a single op call";
     auto op = GetRef<Op>(op_node);
     RELAY_LOG(INFO) << "LowerOps: Lowering " << op->name;
 
@@ -197,10 +198,11 @@ Array<LoweredOp> LowerOps(const Module& mod, const Expr& e,
       i++;
     }
 
-    auto output_tt = op->op_type->ret_type;
+    auto output_tt = call->checked_type();
+    auto target_node = Target::create(target);
     Array<Tensor> outputs =
-        compute_reg[op](call->attrs, inputs, output_tt, target);
-    auto schedule = schedule_reg[op](outputs, target);
+        compute_reg[op](call->attrs, inputs, output_tt, target_node);
+    auto schedule = schedule_reg[op](outputs, target_node);
     size_t hash = StructuralHash()(func);
     LoweredFunc lf =
         flower(op->name + std::to_string(hash), schedule, inputs, outputs);

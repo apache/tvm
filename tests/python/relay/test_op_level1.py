@@ -1,11 +1,23 @@
+import math
 import tvm
 import numpy as np
 from tvm import relay
+from tvm.relay.interpreter import create_executor
 
+def sigmoid(x):
+    one = np.ones_like(x)
+    return one / (one + np.exp(-x))
+
+def relu(x):
+    x_copy = np.copy(x)
+    np.maximum(x_copy, 0, x_copy)
+    return x_copy
 
 def test_unary_op():
-    def check_single_op(opfunc):
-        tp = relay.TensorType((10, 4), "float32")
+    def check_single_op(opfunc, ref):
+        shape = (10, 4)
+        dtype = 'float32'
+        tp = relay.TensorType(shape, dtype)
         x = relay.var("x", tp)
         y = opfunc(x)
         # test printer
@@ -13,20 +25,33 @@ def test_unary_op():
         # test type inference
         assert relay.ir_pass.infer_type(y).checked_type == tp
 
-    for opfunc in [tvm.relay.log,
-                   tvm.relay.exp,
-                   tvm.relay.sqrt,
-                   tvm.relay.sigmoid,
-                   tvm.relay.tanh,
-                   relay.nn.relu]:
-        check_single_op(opfunc)
+        if ref is not None:
+            data = np.random.rand(*shape).astype(dtype)
+            intrp = create_executor()
+            op_res = intrp.evaluate(y, { x: relay.const(data) })
+            ref_res = ref(data)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+    for opfunc, ref in [(tvm.relay.log, np.log),
+                   (tvm.relay.exp, np.exp),
+                   (tvm.relay.sqrt, np.sqrt),
+                   (tvm.relay.sigmoid, sigmoid),
+                   (tvm.relay.tanh, np.tanh),
+                   (relay.nn.relu, None)]: # Just add RELU here after registering.
+        check_single_op(opfunc, ref)
 
 
 def test_binary_op():
-    def check_binary_op(opfunc):
+    def inst(vars, sh):
+        return [vars.get(s, s) for s in sh]
+
+    def check_binary_op(opfunc, ref):
+        # TODO(@jroesch): this piece of code improperly uses type variables.
         n = tvm.var("n")
-        t1 = relay.TensorType((5, n, 5))
-        t2 = relay.TensorType((n, 1))
+        s1 = (5, n, 5)
+        s2 = (n, 1)
+        t1 = relay.TensorType(s1)
+        t2 = relay.TensorType(s2)
         x = relay.var("x", t1)
         y = relay.var("y", t2)
         z = opfunc(x, y)
@@ -34,12 +59,25 @@ def test_binary_op():
         assert ("%0 = {}(%x, %y)".format(z.op.name)) in z.astext()
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
-    for opfunc in [relay.add,
-                   relay.subtract,
-                   relay.mod,
-                   relay.multiply,
-                   relay.divide]:
-        check_binary_op(opfunc)
+        if ref is not None:
+            t1 = relay.TensorType((5, 10, 5))
+            t2 = relay.TensorType((5, 10, 5))
+            x = relay.var("x", t1)
+            y = relay.var("y", t2)
+            z = opfunc(x, y)
+            x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+            y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
+            intrp = create_executor()
+            op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+            ref_res = ref(x_data, y_data)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+    for opfunc, ref in [(relay.add, np.add),
+                   (relay.subtract, np.subtract),
+                   (relay.mod, np.mod),
+                   (relay.multiply, np.multiply),
+                   (relay.divide, np.divide)]:
+        check_binary_op(opfunc, ref)
 
 
 def test_bias_add():
@@ -96,6 +134,15 @@ def test_concatenate_infer_type():
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((n, t + t, 100))
 
+    # x = relay.var("x", shape=(10, 5))
+    # y = relay.var("y", shape=(10, 5))
+    # z = relay.concatenate((x, y), axis=1)
+    # intrp = create_executor()
+    # x_data = np.random.rand(10, 5).astype('float32')
+    # y_data = np.random.rand(10, 5).astype('float32')
+    # op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+    # ref_res = np.concatenate(x_data, y_data, axis=1)
+    # np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 def test_dropout():
     n, t, d = tvm.var("n"), tvm.var("t"), tvm.var("d")
