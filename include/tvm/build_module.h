@@ -313,11 +313,11 @@ TVM_DLL BuildConfig build_config();
 * \return The lowered function.
 */
 TVM_DLL Array<LoweredFunc> lower(Schedule sch,
-                                const Array<Tensor>& args,
-                                const std::string& name,
-                                const std::unordered_map<Tensor, Buffer>& binds,
-                                const BuildConfig& config,
-                                const std::string& target = "");
+                                 const Array<Tensor>& args,
+                                 const std::string& name,
+                                 const std::unordered_map<Tensor, Buffer>& binds,
+                                 const BuildConfig& config,
+                                 const std::string& target = "");
 
 /*!
 * \brief Build a device and host module for a specific target from an array of lowered functions.

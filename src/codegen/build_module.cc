@@ -345,6 +345,7 @@ void GetBinds(const Array<Tensor>& args,
 * \param loop_partition True if the LoopPartition pass should be included.
 * \param out_arg_list Returns the arguments for the Stmt.
 * \param config The build configuration.
+* \param target The target name.
 * \return The built Stmt.
 */
 Stmt BuildStmt(Schedule sch,
