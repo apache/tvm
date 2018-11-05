@@ -300,7 +300,7 @@ values over a given axis.
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
     Tensor out = topi::argmax(inputs[0], axis, param.keepdims);
-    if (param.dtype == kFloat32) ret = topi::cast(out, out_info[0]->dtype);
+    if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
     return Array<Tensor>{out};
 });
 
