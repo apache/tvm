@@ -74,6 +74,11 @@ def register(op_name, attr_key, value=None, level=10):
         return v
     return _register(value) if value else _register
 
+def register_schedule(op_name, schedule):
+    register(op_name, "FTVMSchedule", schedule)
+
+def register_compute(op_name, compute):
+    register(op_name, "FTVMCompute", compute)
 
 _init_api("relay.op", __name__)
 
