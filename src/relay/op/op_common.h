@@ -9,6 +9,7 @@
 
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/op_attr_types.h>
 #include <vector>
 
 namespace tvm {
@@ -44,7 +45,8 @@ std::vector<T> AsVector(const Array<T> &array) {
       });                                                 \
   RELAY_REGISTER_OP(OpName)                               \
     .set_num_inputs(1)                                    \
-    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("data", "Tensor", "The input tensor.")  \
+    .set_attr<TOpPattern>("TOpPattern", kElemWise)
 
 /*! Quick helper macro
  * - Expose a positional make function to construct the node.
@@ -68,7 +70,8 @@ std::vector<T> AsVector(const Array<T> &array) {
     .set_num_inputs(2)                                            \
     .add_argument("lhs", "Tensor", "The left hand side tensor.")  \
     .add_argument("rhs", "Tensor", "The right hand side tensor.") \
-    .add_type_rel("Broadcast", BroadcastRel)
+    .add_type_rel("Broadcast", BroadcastRel)                      \
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
 
 }  // namespace relay
 }  // namespace tvm

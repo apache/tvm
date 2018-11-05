@@ -34,10 +34,12 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 
 TensorType ConstantNode::tensor_type() const {
   auto dtype = TVMType2Type(data->dtype);
-
   Array<tvm::Expr> shape;
   for (int i = 0; i < data->ndim; i++) {
-    shape.push_back(tvm::ir::IntImm::make(HalideIR::Int(64), data->shape[i]));
+    CHECK_LE(data->shape[i], std::numeric_limits<int32_t>::max());
+    CHECK_GE(data->shape[i], std::numeric_limits<int32_t>::min());
+    shape.push_back(
+        tvm::ir::IntImm::make(Int(32), data->shape[i]));
   }
 
   return TensorTypeNode::make(shape, dtype);
