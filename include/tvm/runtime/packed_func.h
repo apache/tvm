@@ -888,6 +888,7 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   }
   return os;
 }
+
 #endif
 
 inline std::string TVMType2String(TVMType t) {

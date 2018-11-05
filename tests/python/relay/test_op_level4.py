@@ -1,7 +1,7 @@
 import tvm
 import numpy as np
 from tvm import relay
-from tvm.relay import create_executor
+from tvm.relay.testing import ctx_list
 
 
 def test_binary_op():
@@ -24,12 +24,15 @@ def test_binary_op():
             z = opfunc(x, y)
             x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
             y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
-            intrp = create_executor()
-            op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
             ref_res = ref(x_data, y_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            func = relay.Function([x, y], z)
 
-    for opfunc, ref in [(relay.pow, np.power)]:
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    for opfunc, ref in [(relay.power, np.power)]:
         check_binary_op(opfunc, ref)
 
 
@@ -57,15 +60,19 @@ def test_cmp_type():
             z = op(x, y)
             x_data = np.random.rand(*x_shape).astype(t1.dtype)
             y_data = np.random.rand(*y_shape).astype(t2.dtype)
-            intrp = create_executor()
-            op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
             ref_res = ref(x_data, y_data)
-            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+            func = relay.Function([x, y], z)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 
 def test_binary_int_broadcast():
     for op, ref in [(relay.right_shift, np.right_shift),
                (relay.left_shift, np.left_shift),
+                (relay.mod, np.mod),
                (relay.maximum, np.maximum),
                (relay.minimum, np.minimum)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
@@ -81,10 +88,14 @@ def test_binary_int_broadcast():
         t2 = relay.TensorType(y_shape, 'int32')
         x_data = np.random.rand(*x_shape).astype(t1.dtype)
         y_data = np.random.rand(*y_shape).astype(t2.dtype)
-        intrp = create_executor()
-        op_res = intrp.evaluate(z, { x: relay.const(x_data), y: relay.const(y_data) })
+        func = relay.Function([x, y], z)
         ref_res = ref(x_data, y_data)
-        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data, y_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
 
 def test_where():
     cond = relay.var("cond", relay.TensorType((3, 4), "float32"))
