@@ -205,6 +205,24 @@ class Pad(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         pad_width = []
+        pads = attr.pop('paddings')
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+
+        return AttrCvt(
+            op_name='pad',
+            transforms={
+                'value': 'pad_value',
+            },
+            ignores=['mode'],
+            custom_check=(lambda attrs: attrs.get('mode', 'constant') == 'constant',
+                          'split mode != constant'))(inputs, attr, params)
+
+    @classmethod
+    def _impl_v2(cls, inputs, attr, params):
+        pad_width = []
         pads = attr.pop('pads')
         dims = int(len(pads) / 2)
         for i in range(dims):
@@ -217,7 +235,7 @@ class Pad(OnnxOpConverter):
                 'value': 'pad_value',
             },
             ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode') == 'constant',
+            custom_check=(lambda attrs: attrs.get('mode', 'constant') == 'constant',
                           'split mode != constant'))(inputs, attr, params)
 
 
