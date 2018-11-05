@@ -476,28 +476,27 @@ def test_replace_dataflow():
     assert isinstance(bounds, tvm.container.Map)
 
 def test_call():
+    scope_tb = "local.LA"
+    max_bits = 1024 * 1024 * 1024
+    register_mem(scope_tb, max_bits)
 
-    @tvm.register_func("tvm.cce.intrin_inplace") 
+    @tvm.register_func("tvm.cce.intrin_inplace")
     def inplace(stmt):
-        print(stmt)
         return True
 
     ib = tvm.ir_builder.create()
-    #A = ib.allocate("float32", 200, name="A", scope="local.L0A")
-    B = ib.allocate("float32", 200, name="B", scope="local.L0A")
-    C = ib.allocate("float16", 200, name="C", scope="local.L0A")
+    B = ib.allocate("float32", 200, name="B", scope="local.LA")
+    C = ib.allocate("float16", 200, name="C", scope="local.LA")
     with ib.for_range(0, 200, name="i") as i:
         B[i] = tvm.const(1.0, "float32")
-        #A[i] = tvm.const(2.0, "float32")
 
-    #abuffer = tvm.decl_buffer((200,), dtype=A.dtype, data=A.asnode())
     bbuffer = tvm.decl_buffer((200,), dtype=B.dtype, data=B.asnode())
     cbuffer = tvm.decl_buffer((200,), dtype=C.dtype, data=C.asnode())
 
-    ib.emit(tvm.call_extern("float16", "cast_f32f16", cbuffer.access_ptr("w"), bbuffer.access_ptr("r")))
+    ib.emit(tvm.call_extern("float16", "vcast_f32f16", cbuffer.access_ptr("w"), bbuffer.access_ptr("r")))
     body = ib.get()
     body = tvm.ir_pass.StorageRewrite(body, "cce")
-    print(body)
+    #print(body)
     num_alloc = [0]
 
     def verify(n):
@@ -509,7 +508,7 @@ def test_call():
 
 
 if __name__ == "__main__":
-    '''test_alloc_seq()
+    test_alloc_seq()
     test_alloc_different_dtypes()
     test_inplace_rule()
     test_storage_share()
@@ -522,5 +521,5 @@ if __name__ == "__main__":
     test_alloc_seq_type()
     test_alloc_seq_type2()
     test_reuse_small_buffer()
-    test_replace_dataflow()'''
+    test_replace_dataflow()
     test_call()

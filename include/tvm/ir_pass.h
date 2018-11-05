@@ -283,7 +283,7 @@ Stmt InjectCopyIntrin(Stmt stmt,
  * \param stmt The stmt to be trasnformed
  * \return Transformed stmt.
  */
-Stmt StorageRewrite(Stmt stmt, const std::string& target);
+Stmt StorageRewrite(Stmt stmt, const std::string& target="");
 
 /*!
  * \brief partition loops in the stmt
