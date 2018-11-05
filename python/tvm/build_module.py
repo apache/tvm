@@ -294,6 +294,7 @@ def lower(sch,
           args,
           name="default_function",
           binds=None,
+          target=None,
           simple_mode=False):
     """Lowering step before build into target.
 
@@ -312,6 +313,9 @@ def lower(sch,
         Dictionary that maps the Tensor to Buffer which specified the data layout
         requirement of the function. By default, a new compact buffer is created
         for each tensor in the argument.
+
+    target : str or :any:`tvm.target.Target`
+        The target and option of the compilation.
 
     simple_mode : bool, optional
         Whether only output simple and compact statement, this will skip
@@ -332,6 +336,9 @@ def lower(sch,
     lower_phase1 = [x[1] for x in add_lower_pass if x[0] == 1]
     lower_phase2 = [x[1] for x in add_lower_pass if x[0] == 2]
     lower_phase3 = [x[1] for x in add_lower_pass if x[0] > 2]
+
+    if isinstance(target, _target.Target):
+        target = target.target_name
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
@@ -359,7 +366,7 @@ def lower(sch,
     stmt = ir_pass.VectorizeLoop(stmt)
     stmt = ir_pass.InjectVirtualThread(stmt)
     stmt = ir_pass.InjectDoubleBuffer(stmt, cfg.double_buffer_split_loop)
-    stmt = ir_pass.StorageRewrite(stmt)
+    stmt = ir_pass.StorageRewrite(stmt, target)
     stmt = ir_pass.UnrollLoop(
         stmt,
         cfg.auto_unroll_max_step,
