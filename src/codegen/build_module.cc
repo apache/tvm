@@ -391,7 +391,7 @@ Array<LoweredFunc> lower(Schedule sch,
                          const std::string& name,
                          const std::unordered_map<Tensor, Buffer>& binds,
                          const BuildConfig& config,
-                         const std::string& target = "") {
+                         const std::string& target) {
   Array<NodeRef> out_arg_list;
   auto stmt = BuildStmt(sch, args, binds, true, &out_arg_list, config, target);
   return Array<LoweredFunc>({ ir::MakeAPI(stmt, name, out_arg_list, 0, config->restricted_func) });
