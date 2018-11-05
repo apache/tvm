@@ -105,7 +105,7 @@ def schedule_reduce(outs):
         scheduled_ops.append(operator)
 
     def traverse_after_reduce(operator):
-        """Internal travserse function"""         
+        """Internal travserse function"""
         if tag.is_broadcast(operator.tag):
             if operator not in scheduled_ops:
                 _schedule_injective(operator, sch)
