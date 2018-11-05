@@ -236,7 +236,6 @@ class InplaceOpVerifier : public IRVisitor {
       if (target_.empty()) return false;
       const PackedFunc* f = runtime::Registry::Get("tvm."+target_+".intrin_inplace");
       if (f == nullptr) return false;
-      LOG(INFO)<<"call callback";
       result_ = (*f)(static_cast<const Evaluate*>(stmt)->value);
     } else {
       return false;
@@ -718,7 +717,6 @@ class StoragePlanRewriter : public IRMutator {
         bool detect_inplace = detect_inplace_ && (it->second.gen.size() <= 2);
 
         for (const Variable* var : it->second.gen) {
-          LOG(INFO)<<" ******************* ";
           CHECK(alloc_info.count(var));
           const AllocEntry& ae = alloc_info.at(var);
           StorageEntry* dst_entry = nullptr;
@@ -729,7 +727,6 @@ class StoragePlanRewriter : public IRMutator {
             for (const Variable* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 InplaceOpVerifier visitor(target_);
-                LOG(INFO)<<"calling inplace";
                 StorageEntry* src_entry = alloc_map_.at(src);
                 if (src_entry->scope == ae.storage_scope &&
                     src_entry->attach_scope_ == thread_scope_ &&
@@ -991,7 +988,7 @@ LoweredFunc PointerValueTypeRewrite(LoweredFunc f) {
   return LoweredFunc(n);
 }
 
-Stmt StorageRewrite(Stmt stmt, const std::string& target="") {
+Stmt StorageRewrite(Stmt stmt, const std::string& target) {
   stmt = StoragePlanRewriter(target).Rewrite(stmt, true);
   return VectorAllocRewriter().Mutate(stmt);
 }

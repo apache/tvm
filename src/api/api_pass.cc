@@ -91,6 +91,15 @@ TVM_REGISTER_API("ir_pass.PostOrderVisit")
       });
   });
 
+TVM_REGISTER_API("ir_pass.StorageRewrite")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+  if (args.size() > 1) {
+    *ret = StorageRewrite(args[0].operator Stmt(), args[1]);
+  } else {
+    *ret = StorageRewrite(args[0].operator Stmt());
+  }
+});
+
 // make from two arguments
 #define REGISTER_PASS1(PassName)                                  \
   TVM_REGISTER_API("ir_pass."#PassName)                           \
@@ -135,7 +144,6 @@ REGISTER_PASS2(ThreadSync);
 REGISTER_PASS5(MakeAPI);
 REGISTER_PASS2(BindDeviceType);
 REGISTER_PASS1(SplitHostDevice);
-REGISTER_PASS2(StorageRewrite);
 REGISTER_PASS1(CoProcSync);
 REGISTER_PASS1(LowerStorageAccessInfo);
 REGISTER_PASS1(InjectVirtualThread);
