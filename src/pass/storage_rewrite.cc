@@ -232,7 +232,7 @@ class InplaceOpVerifier : public IRVisitor {
       Visit_(static_cast<const IfThenElse*>(stmt));
     } else if (stmt->is_type<Store>()) {
       Visit_(static_cast<const Store*>(stmt));
-    } else if (stmt->is_type<Evaluate>()){
+    } else if (stmt->is_type<Evaluate>()) {
       if (target_.empty()) return false;
       const PackedFunc* f = runtime::Registry::Get("tvm."+target_+".intrin_inplace");
       if (f == nullptr) return false;
