@@ -217,7 +217,7 @@ class Pad(OnnxOpConverter):
                 'value': 'pad_value',
             },
             ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant') == 'constant',
+            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
                           'split mode != constant'))(inputs, attr, params)
 
     @classmethod
@@ -235,7 +235,7 @@ class Pad(OnnxOpConverter):
                 'value': 'pad_value',
             },
             ignores=['mode'],
-            custom_check=(lambda attrs: attrs.get('mode', 'constant') == 'constant',
+            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
                           'split mode != constant'))(inputs, attr, params)
 
 
