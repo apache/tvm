@@ -6,7 +6,7 @@ from .._ffi.function import get_global_func
 from .._ffi.runtime_ctypes import TVMContext
 from ..rpc import base as rpc_base
 
-def create(graph_json_str, libmod, ctx):
+def create(graph_json_str, libmod, ctx, debug=False):
     """Create a runtime executor module given a graph and module.
     Parameters
     ----------
@@ -21,6 +21,8 @@ def create(graph_json_str, libmod, ctx):
         is only one TVMContext. Otherwise, the first context in the list will
         be used as this purpose. All context should be given for heterogeneous
         execution.
+    debug : bool
+        Whether to create a runtime with debug enabled
     Returns
     -------
     graph_module : GraphModule
@@ -36,10 +38,16 @@ def create(graph_json_str, libmod, ctx):
 
     if num_rpc_ctx == len(ctx):
         hmod = rpc_base._ModuleHandle(libmod)
-        fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
+        if debug:
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime_debug.remote_create")
+        else:
+            fcreate = ctx[0]._rpc_sess.get_function("tvm.graph_runtime.remote_create")
         return GraphModule(fcreate(graph_json_str, hmod, *device_type_id))
 
-    fcreate = get_global_func("tvm.graph_runtime.create")
+    if debug:
+        fcreate = get_global_func("tvm.graph_runtime_debug.create")
+    else:
+        fcreate = get_global_func("tvm.graph_runtime.create")
     return GraphModule(fcreate(graph_json_str, libmod, *device_type_id))
 
 def get_device_ctx(libmod, ctx):
