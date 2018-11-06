@@ -132,6 +132,26 @@ class CodeGenLLVM :
     /*! \brief The alignment of allocation */
     int alignment{0};
   };
+  /*!
+   * \brief Execute falloca at the beginning of the
+   *  currrent function and obtain its return value.
+   *
+   *  This is a helper function to make sure that
+   *  alloca always happen in the beginning of the function.
+   *
+   * \param falloca The allocation function to be executed.
+   * \tparam F The function to be executed.
+   * \return The result.
+   */
+  template<typename F>
+  inline llvm::AllocaInst* WithFunctionEntry(F falloca) {
+    llvm::BasicBlock* current = builder_->GetInsertBlock();
+    llvm::BasicBlock* entry = &(function_->getEntryBlock());
+    builder_->SetInsertPoint(entry, entry->begin());
+    llvm::AllocaInst* res = falloca();
+    builder_->SetInsertPoint(current);
+    return res;
+  }
   // create intrinstic given call
   virtual llvm::Value* CreateIntrinsic(const Call* op);
   // create extern function call
