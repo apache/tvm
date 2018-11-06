@@ -108,6 +108,9 @@ def test_group_conv2d():
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_bias=True)
         verify_group_conv2d_NCHWc_int8(1, 128, 56, 128, 3, 1, 1, 1, 32, add_relu=True,
                                        add_bias=True)
+        # dilation
+        verify_group_conv2d_NCHWc_int8(2, 128, 56, 128, 3, 1, 1, 2, 32)
+
         # batch size
         verify_group_conv2d_NCHWc_int8(2, 128, 56, 128, 3, 1, 1, 1, 32)
         verify_group_conv2d_NCHWc_int8(9, 128, 56, 128, 3, 1, 1, 1, 32)
