@@ -712,6 +712,41 @@ def test_constantfill():
     verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
+def verify_split(indata, outdatas, split, axis=0):
+    indata = np.array(indata).astype(np.float32)
+    outdatas = [np.array(o).astype(np.float32) for o in outdatas]
+    node = helper.make_node(
+        'Split',
+        inputs=['input'],
+        outputs=['output_{}'.format(i) for i in range(len(split))],
+        axis=axis,
+        split=split
+    )
+    graph = helper.make_graph([node],
+                              'split_test',
+                              inputs = [helper.make_tensor_value_info("input",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("output_{}".format(i),
+                                            TensorProto.FLOAT, list(outdatas[i].shape))
+                                            for i in range(len(split))
+                                         ])
+    model = helper.make_model(graph, producer_name='split_test')
+
+    for target, ctx in ctx_list():
+        output_shape = [o.shape for o in outdatas]
+        output_type = ['float32', 'float32', 'float32']
+        tvm_out = get_tvm_output(model, indata, target, ctx, output_shape, output_type)
+    for o, t in zip(outdatas, tvm_out):
+        tvm.testing.assert_allclose(o, t)
+
+def test_split():
+    # 1D
+    verify_split([1., 2., 3., 4., 5., 6.], [[1., 2.], [3., 4.], [5., 6.]], [2, 2, 2], 0)
+    verify_split([1., 2., 3., 4., 5., 6.], [[1., 2.], [3.], [4., 5., 6.]], [2, 1, 3], 0)
+    # 2D
+    verify_split([[1., 2., 3., 4.], [7., 8., 9., 10.]],
+                 [[[1., 2.], [7., 8.]], [[3., 4.], [9., 10.]]], [2, 2], 1)
+
 if __name__ == '__main__':
     # verify_super_resolution_example()
     # verify_squeezenet1_1()
@@ -737,3 +772,4 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantfill()
+    test_split()

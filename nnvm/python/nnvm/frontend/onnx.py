@@ -464,6 +464,23 @@ class Unsqueeze(OnnxOpConverter):
             inputs[0] = _sym.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
+
+class Split(OnnxOpConverter):
+    """ Operator converter for Split.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        attr['indices_or_sections'] = []
+        index = 0
+        for i in attr['split'][:-1]:
+            index += i
+            attr['indices_or_sections'].append(index)
+        return AttrCvt(
+            op_name='split',
+            ignores=['split'])(inputs, attr, params)
+
+
 class Slice(OnnxOpConverter):
     """ Operator converter for Slice.
     """
@@ -754,7 +771,7 @@ def _get_convert_map(opset):
         'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
         'Concat': Renamer('concatenate'),
-        'Split': AttrCvt('split', {'split': 'indices_or_sections'}),
+        'Split': Split.get_converter(opset),
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
         'Gather': Gather.get_converter(opset),
