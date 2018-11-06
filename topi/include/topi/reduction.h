@@ -262,7 +262,7 @@ using FIdentity = std::function<Array<Expr>(std::vector<Type> types)>;
 inline FCommReduce MakeCommReducer(FCombine fcombine,
                                    FIdentity fidentity,
                                    std::string name = "reduce") {
-  return [fcombine, fidentity, &name]
+  return [fcombine, fidentity, name]
   (Array<Expr> exprs, const Array<IterVar>& axis, Expr* condition) {
     Array<Var> lhs, rhs;
     std::vector<Type> dtypes;
