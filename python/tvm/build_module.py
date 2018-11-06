@@ -339,6 +339,8 @@ def lower(sch,
 
     if isinstance(target, _target.Target):
         target = target.target_name
+    else:
+        target = ""
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
