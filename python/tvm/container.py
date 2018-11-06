@@ -17,6 +17,10 @@ class Array(NodeBase):
             start = i.start if i.start is not None else 0
             stop = i.stop if i.stop is not None else len(self)
             step = i.step if i.step is not None else 1
+            if start < 0:
+                start += len(self)
+            if stop < 0:
+                stop += len(self)
             return [self[idx] for idx in range(start, stop, step)]
 
         if i < 0:
