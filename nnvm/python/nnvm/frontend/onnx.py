@@ -1,4 +1,4 @@
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines
 """ONNX: Open Neural Network Exchange frontend."""
 from __future__ import absolute_import as _abs
 import numpy as np
