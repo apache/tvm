@@ -3,7 +3,7 @@
  * \file text_printer.cc
  * \brief Text printer to print relay in text form.
  */
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/expr_functor.h>
 #include <sstream>
 #include "type_functor.h"
@@ -133,8 +133,8 @@ class TextPrinter :
   std::string Print(const NodeRef& node) {
     if (node.as<FunctionNode>()) {
       this->PrintFunc(Downcast<Function>(node));
-    } else if (node.as<EnvironmentNode>()) {
-      this->PrintEnv(Downcast<Environment>(node));
+    } else if (node.as<ModuleNode>()) {
+      this->PrintEnv(Downcast<Module>(node));
     } else if (node.as_derived<TypeNode>()) {
       this->PrintType(Downcast<Type>(node), stream_);
     } else if (node.as_derived<ExprNode>()) {
@@ -158,9 +158,9 @@ class TextPrinter :
     stream_ << "\n";
   }
 
-  void PrintEnv(const Environment& env) {
+  void PrintEnv(const Module& mod) {
     int counter = 0;
-    for (const auto& kv : env->functions) {
+    for (const auto& kv : mod->functions) {
       std::ostringstream os;
       if (counter++ != 0) {
         stream_ << "\n";
@@ -271,7 +271,7 @@ class TextPrinter :
   TextValue VisitExpr_(const FunctionNode* op) final {
     TextValue id = AllocTempVar();
     std::ostringstream os;
-    os << id << " = function";
+    os << id << " = fn";
     this->PrintFuncInternal(os.str(), GetRef<Function>(op));
     this->PrintEndInst("\n");
     return id;
@@ -516,11 +516,14 @@ class TextPrinter :
         stream_ << ",\n";
       }
     }
-    stream_ << ") ";
+    stream_ << ')';
     if (fn->ret_type.defined()) {
-      stream_ << " -> ";
+      stream_ << '\n';
+      this->PrintIndent(decl_indent);
+      stream_ << "-> ";
       this->PrintType(fn->ret_type, stream_);
     }
+    stream_ << ' ';
     this->PrintScope(fn->body);
   }
   /*!

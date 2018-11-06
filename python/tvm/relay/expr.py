@@ -1,6 +1,7 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression nodes of Relay."""
 from __future__ import absolute_import
+from numbers import Number as _Number
 
 import numpy as _np
 from .base import RelayNode, register_relay_node
@@ -11,6 +12,8 @@ from .._ffi import base as _base
 from .. import nd as _nd
 from .. import convert
 
+# will be registered afterwards
+_op_make = None
 
 class Expr(RelayNode):
     """The base type for all Relay expressions."""
@@ -47,6 +50,62 @@ class Expr(RelayNode):
             The result expression.
         """
         return _make.dtype_cast(self, dtype)
+
+    def __add__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.add(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __sub__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.subtract(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rsub__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __mul__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.multiply(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __div__(self, other):
+        if isinstance(other, Expr):
+            return _op_make.divide(self, other)
+        elif isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __rdiv__(self, other):
+        if isinstance(other, _Number):
+            raise TypeError('convert "%s" with `const` first' % str(other))
+        else:
+            raise TypeError("type %s not supported" % str(type(other)))
+
+    def __truediv__(self, other):
+        return self.__div__(other)
+
+    def __rtruediv__(self, other):
+        return self.__rdiv__(other)
 
 
 @register_relay_node
@@ -113,7 +172,7 @@ class GlobalVar(Expr):
     """A global variable in Tvm.Relay.
 
     GlobalVar is used to refer to the global functions
-    stored in the environment.
+    stored in the module.
 
     Parameters
     ----------
@@ -261,6 +320,131 @@ class TupleGetItem(Expr):
             _make.TupleGetItem, tuple_value, index)
 
 
+class ExprFunctor(object):
+    """
+    An abstract visitor defined over Expr.
+
+    Defines the default dispatch over expressions, and
+    implements memoization.
+    """
+    def __init__(self):
+        self.memo_map = {}
+
+    # pylint: disable=no-else-return
+    def visit(self, expr):
+        """Apply the visitor to an expression."""
+        found = self.memo_map.get(expr)
+        if found:
+            return found
+
+        if isinstance(expr, Function):
+            res = self.visit_function(expr)
+        elif isinstance(expr, Call):
+            res = self.visit_call(expr)
+        elif isinstance(expr, Let):
+            res = self.visit_let(expr)
+        elif isinstance(expr, Var):
+            res = self.visit_var(expr)
+        elif isinstance(expr, GlobalVar):
+            res = self.visit_global_var(expr)
+        elif isinstance(expr, If):
+            res = self.visit_if(expr)
+        elif isinstance(expr, Tuple):
+            res = self.visit_tuple(expr)
+        elif isinstance(expr, TupleGetItem):
+            res = self.visit_tuple_getitem(expr)
+        elif isinstance(expr, Constant):
+            res = self.visit_constant(expr)
+        else:
+            raise Exception("warning unhandled case: {0}".format(type(expr)))
+
+        self.memo_map[expr] = res
+        return res
+
+    def visit_function(self, _):
+        raise NotImplementedError()
+
+    def visit_let(self, _):
+        raise NotImplementedError()
+
+    def visit_call(self, _):
+        raise NotImplementedError()
+
+    def visit_var(self, _):
+        raise NotImplementedError()
+
+    def visit_type(self, typ):
+        return typ
+
+    def visit_if(self, _):
+        raise NotImplementedError()
+
+    def visit_tuple(self, _):
+        raise NotImplementedError()
+
+    def visit_tuple_getitem(self, _):
+        raise NotImplementedError()
+
+    def visit_constant(self, _):
+        raise NotImplementedError()
+
+    def visit_global_var(self, _):
+        raise NotImplementedError()
+
+
+class ExprMutator(ExprFunctor):
+    """
+    A functional visitor over Expr.
+
+    The default behavior recursively traverses the AST
+    and reconstructs the AST.
+    """
+    def visit_function(self, fn):
+        new_body = self.visit(fn.body)
+        return Function(
+            list(fn.params),
+            fn.ret_type, new_body,
+            fn.type_params)
+
+    def visit_let(self, let):
+        new_var = self.visit(let.var)
+        new_val = self.visit(let.value)
+        new_body = self.visit(let.body)
+        return Let(new_var, new_val, new_body)
+
+    def visit_call(self, call):
+        new_fn = self.visit(call.op)
+        new_args = [self.visit(arg) for arg in call.args]
+        return Call(new_fn, new_args, call.attrs)
+
+    def visit_var(self, rvar):
+        return rvar
+
+    def visit_global_id(self, global_var):
+        return global_var
+
+    def visit_if(self, ite):
+        return If(
+            self.visit(ite.guard),
+            self.visit(ite.true_b),
+            self.visit(ite.false_b))
+
+    def visit_tuple(self, tup):
+        return Tuple([self.visit(field) for field in tup.fields])
+
+    def visit_tuple_getitem(self, op):
+        tuple_value = self.visit(op.tuple_value)
+        if not tuple_value.same_as(op.tuple_value):
+            return TupleGetItem(tuple_value, op.index)
+        return op
+
+    def visit_global_var(self, gvar):
+        return gvar
+
+    def visit_constant(self, rconst):
+        return rconst
+
+
 class TupleWrapper(object):
     """TupleWrapper.
 
@@ -305,7 +489,7 @@ class TupleWrapper(object):
 
     def __repr__(self):
         return ("TupleWrapper(" + self.tuple_value.__repr__() +
-                ", " + self.size + ")")
+                ", " + str(self.size) + ")")
 
     def astype(self, _):
         raise TypeError("astype cannot be used on tuple")

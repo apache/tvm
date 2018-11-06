@@ -32,9 +32,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
     layout = None
     if target == "cuda":
         layout = "NCHW"
-
-    sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout)
     target_host = 'llvm'
+
     if isinstance(input_data, list):
         shape_dict = {}
         dtype_dict = {}
@@ -45,6 +44,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
         shape_dict = {input_node: input_data.shape}
         dtype_dict = {input_node: input_data.dtype}
 
+    sym, params = nnvm.frontend.from_tensorflow(graph_def, layout=layout, shape=shape_dict)
     graph, lib, params = nnvm.compiler.build(sym, target=target, target_host=target_host, shape=shape_dict,
                                              dtype=dtype_dict, params=params)
 
@@ -696,15 +696,20 @@ def test_forward_inception_v1():
 # ---------
 def test_forward_mobilenet():
     '''test mobilenet model'''
+    # MobilenetV2
     with tf.Graph().as_default():
-        graph_def = nnvm.testing.tf.get_workload("MobilenetV1/mobilenet_v1_1.0_224_frozen-with-shapes.pb")
+        graph_def = nnvm.testing.tf.get_workload(
+            "https://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.4_224.tgz",
+            "mobilenet_v2_1.4_224_frozen.pb")
         # Call the utility to import the graph definition into default graph.
         graph_def = nnvm.testing.tf.ProcessGraphDefParam(graph_def)
 
         data = np.random.uniform(size=(1, 224, 224, 3)).astype('float32')
-        out_node = 'MobilenetV1/Predictions/Reshape_1'
+        out_node = 'MobilenetV2/Predictions/Reshape_1'
 
         with tf.Session() as sess:
+            # Add shapes to the graph.
+            graph_def = nnvm.testing.tf.AddShapesToGraphDef(sess, out_node)
             tf_output = run_tf_graph(sess, data, 'input:0', out_node + ':0')
             tvm_output = run_tvm_graph(graph_def, data, 'input')
             tvm.testing.assert_allclose(np.squeeze(tvm_output), np.squeeze(tf_output), rtol=1e-5, atol=1e-5)

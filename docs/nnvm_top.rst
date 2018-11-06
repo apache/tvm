@@ -61,6 +61,7 @@ This level enables fully connected multi-layer perceptron.
    nnvm.symbol.flip
    nnvm.symbol.lrn
    nnvm.symbol.where
+   nnvm.symbol.gather_nd
 
 
 **Level 2: Convolutions**
@@ -197,6 +198,7 @@ Detailed Definitions
 .. autofunction:: nnvm.symbol.flip
 .. autofunction:: nnvm.symbol.lrn
 .. autofunction:: nnvm.symbol.where
+.. autofunction:: nnvm.symbol.gather_nd
 
 .. autofunction:: nnvm.symbol.conv2d
 .. autofunction:: nnvm.symbol.conv2d_transpose

@@ -1,9 +1,9 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file  environment.cc
- * \brief The global environment in Relay.
+ * \file  module.cc
+ * \brief The global module in Relay.
  */
-#include <tvm/relay/environment.h>
+#include <tvm/relay/module.h>
 #include <tvm/relay/pass.h>
 #include <sstream>
 
@@ -13,8 +13,8 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace runtime;
 
-Environment EnvironmentNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
-  auto n = make_node<EnvironmentNode>();
+Module ModuleNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
+  auto n = make_node<ModuleNode>();
   n->functions = std::move(global_funcs);
 
   for (const auto& kv : n->functions) {
@@ -23,22 +23,22 @@ Environment EnvironmentNode::make(tvm::Map<GlobalVar, Function> global_funcs) {
         << "Duplicate global function name " << kv.first->name_hint;
     n->global_var_map_.Set(kv.first->name_hint, kv.first);
   }
-  return Environment(n);
+  return Module(n);
 }
 
-GlobalVar EnvironmentNode::GetGlobalVar(const std::string& name) {
+GlobalVar ModuleNode::GetGlobalVar(const std::string& name) {
   auto it = global_var_map_.find(name);
   CHECK(it != global_var_map_.end())
-      << "Cannot find global var " << name << " in the Environment";
+      << "Cannot find global var " << name << " in the Module";
   return (*it).second;
 }
 
-void EnvironmentNode::Add(const GlobalVar& var,
+void ModuleNode::Add(const GlobalVar& var,
                           const Function& func,
                           bool update) {
-  // Type check the item before we add it to the environment.
-  auto env = GetRef<Environment>(this);
-  Function checked_func = InferType(func, env, var);
+  // Type check the item before we add it to the modironment.
+  auto mod = GetRef<Module>(this);
+  Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();
   CHECK(type.as<IncompleteTypeNode>() == nullptr);
   if (functions.find(var) != functions.end()) {
@@ -46,88 +46,95 @@ void EnvironmentNode::Add(const GlobalVar& var,
         << "Already have definition for " << var->name_hint;
     auto old_type = functions[var].as<FunctionNode>()->checked_type();
     CHECK(AlphaEqual(type, old_type))
-        << "Environment#update changes type, not possible in this mode.";
+        << "Module#update changes type, not possible in this mode.";
   }
   this->functions.Set(var, checked_func);
-  // set gloval var map
-  CHECK(!global_var_map_.count(var->name_hint))
-      << "Duplicate global function name " << var->name_hint;
+
+  auto it = global_var_map_.find(var->name_hint);
+  if (it != global_var_map_.end()) {
+    CHECK_EQ((*it).second, var);
+  } else {
+    // set global var map
+    CHECK(!global_var_map_.count(var->name_hint))
+        << "Duplicate global function name " << var->name_hint;
+  }
+
   global_var_map_.Set(var->name_hint, var);
 }
 
-void EnvironmentNode::Update(const GlobalVar& var, const Function& func) {
+void ModuleNode::Update(const GlobalVar& var, const Function& func) {
   this->Add(var, func, true);
 }
 
-void EnvironmentNode::Remove(const GlobalVar& var) {
+void ModuleNode::Remove(const GlobalVar& var) {
   auto functions_node = this->functions.CopyOnWrite();
   functions_node->data.erase(var.node_);
   auto gvar_node = global_var_map_.CopyOnWrite();
   gvar_node->data.erase(var->name_hint);
 }
 
-Function EnvironmentNode::Lookup(const GlobalVar& var) {
+Function ModuleNode::Lookup(const GlobalVar& var) {
   auto it = functions.find(var);
   CHECK(it != functions.end())
       << "There is no definition of " << var->name_hint;
   return (*it).second;
 }
 
-Function EnvironmentNode::Lookup(const std::string& name) {
+Function ModuleNode::Lookup(const std::string& name) {
   GlobalVar id = this->GetGlobalVar(name);
   return this->Lookup(id);
 }
 
-void EnvironmentNode::Update(const Environment& env) {
-  for (auto pair : env->functions) {
+void ModuleNode::Update(const Module& mod) {
+  for (auto pair : mod->functions) {
     this->Update(pair.first, pair.second);
   }
 }
 
-TVM_REGISTER_NODE_TYPE(EnvironmentNode);
+TVM_REGISTER_NODE_TYPE(ModuleNode);
 
-TVM_REGISTER_API("relay._make.Environment")
+TVM_REGISTER_API("relay._make.Module")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    *ret = EnvironmentNode::make(args[0]);
+    *ret = ModuleNode::make(args[0]);
   });
 
-TVM_REGISTER_API("relay._env.Environment_Add")
+TVM_REGISTER_API("relay._module.Module_Add")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    Environment env = args[0];
-    env->Add(args[1], args[2], false);
+    Module mod = args[0];
+    mod->Add(args[1], args[2], args[3]);
   });
 
-TVM_REGISTER_API("relay._env.Environment_GetGlobalVar")
+TVM_REGISTER_API("relay._module.Module_GetGlobalVar")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    Environment env = args[0];
-    *ret = env->GetGlobalVar(args[1]);
+    Module mod = args[0];
+    *ret = mod->GetGlobalVar(args[1]);
   });
 
-TVM_REGISTER_API("relay._env.Environment_Lookup")
+TVM_REGISTER_API("relay._module.Module_Lookup")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    Environment env = args[0];
+    Module mod = args[0];
     GlobalVar var = args[1];
-    *ret = env->Lookup(var);
+    *ret = mod->Lookup(var);
   });
 
-TVM_REGISTER_API("relay._env.Environment_Lookup_str")
+TVM_REGISTER_API("relay._module.Module_Lookup_str")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    Environment env = args[0];
+    Module mod = args[0];
     std::string var_name = args[1];
-    auto var = env->GetGlobalVar(var_name);
-    *ret = env->Lookup(var);
+    auto var = mod->GetGlobalVar(var_name);
+    *ret = mod->Lookup(var);
   });
 
-TVM_REGISTER_API("relay._env.Environment_Update")
+TVM_REGISTER_API("relay._module.Module_Update")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    Environment env = args[0];
-    env->Update(args[1]);
+    Module mod = args[0];
+    mod->Update(args[1]);
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
-.set_dispatch<EnvironmentNode>(
-    [](const EnvironmentNode *node, tvm::IRPrinter *p) {
-      p->stream << "EnvironmentNode( " << node->functions << ")";
+.set_dispatch<ModuleNode>(
+    [](const ModuleNode *node, tvm::IRPrinter *p) {
+      p->stream << "ModuleNode( " << node->functions << ")";
     });
 
 }  // namespace relay

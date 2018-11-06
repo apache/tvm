@@ -213,6 +213,22 @@ def add(lhs, rhs):
     """
     return _make.add(lhs, rhs)
 
+def subtract(lhs, rhs):
+    """Subtraction with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    lhs : relay.Expr
+        The left hand side input data
+    rhs : relay.Expr
+        The right hand side input data
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.subtract(lhs, rhs)
 
 def multiply(lhs, rhs):
     """Multiplication with numpy-style broadcasting.
@@ -250,7 +266,7 @@ def divide(lhs, rhs):
     return _make.divide(lhs, rhs)
 
 
-def pow(lhs, rhs):
+def power(lhs, rhs):
     """Power with numpy-style broadcasting.
 
     Parameters
@@ -265,7 +281,7 @@ def pow(lhs, rhs):
     result : relay.Expr
         The computed result.
     """
-    return _make.pow(lhs, rhs)
+    return _make.power(lhs, rhs)
 
 
 def mod(lhs, rhs):
@@ -284,24 +300,6 @@ def mod(lhs, rhs):
         The computed result.
     """
     return _make.mod(lhs, rhs)
-
-
-def subtract(lhs, rhs):
-    """Subtraction with numpy-style broadcasting.
-
-    Parameters
-    ----------
-    lhs : relay.Expr
-        The left hand side input data
-    rhs : relay.Expr
-        The right hand side input data
-
-    Returns
-    -------
-    result : relay.Expr
-        The computed result.
-    """
-    return _make.subtract(lhs, rhs)
 
 
 def equal(lhs, rhs):
@@ -552,7 +550,6 @@ def ones_like(data):
         The computed result.
     """
     return _make.ones_like(data)
-
 
 def clip(a, a_min, a_max):
     """Clip the elements in `a` between `a_min` and `a_max`.

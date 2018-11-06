@@ -132,7 +132,7 @@ class GraphModule(object):
         params : dict of str to NDArray
            Additonal arguments
         """
-        if key:
+        if key is not None:
             self._get_input(key).copyfrom(value)
 
         if params:

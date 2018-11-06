@@ -28,7 +28,7 @@ def test_env():
     z = relay.add(x, y)
     z = relay.add(z, z)
     f = relay.Function([x, y], z)
-    env = relay.Environment()
+    env = relay.Module()
     env["myf"] = f
     text = env.astext()
     assert "def @myf" in text
@@ -104,6 +104,10 @@ def test_resnet():
     net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
     net.astext()
 
+def test_mobilenet():
+    net, params = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
+    net.astext()
+
 def test_dqn():
     net, params = tvm.relay.testing.dqn.get_workload(batch_size=1)
     net.astext()
@@ -115,6 +119,7 @@ def test_dcgan():
 if __name__ == "__main__":
     do_print[0] = True
     test_resnet()
+    test_mobilenet()
     test_mlp()
     test_dqn()
     test_dcgan()

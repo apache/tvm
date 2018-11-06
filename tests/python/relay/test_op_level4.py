@@ -1,10 +1,11 @@
 import tvm
 import numpy as np
 from tvm import relay
+from tvm.relay.testing import ctx_list
 
 
 def test_binary_op():
-    def check_binary_op(opfunc):
+    def check_binary_op(opfunc, ref):
         n = tvm.var("n")
         t1 = relay.TensorType((5, n, 5))
         t2 = relay.TensorType((n, 1))
@@ -15,17 +16,33 @@ def test_binary_op():
         assert ("%0 = {}(%x, %y)".format(z.op.name)) in z.astext()
         assert relay.ir_pass.infer_type(z).checked_type == t1
 
-    for opfunc in [relay.pow]:
-        check_binary_op(opfunc)
+        if ref is not None:
+            t1 = relay.TensorType((5, 10, 5))
+            t2 = relay.TensorType((5, 10, 5))
+            x = relay.var("x", t1)
+            y = relay.var("y", t2)
+            z = opfunc(x, y)
+            x_data = np.random.rand(5, 10, 5).astype(t1.dtype)
+            y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
+            ref_res = ref(x_data, y_data)
+            func = relay.Function([x, y], z)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
+    for opfunc, ref in [(relay.power, np.power)]:
+        check_binary_op(opfunc, ref)
 
 
 def test_cmp_type():
-    for op in (relay.greater,
-               relay.greater_equal,
-               relay.less,
-               relay.less_equal,
-               relay.equal,
-               relay.not_equal):
+    for op, ref in ((relay.greater, np.greater),
+               (relay.greater_equal, np.greater_equal),
+               (relay.less, np.less),
+               (relay.less_equal, np.less_equal),
+               (relay.equal, np.equal),
+               (relay.not_equal, np.not_equal)):
         x = relay.var("x", relay.TensorType((10, 4), "float32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "float32"))
         z = op(x, y)
@@ -33,17 +50,51 @@ def test_cmp_type():
         zz = relay.ir_pass.infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "bool")
 
+        if ref is not None:
+            x_shape = (10, 4)
+            y_shape = (5, 10, 1)
+            t1 = relay.TensorType(x_shape)
+            t2 = relay.TensorType(y_shape)
+            x = relay.var("x", t1)
+            y = relay.var("y", t2)
+            z = op(x, y)
+            x_data = np.random.rand(*x_shape).astype(t1.dtype)
+            y_data = np.random.rand(*y_shape).astype(t2.dtype)
+            ref_res = ref(x_data, y_data)
+            func = relay.Function([x, y], z)
+
+            for target, ctx in ctx_list():
+                intrp = relay.create_executor("graph", ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
 
 def test_binary_int_broadcast():
-    for op in [relay.right_shift,
-               relay.left_shift,
-               relay.maximum,
-               relay.minimum]:
+    for op, ref in [(relay.right_shift, np.right_shift),
+               (relay.left_shift, np.left_shift),
+                (relay.mod, np.mod),
+               (relay.maximum, np.maximum),
+               (relay.minimum, np.minimum)]:
         x = relay.var("x", relay.TensorType((10, 4), "int32"))
         y = relay.var("y", relay.TensorType((5, 10, 1), "int32"))
         z = op(x, y)
         zz = relay.ir_pass.infer_type(z)
         assert zz.checked_type == relay.TensorType((5, 10, 4), "int32")
+
+    if ref is not None:
+        x_shape = (10, 4)
+        y_shape = (5, 10, 1)
+        t1 = relay.TensorType(x_shape, 'int32')
+        t2 = relay.TensorType(y_shape, 'int32')
+        x_data = np.random.rand(*x_shape).astype(t1.dtype)
+        y_data = np.random.rand(*y_shape).astype(t2.dtype)
+        func = relay.Function([x, y], z)
+        ref_res = ref(x_data, y_data)
+
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data, y_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
 
 
 def test_where():

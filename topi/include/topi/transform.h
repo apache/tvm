@@ -640,6 +640,60 @@ inline Tensor where(const Tensor& condition,
 }
 
 /*!
+* \brief Gather elements from a n-dimension array.
+*
+* \param data The source array.
+* \param indices The indices of the values to extract.
+* \param name The name of the operation.
+* \param tag The tag to mark the operation.
+*
+* \return A Tensor whose op member is the gather_nd operation
+*/
+inline Tensor gather_nd(const Tensor& data,
+                        const Tensor& indices,
+                        std::string name = "tensor",
+                        std::string tag = kInjective) {
+  size_t ndim_d = data->shape.size();
+  size_t ndim_i = indices->shape.size();
+  CHECK_GT(ndim_i, 1) << "indices tensor must have at least 2 dimensions";
+  size_t indices_dim0 = static_cast<size_t>(GetConstInt(indices->shape[0]));
+  CHECK_LE(indices_dim0, ndim_d) << "dim 0 of indices tensor must be no more "
+                                 << "than dimensions of data tensor";
+  Array<Expr> out_shape;
+  for (size_t i = 1; i < ndim_i; ++i) {
+    out_shape.push_back(indices->shape[i]);
+  }
+  for (size_t i = indices_dim0; i < ndim_d; ++i) {
+    out_shape.push_back(data->shape[i]);
+  }
+  if (out_shape.size() == 0) {
+    out_shape.push_back(make_const(Int(32), 1));
+  }
+  return compute(
+        out_shape, [&](const Array<Var>& out_index) {
+          Array<Expr> indices_position;
+          indices_position.push_back(0);
+          for (size_t i = 0; i < ndim_i - 1; ++i) {
+            indices_position.push_back(out_index[i]);
+          }
+          Array<Expr> real_indices;
+          for (size_t i = 0; i < indices_dim0; ++i) {
+            indices_position.Set(0, make_const(Int(32), i));
+            if (indices->dtype.is_int()) {
+              real_indices.push_back(indices(indices_position));
+            } else {
+              real_indices.push_back(
+                  tvm::cast(tvm::Int(32), indices(indices_position)));
+            }
+          }
+          for (size_t i = ndim_i - 1; i < out_index.size(); ++i) {
+            real_indices.push_back(out_index[i]);
+          }
+          return data(real_indices);
+        }, name, tag);
+}
+
+/*!
  * \brief Creates an operation that calculates a matrix multiplication
  *  (row-major notation):
  *      A(i, k) * B(k, j), if trans_a == trans_b

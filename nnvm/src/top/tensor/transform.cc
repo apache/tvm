@@ -631,6 +631,15 @@ The significance of each is explained below:
 })
 .set_support_level(3);
 
+inline bool ReshapeLikeInferType(const NodeAttrs &attrs,
+                                 std::vector<int> *in_attrs,
+                                 std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
 NNVM_REGISTER_OP(reshape_like)
   .describe(R"code(Reshapes the input array by the size of another array.
 For an input array with shape ``(d1, d2, ..., dk)``, `reshape_like` operation reshapes
@@ -651,7 +660,7 @@ the input array into an output array with the same shape as the second input arr
     NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, in_attrs->at(1));
     return true;
 })
-.set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)
+.set_attr<FInferType>("FInferType", ReshapeLikeInferType)
 // never transform layout of the second input array.
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_attr<FGradient>(
@@ -1003,7 +1012,7 @@ Examples::
        [ 3, 4]]
 
   flip(x) = [[ 3.,  4.],
-                  [ 1.,  2.]]
+             [ 1.,  2.]]
 
   x = [[[ 1.,  2.],
         [ 3.,  4.]],
@@ -1012,16 +1021,16 @@ Examples::
         [ 7.,  8.]]]
 
   flip(x) = [[[ 5.,  6.],
-                   [ 7.,  8.]],
+              [ 7.,  8.]],
 
-                  [[ 1.,  2.],
-                   [ 3.,  4.]]]
+             [[ 1.,  2.],
+              [ 3.,  4.]]]
 
   flip(x, axis=1) = [[[ 3.,  4.],
-                                 [ 1.,  2.]],
+                      [ 1.,  2.]],
 
-                                [[ 7.,  8.],
-                                 [ 5.,  6.]]]
+                     [[ 7.,  8.],
+                      [ 5.,  6.]]]
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "Source input")
 .add_arguments(FlipParam::__FIELDS__())
@@ -1352,6 +1361,108 @@ Examples::
   return std::vector<std::string>{"condition", "x", "y"};
 })
 .set_support_level(4);
+
+// gather_nd
+inline bool GatherNDInferShape(const nnvm::NodeAttrs& attrs,
+                               std::vector<TShape>* in_attrs,
+                               std::vector<TShape>* out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  const TShape& data_shape = in_attrs->at(0);
+  const TShape& indices_shape = in_attrs->at(1);
+  CHECK_GT(indices_shape.ndim(), 1) << "indices must have at least 2 dimensions";
+  CHECK_LE(indices_shape[0], data_shape.ndim()) <<
+      "dim 0 of indices must be no more than rank of data";
+  std::vector<dim_t> oshape;
+  for (size_t i = 1; i < indices_shape.ndim(); ++i) {
+    oshape.push_back(indices_shape[i]);
+  }
+  for (size_t i = indices_shape[0]; i < data_shape.ndim(); ++i) {
+    oshape.push_back(data_shape[i]);
+  }
+  if (oshape.size() == 0) {
+    oshape.push_back(1);
+  }
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0,
+                           TShape(oshape.begin(), oshape.end()));
+  return true;
+}
+
+inline bool GatherNDInferType(const NodeAttrs &attrs,
+                              std::vector<int> *in_attrs,
+                              std::vector<int> *out_attrs) {
+  CHECK_EQ(in_attrs->size(), 2U);
+  CHECK_EQ(out_attrs->size(), 1U);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, (*in_attrs)[0]);
+  return true;
+}
+
+inline bool GatherNDCorrectLayout(const NodeAttrs& attrs,
+                                  std::vector<Layout> *ilayouts,
+                                  const std::vector<Layout> *last_ilayouts,
+                                  std::vector<Layout> *olayouts) {
+  CHECK_EQ(ilayouts->size(), last_ilayouts->size());
+  CHECK_EQ(olayouts->size(), 1U);
+
+  for (size_t i = 0; i < ilayouts->size(); ++i) {
+    const Layout& input = last_ilayouts->at(i).defined() ?
+                          last_ilayouts->at(i) : ilayouts->at(i);
+    NNVM_ASSIGN_LAYOUT(*ilayouts, i, input);
+  }
+
+  return true;
+}
+
+NNVM_REGISTER_OP(gather_nd)
+.describe(R"code(
+Gather elements or slices from ``data`` into a tensor specified by ``indices``.
+
+The shape of output tensor is inferred from ``indices``. Given ``data`` with
+shape ``(X0, X1, ..., X_{N-1})`` and ``indices`` with shape ``(Y_0, ...,
+Y_{M-1})``, the output will have shape ``(Y_1, ..., Y_{M-1}, X_{Y_0}, ...,
+X_{N-1})`` when ``Y_0 < N``, or ``(Y_1, ..., Y_{M-1})`` when ``Y_0 == N``. The
+operator is invalid when ``Y_0 > N``.
+
+The element in output is defined as follows::
+
+  output[y_1, ..., y_{M-1}, x_{Y_0}, ..., x_{N-1}] = data[indices[0, y_1, ..., y_{M-1}],
+                                                     ...,
+                                                     indices[Y_0-1, y_1, ..., y_{M-1}],
+                                                     x_{Y_0}, ..., x_{N-1}]
+
+Examples::
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1], [0]]
+  gather_nd(data, indices) = [2]
+
+  data = [[0, 1], [2, 3]]
+  indices = [[1, 1, 0], [0, 1, 0]]
+  gather_nd(data, indices) = [2, 3, 0]
+
+  data = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+  indices = [[0, 1], [1, 0]]
+  gather_nd(data, indices) = [[3, 4], [5, 6]]
+
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_argument("indices", "Tensor", "Indices of data")
+.set_num_inputs(2)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", GatherNDInferShape)
+.set_attr<FInferType>("FInferType", GatherNDInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", GatherNDCorrectLayout)
+.set_attr<FTVMCompute>(
+    "FTVMCompute", [](const NodeAttrs& attrs,
+                      const Array<Tensor>& inputs,
+                      const Array<Tensor>& out_info) {
+      return Array<Tensor>{
+        topi::gather_nd(inputs[0], inputs[1]) };
+  })
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+  return std::vector<std::string>{"data", "indices"};
+})
+.set_support_level(3);
 
 }  // namespace top
 }  // namespace nnvm
