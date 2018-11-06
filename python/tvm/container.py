@@ -19,7 +19,9 @@ class Array(NodeBase):
             step = i.step if i.step is not None else 1
             return [self[idx] for idx in range(start, stop, step)]
 
-        if i >= len(self):
+        if i < 0:
+            i += len(self)
+        if i < 0 or i >= len(self):
             raise IndexError("array index out of range")
         return _api_internal._ArrayGetItem(self, i)
 
