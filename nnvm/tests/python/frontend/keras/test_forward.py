@@ -83,7 +83,7 @@ def _test_forward_dense():
     verify_keras_frontend(keras_model)
 
 def _test_forward_dense_with_3d_inp():
-    data = keras.layers.Input(shape=(16, 20))
+    data = keras.layers.Input(shape=(1, 20))
     x = keras.layers.Dense(10, activation='relu', kernel_initializer='uniform')(data)
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model, need_transpose=False)

@@ -136,7 +136,7 @@ def _convert_dense(insym, keras_layer, symtab):
     # In case of RNN dense, input shape will be (1, 1, n)
     if input_dim > 2:
         input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
-        if input_dim != 3 or input_shape[0] != 1:
+        if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
             raise ValueError("Cannot flatten the inputs with shape.", input_shape, " for dense.")
         insym = _sym.squeeze(insym, axis=0)
     out = _sym.dense(data=insym, **params)
