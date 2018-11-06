@@ -294,7 +294,7 @@ def lower(sch,
           args,
           name="default_function",
           binds=None,
-          target=None,
+          target="",
           simple_mode=False):
     """Lowering step before build into target.
 
@@ -339,8 +339,6 @@ def lower(sch,
 
     if isinstance(target, _target.Target):
         target = target.target_name
-    else:
-        target = ""
 
     # Phase 0
     if isinstance(sch, schedule.Schedule):
