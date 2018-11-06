@@ -467,7 +467,7 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
     temp = pad(Input, pad_before, pad_after, name="pad_temp")
-    rc = tvm.reduce_axis((0, in_channel), name='rc')
+    rc = tvm.reduce_axis((0, in_channel // groups), name='rc')
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
     return tvm.compute(
