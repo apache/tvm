@@ -3,6 +3,9 @@ import tvm
 def test_array():
     a = tvm.convert([1,2,3])
     assert len(a) == 3
+    assert a[-1].value == 3
+    a_slice = a[-3:-1]
+    assert (a_slice[0].value, a_slice[1].value) == (1, 2)
 
 def test_array_save_load_json():
     a = tvm.convert([1,2,3])
