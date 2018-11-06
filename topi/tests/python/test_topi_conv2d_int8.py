@@ -119,6 +119,9 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True)
         verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True, add_relu=True)
 
+        # dilation = 2
+        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, dilation=2)
+
         # batch size
         verify_conv2d_NCHWc_int8(4, 64, 56, 64, 3, 1, 1)
         verify_conv2d_NCHWc_int8(9, 64, 56, 64, 3, 1, 1)
