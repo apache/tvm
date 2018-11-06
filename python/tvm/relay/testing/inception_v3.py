@@ -22,15 +22,12 @@ def Conv(data, num_filter, kernel=(1, 1), stride=(1, 1), pad=(0, 0), name=None, 
         padding=pad,
         name='%s%s_conv1' % (name, suffix))
 
-    #bn = sym.batch_norm(data=conv, name='%s%s_batchnorm' % (name, suffix), epsilon=2e-5)
     bn = layers.batch_norm_infer(data=conv, epsilon=2e-5, name='%s%s_bn' % (name, suffix))
-    #act = sym.relu(data=bn, name='%s%s_relu' % (name, suffix))
     act = relay.nn.relu(data=bn)
     return act
 
 def Pooling(data, kernel, stride, pad, pool_type, name):
     if pool_type == 'max':
-        #return sym.max_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad, name=name)
         return relay.nn.max_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad)
     elif pool_type == 'avg':
         return relay.nn.avg_pool2d(data=data, pool_size=kernel, strides=stride, padding=pad,
