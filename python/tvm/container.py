@@ -24,7 +24,8 @@ class Array(NodeBase):
             return [self[idx] for idx in range(start, stop, step)]
 
         if i < -len(self) or i >= len(self):
-            raise IndexError("Array index out of range. Array size: {}, got index {}".format(len(self), i))
+            raise IndexError("Array index out of range. Array size: {}, got index {}"
+                             .format(len(self), i))
         if i < 0:
             i += len(self)
         return _api_internal._ArrayGetItem(self, i)
