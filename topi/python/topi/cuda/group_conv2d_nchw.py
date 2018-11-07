@@ -19,10 +19,13 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     Parameters
     ----------
     data : tvm.Tensor
-        4-D with shape [batch, in_channel, in_height, in_width]
+        4-D with shape [batch, in_channel, in_height, in_width] or
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
 
     kernel : tvm.Tensor
-        4-D with shape [num_filter, in_channel // groups, filter_height, filter_width]
+        4-D with shape [num_filter, in_channel // groups, filter_height, filter_width] or
+        6-D with shape [num_filter_chunk, in_channel_chunk // groups, filter_height,
+        filter_width, num_filter_block, in_channel_block]
 
     stride : int or a list/tuple of two ints
         Stride size, or [stride_height, stride_width]
@@ -30,16 +33,19 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
-    dilation: int or a list/tuple of two ints
+    dilation : int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
-    groups: int
+    groups : int
         number of groups
+
+    out_dtype : str
+        The output type. This is used for mixed precision.
 
     Returns
     -------
     Output : tvm.Tensor
-        4-D with shape [batch, out_channel, out_height, out_width]
+        5-D with shape [batch, out_channel, out_height, out_width, out_channel_block]
     """
     ic_block_factor = 4
     oc_block_factor = 4

@@ -423,11 +423,14 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     padding : int or str
         Padding size, or ['VALID', 'SAME']
 
-    dilation: int or a list/tuple of two ints
+    dilation : int or a list/tuple of two ints
         dilation size, or [dilation_height, dilation_width]
 
-    groups: int
+    groups : int
         number of groups
+
+    out_dtype : str
+        The output type. This is used for mixed precision.
 
     Returns
     -------
