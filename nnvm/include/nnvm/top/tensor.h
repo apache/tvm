@@ -205,6 +205,7 @@ struct ReduceParam : public dmlc::Parameter<ReduceParam> {
   TShape axis;
   bool keepdims;
   bool exclude;
+  int dtype;
 
   DMLC_DECLARE_PARAMETER(ReduceParam) {
     DMLC_DECLARE_FIELD(axis).set_default(TShape())
@@ -226,6 +227,8 @@ struct ReduceParam : public dmlc::Parameter<ReduceParam> {
                 "in the result as dimension with size one.");
     DMLC_DECLARE_FIELD(exclude).set_default(false)
       .describe("Whether to perform reduction on axis that are NOT in axis instead.");
+    DMLC_DECLARE_DTYPE_FIELD(dtype).set_default(kInt32)
+      .describe("Target data type.");
   }
 };
 

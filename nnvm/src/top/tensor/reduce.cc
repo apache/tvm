@@ -272,15 +272,13 @@ NNVM_REGISTER_BASE_REDUCE_OP(collapse_sum)
     return Array<Tensor>{ topi::collapse_sum(inputs[0], inputs[1]->shape) };
 });
 
-template<int Type>
 inline bool InferFixedType(const NodeAttrs& attrs,
                           std::vector<int>* in_attrs,
                           std::vector<int>* out_attrs) {
-  // Static type inference for argmax operation. Argmax return indices which
-  // should have Int32 type as shapes do.
   CHECK_EQ(in_attrs->size(), 1U);
   CHECK_EQ(out_attrs->size(), 1U);
-  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, static_cast<int>(Type));
+  const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
+  NNVM_ASSIGN_OUTPUT_TYPE(attrs, *out_attrs, 0, param.dtype);
   return true;
 }
 
@@ -291,7 +289,7 @@ values over a given axis.
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
-.set_attr<FInferType>("FInferType", InferFixedType<kInt32>)
+.set_attr<FInferType>("FInferType", InferFixedType)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(1)
 .set_attr<FTVMCompute>(
@@ -302,8 +300,9 @@ values over a given axis.
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
-    return Array<Tensor>{
-      topi::argmax(inputs[0], axis, param.keepdims) };
+    Tensor out = topi::argmax(inputs[0], axis, param.keepdims);
+    if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
+    return Array<Tensor>{out};
 });
 
 NNVM_REGISTER_BASE_REDUCE_OP(argmin)
@@ -313,7 +312,7 @@ values over a given axis.
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
-.set_attr<FInferType>("FInferType", InferFixedType<kInt32>)
+.set_attr<FInferType>("FInferType", InferFixedType)
 .set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutUnknownOut<1, 1>)
 .set_num_inputs(1)
 .set_attr<FTVMCompute>(
@@ -324,8 +323,9 @@ values over a given axis.
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     auto axis = ShapeToArray(r_axes);
-    return Array<Tensor>{
-      topi::argmin(inputs[0], axis, param.keepdims) };
+    Tensor out = topi::argmin(inputs[0], axis, param.keepdims);
+    if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
+    return Array<Tensor>{out};
 });
 
 NNVM_REGISTER_REDUCE_OP(mean)
