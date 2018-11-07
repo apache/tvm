@@ -15,7 +15,6 @@ def find_libvta(optional=False):
     """Find VTA library"""
     curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
     lib_search = [curr_path]
-    lib_search += [os.path.join(curr_path, "..", "..", "..", "lib",)]
     lib_search += [os.path.join(curr_path, "..", "..", "..", "build",)]
     lib_search += [os.path.join(curr_path, "..", "..", "..", "build", "Release")]
     lib_name = _get_lib_name()
