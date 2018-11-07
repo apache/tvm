@@ -12,12 +12,8 @@ from .. import nn, generic
 
 
 @autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['direct', 'int8'])
-<<<<<<< HEAD
 def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                            out_dtype='float32'):
-=======
-def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups, out_dtype='float32'):
->>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     """Group convolution operator in NCHW layout.
 
     Parameters
@@ -67,10 +63,10 @@ def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                                   name="packed_data")
         packed_kernel = tvm.compute(
             (out_channels // oc_block_factor, in_channels // ic_block_factor, kernel_h, kernel_w,
-            oc_block_factor, ic_block_factor),
+             oc_block_factor, ic_block_factor),
             lambda oc_chunk, ic_chunk, kh, kw, oc_block, ic_block:
             kernel[oc_chunk * oc_block_factor + oc_block,
-                ic_chunk * ic_block_factor + ic_block, kh, kw],
+                   ic_chunk * ic_block_factor + ic_block, kh, kw],
             name="packed_kernel")
     else:
         packed_data = data
@@ -135,10 +131,6 @@ _dp4a = dp4a('shared', 'shared', 'local')
 def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     """Schedule group conv2d int8 NCHWc template"""
     workload = output.op.attrs["workload"]
-<<<<<<< HEAD
-=======
-    stride = workload[3]
->>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     groups = get_const_int(workload[6])
 
     conv = output.op.input_tensors[0]
@@ -166,14 +158,6 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     if pad_data != packed_data:
         s[pad_data].compute_inline()
 
-<<<<<<< HEAD
-=======
-    if isinstance(stride, tvm.expr.IntImm):
-        stride_h = stride_w = stride
-    else:
-        stride_h, stride_w = stride
-
->>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     # create cache stage
     AA = s.cache_read(pad_data, 'shared', [conv])
     WW = s.cache_read(packed_kernel, 'shared', [conv])

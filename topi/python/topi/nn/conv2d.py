@@ -473,6 +473,7 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda nn, ff, yy, xx: tvm.sum(
-            temp[nn, ff // (num_filter//groups) * (in_channel//groups) + rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
+            temp[nn, ff // (num_filter//groups) * (in_channel//groups) + rc, yy * stride_h + ry,
+                 xx * stride_w + rx].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag="conv2d_nchw")

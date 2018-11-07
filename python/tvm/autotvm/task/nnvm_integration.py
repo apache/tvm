@@ -58,7 +58,8 @@ class TaskExtractEnv:
         # NOTE: To add more symbols, you only need to change the following lists
         # nnvm symbol -> topi compute
         self.symbol2topi = {
-            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw, topi.nn.group_conv2d_nchw],
+            nnvm.sym.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
+                              topi.nn.group_conv2d_nchw],
             nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
             nnvm.sym.dense: [topi.nn.dense],
         }

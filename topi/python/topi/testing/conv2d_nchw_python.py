@@ -5,7 +5,7 @@ import scipy.signal
 
 
 def _conv2d_nchw_python(a_np, w_np, stride, padding):
-    """Convolution operator in HWCN layout.
+    """Convolution operator in NCHW layout.
 
     Parameters
     ----------
@@ -69,7 +69,7 @@ def _conv2d_nchw_python(a_np, w_np, stride, padding):
 
 
 def conv2d_nchw_python(a_np, w_np, stride, padding, groups=1):
-    """Convolution operator in HWCN layout.
+    """Convolution operator in NCHW layout.
 
     Parameters
     ----------
@@ -99,4 +99,3 @@ def conv2d_nchw_python(a_np, w_np, stride, padding, groups=1):
                 for a_slice, w_slice in zip(a_slices, w_slices)]
     b_np = np.concatenate(b_slices, axis=1)
     return b_np
-
