@@ -183,7 +183,7 @@ def test_forward_argmax():
 def test_forward_argmin():
     data = mx.sym.var('data')
     mx_sym = mx.sym.argmin(data, axis=0)
-    verify_mxnet_frontend_impl(mx_sym, (5, 3), (3,))
+    verify_mxnet_frontend_impl(mx_sym, (5, 4), (4,))
     
 if __name__ == '__main__':
     test_forward_mlp()
@@ -206,3 +206,4 @@ if __name__ == '__main__':
     test_forward_zeros_like()
     test_forward_argmax()
     test_forward_argmin()
+    
