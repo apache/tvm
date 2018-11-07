@@ -174,6 +174,16 @@ def test_forward_zeros_like():
     data = mx.sym.var('data')
     mx_sym = mx.sym.zeros_like(data, dtype='float32')
     verify_mxnet_frontend_impl(mx_sym, (2, 3, 4), (2, 3, 4))
+
+def test_forward_argmax():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.argmax(data, axis=1)
+    verify_mxnet_frontend_impl(mx_sym, (5, 3), (5,))
+
+def test_forward_argmin():
+    data = mx.sym.var('data')
+    mx_sym = mx.sym.argmin(data, axis=0)
+    verify_mxnet_frontend_impl(mx_sym, (5, 4), (4,))
     
 if __name__ == '__main__':
     test_forward_mlp()
@@ -194,3 +204,6 @@ if __name__ == '__main__':
     test_forward_zeros()
     test_forward_ones_like()
     test_forward_zeros_like()
+    test_forward_argmax()
+    test_forward_argmin()
+    

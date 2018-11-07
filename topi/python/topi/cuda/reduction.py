@@ -107,7 +107,10 @@ def schedule_reduce(outs):
     def traverse_after_reduce(operator):
         """Internal travserse function"""
         if tag.is_broadcast(operator.tag):
-            raise RuntimeError("Not yet support ewise after reduce")
+            if operator not in scheduled_ops:
+                _schedule_injective(operator, sch)
+            for tensor in operator.input_tensors:
+                traverse_after_reduce(tensor.op)
         elif operator.tag == 'comm_reduce':
             _schedule_reduce(operator, sch, is_idx_reduce=False)
             for tensor in operator.input_tensors:
