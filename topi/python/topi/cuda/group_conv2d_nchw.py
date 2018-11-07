@@ -12,8 +12,12 @@ from .. import nn, generic
 
 
 @autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['direct', 'int8'])
+<<<<<<< HEAD
 def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
                            out_dtype='float32'):
+=======
+def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups, out_dtype='float32'):
+>>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     """Group convolution operator in NCHW layout.
 
     Parameters
@@ -131,6 +135,10 @@ _dp4a = dp4a('shared', 'shared', 'local')
 def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     """Schedule group conv2d int8 NCHWc template"""
     workload = output.op.attrs["workload"]
+<<<<<<< HEAD
+=======
+    stride = workload[3]
+>>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     groups = get_const_int(workload[6])
 
     conv = output.op.input_tensors[0]
@@ -158,6 +166,14 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     if pad_data != packed_data:
         s[pad_data].compute_inline()
 
+<<<<<<< HEAD
+=======
+    if isinstance(stride, tvm.expr.IntImm):
+        stride_h = stride_w = stride
+    else:
+        stride_h, stride_w = stride
+
+>>>>>>> 1d42c175b622aa5d6f4bc3f75ae408cc173f149c
     # create cache stage
     AA = s.cache_read(pad_data, 'shared', [conv])
     WW = s.cache_read(packed_kernel, 'shared', [conv])
