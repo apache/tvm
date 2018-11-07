@@ -12,7 +12,8 @@ from .. import nn, generic
 
 
 @autotvm.register_topi_compute(nn.group_conv2d_nchw, ['cuda', 'gpu'], ['direct', 'int8'])
-def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups, out_dtype='float32'):
+def group_conv2d_nchw_cuda(cfg, data, kernel, stride, padding, dilation, groups,
+                           out_dtype='float32'):
     """Group convolution operator in NCHW layout.
 
     Parameters
@@ -130,7 +131,6 @@ _dp4a = dp4a('shared', 'shared', 'local')
 def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     """Schedule group conv2d int8 NCHWc template"""
     workload = output.op.attrs["workload"]
-    stride = workload[3]
     groups = get_const_int(workload[6])
 
     conv = output.op.input_tensors[0]
@@ -157,11 +157,6 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
 
     if pad_data != packed_data:
         s[pad_data].compute_inline()
-
-    if isinstance(stride, tvm.expr.IntImm):
-        stride_h = stride_w = stride
-    else:
-        stride_h, stride_w = stride
 
     # create cache stage
     AA = s.cache_read(pad_data, 'shared', [conv])
@@ -248,18 +243,14 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     # cooperative fetching
     for load in [AA, WW]:
         c = s[load].op.axis[-1]
+        c_outer, c = s[load].split(c, factor=4)
         s[load].vectorize(c)
-        fused = s[load].fuse(*s[load].op.axis[:-1])
+        fused = s[load].op.axis[:-1] + [c_outer]
+        fused = s[load].fuse(*fused)
 
-
-        '''
         fused, tx = s[load].split(fused, factor=n_tx)
         fused, ty = s[load].split(fused, factor=n_ty)
         fused, tz = s[load].split(fused, factor=n_tz)
-        '''
-        tz, fused = s[load].split(fused, nparts=n_tz)
-        ty, fused = s[load].split(fused, nparts=n_ty)
-        tx, fused = s[load].split(fused, nparts=n_tx)
         s[load].bind(tz, tvm.thread_axis("threadIdx.z"))
         s[load].bind(ty, tvm.thread_axis("threadIdx.y"))
         s[load].bind(tx, tvm.thread_axis("threadIdx.x"))
