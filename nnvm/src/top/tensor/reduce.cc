@@ -285,6 +285,7 @@ inline bool InferFixedType(const NodeAttrs& attrs,
 NNVM_REGISTER_BASE_REDUCE_OP(argmax)
 .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
+
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
@@ -307,6 +308,7 @@ values over a given axis.
 NNVM_REGISTER_BASE_REDUCE_OP(argmin)
 .describe(R"code(Creates an operation that finds the indices of the minimum
 values over a given axis.
+
 )code" NNVM_ADD_FILELINE)
 .add_argument("data", "Tensor", "The input")
 .set_attr<FInferShape>("FInferShape", ReduceShape)
