@@ -1,12 +1,12 @@
-CC ?= gcc
-CFLAGS = -Wall -O3 -std=c++11 -I/usr/include
+CC ?= g++
+CFLAGS = -Wall -g -O0 -std=c++11 -I/usr/include
 LDFLAGS = -L/usr/lib
 LIBS = -lstdc++
 INCLUDE_DIR = -I../../../include
 DRIVER_DIR = ../../../src/de10-nano
 TESTLIB_DIR = ../common
 VPATH = $(DRIVER_DIR):$(TESTLIB_DIR)
-SOURCES = de10-nano_driver.cc cma_api.c test_lib.cc
+SOURCES = de10-nano_driver.cc cma_api.cc test_lib.cc
 OBJECTS = de10-nano_driver.o cma_api.o test_lib.o metal_test.o
 EXECUTABLE = vta_metal_test
 

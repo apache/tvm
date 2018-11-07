@@ -7,9 +7,11 @@
 #include <vta/driver.h>
 #include <thread>
 #include "de10-nano_driver.h"
+#include "cma_api.h"
 
 
 void* VTAMemAlloc(size_t size, int cached) {
+  static int _ = cma_init(); (void)_;
   if (cached) {
     return cma_alloc_cached(size);
   } else {

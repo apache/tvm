@@ -22,23 +22,13 @@ extern "C" {
 #include <time.h>
 #include <unistd.h>
 
-#ifdef __arm__
-#include "cma_api.h"
-#else
-void* cma_alloc(size_t size, int cached);
-void cma_free(void* buf);
-uint32_t cma_get_phy_addr(void* buf);
-#endif
-void xlnkFlushCache(void* buf, int size);
-void xlnkInvalidateCache(void* buf, int size);
-
 void *VTAMapRegister(uint32_t addr, size_t length);
 void VTAUnmapRegister(void *vta, size_t length);
 void VTAWriteMappedReg(void* base_addr, uint32_t offset, uint32_t val);
 uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 
 /*! \brief (DE10_Nano only) Bitstream destination file path */
-#define VTA_DE10_NANO_BS_XDEVCFG "/dev/xdevcfg"
+#define VTA_DE10_NANO_BS_XDEVCFG "/dev/fpga0"
 
 /*! \brief (DE10_Nano only) Path to /dev/mem */
 #define VTA_DE10_NANO_DEV_MEM_PATH "/dev/mem"
@@ -57,25 +47,25 @@ uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 #define VTA_DONE 0x1
 
 /*! \brief VTA fetch stage configuration register address
-*   from auto-generated XPAR_FETCH_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
+*   from auto-generated FETCH_0_S_AXI_CONTROL_BUS_BASEADDR define
+*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
 */
-#define VTA_FETCH_ADDR    0x43C00000
+#define VTA_FETCH_ADDR    0xFF220000
 /*! \brief VTA compute stage configuration register address
-*   from auto-generated XPAR_COMPUTE_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
+*   from auto-generated COMPUTE_0_S_AXI_CONTROL_BUS_BASEADDR define
+*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
 */
-#define VTA_COMPUTE_ADDR  0x43C10000
+#define VTA_COMPUTE_ADDR  0xFF221000
 /*! \brief VTA compute stage configuration register address
-*   from auto-generated XPAR_LOAD_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
+*   from auto-generated LOAD_0_S_AXI_CONTROL_BUS_BASEADDR define
+*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
 */
-#define VTA_LOAD_ADDR     0x43C20000
+#define VTA_LOAD_ADDR     0xFF222000
 /*! \brief VTA store stage configuration register address
-*   from auto-generated XPAR_STORE_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in xparameters.h (under build/vivado/<design name>/export/bsp/ps7_cortexa9_0/include)
+*   from auto-generated STORE_0_S_AXI_CONTROL_BUS_BASEADDR define
+*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
 */
-#define VTA_STORE_ADDR    0x43C30000
+#define VTA_STORE_ADDR    0xFF223000
 
 #ifdef __cplusplus
 }

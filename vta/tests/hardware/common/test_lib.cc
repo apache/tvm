@@ -31,7 +31,12 @@ uint64_t vta(
   snprintf(str_block_out_size, sizeof(str_block_out_size), "%d", VTA_BLOCK_OUT);
   snprintf(str_block_in_size, sizeof(str_block_in_size), "%d", VTA_BLOCK_IN);
   snprintf(str_block_bit_width, sizeof(str_block_bit_width), "%d", VTA_WGT_WIDTH);
+#if defined(VTA_TARGET_PYNQ)
   snprintf(bitstream, sizeof(bitstream), "%s", "vta.bit");
+#elif defined(VTA_TARGET_DE10_NANO)
+  snprintf(bitstream, sizeof(bitstream), "%s", "vta.rbf");
+#endif
+
 
 #if VTA_DEBUG == 1
   printf("INFO - Programming FPGA: %s!\n", bitstream);
@@ -46,12 +51,12 @@ uint64_t vta(
   void* vta_store_handle = VTAMapRegister(VTA_STORE_ADDR, VTA_RANGE);
 
   // Physical address pointers
-  uint32_t insn_phy = insns ? cma_get_phy_addr(insns) : 0;
-  uint32_t uop_phy = uops ? cma_get_phy_addr(uops) : 0;
-  uint32_t input_phy = inputs ? cma_get_phy_addr(inputs) : 0;
-  uint32_t weight_phy = weights ? cma_get_phy_addr(weights) : 0;
-  uint32_t bias_phy = biases ? cma_get_phy_addr(biases) : 0;
-  uint32_t output_phy = outputs ? cma_get_phy_addr(outputs) : 0;
+  uint32_t insn_phy = insns ? VTAMemGetPhyAddr(insns) : 0;
+  uint32_t uop_phy = uops ? VTAMemGetPhyAddr(uops) : 0;
+  uint32_t input_phy = inputs ? VTAMemGetPhyAddr(inputs) : 0;
+  uint32_t weight_phy = weights ? VTAMemGetPhyAddr(weights) : 0;
+  uint32_t bias_phy = biases ? VTAMemGetPhyAddr(biases) : 0;
+  uint32_t output_phy = outputs ? VTAMemGetPhyAddr(outputs) : 0;
 
 #if VTA_DEBUG == 1
   printf("INFO - Starting FPGA!\n");
@@ -59,6 +64,7 @@ uint64_t vta(
 
   clock_gettime(CLOCK_REALTIME, &start);
 
+#if defined(VTA_TARGET_PYNQ)
   // FETCH @ 0x10 : Data signal of insn_count_V
   VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
   // FETCH @ 0x18 : Data signal of insns_V
@@ -79,7 +85,28 @@ uint64_t vta(
   VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
+#elif defined(VTA_TARGET_DE10_NANO)
+  // FETCH @ 0x10 : Data signal of insn_count_V
+  VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
+  // FETCH @ 0x20 : Data signal of insns_V
+  if (insns) VTAWriteMappedReg(vta_fetch_handle, 0x20, insn_phy);
+  // LOAD @ 0x10 : Data signal of inputs_V
+  if (inputs) VTAWriteMappedReg(vta_load_handle, 0x10, input_phy);
+  // LOAD @ 0x20 : Data signal of weight_V
+  if (weights) VTAWriteMappedReg(vta_load_handle, 0x20, weight_phy);
+  // COMPUTE @ 0x20 : Data signal of uops_V
+  if (uops) VTAWriteMappedReg(vta_compute_handle, 0x20, uop_phy);
+  // COMPUTE @ 0x30 : Data signal of biases_V
+  if (biases) VTAWriteMappedReg(vta_compute_handle, 0x30, bias_phy);
+  // STORE @ 0x10 : Data signal of outputs_V
+  if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy);
 
+  // VTA start
+  VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x80);
+  VTAWriteMappedReg(vta_load_handle, 0x0, 0x80);
+  VTAWriteMappedReg(vta_compute_handle, 0x0, 0x80);
+  VTAWriteMappedReg(vta_store_handle, 0x0, 0x80);
+#endif
   int flag = 0, t = 0;
   for (t = 0; t < 10000000; ++t) {
     flag = VTAReadMappedReg(vta_compute_handle, 0x18);
