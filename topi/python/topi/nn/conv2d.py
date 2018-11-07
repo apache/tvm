@@ -460,12 +460,11 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
         padding, (kernel_h, kernel_w))
     # compute the output shape
-    # TODO: dilation
     out_channel = num_filter
     out_height = simplify(
-        (in_height - kernel_h + pad_top + pad_down) // stride_h + 1)
+        (in_height - (kernel_h - 1) * dilation_h - 1 + pad_top + pad_down) // stride_h + 1)
     out_width = simplify(
-        (in_width - kernel_w + pad_left + pad_right) // stride_w + 1)
+        (in_width - (kernel_w - 1) * dilation_w - 1 + pad_left + pad_right) // stride_w + 1)
     # compute graph
     pad_before = [0, 0, pad_top, pad_left]
     pad_after = [0, 0, pad_down, pad_right]
@@ -476,7 +475,8 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
     return tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda nn, ff, yy, xx: tvm.sum(
-            temp[nn, ff // (num_filter//groups) * (in_channel//groups) + rc, yy * stride_h + ry,
-                 xx * stride_w + rx].astype(out_dtype) *
+            temp[nn, ff // (num_filter//groups) * (in_channel//groups) + rc,
+                 yy * stride_h + ry * dilation_h,
+                 xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag="conv2d_nchw")
