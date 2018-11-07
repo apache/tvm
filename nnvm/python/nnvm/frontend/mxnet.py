@@ -259,12 +259,12 @@ def _crop_like(inputs, attrs):
 
 
 def _expand_dims(inputs, attrs):
-    op_name, new_attrs = "expand_dims", {}
+    op_name, new_attrs = 'expand_dims', {}
     new_attrs['axis'] = _required_attr(attrs, 'axis')
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _lrn(inputs, attrs):
-    op_name, new_attrs = "lrn", {}
+    op_name, new_attrs = 'lrn', {}
     new_attrs['alpha'] = attrs.get('alpha', 0.0001)
     new_attrs['beta'] = attrs.get('beta', 0.75)
     new_attrs['bias'] = attrs.get('knorm', 2)
@@ -274,12 +274,26 @@ def _lrn(inputs, attrs):
     return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 def _ones(_, attrs):
-    op_name = "ones"
+    op_name = 'ones'
     return _get_nnvm_op(op_name)(**attrs)
 
 def _zeros(_, attrs):
-    op_name = "zeros"
+    op_name = 'zeros'
     return _get_nnvm_op(op_name)(**attrs)
+
+def _argmax(inputs, attrs):
+    op_name, new_attrs = 'argmax', {}
+    new_attrs['dtype'] = 'float32'
+    new_attrs['axis'] = attrs.get('axis', 0)
+    new_attrs['keepdims'] = _parse_bool_str(attrs, 'keepdims', default="False")
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
+
+def _argmin(inputs, attrs):
+    op_name, new_attrs = 'argmin', {}
+    new_attrs['dtype'] = 'float32'
+    new_attrs['axis'] = attrs.get('axis', 0)
+    new_attrs['keepdims'] = _parse_bool_str(attrs, 'keepdims', default="False")
+    return _get_nnvm_op(op_name)(*inputs, **new_attrs)
 
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
@@ -303,8 +317,10 @@ _convert_map = {
     '_rminus_scalar': _rename('__rsub_scalar__'),
     '_contrib_MultiBoxPrior' : _rename('multibox_prior'),
     '_contrib_MultiBoxDetection' : _contrib_multibox_detection,
-    '_ones' : _ones,
-    '_zeros' : _zeros,
+    '_ones'         : _ones,
+    '_zeros'        : _zeros,
+    'argmax'        : _argmax,
+    'argmin'        : _argmin,
     'Activation'    : _activations,
     'BatchNorm'     : _batch_norm,
     'BatchNorm_v1'  : _batch_norm,
