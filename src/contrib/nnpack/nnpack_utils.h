@@ -15,7 +15,7 @@ namespace contrib {
 using namespace runtime;
 
 struct NNPackThreadLocalEntry {
-  pthreadpool_t threadpool{NULL};
+  pthreadpool_t threadpool{nullptr};
   static NNPackThreadLocalEntry* ThreadLocal();
 };
 
