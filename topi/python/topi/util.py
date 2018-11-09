@@ -2,7 +2,7 @@
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
 import tvm
-
+from numbers import Integral
 from . import tag
 
 def traverse_inline(s, final_op, callback):
@@ -68,7 +68,7 @@ def get_const_int(expr):
     out_value : int
         The output.
     """
-    if isinstance(expr, int):
+    if isinstance(expr, Integral):
         return expr
     if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
         expr = tvm.ir_pass.Simplify(expr)
@@ -90,7 +90,7 @@ def equal_const_int(expr, value):
     equal : bool
         Whether they equals.
     """
-    if isinstance(expr, int):
+    if isinstance(expr, Integral):
         return expr == value
     if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
         expr = tvm.ir_pass.Simplify(expr)

@@ -152,7 +152,7 @@ def test_conv2d_transpose():
     dtype = "float32"
     dshape = (1, 3, 18, 18)
     kshape = (3, 10, 3, 3)
-
+    oshape = (1, 10, 37, 37)
     shape_dict = {"x": dshape}
     for target, ctx in ctx_list():
         graph, lib, _ = nnvm.compiler.build(y, target, shape_dict)
