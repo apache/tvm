@@ -1,4 +1,7 @@
+#pylint: disable=unused-argument
 """The base node types for the Relay language."""
+import topi
+
 from ..._ffi.function import _init_api
 
 from ..base import register_relay_node
@@ -156,3 +159,9 @@ def _lower(name, schedule, inputs, outputs):
 @register_func("relay.op.compiler._build")
 def _build(lowered_funcs):
     return build(lowered_funcs, target="llvm")
+
+
+def schedule_injective(attrs, outputs, target):
+    """Generic schedule for binary broadcast."""
+    with target:
+        return topi.generic.schedule_injective(outputs)

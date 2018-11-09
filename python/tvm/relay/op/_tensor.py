@@ -2,13 +2,8 @@
 """Backend compiler related feature registration"""
 from __future__ import absolute_import
 import topi
-import topi.cuda
-from .op import register_compute, register_schedule, register_pattern, OpPattern
-
-def schedule_injective(outputs, target):
-    """Generic schedule for binary broadcast."""
-    with target:
-        return topi.generic.schedule_injective(outputs)
+from .op import register_compute, register_schedule, register_pattern
+from .op import schedule_injective, OpPattern
 
 schedule_broadcast = schedule_injective
 schedule_elemwise = schedule_injective

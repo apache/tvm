@@ -89,7 +89,7 @@ class ScheduleGetter :
     CachedFunc cfunc(cache_node);
     CHECK(master_op_.defined());
     Schedule schedule = fschedule[master_op_](
-        cache_node->outputs, target_);
+        master_attrs_, cache_node->outputs, target_);
     return std::make_pair(schedule, cfunc);
   }
 
@@ -145,6 +145,7 @@ class ScheduleGetter :
     }
     if (op_pattern >= master_op_patetrn_) {
       master_op_ = op;
+      master_attrs_ = call_node->attrs;
       master_op_patetrn_ = op_pattern;
     }
     if (outputs.size() != 1) {
@@ -193,6 +194,7 @@ class ScheduleGetter :
  private:
   tvm::Target target_;
   Op master_op_;
+  Attrs master_attrs_;
   int master_op_patetrn_{0};
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
@@ -285,6 +287,9 @@ class CompileEngineImpl : public CompileEngineNode {
    * \return Updated name which is unique.
    */
   std::string GetUniqeName(std::string name) {
+    for (size_t i = 0; i < name.length(); ++i) {
+      if (name[i] == '.') name[i] = '_';
+    }
     while (true) {
       auto it = name_map_.find(name);
       if (it == name_map_.end()) {

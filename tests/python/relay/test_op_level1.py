@@ -74,6 +74,7 @@ def test_binary_op():
             y_data = np.random.rand(5, 10, 5).astype(t2.dtype)
             ref_res = ref(x_data, y_data)
             func = relay.Function([x, y], z)
+
             for target, ctx in ctx_list():
                 # use graph by execuor default for testing, as we need
                 # create function explicitly to avoid constant-folding.
@@ -89,12 +90,24 @@ def test_binary_op():
 
 
 def test_bias_add():
-    x = relay.var("x", shape=(10, 2, 3, 4))
+    xshape=(10, 2, 3, 4)
+    bshape=(2,)
+    dtype="float32"
+    x = relay.var("x", shape=xshape)
     bias = relay.var("bias")
     z = relay.nn.bias_add(x, bias)
     zz = relay.ir_pass.infer_type(z)
     assert "axis=" not in zz.astext()
-    assert zz.args[1].checked_type == relay.TensorType((2,))
+    assert zz.args[1].checked_type == relay.TensorType(bshape)
+
+    func = relay.Function([x, bias], z)
+    x_data = np.random.uniform(size=xshape).astype(dtype)
+    y_data = np.random.uniform(size=bshape).astype(dtype)
+    ref_res = x_data + y_data.reshape((2, 1, 1))
+    for target, ctx in ctx_list():
+        intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res = intrp.evaluate(func)(x_data, y_data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 def test_expand_dims_infer_type():
@@ -217,6 +230,50 @@ def test_batch_norm():
     ]))
 
 
+def test_dense():
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    w = relay.var("w", relay.TensorType((2, w), "float32"))
+    y = relay.nn.dense(x, w, units=2)
+    "units=2" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
+
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    wh, ww = tvm.var("wh"), tvm.var("ww")
+    w = relay.var("w", relay.TensorType((ww, wh), "float32"))
+    y = relay.nn.dense(x, w)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, ww), "float32")
+
+    n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), 2
+    x = relay.var("x", relay.TensorType((n, c, h, w), "float32"))
+    w = relay.var("w", relay.IncompleteType())
+    y = relay.nn.dense(x, w, units=2)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n, c, h, 2), "float32")
+
+    x = relay.var("x", shape=(10, 5))
+    w = relay.var("w", shape=(2, 5))
+    z = relay.nn.dense(x, w)
+
+    # Check result.
+    func = relay.Function([x, w], z)
+    x_data = np.random.rand(10, 5).astype('float32')
+    w_data = np.random.rand(2, 5).astype('float32')
+    ref_res = np.dot(x_data, w_data.T)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data, w_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
+
+
 if __name__ == "__main__":
     test_bias_add()
     test_unary_op()
@@ -227,3 +284,4 @@ if __name__ == "__main__":
     test_log_softmax()
     test_dropout()
     test_batch_norm()
+    test_dense()

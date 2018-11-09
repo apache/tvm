@@ -72,7 +72,8 @@ using FTVMCompute = runtime::TypedPackedFunc<
  * \return schedule The computation schedule.
  */
 using FTVMSchedule = runtime::TypedPackedFunc<
-  Schedule(const Array<Tensor>& outs,
+  Schedule(const Attrs& attrs,
+           const Array<Tensor>& outs,
            const Target& target)>;
 }  // namespace relay
 }  // namespace tvm
