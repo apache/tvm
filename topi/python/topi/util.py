@@ -74,7 +74,7 @@ def get_const_int(expr):
         expr = tvm.ir_pass.Simplify(expr)
     if not isinstance(expr, (tvm.expr.IntImm, tvm.expr.UIntImm)):
         raise ValueError("Expect value to be constant int")
-    return expr.value
+    return int(expr.value)
 
 
 def equal_const_int(expr, value):
