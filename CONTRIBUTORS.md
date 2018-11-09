@@ -24,6 +24,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 - [Zhi Chen](https://github.com/zhiics)
 - [Xiaoqiang Dan](https://github.com/xqdan)
 - [Liangfu Chen](https://github.com/liangfu)
+- [Wuwei Lin](https://github.com/vinx13)
 - [Masahiro Masuda](https://github.com/masahi)
 - [Kazutaka Morita](https://github.com/kazum)
 - [Tatsuya Nishiyama](https://github.com/nishi-t)
