@@ -1,8 +1,9 @@
 # pylint: disable=invalid-name
 """Common topi utilities"""
 from __future__ import absolute_import as _abs
-import tvm
 from numbers import Integral
+
+import tvm
 from . import tag
 
 def traverse_inline(s, final_op, callback):
