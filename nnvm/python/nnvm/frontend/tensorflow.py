@@ -787,13 +787,55 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
-def _split():
+def _split(has_size_vector):
+    # TF documentation https://www.tensorflow.org/api_docs/python/tf/split
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[0].list_output_names()[0])
-        return AttrCvt(
-            op_name="split", ignores=['T'],
-            transforms={'num_split': 'indices_or_sections'},
-            extras={'axis': axis.asnumpy()[0]})(inputs[1], attr)
+        try:
+            # order and number of inputs are different:
+            # if has_size_vector:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split-v
+            # else:
+            #     https://www.tensorflow.org/api_docs/cc/class/tensorflow/ops/split
+
+            # in addition, `axis` and `num_or_size_splits` can be tensors in TensorFlow,
+            # we can only support constants
+            if has_size_vector:
+                input_node_index = 0
+                input_axis_index = 2
+                size_splits_input_name = inputs[1].list_output_names()[0]
+                size_splits = params[size_splits_input_name].asnumpy()
+                section_beginnings = np.cumsum(size_splits)[:-1]
+                indices_or_sections = tuple(section_beginnings)
+            else:
+                input_node_index = 1
+                input_axis_index = 0
+                indices_or_sections = attr['num_split']
+            input_node = inputs[input_node_index]
+            axis_input_name = inputs[input_axis_index].list_output_names()[0]
+            axis_input_value = params[axis_input_name].asnumpy()[0]
+        except (IndexError, KeyError):
+            raise TypeError( \
+                "Unsupported argument for split: `axis` and `num_or_size_splits` " \
+                "should be constants")
+        return _sym.split(input_node,
+                          indices_or_sections=indices_or_sections,
+                          axis=axis_input_value)
+    return _impl
+
+def _unpack():
+    def _impl(inputs, attr, params):
+        input_node = inputs[0]
+        axis = attr['axis']
+        input_shape = attr['_input_shapes'][input_node][0]
+        axis_length = input_shape[axis]
+        if axis_length < 0:
+            raise TypeError("Unstack with unknown axis length")
+        splitted = _sym.split(input_node,
+                              indices_or_sections=axis_length,
+                              axis=axis,
+                              name=attr.get('_node_name', 'unstack'))
+
+        return _sym.Group([_sym.squeeze(split_item, axis=axis) for split_item in splitted])
     return _impl
 
 # compatible operators that do NOT require any conversion.
@@ -863,7 +905,9 @@ _convert_map = {
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Equal'                             : _broadcast('equal'),
     'NotEqual'                          : _broadcast('not_equal'),
-    'Split'                             : _split(),
+    'Split'                             : _split(False),
+    'SplitV'                            : _split(True),
+    'Unpack'                            : _unpack(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
@@ -1162,11 +1206,13 @@ class GraphProto(object):
                 # Fill shapes for all inputs in a list
                 inputs = []
                 for i in node.input:
-                    #ToDo: Some of the tensorflow operators internaly maintain
-                    #execution layers and its output name will the layer number along with
-                    #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                    #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                    #the digit has to be ignored.
+                    # Some TensorFlow operators internally maintain execution layers
+                    # and their output name includes the layer number along with
+                    # graph node name. E.g. the node name is 'Model/RNN/cell_0/RnnCell', but the
+                    # output tensor name is 'Model/RNN/cell_0/RnnCell:0'. In this case,
+                    # the number has to be ignored for single-output nodes.
+                    # On the other hand, for multi-output nodes the number is the output index,
+                    # and the lack of the number implies 0.
                     tensor_name = i.split(':')
                     node_name = tensor_name[0]
                     if node_name in self._nodes:
@@ -1174,7 +1220,7 @@ class GraphProto(object):
                         if len(in_sym.list_output_names()) > 1:
                             tensor_slot = int(tensor_name[1]) if len(tensor_name) > 1 else 0
                             in_sym = in_sym[tensor_slot]
-                            input_shape = (self._output_shapes[node_name])[tensor_slot]
+                            input_shape = self._output_shapes[node_name][tensor_slot]
                         else:
                             input_shape = self._output_shapes[node_name][0]
                         inputs.append(in_sym)
@@ -1207,7 +1253,13 @@ class GraphProto(object):
         if outputs is None:
             out.append(final_op)
         else:
-            out = [self._nodes[out_name] for out_name in outputs]
+            for out_name in outputs:
+                if ":" in out_name:
+                    out_name, out_num = out_name.split(":")
+                    out_num = int(out_num)
+                    out.append(self._nodes[out_name][out_num])
+                else:
+                    out.append(self._nodes[out_name])
 
         #Add the RNN outputs also with 'head' nodes of the nnvm graph
         if self._num_rnn_layer:
@@ -1215,7 +1267,7 @@ class GraphProto(object):
             out.append(out_rnn)
 
         if isinstance(out, list):
-            out = _sym.Group(out)
+            out = _sym.Group(out) if len(out) > 1 else out[0]
 
         return out, self._params
 
