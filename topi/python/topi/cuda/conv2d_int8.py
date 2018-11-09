@@ -138,10 +138,6 @@ _dp4a = dp4a('shared', 'shared', 'local')
 
 def schedule_conv2d_NCHWc_int8(cfg, s, output):
     """Schedule conv2d int8 NCHWc template"""
-    workload = output.op.attrs["workload"]
-
-    stride = workload[3]
-
     conv = output.op.input_tensors[0]
     packed_data, packed_kernel = conv.op.input_tensors
 
@@ -165,11 +161,6 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output):
 
     if pad_data != packed_data:
         s[pad_data].compute_inline()
-
-    if isinstance(stride, int):
-        stride_h = stride_w = stride
-    else:
-        stride_h, stride_w = stride
 
     # create cache stage
     AA = s.cache_read(pad_data, 'shared', [conv])
@@ -250,18 +241,11 @@ def schedule_conv2d_NCHWc_int8(cfg, s, output):
 
     # cooperative fetching
     for load in [AA, WW]:
-        if load == AA:
-            n, f, y, x, c = s[load].op.axis
-            if pad_data == packed_data and stride_h == 1 and stride_w == 1:
-                s[load].vectorize(c)
-                fused = s[load].fuse(n, f, y, x)
-            else:
-                c, _ = s[load].split(c, factor=4)
-                fused = s[load].fuse(n, f, y, x, c)
-        else:
-            n, f, y, x, oc_chunk, c = s[load].op.axis
-            fused = s[load].fuse(n, f, y, x, oc_chunk)
-            s[load].vectorize(c)
+        c = s[load].op.axis[-1]
+        c_outer, c = s[load].split(c, factor=4)
+        s[load].vectorize(c)
+        fused = s[load].op.axis[:-1] + [c_outer]
+        fused = s[load].fuse(*fused)
 
         fused, tx = s[load].split(fused, factor=n_tx)
         fused, ty = s[load].split(fused, factor=n_ty)
