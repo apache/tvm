@@ -55,28 +55,6 @@ def test_mul_param():
     check_eval(func, [x_data, y_data], x_data * y_data)
 
 
-# failing due to numeric issues
-
-# def test_dense():
-#     x = relay.var('x', shape=(10, 10))
-#     w = relay.var('w', shape=(10, 10))
-#     y = relay.nn.dense(x, w)
-#     func = relay.Function([x, w], y)
-#     x_data = np.random.rand(10, 10).astype('float32')
-#     w_data = np.random.rand(10, 10).astype('float32')
-#     check_eval(func, [x_data, w_data], x_data @ w_data, rtol=0.1)
-
-# def test_linear():
-#     x = relay.var('x', shape=(10, 10))
-#     w = relay.var('w', shape=(10, 10))
-#     b = relay.var('b', shape=(10,))
-#     y = relay.add(relay.nn.dense(x, w), b)
-#     func = relay.Function([x, w, b], y)
-#     x_data = np.random.rand(10, 10).astype('float32')
-#     w_data = np.random.rand(10, 10).astype('float32')
-#     b_data = np.random.rand(10).astype('float32')
-#     check_eval(func, [x_data, w_data, b_data], x_data @ w_data + b_data)
-
 def test_equal():
     i = relay.var('i', shape=[], dtype='int32')
     j = relay.var('i', shape=[], dtype='int32')
