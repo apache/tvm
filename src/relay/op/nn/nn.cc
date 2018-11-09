@@ -91,16 +91,15 @@ bool DenseRel(const Array<Type>& types,
   Array<tvm::Expr> oshape = data->shape;
   if (param->units.defined()) {
     Array<tvm::Expr> dshape = data->shape;
-
     // validate the weight shape is proper if defined
     // Assign weight type
-    Array<IndexExpr> wshape({dshape[dshape.size() - 1], param->units});
+    Array<IndexExpr> wshape({param->units, dshape[dshape.size() - 1]});
     reporter->Assign(types[1], TensorTypeNode::make(wshape, data->dtype));
     oshape.Set((oshape.size() - 1), param->units);
   } else {
     if (weight == nullptr) return false;
     Array<tvm::Expr> wshape = weight->shape;
-    oshape.Set((oshape.size() - 1), wshape[wshape.size() - 1]);
+    oshape.Set((oshape.size() - 1), wshape[0]);
   }
 
   // assign output type
