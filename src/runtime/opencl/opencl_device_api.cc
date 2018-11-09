@@ -245,7 +245,8 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
       continue;
     }
     std::vector<cl_device_id> devices_matched = cl::GetDeviceIDs(platform_id, device_type);
-    if (devices_matched.size() == 0) {
+    if ((devices_matched.size() == 0) && (device_type == "gpu")) {
+      LOG(WARNING) << "Using CPU OpenCL device";
       devices_matched = cl::GetDeviceIDs(platform_id, "cpu");
     }
     if (devices_matched.size() > 0) {
