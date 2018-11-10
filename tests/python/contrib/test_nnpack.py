@@ -100,7 +100,7 @@ def np_conv(na, nw, padding, stride=1):
     return nb
 
 def test_convolution_inference():
-    BATCH = 32
+    BATCH = 8
     IH = 48
     IW = 48
     IC = 16
@@ -111,19 +111,17 @@ def test_convolution_inference():
 
     OH = (IH + 2*PAD - K) + 1
     OW = (IW + 2*PAD - K) + 1
-    dshape = (IC, IH, IW)
+    dshape = (BATCH, IC, IH, IW)
     kshape = (OC, IC, K, K)
     bshape = (OC, )
-    oshape = (OC, OH, OW)
+    oshape = (BATCH, OC, OH, OW)
 
     data = tvm.placeholder(dshape, name='data')
     kernel = tvm.placeholder(kshape, name='kernel')
     bias = tvm.placeholder(bshape, name='bias')
-    output = nnpack.convolution_inference(data, kernel, bias,
-        [PAD, PAD, PAD, PAD], [STRIDE, STRIDE])
-    s = tvm.create_schedule(output.op)
-
-    def verify(target="llvm"):
+    def verify(target="llvm",
+               algorithm=nnpack.ConvolutionAlgorithm.AUTO,
+               with_bias=True):
         if not tvm.module.enabled(target):
             print("skip because %s is not enabled..." % target)
             return
@@ -131,6 +129,12 @@ def test_convolution_inference():
             print("skip because extern function is not available")
             return
         ctx = tvm.cpu(0)
+        output = nnpack.convolution_inference(
+            data, kernel, bias if with_bias else None,
+            [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
+            algorithm=algorithm)
+        s = tvm.create_schedule(output.op)
+
         f = tvm.build(s, [data, kernel, bias, output], target)
 
         na = np.random.uniform(size=dshape).astype(data.dtype)
@@ -141,10 +145,77 @@ def test_convolution_inference():
         tc = tvm.nd.array(nc, ctx)
         td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
         f(ta, tb, tc, td)
-        nd = np_conv(np.reshape(na, (1, IC, IH, IW)), nb, PAD, STRIDE)
+        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(1, bshape[0], 1, 1)
         tvm.testing.assert_allclose(
-            td.asnumpy(), nd.reshape(IC, IH, IW), rtol=1e-5)
-    verify()
+            td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+    for algorithm in [
+            nnpack.ConvolutionAlgorithm.AUTO,
+            nnpack.ConvolutionAlgorithm.FFT_8x8,
+            nnpack.ConvolutionAlgorithm.FFT_16x16,
+            nnpack.ConvolutionAlgorithm.WT_8x8,
+            nnpack.ConvolutionAlgorithm.IMPLICIT_GEMM,
+            nnpack.ConvolutionAlgorithm.WT_8x8_FP16,
+    ]:
+        for with_bias in [True, False]:
+            verify(algorithm=algorithm, with_bias=with_bias)
+
+
+def test_convolution_inference_without_weight_transform():
+    BATCH = 6
+    IH = 48
+    IW = 48
+    IC = 16
+    OC = 16
+    K = 3
+    PAD = 1
+    STRIDE = 1
+
+    OH = (IH + 2*PAD - K) + 1
+    OW = (IW + 2*PAD - K) + 1
+    dshape = (BATCH, IC, IH, IW)
+    kshape = (OC, IC, K, K)
+    bshape = (OC, )
+    oshape = (BATCH, OC, OH, OW)
+
+    data = tvm.placeholder(dshape, name='data')
+    kernel = tvm.placeholder(kshape, name='kernel')
+    bias = tvm.placeholder(bshape, name='bias')
+    def verify(target="llvm",
+               algorithm=nnpack.ConvolutionAlgorithm.AUTO,
+               with_bias=True):
+        if not tvm.module.enabled(target):
+            print("skip because %s is not enabled..." % target)
+            return
+        if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
+            print("skip because extern function is not available")
+            return
+
+        ctx = tvm.cpu(0)
+        transformed_kernel = nnpack.convolution_inference_weight_transform(
+            kernel, algorithm=algorithm)
+        output = nnpack.convolution_inference_without_weight_transform(
+            data, transformed_kernel, bias if with_bias else None,
+            [PAD, PAD, PAD, PAD], [STRIDE, STRIDE],
+            algorithm=algorithm)
+
+        s = tvm.create_schedule(output.op)
+
+        f = tvm.build(s, [data, kernel, bias, output], target)
+
+        na = np.random.uniform(size=dshape).astype(data.dtype)
+        nb = np.random.uniform(size=kshape).astype(kernel.dtype)
+        nc = np.random.uniform(size=bshape).astype(bias.dtype) if with_bias else np.zeros(bshape, dtype=bias.dtype)
+        ta = tvm.nd.array(na, ctx)
+        tb = tvm.nd.array(nb, ctx)
+        tc = tvm.nd.array(nc, ctx)
+        td = tvm.nd.array(np.zeros(oshape, dtype=output.dtype), ctx)
+        f(ta, tb, tc, td)
+        nd = np_conv(np.reshape(na, (BATCH, IC, IH, IW)), nb, PAD, STRIDE) + nc.reshape(1, bshape[0], 1, 1)
+        tvm.testing.assert_allclose(
+            td.asnumpy(), nd.reshape(BATCH, IC, IH, IW), rtol=1e-5)
+    for algorithm in [nnpack.ConvolutionAlgorithm.WT_8x8]:
+        for with_bias in [True, False]:
+            verify(algorithm=algorithm, with_bias=with_bias)
 
 def test_convolution_output():
     BATCH = 32
