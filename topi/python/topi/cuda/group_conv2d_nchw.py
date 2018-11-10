@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name
-"""Schedule for depthwise_conv2d with auto fusion"""
+"""The template for cuda group_conv2d_nchw"""
 import tvm
 from tvm import autotvm
 
@@ -149,7 +149,7 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
         pad_data = packed_data
 
     if autotvm.GLOBAL_SCOPE.in_tuning:
-        # skip this part during tuning to make recrods accurate
+        # skip this part during tuning to make records accurate
         # this part will be pre-computed during NNVM's pre-compute optimization pass
         s[packed_data].pragma(s[packed_data].op.axis[0], "debug_skip_region")
         s[packed_kernel].pragma(
@@ -178,11 +178,11 @@ def schedule_group_conv2d_NCHWc_int8(cfg, s, output):
     oc_chunk = get_const_int(output.shape[1])
     # tile and bind spatial axes
     n, f, y, x, c = s[output].op.axis
-    cfg.define_split("tile_n", cfg.axis(n), num_outputs=4)
+    cfg.define_split("tile_n", n, num_outputs=4)
     cfg.define_split("tile_g", cfg.axis(groups), num_outputs=2)
     cfg.define_split("tile_f", cfg.axis(oc_chunk // groups), num_outputs=4)
-    cfg.define_split("tile_y", cfg.axis(y), num_outputs=4)
-    cfg.define_split("tile_x", cfg.axis(x), num_outputs=4)
+    cfg.define_split("tile_y", y, num_outputs=4)
+    cfg.define_split("tile_x", x, num_outputs=4)
 
     # this is the scope to attach global config inside this kernel
     kernel_scope, n = s[output].split(n, nparts=1)

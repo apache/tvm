@@ -69,8 +69,6 @@ def verify_group_conv2d_nchw(batch, in_channel, in_size, num_filter, kernel, str
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
-                (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
             func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
                 (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
             func(a, w, b, c)
@@ -150,8 +148,6 @@ def verify_group_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kerne
         b = tvm.nd.array(b_np, ctx)
         c = tvm.nd.array(np.zeros(get_const_tuple(C.shape), dtype=C.dtype), ctx)
         if add_bias:
-            tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
-                (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
             func = tvm.build(s, [A, W, bias, C], device, name="relu_%d_%d_%d_%d_%d_%d_%d_%d_%d" %\
                 (batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation, groups))
             func(a, w, b, c)
