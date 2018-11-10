@@ -35,4 +35,8 @@ RUN bash /install/ubuntu_install_redis.sh
 COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
 
+# NNPACK deps
+COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
+RUN bash /install/ubuntu_install_nnpack.sh
+
 ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
