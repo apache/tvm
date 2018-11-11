@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file test_lib.cpp
+ * \file test_lib.cc
  * \brief Test library for the VTA design simulation and driver tests.
  */
 
@@ -85,6 +85,12 @@ uint64_t vta(
   VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
   VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
+
+  int flag = 0, t = 0;
+  for (t = 0; t < 10000000; ++t) {
+    flag = VTAReadMappedReg(vta_compute_handle, 0x18);
+    if (flag & VTA_DONE) break;
+  }
 #elif defined(VTA_TARGET_DE10_NANO)
   // FETCH @ 0x10 : Data signal of insn_count_V
   VTAWriteMappedReg(vta_fetch_handle, 0x10, insn_count);
@@ -102,16 +108,17 @@ uint64_t vta(
   if (outputs) VTAWriteMappedReg(vta_store_handle, 0x10, output_phy);
 
   // VTA start
-  VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x80);
-  VTAWriteMappedReg(vta_load_handle, 0x0, 0x80);
-  VTAWriteMappedReg(vta_compute_handle, 0x0, 0x80);
-  VTAWriteMappedReg(vta_store_handle, 0x0, 0x80);
-#endif
+  VTAWriteMappedReg(vta_fetch_handle, 0x0, 0x1);
+  VTAWriteMappedReg(vta_load_handle, 0x0, 0x81);
+  VTAWriteMappedReg(vta_compute_handle, 0x0, 0x81);
+  VTAWriteMappedReg(vta_store_handle, 0x0, 0x81);
+
   int flag = 0, t = 0;
   for (t = 0; t < 10000000; ++t) {
-    flag = VTAReadMappedReg(vta_compute_handle, 0x18);
+    flag = VTAReadMappedReg(vta_compute_handle, 0x10);
     if (flag & VTA_DONE) break;
   }
+#endif
 
   if (t == 10000000) {
     printf("\tWARNING: VTA TIMEOUT!!!!\n");
