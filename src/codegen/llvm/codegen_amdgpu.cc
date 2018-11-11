@@ -47,8 +47,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       if (info.scope.rank == runtime::StorageRank::kLocal) {
         // const int local_address_space = 5;
         // TODO(tqchen): for higher version of LLVM, local address space can be set.
-        llvm::AllocaInst* alloca = builder_->CreateAlloca(
-            LLVMType(op->type), ConstInt32(constant_size));
+        llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
+            return builder_->CreateAlloca(
+                LLVMType(op->type), ConstInt32(constant_size));
+          });
         if (alloca->getAlignment() < static_cast<uint32_t>(info.alignment)) {
           alloca->setAlignment(info.alignment);
         }

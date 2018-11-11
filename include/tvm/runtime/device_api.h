@@ -178,6 +178,40 @@ class DeviceAPI {
 
 /*! \brief The device type bigger than this is RPC device */
 constexpr int kRPCSessMask = 128;
+
+/*!
+ * \brief The name of Device API factory.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DeviceName(int type) {
+  switch (type) {
+    case kDLCPU: return "cpu";
+    case kDLGPU: return "gpu";
+    case kDLOpenCL: return "opencl";
+    case kDLSDAccel: return "sdaccel";
+    case kDLAOCL: return "aocl";
+    case kDLVulkan: return "vulkan";
+    case kDLMetal: return "metal";
+    case kDLVPI: return "vpi";
+    case kDLROCM: return "rocm";
+    case kOpenGL: return "opengl";
+    case kDLExtDev: return "ext_dev";
+    default: LOG(FATAL) << "unknown type =" << type; return "Unknown";
+  }
+}
+
+#ifndef _LIBCPP_SGX_NO_IOSTREAMS
+inline std::ostream& operator<<(std::ostream& os, DLContext ctx) {  // NOLINT(*)
+  int device_type = static_cast<int>(ctx.device_type);
+  if (device_type > kRPCSessMask) {
+    os << "remote[" << (device_type / kRPCSessMask) << "]-";
+    device_type = device_type % kRPCSessMask;
+  }
+  os << runtime::DeviceName(device_type) << "(" << ctx.device_id << ")";
+  return os;
+}
+#endif
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_DEVICE_API_H_

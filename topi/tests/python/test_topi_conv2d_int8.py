@@ -9,7 +9,7 @@ import topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
 
-from common import get_all_backend
+from common import get_all_backend, NCHWcInt8Fallback
 
 oc_block_factor = 4
 
@@ -88,17 +88,6 @@ def verify_conv2d_NCHWc_int8(batch, in_channel, in_size, num_filter, kernel, str
         check_device(device)
 
 
-class NCHWcInt8Fallback(autotvm.FallbackContext):
-    def _query_inside(self, target, workload):
-        key = (target, workload)
-        if key in self.memory:
-            return self.memory[key]
-        cfg = FallbackConfigEntity()
-        cfg.template_key = 'int8'
-        self.memory[key] = cfg
-        return cfg
-
-
 def test_conv2d_nchw():
     with NCHWcInt8Fallback():
         # ResNet18 workloads where channels in / out are multiple of oc_block_factor
@@ -118,6 +107,9 @@ def test_conv2d_nchw():
         verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_relu=True)
         verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True)
         verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, add_bias=True, add_relu=True)
+
+        # dilation = 2
+        verify_conv2d_NCHWc_int8(1, 64, 56, 64, 3, 1, 1, dilation=2)
 
         # batch size
         verify_conv2d_NCHWc_int8(4, 64, 56, 64, 3, 1, 1)

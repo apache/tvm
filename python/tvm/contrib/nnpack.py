@@ -63,14 +63,32 @@ def fully_connected_output(lhs, rhs, nthreads=1):
             "tvm.contrib.nnpack.fully_connected_output",
             ins[0], ins[1], outs[0], nthreads), name="C")
 
-def convolution_inference(data, kernel, bias, padding, stride, nthreads=1):
-    """Create an extern op to do inference convolution of 3D tensor data and
+
+class ConvolutionAlgorithm:
+    AUTO = 0
+    FFT_8x8 = 1
+    FFT_16x16 = 2
+    WT_8x8 = 3
+    IMPLICIT_GEMM = 4
+    DIRECT = 5
+    WT_8x8_FP16 = 6
+
+
+class ConvolutionTransformStrategy:
+    COMPUTE = 1
+    PRECOMPUTE = 2
+
+
+def convolution_inference(
+        data, kernel, bias, padding, stride, nthreads=1,
+        algorithm=ConvolutionAlgorithm.AUTO):
+    """Create an extern op to do inference convolution of 4D tensor data and
     4D tensor kernel and 1D tensor bias with nnpack.
 
     Parameters
     ----------
     data : Tensor
-        data 3D tensor input[input_channels][input_height][input_width] of
+        data 4D tensor input[batch][input_channels][input_height][input_width] of
         FP32 elements.
     kernel : Tensor
         kernel 4D tensor kernel[output_channels][input_channels][kernel_height]
@@ -88,23 +106,108 @@ def convolution_inference(data, kernel, bias, padding, stride, nthreads=1):
     Returns
     -------
     output : Tensor
-        output 3D tensor output[output_channels][output_height][output_width]
+        output 4D tensor output[batch][output_channels][output_height][output_width]
         of FP32 elements.
     """
 
     assert isinstance(padding, list) and len(padding) == 4
     assert isinstance(stride, list) and len(stride) == 2
-    _, input_height, input_width = data.shape
+    batch, _, input_height, input_width = data.shape
     output_channels, _, kernel_height, kernel_width = kernel.shape
     output_height = (input_height + padding[0] + padding[1] - kernel_height) / stride[0] + 1
     output_width = (input_width + padding[0] + padding[1] - kernel_width) / stride[1] + 1
 
     return _api.extern(
-        (output_channels, output_height, output_width), [data, kernel, bias],
+        (batch, output_channels, output_height, output_width),
+        [data, kernel, bias] if bias is not None else [data, kernel],
         lambda ins, outs: _intrin.call_packed(
-            "tvm.contrib.nnpack.convolution_inference", ins[0], ins[1], ins[2],
+            "tvm.contrib.nnpack.convolution_inference",
+            ins[0],
+            ins[1],
+            ins[2] if bias is not None else 0,
             outs[0], padding[0], padding[1], padding[2], padding[3],
-            stride[0], stride[1], nthreads), name="C")
+            stride[0], stride[1], nthreads, algorithm), name="C")
+
+def convolution_inference_without_weight_transform(
+        data, transformed_kernel, bias, padding, stride, nthreads=1,
+        algorithm=ConvolutionAlgorithm.AUTO):
+    """Create an extern op to do inference convolution of 4D tensor data and
+    4D pre-transformed tensor kernel and 1D tensor bias with nnpack.
+
+    Parameters
+    ----------
+    data : Tensor
+        data 4D tensor input[batch][input_channels][input_height][input_width] of
+        FP32 elements.
+    transformed_kernel : Tensor
+        transformed_kernel 4D tensor kernel[output_channels][input_channels][tile]
+        [tile] of FP32 elements.
+    bias : Tensor
+        bias 1D array bias[output_channels][input_channels][kernel_height]
+        [kernel_width] of FP32 elements.
+    padding : list
+        padding A 4-dim list of [pad_top, pad_bottom, pad_left, pad_right],
+        which indicates the padding around the feature map.
+    stride : list
+        stride A 2-dim list of [stride_height, stride_width], which indicates
+        the stride.
+
+    Returns
+    -------
+    output : Tensor
+        output 4D tensor output[batch][output_channels][output_height][output_width]
+        of FP32 elements.
+    """
+
+    assert algorithm in (ConvolutionAlgorithm.WT_8x8,
+                         ConvolutionAlgorithm.WT_8x8_FP16)
+    assert isinstance(padding, list) and len(padding) == 4
+    assert isinstance(stride, list) and len(stride) == 2
+    batch, _, input_height, input_width = data.shape
+    output_channels, _, _, _ = transformed_kernel.shape
+    kernel_height, kernel_width = (3, 3)
+    output_height = (input_height + padding[0] + padding[1] - kernel_height) / stride[0] + 1
+    output_width = (input_width + padding[0] + padding[1] - kernel_width) / stride[1] + 1
+
+    return _api.extern(
+        (batch, output_channels, output_height, output_width),
+        [data, transformed_kernel, bias] if bias is not None else [data, transformed_kernel],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.nnpack.convolution_inference_without_weight_transform",
+            ins[0],
+            ins[1],
+            ins[2] if bias is not None else 0,
+            outs[0], padding[0], padding[1], padding[2], padding[3],
+            stride[0], stride[1], nthreads, algorithm), name="C")
+
+def convolution_inference_weight_transform(
+        kernel, nthreads=1,
+        algorithm=ConvolutionAlgorithm.AUTO):
+    """Create an extern op to do inference convolution of 3D tensor data and
+    4D tensor kernel and 1D tensor bias with nnpack.
+
+    Parameters
+    ----------
+    kernel : Tensor
+        kernel 4D tensor kernel[output_channels][input_channels][kernel_height]
+        [kernel_width] of FP32 elements.
+
+    Returns
+    -------
+    output : Tensor
+        output 4D tensor output[output_channels][input_channels][tile][tile]
+        of FP32 elements.
+    """
+    assert algorithm in (ConvolutionAlgorithm.WT_8x8, ConvolutionAlgorithm.WT_8x8_FP16)
+    output_channels, input_channels, _, _ = kernel.shape
+
+    transform_tile_size = 8
+    return _api.extern(
+        (output_channels, input_channels, transform_tile_size, transform_tile_size),
+        [kernel],
+        lambda ins, outs: _intrin.call_packed(
+            "tvm.contrib.nnpack.convolution_inference_weight_transform",
+            ins[0], outs[0], nthreads, algorithm), name="transform_kernel")
 
 def convolution_output(data, kernel, bias, padding, nthreads=1):
     """Create an extern op to compute convolution of 4D tensor data and
@@ -143,5 +246,6 @@ def convolution_output(data, kernel, bias, padding, nthreads=1):
         lambda ins, outs: _intrin.call_packed(
             "tvm.contrib.nnpack.convolution_output", ins[0], ins[1], ins[2],
             outs[0], padding[0], padding[1], padding[2], padding[3], nthreads), name="C")
+
 
 _init_api("tvm.contrib.nnpack")

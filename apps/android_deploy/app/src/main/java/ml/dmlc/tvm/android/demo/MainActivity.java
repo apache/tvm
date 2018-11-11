@@ -298,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
 
                     // get the function from the module(get output data)
                     Log.i(TAG, "get output data");
-                    NDArray outputNdArray = NDArray.empty(new long[]{1000}, new TVMType("float32"));
+                    NDArray outputNdArray = NDArray.empty(new long[]{1, 1000}, new TVMType("float32"));
                     Function getOutputFunc = graphRuntimeModule.getFunction("get_output");
                     getOutputFunc.pushArg(OUTPUT_INDEX).pushArg(outputNdArray).invoke();
                     float[] output = outputNdArray.asFloatArray();

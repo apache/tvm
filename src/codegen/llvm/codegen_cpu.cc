@@ -503,7 +503,9 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
       handle_not_null, end_block, init_block, md_very_likely_branch_);
   // Initialize the handle if needed.
   builder_->SetInsertPoint(init_block);
-  llvm::Value* out = builder_->CreateAlloca(t_tvm_func_handle_);
+  llvm::Value* out = WithFunctionEntry([&]() {
+      return builder_->CreateAlloca(t_tvm_func_handle_);
+    });
   llvm::LoadInst* ctx = builder_->CreateAlignedLoad(
       gv_mod_ctx_, gv_mod_ctx_->getAlignment());
   ctx->setMetadata(
@@ -513,6 +515,8 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
       RuntimeTVMGetFuncFromEnv(), {ctx, GetConstString(fname), out});
   init_block = CheckCallSuccess(retcode);
   llvm::Value* loaded_handle = builder_->CreateAlignedLoad(out, align);
+  // Store the handle
+  builder_->CreateStore(loaded_handle, hptr);
   builder_->CreateBr(end_block);
   // end block
   builder_->SetInsertPoint(end_block);
@@ -637,19 +641,23 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(intrinsic::tvm_stack_alloca)) {
     CHECK_EQ(op->args.size(), 2U);
     const std::string& type = op->args[0].as<StringImm>()->value;
-    llvm::Value* num = MakeValue(op->args[1]);
-    if (type == "shape") {
-      return builder_->CreateAlloca(t_tvm_shape_index_, num);
-    } else if (type == "arg_value") {
-      return builder_->CreateAlloca(t_tvm_value_, num);
-    } else if (type == "arg_tcode") {
-      return builder_->CreateAlloca(t_int_, num);
-    } else if (type == "array") {
-      return builder_->CreateAlloca(t_tvm_array_, num);
-    } else {
-      LOG(FATAL) << "Unknown stack alloca type " << type;
-      return nullptr;
-    }
+    return WithFunctionEntry([&]() -> llvm::AllocaInst* {
+        const int64_t* pval = as_const_int(op->args[1]);
+        CHECK(pval) << "require stack alloca to contain constant value";
+        llvm::Value* num = ConstInt32(pval[0]);
+        if (type == "shape") {
+          return builder_->CreateAlloca(t_tvm_shape_index_, num);
+        } else if (type == "arg_value") {
+          return builder_->CreateAlloca(t_tvm_value_, num);
+        } else if (type == "arg_tcode") {
+          return builder_->CreateAlloca(t_int_, num);
+        } else if (type == "array") {
+          return builder_->CreateAlloca(t_tvm_array_, num);
+        } else {
+          LOG(FATAL) << "Unknown stack alloca type " << type;
+          return nullptr;
+        }
+      });
   } else {
     return CodeGenLLVM::CreateIntrinsic(op);
   }

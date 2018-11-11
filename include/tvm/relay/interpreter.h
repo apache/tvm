@@ -16,6 +16,7 @@
 #ifndef TVM_RELAY_INTERPRETER_H_
 #define TVM_RELAY_INTERPRETER_H_
 
+#include <tvm/build_module.h>
 #include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
 
@@ -27,7 +28,9 @@ namespace relay {
  */
 class Value;
 
-/*! \brief Evaluate an expression using the interpreter producing a value.
+/*!
+ *\brief Create a Interpreter function that can
+ *  evaluate an expression and produce a value.
  *
  * The resulting value can be passed to Python, making it easy to use
  * for testing and debugging.
@@ -38,8 +41,14 @@ class Value;
  *
  * Our intent is that this will never be the most efficient implementation of
  * Relay's semantics, but a readable and clear one.
+ *
+ * \param mod The function module.
+ * \param context The primary context that the interepreter runs on.
+ * \param target Compiler target flag to compile the functions on the context.
+ * \return A function that takes in an expression and returns a value.
  */
-Value Evaluate(Module mod, Expr e);
+runtime::TypedPackedFunc<Value(Expr)>
+CreateInterpreter(Module mod, DLContext context, Target target);
 
 /*! \brief The base container type of Relay values. */
 class ValueNode : public RelayNode {
@@ -124,9 +133,6 @@ struct TensorValueNode : ValueNode {
 
   /*! \brief Build a value from an NDArray. */
   TVM_DLL static TensorValue make(runtime::NDArray data);
-
-  /*! \brief Construct an empty tensor value from t. */
-  TVM_DLL static TensorValue FromType(const Type& t);
 
   static constexpr const char* _type_key = "relay.TensorValue";
   TVM_DECLARE_NODE_TYPE_INFO(TensorValueNode, ValueNode);

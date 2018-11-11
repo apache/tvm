@@ -1,16 +1,23 @@
 import numpy as np
 import tvm
+import tvm.testing
 from tvm import relay
-from tvm.relay.interpreter import Value, TupleValue
-from tvm.relay import op
+from tvm.relay.backend.interpreter import Value, TupleValue
 from tvm.relay.scope_builder import ScopeBuilder
 from tvm.relay import testing, create_executor
 
 
 def check_eval(expr, args, expected_result, mod=None, rtol=1e-07):
-    intrp = create_executor(mod=mod)
-    result = intrp.evaluate(expr)(*args)
-    np.testing.assert_allclose(result.asnumpy(), expected_result, rtol=rtol)
+    # TODO(tqchen) add more types once the schedule register is fixed.
+    for target in ["llvm"]:
+        ctx = tvm.context(target, 0)
+        if not ctx.exist:
+            return
+        intrp = create_executor(mod=mod, ctx=ctx, target=target)
+        result = intrp.evaluate(expr)(*args)
+        # use tvm.testing which also set atol
+        tvm.testing.assert_allclose(
+            result.asnumpy(), expected_result, rtol=rtol)
 
 
 def test_from_scalar():
@@ -34,7 +41,7 @@ def test_id():
 
 
 def test_add_const():
-    two = op.add(relay.const(1), relay.const(1))
+    two = relay.add(relay.const(1), relay.const(1))
     func = relay.Function([], two)
     check_eval(func, [], 2)
 
@@ -42,65 +49,46 @@ def test_add_const():
 def test_mul_param():
     x = relay.var('x', shape=(10, 10))
     y = relay.var('y', shape=(1, 10))
-    func = relay.Function([x, y], op.multiply(x, y))
+    func = relay.Function([x, y], relay.multiply(x, y))
     x_data = np.random.rand(10, 10).astype('float32')
     y_data = np.random.rand(1, 10).astype('float32')
     check_eval(func, [x_data, y_data], x_data * y_data)
 
 
-# failing due to numeric issues
-
-# def test_dense():
-#     x = relay.var('x', shape=(10, 10))
-#     w = relay.var('w', shape=(10, 10))
-#     y = op.nn.dense(x, w)
-#     func = relay.Function([x, w], y)
-#     x_data = np.random.rand(10, 10).astype('float32')
-#     w_data = np.random.rand(10, 10).astype('float32')
-#     check_eval(func, [x_data, w_data], x_data @ w_data, rtol=0.1)
-
-# def test_linear():
-#     x = relay.var('x', shape=(10, 10))
-#     w = relay.var('w', shape=(10, 10))
-#     b = relay.var('b', shape=(10,))
-#     y = op.add(op.nn.dense(x, w), b)
-#     func = relay.Function([x, w, b], y)
-#     x_data = np.random.rand(10, 10).astype('float32')
-#     w_data = np.random.rand(10, 10).astype('float32')
-#     b_data = np.random.rand(10).astype('float32')
-#     check_eval(func, [x_data, w_data, b_data], x_data @ w_data + b_data)
-
 def test_equal():
     i = relay.var('i', shape=[], dtype='int32')
     j = relay.var('i', shape=[], dtype='int32')
-    z = op.equal(i, j)
+    z = relay.equal(i, j)
     func = relay.Function([i, j], z, ret_type=relay.TensorType([], 'bool'))
     i_data = relay.const(0)
     j_data = relay.const(0)
     check_eval(func, [i_data, j_data], True)
 
+
 def test_subtract():
     i = relay.var('i', shape=[], dtype='int32')
-    sub = op.subtract(i, relay.const(1, dtype='int32'))
+    sub = relay.subtract(i, relay.const(1, dtype='int32'))
     func = relay.Function([i], sub, ret_type=relay.TensorType([], 'int32'))
     i_data = np.array(1, dtype='int32')
     check_eval(func, [i_data], 0)
+
 
 def test_simple_loop():
     mod = relay.module.Module({})
     sum_up = relay.GlobalVar('sum_up')
     i = relay.var('i', shape=[], dtype='int32')
     sb = ScopeBuilder()
-    with sb.if_scope(op.equal(i, relay.const(0, dtype='int32'))):
+    with sb.if_scope(relay.equal(i, relay.const(0, dtype='int32'))):
         sb.ret(i)
     with sb.else_scope():
-        one_less = op.subtract(i, relay.const(1, dtype='int32'))
+        one_less = relay.subtract(i, relay.const(1, dtype='int32'))
         rec_call = relay.Call(sum_up, [one_less])
-        sb.ret(op.add(rec_call, i))
+        sb.ret(relay.add(rec_call, i))
     func = relay.Function([i], sb.get(), ret_type=relay.TensorType([], 'int32'))
     mod[sum_up] = func
     i_data = np.array(10, dtype='int32')
     check_eval(sum_up, [i_data], sum(range(1, 11)), mod=mod)
+
 
 def test_loop():
     mod = relay.module.Module({})
@@ -108,11 +96,11 @@ def test_loop():
     i = relay.var('i', shape=[], dtype='int32')
     accum = relay.var('accum', shape=[], dtype='int32')
     sb = ScopeBuilder()
-    with sb.if_scope(op.equal(i, relay.const(0))):
+    with sb.if_scope(relay.equal(i, relay.const(0))):
         sb.ret(accum)
     with sb.else_scope():
-        one_less = op.subtract(i, relay.const(1))
-        new_accum = op.add(accum, i)
+        one_less = relay.subtract(i, relay.const(1))
+        new_accum = relay.add(accum, i)
         sb.ret(relay.Call(sum_up, [one_less, new_accum]))
     func = relay.Function([i, accum], sb.get())
     mod[sum_up] = func
@@ -120,19 +108,21 @@ def test_loop():
     accum_data = np.array(0, dtype='int32')
     check_eval(sum_up, [i_data, accum_data], sum(range(1, 11)), mod=mod)
 
-def test_mlp():
-    pass
-    # net = testing.mlp.get_workload(1)
-    # import pdb; pdb.set_trace()
+
+def test_binds():
+    x = relay.var("x")
+    y = relay.add(x, x)
+    intrp = create_executor("debug")
+    xx = np.ones((10, 20))
+    res = intrp.evaluate(y, binds={x: xx}).asnumpy()
+    tvm.testing.assert_allclose(xx + xx, res)
+
 
 if __name__ == "__main__":
     test_id()
     test_add_const()
-    # test_dense()
-    # test_linear()
     test_equal()
     test_subtract()
     test_simple_loop()
     test_loop()
-    test_mlp()
-
+    test_binds()
