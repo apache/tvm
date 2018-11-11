@@ -56,47 +56,47 @@ def outer_product(n, m, a, b):
             c[i, j] = a[i] * b[j]
     return c
 
-##Test global function
-##Test bridge between frontend and backend
-#def test_outer_product():
-#    n = tvm.var('n')
-#    m = tvm.var('m')
-#    a = tvm.placeholder((n, ), name='a')
-#    b = tvm.placeholder((m, ), name='b')
-#    c = tvm.placeholder((n, m), name='c')
-#
-#    outs, ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
-#    #Check for i in (0, n)
-#    assert isinstance(ir, tvm.stmt.For)
-#    assert ir.loop_var.name == 'i'
-#    assert ir.min.value == 0
-#    assert ir.extent.name == 'n'
-#    ibody = ir.body
-#    assert isinstance(ibody, tvm.stmt.For)
-#    #Check for j in (0, m)
-#    assert ibody.loop_var.name == 'j'
-#    assert ibody.min.value == 0
-#    assert ibody.extent.name == 'm'
-#    #Check loop body
-#    jbody = ibody.body
-#    assert isinstance(jbody, tvm.stmt.Provide)
-#    assert jbody.func.name == 'c'
-#    assert len(jbody.args) == 2
-#    assert jbody.args[0].name == 'i'
-#    assert jbody.args[1].name == 'j'
-#    assert isinstance(jbody.value, tvm.expr.Mul)
-#    mul = jbody.value
-#    assert isinstance(mul.a, tvm.expr.Call)
-#    assert mul.a.name == 'a'
-#    assert mul.b.name == 'b'
-#
-#
-#    run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
-#
-#    for key, _ in HYBRID_GLOBALS.items():
-#        assert key not in globals().keys()
-#        assert key not in outer_product.__globals__.keys()
-#
+#Test global function
+#Test bridge between frontend and backend
+def test_outer_product():
+    n = tvm.var('n')
+    m = tvm.var('m')
+    a = tvm.placeholder((n, ), name='a')
+    b = tvm.placeholder((m, ), name='b')
+    c = tvm.placeholder((n, m), name='c')
+
+    outs, ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
+    #Check for i in (0, n)
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i'
+    assert ir.min.value == 0
+    assert ir.extent.name == 'n'
+    ibody = ir.body
+    assert isinstance(ibody, tvm.stmt.For)
+    #Check for j in (0, m)
+    assert ibody.loop_var.name == 'j'
+    assert ibody.min.value == 0
+    assert ibody.extent.name == 'm'
+    #Check loop body
+    jbody = ibody.body
+    assert isinstance(jbody, tvm.stmt.Provide)
+    assert jbody.func.name == 'c'
+    assert len(jbody.args) == 2
+    assert jbody.args[0].name == 'i'
+    assert jbody.args[1].name == 'j'
+    assert isinstance(jbody.value, tvm.expr.Mul)
+    mul = jbody.value
+    assert isinstance(mul.a, tvm.expr.Call)
+    assert mul.a.name == 'a'
+    assert mul.b.name == 'b'
+
+
+    run_and_check(outer_product, [n, m, a, b], {n: 99, m: 101})
+
+    for key, _ in HYBRID_GLOBALS.items():
+        assert key not in globals().keys()
+        assert key not in outer_product.__globals__.keys()
+
 ##Test local function
 ##Test allocation of local variable
 #def test_fanout():
@@ -347,7 +347,8 @@ def outer_product(n, m, a, b):
 #
 
 if __name__ == "__main__":
-    test_outer_product()
+    #test_outer_product()
+    test_plus_one()
 #    test_fanout()
 #    test_failure()
 #    test_looptype()

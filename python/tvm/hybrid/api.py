@@ -63,36 +63,32 @@ def lower(func, args, simple_mode=False):
         src = _pruned_source(func)
     parser = parse_python(src, args)
     body = parser.parsed_body
+
     if simple_mode:
-        outs = [parser._args[i] for i in parser.outputs]
-        return outs, body
+        return parser.outputs, body
 
-    input_tensors = set()
-    output_tensors = set()
-    def find_inputs(op):
-        if isinstance(op, Provide):
-            for i in args:
-                if op.func.name == i.name:
-                    output_tensors.add(i.name)
-        elif isinstance(op, Call):
-            for i in args:
-                if op.name == i.name and (i.name not in output_tensors):
-                    input_tensors.add(i)
-    PostOrderVisit(body, find_inputs)
-    input_tensors = list(input_tensors)
-
+    input_tensors = []
     input_buffers = []
-    output_buffers = []
-    attrs = {}
+    intra_link = {}
     for i in args:
         if isinstance(i, Tensor):
-            buf_ = decl_buffer(i.shape, i.dtype, i.name)
-            if i in input_tensors:
-                input_buffers.append(buf_)
-            if i.name in output_tensors:
-                output_buffers.append(buf_)
-        attrs[i.name] = i
+            input_tensors.append(i)
+            input_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
+            if i in parser.outputs:
+                intra_link[i.name] = input_buffers[-1]
 
-    res = _ExternOp(parser.func_name, "HybridOp", attrs, input_tensors,
+    output_buffers = []
+    for i in parser.outputs:
+        if i in input_tensors:
+            output_buffers.append(intra_link[i.name])
+        else:
+            output_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
+
+    op = _ExternOp(parser.func_name, "HybridOp", None, input_tensors,
             input_buffers, output_buffers, body)
-    return res
+
+    res = [op.output(i) for i in range(len(output_buffers))]
+    for i, j in zip(res, output_buffers):
+        i.name = j.name
+
+    return res[0] if len(res) == 1 else res
