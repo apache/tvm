@@ -2,7 +2,9 @@
 """Depthwise Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
+from tvm.autotvm.task import get_config
 from tvm.autotvm.task.space import SplitEntity
+from tvm.autotvm.task.nnvm_integration import deserialize_args
 from .. import generic, tag
 from ..nn.pad import pad
 from ..util import get_const_tuple
@@ -164,3 +166,38 @@ def _schedule_depthwise_conv2d_NCHWc_impl(s, cfg, data, kernel, conv_out, output
         s[O].vectorize(oc_block)
         s[O].parallel(parallel_axis)
     return s
+
+
+@autotvm.task.register("topi_x86_depthwise_conv2d_NCHWc_from_nchw")
+def _topi_nn_depthwise_conv2d_NCHWc(*args, **kwargs):
+    assert not kwargs, "Do not support kwargs in template function call"
+    data, kernel, strides, padding, dilation, dtype = deserialize_args(args)
+
+    batch, in_channel, height, width = get_const_tuple(data.shape)
+    filter_channel, channel_multiplier, kh, kw = get_const_tuple(kernel.shape)
+    ph, pw = padding if isinstance(padding, (tuple, list)) else (padding, padding)
+    sh, sw = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+    out_height = (height - kh + 2 * ph) // sh + 1
+    out_width = (width - kw + 2 * pw) // sw + 1
+    out_channel = filter_channel * channel_multiplier
+
+    # get config here
+    cfg = get_config()
+    cfg.define_split("tile_ic", in_channel, num_outputs=2)
+    cfg.define_split("tile_oc", out_channel, num_outputs=2)
+    cfg.define_split("tile_ow", out_width, num_outputs=2, filter=lambda y: y.size[-1] <= 64)
+
+    # change shape with the value in config
+    ic_bn, oc_bn = cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1]
+    new_data_shape = (batch, in_channel // ic_bn, height, width, ic_bn)
+    new_kernel_shape = (out_channel // oc_bn, kh, kw, oc_bn)
+    new_data = tvm.placeholder(new_data_shape, data.dtype)
+    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
+
+    data_layout = "NCHW%dc" % ic_bn
+    out_layout = "NCHW%dc" % oc_bn
+
+    C = _depthwise_conv2d_NCHWc_cpu(cfg, new_data, new_kernel, strides, padding, dilation,
+                                    data_layout, out_layout, dtype)
+    s = schedule_depthwise_conv2d_NCHWc(cfg, [C])
+    return s, [new_data, new_kernel, C]

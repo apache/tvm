@@ -117,7 +117,15 @@ def tune_kernels(tasks,
         prefix = "[Task %2d/%2d] " % (i+1, len(tasks))
 
         # converting conv2d tasks to conv2d_NCHWc tasks
-        task = autotvm.task.create("topi_x86_conv2d_NCHWc", args=tsk.args,
+        op_name = tsk.workload[0]
+        if op_name == 'conv2d':
+            func_create = 'topi_x86_conv2d_NCHWc'
+        elif op_name == 'depthwise_conv2d_nchw':
+            func_create = 'topi_x86_depthwise_conv2d_NCHWc_from_nchw'
+        else:
+            raise ValueError("Tuning {} is not supported on x86".format(op_name))
+
+        task = autotvm.task.create(func_create, args=tsk.args,
                                    target=target, template_key='direct')
         task.workload = tsk.workload
 
