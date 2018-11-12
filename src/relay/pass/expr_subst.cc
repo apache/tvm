@@ -27,7 +27,7 @@ class ExprSubstituter : public ExprMutator {
 };
 
 Expr ExprSubst(const Expr& expr, tvm::Map<Expr, Expr> subst_map) {
-    return ExprSubstituter(std::move(subst_map)).Mutate(expr);
+  return ExprSubstituter(std::move(subst_map)).Mutate(expr);
 }
 
 }  // namespace relay

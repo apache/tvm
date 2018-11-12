@@ -10,7 +10,7 @@
 namespace tvm {
 namespace relay {
 
-    Expr ExprSubst(const Expr& expr, tvm::Map<Expr, Expr> subst_map);
+Expr ExprSubst(const Expr& expr, tvm::Map<Expr, Expr> subst_map);
 
 }  // namespace relay
 }  // namespace tvm
