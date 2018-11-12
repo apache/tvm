@@ -34,14 +34,14 @@ def test_fold_conv2d():
                             channels=channels1 + channels2 + channels4,
                             kernel_size=(3, 3),
                             padding=(1, 1))
-        y1 = relay.take(y, relay.const(np.arange(channels1)), axis=1)
-        y2 = relay.take(y, relay.const(np.arange(channels1, channels1 + channels2)), axis=1)
+        y1 = relay.take(y, relay.const(np.arange(channels1, dtype='int64')), axis=1)
+        y2 = relay.take(y, relay.const(np.arange(channels1, channels1 + channels2, dtype='int64')), axis=1)
         y3 = relay.nn.conv2d(x, w3,
                              channels=channels3,
                              kernel_size=(1, 1),
                              padding=(1, 1))
         y4 = relay.take(y, relay.const(np.arange(channels1 + channels2,
-                                                 channels1 + channels2 + channels4)), axis=1)
+                                                 channels1 + channels2 + channels4, dtype='int64')), axis=1)
         y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
