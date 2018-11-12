@@ -305,7 +305,7 @@ def fold_conv2d(expr):
     Returns
     -------
     transformed_expr : tvm.relay.Expr
-        Transformed expression, containing fused result.
+        Transformed expression, containing folded conv2d.
     """
     return _ir_pass.FoldConv2D(expr)
 >>>>>>> Add FoldConv2D pass
