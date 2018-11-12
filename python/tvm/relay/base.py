@@ -22,15 +22,19 @@ def register_relay_node(type_key=None):
 
 
 class RelayNode(NodeBase):
-    def astext(self):
+    def astext(self, annotate=None):
         """Get the text format of the expression.
 
         Returns
         -------
         text : str
             The text format of the expression.
+
+        annotate: Optional[relay.Expr->str]
+            Optional annotate function to provide additional
+            information in the comment block.
         """
-        return _expr._text_print(self)
+        return _expr.RelayPrint(self, annotate)
 
 
 @register_relay_node
