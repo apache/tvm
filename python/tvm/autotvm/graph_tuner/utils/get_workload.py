@@ -84,7 +84,7 @@ def get_conv2d_NCHWc_AVX_workload(**kwargs):
 
     Returns
     -------
-    out : list of tuple
+    out : list of namedtuple
         List of workloads for all convolution operator in graph
     """
     data_shape = kwargs["op_input_shapes"][0]
@@ -124,7 +124,7 @@ def get_conv2d_NCHWc_intel_graphics_workload(**kwargs):
 
     Returns
     -------
-    out : list of tuple
+    out : list of namedtuple
         List of workloads for all convolution operator in graph
     """
     data_shape = kwargs["op_input_shapes"][0]

@@ -4,8 +4,8 @@ import numpy as np
 
 import tvm
 
-from .._base import INVALID_LAYOUT_TIME
-from ..utils import is_elemlike_op, shape2layout, is_input_node
+from ._base import INVALID_LAYOUT_TIME
+from .utils import is_elemlike_op, shape2layout, is_input_node
 from tvm import autotvm
 
 
@@ -15,7 +15,7 @@ class DPStage(object):
     the action is the schedule selected for current node, action can be fully
     represented by states. No extra attribute needs for action.
 
-    In most cases, instance of this class should be created through GlobalTuner.
+    In most cases, instance of this class should be created through DPTuner.
     """
     def __init__(self, idx, wkl_dict, sch_dict, input_shapes, node_list,
                  data_layout, elemlike_shape_dict, counted_nodes_set,
@@ -86,6 +86,7 @@ class DPStage(object):
         self._global_in_nodes_dict = in_nodes_dict
         self._global_out_nodes_dict = out_nodes_dict
         self._global_dep_dict = dep_dict
+
         self._idx = idx
         self._target_op = target_op
         self._data_layout = data_layout
@@ -136,7 +137,6 @@ class DPStage(object):
     def _create_op_states(self):
         """State creation routine for nodes with target_op."""
         input_idx = self._global_in_nodes_dict[self._idx][0]
-        input_node = self._global_node_list[input_idx]
         if is_input_node(self._global_node_list, self._global_input_shapes.keys(), input_idx):
             self._full_states = np.array([sch["time"] for sch in self._sch_list])
             self._states = self._full_states

@@ -1,6 +1,5 @@
 """Built-in functions to infer layout transformation."""
 
-
 def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
     """Infer actual input and output shapes for layout transformation
     given a workload, input schedule and output schedule.

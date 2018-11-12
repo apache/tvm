@@ -4,9 +4,9 @@
 import sys
 import numpy as np
 
-from .base_graph_executor import BaseGraphTuner
+from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
-from .utils import log_msg, is_elemlike_op, is_input_node
+from .utils import is_elemlike_op, is_input_node
 
 if sys.version_info[0] == 3:
     import queue
@@ -36,8 +36,7 @@ class DPTuner(BaseGraphTuner):
     def _forward(self):
         """Forward pass in DP to generate states for all stages.
         """
-        log_msg("Start forward pass...", self._file_logger, self._console_logger,
-                verbose=self._verbose)
+        self._logger.info("Start forward pass...")
         input_idx_list = []
         for key, _ in self._out_nodes_dict.items():
             node_name = self._node_list[key]["name"]
@@ -68,14 +67,12 @@ class DPTuner(BaseGraphTuner):
             self._stage_dict[node_idx] = stage
             for out_idx in self._out_nodes_dict[node_idx]:
                 bfs_q.put(out_idx)
-        log_msg("Finished forward pass.", self._file_logger, self._console_logger,
-                verbose=self._verbose)
+        self._logger.info("Finished forward pass.")
 
     def _backward(self):
         """Backward pass in DP to generate optimal solution.
         """
-        log_msg("Start backward pass...", self._file_logger, self._console_logger,
-                verbose=self._verbose)
+        self._logger.info("Start backward pass...")
         optimal_sch_dict = {}
         # Pick optimal schedule for output nodes
         output_idx_list = []
@@ -171,8 +168,7 @@ class DPTuner(BaseGraphTuner):
                 continue
             if node_idx not in self._optimal_sch_dict:
                 self._optimal_sch_dict[node_idx] = 0
-        log_msg("Finished backward pass...", self._file_logger, self._console_logger,
-                verbose=self._verbose)
+        self._logger.info("Finished backward pass...")
 
     def run(self, max_num_states=None):
         """Run dynamic programming solver.
@@ -188,10 +184,8 @@ class DPTuner(BaseGraphTuner):
         """
         self._num_states = 0
         self._max_num_states = max_num_states
-        log_msg("Start to run dynamic programming algorithm...", self._file_logger,
-                self._console_logger, verbose=self._verbose)
+        self._logger.info("Start to run dynamic programming algorithm...")
         self._forward()
         self._backward()
-        log_msg("Finished DPExecutor run.", self._file_logger,
-                self._console_logger, verbose=self._verbose)
+        self._logger.info("Finished DPExecutor run.")
 

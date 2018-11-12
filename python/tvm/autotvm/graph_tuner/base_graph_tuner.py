@@ -13,7 +13,7 @@ from tvm import autotvm
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.record import encode, load_from_file
-from ..utils import get_real_node, is_input_node, shape2layout, \
+from .utils import get_real_node, is_input_node, shape2layout, \
     get_in_nodes, get_out_nodes, is_elemlike_op, get_wkl_map
 
 
@@ -130,18 +130,15 @@ class BaseGraphTuner(object):
         self._formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(self._formatter)
-        self._file_logger = logging.getLogger(__name__ + "_file_logger")
-        self._file_logger.addHandler(file_handler)
-        self._file_logger.setLevel(log_level)
+        self._logger = logging.getLogger(name + "_logger")
+        self._logger.addHandler(file_handler)
+        self._logger.setLevel(log_level)
         if self._verbose:
-            self._console_logger = logging.getLogger(__name__ + "_console_logger")
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(self._formatter)
-            self._console_logger.addHandler(console_handler)
-            self._console_logger.setLevel(log_level)
-            self._console_logger.propagate = False
-        else:
-            self._console_logger = None
+            self._logger.addHandler(console_handler)
+            self._logger.setLevel(log_level)
+            self._loggerr.propagate = False
 
         graph = graph_attr.set_shape_inputs(graph, input_shapes)
         graph = graph.apply("InferShape")
@@ -286,7 +283,7 @@ class BaseGraphTuner(object):
             Otherwise, it is an iterator.
 
             If this argument is set, graph tuner will first check whether layout_transform
-            already exists in records and skip benchmarking if possible.
+            workload already exists in records and skip benchmarking if possible.
 
         target_host : str, optional
             str or :any:`tvm.target.Target` optional
@@ -299,20 +296,27 @@ class BaseGraphTuner(object):
             otherwise a stackvm intepreter is used.
 
         infer_layout : bool, optional
-            Whether to infer layout transformation time if it doesn't exist in records.
+            Whether to infer layout transformation time if it doesn't exist in records, instead
+            of benchmarking on target device.
+
+            This might bring performance loss comparing to benchmarking layout transformation.
         """
         if records is None and infer_layout:
             raise RuntimeError("Requires some records to infer layout transformation time.")
 
         if isinstance(records, str):
             records = load_from_file(records)
-        ltf_wkl_set = set()
+            if len(records) == 0 and infer_layout:
+                raise RuntimeError("Records must be non-empty to infer layout transformation time.")
+
+        if isinstance(records, str):
+            records = load_from_file(records)
         num_flops, total_time = 0, 0
         if records is not None:
             for record in records:
                 ltf_wkl = record[0].task.workload
-                ltf_wkl_set.add(ltf_wkl)
-                input_shape = ltf_wkl[1][1]
+                self._layout_transform_dict[ltf_wkl] = record
+                input_shape = ltf_wkl[1][:1]
                 flops = 1
                 for i in input_shape:
                     flops *= i
@@ -406,10 +410,9 @@ class BaseGraphTuner(object):
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
         for args in args_list:
             ltf_workload = ('layout_transform',) + autotvm.task.args_to_workload(args)
-            if ltf_workload in ltf_wkl_set:
+            if ltf_workload in  self._layout_transform_dict:
                 continue
 
-            ltf_wkl_set.add(ltf_workload)
             if infer_layout:
                 input_shape = ltf_workload[1][:-1]
                 flops = 1
@@ -423,12 +426,14 @@ class BaseGraphTuner(object):
             args = autotvm.task.nnvm_integration.serialize_args(args)
             task = autotvm.task.create(layout_transform, args=args, target=target,
                                        target_host=target_host)
+            task.workload = ltf_workload
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
                        callbacks=[log_to_list(records)])
             self._layout_transform_dict[ltf_workload] = records[0]
 
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
+        self._logger.info("Benchmarking layout transformation successful.")
 
     @property
     def layout_transform_dict(self):
@@ -483,6 +488,7 @@ class BaseGraphTuner(object):
                                           self.get_optimal_schedules()):
                 record = record_dict[str((workload, schedule))]
                 of.write(encode(record[0], record[1]) + "\n")
+        log.info("Writing optimal schedules to % successful." % record_file)
 
     @abstractmethod
     def run(self, **kwargs):

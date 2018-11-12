@@ -22,41 +22,6 @@ def is_elemlike_op(node):
     return is_elemlike
 
 
-def log_msg(msg, file_logger, console_logger, log_func_str="info",
-            verbose=True):
-    """Log message.
-
-    Parameters
-    ----------
-    msg : str
-        Message to be logged.
-
-    file_logger : logging.Logger
-        File logger.
-
-    console_logger : logging.Logger
-        Console logger.
-
-    log_func_str : str, optional
-        Type of log function. Valid options are "debug", "info",
-        "warning", "error" and "critical".
-
-    verbose : boolean, optional
-        Whether to log to console.
-    """
-    valid_log_func = ["debug", "info", "warning", "error", "critical"]
-    if log_func_str not in valid_log_func:
-        raise RuntimeError("Log function must be one of %s, but got %s"
-                           % (str(valid_log_func), log_func_str))
-    file_logger_func = getattr(file_logger, log_func_str)
-    file_logger_func(msg)
-    if verbose:
-        console_logger_func = getattr(console_logger, log_func_str)
-        console_logger_func(msg)
-    if log_func_str == "error" or log_func_str == "critical":
-        raise RuntimeError(msg)
-
-
 def is_input_node(node_list, input_names, node_idx):
     """Whether a node is an input node.
 
