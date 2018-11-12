@@ -11,7 +11,7 @@ OBJECTS = pynq_driver.o test_lib.o metal_test.o
 EXECUTABLE = vta
 
 # Include VTA config
-VTA_CONFIG = python ../../../make/vta_config.py
+VTA_CONFIG = python ../../../config/vta_config.py
 CFLAGS += `${VTA_CONFIG} --cflags`
 LDFLAGS += `${VTA_CONFIG} --ldflags`
 VTA_TARGET := $(shell ${VTA_CONFIG} --target)

@@ -87,8 +87,8 @@ def server_start():
         ldflags = pkg.ldflags
         lib_name = dll_path
         source = pkg.lib_source
-        logging.info("Rebuild runtime: output=%s, cflags=%s, source=%s, ldflags=%s",
-                     dll_path, str(cflags), str(source), str(ldflags))
+        logging.info("Rebuild runtime:\n output=%s,\n cflags=%s,\n source=%s,\n ldflags=%s",
+                     dll_path, '\n\t'.join(cflags), '\n\t'.join(source), '\n\t'.join(ldflags))
         cc.create_shared(lib_name, source, cflags + ldflags)
         with open(cfg_path, "w") as outputfile:
             outputfile.write(pkg.cfg_json)
@@ -99,10 +99,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default="0.0.0.0",
                         help='the hostname of the server')
-    parser.add_argument('--port', type=int, default=9090,
-                        help='The port of the PRC')
+    parser.add_argument('--port', type=int, default=9091,
+                        help='The port of the RPC')
     parser.add_argument('--port-end', type=int, default=9199,
-                        help='The end search port of the PRC')
+                        help='The end search port of the RPC')
     parser.add_argument('--key', type=str, default="",
                         help="RPC key used to identify the connection type.")
     parser.add_argument('--tracker', type=str, default="",

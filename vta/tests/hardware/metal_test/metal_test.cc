@@ -10,7 +10,9 @@
 #include <string.h>
 #include <time.h>
 #include <vta/driver.h>
-#include "../../../src/pynq/pynq_driver.h"
+#ifdef VTA_TARGET_PYNQ
+#  include "../../../src/pynq/pynq_driver.h"
+#endif  // VTA_TARGET_PYNQ
 #include "../common/test_lib.h"
 
 int main(void) {

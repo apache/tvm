@@ -46,12 +46,12 @@ uint64_t vta(
   void* vta_store_handle = VTAMapRegister(VTA_STORE_ADDR, VTA_RANGE);
 
   // Physical address pointers
-  uint32_t insn_phy = insns ? cma_get_phy_addr(insns) : 0;
-  uint32_t uop_phy = uops ? cma_get_phy_addr(uops) : 0;
-  uint32_t input_phy = inputs ? cma_get_phy_addr(inputs) : 0;
-  uint32_t weight_phy = weights ? cma_get_phy_addr(weights) : 0;
-  uint32_t bias_phy = biases ? cma_get_phy_addr(biases) : 0;
-  uint32_t output_phy = outputs ? cma_get_phy_addr(outputs) : 0;
+  uint32_t insn_phy = insns ? VTAMemGetPhyAddr(insns) : 0;
+  uint32_t uop_phy = uops ? VTAMemGetPhyAddr(uops) : 0;
+  uint32_t input_phy = inputs ? VTAMemGetPhyAddr(inputs) : 0;
+  uint32_t weight_phy = weights ? VTAMemGetPhyAddr(weights) : 0;
+  uint32_t bias_phy = biases ? VTAMemGetPhyAddr(biases) : 0;
+  uint32_t output_phy = outputs ? VTAMemGetPhyAddr(outputs) : 0;
 
 #if VTA_DEBUG == 1
   printf("INFO - Starting FPGA!\n");

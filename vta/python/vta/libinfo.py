@@ -21,5 +21,6 @@ def find_libvta(optional=False):
     lib_path = [os.path.join(x, lib_name) for x in lib_search]
     lib_found = [x for x in lib_path if os.path.exists(x)]
     if not lib_found and not optional:
-        raise RuntimeError("Cannot find libvta: candidates are: " % str(lib_path))
+        raise RuntimeError('Cannot find the files.\n' +
+                           'List of candidates:\n' + str('\n'.join(lib_path)))
     return lib_found
