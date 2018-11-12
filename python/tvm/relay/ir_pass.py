@@ -292,3 +292,20 @@ def fuse_ops(expr, opt_level=1):
         Transformed expression, containing fused result.
     """
     return _ir_pass.FuseOps(expr, opt_level)
+
+
+def fold_conv2d(expr):
+    """Fold multiple conv2d into one.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        Transformed expression, containing fused result.
+    """
+    return _ir_pass.FoldConv2D(expr)
+>>>>>>> Add FoldConv2D pass
