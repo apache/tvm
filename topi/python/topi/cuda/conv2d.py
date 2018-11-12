@@ -11,7 +11,6 @@ from .conv2d_direct import schedule_direct_cuda
 from .conv2d_winograd import winograd_cuda, schedule_winograd_cuda
 from .conv2d_int8 import conv2d_NCHWc_int8, schedule_conv2d_NCHWc_int8
 
-
 @autotvm.register_topi_compute(nn.conv2d, ['cuda', 'gpu'], ['direct', 'winograd', 'int8'])
 def conv2d_cuda(cfg, data, kernel, strides, padding, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for cuda backend.

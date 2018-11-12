@@ -194,7 +194,8 @@ inline bool BatchNormInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool BatchNormCorrectLayout(const NodeAttrs& attrs,
+inline bool BatchNormCorrectLayout(NodeAttrs& attrs,
+                                   std::vector<TShape>* ishapes,
                                    std::vector<Layout> *in_layouts,
                                    const std::vector<Layout> *last_in_layouts,
                                    std::vector<Layout> *out_layouts) {
@@ -206,7 +207,16 @@ inline bool BatchNormCorrectLayout(const NodeAttrs& attrs,
   Layout data_layout = in_layouts->at(0);
   const Layout& origin_data_layout = last_in_layouts->at(0);
   Layout param_layout("C");
-  if (data_layout.defined()) {
+  if (data_layout == Layout("NCHW") && origin_data_layout == Layout("NHWC")) {
+    // FIXME(yizhiliu): workaround for TF models on TRT. @re:invent 2018
+    CHECK_EQ(param.axis, 3);
+    attrs.dict["axis"] = "1";
+    auto target = attrs.dict.find("target");
+    if (target != attrs.dict.end()) {
+      attrs.dict.erase(target);
+    }
+    ParamParser<BatchNormParam>(&attrs);
+  } else if (data_layout.defined()) {
     if (data_layout.indexof('C') != param.axis) {
       CHECK(origin_data_layout.defined())
         << "Channel in data layout " << data_layout
@@ -300,7 +310,7 @@ axis to be the last item in the input shape.
 .add_arguments(BatchNormParam::__FIELDS__())
 .set_attr_parser(ParamParser<BatchNormParam>)
 .set_attr<FGetAttrDict>("FGetAttrDict", ParamGetAttrDict<BatchNormParam>)
-.set_attr<FCorrectLayout>("FCorrectLayout", BatchNormCorrectLayout)
+.set_attr<FCorrectLayoutEx>("FCorrectLayoutEx", BatchNormCorrectLayout)
 .set_num_inputs(5)
 .set_num_outputs(3)
 .set_attr<FInferShape>("FInferShape", BatchNormInferShape)
@@ -583,6 +593,41 @@ inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+inline bool PadCorrectLayout(NodeAttrs& attrs,
+                             std::vector<TShape>* ishapes,
+                             std::vector<Layout>* ilayouts,
+                             const std::vector<Layout>* last_ilayouts,
+                             std::vector<Layout>* olayouts) {
+  const PadParam& param = nnvm::get<PadParam>(attrs.parsed);
+  const auto& last_layout = last_ilayouts->at(0);
+  Layout layout = ilayouts->at(0);
+
+  if (last_layout == Layout("NHWC") && layout == Layout("NCHW")) {
+    // FIXME(yizhiliu): workaround for TF models on TRT. @re:invent 2018
+    std::vector<Tuple<int> > new_pad_width;
+    CHECK_EQ(param.pad_width.ndim(), 4);
+    new_pad_width.push_back(param.pad_width[0]);
+    new_pad_width.push_back(param.pad_width[3]);
+    new_pad_width.push_back(param.pad_width[1]);
+    new_pad_width.push_back(param.pad_width[2]);
+    std::stringstream buffer;
+    Tuple<Tuple<int> > new_pad_width_attr(new_pad_width);
+    buffer << new_pad_width_attr;
+    attrs.dict["pad_width"] = buffer.str();
+    auto target = attrs.dict.find("target");
+    if (target != attrs.dict.end()) {
+      attrs.dict.erase(target);
+    }
+    ParamParser<PadParam>(&attrs);
+  } else {
+    layout = last_layout.defined() ? last_layout : layout;
+  }
+
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 0, layout);
+  NNVM_ASSIGN_LAYOUT(*olayouts, 0, layout);
+  return true;
+}
+
 NNVM_REGISTER_OP(pad)
 .describe(R"code(Pad for n-D tensor.
 
@@ -595,7 +640,7 @@ NNVM_REGISTER_OP(pad)
 .set_num_inputs(1)
 .set_attr<FInferShape>("FInferShape", PadInferShape)
 .set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
-.set_attr<FCorrectLayout>("FCorrectLayout", ElemwiseFixedLayoutCopyToOut<1, 1>)
+.set_attr<FCorrectLayoutEx>("FCorrectLayoutEx", PadCorrectLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const NodeAttrs& attrs,
                     const Array<Tensor>& inputs,

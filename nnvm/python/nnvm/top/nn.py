@@ -296,6 +296,25 @@ def schedule_conv2d_transpose(attrs, outs, target):
 
 reg.register_pattern("conv2d_transpose", OpPattern.OUT_ELEMWISE_FUSABLE)
 
+@reg.register_alter_op_layout("max_pool2d")
+def alter_pooling_layout(attrs, inputs, tinfos):
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.nn.max_pool2d_alter_layout(attrs, inputs, tinfos)
+
+@reg.register_alter_op_layout("avg_pool2d")
+def alter_pooling_layout(attrs, inputs, tinfos):
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.nn.avg_pool2d_alter_layout(attrs, inputs, tinfos)
+
+@reg.register_alter_op_layout("global_max_pool2d")
+def alter_pooling_layout(attrs, inputs, tinfos):
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.nn.global_max_pool2d_alter_layout(attrs, inputs, tinfos)
+
+@reg.register_alter_op_layout("global_avg_pool2d")
+def alter_pooling_layout(attrs, inputs, tinfos):
+    with tvm.target.create(attrs.get_string("target")):
+        return topi.nn.global_avg_pool2d_alter_layout(attrs, inputs, tinfos)
 
 # max_pool2d
 @reg.register_schedule("max_pool2d")

@@ -3,6 +3,7 @@
 import tvm
 from .. import tag
 from .. import generic
+from ..nn.pooling import *
 
 @generic.schedule_global_pool.register(["cuda", "gpu"])
 def schedule_global_pool(outs):
@@ -131,3 +132,59 @@ def schedule_pool(outs, layout):
 
     traverse(outs[0].op)
     return s
+
+
+@avg_pool2d_alter_layout.register(["cuda"])
+def _alter_avg_pool2d_layout(attrs, inputs, tinfo):
+    import nnvm.symbol as sym
+    copy_inputs = [s for s in inputs]
+    new_attrs = {k : attrs[k] for k in attrs.keys()}
+    # NHWC -> NCHW
+    if attrs["layout"] != "NHWC":
+        return None
+    new_attrs["layout"] = "NCHW"
+    if "target" in new_attrs:
+        del new_attrs["target"]
+    return sym.avg_pool2d(*copy_inputs, **new_attrs)
+
+
+@max_pool2d_alter_layout.register(["cuda"])
+def _alter_max_pool2d_layout(attrs, inputs, tinfo):
+    import nnvm.symbol as sym
+    copy_inputs = [s for s in inputs]
+    new_attrs = {k : attrs[k] for k in attrs.keys()}
+    # NHWC -> NCHW
+    if attrs["layout"] != "NHWC":
+        return None
+    new_attrs["layout"] = "NCHW"
+    if "target" in new_attrs:
+        del new_attrs["target"]
+    return sym.max_pool2d(*copy_inputs, **new_attrs)
+
+
+@global_max_pool2d_alter_layout.register(["cuda"])
+def _alter_global_max_pool2d_layout(attrs, inputs, tinfo):
+    import nnvm.symbol as sym
+    copy_inputs = [s for s in inputs]
+    new_attrs = {k : attrs[k] for k in attrs.keys()}
+    # NHWC -> NCHW
+    if attrs["layout"] != "NHWC":
+        return None
+    new_attrs["layout"] = "NCHW"
+    if "target" in new_attrs:
+        del new_attrs["target"]
+    return sym.global_max_pool2d(*copy_inputs, **new_attrs)
+
+
+@global_avg_pool2d_alter_layout.register(["cuda"])
+def _alter_global_avg_pool2d_layout(attrs, inputs, tinfo):
+    import nnvm.symbol as sym
+    copy_inputs = [s for s in inputs]
+    new_attrs = {k : attrs[k] for k in attrs.keys()}
+    # NHWC -> NCHW
+    if attrs["layout"] != "NHWC":
+        return None
+    new_attrs["layout"] = "NCHW"
+    if "target" in new_attrs:
+        del new_attrs["target"]
+    return sym.global_avg_pool2d(*copy_inputs, **new_attrs)

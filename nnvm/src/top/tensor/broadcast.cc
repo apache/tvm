@@ -129,10 +129,11 @@ inline bool BinaryBroadcastShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
-inline bool BinaryBroadcastCorrectLayout(const NodeAttrs& attrs,
-                                         std::vector<Layout> *ilayouts,
-                                         const std::vector<Layout> *last_ilayouts,
-                                         std::vector<Layout> *olayouts) {
+inline bool BinaryBroadcastCorrectLayout(NodeAttrs& attrs,
+                                         std::vector<TShape>* ishapes,
+                                         std::vector<Layout>* ilayouts,
+                                         const std::vector<Layout>* last_ilayouts,
+                                         std::vector<Layout>* olayouts) {
   CHECK_EQ(ilayouts->size(), 2U);
   CHECK_EQ(olayouts->size(), 1U);
   Layout lhs = (*ilayouts)[0];
@@ -167,24 +168,55 @@ inline bool BinaryBroadcastCorrectLayout(const NodeAttrs& attrs,
     }
     if (l_start > 0 && r_start > 0) {
       LOG(FATAL) << lhs << " and " << rhs << " are not broadcast-convertible";
-    } else if (l_start > 0) {
+    } else if (l_start > 0 && rhs.ndim() == lhs.ndim()-l_start) {
       rhs = lhs.sublayout(l_start, lhs.ndim()-l_start);
       out = lhs;
-    } else if (r_start > 0) {
+    } else if (r_start > 0 && lhs.ndim() == rhs.ndim()-r_start) {
       lhs = rhs.sublayout(r_start, rhs.ndim()-r_start);
       out = rhs;
-    } else {
+    } else if (rhs.ndim() == lhs.ndim()) {
       // prior to keep left layout
       rhs = lhs;
       out = lhs;
+    } else {
+      const Layout &last_lhs = last_ilayouts->at(0);
+      if (last_lhs.defined()) {
+        CHECK(lhs.convertible(last_lhs)) << "current lhs layout " << lhs
+                                         << " cannot be converted to the original one " << last_lhs;
+        lhs = last_lhs;
+      }
+      const Layout& last_rhs = last_ilayouts->at(1);
+      if (last_rhs.defined()) {
+        CHECK(rhs.convertible(last_rhs)) << "current rhs layout " << rhs
+                                         << " cannot be converted to the original one " << last_rhs;
+        rhs = last_rhs;
+      }
+      if (lhs.defined() && rhs.defined()) {
+        out = lhs.ndim() > rhs.ndim() ? lhs : rhs;
+      }
     }
   } else if (lhs.defined()) {
-    const Layout& last_lhs = last_ilayouts->at(0);
-    if (last_lhs.defined()) {
-      CHECK(lhs.convertible(last_lhs)) << "current lhs layout " << lhs
-                                       << " cannot be converted to the original one " << last_lhs;
-      lhs = last_lhs;
-      // cannot decide output layout
+    if (ishapes->size() == 2
+        && ishapes->at(0).ndim() >= ishapes->at(1).ndim()
+        && ishapes->at(1).ndim() == 3
+        && ishapes->at(1)[0] == 1
+        && ishapes->at(1)[1] == 1
+        && ishapes->at(0)[ishapes->at(0).ndim()-1] == ishapes->at(1)[2]
+        && Layout::is_superdim(lhs[lhs.ndim()-1])) {
+      // TODO(yizhiliu): workaround for TF models on TRT. @re:invent 2018
+      // bias_add(NHWC, HWC), e.g., broadcast_add([1, 224, 224, 3], [1, 1, 3])
+      // we should enhance it later
+      CHECK_EQ(ishapes->at(0).ndim(), lhs.ndim());
+      rhs = lhs.sublayout(lhs.ndim()-3, 3);
+      out = lhs;
+    } else {
+      const Layout &last_lhs = last_ilayouts->at(0);
+      if (last_lhs.defined()) {
+        CHECK(lhs.convertible(last_lhs)) << "current lhs layout " << lhs
+                                         << " cannot be converted to the original one " << last_lhs;
+        lhs = last_lhs;
+        // cannot decide output layout
+      }
     }
   } else if (rhs.defined()) {
     const Layout& last_rhs = last_ilayouts->at(1);
@@ -207,7 +239,7 @@ inline bool BinaryBroadcastCorrectLayout(const NodeAttrs& attrs,
   .set_num_outputs(1)                                               \
   .set_attr<FInferShape>("FInferShape", BinaryBroadcastShape)       \
   .set_attr<FInferType>("FInferType", ElemwiseType<2, 1>)           \
-  .set_attr<FCorrectLayout>("FCorrectLayout",                       \
+  .set_attr<FCorrectLayoutEx>("FCorrectLayoutEx",                   \
     BinaryBroadcastCorrectLayout)                                   \
   .set_attr<FInplaceOption>("FInplaceOption",                       \
     [](const NodeAttrs& attrs) {                                    \

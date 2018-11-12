@@ -402,7 +402,18 @@ def _reshape():
 
 def _bias_add():
     def _impl(inputs, attr, params):
-        return _sym.broadcast_add(inputs[0], inputs[1])
+        lhs = inputs[0]
+        rhs = inputs[1]
+        if "_input_shapes" in attr:
+            lhs_shape = attr["_input_shapes"][lhs][0]
+            rhs_shape = attr["_input_shapes"][rhs][0]
+            if len(lhs_shape) == 4 and len(rhs_shape) == 1 and lhs_shape[3] == rhs_shape[0]:
+                # FIXME(yizhiliu): workaround for TF models on TRT. @re:invent 2018
+                # bias_add(NHWC, C), expand_dim C to [1, 1, C],
+                # so that later broadcast_add can leverage
+                # CorrectLayout to insert transformer for param.
+                rhs = _sym.expand_dims(rhs, axis=0, num_newaxis=2)
+        return _sym.broadcast_add(lhs, rhs)
     return _impl
 
 def _squeeze():
@@ -754,6 +765,12 @@ def _selu():
 def _mean():
     def _impl(inputs, attr, params):
         axis = params.pop(inputs[1].list_output_names()[0])
+        if "_target_layout" in attr and "keep_dims" in attr and attr["keep_dims"] \
+                and attr["_target_layout"] == "NHWC" and axis.shape == (2,) \
+                and axis.asnumpy()[0] == 1 and axis.asnumpy()[1] == 2:
+            # FIXME(yizhiliu): workaround for TF models on TRT. @re:invent 2018
+            # mean(X, (1, 2)) -> global_avg_pool2d(X, "NHWC")
+            return _sym.global_avg_pool2d(inputs[0], layout="NHWC")
         return AttrCvt(op_name="mean", ignores=['Tdim', 'Tidx'],
                        transforms={'keep_dims': 'keepdims'},
                        extras={'axis': tuple(axis.asnumpy())})(inputs[0], attr)

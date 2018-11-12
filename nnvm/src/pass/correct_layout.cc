@@ -34,6 +34,8 @@ using LayoutAttrDict = std::unordered_map<const Node*, std::vector<Layout> >;
 nnvm::Graph CorrectLayout(nnvm::Graph src) {
   static auto& op_correct_layout =
     nnvm::Op::GetAttr<FCorrectLayout>("FCorrectLayout");
+  static auto& op_correct_layout_ex =
+    nnvm::Op::GetAttr<FCorrectLayoutEx>("FCorrectLayoutEx");
 
   const IndexedGraph& idx = src.indexed_graph();
   std::vector<nnvm::NodePtr> mirror_vec(idx.num_nodes(), nullptr);
@@ -91,7 +93,21 @@ nnvm::Graph CorrectLayout(nnvm::Graph src) {
       }
     }
 
-    if (op_correct_layout.count(new_node->op())) {
+    if (op_correct_layout_ex.count(new_node->op())) {
+      std::vector<TShape> input_shapes;
+      if (src.HasAttr("shape")) {
+        const auto &shapes = src.GetAttr<std::vector<TShape> >("shape");
+        for (uint32_t i = 0; i < num_inputs; ++i) {
+          input_shapes.emplace_back(shapes[idx.entry_id(inode.inputs[i])]);
+        }
+      }
+      const auto &flayout = op_correct_layout_ex[new_node->op()];
+      CHECK(flayout(new_node->attrs, &input_shapes, &request_ilayouts,
+                    &last_request_ilayouts, &produce_olayouts))
+        << "Layout infer fail";
+      CHECK_EQ(request_ilayouts.size(), num_inputs);
+      CHECK_EQ(produce_olayouts.size(), num_outputs);
+    } else if (op_correct_layout.count(new_node->op())) {
       const auto &flayout = op_correct_layout[new_node->op()];
       CHECK(flayout(new_node->attrs, &request_ilayouts, &last_request_ilayouts, &produce_olayouts))
         << "Layout infer fail";

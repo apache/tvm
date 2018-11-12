@@ -367,6 +367,17 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     out_dtype = attrs["out_dtype"]
     out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
 
+    # NHWC -> NCHW
+    if attrs["layout"] == "NHWC":
+        new_attrs["layout"] = "NCHW"
+        new_attrs["out_layout"] = "NCHW"
+        new_attrs["kernel_layout"] = "OIHW"
+
+        if "target" in new_attrs:
+            del new_attrs["target"]
+
+        return sym.conv2d(*copy_inputs, **new_attrs)
+
     if groups == 1:
         # query config of this workload
         workload = ('conv2d',) + autotvm.task.args_to_workload(
