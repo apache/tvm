@@ -52,8 +52,8 @@ std::tuple<Expr, IndexExpr> TransformWeight(std::vector<const CallNode*> convolu
     CHECK(channels);
     num_filters += *channels;
   }
-  return std::tuple<Expr, IndexExpr>{MakeConcatenate(TupleNode::make(weights), 0),
-                                     MakeConstScalar(Int(32), num_filters)};
+  return std::make_tuple(MakeConcatenate(TupleNode::make(weights), 0),
+                         MakeConstScalar(Int(32), num_filters));
 }
 
 // Two 2d convolutions can be combined if they have the same attributes or only have
@@ -78,7 +78,7 @@ Expr MakeFoldedConv2D(const Expr& data, const std::vector<const CallNode*>& conv
   IndexExpr new_channels;
   std::tie(new_weight, new_channels) = TransformWeight(convolutions);
 
-  const CallNode* group_root = *(convolutions).begin();
+  const CallNode* group_root = convolutions[0];
   auto attrs = group_root->attrs.as<Conv2DAttrs>();
   auto new_attrs = make_node<Conv2DAttrs>();
   new_attrs->strides = attrs->strides;
