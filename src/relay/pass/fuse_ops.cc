@@ -670,7 +670,7 @@ class FuseMutator : private ExprMutator {
     Array<Expr> arguments;
     // Get a new parameter or allocate an old one
     Var GetOrAllocParam(const Expr& expr, const Type& type) {
-      // run linear scan as most fused group contain only a few inputs.
+      // run linear scan as most fused groups contain only a few inputs.
       for (size_t i = 0; i < arguments.size(); ++i) {
         if (expr.same_as(arguments[i])) return params[i];
       }

@@ -53,7 +53,7 @@ class Arena {
    * \return The allocated object.
    * \note The type T must be simple type, or only contain
    *  memory allocated from the same arena.
-   *  Otherwise the destructor need to be called explicitly.
+   *  Otherwise the destructor needs to be called explicitly.
    */
   template<typename T, typename... Args>
   T* make(Args&&... args) {

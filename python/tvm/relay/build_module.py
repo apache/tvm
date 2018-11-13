@@ -179,11 +179,7 @@ def build(func,
         func = optimize(func)
         # Fuse ops before running code gen
         func = ir_pass.infer_type(func)
-
-        if cfg.pass_enabled("OpFusion"):
-            func = ir_pass.fuse_ops(func, opt_level=2)
-        else:
-            func = ir_pass.fuse_ops(func, opt_level=0)
+        func = ir_pass.fuse_ops(func, cfg.opt_level)
         # Graph code generation
         func = ir_pass.infer_type(func)
         graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
