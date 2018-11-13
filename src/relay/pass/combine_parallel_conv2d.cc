@@ -48,9 +48,8 @@ std::tuple<Expr, IndexExpr> TransformWeight(std::vector<const CallNode*> convolu
   Array<Expr> weights;
   for (const CallNode* n : convolutions) {
     weights.push_back(n->args[1]);
-    auto channels = as_const_int(n->attrs.as<Conv2DAttrs>()->channels);
-    CHECK(channels);
-    num_filters += *channels;
+    auto channels = GetConv2DSuperChannelsDim(n);
+    num_filters += channels;
   }
   auto index = convolutions[0]->attrs.as<Conv2DAttrs>()->weight_layout.find('O');
   CHECK_NE(index, std::string::npos);
@@ -60,17 +59,26 @@ std::tuple<Expr, IndexExpr> TransformWeight(std::vector<const CallNode*> convolu
 
 // Two 2d convolutions can be combined if they have the same attributes or only have
 // different output channels.
-bool IsCompatibleConv2D(const Conv2DAttrs& a, const Conv2DAttrs& b) {
+bool IsCompatibleConv2D(const CallNode* a, const CallNode* b) {
   AttrsEqual eq;
-  return eq(a.strides, b.strides) &&
-         eq(a.padding, b.padding) &&
-         eq(a.dilation, b.dilation) &&
-         eq(a.groups, b.groups) &&
-         eq(a.kernel_size, b.kernel_size) &&
-         eq(a.data_layout, b.data_layout) &&
-         eq(a.weight_layout, b.weight_layout) &&
-         eq(a.out_dtype, b.out_dtype) &&
-         eq(a.out_layout, b.out_layout);
+  static const Layout kOIHW("OIHW");
+  auto attrs_a = a->attrs.as<Conv2DAttrs>();
+  auto attrs_b = b->attrs.as<Conv2DAttrs>();
+  auto tweight_a = a->args[1]->type_as<TensorTypeNode>();
+  auto tweight_b = b->args[1]->type_as<TensorTypeNode>();
+  auto shape_a = ConvertLayout(tweight_a->shape, attrs_a->weight_layout, kOIHW);
+  auto shape_b = ConvertLayout(tweight_b->shape, attrs_b->weight_layout, kOIHW);
+
+  return eq(attrs_a->strides, attrs_b->strides) &&
+         eq(attrs_a->padding, attrs_b->padding) &&
+         eq(attrs_a->dilation, attrs_b->dilation) &&
+         eq(attrs_a->groups, attrs_b->groups) &&
+         eq(attrs_a->data_layout, attrs_b->data_layout) &&
+         eq(attrs_a->weight_layout, attrs_b->weight_layout) &&
+         eq(attrs_a->out_dtype, attrs_b->out_dtype) &&
+         eq(attrs_a->out_layout, attrs_b->out_layout) &&
+         eq(shape_a[2], shape_b[2]) &&
+         eq(shape_a[3], shape_b[3]);
 }
 
 Expr MakeCombinedConv2D(const Expr& data, const std::vector<const CallNode*>& convolutions) {
@@ -113,14 +121,11 @@ Expr CombineParallelConv2D(const Expr& expr) {
 
     for (size_t i = 0; i < children.size(); i++) {
       const CallNode* n = children[i];
-      auto args = n->attrs.as<Conv2DAttrs>();
 
       // assign a group id or create a new group for each conv2d
       auto it = std::find_if(groups.begin(), groups.end(),
                              [&](const std::vector<const CallNode*>& group) {
-                               const CallNode* group_root = *(group.begin());
-                               auto group_args = group_root->attrs.as<Conv2DAttrs>();
-                               return IsCompatibleConv2D(*args, *group_args);
+                               return IsCompatibleConv2D(n, group[0]);
                              });
 
       if (it != groups.end()) {
@@ -134,22 +139,19 @@ Expr CombineParallelConv2D(const Expr& expr) {
     }
 
     for (const auto& convs : groups) {
-      if (convs.size() < 2) {
-        continue;
-      }
-      auto new_conv2d = MakeCombinedConv2D(data, convs);
+      if (convs.size() < 2) continue;
 
+      auto new_conv2d = MakeCombinedConv2D(data, convs);
       int64_t start = 0;
       // replace original conv2d with slice of output of the new conv2d
-      for (const auto& conv2d : convs) {
+      for (const CallNode* conv2d : convs) {
         auto params = conv2d->attrs.as<Conv2DAttrs>();
-        auto channels = as_const_int(params->channels);
-        CHECK(channels);
-        auto indices = MakeConstantArrayFromRange(Int(64), start, start + *channels);
+        auto channels = GetConv2DSuperChannelsDim(conv2d);
+        auto indices = MakeConstantArrayFromRange(Int(64), start, start + channels);
         auto channel_index = params->data_layout.find('C');
         CHECK_NE(channel_index, std::string::npos);
         auto take = MakeTake(new_conv2d, indices, channel_index);
-        start += *channels;
+        start += channels;
         subst_map[GetRef<Call>(conv2d)] = take;
       }
     }
