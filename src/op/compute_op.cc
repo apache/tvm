@@ -214,7 +214,40 @@ void ComputeOpNode::GatherBound(
     std::unordered_map<IterVar, Range>* out_dom_map) const {
   const TensorDom& tdom = tensor_dom.at(self.output(0));
   for (size_t i = 0; i < this->axis.size(); ++i) {
-    Range r = arith::Union(tdom.data.at(i)).cover_range(this->axis[i]->dom);
+    // Bounds we get from the declaration of i
+    Range r_dom = this->axis[i]->dom;
+    // Bounds we get from the uses of the tensor
+    Range r_from_uses = arith::Union(tdom.data.at(i)).cover_range(r_dom);
+    // The result
+    Range r;
+
+    if (can_prove(r_from_uses->extent <= r_dom->extent)) {
+      // Bounds from the uses are provably tighter, use them
+      if (can_prove(r_from_uses->extent == r_dom->extent)) {
+        // If the extents are equal, prefer using r_dom, as it probably has the simpler min
+        r = r_dom;
+      } else {
+        r = r_from_uses;
+      }
+    } else if (can_prove(r_dom->extent <= r_from_uses->extent)) {
+      // The declared bounds are better. This may mean one of the following two things:
+      // either we have an out-of-bounds error in the input user code, or the simplifier
+      // did a poor job simplifying call arguments before evaluating ranges.
+      // Use the declared bounds but issue a warning.
+      LOG(WARNING) << "GatherBound: the declared bounds " << r_dom
+        << " are tighter than the bounds from uses " << r_from_uses
+        << " for the variable " << this->axis[i]->var << " of the tensor " << self->name
+        << ". Either out-of-bounds or poor simplification.";
+      r = r_dom;
+    } else {
+      // We can prove neither. Issue a warning and use r_from_uses since it was the old behaviour
+      // and it leads to fewer problems.
+      LOG(WARNING) << "GatherBound: cannot prove either the declared bounds " << r_dom
+        << " or the bounds from uses " << r_from_uses
+        << " to be tighter than the other. Will use the bounds from uses.";
+      r = r_from_uses;
+    }
+
     CHECK(!out_dom_map->count(this->axis[i]));
     (*out_dom_map)[this->axis[i]] = r;
   }
