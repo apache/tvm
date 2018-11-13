@@ -401,7 +401,11 @@ class TextPrinter :
    * \param os The output type.
    */
   void PrintAttr(const NodeRef& value, std::ostream& os) {  // NOLINT(*)
-    this->VisitAttr(value, os);
+    if (value.defined()) {
+      this->VisitAttr(value, os);
+    } else {
+      os << "None";
+    }
   }
   //------------------------------------
   // Overload of Attr printing functions

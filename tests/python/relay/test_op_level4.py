@@ -2,7 +2,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.testing import ctx_list
-
+import topi.testing
 
 def test_binary_op():
     def check_binary_op(opfunc, ref):
@@ -143,35 +143,44 @@ def test_reduce_functions():
         verify_reduce(func, (128, 24, 128), (0, 2), True, False, (1, 24, 1))
 
 
-def verify_strided_slice(data, begin, end, stride, output):
-    x = relay.var("x", relay.TensorType(data, "float32"))
-    z = relay.strided_slice(x, begin=begin, end=end, strides=stride)
-    zz = relay.ir_pass.infer_type(z)
-    assert "begin=" in z.astext()
-    assert "end=" in z.astext()
-    if stride:
-        assert "strides=" in z.astext()
-    if output:
-        assert zz.checked_type == relay.ty.TensorType(output, "float32")
-
 def test_strided_slice():
+    def verify(dshape, begin, end, strides, output, test_ref=True):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.strided_slice(x, begin=begin, end=end, strides=strides)
+        func = relay.Function([x], z)
+        func = relay.ir_pass.infer_type(func)
+        text = func.astext()
+        assert "begin=" in text
+        assert "end=" in text
+        if output:
+            assert func.body.checked_type == relay.ty.TensorType(output, "float32")
+        if not test_ref:
+            return
+        x_data = np.random.uniform(size=dshape).astype("float32")
+        ref_res = topi.testing.strided_slice_python(
+            x_data, begin, end, strides)
+        for target, ctx in ctx_list():
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res)
+
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")
-    verify_strided_slice((d1, d2, d3), [0, 0, 0], [4, -5, 4], [1, -1, 2], None)
-    verify_strided_slice((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
-    verify_strided_slice((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
-    verify_strided_slice((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
-    verify_strided_slice((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
-    verify_strided_slice((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
-    verify_strided_slice((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
+    verify((d1, d2, 3), [None, None, 1], [None, None, 2], None, (d1, d2, 1), False)
+    verify((3, 4, 3), [0, 0, 0], [4, -5, 4], [1, -1, 2], (3, 1, 2))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], [2, 1, 1], (1, 3, 3))
+    verify((3, 4, 3), [1, -1, 0], [4, -5, 3], [2, -1, 1], (1, 4, 3))
+    verify((3, 4, 3), [1, 0, 0], [2, 2, 3], [1, 1, 2], (1, 2, 2))
+    verify((3, 4, 3), [1, -1, 0], [2, -3, 3], [1, -1, 1], (1, 2, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 1000, 3], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1, 0], [4, 4], None, (2, 3, 3))
+    verify((3, 4, 3), [1, 1], [4, 4, 3], None, (2, 3, 3))
 
 
 if __name__ == "__main__":
+    test_strided_slice()
     test_binary_op()
     test_cmp_type()
     test_binary_int_broadcast()
     test_where()
     test_reduce_functions()
-    test_strided_slice()
