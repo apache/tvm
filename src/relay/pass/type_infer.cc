@@ -442,6 +442,9 @@ class TypeInferencer::Resolver : public ExprMutator {
     VarNode* new_var =(
         std::is_base_of<VarNode, T>::value ?
         static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+    FunctionNode* new_fn =(
+        std::is_base_of<FunctionNode, T>::value ?
+        static_cast<FunctionNode*>(new_e.node_.get()) : nullptr);
 
     // check if we need update the new_e
     bool need_update_type = !checked_type.same_as(new_e->checked_type_);
@@ -454,7 +457,17 @@ class TypeInferencer::Resolver : public ExprMutator {
         update_missing_type_annotation_ &&
         !new_var->type_annotation.defined());
 
-    if (!need_update_type && !need_update_var && !need_update_call) return new_e;
+    bool need_update_fn = (
+        std::is_base_of<FunctionNode, T>::value &&
+        update_missing_type_annotation_ &&
+        !new_fn->ret_type.defined());
+
+    if (!need_update_type &&
+        !need_update_var &&
+        !need_update_call &&
+        !need_update_fn) {
+      return new_e;
+    }
 
     if (!new_e.node_.unique()) {
       // Copy on write optimization
@@ -467,6 +480,9 @@ class TypeInferencer::Resolver : public ExprMutator {
       new_var = (
           std::is_base_of<VarNode, T>::value ?
           static_cast<VarNode*>(new_e.node_.get()) : nullptr);
+      new_fn = (
+          std::is_base_of<FunctionNode, T>::value ?
+          static_cast<FunctionNode*>(new_e.node_.get()) : nullptr);
     }
 
     // attach the information.
@@ -482,6 +498,11 @@ class TypeInferencer::Resolver : public ExprMutator {
     }
     if (need_update_var) {
       new_var->type_annotation = checked_type;
+    }
+    if (need_update_fn) {
+      auto* fn_type = checked_type.as<FuncTypeNode>();
+      CHECK(fn_type != nullptr);
+      new_fn->ret_type = fn_type->ret_type;
     }
     return new_e;
   }

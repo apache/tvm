@@ -173,11 +173,13 @@ def build(func,
     else:
         tophub_context = autotvm.util.EmptyContext()
 
+    cfg = BuildConfig.current
+
     with tophub_context:
         func = optimize(func)
         # Fuse ops before running code gen
         func = ir_pass.infer_type(func)
-        func = ir_pass.fuse_ops(func)
+        func = ir_pass.fuse_ops(func, cfg.opt_level)
         # Graph code generation
         func = ir_pass.infer_type(func)
         graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)

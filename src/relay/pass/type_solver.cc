@@ -85,18 +85,18 @@ Type TypeSolver::Unify(const Type& dst, const Type& src) {
 void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
   if (auto *op = constraint.as<TypeRelationNode>()) {
     // create a new relation node.
-    RelationNode* rnode = make<RelationNode>();
+    RelationNode* rnode = arena_.make<RelationNode>();
     rnode->rel = GetRef<TypeRelation>(op);
     rel_nodes_.push_back(rnode);
     // populate the type information.
     for (size_t i = 0; i < op->args.size(); ++i) {
       // insert link to the type list
-      LinkNode<TypeNode*>* tlink = make<LinkNode<TypeNode*> >();
+      LinkNode<TypeNode*>* tlink = arena_.make<LinkNode<TypeNode*> >();
       TypeNode* tnode = GetTypeNode(op->args[i]);
       tlink->value = tnode;
       rnode->type_list.Push(tlink);
       // insert type->relation node
-      LinkNode<RelationNode*>* rlink = make<LinkNode<RelationNode*> >();
+      LinkNode<RelationNode*>* rlink = arena_.make<LinkNode<RelationNode*> >();
       rlink->value = rnode;
       tnode->rel_list.Push(rlink);
     }
