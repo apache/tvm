@@ -120,7 +120,7 @@ class IndexedForwardGraph {
   class Creator;
 };
 
-// Creator a post donimator tree of the dataflow
+// Creator of post dominator tree of the dataflow
 class IndexedForwardGraph::Creator : private ExprVisitor {
  public:
   explicit Creator(common::Arena* arena)
@@ -318,12 +318,14 @@ class DominatorTree {
    * \brief Find the least common acenstor of the two nodes.
    * \param lhs The left node.
    * \param rhs The right node.
-   * \param edge_pattern The edge pattern across all the parents.
+   * \param edge_pattern
+   *        The combined edge pattern across all the parents.
    * \return The least common acenstor of thw two.
    */
-  static Node* LCA(Node* lhs,
-                   Node* rhs,
-                   OpPatternKind* edge_pattern) {
+  static Node* LeastCommonAcenstor(
+      Node* lhs,
+      Node* rhs,
+      OpPatternKind* edge_pattern) {
     while (lhs != rhs) {
       if (lhs == nullptr) return nullptr;
       if (rhs == nullptr) return nullptr;
@@ -372,7 +374,7 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
         Node* onode = tree.nodes[oindex];
         CHECK(onode != nullptr);
         if (parent != nullptr) {
-          parent = LCA(parent, onode, &pattern);
+          parent = LeastCommonAcenstor(parent, onode, &pattern);
         } else {
           parent = onode;
         }
@@ -465,7 +467,7 @@ class GraphPartitioner {
   /*!
    * \brief Check all the node between src and sink satisfies fcond.
    *
-   * The heck does not include, source and sink.
+   * src and sink are not checked.
    *
    * \param src The source node.
    * \param sink The termination node.
@@ -664,7 +666,7 @@ class FuseMutator : private ExprMutator {
    public:
     // The parameters of the function.
     Array<Var> params;
-    // The arguments to call the parameters.
+    // The arguments to call the functions.
     Array<Expr> arguments;
     // Get a new parameter or allocate an old one
     Var GetOrAllocParam(const Expr& expr, const Type& type) {
