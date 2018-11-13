@@ -100,7 +100,7 @@ Expr MakeCombinedConv2D(const Expr& data, const std::vector<const CallNode*>& co
 Expr CombineParallelConv2D(const Expr& expr) {
   // data -> array of conv2d with the same input
   auto children_map = SiblingConv2DFinder().Find(expr);
-  Map<Expr, Expr> subst_map;
+  std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map;
 
   for (const auto& pair : children_map) {
     Expr data = pair.first;
@@ -150,7 +150,7 @@ Expr CombineParallelConv2D(const Expr& expr) {
         CHECK_NE(channel_index, std::string::npos);
         auto take = MakeTake(new_conv2d, indices, channel_index);
         start += *channels;
-        subst_map.Set(GetRef<Call>(conv2d), take);
+        subst_map[GetRef<Call>(conv2d)] = take;
       }
     }
   }

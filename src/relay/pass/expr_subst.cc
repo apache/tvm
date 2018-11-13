@@ -12,7 +12,8 @@ namespace relay {
 
 class ExprSubstituter : public ExprMutator {
  public:
-  explicit ExprSubstituter(tvm::Map<Expr, Expr> subst_map) : subst_map_(subst_map) {}
+  explicit ExprSubstituter(std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map)
+      : subst_map_(subst_map) {}
 
   Expr VisitExpr(const Expr& expr) final {
     auto it = subst_map_.find(expr);
@@ -26,7 +27,7 @@ class ExprSubstituter : public ExprMutator {
   tvm::Map<Expr, Expr> subst_map_;
 };
 
-Expr ExprSubst(const Expr& expr, tvm::Map<Expr, Expr> subst_map) {
+Expr ExprSubst(const Expr& expr, std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map) {
   return ExprSubstituter(std::move(subst_map)).Mutate(expr);
 }
 

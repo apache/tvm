@@ -6,11 +6,12 @@
 #ifndef TVM_RELAY_PASS_EXPR_SUBST_H_
 #define TVM_RELAY_PASS_EXPR_SUBST_H_
 #include <tvm/relay/expr.h>
+#include <unordered_map>
 
 namespace tvm {
 namespace relay {
 
-Expr ExprSubst(const Expr& expr, tvm::Map<Expr, Expr> subst_map);
+Expr ExprSubst(const Expr& expr, std::unordered_map<Expr, Expr, NodeHash, NodeEqual> subst_map);
 
 }  // namespace relay
 }  // namespace tvm
