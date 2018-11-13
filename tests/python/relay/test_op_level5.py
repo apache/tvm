@@ -56,7 +56,6 @@ def test_nms():
 
     z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, nms_topk)
 
-    print(z.astext())
     assert "overlap_threshold" in z.astext()
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.ty.TensorType(
