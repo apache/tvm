@@ -5,9 +5,10 @@ from functools import wraps
 
 import nnvm
 import tvm
-import topi
 
 from nnvm.compiler import graph_attr
+from tvm import autotvm
+from topi.nn.conv2d import conv2d_NCHWc
 
 
 def _parse_int(input):
@@ -87,61 +88,27 @@ def get_conv2d_NCHWc_AVX_workload(**kwargs):
     out : list of namedtuple
         List of workloads for all convolution operator in graph
     """
+    attrs = kwargs["attrs"]
+    layout = str(attrs["layout"]) if "layout" in attrs else "NCHW"
+    if layout != "NCHW" and layout != "NHWC":
+        raise RuntimeError("Only support NCHW or NHWC layouts for conv2d.")
+
     data_shape = kwargs["op_input_shapes"][0]
     kernel_shape = kwargs["op_input_shapes"][1]
+    if layout == "NHWC":
+        layout = "NCHW"
+        data_shape = (data_shape[0], data_shape[3], data_shape[1], data_shape[2])
+        kernel_shape = (kernel_shape[3], kernel_shape[2], kernel_shape[0], kernel_shape[1])
     data = tvm.placeholder(data_shape, name="data")
     kernel = tvm.placeholder(kernel_shape, name="kernel")
-    attrs = kwargs["attrs"]
+
     if "groups" in attrs and _parse_int(attrs["groups"]) != 1:
         raise RuntimeError("Currenly depthwise convolution is not supported")
-    kernel_size = [_parse_int(i) for i in (attrs["kernel_size"])[1:-1].split(',')]
     padding = [_parse_int(i) for i in (attrs["padding"])[1:-1].split(',')] \
         if "padding" in attrs else (0, 0)
     strides = [_parse_int(i) for i in (attrs["strides"])[1:-1].split(',')] \
         if "strides" in attrs else (1, 1)
-    layout = str(attrs["layout"]) if "layout" in attrs else "NCHW"
     out_dtype = str(attrs["out_dtype "]) if "out_dtype" in attrs else "float32"
-    workload = topi.x86.conv2d.conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
-                                                          strides, padding, layout, layout,
-                                                          out_dtype)
-    return workload
-
-
-@get_workload("conv2d")
-def get_conv2d_NCHWc_intel_graphics_workload(**kwargs):
-    """Get workload for conv2d of Intel Graphics.
-
-    Parameters
-    ----------
-    graph : nnvm Graph
-        Input graph.
-
-    input_shapes : dict of str to tuple.
-        Input shapes of graph
-
-    unique_wkl : bool, optional
-        Whether to ignore duplicated workloads.
-
-    Returns
-    -------
-    out : list of namedtuple
-        List of workloads for all convolution operator in graph
-    """
-    data_shape = kwargs["op_input_shapes"][0]
-    kernel_shape = kwargs["op_input_shapes"][1]
-    data = tvm.placeholder(data_shape, name="data")
-    kernel = tvm.placeholder(kernel_shape, name="kernel")
-    attrs = kwargs["attrs"]
-    if "groups" in attrs and _parse_int(attrs["groups"]) != 1:
-        raise RuntimeError("Currenly depthwise convolution is not supported")
-    kernel_size = [_parse_int(i) for i in (attrs["kernel_size"])[1:-1].split(',')]
-    padding = [_parse_int(i) for i in (attrs["padding"])[1:-1].split(',')] \
-        if "padding" in attrs else (0, 0)
-    strides = [_parse_int(i) for i in (attrs["strides"])[1:-1].split(',')] \
-        if "strides" in attrs else (1, 1)
-    layout = str(attrs["layout"]) if "layout" in attrs else "NCHW"
-    out_dtype = str(attrs["out_dtype "]) if "out_dtype" in attrs else "float32"
-    workload = topi.intel_graphics.conv_NCHWc_arg_to_workload(data, kernel, kernel_size,
-                                                              strides, padding, layout,
-                                                              out_dtype)
+    workload = autotvm.task.args_to_workload([data, kernel, strides, padding, layout,
+                                              layout, out_dtype], conv2d_NCHWc)
     return workload

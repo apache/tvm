@@ -124,21 +124,29 @@ class BaseGraphTuner(object):
         self._graph_workload_list = graph_workload_list
         self._dtype = dtype
 
+        # Set up logger
         self._verbose = verbose
+        self._logger = logging.getLogger(name + "_logger")
+        need_file_handler = need_console_handler = True
+        for handler in self._logger.handlers:
+            if handler.__class__.__name__ == 'FileHandler':
+                need_file_handler = False
+            if handler.__class__.__name__ == 'StreamHandler':
+                need_console_handler = False
         self._log_level = log_level
         self._log_file = log_file
         self._formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(self._formatter)
-        self._logger = logging.getLogger(name + "_logger")
-        self._logger.addHandler(file_handler)
         self._logger.setLevel(log_level)
-        if self._verbose:
+        if need_file_handler:
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(self._formatter)
+            self._logger.addHandler(file_handler)
+        if self._verbose and need_console_handler:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(self._formatter)
             self._logger.addHandler(console_handler)
             self._logger.setLevel(log_level)
-            self._loggerr.propagate = False
+            self._logger.propagate = False
 
         graph = graph_attr.set_shape_inputs(graph, input_shapes)
         graph = graph.apply("InferShape")

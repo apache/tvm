@@ -1,9 +1,6 @@
-import os
 import json
-import numpy as np
 import nnvm
 import tvm
-import topi
 
 from nnvm import testing
 from nnvm import symbol as sym
@@ -12,7 +9,7 @@ from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, \
     is_elemlike_op, get_direct_ancestor, get_in_nodes, get_out_nodes, \
     shape2layout, get_wkl_map, get_real_node, infer_layout_shape_avx
-from topi.x86.conv2d import conv_NCHWc_arg_to_workload
+from topi.nn.conv2d import conv2d_NCHWc
 
 
 def create_workload(dshape, kshape, strides,
@@ -20,9 +17,8 @@ def create_workload(dshape, kshape, strides,
                     dtype, out_dtype):
     data = tvm.placeholder(dshape, dtype=dtype)
     kernel = tvm.placeholder(kshape, dtype=dtype)
-    kernel_size = (kshape[2], kshape[3])
-    return conv_NCHWc_arg_to_workload(data, kernel, kernel_size, strides,
-                                      padding, layout, out_layout, out_dtype)
+    return autotvm.task.args_to_workload([data, kernel, strides, padding, layout,
+                                          out_layout, out_dtype], conv2d_NCHWc)
 
 
 def test_get_conv2d_workload():
@@ -36,18 +32,18 @@ def test_get_conv2d_workload():
                                             symbols=(sym.conv2d,))
     expected_wkl_list = []
     for task in tasks:
-        data, kernel, strides, padding, layout, dtype = task.args
-        kernel_size = (kernel[1][2], kernel[1][3])
+        data, kernel, strides, padding, _, layout, dtype = task.args
         data_plc = tvm.placeholder(data[1], name="data")
         kernel_plc = tvm.placeholder(kernel[1], name="kernel")
-        workload = conv_NCHWc_arg_to_workload(data_plc, kernel_plc, kernel_size, strides,
-                                              padding, layout, layout, dtype)
+        workload = autotvm.task.args_to_workload([data_plc, kernel_plc, strides,
+                                                  padding, layout, layout, dtype], conv2d_NCHWc)
         expected_wkl_list.append(workload)
 
     wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape})
     if len(wkl_list) != len(expected_wkl_list):
         raise RuntimeError("List length mismatch: expecting %d but got %d." %
                            (len(expected_wkl_list), len(wkl_list)))
+
     for wkl in wkl_list:
         if wkl not in expected_wkl_list:
             raise RuntimeError("%s falsely appear in resnet18." % (str(wkl)))
