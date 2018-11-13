@@ -129,5 +129,23 @@ TVM_REGISTER_API("relay._ir_pass.free_type_vars")
     }
   });
 
+/*!
+ * \brief Get reference counter of each internal ExprNode in body.
+ * \param body The body expression.
+ * \return The reference count mapping.
+ */
+std::unordered_map<const Node*, size_t>
+GetExprRefCount(const Expr& body) {
+  class ExprRefCounter : private ExprVisitor {
+   public:
+    std::unordered_map<const Node*, size_t>
+    Get(const Expr& body) {
+      this->VisitExpr(body);
+      return std::move(this->visit_counter_);
+    }
+  };
+  return ExprRefCounter().Get(body);
+}
+
 }  // namespace relay
 }  // namespace tvm

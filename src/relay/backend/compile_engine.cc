@@ -109,6 +109,29 @@ class ScheduleGetter :
     return {};
   }
 
+  Array<Tensor> VisitExpr_(const ConstantNode* op) final {
+    CHECK(op->is_scalar());
+    void* data = op->data->data;
+    DataType dtype = TVMType2Type(op->data->dtype);
+    Tensor value = tvm::compute({}, [&](const Array<tvm::Var>&) {
+        if (dtype == Int(32)) {
+          return make_const(dtype, static_cast<const int32_t*>(data)[0]);
+        } else if (dtype == Int(64)) {
+          return make_const(dtype, static_cast<const int64_t*>(data)[0]);
+        } else if (dtype == Float(32)) {
+          return make_const(dtype, static_cast<const float*>(data)[0]);
+        } else if (dtype == Float(64)) {
+          return make_const(dtype, static_cast<const double*>(data)[0]);
+        } else if (dtype == Bool()) {
+          return make_const(dtype, static_cast<const uint8_t*>(data)[0]);
+        } else {
+          LOG(FATAL) << "not handled";
+          return tvm::Expr();
+        }
+      });
+    return {value};
+  }
+
   Array<Tensor> VisitExpr_(const CallNode* call_node) final {
     static auto fcompute =
         Op::GetAttr<FTVMCompute>("FTVMCompute");

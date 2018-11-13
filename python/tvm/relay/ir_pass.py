@@ -259,7 +259,7 @@ def structural_hash(value):
         raise TypeError(msg)
 
 
-def fuse_ops(expr):
+def fuse_ops(expr, opt_level=1):
     """Fuse operators in expr together.
 
     Parameters
@@ -267,9 +267,12 @@ def fuse_ops(expr):
     expr : tvm.relay.Expr
         The input expression.
 
+    opt_level : int
+        The level of fuse optimization.
+
     Returns
     -------
     transformed_expr : tvm.relay.Expr
         Transformed expression, containing fused result.
     """
-    return _ir_pass.FuseOps(expr)
+    return _ir_pass.FuseOps(expr, opt_level)

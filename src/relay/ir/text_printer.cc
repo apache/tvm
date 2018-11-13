@@ -125,6 +125,8 @@ class TextPrinter :
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
+  explicit TextPrinter(runtime::TypedPackedFunc<std::string(Expr)> annotate)
+      : annotate_(annotate) {}
   /*!
    * \brief Print a node to string.
    * \param node.
@@ -279,11 +281,11 @@ class TextPrinter :
 
   TextValue VisitExpr_(const CallNode* op) final {
     // possibly through meta-data
-    TextValue call_op = GetValue(op->op);
     std::vector<TextValue> args;
     for (Expr arg : op->args) {
       args.emplace_back(GetValue(arg));
     }
+    TextValue call_op = GetValue(op->op);
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
 
@@ -532,7 +534,9 @@ class TextPrinter :
    */
   void PrintOptionalInfo(const Expr& expr) {
     // additional information in comment.
-    if (expr->checked_type_.defined()) {
+    if (annotate_ != nullptr) {
+      stream_ << " # " << annotate_(expr);
+    } else if (expr->checked_type_.defined()) {
       stream_ << " # ty=";
       this->PrintType(expr->checked_type(), stream_);
     }
@@ -678,7 +682,10 @@ class TextPrinter :
       name = "%" + name;
     }
     TextValue val(GetUniqueName(name));
-    CHECK(!memo_.count(var)) << "Duplicated variable " << var;
+    // still print if ir is malformed, but show the error.
+    if (memo_.count(var)) {
+      memo_[var] = TextValue(val.name + "-malformed-ir");
+    }
     memo_[var] = val;
     return val;
   }
@@ -686,6 +693,8 @@ class TextPrinter :
  private:
   class AttrPrinter;
   friend class AttrPrinter;
+  /*! \brief additional comment function */
+  runtime::TypedPackedFunc<std::string(Expr)> annotate_;
   /*! \brief meta data context */
   TextMetaDataContext meta_;
   /*! \brief Check whether scope is still valid */
@@ -776,12 +785,15 @@ void TextPrinter::PrintCallAttrs(const Expr& op,
   os << ", " << meta_.GetMetaNode(attrs);
 }
 
-std::string RelayPrint(const NodeRef& node) {
-  return TextPrinter().Print(node);
+std::string RelayPrint(const NodeRef& node,
+                       runtime::TypedPackedFunc<std::string(Expr)> annotate) {
+  return TextPrinter(annotate).Print(node);
 }
 
-TVM_REGISTER_API("relay._expr._text_print")
-.set_body_typed<std::string(const NodeRef&)>(RelayPrint);
+TVM_REGISTER_API("relay._expr.RelayPrint")
+.set_body_typed<std::string(
+    const NodeRef&,
+    runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
 
 }  // namespace relay
 }  // namespace tvm

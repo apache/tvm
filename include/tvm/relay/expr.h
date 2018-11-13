@@ -429,6 +429,16 @@ inline const TTypeNode* ExprNode::type_as() const {
   return node;
 }
 
+/*!
+ * \brief Print node as text format.
+ * \param node The node to be printed.
+ * \param annotate An optional callback function for attaching
+ *        additional comment block to an expr.
+ * \return The text representation.
+ */
+std::string RelayPrint(
+    const NodeRef& node,
+    runtime::TypedPackedFunc<std::string(Expr)> annotate = nullptr);
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_EXPR_H_

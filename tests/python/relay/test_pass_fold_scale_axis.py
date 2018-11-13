@@ -46,6 +46,8 @@ def test_fold_fwd_simple():
         weight = relay.var("weight", type_dict["weight"])
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
         y1_expected = expected(x, weight, in_bias, in_scale, channels)
+        y1_folded = relay.ir_pass.infer_type(y1_folded)
+        y1_expected = relay.ir_pass.infer_type(y1_expected)
         assert relay.ir_pass.alpha_equal(y1_folded, y1_expected)
 
     check((2, 4, 10, 10), 2)
@@ -113,6 +115,8 @@ def test_fold_fwd_dual_path():
         type_dict = {x.name_hint:x.checked_type for x in y1.params}
         weight = relay.var("weight", type_dict["weight"])
         y1_expected = expected(x, weight, in_bias, in_scale, channels)
+        y1_folded = relay.ir_pass.infer_type(y1_folded)
+        y1_expected = relay.ir_pass.infer_type(y1_expected)
         assert relay.ir_pass.alpha_equal(y1_folded, y1_expected)
 
     check((2, 4, 10, 3), 3)
@@ -194,6 +198,8 @@ def test_fold_bwd_simple():
         weight = relay.var("weight", type_dict["weight"])
         y1_folded = relay.ir_pass.backward_fold_scale_axis(y1)
         y1_expected = expected(x, weight, out_bias, out_scale, channels)
+        y1_folded = relay.ir_pass.infer_type(y1_folded)
+        y1_expected = relay.ir_pass.infer_type(y1_expected)
         assert relay.ir_pass.alpha_equal(y1_folded, y1_expected)
 
     check((2, 4, 10, 10), 8)
@@ -255,6 +261,8 @@ def test_fold_bwd_dual_path():
         weight = relay.var("weight", type_dict["weight"])
         y1_folded = relay.ir_pass.backward_fold_scale_axis(y1)
         y1_expected = expected(x, weight, out_bias, out_scale, channels)
+        y1_folded = relay.ir_pass.infer_type(y1_folded)
+        y1_expected = relay.ir_pass.infer_type(y1_expected)
         assert relay.ir_pass.alpha_equal(y1_folded, y1_expected)
 
     check((2, 4, 10, 10), 8)

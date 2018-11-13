@@ -16,6 +16,8 @@
 namespace tvm {
 namespace relay {
 
+using common::LinkNode;
+using common::LinkedList;
 /*!
  * \brief Interface of type solver used in type inference.
  *
@@ -69,41 +71,6 @@ class TypeSolver {
   // Internally the solver maintains a bipartite graph of Relation and Types.
   // All the object in the structure is managed by a arena allocator
   // which releases the memory upon distruction of the type solver.
-  /*!
-   * \brief Link list node
-   * \tparam T the content data type
-   */
-  template<typename T>
-  struct LinkNode {
-    /*! \brief The content value */
-    T value;
-    /*! \brief pointer to the next location */
-    LinkNode<T>* next{nullptr};
-  };
-  /*!
-   * \brief LinkedList structure
-   * \tparam T the content data type
-   */
-  template<typename T>
-  struct LinkedList {
-    /*! \brief Head pointer */
-    LinkNode<T>* head{nullptr};
-    /*! \brief Tail pointer */
-    LinkNode<T>* tail{nullptr};
-    /*!
-     * \brief Push a new node to the end of the linked list.
-     * \param node The node to be pushed.
-     */
-    void Push(LinkNode<T>* node) {
-      node->next = nullptr;
-      if (this->tail != nullptr) {
-        this->tail->next = node;
-        this->tail = node;
-      } else {
-        head = tail = node;
-      }
-    }
-  };
   /*!
    * \brief type node struct
    *  TypeNode implements a union-find data structure(via parent)
@@ -165,18 +132,6 @@ class TypeSolver {
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
   /*!
-   * \brief Create function to create a new node ptr via arena
-   * \tparam The type parameter
-   * \return The node pointer.
-   */
-  template<typename T>
-  T* make() {
-    T* ptr = arena_.Alloc<T>();
-    // call constructor
-    new (ptr) T();
-    return ptr;
-  }
-  /*!
    * \brief GetTypeNode that is corresponds to t.
    * if it do not exist, create a new one.
    * \return The type node.
@@ -186,7 +141,7 @@ class TypeSolver {
     if (it != tmap_.end()) {
       return it->second->FindRoot();
     } else {
-      TypeNode* n = make<TypeNode>();
+      TypeNode* n = arena_.make<TypeNode>();
       type_nodes_.push_back(n);
       n->resolved_type = t;
       tmap_[t] = n;

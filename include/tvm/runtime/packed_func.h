@@ -161,6 +161,8 @@ class TypedPackedFunc<R(Args...)> {
   using TSelf = TypedPackedFunc<R(Args...)>;
   /*! \brief default constructor */
   TypedPackedFunc() {}
+  /*! \brief constructor from null */
+  TypedPackedFunc(std::nullptr_t null) {}  // NOLINT(*)
   /*!
    * \brief construct by wrap a PackedFunc
    *

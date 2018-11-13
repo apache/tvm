@@ -38,10 +38,28 @@ class Arena {
   /*!
    * \brief Allocate a space from Arena for type T
    * \param T the data type to be allocated
+   * \note The space of T is not initialized.
    */
   template<typename T>
-  T* Alloc() {
+  T* allocate_() {
     return static_cast<T*>(Alloc(sizeof(T), alignof(T)));
+  }
+  /*!
+   * \brief Create a new instance of type T.
+   * \param args The constructor argument.
+   * \tparam T the type to be created.
+   * \tparam Args Arguments to the constructor.
+   *
+   * \return The allocated object.
+   * \note The type T must be simple type, or only contain
+   *  memory allocated from the same arena.
+   *  Otherwise the destructor needs to be called explicitly.
+   */
+  template<typename T, typename... Args>
+  T* make(Args&&... args) {
+    T* ptr = allocate_<T>();
+    new (ptr) T(std::forward<Args>(args)...);
+    return ptr;
   }
 
  private:
@@ -83,6 +101,44 @@ class Arena {
       new_head->ptr = ptr + size;
       head_ = new_head;
       return reinterpret_cast<char*>(head_) + ptr;
+    }
+  }
+};
+
+/*!
+ * \brief Link list node
+ * \tparam T the content data type
+ */
+template<typename T>
+struct LinkNode {
+  /*! \brief The content value */
+  T value;
+  /*! \brief pointer to the next location */
+  LinkNode<T>* next{nullptr};
+};
+/*!
+ * \brief LinkedList structure
+ * \tparam T the content data type
+ * \note This is a simple data structure that can be used together with the arena.
+ * \sa LinkNode
+ */
+template<typename T>
+struct LinkedList {
+  /*! \brief Head pointer */
+  LinkNode<T>* head{nullptr};
+  /*! \brief Tail pointer */
+  LinkNode<T>* tail{nullptr};
+  /*!
+   * \brief Push a new node to the end of the linked list.
+   * \param node The node to be pushed.
+   */
+  void Push(LinkNode<T>* node) {
+    node->next = nullptr;
+    if (this->tail != nullptr) {
+      this->tail->next = node;
+      this->tail = node;
+    } else {
+      head = tail = node;
     }
   }
 };

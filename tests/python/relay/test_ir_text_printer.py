@@ -33,6 +33,7 @@ def test_env():
     text = env.astext()
     assert "def @myf" in text
     assert "%1 = add(%0, %0) # ty=float32" in text
+    show(env.astext(annotate=lambda x: str(x.checked_type.dtype)))
     show(text)
 
 
