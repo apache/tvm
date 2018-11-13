@@ -45,7 +45,7 @@ inline std::string GetHostName() {
  * \brief Common data structure fornetwork address.
  */
 struct SockAddr {
-  sockaddr_in addr;
+  sockaddr_in6 addr;
   SockAddr() {}
   /*!
    * \brief construc address by url and port
@@ -63,30 +63,30 @@ struct SockAddr {
   void Set(const char *host, int port) {
     addrinfo hints;
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET;
+    hints.ai_family = AF_INET6;
     hints.ai_protocol = SOCK_STREAM;
     addrinfo *res = NULL;
     int sig = getaddrinfo(host, NULL, &hints, &res);
     CHECK(sig == 0 && res != NULL)
         << "cannot obtain address of " <<  host;
-    CHECK(res->ai_family == AF_INET)
+    CHECK(res->ai_family == AF_INET6)
         << "Does not support IPv6";
     memcpy(&addr, res->ai_addr, res->ai_addrlen);
-    addr.sin_port = htons(port);
+    addr.sin6_port = htons(port);
     freeaddrinfo(res);
   }
   /*! \brief return port of the address */
   int port() const {
-    return ntohs(addr.sin_port);
+    return ntohs(addr.sin6_port);
   }
   /*! \return a string representation of the address */
   std::string AsString() const {
     std::string buf; buf.resize(256);
 #ifdef _WIN32
-    const char *s = inet_ntop(AF_INET, (PVOID)&addr.sin_addr,
+    const char *s = inet_ntop(AF_INET6, (PVOID)&addr.sin6_addr,
                               &buf[0], buf.length());
 #else
-    const char *s = inet_ntop(AF_INET, &addr.sin_addr,
+    const char *s = inet_ntop(AF_INET6, &addr.sin6_addr,
                               &buf[0], static_cast<socklen_t>(buf.length()));
 #endif
     CHECK(s != nullptr) << "cannot decode address";
@@ -293,8 +293,8 @@ class TCPSocket : public Socket {
    * \brief create the socket, call this before using socket
    * \param af domain
    */
-  void Create(int af = PF_INET) {
-    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+  void Create(int af = PF_INET6) {
+    sockfd = socket(AF_INET6, SOCK_STREAM, 0);
     if (sockfd == INVALID_SOCKET) {
       Socket::Error("Create");
     }

@@ -142,7 +142,7 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
     tstart = time.time()
     while True:
         try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
             sock.connect(addr)
             return sock
         except socket.error as sock_err:
