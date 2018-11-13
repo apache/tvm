@@ -1,9 +1,9 @@
 /*!
  * Copyright (c) 2018 by Contributors
  *
- * \file fold_conv2d.cc
+ * \file combine_parallel_conv2d.cc
  *
- * \brief Fold multiple 2d convolutions into a single convolution.
+ * \brief Combine parallel 2d convolutions into a single convolution.
  *
  * This pass replaces convolutions that share the same input node and the same arguments (except
  * that the number of output channels can be different) with a single convolution. The weight of
@@ -73,7 +73,7 @@ bool IsCompatibleConv2D(const Conv2DAttrs& a, const Conv2DAttrs& b) {
          eq(a.out_layout, b.out_layout);
 }
 
-Expr MakeFoldedConv2D(const Expr& data, const std::vector<const CallNode*>& convolutions) {
+Expr MakeCombinedConv2D(const Expr& data, const std::vector<const CallNode*>& convolutions) {
   static const Op& conv2d = Op::Get("nn.conv2d");
 
   Expr new_weight;
@@ -97,7 +97,7 @@ Expr MakeFoldedConv2D(const Expr& data, const std::vector<const CallNode*>& conv
   return CallNode::make(conv2d, {data, new_weight}, Attrs{new_attrs}, {});
 }
 
-Expr FoldConv2D(const Expr& expr) {
+Expr CombineParallelConv2D(const Expr& expr) {
   // data -> array of conv2d with the same input
   auto children_map = SiblingConv2DFinder().Find(expr);
   Map<Expr, Expr> subst_map;
@@ -137,7 +137,7 @@ Expr FoldConv2D(const Expr& expr) {
       if (convs.size() < 2) {
         continue;
       }
-      auto new_conv2d = MakeFoldedConv2D(data, convs);
+      auto new_conv2d = MakeCombinedConv2D(data, convs);
 
       int64_t start = 0;
       // replace original conv2d with slice of output of the new conv2d
@@ -158,9 +158,9 @@ Expr FoldConv2D(const Expr& expr) {
   return ExprSubst(expr, std::move(subst_map));
 }
 
-TVM_REGISTER_API("relay._ir_pass.FoldConv2D")
+TVM_REGISTER_API("relay._ir_pass.CombineParallelConv2D")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = FoldConv2D(args[0]);
+    *ret = CombineParallelConv2D(args[0]);
   });
 
 }  // namespace relay

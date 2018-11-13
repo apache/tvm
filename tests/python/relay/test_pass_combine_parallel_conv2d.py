@@ -2,7 +2,7 @@ from tvm import relay
 import numpy as np
 
 
-def test_fold_conv2d():
+def test_combine_parallel_conv2d():
     """Simple testcase."""
     def before(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4):
         args = [x, w1, w2, w3, w4]
@@ -53,7 +53,7 @@ def test_fold_conv2d():
         w4 = relay.var("w4")
 
         y_before = before(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
-        y = relay.ir_pass.fold_conv2d(y_before)
+        y = relay.ir_pass.combine_parallel_conv2d(y_before)
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
         assert relay.ir_pass.alpha_equal(y, y_expected)
 
@@ -62,4 +62,4 @@ def test_fold_conv2d():
 
 
 if __name__ == "__main__":
-    test_fold_conv2d()
+    test_combine_parallel_conv2d()
