@@ -123,6 +123,7 @@ This level enables additional math and transform operators.
    tvm.relay.min
    tvm.relay.mean
    tvm.relay.prod
+   tvm.relay.strided_slice
 
 
 **Level 5: Vision/Image Operators**
@@ -227,6 +228,7 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.min
 .. autofunction:: tvm.relay.mean
 .. autofunction:: tvm.relay.prod
+.. autofunction:: tvm.relay.strided_slice
 
 
 

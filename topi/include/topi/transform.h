@@ -10,6 +10,7 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
+#include <limits>
 
 #include "topi/tags.h"
 #include "topi/detail/ravel_unravel.h"
@@ -403,31 +404,51 @@ inline Array<Tensor> split(const Tensor& x,
 * \return A Tensor whose op member is the split operation
 */
 inline Tensor strided_slice(const Tensor& x,
-                            const Array<Expr>& begin,
-                            const Array<Expr>& end,
-                            const Array<Expr>& strides,
+                            const Array<Integer>& begin,
+                            const Array<Integer>& end,
+                            const Array<Integer>& strides,
                             std::string name = "tensor",
                             std::string tag = kInjective) {
   size_t src_tensor_dim = static_cast<size_t>(x->shape.size());
-  std::vector<int64_t> begin_vec = GetConstInt64Values(begin, "begin");
-  std::vector<int64_t> end_vec = GetConstInt64Values(end, "end");
-  std::vector<int64_t> stride_vec = GetConstInt64Values(strides, "strides");
-  // in case user has not provided begin indices for all the axes,
-  // then inflate it with default value = 0
-  for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
-    begin_vec.push_back(0);
+  // Setup the ranges.
+  // NOTE: this code duplicates the shape inference logic relay.op
+  // Consider to refactor in the future.
+  std::vector<int64_t> stride_vec;
+  for (Integer i : strides) {
+    CHECK(i.defined());
+    stride_vec.push_back(i->value);
   }
-  // in case user has not provided end indices for all the axes,
-  // then inflate it with default value = input_tensor.shape[axis]
-  for (size_t i = end_vec.size(); i < src_tensor_dim; ++i) {
-    end_vec.push_back(GetConstInt(x->shape[i]));
-  }
-  // in case user has not provided stride values,
-  // then inflate it with default value = 1
   for (size_t i = stride_vec.size(); i < src_tensor_dim; ++i) {
     stride_vec.push_back(1);
   }
+  const int64_t max_range = std::numeric_limits<int64_t>::max();
 
+  std::vector<int64_t> begin_vec;
+  for (size_t i = 0; i < begin.size(); ++i) {
+    if (!begin[i].defined()) {
+      // value=None
+      begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
+    } else {
+      begin_vec.push_back(begin[i]->value);
+    }
+  }
+  for (size_t i = begin_vec.size(); i < src_tensor_dim; ++i) {
+    begin_vec.push_back(stride_vec[i] > 0 ? 0 : max_range);
+  }
+
+  std::vector<int64_t> end_vec;
+  for (size_t i = 0; i < end.size(); ++i) {
+    // allow end to be None
+    if (!end[i].defined()) {
+      end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+    } else {
+      end_vec.push_back(end[i]->value);
+    }
+  }
+  for (size_t i = end_vec.size(); i < src_tensor_dim; ++i) {
+    end_vec.push_back(stride_vec[i] < 0 ? 0 : max_range);
+  }
+  // Compute
   Array<Expr> out_shape;
   Array<Expr> begin_expr;
   Array<Expr> strides_expr;

@@ -47,7 +47,11 @@ TVM_REGISTER_API("_Array")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     std::vector<NodePtr<Node> > data;
     for (int i = 0; i < args.size(); ++i) {
-      data.push_back(args[i].node_sptr());
+      if (args[i].type_code() != kNull) {
+        data.push_back(args[i].node_sptr());
+      } else {
+        data.push_back(NodePtr<Node>(nullptr));
+      }
     }
     auto node = make_node<ArrayNode>();
     node->data = std::move(data);
