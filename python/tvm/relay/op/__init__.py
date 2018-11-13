@@ -13,6 +13,7 @@ from . import vision
 
 # operator registry
 from . import _tensor
+from . import _transform
 from ..expr import Expr
 from ..base import register_relay_node
 
