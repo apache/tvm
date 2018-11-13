@@ -6,7 +6,6 @@ from numbers import Number as _Number
 import numpy as _np
 from .base import RelayNode, register_relay_node
 from . import _make
-from . import _expr
 from . import ty as _ty
 from .._ffi import base as _base
 from .. import nd as _nd
@@ -477,7 +476,7 @@ class TupleWrapper(object):
         text : str
             The text format of the tuple expression.
         """
-        return _expr._text_print(self.tuple_value)
+        return self.tuple_value.astext()
 
     def __getitem__(self, index):
         if index >= len(self):
