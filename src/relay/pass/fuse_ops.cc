@@ -19,8 +19,8 @@ namespace relay {
 /*
   Note on Fusing algorithm:
 
-  The main challenge of genenral fusor is to handle possible diamond
-  shape branches, in the following graph, conv2d can be fused to elemwise add.
+  The main challenge of genenral fusor is to handle possible diamond shape branches,
+  in the following graph, conv2d can be fused to elemwise add.
 
             conv2d
             /  |  \
@@ -31,25 +31,20 @@ namespace relay {
           elemwise add
                |
 
-  However, at the point of conv2d we do not necessarily know that all its
-  future path will merge at the elemwise add.
-
-  The new fusor algorithm applies post-dominator analysis.
-  The immediate post dominator of a node defined by the closest node where
-  all the future path goes into.
-  In the above case, the elemwise add is the post-dominator of conv2d.
-
-  The general algorithm is as follows:
+  However, at the point of conv2d we do not necessarily know that all its future path
+  will merge at the elemwise add. The new fusor algorithm applies post-dominator analysis.
+  The immediate post-dominator of a node defined by the closest node where all the future path goes into.
+  In the above case, the elemwise add is the post-dominator of conv2d. The general algorithm is as follows:
 
   - Construct a DAG of dataflow graph for dominator analysis
   - Construct a post-dominator tree which gives immediate post dominator of each node.
   - Run fusion algorithm with the given post-dominator information.
 
   Note that, because we run analysis on a DAG, we use a single pass post-dominator
-  tree construction algorith, which is simpler than the full version that handles cycles.
+  tree construction algorithm via LCA, which is simpler than the full version that handles cycles.
 
-  The fusion algorithm traverses from each node and checks if it can be fused to
-  its immediate post dominator. It has to check the following things:
+  The fusion algorithm traverses from each node and checks if it can be fused to its
+  immediate post dominator. It has to check the following things:
 
   - CheckPath: check all the path between a node and its immediate post-dominator
                satiesfies the fuse condition.

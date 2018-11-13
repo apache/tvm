@@ -22,6 +22,7 @@ def register_relay_node(type_key=None):
 
 
 class RelayNode(NodeBase):
+    """Base class of all relay node."""
     def astext(self, annotate=None):
         """Get the text format of the expression.
 
