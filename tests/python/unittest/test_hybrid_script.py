@@ -23,21 +23,29 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             assert isinstance(i, tvm.expr.Var)
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
+
+    outs = func(*args)
+    op = outs[0].op if isinstance(outs, list) else outs.op
+    sch = tvm.create_schedule(op)
+    print(op.body)
+    module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]))
+    assert module
     
-    outs, ir = tvm.hybrid.lower(func, args, simple_mode=True)
+    #outs, ir = tvm.hybrid.lower(func, args, simple_mode=True)
     out_tensors = []
-    for i in outs:
-        shape = [tvm_val_2_py_val(j) for j in i.shape]
-        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(i.dtype), ctx))
+    for i in range(op.num_outputs):
+        output = op.output(i)
+        shape = [tvm_val_2_py_val(j) for j in output.shape]
+        nd_args.append(tvm.nd.array(numpy.zeros(shape).astype(output.dtype), ctx))
         out_tensors.append(nd_args[-1])
 
     ref_data = func(*emu_args)
     if isinstance(ref_data, numpy.ndarray):
         ref_data = [ref_data]
     
-    lowered_func = tvm.lower(ir, args + outs)
-    module = tvm.build(lowered_func, target=target)
-    assert module
+    #lowered_func = tvm.lower(ir, args + outs)
+    #module = tvm.build(lowered_func, target=target)
+    #assert module
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
@@ -347,8 +355,8 @@ def test_outer_product():
 #
 
 if __name__ == "__main__":
-    #test_outer_product()
-    test_plus_one()
+    test_outer_product()
+#    test_plus_one()
 #    test_fanout()
 #    test_failure()
 #    test_looptype()

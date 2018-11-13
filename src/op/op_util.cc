@@ -186,6 +186,18 @@ class TensorReplacer : public ir::IRMutator {
     return IRMutator::Mutate_(op, e);
   }
 
+  Stmt Mutate_(const ir::Provide* op, const Stmt& s) {
+    Tensor t = Operation(op->func.node_).output(op->value_index);
+    auto it = vmap_.find(t);
+    if (it != vmap_.end()) {
+      Stmt ret = ir::Provide::make(
+        it->second->op, it->second->value_index, op->value, op->args);
+      found = true;
+      return IRMutator::Mutate_(ret.as<ir::Provide>(), ret);
+    }
+    return IRMutator::Mutate_(op, s);
+  }
+
   // whether it is found.
   bool found{false};
 

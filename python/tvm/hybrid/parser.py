@@ -378,6 +378,7 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_Return(self, node):
+        _internal_assert(not self.loops_above, "Return should not be in a loop body!")
         ids = []
         if isinstance(node.value, ast.Name):
             ids.append(node.value.id)

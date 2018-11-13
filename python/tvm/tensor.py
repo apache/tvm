@@ -180,3 +180,8 @@ class ScanOp(Operation):
 class ExternOp(Operation):
     """Extern operation."""
     pass
+
+@register_node
+class HybridOp(Operation):
+    """Hybrid operation."""
+    pass

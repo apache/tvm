@@ -4,13 +4,14 @@ from __future__ import absolute_import as _abs
 import ast
 import types
 from .._ffi.base import decorate
-from .._api_internal import _ExternOp
+from .._api_internal import _HybridOp
 from ..api import decl_buffer
 from ..expr import Call
 from ..stmt import Provide
-from ..ir_pass import PostOrderVisit
+from ..ir_pass import IRTransform
 from ..tensor import Tensor
 from .parser import parse_python
+from .. import make as _make
 
 
 def script(pyfunc):
@@ -77,18 +78,9 @@ def lower(func, args, simple_mode=False):
             if i in parser.outputs:
                 intra_link[i.name] = input_buffers[-1]
 
-    output_buffers = []
-    for i in parser.outputs:
-        if i in input_tensors:
-            output_buffers.append(intra_link[i.name])
-        else:
-            output_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
+    op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+            parser.outputs, body)
 
-    op = _ExternOp(parser.func_name, "HybridOp", None, input_tensors,
-            input_buffers, output_buffers, body)
-
-    res = [op.output(i) for i in range(len(output_buffers))]
-    for i, j in zip(res, output_buffers):
-        i.name = j.name
+    res = [op.output(i) for i in range(len(parser.outputs))]
 
     return res[0] if len(res) == 1 else res
