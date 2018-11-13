@@ -712,6 +712,117 @@ def test_constantfill():
     verify_constantfill(False, (2, 3, 4, 5), (2, 3, 4, 5), 10, 'float32')
     verify_constantfill(True, (2, 3, 4, 5), (2, 3, 4, 5, 4, 5, 6), 10, 'float32', extra_shape=(4, 5, 6))
 
+
+def verify_pad(indata, pads, value=0.0):
+    indata = np.array(indata).astype(np.float32)
+    #  numpy expect result
+    len_dim = len(pads) // 2
+    np_pads = [(pads[i], pads[i+len_dim]) for i in range(len_dim)]
+    outdata = np.pad(indata, pad_width=np_pads, mode='constant', constant_values=value)
+    #  onnx graph
+    node = helper.make_node(
+        'Pad',
+        inputs=['input'],
+        outputs=['output'],
+        mode='constant',
+        pads=pads,
+        value=value
+    )
+    graph = helper.make_graph([node],
+                              'pad_test',
+                              inputs = [helper.make_tensor_value_info("input",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("output",
+                                            TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='pad_test')
+    #  tvm result
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+    tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_pad():
+    verify_pad(np.random.randn(2, 2).astype(np.float32), [0, 1, 0, 0], 0.0)
+    verify_pad(np.random.randn(2, 3).astype(np.float32), [1, 0, 0, 1], 0.0)
+    verify_pad(np.random.randn(3, 2).astype(np.float32), [0, 0, 1, 0], 5.0)
+
+def verify_reduce_x(name, indata, axis, keepdims):
+    indata = np.array(indata).astype(np.float32)
+    #  numpy expect result
+    if name == 'ReduceMax':
+        outdata = np.maximum.reduce(indata, axis=axis, keepdims=keepdims == 1)
+    elif name == 'ReduceMin':
+        outdata = np.minimum.reduce(indata, axis=axis, keepdims=keepdims == 1)
+    elif name == 'ReduceSum':
+        outdata = np.sum(indata, axis=axis, keepdims=keepdims == 1)
+    elif name == 'ReduceMean':
+        outdata = np.mean(indata, axis=axis, keepdims=keepdims == 1)
+    else:
+        raise Exception('unsupport op: {}'.format(name))
+    if len(np.asarray(outdata).shape) == 0:
+        outdata = np.asarray([outdata])
+    #  onnx graph
+    if axis is None:
+        node = helper.make_node(name, inputs=['input'], outputs=['output'],
+                                keepdims=keepdims)
+    else:
+        node = helper.make_node(name, inputs=['input'], outputs=['output'],
+                                axis=axis, keepdims=keepdims)
+    graph = helper.make_graph([node],
+                              '{}_test'.format(name),
+                              inputs = [helper.make_tensor_value_info("input",
+                                            TensorProto.FLOAT, list(indata.shape))],
+                              outputs = [helper.make_tensor_value_info("output",
+                                            TensorProto.FLOAT, list(outdata.shape))])
+    model = helper.make_model(graph, producer_name='{}_test'.format(name))
+    #  tvm result
+    for target, ctx in ctx_list():
+        tvm_out = get_tvm_output(model, indata, target, ctx, outdata.shape, 'float32')
+    tvm.testing.assert_allclose(outdata, tvm_out, rtol=1e-5, atol=1e-5)
+
+def test_reduce_max():
+    verify_reduce_x("ReduceMax",
+                    np.random.randn(3, 2, 2).astype(np.float32),
+                    axis=None, keepdims=1)
+    verify_reduce_x("ReduceMax",
+                    np.random.randn(3, 2, 3).astype(np.float32),
+                    axis=None, keepdims=0)
+    verify_reduce_x("ReduceMax",
+                    np.random.randn(3, 3, 3).astype(np.float32),
+                    axis=(1,), keepdims=1)
+
+def test_reduce_min():
+    verify_reduce_x("ReduceMin",
+                    np.random.randn(3, 2, 2).astype(np.float32),
+                    axis=None, keepdims=1)
+    verify_reduce_x("ReduceMin",
+                    np.random.randn(3, 2, 3).astype(np.float32),
+                    axis=None, keepdims=0)
+    verify_reduce_x("ReduceMin",
+                    np.random.randn(3, 3, 3).astype(np.float32),
+                    axis=(1,), keepdims=1)
+
+def test_reduce_sum():
+    verify_reduce_x("ReduceSum",
+                    np.random.randn(3, 2, 2).astype(np.float32),
+                    axis=None, keepdims=1)
+    verify_reduce_x("ReduceSum",
+                    np.random.randn(3, 2, 3).astype(np.float32),
+                    axis=None, keepdims=0)
+    verify_reduce_x("ReduceSum",
+                    np.random.randn(3, 3, 3).astype(np.float32),
+                    axis=(1,), keepdims=1)
+
+def test_reduce_mean():
+    verify_reduce_x("ReduceMean",
+                    np.random.randn(3, 2, 2).astype(np.float32),
+                    axis=None, keepdims=1)
+    verify_reduce_x("ReduceMean",
+                    np.random.randn(3, 2, 3).astype(np.float32),
+                    axis=None, keepdims=0)
+    verify_reduce_x("ReduceMean",
+                    np.random.randn(3, 3, 3).astype(np.float32),
+                    axis=(1,), keepdims=1)
+
 def verify_split(indata, outdatas, split, axis=0):
     indata = np.array(indata).astype(np.float32)
     outdatas = [np.array(o).astype(np.float32) for o in outdatas]
@@ -772,4 +883,9 @@ if __name__ == '__main__':
     test_forward_arg_min_max()
     test_softmax()
     test_constantfill()
+    test_pad()
+    test_reduce_max()
+    test_reduce_min()
+    test_reduce_sum()
+    test_reduce_mean()
     test_split()

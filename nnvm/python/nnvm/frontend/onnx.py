@@ -1,4 +1,4 @@
-# pylint: disable=import-self, invalid-name, unused-argument
+# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines
 """ONNX: Open Neural Network Exchange frontend."""
 from __future__ import absolute_import as _abs
 import numpy as np
@@ -31,10 +31,9 @@ class OnnxOpConverter(object):
             max([i for i, v in enumerate(versions) if v == opset]) - 1]
         if hasattr(cls, '_impl_v{}'.format(version)):
             return getattr(cls, '_impl_v{}'.format(version))
-        else:
-            raise NotImplementedError(
-                'opset version {} of {} not implemented'.format(
-                    version, cls.__name__))
+        raise NotImplementedError(
+            'opset version {} of {} not implemented'.format(
+                version, cls.__name__))
 
 
 class Elemwise(OnnxOpConverter):
@@ -200,22 +199,44 @@ class Mul(Elemwise):
 
 
 class Pad(OnnxOpConverter):
+    """ Operator converter for Pad.
+    """
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        # get number of channels
-        channels = _infer_channels(inputs[1], params, True)
-        attr['channels'] = channels
-        groups = attr.pop('group')
-        attr['groups'] = groups
+        pad_width = []
+        pads = attr.pop('paddings')
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+
         return AttrCvt(
             op_name='pad',
             transforms={
                 'value': 'pad_value',
-                'pads': 'pad_width'
             },
-            custom_check=lambda attrs: attrs.get('mode') == 'constant')(
-                inputs, attr, params)
+            ignores=['mode'],
+            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
+                          'split mode != constant'))(inputs, attr, params)
+
+    @classmethod
+    def _impl_v2(cls, inputs, attr, params):
+        pad_width = []
+        pads = attr.pop('pads')
+        dims = int(len(pads) / 2)
+        for i in range(dims):
+            pad_width.append((pads[i], pads[i+dims]))
+        attr['pad_width'] = pad_width
+
+        return AttrCvt(
+            op_name='pad',
+            transforms={
+                'value': 'pad_value',
+            },
+            ignores=['mode'],
+            custom_check=(lambda attrs: attrs.get('mode', 'constant').decode("utf-8") == 'constant',
+                          'split mode != constant'))(inputs, attr, params)
 
 
 class ParametricSoftPlus(OnnxOpConverter):
@@ -368,8 +389,7 @@ def _dimension_picker(prefix, surfix=''):
         kernel = attr['kernel_shape']
         if len(kernel) == 2:
             return prefix + '2d' + surfix
-        else:
-            raise NotImplementedError("Only 2d kernel supported.")
+        raise NotImplementedError("Only 2d kernel supported.")
 
     return _impl
 
@@ -659,14 +679,13 @@ class ConstantFill(OnnxOpConverter):
                 transforms={'value': 'fill_value'},
                 ignores=['dtype'])(inputs, attr)
             return _sym.cast(out, dtype=attr['dtype'].decode("utf-8"))
-        else:
-            if 'extra_shape' in attr:
-                shape = shape + attr.pop('extra_shape')
+        if 'extra_shape' in attr:
+            shape = shape + attr.pop('extra_shape')
 
-            return AttrCvt(
-                op_name='full',
-                transforms={'value': 'fill_value'},
-                extras={'shape':shape})(inputs, attr)
+        return AttrCvt(
+            op_name='full',
+            transforms={'value': 'fill_value'},
+            extras={'shape':shape})(inputs, attr)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -758,10 +777,10 @@ def _get_convert_map(opset):
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
-        'ReduceMax': AttrCvt('max', {'axes', 'axis'}),
-        'ReduceMin': AttrCvt('min', {'axes', 'axis'}),
-        'ReduceSum': AttrCvt('sum', {'axes', 'axis'}),
-        # 'ReduceMean'
+        'ReduceMax': AttrCvt('max', {'axes': 'axis'}),
+        'ReduceMin': AttrCvt('min', {'axes': 'axis'}),
+        'ReduceSum': AttrCvt('sum', {'axes': 'axis'}),
+        'ReduceMean': AttrCvt('mean', {'axes': 'axis'}),
         # 'ReduceProd'
         # 'ReduceLogSumExp'
         'ArgMax': ArgMax.get_converter(opset),
