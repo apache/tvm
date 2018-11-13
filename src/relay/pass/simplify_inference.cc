@@ -33,7 +33,9 @@ Expr BatchNormToInferUnpack(const Attrs attrs,
   }
 
   int axis = param->axis;
-  auto ndim = tdata.as<TensorTypeNode>()->shape.size();
+  auto ttype = tdata.as<TensorTypeNode>();
+  CHECK(ttype);
+  auto ndim = ttype->shape.size();
   scale = ExpandBiasToMatchAxis(scale, ndim, {axis});
   shift = ExpandBiasToMatchAxis(shift, ndim, {axis});
 
