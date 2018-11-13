@@ -980,23 +980,25 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const StridedSliceParam& param = nnvm::get<StridedSliceParam>(attrs.parsed);
-    Array<Expr> begin;
-    Array<Expr> end;
-    Array<Expr> stride;
+    Array<Integer> begin;
+    Array<Integer> end;
+    Array<Integer> stride;
 
     for (int64_t i : param.begin) {
-        begin.push_back(tvm::make_const(tvm::Int(32), i));
+      begin.push_back(static_cast<int>(i));
     }
 
     for (int64_t i : param.end) {
-        end.push_back(tvm::make_const(tvm::Int(32), i));
+      end.push_back(static_cast<int>(i));
     }
 
     for (int64_t i : param.stride) {
-        stride.push_back(tvm::make_const(tvm::Int(32), i));
+      stride.push_back(static_cast<int>(i));
     }
 
-    return Array<Tensor>{ topi::strided_slice(inputs[0], begin, end, stride) };
+    return Array<Tensor>{
+      topi::strided_slice(inputs[0], begin, end, stride)
+    };
 })
 .set_support_level(1);
 
@@ -1210,6 +1212,15 @@ inline bool SliceLikeShape(const nnvm::NodeAttrs& attrs,
   return true;
 }
 
+// Adapter function to make int array.
+Array<Integer> GetIntArray(Array<Expr> arr) {
+  for (size_t i = 0; i < arr.size(); ++i) {
+    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+        << "Expect an int array";
+  }
+  return Array<Integer>(arr.node_);
+}
+
 NNVM_REGISTER_OP(slice_like)
 .describe(R"code(Slice the first input respect to the second input.
 )code" NNVM_ADD_FILELINE)
@@ -1261,7 +1272,10 @@ NNVM_REGISTER_OP(slice_like)
       }
     }
     return Array<Tensor>{
-      topi::strided_slice(inputs[0], begin_idx, end_idx, strides)
+      topi::strided_slice(inputs[0],
+                          GetIntArray(begin_idx),
+                          GetIntArray(end_idx),
+                          GetIntArray(strides))
     };
 })
 .set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {

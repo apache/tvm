@@ -249,13 +249,11 @@ def verify_take(src_shape, indices_src, axis=None):
     for device in ["llvm", "opencl", "sdaccel", "aocl_sw_emu"]:
         check_device(device)
 
-def verify_strided_slice(in_shape, begin, end, stride=None):
-    stride = stride if stride else [1, 1, 1]
+def verify_strided_slice(in_shape, begin, end, strides=None):
     A = tvm.placeholder(shape=in_shape, name="A")
-    B = topi.strided_slice(A, begin, end, stride) + 1
-    def test_forward(x, begin, end, stride):
-        return x[begin[0]:end[0]:stride[0],
-                    begin[1]:end[1]:stride[1], begin[2]:end[2]:stride[2]] + 1
+    strides = [1,1,1] if strides is None else strides
+    B = topi.strided_slice(A, begin, end, strides) + 1
+
     def check_device(device):
         ctx = tvm.context(device, 0)
         if not ctx.exist:
@@ -267,7 +265,8 @@ def verify_strided_slice(in_shape, begin, end, stride=None):
 
         foo = tvm.build(s, [A, B], device, name="stride_slice")
         x_np = np.random.uniform(size=in_shape).astype(A.dtype)
-        out_npy = test_forward(x_np, begin, end, stride)
+        out_npy = topi.testing.strided_slice_python(
+            x_np, begin, end, strides) + 1
         data_nd = tvm.nd.array(x_np, ctx)
         out_nd = tvm.nd.empty(out_npy.shape, ctx=ctx, dtype=A.dtype)
         foo(data_nd, out_nd)
@@ -298,7 +297,7 @@ def verify_gather_nd(src_shape, indices_src, indices_dtype):
             shape_size = shape_size * src_shape[i]
         data_npy = np.arange(shape_size, dtype=src_dtype).reshape((src_shape))
         out_npys = topi.testing.gather_nd_python(data_npy, indices_src)
-        
+
         data_nd = tvm.nd.array(data_npy, ctx)
         indices_nd = tvm.nd.array(indices_src, ctx)
         out_nd = tvm.nd.empty(out_npys.shape, ctx=ctx, dtype=src_dtype)
@@ -412,6 +411,7 @@ def test_gather_nd():
                          indices_dtype)
 
 if __name__ == "__main__":
+    test_strided_slice()
     test_concatenate()
     test_tranpose()
     test_expand_dims()
@@ -421,5 +421,4 @@ if __name__ == "__main__":
     test_flip()
     test_expand_like()
     test_take()
-    test_strided_slice()
     test_gather_nd()
