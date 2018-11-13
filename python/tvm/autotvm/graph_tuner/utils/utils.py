@@ -1,6 +1,5 @@
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
-import os
 import json
 
 from .._base import ELEMLIKE_NODE_NAMES

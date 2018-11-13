@@ -4,18 +4,20 @@ import json
 from functools import wraps
 
 import nnvm
-import tvm
 
 from nnvm.compiler import graph_attr
+
+import tvm
+
 from tvm import autotvm
 from topi.nn.conv2d import conv2d_NCHWc
 
 
-def _parse_int(input):
-    """Parse input."""
-    if input.endswith('L'):
-        input = input[:-1]
-    return int(input)
+def _parse_int(input_str):
+    """Parse input string."""
+    if input_str.endswith('L'):
+        input_str = input_str[:-1]
+    return int(input_str)
 
 
 def get_workload(op_name):

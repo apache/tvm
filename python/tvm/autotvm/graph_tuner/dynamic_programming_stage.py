@@ -4,9 +4,9 @@ import numpy as np
 
 import tvm
 
+from tvm import autotvm
 from ._base import INVALID_LAYOUT_TIME
 from .utils import is_elemlike_op, shape2layout, is_input_node
-from tvm import autotvm
 
 
 class DPStage(object):
@@ -173,7 +173,8 @@ class DPStage(object):
                             layout_transform_time = 0.0
                         else:
                             layout_time_val = self._global_layout_time_dict[ltf_wkl]
-                            layout_transform_time = layout_time_val if isinstance(layout_time_val, float) \
+                            layout_transform_time = \
+                                layout_time_val if isinstance(layout_time_val, float) \
                                 else layout_time_val[1].costs[0]
                     else:
                         layout_transform_time = INVALID_LAYOUT_TIME
@@ -218,8 +219,8 @@ class DPStage(object):
         input_node_list = []
         # Remove input nodes
         for input_idx in full_input_node_list:
-            if not is_input_node(self._global_node_list, 
-                    self._global_input_shapes.keys(), input_idx):
+            if not is_input_node(self._global_node_list,
+                                 self._global_input_shapes.keys(), input_idx):
                 input_node_list.append(input_idx)
 
         # Generate new states
@@ -261,7 +262,8 @@ class DPStage(object):
                         layout_transform_time = 0.0
                     else:
                         layout_time_val = self._global_layout_time_dict[ltf_wkl]
-                        layout_transform_time = layout_time_val if isinstance(layout_time_val, float) \
+                        layout_transform_time = \
+                            layout_time_val if isinstance(layout_time_val, float) \
                             else layout_time_val[1].costs[0]
                 else:
                     layout_transform_time = INVALID_LAYOUT_TIME

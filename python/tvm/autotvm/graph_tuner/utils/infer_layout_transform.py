@@ -1,3 +1,4 @@
+# pylint: disable=too-many-locals
 """Built-in functions to infer layout transformation."""
 
 def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):

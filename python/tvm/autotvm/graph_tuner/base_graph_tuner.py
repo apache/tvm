@@ -5,14 +5,14 @@ import json
 
 from abc import abstractmethod
 
-import tvm
 import topi
+import tvm
 
-from nnvm.compiler import graph_attr
 from tvm import autotvm
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.record import encode, load_from_file
+from nnvm.compiler import graph_attr
 from .utils import get_real_node, is_input_node, shape2layout, \
     get_in_nodes, get_out_nodes, is_elemlike_op, get_wkl_map
 
@@ -23,10 +23,10 @@ def layout_transform(*args):
     args = deserialize_args(args)
     cfg = get_config()
     cfg.add_flop(-1)
-    A = args[0]
-    C = topi.cpp.nn.layout_transform(*args)
-    s = topi.generic.schedule_injective([C])
-    return s, [A, C]
+    data = args[0]
+    out = topi.cpp.nn.layout_transform(*args)
+    sch = topi.generic.schedule_injective([out])
+    return sch, [data, out]
 
 
 class BaseGraphTuner(object):
@@ -148,6 +148,7 @@ class BaseGraphTuner(object):
             self._logger.setLevel(log_level)
             self._logger.propagate = False
 
+        # Generate workload and schedule dictionaries.
         graph = graph_attr.set_shape_inputs(graph, input_shapes)
         graph = graph.apply("InferShape")
         self._graph = graph
@@ -156,7 +157,6 @@ class BaseGraphTuner(object):
         g_dict = json.loads(self._graph.json())
         self._node_list = g_dict["nodes"]
 
-        # Generate workload and schedule dictionaries.
         sch_dict = self._records2dict(layout_related_fields)
         workload_list = list(sch_dict.keys())
         self._node_map = get_wkl_map(graph, workload_list, target_op, graph_workload_list)
@@ -203,6 +203,7 @@ class BaseGraphTuner(object):
         }
 
     def _records2dict(self, layout_related_fields):
+        """Read and pre-process input schedules."""
         sch_dict = {}
         sch_record_dict = {}
         if isinstance(self._records, str):
@@ -314,7 +315,7 @@ class BaseGraphTuner(object):
 
         if isinstance(records, str):
             records = load_from_file(records)
-            if len(records) == 0 and infer_layout:
+            if not records and infer_layout:
                 raise RuntimeError("Records must be non-empty to infer layout transformation time.")
 
         if isinstance(records, str):
@@ -370,10 +371,12 @@ class BaseGraphTuner(object):
                     sch_target = [sch_target_list[j]["schedule"]
                                   for j in range(min(self._max_sch_num, len(sch_target_list)))]
                 else:
-                    if i <= target_input_pos or is_input_node(node_list, self._input_shapes.keys(), item):
+                    if i <= target_input_pos or is_input_node(node_list, self._input_shapes.keys(),
+                                                              item):
                         continue
                     c_idx = get_real_node(node_anc_dict, node_list, item, self._target_op)
-                    t_idx = get_real_node(node_anc_dict, node_list, target_input_idx, self._target_op)
+                    t_idx = get_real_node(node_anc_dict, node_list, target_input_idx,
+                                          self._target_op)
                     wkl_c = self._wkl_dict[c_idx]
                     sch_current_list = self._sch_dict[c_idx]
                     sch_current = [sch_current_list[j]["schedule"]
@@ -401,18 +404,19 @@ class BaseGraphTuner(object):
                                         "layout_transform", "injective"]
                                 args_list.append(args)
 
-        def log_to_list(record_list):
+        def _log_to_list(record_list):
+            """Callback to log result to a list."""
             def _callback(_, inputs, results):
                 """Callback implementation"""
                 record_list.append((inputs[0], results[0]))
             return _callback
 
-        builder=autotvm.LocalBuilder(n_parallel=1, build_func=build_func)
+        builder = autotvm.LocalBuilder(n_parallel=1, build_func=build_func)
         runner = autotvm.LocalRunner(number=min_exec_num, repeat=1, timeout=timeout)
         if use_rpc:
             if device_key is None:
                 raise RuntimeError("device_key need to be set to use rpc tracker mode.")
-            runner = autotvm.measure.RPCRunner(device_key, host, port, n_parallel=n_parallel, 
+            runner = autotvm.measure.RPCRunner(device_key, host, port, n_parallel=n_parallel,
                                                number=min_exec_num, repeat=1,
                                                timeout=timeout)
         measure_option = autotvm.measure_option(builder=builder, runner=runner)
@@ -437,7 +441,7 @@ class BaseGraphTuner(object):
             task.workload = ltf_workload
             tuner = autotvm.tuner.GridSearchTuner(task)
             tuner.tune(n_trial=1, measure_option=measure_option,
-                       callbacks=[log_to_list(records)])
+                       callbacks=[_log_to_list(records)])
             self._layout_transform_dict[ltf_workload] = records[0]
 
         self._global_data_dict["layout_time_dict"] = self._layout_transform_dict
@@ -478,6 +482,13 @@ class BaseGraphTuner(object):
         return ret
 
     def write_opt_sch2record_file(self, record_file="graph_opt_schedule.log"):
+        """Write graph level optimal schedules into file.
+
+        Parameters
+        ----------
+        record_file : str, optional
+            Output schedule file.
+        """
         if isinstance(self._records, str):
             records = load_from_file(self._records)
         else:
@@ -491,15 +502,15 @@ class BaseGraphTuner(object):
             schedule = in_measure.config
             record_dict[str((workload, schedule))] = record
 
-        with open(record_file, "a") as of:
+        with open(record_file, "a") as out_file:
             for workload, schedule in zip(self._graph_workload_list,
                                           self.get_optimal_schedules()):
                 record = record_dict[str((workload, schedule))]
-                of.write(encode(record[0], record[1]) + "\n")
-        log.info("Writing optimal schedules to % successful." % record_file)
+                out_file.write(encode(record[0], record[1]) + "\n")
+        msg = "Writing optimal schedules to % successful." % record_file
+        self._logger.info(msg)
 
     @abstractmethod
     def run(self, **kwargs):
         """Run graph tuning."""
         pass
-

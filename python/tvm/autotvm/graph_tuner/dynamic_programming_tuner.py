@@ -24,6 +24,12 @@ class DPTuner(BaseGraphTuner):
     TODO  Analyse time/memory complexity of the algorithm and automatically switch to
     TODO  greedy method if DP is prohibitively expensive.
     """
+    def __init__(self, *args, **kwargs):
+        """Create a dynamic programming tuner.
+        """
+        super(DPTuner, self).__init__(*args, **kwargs)
+        self._num_states = self._max_num_states = None
+
     def _check_num_states(self, num_states):
         self._num_states += num_states
         if self._max_num_states is not None:
@@ -31,7 +37,6 @@ class DPTuner(BaseGraphTuner):
                 raise RuntimeError("Too many states detected while running dynamic "
                                    "programming: got %d states but upper limit is %d." %
                                    (self._num_states, self._max_num_states))
-
 
     def _forward(self):
         """Forward pass in DP to generate states for all stages.
@@ -147,7 +152,7 @@ class DPTuner(BaseGraphTuner):
                     else:
                         new_states_idx.append(full_states_idx[i])
                         new_states_pos.append(i - 1)
-                if len(visited_states_idx) > 0:
+                if visited_states_idx:
                     tmp = np.transpose(tmp, tuple(visited_states_pos + new_states_pos))
                     tmp = tmp[tuple([optimal_sch_dict[idx] for idx in visited_states_idx])]
                 min_pos = np.argmin(tmp)
@@ -188,4 +193,3 @@ class DPTuner(BaseGraphTuner):
         self._forward()
         self._backward()
         self._logger.info("Finished DPExecutor run.")
-
