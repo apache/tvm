@@ -18,7 +18,6 @@ def test_resize_infer_type():
     assert zz.checked_type == relay.TensorType((n, c, 100, 200), "int8")
 
 
-
 def test_multibox_prior():
     sizes = (0.3, 1.5, 0.7)
     ratios = (1.3, 2.4)
@@ -44,6 +43,36 @@ def test_multibox_prior():
         (1, h * w, 4), "float32")
 
 
+def test_nms():
+    num_anchors = 60
+
+    overlap_threshold = 0.5
+    force_suppress = True
+    nms_topk = 10
+
+    n = tvm.var("n")
+    x0 = relay.var("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((n,), "int"))
+
+    z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, nms_topk)
+
+    assert "overlap_threshold" in z.astext()
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(
+        (n, num_anchors, 6), "float32")
+
+    n = tvm.var("n")
+    x0 = relay.var("x0", relay.ty.TensorType((n, num_anchors, 6), "float32"))
+    x1 = relay.var("x1", relay.ty.TensorType((n,), "int"))
+
+    z = relay.vision.nms(x0, x1)
+
+    zz = relay.ir_pass.infer_type(z)
+    assert zz.checked_type == relay.ty.TensorType(
+        (n, num_anchors, 6), "float32")
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_multibox_prior()
+    test_nms()

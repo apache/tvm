@@ -5,7 +5,6 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/vision.h>
-#include <vector>
 
 namespace tvm {
 namespace relay {
@@ -66,7 +65,7 @@ RELAY_REGISTER_OP("vision.multibox_prior")
 .set_attrs_type_key("relay.attrs.MultiBoxPriorAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(4)
+.set_support_level(5)
 .add_type_rel("MultiBoxPrior", MultiboxPriorRel);
 
 }  // namespace relay
