@@ -52,7 +52,9 @@ std::tuple<Expr, IndexExpr> TransformWeight(std::vector<const CallNode*> convolu
     CHECK(channels);
     num_filters += *channels;
   }
-  return std::make_tuple(MakeConcatenate(TupleNode::make(weights), 0),
+  auto index = convolutions[0]->attrs.as<Conv2DAttrs>()->weight_layout.find('O');
+  CHECK_NE(index, std::string::npos);
+  return std::make_tuple(MakeConcatenate(TupleNode::make(weights), index),
                          MakeConstScalar(Int(32), num_filters));
 }
 
@@ -144,7 +146,9 @@ Expr FoldConv2D(const Expr& expr) {
         auto channels = as_const_int(params->channels);
         CHECK(channels);
         auto indices = MakeConstantArrayFromRange(Int(64), start, start + *channels);
-        auto take = MakeTake(new_conv2d, indices, 1);
+        auto channel_index = params->data_layout.find('C');
+        CHECK_NE(channel_index, std::string::npos);
+        auto take = MakeTake(new_conv2d, indices, channel_index);
         start += *channels;
         subst_map.Set(GetRef<Call>(conv2d), take);
       }
