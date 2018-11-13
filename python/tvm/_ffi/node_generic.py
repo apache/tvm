@@ -56,6 +56,8 @@ def convert_to_node(value):
         return _api_internal._Map(*vlist)
     elif isinstance(value, NodeGeneric):
         return value.asnode()
+    elif value is None:
+        return None
     else:
         raise ValueError("don't know how to convert type %s to node" % type(value))
 
