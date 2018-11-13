@@ -1,12 +1,34 @@
-# pylint: disable=invalid-name, unused-variable, too-many-locals
+# pylint: disable=invalid-name, unused-variable, too-many-locals, unused-argument
 """Depthwise convolution operators"""
 from __future__ import absolute_import as _abs
+from collections import namedtuple
 import tvm
 
 from .dilate import dilate
 from .pad import pad
 from .util import get_pad_tuple
 from ..util import simplify
+
+# workload description of depthwise-conv2d
+Workload = namedtuple('Workload',
+                      ['in_dtype', 'out_dtype', 'height', 'width', 'in_filter', 'out_filter',
+                       'hkernel', 'wkernel', 'hpad', 'wpad', 'hstride', 'wstride'])
+
+def _get_workload(data, kernel, stride, padding, out_dtype):
+    """ Get the workload structure. """
+    _, in_channel, height, width = [x.value for x in data.shape]
+    channel, channel_multiplier, kh, kw = [x.value for x in kernel.shape]
+    out_channel = channel * channel_multiplier
+    HPAD, WPAD, _, _ = get_pad_tuple(padding, kernel)
+    if isinstance(stride, (tuple, list)):
+        HSTR, WSTR = stride
+    else:
+        HSTR, WSTR = stride, stride
+    assert (data.dtype == kernel.dtype) or (data.dtype == 'uint8' and kernel.dtype == 'int8'), \
+        "Do not support inputs with different data types now. ' \
+        '{} vs. {}".format(data.dtype, kernel.dtype)
+    return Workload(data.dtype, out_dtype, height, width, in_channel,
+                    out_channel, kh, kw, HPAD, WPAD, HSTR, WSTR)
 
 
 @tvm.target.generic_func
@@ -258,3 +280,44 @@ def depthwise_conv2d_backward_weight_nhwc(Input, Out_grad, oshape, fshape, strid
         tag='depthwise_conv2d_backward_weight_nhwc')
 
     return Weight_grad
+
+
+@tvm.target.generic_func
+def depthwise_conv2d_NCHWc(Input, Filter, stride, padding, dilation,
+                           layout, out_layout, out_dtype=None):
+    """Depthwise convolution NCHW[x]c forward operator.
+
+    Parameters
+    ----------
+    Input : tvm.Tensor
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+
+    Filter : tvm.Tensor
+        4-D with shape [out_channel_chunk, filter_height, filter_width, out_channel_block]
+        In NCHWc depthwise convolution,
+        we group kernel's in_channel and channel_multiplier together then do the tiling.
+
+    stride : tuple of two ints
+        The spatial stride along height and width
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    dilation: int or a list/tuple of two ints
+         dilation size, or [dilation_height, dilation_width]
+
+    layout : str
+        Input data layout
+
+    out_layout : str
+        Output data layout
+
+    out_dtype: str, optional
+        Output data type
+
+    Returns
+    -------
+    Output : tvm.Tensor
+        4-D with shape [batch, out_channel, out_height, out_width]
+    """
+    raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")

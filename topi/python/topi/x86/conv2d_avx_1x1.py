@@ -8,8 +8,10 @@ from ..nn.util import infer_pad
 from ..util import get_const_tuple
 from .tensor_intrin import dot_16x1x16_int8_int8_int32
 from .check_targets import check_skylake
+from .util import get_fp32_len
 
-def _fallback_schedule(cfg, wkl, simd_width):
+def _fallback_schedule(cfg, wkl):
+    simd_width = get_fp32_len()
     HPAD, WPAD = wkl.hpad, wkl.wpad
     HSTR, WSTR = wkl.hstride, wkl.wstride
     out_height = (wkl.height + 2 * HPAD - wkl.hkernel) // HSTR + 1

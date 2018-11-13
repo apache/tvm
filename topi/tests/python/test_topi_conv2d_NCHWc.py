@@ -13,27 +13,22 @@ from common import get_all_backend
 def _transform_data(data, bn):
     # NCHW -> NCHW[x]c
     batch_size, channel, height, width = data.shape
-    data = np.transpose(data, (0, 2, 3, 1))
-    data = np.reshape(data, (batch_size, height, width, channel//bn, bn))
-    data = np.transpose(data, (0, 3, 1, 2, 4))
+    data = np.reshape(data, (batch_size, channel//bn, bn, height, width))
+    data = np.transpose(data, (0, 1, 3, 4, 2))
     return data
 
 def _transform_kernel(kernel, ic_bn, oc_bn):
     # OIHW -> OIHW[x]i[x]o
     out_channel, in_channel, kh, kw = kernel.shape
-    kernel = np.transpose(kernel, (1, 2, 3, 0))
-    kernel = np.reshape(kernel, (in_channel, kh, kw, out_channel//oc_bn, oc_bn))
-    kernel = np.transpose(kernel, (1, 2, 3, 4, 0))
-    kernel = np.reshape(kernel, (kh, kw, out_channel//oc_bn, oc_bn, in_channel//ic_bn, ic_bn))
-    kernel = np.transpose(kernel, (2, 4, 0, 1, 5, 3))
+    kernel = np.reshape(kernel, (out_channel//oc_bn, oc_bn, in_channel//ic_bn, ic_bn, kh, kw))
+    kernel = np.transpose(kernel, (0, 2, 4, 5, 3, 1))
     return kernel
 
 def _transform_bias(bias, bn):
     # [num_filter, 1, 1] -> [num_filter//bn, 1, 1, bn]
     num_filter, h, w = bias.shape
-    bias = np.transpose(bias, (1, 2, 0))
-    bias = np.reshape(bias, (h, w, num_filter//bn, bn))
-    bias = np.transpose(bias, (2, 0, 1, 3))
+    bias = np.reshape(bias, (num_filter//bn, bn, h, w))
+    bias = np.transpose(bias, (0, 2, 3, 1))
     return bias
 
 def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
@@ -86,6 +81,7 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
         print("Running on target: %s" % device)
         with tvm.target.create(device):
             C = topi.nn.conv2d_NCHWc(A, W, (stride, stride), (padding, padding),
+                                     (dilation, dilation),
                                      layout='NCHW%dc'%ic_block,
                                      out_layout="NCHW%dc"%oc_block,
                                      out_dtype=dtype)
@@ -117,7 +113,7 @@ def verify_conv2d_NCHWc(batch, in_channel, in_size, num_filter, kernel, stride,
             check_device(device)
 
 
-if __name__ == "__main__":
+def test_conv2d_NCHWc():
     # ResNet18 workloads
     verify_conv2d_NCHWc(1,   3, 224,  64, 7, 2, 3)
     verify_conv2d_NCHWc(1,  64,  56,  64, 3, 1, 1)
@@ -204,3 +200,6 @@ if __name__ == "__main__":
     verify_conv2d_NCHWc(1, 2048,  10, 126, 3, 1, 1)
     verify_conv2d_NCHWc(1,  512,   5, 126, 3, 1, 1)
     verify_conv2d_NCHWc(1,  256,   3, 126, 3, 1, 1)
+
+if __name__ == "__main__":
+    test_conv2d_NCHWc()

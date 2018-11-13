@@ -82,7 +82,9 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
 
   wshape[kernel_layout.indexof('O')] *= param.groups;
 
-  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
+  if (in_shape->at(Conv2DParam::kWeight).ndim() == 0) {
+    NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);
+  }
   if (param.use_bias) {
     static const Layout default_bias_layout("C");
     TShape bias_shape({param.channels});

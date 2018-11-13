@@ -175,6 +175,23 @@ def schedule_depthwise_conv2d_nhwc(outs):
 
 
 @tvm.target.generic_func
+def schedule_depthwise_conv2d_NCHWc(outs):
+    """Schedule for depthwise_conv2d_NCHWc
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of depthwise_conv2d_nhwc
+          in the format of an array of tensors.
+
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
 def schedule_group_conv2d_nchw(outs):
     """Schedule for conv2d_nchw
 
