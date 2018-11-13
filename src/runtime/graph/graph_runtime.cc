@@ -76,6 +76,33 @@ void GraphRuntime::SetInput(int index, DLTensor* data_in) {
   data_entry_[eid].CopyFrom(data_in);
 }
 /*!
+ * \brief Get the number of inputs
+ *
+ * \return The number of inputs from graph.
+ */
+int GraphRuntime::NumInputs() const {
+  return input_nodes_.size();
+}
+/*!
+ * \brief Get the number of the index-th input.
+ * \param index The input index.
+ *
+ * \return The name of the index-th input.
+ */
+std::string GraphRuntime::GetInputName(int index) const {
+  CHECK_LT(static_cast<size_t>(index), input_nodes_.size())
+      << "The index of ouf of range.";
+  return nodes_[input_nodes_[index]].name;
+}
+/*!
+ * \brief Get the names of weight inputs.
+ *
+ * \return The names of the weight inputs.
+ */
+std::vector<std::string> GraphRuntime::GetWeightNames() const {
+  return weight_names_;
+}
+/*!
  * \brief Get the number of outputs
  *
  * \return The number of outputs from graph.
@@ -142,17 +169,16 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   CHECK(strm->Read(&reserved))
       << "Invalid parameters file format";
 
-  std::vector<std::string> names;
-  CHECK(strm->Read(&names))
+  CHECK(strm->Read(&weight_names_))
       << "Invalid parameters file format";
   uint64_t sz;
   strm->Read(&sz);
   size_t size = static_cast<size_t>(sz);
-  CHECK(size == names.size())
+  CHECK(size == weight_names_.size())
       << "Invalid parameters file format";
   for (size_t i = 0; i < size; ++i) {
-    int in_idx = GetInputIndex(names[i]);
-    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
+    int in_idx = GetInputIndex(weight_names_[i]);
+    CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << weight_names_[i];
     uint32_t eid = this->entry_id(input_nodes_[in_idx], 0);
     CHECK_LT(eid, data_entry_.size());
 

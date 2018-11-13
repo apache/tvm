@@ -96,11 +96,30 @@ class GraphRuntime : public ModuleNode {
    */
   void SetInput(int index, DLTensor* data_in);
   /*!
+   * \brief Get the number of inputs
+   *
+   * \return The number of inputs from graph.
+   */
+  int NumInputs() const;
+  /*!
+   * \brief Get the number of the index-th input.
+   * \param index The input index.
+   *
+   * \return The name of the index-th input.
+   */
+  std::string GetInputName(int index) const;
+  /*!
    * \brief Get the number of outputs
    *
    * \return The number of outputs from graph.
    */
   int NumOutputs() const;
+  /*!
+   * \brief Get the names of weight inputs.
+   *
+   * \return The names fo the weight inputs.
+   */
+  std::vector<std::string> GetWeightNames() const;
   /*!
    * \brief Return NDArray for given input index.
    * \param index The input index.
@@ -395,6 +414,8 @@ class GraphRuntime : public ModuleNode {
   uint32_t num_node_entries() const {
     return node_row_ptr_.back();
   }
+  /*! \brief The weight names. */
+  std::vector<std::string> weight_names_;
   /*! \brief The graph nodes. */
   std::vector<Node> nodes_;
   /*! \brief The argument nodes. */
