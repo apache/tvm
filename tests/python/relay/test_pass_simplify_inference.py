@@ -30,12 +30,12 @@ def test_simplify_batchnorm():
             y1, _, _ = rly.nn.batch_norm(y1 + rly.const(1, 'float32'),
                 gamma, beta, moving_mean, moving_var, epsilon=eps, axis=axis)
             y1 = rly.nn.dropout(y1)
-            y1 = rly.ir_pass.infer_type(y1)
-            y1 = simplify_inference(y1)
-
             y2 = simple_bn(y2 + rly.const(1, 'float32'),
                            gamma, beta, moving_mean, moving_var,
                            epsilon=eps, axis=axis, shape=ttype1.shape)
+        y1 = rly.ir_pass.infer_type(y1)
+        y1 = simplify_inference(y1)
+
         assert rly.ir_pass.graph_equal(y1, y2)
 
     check(2, 1, 1)
