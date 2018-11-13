@@ -1,7 +1,9 @@
 """ Support level10 operator test cases.
 """
+import numpy as np
 import tvm
 from tvm import relay
+from tvm.relay.testing import ctx_list
 
 def test_collapse_sum_like():
     x = relay.Var("x", relay.ty.TensorType((3, 4, 5, 6), "int8"))
@@ -19,6 +21,25 @@ def test_broadcast_to_like():
     assert zz.checked_type == relay.ty.TensorType((3, 4, 5, 6), "int8")
 
 
+def np_slice_like(np_data, np_shape_like, axis=None):
+    begin_idx = [0 for _ in np_data.shape]
+    end_idx = list(np_data.shape)
+    if axis:
+        for i in axis:
+            if i < 0:
+                i = len(np_data.shape) + i
+            end_idx[i] = np_shape_like.shape[i]
+    else:
+        for i in range(len(np_data.shape)):
+            if i < len(np_shape_like.shape):
+                end_idx[i] = np_shape_like.shape[i]
+    slice_idx = []
+    for b, e in zip(begin_idx, end_idx):
+        slice_idx.append(slice(b, e))
+    np_result = np_data[tuple(slice_idx)]
+    return np_result
+
+
 def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
     x = relay.var("data", relay.TensorType(data, dtype))
     y = relay.var("slice_like", relay.TensorType(slice_like, dtype))
@@ -27,6 +48,23 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
     if axes:
         assert "axes" in z.astext()
     assert zz.checked_type == relay.ty.TensorType(output, dtype)
+
+    if all(isinstance(v, int) == 0 for v in data) or \
+        all(isinstance(v, int) == 0 for v in slice_like):
+        return
+
+    func = relay.Function([x, y], z)
+    x_data = np.random.uniform(size=data).astype(dtype)
+    y_data = np.random.uniform(size=slice_like).astype(dtype)
+    ref_res = np_slice_like(x_data, y_data, axes)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, y_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data, y_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 def test_slice_like():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")

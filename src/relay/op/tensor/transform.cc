@@ -1227,6 +1227,50 @@ Expr MakeSliceLike(Expr data,
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
 }
 
+template<typename AttrType>
+Array<Tensor> SliceLikeCompute(const Attrs& attrs,
+                               const Array<Tensor>& inputs,
+                               const Type& out_type,
+                               const Target& target) {
+  const auto* param = attrs.as<AttrType>();
+  CHECK(param != nullptr);
+  Array<IndexExpr> src_shape = inputs[0]->shape;
+  Array<IndexExpr> target_shape = inputs[1]->shape;
+  Array<IndexExpr> begin_idx, end_idx, strides;
+  for (size_t i = 0; i < src_shape.size(); ++i) {
+    begin_idx.push_back(make_const(tvm::Int(32), 0));
+    strides.push_back(make_const(tvm::Int(32), 1));
+  }
+  end_idx = Array<IndexExpr>(src_shape);
+  if (!param->axes.defined()) {
+    for (size_t i = 0; i < src_shape.size(); ++i) {
+      if (i < target_shape.size()) {
+        end_idx.Set(i, target_shape[i]);
+        CHECK_LE(topi::GetConstInt(end_idx[i]),
+                 topi::GetConstInt(src_shape[i]))
+          << "End index of axis " << i << " exceeds input shape: "
+          << topi::GetConstInt(end_idx[i]) << " vs "
+          << topi::GetConstInt(src_shape[i]);
+      }
+    }
+  } else {
+    for (int axis : param->axes) {
+      if (axis < 0) {
+        axis = static_cast<int>(src_shape.size()) + axis;
+      }
+      end_idx.Set(static_cast<size_t>(axis), target_shape[axis]);
+      CHECK_LE(topi::GetConstInt(end_idx[axis]),
+               topi::GetConstInt(src_shape[axis]))
+        << "End index of axis " << axis << " exceeds input shape: "
+        << topi::GetConstInt(end_idx[axis]) << " vs "
+        << topi::GetConstInt(src_shape[axis]);
+    }
+  }
+  return Array<Tensor>{
+    topi::strided_slice(inputs[0], begin_idx, end_idx, strides)
+  };
+}
+
 
 TVM_REGISTER_API("relay.op._make.slice_like")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
@@ -1242,7 +1286,8 @@ RELAY_REGISTER_OP("slice_like")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
 .set_support_level(10)
-.add_type_rel("SliceLike", SliceLikeRel);
+.add_type_rel("SliceLike", SliceLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute<SliceLikeAttrs>);
 
 }  // namespace relay
 }  // namespace tvm
