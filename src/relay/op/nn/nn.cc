@@ -9,6 +9,7 @@
 #include <tvm/relay/attrs/image.h>
 #include <topi/nn.h>
 #include <topi/nn/softmax.h>
+#include <topi/nn/flatten.h>
 #include <vector>
 #include "../type_relations.h"
 #include "../op_common.h"
@@ -169,7 +170,15 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3)
-.add_type_rel("Identity", IdentityRel);
+.add_type_rel("Identity", IdentityRel)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const Attrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Type& out_type,
+                    const Target& target) {
+  const auto* param = attrs.as<LeakyReluAttrs>();
+    return Array<Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
+  });
 
 
 TVM_REGISTER_NODE_TYPE(PReluAttrs);
@@ -225,7 +234,15 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("data", "Tensor", "Input data.")
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
-.add_type_rel("PRelu", PReluRel);
+.add_type_rel("PRelu", PReluRel)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const Attrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Type& out_type,
+                    const Target& target) {
+    const auto* param = attrs.as<PReluAttrs>();
+    return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
+  });
 
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
@@ -354,7 +371,14 @@ Example::
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
-.add_type_rel("BatchFlatten", BatchFlattenRel);
+.add_type_rel("BatchFlatten", BatchFlattenRel)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const Attrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Type& out_type,
+                    const Target& target) {
+    return Array<Tensor>{ topi::nn::flatten(inputs[0]) };
+});
 
 
 // relu
@@ -387,7 +411,7 @@ RELAY_REGISTER_OP("nn.relu")
 TVM_REGISTER_NODE_TYPE(LRNAttrs);
 
 Expr MakeLRN(Expr data,
-             IndexExpr size,
+             int size,
              int axis,
              double alpha,
              double beta,

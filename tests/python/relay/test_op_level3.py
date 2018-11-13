@@ -4,6 +4,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay import create_executor
+from tvm.relay.testing import ctx_list
 from nose.tools import raises
 
 def test_zeros_ones():
@@ -214,6 +215,25 @@ def test_infer_type_leaky_relu():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
 
+    shape = (1, 5, 10, 10)
+    dtype = "float32"
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    z = relay.nn.leaky_relu(x, alpha=0.1)
+    "alpha=0.1" in z.astext()
+    yy = relay.ir_pass.infer_type(z)
+    assert yy.checked_type == relay.TensorType(shape, dtype)
+    func = relay.Function([x], z)
+    x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    ref_res = np.where(x_data > 0, x_data, x_data * 0.1)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
 def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
     x = relay.var("data", relay.TensorType(data, dtype))
     if alpha:
@@ -229,6 +249,27 @@ def verify_infer_type_prelu(data, alpha, axis, output, dtype="float32"):
         axis = axis if axis else 1
         alpha_shape = (data[axis],)
         assert zz.args[1].checked_type == relay.TensorType(alpha_shape, "float32")
+
+    if all(isinstance(v, tvm.expr.Var) == 1 for v in data) or not alpha:
+        return
+
+    func = relay.Function([x, y], z)
+    x_data = np.random.uniform(low=-1, high=1, size=data).astype(dtype)
+    a_data = np.random.uniform(low=-1, high=1, size=alpha).astype(dtype)
+
+    if axis == 1:
+        ref_res = (x_data < 0) * (x_data * a_data.reshape(3, 1, 1)) + (x_data>=0) * x_data
+    else:
+        ref_res = (x_data < 0) * (x_data * a_data.reshape(1, 1, 3)) + (x_data>=0) * x_data
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data, a_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data, a_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
 
 def test_infer_type_prelu():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
