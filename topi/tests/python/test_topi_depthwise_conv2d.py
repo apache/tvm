@@ -203,6 +203,115 @@ def depthwise_conv2d_with_workload_nhwc(batch, in_channel, in_height, channel_mu
         with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
             check_device(device)
 
+def _transform_data(data, bn):
+    # NCHW -> NCHW[x]c
+    batch_size, channel, height, width = data.shape
+    data = np.reshape(data, (batch_size, channel//bn, bn, height, width))
+    data = np.transpose(data, (0, 1, 3, 4, 2))
+    return data
+
+def _transform_kernel(kernel, bn):
+    # channel, channel_multiplier, kh, kw -> out_channel_chunk, kh, kw, out_channel_block
+    channel, channel_multiplier, kh, kw = kernel.shape
+    out_channel = channel * channel_multiplier
+    kernel = np.reshape(kernel, (out_channel//bn, bn, kh, kw))
+    kernel = np.transpose(kernel, (0, 2, 3, 1))
+    return kernel
+
+def depthwise_conv2d_with_workload_NCHWc(batch, in_channel, in_height, channel_multiplier, filter_height, stride, padding, dilation=1):
+    in_width = in_height
+    filter_channel = in_channel
+    filter_width = filter_height
+    stride_h = stride_w = stride
+
+    assert dilation == 1, "depthwise_conv2d_NCHWc currently does not support dilation."
+    pad_h, pad_w, _, _ = get_pad_tuple(padding, (filter_height, filter_width))
+    padding_args = (pad_h, pad_w)
+
+    out_channel = filter_channel * channel_multiplier
+    # for testing functionality,
+    # we choose arbitrary block size that can divide the channel,
+    # regardless of the performance.
+    oc_block = 1
+    for bn in range(16, 0, -1):
+        if out_channel % bn == 0:
+            oc_block = bn
+            break
+
+    ic_block = 1
+    for bn in range(oc_block, 0, -1):
+        if in_channel % bn == 0:
+            ic_block = bn
+            break
+
+    # placeholder
+    Input = tvm.placeholder((batch, in_channel//ic_block, in_height, in_width, ic_block), name='Input')
+    Filter = tvm.placeholder((out_channel//oc_block, filter_height, filter_width, oc_block), name='Filter')
+    in_layout = "NCHW%dc" % ic_block
+    out_layout = "NCHW%dc" % oc_block
+    dtype = 'float32'
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            # declare
+            DepthwiseConv2d = topi.nn.depthwise_conv2d_NCHWc(Input, Filter,
+                                                             (stride_h, stride_w),
+                                                             padding_args,
+                                                             (dilation, dilation),
+                                                             in_layout,
+                                                             out_layout, dtype)
+            # TODO: add scale_shift implement for NCHWc and add test here
+            Relu = topi.nn.relu(DepthwiseConv2d)
+            # schedule
+            s1 = topi.generic.schedule_depthwise_conv2d_nchw(DepthwiseConv2d)
+            s2 = topi.generic.schedule_depthwise_conv2d_nchw(Relu)
+        # build the kernels
+        f1 = tvm.build(s1, [Input, Filter, DepthwiseConv2d], device)
+        f2 = tvm.build(s2, [Input, Filter, Relu], device)
+
+        # Prepare pod type for test data closure
+        input_shape = (batch, in_channel, in_height, in_width)
+        filter_shape = (filter_channel, channel_multiplier, filter_height, filter_width)
+
+        # Use memoize, pickle the test data for next time use.
+        @memoize("topi.tests.test_topi_depthwise_conv2d.NCHWc")
+        def get_ref_data():
+            input_np = np.random.uniform(size=input_shape).astype(dtype)
+            filter_np = np.random.uniform(size=filter_shape).astype(dtype)
+            # correctness with scipy
+            depthwise_conv2d_scipy = topi.testing.depthwise_conv2d_python_nchw(
+                input_np, filter_np, stride, padding)
+            relu_scipy = np.maximum(depthwise_conv2d_scipy, 0)
+            return (_transform_data(input_np, ic_block),
+                    _transform_kernel(filter_np, oc_block),
+                    _transform_data(depthwise_conv2d_scipy, oc_block),
+                    _transform_data(relu_scipy, oc_block))
+
+        # Get the test data
+        (input_np, filter_np, depthwise_conv2d_scipy, relu_scipy) = get_ref_data()
+
+        input_tvm = tvm.nd.array(input_np, ctx)
+        filter_tvm = tvm.nd.array(filter_np, ctx)
+        depthwise_conv2d_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(DepthwiseConv2d.shape),
+                                                     dtype=DepthwiseConv2d.dtype), ctx)
+        relu_tvm = tvm.nd.array(np.zeros(shape=get_const_tuple(Relu.shape), dtype=Relu.dtype), ctx)
+        # launch kernel 1 (depthwise_conv2d)
+        f1(input_tvm, filter_tvm, depthwise_conv2d_tvm)
+        # launch kernel 2 (depthwise_conv2d + relu)
+        f2(input_tvm, filter_tvm, relu_tvm)
+        tvm.testing.assert_allclose(depthwise_conv2d_tvm.asnumpy(), depthwise_conv2d_scipy, rtol=1e-5)
+        tvm.testing.assert_allclose(relu_tvm.asnumpy(), relu_scipy, rtol=1e-5)
+
+    # test llvm only for now since depthwise_conv2d_NCHWc implement is missing in other backend.
+    for device in ["llvm"]:
+        with autotvm.tophub.context(device):  # load tophub pre-tuned parameters
+            check_device(device)
+
 
 def test_depthwise_conv2d():
     # mobilenet workloads
@@ -232,6 +341,13 @@ def test_depthwise_conv2d():
     # dilation = 2
     # disabled because it uses too large shared memory on cuda
     # depthwise_conv2d_with_workload_nhwc(1, 728, 64, 1, 3, 1, "SAME", dilation=2)
+
+    # NCHW[x]c
+    depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "SAME")
+    depthwise_conv2d_with_workload_NCHWc(4, 256, 64, 2, 5, 2, "SAME")
+    depthwise_conv2d_with_workload_NCHWc(1, 728, 32, 1, 3, 1, "VALID")
+    depthwise_conv2d_with_workload_NCHWc(4, 256, 64, 2, 5, 2, "VALID")
+
 
 if __name__ == "__main__":
     test_depthwise_conv2d()
