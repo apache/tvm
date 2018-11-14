@@ -320,7 +320,7 @@ class DominatorTree {
    * \param rhs The right node.
    * \param edge_pattern
    *        The combined edge pattern across all the parents.
-   * \return The least common acenstor of thw two.
+   * \return The least common ancestor of thw two.
    */
   static Node* LeastCommonAncestor(
       Node* lhs,
@@ -380,8 +380,7 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
         }
         pattern = CombinePattern(pattern, link->value.pattern);
       }
-      CHECK(parent != nullptr);
-      tnode->depth = parent->depth + 1;
+      tnode->depth = parent ? parent->depth + 1 : 1;
       tnode->parent = parent;
       tnode->pattern = pattern;
     }
