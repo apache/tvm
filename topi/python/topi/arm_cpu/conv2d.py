@@ -113,11 +113,6 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
     else:
         dilation_h, dilation_w = dilation
 
-    if dilation_h != 1 or dilation_w != 1:
-        dilation_args = (1, 1, dilation_h, dilation_w) if len(kernel.shape) == 4\
-                else (1, 1, dilation_h, dilation_w, 1)
-        kernel = dilate(kernel, dilation_args)
-
     if len(kernel.shape) == 4:
         pre_packed = False
         CO, _, KH, KW = get_const_tuple(kernel.shape)
@@ -126,11 +121,13 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
         CO, _, KH, KW, VC = get_const_tuple(kernel.shape)
         CO = CO * VC
 
-    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
+    dilated_kernel_h = (KH - 1) * dilation_h + 1
+    dilated_kernel_w = (KW - 1) * dilation_w + 1
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(
+        padding, (dilated_kernel_h, dilated_kernel_w))
     HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
-
-    OH = (IH + pad_top + pad_bottom - KH) // HSTR + 1
-    OW = (IW + pad_left + pad_right - KW) // WSTR + 1
+    OH = (IH + pad_top + pad_bottom - dilated_kernel_h) // HSTR + 1
+    OW = (IW + pad_left + pad_right - dilated_kernel_w) // WSTR + 1
     data_pad = pad(data, [0, 0, pad_top, pad_left], [0, 0, pad_bottom, pad_right])
 
     # ==================== define configuration space ====================
@@ -171,14 +168,22 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
     VH = cfg["tile_oh"].size[-1]
     VW = cfg["tile_ow"].size[-1]
 
-    dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
     kvshape = (CO // VC, CI, KH, KW, VC)
     ovshape = (N, CO // VC, OH // VH, OW // VW, VH, VW, VC)
     oshape = (N, CO, OH, OW)
 
-    data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                           data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
-                           name='data_vec')
+    if dilation_h != 1 or dilation_w != 1:
+        # undilate input data
+        dvshape = (N, OH // VH, OW // VW, CI, VH * KH, VW * KW)
+        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
+                               data_pad[n][ci][(h*VH+vh//KH)*HSTR+(vh%KH)*dilation_h]
+                               [(w*VW+vw//KW)*WSTR+(vw%KW)*dilation_w],
+                               name='data_vec_undilated')
+    else:
+        dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
+        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
+                               data_pad[n][ci][h*VH*HSTR+vh][w*VW*WSTR+vw],
+                               name='data_vec')
 
     if pre_packed:
         kernel_vec = kernel
@@ -191,10 +196,16 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
     kh = tvm.reduce_axis((0, KH), name='kh')
     kw = tvm.reduce_axis((0, KW), name='kw')
 
-    conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-        tvm.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
-                kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
-                axis=[ci, kh, kw]), name='conv')
+    if dilation_h != 1 or dilation_w != 1:
+        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+            tvm.sum(data_vec[n, h, w, ci, vh*KH+kh, vw*KW+kw].astype(out_dtype) *
+                    kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
+                    axis=[ci, kh, kw]), name='conv')
+    else:
+        conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
+            tvm.sum(data_vec[n, h, w, ci, vh*HSTR+kh, vw*WSTR+kw].astype(out_dtype) *
+                    kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
+                    axis=[ci, kh, kw]), name='conv')
 
     output = tvm.compute(oshape, lambda n, co, h, w:
                          conv[n][co//VC][h//VH][w//VW][h%VH][w%VW][co%VC],
