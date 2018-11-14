@@ -219,7 +219,7 @@ def test_infer_type_leaky_relu():
     dtype = "float32"
     x = relay.var("x", relay.TensorType(shape, dtype))
     z = relay.nn.leaky_relu(x, alpha=0.1)
-    "alpha=0.1" in z.astext()
+    assert "alpha=0.1" in z.astext()
     yy = relay.ir_pass.infer_type(z)
     assert yy.checked_type == relay.TensorType(shape, dtype)
     func = relay.Function([x], z)

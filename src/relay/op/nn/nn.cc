@@ -176,9 +176,9 @@ RELAY_REGISTER_OP("nn.leaky_relu")
                     const Array<Tensor>& inputs,
                     const Type& out_type,
                     const Target& target) {
-  const auto* param = attrs.as<LeakyReluAttrs>();
+    const auto* param = attrs.as<LeakyReluAttrs>();
     return Array<Tensor>{ topi::leaky_relu(inputs[0], param->alpha) };
-  });
+});
 
 
 TVM_REGISTER_NODE_TYPE(PReluAttrs);
@@ -242,7 +242,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
                     const Target& target) {
     const auto* param = attrs.as<PReluAttrs>();
     return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
-  });
+});
 
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
