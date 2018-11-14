@@ -2,7 +2,9 @@
 
 import ast
 import inspect
+import logging
 import numpy
+import sys
 from .intrin import HYBRID_GLOBALS
 from .._ffi.base import numeric_types
 from .. import api as _api
@@ -30,10 +32,17 @@ def is_docstring(node):
 
 def _pruned_source(func):
     """Prune source code's extra leading spaces"""
-    lines = inspect.getsource(func).split('\n')
-    leading_space = len(lines[0]) - len(lines[0].lstrip(' '))
-    lines = [line[leading_space:] for line in lines]
-    return '\n'.join(lines)
+    try:
+        lines = inspect.getsource(func).split('\n')
+        leading_space = len(lines[0]) - len(lines[0].lstrip(' '))
+        lines = [line[leading_space:] for line in lines]
+        return '\n'.join(lines)
+    except IOError as err:
+        if sys.version_info[0] == 2 and str(err) == 'could not get source code':
+            logging.log(logging.CRITICAL, \
+                    'This module is not fully operated under Python2... ' \
+                    'Please move to Python3!')
+            quit()
 
 
 def _is_tvm_arg_types(args):

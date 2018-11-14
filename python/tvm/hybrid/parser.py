@@ -82,6 +82,7 @@ class HybridParser(ast.NodeVisitor):
         self.func_name = func_name # The name of the function to be lowered
         self.outputs = [] # Output tensors' name
         self.parsed_body = None # The parsed HalideIR body
+        self.returned = False
 
 
     def wrap_up_realize(self, node, body):
@@ -383,7 +384,7 @@ class HybridParser(ast.NodeVisitor):
         if isinstance(node.value, ast.Name):
             ids.append(node.value.id)
         else:
-            _internal_assert(node.value, ast.Tuple, \
+            _internal_assert(isinstance(node.value, ast.Tuple), \
                     "You should return either a single tensor or a tuple")
             for i in node.value.elts:
                 _internal_assert(isinstance(i, ast.Name), "What do you return?")
@@ -392,6 +393,7 @@ class HybridParser(ast.NodeVisitor):
         if len(ids) != len(self.outputs):
             logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
         self.outputs = [self._args[i] for i in ids]
+        self.returned = True
         return make_nop()
 
 
@@ -401,4 +403,5 @@ def parse_python(src, args):
     var_usage = determine_variable_usage(root, args)
     parser = HybridParser(args, var_usage)
     parser.parsed_body = parser.visit(root)
+    _internal_assert(parser.returned, 'No valid return found in the function body!')
     return parser

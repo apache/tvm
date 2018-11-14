@@ -68,6 +68,7 @@ def test_outer_product():
     b = tvm.placeholder((m, ), name='b')
 
     ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
+
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
@@ -191,173 +192,190 @@ def test_failure():
         assert str(err) == 'Loop variable cannot be overwritten!'
 
 
-#def test_looptype():
-#    @script
-#    def looptype(a, b, c):
-#        for i in parallel(8):
-#            a[i] = i
-#        for j in vectorize(8):
-#            b[j] = j
-#        for k in unroll(8):
-#            c[k] = k
-#
-#    a = tvm.placeholder((8, ), name='a', dtype='int32')
-#    b = tvm.placeholder((8, ), name='b', dtype='int32')
-#    c = tvm.placeholder((8, ), name='c', dtype='int32')
-#    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
-#    iloop = ir.first
-#    jloop = ir.rest.first
-#    kloop = ir.rest.rest
-#    assert iloop.for_type == tvm.stmt.For.Parallel
-#    assert jloop.for_type == tvm.stmt.For.Vectorized
-#    assert kloop.for_type == tvm.stmt.For.Unrolled
-#
-#    run_and_check(looptype, [a, b, c], [a, b, c])
-#
-#
-#def test_if():
-#    @script
-#    def if_then_else(a, b):
-#        for i in range(10):
-#            if i % 2 == 0:
-#                a[i] = -1
-#            else:
-#                a[i] = 1
-#        for i in unroll(10):
-#            b[i] = -1 if i % 2 == 0 else 1
-#
-#    a = tvm.placeholder((10, ), dtype='int32', name='a')
-#    b = tvm.placeholder((10, ), dtype='int32', name='b')
-#
-#    run_and_check(if_then_else, [a, b], [a, b])
-#
-#
-#def test_bind():
-#    if not tvm.gpu(0).exist:
-#        print('[Warning] No GPU found! Skip bind test!')
-#        return
-#    @script
-#    def vec_add(a, b, c):
-#        for tx in bind('threadIdx.x', 1000):
-#            c[tx] = b[tx] + c[tx]
-#
-#    a = tvm.placeholder((1000, ), dtype='float32', name='a')
-#    b = tvm.placeholder((1000, ), dtype='float32', name='b')
-#    c = tvm.placeholder((1000, ), dtype='float32', name='c')
-#
-#    run_and_check(vec_add, [a, b, c], [c], target='cuda')
-#
-#def test_math_intrin():
-#    @script
-#    def intrin_real(a):
-#        a[0] = sqrt(a[0])
-#        a[1] = log(a[1])
-#        a[2] = exp(a[2])
-#        a[3] = sigmoid(a[3])
-#        a[4] = power(a[4], a[5])
-#        a[5] = tanh(a[5])
-#        a[6] = min(a[4], a[5])
-#        a[7] = max(a[5], a[6])
-#
-#    a8 = tvm.placeholder((8, ), dtype='float32', name='a')
-#    ir = tvm.hybrid.lower(intrin_real, [a8], simple_mode=True)
-#    func = tvm.build(tvm.lower(ir, [a8]))
-#    assert func
-#    a = numpy.arange(2, 10).astype('float32')
-#    tvm_a = tvm.ndarray.array(a)
-#    func(tvm_a)
-#    intrin_real(a)
-#    tvm.testing.assert_allclose(a, tvm_a.asnumpy(), rtol=1e-5)
-#
-#    @script
-#    def intrin_int(a):
-#        a[0] = popcount(a[0])
-#
-#    a1 = tvm.placeholder((1, ), dtype='int32')
-#    ir = tvm.hybrid.lower(intrin_int, [a1], simple_mode=True)
-#    func = tvm.build(tvm.lower(ir, [a1]))
-#    assert func
-#    a = numpy.array([1234567890]).astype('int32')
-#    tvm_a = tvm.ndarray.array(a)
-#    intrin_int(a)
-#    func(tvm_a)
-#    assert tvm_a.asnumpy()[0] == a[0]
-#
-#def test_non_zero():
-#    @tvm.hybrid.script
-#    def blur(a, b):
-#        for i in range(2, 32):
-#            for j in range(2, 32):
-#                s = 0.0
-#                for di in range(3):
-#                    for dj in range(3):
-#                        s = s + a[i-di, j-dj]
-#                b[i-2, j-2] = s / 9.0
-#    try:
-#        a = tvm.placeholder((32, 32), 'float32', 'a')
-#        b = tvm.placeholder((30, 30), 'float32', 'b')
-#        run_and_check(blur, [a, b], [b])
-#    except IOError as err:
-#        assert sys.version_info[0] == 2
-#        print('[Warning] Case test_non_zero is skipped by Python2 because "%s"' % str(err))
-#
-#    @tvm.hybrid.script
-#    def triangle(a, b, c):
-#        for i in range(10):
-#            for j in range(i, 10):
-#                c[i, j] = a[i] * b[j]
-#
-#    a = tvm.placeholder((10, ), dtype='float32', name='a')
-#    b = tvm.placeholder((10, ), dtype='float32', name='b')
-#    c = tvm.placeholder((10, 10), dtype='float32', name='c')
-#
-#    run_and_check(triangle, [a, b, c], [c])
-#
-#def test_allocate():
-#    @tvm.hybrid.script
-#    def blur2d(a, b):
-#        for i in range(30):
-#            ha = allocate((3, 30), 'float32')
-#            for j in range(3):
-#                for k in range(30):
-#                    ha[j, k] = a[i+j, k] + a[i+j, k+1] + a[i+j, k+2]
-#            for j in range(30):
-#                b[i, j] = (ha[0, j] + ha[1, j] + ha[2, j]) / 9.0
-#
-#    a = tvm.placeholder((32, 32), 'float32', 'a')
-#    b = tvm.placeholder((30, 30), 'float32', 'b')
-#
-#    run_and_check(blur2d, [a, b], [b])
-#
-#    if tvm.gpu().exist:
-#        @tvm.hybrid.script
-#        def share_vec_add(a, b, c):
-#            shared = allocate((256, ), 'float32', 'shared')
-#            for i in bind("threadIdx.x", 256):
-#                shared[i] = a[i]
-#            local = allocate((256, ), 'float32', 'local')
-#            for i in bind("threadIdx.x", 256):
-#                local[i] = b[i]
-#            for i in bind("threadIdx.x", 256):
-#                c[i] = shared[i] + local[i]
-#
-#        a = tvm.placeholder((256, ), dtype='float32', name='a')
-#        b = tvm.placeholder((256, ), dtype='float32', name='b')
-#        c = tvm.placeholder((256, ), dtype='float32', name='c')
-#        run_and_check(share_vec_add, [a, b, c], [c], target='cuda')
-#    else:
-#        print('[Warning] No GPU found! Skip shared mem test!')
-#
+def test_looptype():
+    @script
+    def looptype(a, b, c):
+        d = output_tensor((8, ), 'int32')
+        e = output_tensor((8, ), 'int32')
+        f = output_tensor((8, ), 'int32')
+        for i in parallel(8):
+            d[i] = a[i]
+        for j in vectorize(8):
+            e[j] = b[j]
+        for k in unroll(8):
+            f[k] = c[k]
+        return d, e, f
+
+    a = tvm.placeholder((8, ), name='a', dtype='int32')
+    b = tvm.placeholder((8, ), name='b', dtype='int32')
+    c = tvm.placeholder((8, ), name='c', dtype='int32')
+    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
+    iloop = ir.first
+    jloop = ir.rest.first
+    kloop = ir.rest.rest
+    assert iloop.for_type == tvm.stmt.For.Parallel
+    assert jloop.for_type == tvm.stmt.For.Vectorized
+    assert kloop.for_type == tvm.stmt.For.Unrolled
+
+    run_and_check(looptype, [a, b, c])
+
+
+def test_if():
+    @script
+    def if_then_else(a):
+        b = output_tensor((10, ), 'int32')
+        c = output_tensor((10, ), 'int32')
+        for i in range(10):
+            if i % 2 == 0:
+                c[i] = a[i]
+            else:
+                c[i] = b[i]
+        for i in unroll(10):
+            b[i] = -1 if i % 2 == 0 else 1
+        return b, c
+
+    a = tvm.placeholder((10, ), dtype='int32', name='a')
+
+    run_and_check(if_then_else, [a])
+
+
+def test_bind():
+    if not tvm.gpu(0).exist:
+        print('[Warning] No GPU found! Skip bind test!')
+        return
+    @script
+    def vec_add(a, b):
+        c = output_tensor((1000, ), dtype='float32')
+        for tx in bind('threadIdx.x', 1000):
+            c[tx] = b[tx] + c[tx]
+
+    a = tvm.placeholder((1000, ), dtype='float32', name='a')
+    b = tvm.placeholder((1000, ), dtype='float32', name='b')
+
+    run_and_check(vec_add, [a, b], target='cuda')
+
+def test_math_intrin():
+    @script
+    def intrin_real(a):
+        b = output_tensor((8, ), 'float32')
+        b[0] = sqrt(a[0])
+        b[1] = log(a[1])
+        b[2] = exp(a[2])
+        b[3] = sigmoid(a[3])
+        b[4] = power(a[4], a[5])
+        b[5] = tanh(a[5])
+        b[6] = min(a[4], a[5])
+        b[7] = max(a[5], a[6])
+        return b
+
+    a8 = tvm.placeholder((8, ), dtype='float32', name='a')
+    b8 = intrin_real(a8)
+    sch = tvm.create_schedule(b8.op)
+    func = tvm.build(sch, [a8, b8])
+    assert func
+    a = numpy.arange(2, 10).astype('float32')
+    tvm_a = tvm.ndarray.array(a)
+    tvm_b = tvm.ndarray.array(numpy.zeros((8, ), dtype='float32'))
+    b = intrin_real(a)
+    func(tvm_a, tvm_b)
+    tvm.testing.assert_allclose(b, tvm_b.asnumpy(), rtol=1e-5)
+
+    @script
+    def intrin_int(a):
+        b = output_tensor((1, ), 'int32')
+        b[0] = popcount(a[0])
+        return b
+
+    a1 = tvm.placeholder((1, ), dtype='int32')
+    b1 = intrin_int(a1)
+    sch = tvm.create_schedule(b1.op)
+    func = tvm.build(sch, [a1, b1])
+    assert func
+    a = numpy.array([114514]).astype('int32')
+    tvm_a = tvm.ndarray.array(a)
+    tvm_b = tvm.ndarray.array(numpy.array([0]).astype('int32'))
+    b = intrin_int(a)
+    func(tvm_a, tvm_b)
+    assert tvm_b.asnumpy()[0] == b[0]
+
+# test non caconical loops
+def test_non_zero():
+    @tvm.hybrid.script
+    def blur(a):
+        b = output_tensor((30, 30), 'float32')
+        for i in range(2, 32):
+            for j in range(2, 32):
+                s = 0.0
+                for di in range(3):
+                    for dj in range(3):
+                        s = s + a[i-di, j-dj]
+                b[i-2, j-2] = s / 9.0
+        return b
+
+    a = tvm.placeholder((32, 32), 'float32', 'a')
+    run_and_check(blur, [a])
+
+    @tvm.hybrid.script
+    def triangle(a, b):
+        c = output_tensor((10, 10), dtype='float32')
+        for i in range(10):
+            for j in range(i, 10):
+                c[i, j] = a[i] * b[j]
+        return c
+
+    a = tvm.placeholder((10, ), dtype='float32', name='a')
+    b = tvm.placeholder((10, ), dtype='float32', name='b')
+
+    run_and_check(triangle, [a, b])
+
+def test_allocate():
+    @tvm.hybrid.script
+    def blur2d(a):
+        b = output_tensor((30, 30), 'float32')
+        for i in range(30):
+            ha = allocate((3, 30), 'float32')
+            for j in range(3):
+                for k in range(30):
+                    ha[j, k] = a[i+j, k] + a[i+j, k+1] + a[i+j, k+2]
+            for j in range(30):
+                b[i, j] = (ha[0, j] + ha[1, j] + ha[2, j]) / 9.0
+        return b
+
+    a = tvm.placeholder((32, 32), 'float32', 'a')
+    run_and_check(blur2d, [a])
+
+    if tvm.gpu().exist:
+        @tvm.hybrid.script
+        def share_vec_add(a, b):
+            c = output_tensor((256, ), 'float32')
+            shared = allocate((256, ), 'float32', 'shared')
+            for i in bind("threadIdx.x", 256):
+                shared[i] = a[i]
+            local = allocate((256, ), 'float32', 'local')
+            for i in bind("threadIdx.x", 256):
+                local[i] = b[i]
+            for i in bind("threadIdx.x", 256):
+                c[i] = shared[i] + local[i]
+
+        a = tvm.placeholder((256, ), dtype='float32', name='a')
+        b = tvm.placeholder((256, ), dtype='float32', name='b')
+        run_and_check(share_vec_add, [a, b], target='cuda')
+    else:
+        print('[Warning] No GPU found! Skip shared mem test!')
+
 
 if __name__ == "__main__":
     test_outer_product()
-    #test_plus_one()
     test_fanout()
     test_failure()
-#    test_looptype()
-#    test_if()
-#    test_bind()
-#    test_math_intrin()
-#    test_non_zero()
-#    test_allocate()
-#
+    test_looptype()
+    test_if()
+    test_bind()
+    test_math_intrin()
+    test_non_zero()
+    test_allocate()
+    #test_inplace()
+    #test_upstream()
+    #test_downstream()
+
+

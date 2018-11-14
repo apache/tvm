@@ -36,14 +36,11 @@ def script(pyfunc):
             parser = parse_python(src, args)
 
             input_tensors = []
-            input_buffers = []
             intra_link = {}
             for i in args:
                 if isinstance(i, Tensor):
                     input_tensors.append(i)
-                    input_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
-                    if i in parser.outputs:
-                        intra_link[i.name] = input_buffers[-1]
+
             op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
                     parser.outputs, parser.parsed_body)
             res = [op.output(i) for i in range(len(parser.outputs))]
