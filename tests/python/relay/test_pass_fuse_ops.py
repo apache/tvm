@@ -29,10 +29,12 @@ def test_fuse_simple():
 
 
 
+
 def test_conv2d_fuse():
     """Test fusion case of conv2d"""
     def before(dshape):
         x = relay.var("x", shape=dshape)
+        x = relay.add(x, relay.const(1, "float32"))
         y = relay.nn.conv2d(x, relay.var("w1"),
                             kernel_size=(3, 3),
                             padding=(1, 1),
@@ -54,6 +56,10 @@ def test_conv2d_fuse():
         return relay.Function(relay.ir_pass.free_vars(z), z)
 
     def expected(dshape):
+        # segment 0
+        x = relay.var("p0", shape=dshape)
+        y = relay.add(x, relay.const(1, "float32"))
+        f0 = relay.Function([x], y)
         # segment 1
         x = relay.var("p0", shape=dshape)
         w = relay.var("p1")
@@ -84,7 +90,8 @@ def test_conv2d_fuse():
         f3 = relay.Function([x, w, offset], z3)
         # compose
         x = relay.var("x", shape=dshape)
-        y = relay.Call(f1, [x, relay.var("w1")])
+        y = relay.Call(f0, [x])
+        y = relay.Call(f1, [y, relay.var("w1")])
         z2 = relay.Call(f2, [y, relay.var("w3")])
         z3 = relay.Call(f3, [y, relay.var("w2"), z2])
         z = z3
