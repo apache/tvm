@@ -54,7 +54,7 @@ TupleGetItem = expr.TupleGetItem
 # helper functions
 var = expr.var
 const = expr.const
-
+bind = expr.bind
 
 # pylint: disable=unused-argument
 @register_func("relay.debug")
