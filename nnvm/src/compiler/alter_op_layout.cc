@@ -57,8 +57,7 @@ Graph AlterOpLayout(const Graph& src) {
     for (uint32_t nid = 0; nid < idx_graph.num_nodes(); ++nid) {
       const auto &inode = idx_graph[nid];
       // record input layouts for all nodes,
-      // while later on those replaced nodes will
-      // ignore the records here and have undefined input layouts.
+      // while replaced nodes will ignore the records here and have undefined input layouts.
       std::vector<Layout> in_layout;
       for (const auto& e : inode.inputs) {
         in_layout.emplace_back(layouts[idx_graph.entry_id(e)]);
@@ -106,8 +105,13 @@ Graph AlterOpLayout(const Graph& src) {
     Symbol op;
     bool do_alter =
       fn_alter_op_layout(n->attrs, Symbol::CreateGroup(op_inputs), tensor_infos, &op);
-    if (do_alter) *ret = op.outputs;
-    else unchanged_nodes[n.get()] = nid; // will restore the original input layouts later.
+
+    if (do_alter) {
+      *ret = op.outputs;
+    } else {
+      // will restore the original input layouts later.
+      unchanged_nodes[n.get()] = nid;
+    }
     return do_alter;
   };
 
