@@ -149,20 +149,6 @@ inline Constant MakeConstantScalar(DataType dtype, T value) {
   return ConstantNode::make(arr);
 }
 
-template<typename T, typename = typename std::enable_if<std::is_integral<T>::value>::type>
-inline Constant MakeConstantArrayFromRange(DataType dtype, T start, T end, T step = 1) {
-  CHECK_EQ(sizeof(T) * 8, dtype.bits()) << "data type mismatch";
-  CHECK(step);
-  CHECK_GE((end - start) / step, 0);
-  runtime::NDArray arr = runtime::NDArray::Empty({(int64_t)(end - start) / step},
-                                                 Type2TVMType(dtype), {kDLCPU, 0});
-  for (auto *data = static_cast<T*>(arr->data); (step > 0) ? (start < end) : (start > end);
-       start += step, data++) {
-    *data = start;
-  }
-  return ConstantNode::make(arr);
-}
-
 
 inline Expr Negative(Expr x) {
   static const Op& op = Op::Get("negative");
@@ -201,7 +187,7 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
 
 Expr MakeConcatenate(Expr data, int axis);
 
-Expr MakeTake(Expr data, Expr indices, Integer axis);
+Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
 }  // namespace relay
 }  // namespace tvm

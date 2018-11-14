@@ -142,17 +142,25 @@ Expr CombineParallelConv2D(const Expr& expr) {
       if (convs.size() < 2) continue;
 
       auto new_conv2d = MakeCombinedConv2D(data, convs);
-      int64_t start = 0;
+      int64_t index = 0;
       // replace original conv2d with slice of output of the new conv2d
       for (const CallNode* conv2d : convs) {
         auto params = conv2d->attrs.as<Conv2DAttrs>();
-        auto channels = GetConv2DSuperChannelsDim(conv2d);
-        auto indices = MakeConstantArrayFromRange(Int(64), start, start + channels);
-        auto channel_index = params->data_layout.find('C');
-        CHECK_NE(channel_index, std::string::npos);
-        auto take = MakeTake(new_conv2d, indices, channel_index);
-        start += channels;
-        subst_map[GetRef<Call>(conv2d)] = take;
+        int64_t channels = GetConv2DSuperChannelsDim(conv2d);
+        size_t channel_pos = params->data_layout.find('C');
+        CHECK_NE(channel_pos, std::string::npos);
+        Array<Integer> begin;
+        Array<Integer> end;
+        for (size_t i = 0; i < channel_pos; i++) {
+          begin.push_back(0);
+          end.push_back(NullValue<Integer>());
+        }
+        begin.push_back(index);
+        index += channels;
+        end.push_back(index);
+        auto slice = MakeStridedSlice(new_conv2d, std::move(begin), std::move(end),
+                                      Array<Integer>{});
+        subst_map[GetRef<Call>(conv2d)] = slice;
       }
     }
   }

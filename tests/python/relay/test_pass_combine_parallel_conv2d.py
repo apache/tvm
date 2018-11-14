@@ -8,7 +8,7 @@ def test_combine_parallel_conv2d():
         args = [x, w1, w2, w3, w4]
         y1 = relay.nn.conv2d(x, w1)
         y2 = relay.nn.conv2d(x, w2)
-        # y3 is not foldable
+        # y3 cannot be combined
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.nn.conv2d(x, w4)
         y = relay.Tuple((y1, y2, y3, y4))
@@ -19,11 +19,11 @@ def test_combine_parallel_conv2d():
         args = [x, w1, w2, w3, w4]
         w = relay.concatenate((w1, w2, w4), axis=0)
         y = relay.nn.conv2d(x, w, channels=channels1 + channels2 + channels4)
-        y1 = relay.take(y, relay.const(np.arange(channels1, dtype='int64')), axis=1)
-        y2 = relay.take(y, relay.const(np.arange(channels1, channels1 + channels2, dtype='int64')), axis=1)
+        y1 = relay.strided_slice(y, [0, 0], [None, channels1])
+        y2 = relay.strided_slice(y, [0, channels1], [None, channels1 + channels2])
         y3 = relay.nn.conv2d(x, w3)
-        y4 = relay.take(y, relay.const(np.arange(channels1 + channels2,
-                                                 channels1 + channels2 + channels4, dtype='int64')), axis=1)
+        y4 = relay.strided_slice(y, [0, channels1 + channels2],
+                                 [None, channels1 + channels2 + channels4])
         y = relay.Tuple((y1, y2, y3, y4))
         return relay.Function(args, y)
 
