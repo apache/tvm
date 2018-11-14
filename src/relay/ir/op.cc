@@ -11,8 +11,6 @@
 #include <memory>
 #include <mutex>
 
-#include "./../pass/type_subst.h"
-
 namespace dmlc {
 // enable registry
 DMLC_REGISTRY_ENABLE(::tvm::relay::OpRegistry);

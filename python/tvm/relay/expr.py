@@ -6,6 +6,7 @@ from numbers import Number as _Number
 import numpy as _np
 from .base import RelayNode, register_relay_node
 from . import _make
+from . import _expr
 from . import ty as _ty
 from .._ffi import base as _base
 from .. import nd as _nd
@@ -577,3 +578,24 @@ def const(value, dtype=None):
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
     return Constant(value)
+
+
+def bind(expr, binds):
+    """Bind an free variables in expr or function arguments.
+
+    We can bind parameters expr if it is a function.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    binds : Union[Map[tvm.relay.Var, tvm.relay.Expr], Map[str, tvm.relay.Expr]]
+        The specific bindings.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The expression or function after binding.
+    """
+    return _expr.Bind(expr, binds)

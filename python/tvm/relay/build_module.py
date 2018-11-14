@@ -6,6 +6,7 @@ from ..build_module import build as _tvm_build_module
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
 from . import ir_pass
+from . import expr
 from .backend import interpreter as _interpreter
 from .backend import graph_runtime_codegen as _graph_gen
 
@@ -13,6 +14,7 @@ from .backend import graph_runtime_codegen as _graph_gen
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
     "OpFusion": 1,
+    "FoldConstant": 2,
     "FoldScaleAxis": 3,
 }
 
@@ -95,13 +97,37 @@ def build_config(**kwargs):
     return BuildConfig(**kwargs)
 
 
-def optimize(func):
+def _bind_params_by_name(func, params):
+    """Bind parameters of function by its name."""
+    name_dict = {}
+    for arg in func.params:
+        name = arg.name_hint
+        if name in name_dict:
+            name_dict[name] = None
+        else:
+            name_dict[name] = arg
+    bind_dict = {}
+    for k, v in params.items():
+        if k not in name_dict:
+            continue
+        arg = name_dict[k]
+        if arg is None:
+            raise ValueError("Multiple args in the function have name %s" % k)
+        bind_dict[arg] = expr.const(v)
+    return expr.bind(func, bind_dict)
+
+
+def optimize(func, params=None):
     """Perform target invariant optimizations.
 
     Parameters
     ----------
     func : tvm.relay.Function
         The input to optimization.
+
+    params : dict of str to NDArray
+        Input parameters to the graph that do not change
+        during inference time. used for constant folding.
 
     Returns
     -------
@@ -110,7 +136,11 @@ def optimize(func):
     """
     cfg = BuildConfig.current
 
-    if cfg.pass_enabled("FoldScaleAxis"):
+    # bind expressions
+    if params:
+        func = _bind_params_by_name(func, params)
+
+    if cfg.pass_enabled("SimplifyInference"):
         func = ir_pass.infer_type(func)
         func = ir_pass.simplify_inference(func)
 
@@ -119,6 +149,10 @@ def optimize(func):
         func = ir_pass.backward_fold_scale_axis(func)
         func = ir_pass.infer_type(func)
         func = ir_pass.forward_fold_scale_axis(func)
+
+    if cfg.pass_enabled("FoldConstant"):
+        func = ir_pass.fold_constant(func)
+
     return func
 
 
@@ -147,8 +181,7 @@ def build(func,
 
     params : dict of str to NDArray
         Input parameters to the graph that do not change
-        during inference time. Used for pre-compute
-        folding optimization.
+        during inference time. Used for constant folding.
 
     Returns
     -------
@@ -176,14 +209,14 @@ def build(func,
     cfg = BuildConfig.current
 
     with tophub_context:
-        func = optimize(func)
+        func = optimize(func, params)
         # Fuse ops before running code gen
         func = ir_pass.infer_type(func)
         func = ir_pass.fuse_ops(func, cfg.opt_level)
         # Graph code generation
         func = ir_pass.infer_type(func)
         graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
-        graph_json, lowered_funcs = graph_gen.codegen(func)
+        graph_json, lowered_funcs, params = graph_gen.codegen(func)
         mod = _tvm_build_module(lowered_funcs, target=target, target_host=target_host)
     return graph_json, mod, params
 
@@ -210,19 +243,20 @@ class GraphExecutor(_interpreter.Executor):
         self.target = target
 
     def _make_executor(self, func):
+        graph_json, mod, params = build(func, target=self.target)
+        gmodule = _graph_rt.create(graph_json, mod, self.ctx)
+        if params:
+            gmodule.set_input(*params)
         def _graph_wrapper(*args):
-            graph_json, mod, params = build(func, target=self.target)
-            assert params is None
-            gmodule = _graph_rt.create(graph_json, mod, self.ctx)
             # Create map of inputs.
             for i, arg in enumerate(args):
                 gmodule.set_input(i, arg)
             # Run the module, and fetch the output.
             gmodule.run()
-            return gmodule.get_output(0)
+            # make a copy so multiple invocation won't hurt perf.
+            return gmodule.get_output(0).copyto(_nd.cpu(0))
 
         return _graph_wrapper
-
 
 
 def create_executor(kind="debug",
