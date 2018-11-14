@@ -322,7 +322,7 @@ class DominatorTree {
    *        The combined edge pattern across all the parents.
    * \return The least common acenstor of thw two.
    */
-  static Node* LeastCommonAcenstor(
+  static Node* LeastCommonAncestor(
       Node* lhs,
       Node* rhs,
       OpPatternKind* edge_pattern) {
@@ -338,12 +338,12 @@ class DominatorTree {
             edge_pattern[0], lhs->pattern);
         lhs = lhs->parent;
       } else {
-        lhs = lhs->parent;
-        rhs = rhs->parent;
         edge_pattern[0] = CombinePattern(
             edge_pattern[0], lhs->pattern);
         edge_pattern[0] = CombinePattern(
             edge_pattern[0], rhs->pattern);
+        lhs = lhs->parent;
+        rhs = rhs->parent;
       }
     }
     return lhs;
@@ -374,7 +374,7 @@ DominatorTree DominatorTree::PostDom(common::Arena* arena,
         Node* onode = tree.nodes[oindex];
         CHECK(onode != nullptr);
         if (parent != nullptr) {
-          parent = LeastCommonAcenstor(parent, onode, &pattern);
+          parent = LeastCommonAncestor(parent, onode, &pattern);
         } else {
           parent = onode;
         }
