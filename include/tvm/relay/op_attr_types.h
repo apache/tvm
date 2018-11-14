@@ -39,6 +39,16 @@ enum OpPatternKind {
 using TOpPattern = int;
 
 /*!
+ * \brief Whether operator is stateful or contain internal state.
+ *
+ * All the primitive ops we registered so far are pure.
+ * This attribute is left for potential future compatible reasons.
+ * We can always work around the stateful ops by adding an additional
+ * handle argument and return it.
+ */
+using TOpIsStateful = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention

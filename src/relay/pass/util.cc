@@ -13,7 +13,6 @@ namespace tvm {
 namespace relay {
 
 // FreeTypeVar
-
 class FreeTypeVarTVisitor : public TypeVisitor {
  public:
   FreeTypeVarTVisitor(

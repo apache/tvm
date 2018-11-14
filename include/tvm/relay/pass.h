@@ -143,6 +143,22 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  */
 Expr DeadCodeElimination(const Expr& e);
 
+/*!
+ * \brief Fold constant expressions.
+ * \param expr the expression to be optimized.
+ * \return The optimized expression.
+ */
+Expr FoldConstant(const Expr& expr);
+
+/*!
+ * \brief Fuse operations into expr into seperate functions.
+ * \param expr The expression.
+ * \param fuse_opt_level Optimization level.
+ * \return The optimized expression.
+ */
+Expr FuseOps(const Expr& expr, int fuse_opt_level);
+
+
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
   /*! \brief Hash a Relay type.

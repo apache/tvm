@@ -6,8 +6,8 @@
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
-
 #include <tvm/relay/expr_functor.h>
+#include "type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -228,5 +228,74 @@ void ExprVisitor::VisitExpr_(const TupleGetItemNode* op) {
 
 void ExprVisitor::VisitType(const Type& t) { return; }
 
+// Implement bind.
+class ExprBinder : public ExprMutator {
+ public:
+  explicit ExprBinder(const tvm::Map<Var, Expr>& args_map)
+    : args_map_(args_map) {
+  }
+
+  Expr VisitExpr_(const LetNode* op) final {
+    CHECK(!args_map_.count(op->var))
+        << "Cannot bind an internel variable in let";
+    return ExprMutator::VisitExpr_(op);
+  }
+
+  Expr VisitExpr_(const FunctionNode* op) final {
+    for (Var param : op->params) {
+      CHECK(!args_map_.count(param))
+          << "Cannnot bind an internal function parameter";
+    }
+    return ExprMutator::VisitExpr_(op);
+  }
+
+  Expr VisitExpr_(const VarNode* op) final {
+    auto id = GetRef<Var>(op);
+    auto it = args_map_.find(id);
+    if (it != args_map_.end()) {
+      return (*it).second;
+    } else {
+      return id;
+    }
+  }
+
+ private:
+  const tvm::Map<Var, Expr>& args_map_;
+};
+
+Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& args_map) {
+  if (const FunctionNode* func = expr.as<FunctionNode>()) {
+    Expr new_body = ExprBinder(args_map).Mutate(func->body);
+    Array<Var> new_params;
+    for (Var param : func->params) {
+      if (!args_map.count(param)) {
+        new_params.push_back(param);
+      }
+    }
+    if (new_body.same_as(func->body) &&
+        new_params.size() == func->params.size()) {
+      return expr;
+    }
+    return FunctionNode::make(new_params,
+                              new_body,
+                              func->ret_type,
+                              func->type_params,
+                              func->attrs);
+  } else {
+    return ExprBinder(args_map).Mutate(expr);
+  }
+}
+
+
+TVM_REGISTER_API("relay._expr.Bind")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    NodeRef input = args[0];
+    if (input->derived_from<ExprNode>()) {
+      *ret = Bind(Downcast<Expr>(input), args[1]);
+    } else {
+      CHECK(input->derived_from<TypeNode>());
+      *ret = Bind(Downcast<Type>(input), args[1]);
+    }
+  });
 }  // namespace relay
 }  // namespace tvm
