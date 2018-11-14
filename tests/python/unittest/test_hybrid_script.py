@@ -363,6 +363,36 @@ def test_allocate():
     else:
         print('[Warning] No GPU found! Skip shared mem test!')
 
+def test_upstream():
+    @tvm.hybrid.script
+    def upstream(a):
+        b = output_tensor((20, ), 'float32')
+        for i in range(20):
+            b[i] = a[i] * i
+        return b
+
+    a = tvm.placeholder((20, ), 'float32')
+    b = tvm.placeholder((20, ), 'float32')
+    c = tvm.compute((20, ), lambda x: a[x] + b[x])
+    d = upstream(c)
+    sch = tvm.create_schedule([c.op, d.op])
+    ir = tvm.lower(sch, [a, b, d], simple_mode=True)
+    func = tvm.build(sch, [a, b, d])
+    assert(func)
+
+    a = numpy.random.randn(20).astype('float32')
+    b = numpy.random.randn(20).astype('float32')
+    ref = numpy.zeros((20, ), 'float32')
+    for i in range(20):
+        ref[i] = (a[i] + b[i]) * i
+
+    tvm_a = tvm.nd.array(a)
+    tvm_b = tvm.nd.array(b)
+    tvm_d = tvm.nd.array(numpy.zeros((20, )).astype('float32'))
+
+    func(tvm_a, tvm_b, tvm_d)
+    tvm.testing.assert_allclose(tvm_d.asnumpy(), ref, 1e-5, 1e-5)
+
 
 if __name__ == "__main__":
     test_outer_product()
@@ -375,7 +405,8 @@ if __name__ == "__main__":
     test_non_zero()
     test_allocate()
     #test_inplace()
-    #test_upstream()
+    test_upstream()
     #test_downstream()
+    #test_lower()
 
 
