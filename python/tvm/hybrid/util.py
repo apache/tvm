@@ -3,8 +3,8 @@
 import ast
 import inspect
 import logging
-import numpy
 import sys
+import numpy
 from .intrin import HYBRID_GLOBALS
 from .._ffi.base import numeric_types
 from .. import api as _api

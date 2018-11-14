@@ -1,17 +1,11 @@
 """APIs of lowering the Python subset to HalideIR"""
 from __future__ import absolute_import as _abs
 
-import ast
 import types
 
 from .._ffi.base import decorate
 from .._api_internal import _HybridOp
-from ..api import decl_buffer
-from ..expr import Call
-from ..stmt import Provide
-from ..ir_pass import IRTransform
 from ..tensor import Tensor
-from .. import make as _make
 from .. import build_module as _build
 
 from .parser import parse_python
@@ -29,20 +23,19 @@ def script(pyfunc):
     hybrid_func : function
         A decorated hybrid script function.
     """
-    def wrapped_func(func, *args, **kwargs):
+    def wrapped_func(func, *args, **kwargs): #pylint: disable=missing-docstring
         from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
             parser = parse_python(src, args)
 
             input_tensors = []
-            intra_link = {}
             for i in args:
                 if isinstance(i, Tensor):
                     input_tensors.append(i)
 
             op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
-                    parser.outputs, parser.parsed_body)
+                           parser.outputs, parser.parsed_body)
             res = [op.output(i) for i in range(len(parser.outputs))]
 
             return res[0] if len(res) == 1 else res
@@ -89,6 +82,4 @@ def lower(func, args, simple_mode=False):
         return body
 
     args = parser.args + parser.outputs
-    name = parser.func_name
-    return _build.lower(body, args, name=func_name, simple_mode=False)
-
+    return _build.lower(body, args, name=name, simple_mode=False)

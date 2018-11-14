@@ -106,7 +106,8 @@ class HybridParser(ast.NodeVisitor):
 
     def _get_buffer_from_id(self, s):
         _internal_assert((s in self._args.keys()) + (s in self.alloc_buffers.keys()) == 1,
-                "This %s is expected to be in either argument list or allocated buffer!" % s)
+                         "This %s is expected to be in either \
+                          argument list or allocated buffer!" % s)
         if s in self._args.keys():
             return self._args[s]
         return self.alloc_buffers[s][0]
@@ -116,13 +117,14 @@ class HybridParser(ast.NodeVisitor):
     #pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
         _internal_assert(len(node.body) == 1, \
-                "Only one-function source code can be fed to this parser!")
+                         "Only one-function source code can be fed to this parser!")
         return self.visit(node.body[0])
 
 
     def visit_FunctionDef(self, node):
         _internal_assert(len(node.args.args) == len(self.args), \
-            "The number of arguments passed to the function should be the same as it is defined!")
+                         "The number of arguments passed to the \
+                         function should be the same as it is defined!")
         for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
             self._args[getattr(arg, _attr)] = self.args[idx]
@@ -153,7 +155,7 @@ class HybridParser(ast.NodeVisitor):
             return _make.Call(_buf.dtype, _id, [_api.const(0)], _expr.Call.Halide, _buf.op, 0)
         # Compilation time constant
         _internal_assert(_id in self.var_consts.keys(),
-                "This id %s is expected to a compilation time constant!" % _id)
+                         "This id %s is expected to a compilation time constant!" % _id)
         return self.var_consts[_id]
 
 
@@ -176,7 +178,7 @@ class HybridParser(ast.NodeVisitor):
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
                 _internal_assert(lhs not in self.var_consts.keys(), \
-                        "A constant cannot be overwritten!")
+                                 "A constant cannot be overwritten!")
                 _internal_assert(lhs not in self.alloc_buffers.keys(), \
                     "This value should not be defined before this point!")
                 if isinstance(rhs, tuple):
@@ -195,15 +197,14 @@ class HybridParser(ast.NodeVisitor):
                     self.alloc_buffers[lhs] = (ph, 'global')
             if lhs in self.var_consts.keys():
                 return make_nop()
-            else:
-                _internal_assert(lhs in self.alloc_buffers.keys(), \
-                        "This variable should be defined before!")
-                tgt, _ = self.alloc_buffers[lhs]
-                return _make.Provide(tgt.op, 0, rhs, [_api.const(0, dtype=rhs.dtype)])
+            _internal_assert(lhs in self.alloc_buffers.keys(), \
+                             "This variable should be defined before!")
+            tgt, _ = self.alloc_buffers[lhs]
+            return _make.Provide(tgt.op, 0, rhs, [_api.const(0, dtype=rhs.dtype)])
         else:
             lhs = self.visit(lhs)
             _internal_assert(isinstance(lhs, _expr.Call), \
-                "An array access's LHS is expected to be a expr.Call!")
+                             "An array access's LHS is expected to be a expr.Call!")
             #TODO: support slice later
             buf = self._get_buffer_from_id(lhs.name)
             return _make.Provide(buf.op, 0, rhs, lhs.args)
@@ -221,20 +222,20 @@ class HybridParser(ast.NodeVisitor):
             array = node.value.id
             _buf = self._get_buffer_from_id(array)
             return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
-        else:
-            _internal_assert(isinstance(node.value, ast.Attribute), \
-                    "Only variable and attribute's subscript supported so far")
-            _internal_assert(isinstance(node.value.value, ast.Name), \
-                "The root of array access is expect to be a id!")
-            _internal_assert(node.value.attr == "shape", \
-                "Attribute access so far only 'shape' is supported!")
-            _internal_assert(len(args) == 1, "For 'shape' access the argument should be only one!")
-            args = args[0]
-            #TODO: maybe support non-constant value later?
-            _internal_assert(isinstance(args, (_expr.IntImm, _expr.UIntImm)), \
-                "So far only constant shape access supported!")
-            buf = self._get_buffer_from_id(node.value.value.id)
-            return buf.shape[args.value]
+
+        _internal_assert(isinstance(node.value, ast.Attribute), \
+                "Only variable and attribute's subscript supported so far")
+        _internal_assert(isinstance(node.value.value, ast.Name), \
+            "The root of array access is expect to be a id!")
+        _internal_assert(node.value.attr == "shape", \
+            "Attribute access so far only 'shape' is supported!")
+        _internal_assert(len(args) == 1, "For 'shape' access the argument should be only one!")
+        args = args[0]
+        #TODO: maybe support non-constant value later?
+        _internal_assert(isinstance(args, (_expr.IntImm, _expr.UIntImm)), \
+            "So far only constant shape access supported!")
+        buf = self._get_buffer_from_id(node.value.value.id)
+        return buf.shape[args.value]
 
 
     def visit_With(self, node):
@@ -245,7 +246,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(node.items) == 1, "Only one with element is supported so far!")
             context = node.items[0].context_expr
             option = node.items[0].optional_vars
-        _internal_assert(isinstance(context, ast.Call), "The object must be a Python function call!")
+        _internal_assert(isinstance(context, ast.Call), "The object must be a Python func call!")
         _internal_assert(isinstance(option, ast.Name), "The object after 'as' must be an id!")
         self.annotation[option.id] = context.func.id
         return list_to_block(self.visit, node.body)

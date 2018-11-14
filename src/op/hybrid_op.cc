@@ -144,13 +144,13 @@ Stmt HybridOpNode::BuildProvide(
         bind_spec, attr::buffer_bind_scope,
         Call::make(Handle(), intrinsic::tvm_tuple, tuple, Call::Intrinsic), ret);
   };
-  for (int i = (int) outputs.size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(outputs.size()) - 1; i >= 0; --i) {
     Buffer buffer = decl_buffer(
       outputs[i]->shape,
       outputs[i]->dtype);
     f_push_bind(buffer, stage->op.output(i));
   }
-  for (int i = (int) inputs.size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(inputs.size()) - 1; i >= 0; --i) {
     Buffer buffer = decl_buffer(
       inputs[i]->shape,
       inputs[i]->dtype);

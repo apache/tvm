@@ -57,8 +57,8 @@ class PyVariableUsage(ast.NodeVisitor):
             return
         # The loop variable cannot be overwritten when iteration
         _internal_assert(not isinstance(node.ctx, ast.Store) or node.id not in fors, \
-                "Iter var cannot be overwritten")
-        
+                         "Iter var cannot be overwritten")
+
         if node.id not in self.status.keys():
             _internal_assert(isinstance(node.ctx, ast.Store), \
                     'Undeclared variable %s' % node.id)
