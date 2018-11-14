@@ -305,6 +305,18 @@ TVM_REGISTER_GLOBAL("topi.matmul")
     default: CHECK(0) << "topi.matmul expects 2, 3 or 4 arguments";
   }});
 
+TVM_REGISTER_GLOBAL("topi.tensordot")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  if (args.size() == 2) {
+    *rv = tensordot(args[0], args[1]);
+  } else if (args.size() == 3) {
+    *rv = tensordot(args[0], args[1], args[2]);
+  } else {
+    Array<Expr> axes = args[3];
+    *rv = tensordot(args[0], args[1], args[2], axes);
+  }
+  });
+
 TVM_REGISTER_GLOBAL("topi.strided_slice")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = strided_slice(args[0], args[1], args[2], args[3]);
