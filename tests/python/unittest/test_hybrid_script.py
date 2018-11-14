@@ -27,11 +27,9 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     outs = func(*args)
     op = outs[0].op if isinstance(outs, list) else outs.op
     sch = tvm.create_schedule(op)
-    print(op.body)
     module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]))
     assert module
     
-    #outs, ir = tvm.hybrid.lower(func, args, simple_mode=True)
     out_tensors = []
     for i in range(op.num_outputs):
         output = op.output(i)
@@ -43,9 +41,6 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     if isinstance(ref_data, numpy.ndarray):
         ref_data = [ref_data]
     
-    #lowered_func = tvm.lower(ir, args + outs)
-    #module = tvm.build(lowered_func, target=target)
-    #assert module
     module(*nd_args)
 
     for nd, np in zip(out_tensors, ref_data):
@@ -71,9 +66,8 @@ def test_outer_product():
     m = tvm.var('m')
     a = tvm.placeholder((n, ), name='a')
     b = tvm.placeholder((m, ), name='b')
-    c = tvm.placeholder((n, m), name='c')
 
-    outs, ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
+    ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
     #Check for i in (0, n)
     assert isinstance(ir, tvm.stmt.For)
     assert ir.loop_var.name == 'i'
@@ -105,121 +99,122 @@ def test_outer_product():
         assert key not in globals().keys()
         assert key not in outer_product.__globals__.keys()
 
-##Test local function
-##Test allocation of local variable
-#def test_fanout():
-#    @script
-#    def fanout(n, a, b):
-#        three = 3.0
-#        for i in range(a.shape[0] - 3):
-#            sigma = 0.0
-#            for j in range(3):
-#                sigma = sigma + a[i + j]
-#            sigma = sigma / three
-#            b[i] = sigma
-#
-#    n = tvm.var('n')
-#    a = tvm.placeholder((n, ), 'float32', name='a')
-#    b = tvm.placeholder((n-3, ), 'float32', name='b')
-#    ir = tvm.hybrid.lower(fanout, [n, a, b], simple_mode=True)
-#
-#    #Check for i in (0, n-3)
-#    assert isinstance(ir, tvm.stmt.For)
-#    assert ir.loop_var.name == 'i'
-#    assert ir.min.value == 0
-#    assert tvm.ir_pass.Equal(ir.extent, n - 3)
-#    #Check loopbody
-#    ibody = ir.body
-#    assert isinstance(ibody, tvm.stmt.AttrStmt)
-#    abody = ibody.body
-#    assert isinstance(abody, tvm.stmt.Realize)
-#    assert abody.bounds[0].min.value == 0
-#    assert abody.bounds[0].extent.value == 1
-#    assert abody.func.name == 'sigma'
-#    #Check i loop body
-#    rbody = abody.body
-#    assert isinstance(rbody.first, tvm.stmt.Provide)
-#    assert rbody.first.func.name == 'sigma'
-#    assert len(rbody.first.args) == 1
-#    assert rbody.first.args[0].value == 0
-#    #Check fanout loop
-#    jloop = rbody.rest.first
-#    assert jloop.loop_var.name == 'j'
-#    assert jloop.min.value == 0
-#    assert jloop.extent.value == 3
-#    jbody = jloop.body
-#    assert isinstance(jbody, tvm.stmt.Provide)
-#    assert len(jbody.args) == 1
-#    assert jbody.args[0].value == 0
-#    assert jbody.func.name == 'sigma'
-#    assert isinstance(jbody.value, tvm.expr.Add)
-#    value = jbody.value
-#    assert isinstance(value.a, tvm.expr.Call)
-#    assert value.a.name == 'sigma'
-#    assert len(value.a.args) == 1
-#    assert value.a.args[0].value == 0
-#    assert value.b.name == 'a'
-#    assert len(value.b.args) == 1
-#    assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
-#    divide= rbody.rest.rest.first
-#    assert isinstance(divide, tvm.stmt.Provide)
-#    assert len(divide.args) == 1
-#    assert divide.args[0].value == 0
-#    value = divide.value
-#    assert isinstance(value, tvm.expr.Mul)
-#    assert value.a.name == 'sigma'
-#    assert len(value.a.args) == 1
-#    assert value.a.args[0].value == 0
-#    assert abs(value.b.value - (1 / 3.0)) < 1e-5
-#    write = rbody.rest.rest.rest
-#    assert isinstance(write, tvm.stmt.Provide)
-#    assert write.func.name == 'b'
-#    assert write.value.name == 'sigma'
-#    assert len(write.value.args) == 1
-#    assert write.value.args[0].value == 0
-#
-#    run_and_check(fanout, [n, a, b], [b], {n: 10})
-#
-#
-#@script
-#def failure():
-#    for i in range(1, 100):
-#        i = 0
-#
-#def test_failure():
-#    try:
-#        tvm.hybrid.lower(failure, [], simple_mode=True)
-#    except IOError as err:
-#        assert sys.version_info[0] == 2
-#        print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
-#    except Exception as err:
-#        assert str(err) == 'You CAN NEVER overwrite a loop variable!'
-#
-#
-#def test_looptype():
-#    @script
-#    def looptype(a, b, c):
-#        for i in parallel(8):
-#            a[i] = i
-#        for j in vectorize(8):
-#            b[j] = j
-#        for k in unroll(8):
-#            c[k] = k
-#
-#    a = tvm.placeholder((8, ), name='a', dtype='int32')
-#    b = tvm.placeholder((8, ), name='b', dtype='int32')
-#    c = tvm.placeholder((8, ), name='c', dtype='int32')
-#    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
-#    iloop = ir.first
-#    jloop = ir.rest.first
-#    kloop = ir.rest.rest
-#    assert iloop.for_type == tvm.stmt.For.Parallel
-#    assert jloop.for_type == tvm.stmt.For.Vectorized
-#    assert kloop.for_type == tvm.stmt.For.Unrolled
-#
-#    run_and_check(looptype, [a, b, c], [a, b, c])
-#
-#
+#Test local function
+#Test allocation of local variable
+def test_fanout():
+    @script
+    def fanout(n, a):
+        three = 3.0
+        b = output_tensor((a.shape[0] - 3, ), a.dtype)
+        for i in range(a.shape[0] - 3):
+            sigma = 0.0
+            for j in range(3):
+                sigma = sigma + a[i + j]
+            sigma = sigma / three
+            b[i] = sigma
+        return b
+
+    n = tvm.var('n')
+    a = tvm.placeholder((n, ), 'float32', name='a')
+    ir = tvm.hybrid.lower(fanout, [n, a], simple_mode=True)
+
+    #Check for i in (0, n-3)
+    assert isinstance(ir, tvm.stmt.For)
+    assert ir.loop_var.name == 'i'
+    assert ir.min.value == 0
+    assert tvm.ir_pass.Equal(ir.extent, n - 3)
+    #Check loopbody
+    ibody = ir.body
+    assert isinstance(ibody, tvm.stmt.AttrStmt)
+    abody = ibody.body
+    assert isinstance(abody, tvm.stmt.Realize)
+    assert abody.bounds[0].min.value == 0
+    assert abody.bounds[0].extent.value == 1
+    assert abody.func.name == 'sigma'
+    #Check i loop body
+    rbody = abody.body
+    assert isinstance(rbody.first, tvm.stmt.Provide)
+    assert rbody.first.func.name == 'sigma'
+    assert len(rbody.first.args) == 1
+    assert rbody.first.args[0].value == 0
+    #Check fanout loop
+    jloop = rbody.rest.first
+    assert jloop.loop_var.name == 'j'
+    assert jloop.min.value == 0
+    assert jloop.extent.value == 3
+    jbody = jloop.body
+    assert isinstance(jbody, tvm.stmt.Provide)
+    assert len(jbody.args) == 1
+    assert jbody.args[0].value == 0
+    assert jbody.func.name == 'sigma'
+    assert isinstance(jbody.value, tvm.expr.Add)
+    value = jbody.value
+    assert isinstance(value.a, tvm.expr.Call)
+    assert value.a.name == 'sigma'
+    assert len(value.a.args) == 1
+    assert value.a.args[0].value == 0
+    assert value.b.name == 'a'
+    assert len(value.b.args) == 1
+    assert tvm.ir_pass.Equal(value.b.args[0], ir.loop_var + jloop.loop_var)
+    divide= rbody.rest.rest.first
+    assert isinstance(divide, tvm.stmt.Provide)
+    assert len(divide.args) == 1
+    assert divide.args[0].value == 0
+    value = divide.value
+    assert isinstance(value, tvm.expr.Mul)
+    assert value.a.name == 'sigma'
+    assert len(value.a.args) == 1
+    assert value.a.args[0].value == 0
+    assert abs(value.b.value - (1 / 3.0)) < 1e-5
+    write = rbody.rest.rest.rest
+    assert isinstance(write, tvm.stmt.Provide)
+    assert write.func.name == 'b'
+    assert write.value.name == 'sigma'
+    assert len(write.value.args) == 1
+    assert write.value.args[0].value == 0
+
+    run_and_check(fanout, [n, a], {n: 10})
+
+
+@script
+def failure():
+    for i in range(1, 100):
+        i = 0
+
+def test_failure():
+    try:
+        tvm.hybrid.lower(failure, [], simple_mode=True)
+    except IOError as err:
+        assert sys.version_info[0] == 2
+        print('[Warning] Case test_failure is skipped by Python2 because "%s"' % str(err))
+    except Exception as err:
+        assert str(err) == 'Loop variable cannot be overwritten!'
+
+
+def test_looptype():
+    @script
+    def looptype(a, b, c):
+        for i in parallel(8):
+            a[i] = i
+        for j in vectorize(8):
+            b[j] = j
+        for k in unroll(8):
+            c[k] = k
+
+    a = tvm.placeholder((8, ), name='a', dtype='int32')
+    b = tvm.placeholder((8, ), name='b', dtype='int32')
+    c = tvm.placeholder((8, ), name='c', dtype='int32')
+    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
+    iloop = ir.first
+    jloop = ir.rest.first
+    kloop = ir.rest.rest
+    assert iloop.for_type == tvm.stmt.For.Parallel
+    assert jloop.for_type == tvm.stmt.For.Vectorized
+    assert kloop.for_type == tvm.stmt.For.Unrolled
+
+    run_and_check(looptype, [a, b, c], [a, b, c])
+
+
 #def test_if():
 #    @script
 #    def if_then_else(a, b):
@@ -356,10 +351,10 @@ def test_outer_product():
 
 if __name__ == "__main__":
     test_outer_product()
-#    test_plus_one()
-#    test_fanout()
-#    test_failure()
-#    test_looptype()
+    #test_plus_one()
+    test_fanout()
+    test_failure()
+    test_looptype()
 #    test_if()
 #    test_bind()
 #    test_math_intrin()

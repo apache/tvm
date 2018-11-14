@@ -148,7 +148,7 @@ class HybridParser(ast.NodeVisitor):
                 "This id %s is expected to be a defined variable!" % _id)
         # Buffer
         if _id in self.alloc_buffers.keys():
-            _buf = self.alloc_buffers[_id]
+            _buf, _ = self.alloc_buffers[_id]
             return _make.Call(_buf.dtype, _id, [_api.const(0)], _expr.Call.Halide, _buf.op, 0)
         # Compilation time constant
         _internal_assert(_id in self.var_consts.keys(),
@@ -223,7 +223,7 @@ class HybridParser(ast.NodeVisitor):
         else:
             _internal_assert(isinstance(node.value, ast.Attribute), \
                     "Only variable and attribute's subscript supported so far")
-            _internal_assert(node.value.value, ast.Name, \
+            _internal_assert(isinstance(node.value.value, ast.Name), \
                 "The root of array access is expect to be a id!")
             _internal_assert(node.value.attr == "shape", \
                 "Attribute access so far only 'shape' is supported!")

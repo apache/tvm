@@ -3,6 +3,7 @@ from __future__ import absolute_import as _abs
 
 import ast
 import types
+
 from .._ffi.base import decorate
 from .._api_internal import _HybridOp
 from ..api import decl_buffer
@@ -10,8 +11,11 @@ from ..expr import Call
 from ..stmt import Provide
 from ..ir_pass import IRTransform
 from ..tensor import Tensor
-from .parser import parse_python
 from .. import make as _make
+from .. import build_module as _build
+
+from .parser import parse_python
+from .util import _pruned_source
 
 
 def script(pyfunc):
@@ -28,13 +32,29 @@ def script(pyfunc):
     def wrapped_func(func, *args, **kwargs):
         from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
         if _is_tvm_arg_types(args):
-            return lower(func, args)
+            src = _pruned_source(func)
+            parser = parse_python(src, args)
 
+            input_tensors = []
+            input_buffers = []
+            intra_link = {}
+            for i in args:
+                if isinstance(i, Tensor):
+                    input_tensors.append(i)
+                    input_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
+                    if i in parser.outputs:
+                        intra_link[i.name] = input_buffers[-1]
+            op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+                    parser.outputs, parser.parsed_body)
+            res = [op.output(i) for i in range(len(parser.outputs))]
+
+            return res[0] if len(res) == 1 else res
 
         intersect = _enter_hybrid_runtime(func)
         value = func(*args, **kwargs)
         _restore_runtime(func, intersect)
         return value
+
     return decorate(pyfunc, wrapped_func)
 
 
@@ -51,12 +71,15 @@ def lower(func, args, simple_mode=False):
         The argument lists to the function.
         Leave it None if no buffer is related to the function to be parsed
 
+    simple_mode : Bool
+        If simple_mode is True, just return the function body for sanity check
+        O.w. return the output tensors
+
     Returns
     -------
     root : Stmt
         The result Halide IR and the parser class instance.
     """
-    from .util import _pruned_source
     if isinstance(func, str):
         src = func
     else:
@@ -66,21 +89,9 @@ def lower(func, args, simple_mode=False):
     body = parser.parsed_body
 
     if simple_mode:
-        return parser.outputs, body
+        return body
 
-    input_tensors = []
-    input_buffers = []
-    intra_link = {}
-    for i in args:
-        if isinstance(i, Tensor):
-            input_tensors.append(i)
-            input_buffers.append(decl_buffer(i.shape, i.dtype, i.name))
-            if i in parser.outputs:
-                intra_link[i.name] = input_buffers[-1]
+    args = parser.args + parser.outputs
+    name = parser.func_name
+    return _build.lower(body, args, name=func_name, simple_mode=False)
 
-    op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
-            parser.outputs, body)
-
-    res = [op.output(i) for i in range(len(parser.outputs))]
-
-    return res[0] if len(res) == 1 else res
