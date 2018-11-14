@@ -125,7 +125,7 @@ def optimize(func, params=None):
     func : tvm.relay.Function
         The input to optimization.
 
-    params : dict of str to NDArray
+    params : Optional[Dict[str, tvm.nd.NDArray]]
         Input parameters to the graph that do not change
         during inference time. used for constant folding.
 

@@ -317,6 +317,9 @@ class GraphRuntimeCodegen(ExprFunctor):
 
         lowered_funcs : List[tvm.LoweredFunc]
             The lowered functions.
+
+        params : Dict[str, tvm.nd.NDArray]
+            Additional constant parameters.
         """
         # First we convert all the parameters into input nodes.
         for param in func.params:
