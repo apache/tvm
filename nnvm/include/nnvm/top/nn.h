@@ -174,10 +174,18 @@ struct Conv2DParam : public dmlc::Parameter<Conv2DParam> {
 
 struct WinogradWeightTransformParam : public dmlc::Parameter<WinogradWeightTransformParam> {
     int tile_size;
-
+    std::string kernel_layout;
     DMLC_DECLARE_PARAMETER(WinogradWeightTransformParam) {
-      DMLC_DECLARE_FIELD(tile_size)
-        .describe("Tile size of winograd. E.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)");
+      DMLC_DECLARE_FIELD(tile_size).describe("Tile size of winograd. E.g. 2 "
+                                             "for F(2x2, 3x3) and 4 for F(4x4, "
+                                             "3x3)");
+      DMLC_DECLARE_FIELD(kernel_layout)
+          .set_default("OIHW")
+          .describe(
+              "Dimension ordering of weight. Can be 'OIHW', 'OIHW16o16i', etc."
+              "'O', 'I', 'H', 'W' stands for num_filter, input_channel, "
+              "height, and width"
+              "dimensions respectively.");
     }
 
     static const constexpr int kWeight = 0;

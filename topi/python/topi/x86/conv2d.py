@@ -6,14 +6,23 @@ from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn
-from ..util import get_const_tuple
-from ..nn.conv2d import conv2d, conv2d_NCHWc, \
-    conv2d_alter_layout, _get_workload as _get_conv2d_workload
+from ..util import get_const_tuple, get_const_int, traverse_inline
+from ..nn.conv2d import (
+    conv2d,
+    conv2d_NCHWc,
+    conv2d_NCHWc_winograd_weight_transform,
+    conv2d_NCHWc_winograd_without_weight_transform,
+    conv2d_alter_layout,
+    _get_workload as _get_conv2d_workload)
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
+from ..nn.util import get_pad_tuple
+from ..nn.winograd_util import winograd_transform_matrices
 
 from . import conv2d_avx_1x1, conv2d_avx_common
+
+
 
 def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depthwise=False):
     """
@@ -280,6 +289,38 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
     return s, [new_data, new_kernel, C]
 
 
+@autotvm.task.register("topi_x86_conv2d_NCHWc_winograd")
+def _topi_nn_conv2d_NCHWc_winograd(*args, **kwargs):
+    assert not kwargs, "Do not support kwargs in template function call"
+    data, kernel, strides, padding, dilation, origin_layout, dtype = deserialize_args(args)
+    raw_data_shape = get_const_tuple(data.shape)
+    raw_kernel_shape = get_const_tuple(kernel.shape)
+
+    # get config here
+    cfg = get_config()
+    _create_tuning_space(cfg, data, kernel, strides, padding, dilation, origin_layout)
+
+    # change shape with the value in config
+    ic_bn, oc_bn, ow_bn = (cfg["tile_ic"].size[-1], cfg["tile_oc"].size[-1],
+                           cfg["tile_ow"].size[-1])
+    new_data_shape = (raw_data_shape[0], raw_data_shape[1] // ic_bn,
+                      raw_data_shape[2], raw_data_shape[3], ic_bn)
+    data_layout = "NCHW%dc" % ic_bn
+    out_layout = "NCHW%dc" % oc_bn
+    new_kernel_shape = (raw_kernel_shape[0] // oc_bn, raw_kernel_shape[1] // ic_bn,
+                        raw_kernel_shape[2], raw_kernel_shape[3], ic_bn, oc_bn)
+    new_data = tvm.placeholder(new_data_shape, data.dtype)
+    new_kernel = tvm.placeholder(new_kernel_shape, kernel.dtype)
+
+    C = _declaration_conv_NCHWc_winograd_impl(
+        cfg, new_data, new_kernel, strides, padding, dilation,
+        data_layout, out_layout, dtype,
+        transform_kernel=True, tile_size=None)
+    s = tvm.create_schedule([C.op])
+    s = _schedule_conv2d_NCHWc_winograd(cfg, s, C, C)
+    return s, [new_data, new_kernel, C]
+
+
 @conv2d_alter_layout.register("cpu")
 def _alter_conv2d_layout(attrs, inputs, tinfo):
     import nnvm.symbol as sym
@@ -337,7 +378,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_attrs['layout'],
              new_attrs['out_layout'], out_dtype], depthwise_conv2d_NCHWc)
-    else:
+        dispatch_ctx.update(target, new_workload, cfg)
+        return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+
+    elif cfg.is_fallback or cfg.template_key == "direct":
         out_channel, _, kh, kw = get_const_tuple(kernel.shape)
         # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
         new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
@@ -348,9 +392,42 @@ def _alter_conv2d_layout(attrs, inputs, tinfo):
         new_workload = autotvm.task.args_to_workload(
             [new_data, new_kernel, strides, padding, dilation, new_attrs['layout'],
              new_attrs['out_layout'], out_dtype], conv2d_NCHWc)
+        dispatch_ctx.update(target, new_workload, cfg)
+        return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+    elif cfg.template_key == "winograd":
+        tile_size = cfg["tile_size"].val
+        out_channel, _, kh, kw = get_const_tuple(kernel.shape)
+        assert (kh, kw) == (3, 3)
+        # (oc, ic, h, w) -> (OC, IC, h, w, ic, oc)
+        new_attrs['kernel_layout'] = 'OIHW%di%do' % (ic_bn, oc_bn)
+        new_attrs['tile_size'] = tile_size
+        # Store altered operator's config
+        new_kernel = tvm.placeholder(
+            (out_channel//oc_bn, in_channel//ic_bn, ic_bn,
+             tile_size + 3 - 1, tile_size + 3 - 1, oc_bn),
+            dtype=kernel.dtype)
 
-    dispatch_ctx.update(target, new_workload, cfg)
-    return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
+        new_kernel_workload = autotvm.task.args_to_workload(
+            [kernel, new_attrs['kernel_layout'], out_dtype, tile_size],
+            conv2d_NCHWc_winograd_weight_transform)
+
+        new_kernel_sym = sym.contrib.conv2d_NCHWc_winograd_weight_transform(
+            copy_inputs[1],
+            kernel_layout=new_attrs['kernel_layout'],
+            tile_size=tile_size)
+        dispatch_ctx.update(target, new_kernel_workload, cfg)
+        copy_inputs[1] = new_kernel_sym
+
+        new_workload = autotvm.task.args_to_workload(
+            [new_data, new_kernel, strides, padding, dilation, new_attrs['layout'],
+             new_attrs['out_layout'], out_dtype],
+            conv2d_NCHWc_winograd_without_weight_transform)
+        dispatch_ctx.update(target, new_workload, cfg)
+        return sym.contrib.conv2d_NCHWc_winograd_without_weight_transform(
+            *copy_inputs,
+            **new_attrs)
+    else:
+        raise RuntimeError("Unknown template: {}".format(cfg.template_key))
 
 
 @autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'direct')
@@ -421,23 +498,183 @@ def _declaration_conv_NCHWc(cfg, data, kernel, strides,
                        name='conv2d_NCHWc', tag="conv2d_NCHWc")
 
 
-@autotvm.register_topi_schedule(generic.schedule_conv2d_NCHWc, 'cpu', ['direct'])
+@autotvm.register_topi_compute(conv2d_NCHWc, 'cpu', 'winograd')
+def _declaration_conv_NCHWc_winograd(cfg, data, kernel, strides,
+                                     padding, dilation, layout, out_layout, out_dtype):
+    return _declaration_conv_NCHWc_winograd_impl(
+        cfg, data, kernel, strides, padding, dilation,
+        layout, out_layout, out_dtype,
+        transform_kernel=True, tile_size=None)
+
+
+def _declaration_conv_NCHWc_winograd_impl(
+        cfg, data, kernel, strides,
+        padding, dilation, layout, out_layout, out_dtype,
+        transform_kernel, tile_size):
+    out_dtype = out_dtype or data.dtype
+    N, CII, IH, IW, CIII = get_const_tuple(data.shape)
+
+    if transform_kernel:
+        COO, CII, KH, KW, CIII_, VC = get_const_tuple(kernel.shape)
+    else:
+        COO, CII, CIII_, _, _, VC = get_const_tuple(kernel.shape)
+        KH = 3
+        KW = 3
+
+    cfg.define_knob("tile_size", [2, 4, 6])
+    m = tile_size if tile_size else cfg["tile_size"].val
+    r = 3
+    alpha = m + r - 1
+
+    pad_top, pad_left, pad_bottom, pad_right = get_pad_tuple(padding, (KH, KW))
+    HSTR, WSTR = strides if isinstance(strides, (tuple, list)) else (strides, strides)
+
+    OH = (IH + pad_top + pad_bottom - KH) // HSTR + 1
+    OW = (IW + pad_left + pad_right - KW) // WSTR + 1
+    data_pad = pad(
+        data,
+        [0, 0, pad_top, pad_left, 0],
+        [0, 0, pad_bottom, pad_right, 0],
+        name="data_pad"
+    )
+
+    A, B, G = winograd_transform_matrices(m, out_dtype)
+
+    def div_round_up(a, b):
+        return (a + b - 1) // b
+
+    # assert all(k == 3 for k in (KH, KW))
+    assert all(p == 1 for p in (pad_top, pad_left, pad_bottom, pad_right))
+    assert all(s == 1 for s in (HSTR, WSTR))
+    assert OH == IH
+    assert OW == IW
+
+    OH_M = div_round_up(OH, m)
+    OW_M = div_round_up(OW, m)
+    # Layouts:
+
+    # input            = (N, CII, IH, IW, CIII)
+    # -> transpose
+    ############################################################
+    # input_tile_shape = (N, CII, OH // m, OH // m, alpha, alpha, CIII)
+    # U_shape          = (COO, CII, CIII, alpha, alpha, COOO)
+    # V_shape          = (N, CII, OH // m, OW // m, alpha, alpha, CIII)
+    # M_shape          = (N, COO, OH // m, OW // m, alpha, alpha, COOO)
+    # Y_shape          = (N, COO, OH // m, OW // m, m, m, COOO)
+    ############################################################
+    # -> transpose
+    # O_shape          = (N, COO, OH, OW, COOO)
+
+    n, coo, oh, ow, oh_m, ow_m, vc = \
+        cfg.axis(N), cfg.axis(COO), cfg.axis(OH), cfg.axis(OW), \
+        cfg.axis(OH_M), cfg.axis(OW_M), cfg.axis(VC)
+    cii, ciii, kh, kw = cfg.reduce_axis(CII), cfg.reduce_axis(CIII), \
+                        cfg.reduce_axis(KH), cfg.reduce_axis(KW)
+
+    eps, nu = cfg.axis(alpha), cfg.axis(alpha)
+    vh, vw = cfg.axis(m), cfg.axis(m)
+    r_eps, r_nu = cfg.axis(alpha), cfg.axis(alpha)
+    cfg.define_reorder("reorder_M",
+                       [n, coo, oh_m, ow_m, eps, nu, vc, cii, ciii],
+                       policy='candidate', candidate=[
+                           [n, coo, cii, oh_m, ow_m, eps, ciii, nu, vc],
+                           [n, coo, oh_m, ow_m, eps, cii, ciii, nu, vc],
+                           # [n, coo, cii, oh_m, ow_m, ciii, nu, eps, vc],
+                           # [n, coo, cii, oh_m, ow_m, nu, eps, ciii, vc],
+                           # [n, coo, oh_m, ow_m, nu, eps, cii, ciii, vc],
+                       ])
+
+    cfg.define_reorder("reorder_V",
+                       [n, cii, oh_m, ow_m, eps, nu, ciii, r_eps, r_nu],
+                       policy='candidate', candidate=[
+                           [n, cii, oh_m, ow_m, eps, r_eps, r_nu, nu, ciii],
+                           # [n, cii, oh_m, ow_m, eps, nu, r_eps, r_nu, ciii],
+                           # [n, cii, oh_m, ow_m, r_eps, r_nu, eps, nu, ciii],
+                           # [n, cii, oh_m, ow_m, r_eps, r_nu, eps, nu, ciii],
+                       ])
+
+    cfg.define_reorder("reorder_Y",
+                       [n, coo, oh_m, ow_m, vh, vw, vc, r_eps, r_nu],
+                       policy='candidate', candidate=[
+                           [n, coo, oh_m, ow_m, vh, r_eps, r_nu, vw, vc],
+                           # [n, coo, oh_m, ow_m, vh, vw, r_eps, r_nu, vc],
+                           # [n, coo, oh_m, ow_m, r_eps, r_nu, vh, vw, vc],
+                           # [n, coo, oh_m, ow_m, r_eps, r_nu, vh, vw, vc],
+                       ])
+
+
+    input_tile = tvm.compute((N, CII, OH_M, OW_M, alpha, alpha, CIII),
+                             lambda n, cii, oh_m, ow_m, eps, nu, ciii:
+                             data_pad[n][cii][oh_m * m + eps][ow_m * m + nu][ciii],
+                             name='input_tile')
+
+    # transform kernel
+    if transform_kernel:
+        r_kh = tvm.reduce_axis((0, KH), 'r_kh')
+        r_kw = tvm.reduce_axis((0, KW), 'r_kw')
+        U = tvm.compute((COO, CII, CIII, alpha, alpha, VC),
+                        lambda coo, cii, ciii, eps, nu, vc:
+                        tvm.sum(kernel[coo][cii][r_kh][r_kw][ciii][vc].astype(out_dtype) *
+                                G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]),
+                        name='U')
+    else:
+        U = kernel
+
+    # transform image
+    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
+    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
+    V = tvm.compute((N, CII, OH_M, OW_M, alpha, alpha, CIII),
+                    lambda n, cii, oh_m, ow_m, eps, nu, ciii:
+                    tvm.sum(input_tile[n][cii][oh_m][ow_m][r_eps][r_nu][ciii].astype(out_dtype) *
+                            B[r_eps][eps] * B[r_nu][nu], axis=[r_eps, r_nu]), name='V')
+    cii = tvm.reduce_axis((0, CII), name='cii')
+    ciii = tvm.reduce_axis((0, CIII), name='ciii')
+
+    # M_shape = (N, COO, OH // m, OW // m, alpha, alpha, COOO)
+    M = tvm.compute((N, COO, OH_M, OW_M, alpha, alpha, VC),
+                    lambda n, coo, oh_m, ow_m, eps, nu, vc:
+                    tvm.sum(U[coo][cii][ciii][eps][nu][vc] * V[n][cii][oh_m][ow_m][eps][nu][ciii],
+                            axis=[cii, ciii]),
+                    name='M')
+
+    # inverse transform
+    r_eps = tvm.reduce_axis((0, alpha), 'r_eps')
+    r_nu = tvm.reduce_axis((0, alpha), 'r_nu')
+    # Y_shape = (N, COO, OH // m, OW // m, m, m, COOO)
+    Y = tvm.compute((N, COO, OH_M, OW_M, m, m, VC),
+                    lambda n, coo, oh_m, ow_m, vh, vw, vc:
+                    tvm.sum(M[n][coo][oh_m][ow_m][r_eps][r_nu][vc] * A[r_eps][vh] * A[r_nu][vw],
+                            axis=[r_eps, r_nu]),
+                    name='Y')
+
+    output = tvm.compute((N, COO, OH, OW, VC),
+                         lambda n, coo, oh, ow, vc:
+                         Y[n][coo][oh // m][ow // m][oh % m][ow % m][vc],
+                         name='output', tag='conv2d_NCHWc_winograd')
+    cfg.add_flop(2 * N * COO * VC * OH * OW * KH * KW * CII * CIII)
+    return output
+
+@autotvm.register_topi_compute(
+    conv2d_NCHWc_winograd_without_weight_transform, 'cpu', 'winograd')
+def _declaration_conv_NCHWc_winograd_without_weight_transform(
+        cfg, data, transformed_kernel, strides,
+        padding, dilation, layout, out_layout, out_dtype, tile_size):
+    return _declaration_conv_NCHWc_winograd_impl(
+        cfg, data, transformed_kernel, strides, padding, dilation,
+        layout, out_layout, out_dtype, transform_kernel=False, tile_size=tile_size)
+
+
+@autotvm.register_topi_schedule(
+    generic.schedule_conv2d_NCHWc, 'cpu', ['direct', 'winograd'])
 def _schedule_conv2d_NCHWc(cfg, outs):
     """Create schedule for tensors"""
     s = tvm.create_schedule([x.op for x in outs])
     scheduled_ops = []
 
-    def traverse(op):
-        """Traverse operators from computation graph"""
-        # inline all one-to-one-mapping operators except the last stage (output)
-        if tag.is_broadcast(op.tag):
-            if op not in s.outputs:
-                s[op].compute_inline()
-            for tensor in op.input_tensors:
-                if tensor.op.input_tensors and tensor.op not in scheduled_ops:
-                    traverse(tensor.op)
-
-        if 'conv2d_NCHWc' in op.tag:
+    def _callback(op):
+        if 'conv2d_NCHWc_winograd' in op.tag:
+            _schedule_conv2d_NCHWc_winograd(cfg, s, op.output(0), outs[0])
+        elif 'conv2d_NCHWc' in op.tag:
             conv_out = op.output(0)
             kernel = conv_out.op.input_tensors[1]
             data_vec = conv_out.op.input_tensors[0]
@@ -462,8 +699,212 @@ def _schedule_conv2d_NCHWc(cfg, outs):
                     conv2d_avx_1x1._schedule_conv_NCHWc(*args)
                 else:
                     conv2d_avx_common._schedule_conv_NCHWc(*args)
-
         scheduled_ops.append(op)
 
-    traverse(outs[0].op)
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+@autotvm.register_topi_schedule(
+    generic.schedule_conv2d_NCHWc_winograd_without_weight_transform,
+    'cpu', ['winograd'])
+def schedule_conv2d_winograd_without_weight_transform_(cfg, outs):
+    """TOPI schedule callback"""
+    s = tvm.create_schedule([x.op for x in outs])
+    def _callback(op):
+        if 'conv2d_NCHWc_winograd' in op.tag:
+
+            output = op.output(0)
+            _schedule_conv2d_NCHWc_winograd(cfg, s, output, outs[0])
+
+    traverse_inline(s, outs[0].op, _callback)
+    return s
+
+def _schedule_conv2d_NCHWc_winograd(cfg, s, output, last):
+    Y = output.op.input_tensors[0]
+    M, A = Y.op.input_tensors
+    U, V = M.op.input_tensors
+    input_tile, B = V.op.input_tensors
+    data_pad = input_tile.op.input_tensors[0]
+
+    # Inline the constants.
+    s[A].compute_inline()
+    s[B].compute_inline()
+
+    # transform kernel
+    if isinstance(U.op, tvm.tensor.ComputeOp):
+        kernel, G = U.op.input_tensors
+        s[G].compute_inline()
+        coo, cii, eps, nu, ciii, vc = s[U].op.axis
+        if autotvm.GLOBAL_SCOPE.in_tuning:
+            # kernel transformation will be pre-computed during compilation, so we skip
+            # this part to make tuning records correct
+            s[U].pragma(eps, 'debug_skip_region')
+        else:
+            pass
+            # r_kh, r_kw = s[U].op.reduce_axis
+            # s[U].reorder(k, c, eps, nu, r_kh, r_kw, kk)
+            # for axis in [eps, nu, r_kh, r_kw]:
+            #     s[U].unroll(axis)
+            # s[U].vectorize(kk)
+            # s[U].parallel(k)
+
+        if isinstance(kernel.op, tvm.tensor.ComputeOp) and "dilate" in kernel.op.tag:
+            s[kernel].compute_inline()
+
+    ############################################################
+    # input tile
+    n, cii, oh_m, ow_m, eps, nu, ciii = s[input_tile].op.axis
+    # Vectorize the input tile
+    s[input_tile].vectorize(ciii)
+
+    cfg.define_knob('data_pad_compute_location', [0, 1, 2, 3])
+    if cfg['data_pad_compute_location'].val == 0:
+        parallel_axis = s[input_tile].fuse(n)
+        s[data_pad].compute_inline()
+    if cfg['data_pad_compute_location'].val == 1:
+        parallel_axis = s[input_tile].fuse(n)
+        s[data_pad].compute_at(s[input_tile], cii)
+        (_, _, _, _, dpcii) = s[data_pad].op.axis
+        s[data_pad].vectorize(dpcii)
+    if cfg['data_pad_compute_location'].val == 2:
+        parallel_axis = s[input_tile].fuse(n, cii)
+        s[data_pad].compute_at(s[input_tile], oh_m)
+        (_, _, _, _, dpcii) = s[data_pad].op.axis
+        s[data_pad].vectorize(dpcii)
+    if cfg['data_pad_compute_location'].val == 3:
+        parallel_axis = s[input_tile].fuse(n, cii, oh_m)
+        s[data_pad].compute_at(s[input_tile], ow_m)
+        (_, _, _, _, dpcii) = s[data_pad].op.axis
+        s[data_pad].vectorize(dpcii)
+
+    # s[input_tile].parallel(parallel_axis)
+    ############################################################
+
+    ############################################################
+    # data_pad
+    # s[data_pad].compute_inline()
+    ############################################################
+
+    ############################################################
+    # transform image
+    n, cii, oh_m, ow_m, eps, nu, ciii = s[V].op.axis
+    r_eps, r_nu = s[V].op.reduce_axis
+
+    s[V].vectorize(ciii)
+    cfg["reorder_V"].apply(s, V, [n, cii, oh_m, ow_m, eps, nu, ciii, r_eps, r_nu])
+
+    cfg.define_annotate("reduce_V", [r_eps, r_nu, eps, nu],
+                        policy='unroll')
+    cfg['reduce_V'].apply(s, V, [r_eps, r_nu, eps, nu], cfg=cfg)
+
+
+    cfg.define_knob('input_tile_compute_location', [0, 1, 2, 3])
+    if cfg['input_tile_compute_location'].val == 0:
+        parallel_axis = s[V].fuse(n)
+    if cfg['input_tile_compute_location'].val == 1:
+        parallel_axis = s[V].fuse(n)
+        s[input_tile].compute_at(s[V], cii)
+    if cfg['input_tile_compute_location'].val == 2:
+        parallel_axis = s[V].fuse(n, cii)
+        s[input_tile].compute_at(s[V], oh_m)
+    if cfg['input_tile_compute_location'].val == 3:
+        parallel_axis = s[V].fuse(n, cii, oh_m)
+        s[input_tile].compute_at(s[V], ow_m)
+
+    # s[V].parallel(parallel_axis)
+    ############################################################
+
+    ############################################################
+    # batch gemm
+    n, coo, oh_m, ow_m, eps, nu, vc = s[M].op.axis
+    cii, ciii = s[M].op.reduce_axis
+    s[M].vectorize(vc)
+
+    cfg["reorder_M"].apply(s, M, [n, coo, oh_m, ow_m, eps, nu, vc, cii, ciii])
+
+    cfg.define_annotate("reduce_M", [eps, nu],
+                        policy='unroll')
+    cfg['reduce_M'].apply(s, M, [eps, nu], cfg=cfg)
+
+    cfg.define_knob('V_compute_location', [0, 1, 2, 3])
+    if cfg['V_compute_location'].val == 0:
+        parallel_axis = s[M].fuse(n)
+    if cfg['V_compute_location'].val == 1:
+        parallel_axis = s[M].fuse(n)
+        s[V].compute_at(s[M], coo)
+    if cfg['V_compute_location'].val == 2:
+        parallel_axis = s[M].fuse(n, coo)
+        s[V].compute_at(s[M], oh_m)
+    if cfg['V_compute_location'].val == 3:
+        parallel_axis = s[M].fuse(n, coo)
+        s[V].compute_at(s[M], ow_m)
+
+    # s[M].parallel(parallel_axis)
+    ############################################################
+
+    ############################################################
+    # inverse transform
+    s[A].compute_inline()
+    n, coo, oh_m, ow_m, vh, vw, vc = s[Y].op.axis
+    r_eps, r_nu = s[Y].op.reduce_axis
+    s[Y].vectorize(vc)
+
+    cfg['reorder_Y'].apply(s, Y, [n, coo, oh_m, ow_m, vh, vw, vc, r_eps, r_nu])
+
+    cfg.define_annotate("reduce_Y", [r_eps, r_nu, vh, vw],
+                        policy='unroll')
+    cfg['reduce_Y'].apply(s, Y, [r_eps, r_nu, vh, vw], cfg=cfg)
+
+    cfg.define_knob('M_compute_location', [0, 1, 2, 3])
+    if cfg['M_compute_location'].val == 0:
+        parallel_axis = s[Y].fuse(n, coo, oh_m)
+    if cfg['M_compute_location'].val == 1:
+        s[M].compute_at(s[Y], coo)
+        parallel_axis = s[Y].fuse(n)
+    if cfg['M_compute_location'].val == 2:
+        s[M].compute_at(s[Y], oh_m)
+        parallel_axis = s[Y].fuse(n, coo)
+    if cfg['M_compute_location'].val == 3:
+        parallel_axis = s[Y].fuse(n, coo, oh_m)
+        s[M].compute_at(s[Y], ow_m)
+
+    # s[Y].parallel(parallel_axis)
+    ############################################################
+
+    ############################################################
+    # output
+
+    if output != last:
+        s[output].compute_inline()
+
+    n, coo, oh, ow, vc = s[last].op.axis
+    s[last].vectorize(vc)
+
+    OH = get_const_int(oh.dom.extent)
+    OW = get_const_int(ow.dom.extent)
+    mh = get_const_int(vh.dom.extent)
+    mw = get_const_int(vw.dom.extent)
+    cfg.define_knob('output_tile', [1])
+    cfg.define_annotate('reduce_output', [cfg.axis(mh), cfg.axis(mw)], policy="unroll")
+    if OH % mh == 0 and OW % mw == 0 and cfg['output_tile'].val == 1:
+        # We can tile in OH
+        oh, ow, ohi, owi = s[last].tile(oh, ow, mh, mw)
+        cfg["reduce_output"].apply(s, last, [ohi, owi], cfg=cfg)
+
+    cfg.define_knob('Y_compute_location', [0, 1, 2, 3])
+    if cfg['Y_compute_location'].val == 0:
+        parallel_axis = s[last].fuse(n)
+    if cfg['Y_compute_location'].val == 1:
+        parallel_axis = s[last].fuse(n)
+        s[Y].compute_at(s[last], coo)
+    if cfg['Y_compute_location'].val == 2:
+        parallel_axis = s[last].fuse(n, coo)
+        s[Y].compute_at(s[last], oh)
+    if cfg['Y_compute_location'].val == 3:
+        parallel_axis = s[last].fuse(n, coo, oh)
+        s[Y].compute_at(s[last], ow)
+    s[last].parallel(parallel_axis)
+
+    ############################################################
+
     return s

@@ -120,6 +120,15 @@ def schedule_conv2d_winograd_without_weight_transform(outs):
     """
     return _default_schedule(outs, False)
 
+@tvm.target.generic_func
+def schedule_conv2d_NCHWc_winograd_weight_transform(outs):
+    return _default_schedule(outs, False)
+
+
+@tvm.target.generic_func
+def schedule_conv2d_NCHWc_winograd_without_weight_transform(outs):
+    return _default_schedule(outs, False)
+
 
 @tvm.target.generic_func
 def schedule_conv2d_transpose_nchw(outs):

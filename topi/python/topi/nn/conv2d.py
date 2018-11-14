@@ -3,12 +3,12 @@
 """Conv2D operators"""
 from __future__ import absolute_import as _abs
 from collections import namedtuple
-import numpy as np
 import tvm
 
 from .pad import pad
 from .util import get_pad_tuple
-from ..util import simplify, const_matrix, get_const_tuple
+from ..util import simplify, get_const_tuple
+from .winograd_util import winograd_transform_matrices
 
 # workload description of conv2d
 Workload = namedtuple('Workload',
@@ -349,26 +349,7 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
     r = tile_size + K - 1
     shape = (r, r) + shape[:2]
 
-    if tile_size == 2:
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1],
-        ], dtype=kernel.dtype)
-    elif tile_size == 4:
-        G_data = np.array([
-            [1 / 4.0, 0, 0],
-            [-1 / 6.0, -1 / 6.0, -1 / 6.0],
-            [-1 / 6.0, 1 / 6.0, -1 / 6.0],
-            [1 / 24.0, 1 / 12.0, 1 / 6.0],
-            [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]
-        ], dtype=kernel.dtype)
-    else:
-        raise ValueError("Unsupoorted tile size:" + tile_size)
-
-    G = const_matrix(G_data, 'G')
+    _, _, G = winograd_transform_matrices(tile_size, kernel.dtype)
     r_kh = tvm.reduce_axis((0, K), name='r_kh')
     r_kw = tvm.reduce_axis((0, K), name='r_kw')
     return tvm.compute(shape, lambda eps, nu, co, ci:
@@ -479,3 +460,78 @@ def group_conv2d_nchw(Input, Filter, stride, padding, dilation, groups, out_dtyp
                  xx * stride_w + rx * dilation_w].astype(out_dtype) *
             Filter[ff, rc, ry, rx].astype(out_dtype),
             axis=[rc, ry, rx]), tag="conv2d_nchw")
+
+
+@tvm.target.generic_func
+def conv2d_NCHWc_winograd_weight_transform(kernel, tile_size, kernel_layout):
+    """Weight transformation for winograd NCHWc
+
+    Parameters
+    ----------
+    kernel: Tensor
+       6-D with shape
+       [num_filter_chunk, in_channel_chunk, kernel_height, kernel_width,
+        in_channel_block, num_filter_block]
+    tile_size: int
+        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : Tensor
+        6-D with shape
+        [num_filter_chunk, in_channel_chunk, in_channel_block, alpha, alpha,
+         num_filter_block]
+
+    """
+    COO, CII, KH, KW, CIII, VC = get_const_tuple(kernel.shape)
+    _, _, G = winograd_transform_matrices(tile_size, kernel.dtype)
+    r_kh = tvm.reduce_axis((0, KH), "r_kh")
+    r_kw = tvm.reduce_axis((0, KW), "r_kw")
+    alpha = tile_size + 3 - 1
+    U = tvm.compute(
+        (COO, CII, CIII, alpha, alpha, VC),
+        lambda coo, cii, ciii, eps, nu, vc: tvm.sum(
+            kernel[coo][cii][r_kh][r_kw][ciii][vc]
+            * G[eps][r_kh]
+            * G[nu][r_kw],
+            axis=[r_kh, r_kw],
+        ),
+        name="U",
+    )
+    return U
+
+
+@tvm.target.generic_func
+def conv2d_NCHWc_winograd_without_weight_transform(
+        input, filter, strides, padding, dilation, layout, out_layout, out_dtype, tile_size):
+    """Compute convolution in winograd algorithm. The filter is supposed to be transformed
+    in advance.
+
+    Parameters
+    ----------
+    input : tvm.Tensor
+        5-D with shape [batch, in_channel_chunk, in_height, in_width, in_channel_block]
+    filter : tvm.Tensor
+        6-D with shape
+        [num_filter_chunk, in_channel_chunk, in_channel_block, alpha, alpha, num_filter_block]
+    strides : int or a list/tuple of two ints
+        Stride size, or [stride_height, stride_width]
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+    dilation: int or a list/tuple of two ints
+        dilation size, or [dilation_height, dilation_width]
+    layout : str
+        Input data layout
+    out_layout : str
+        Output data layout
+    out_dtype : str
+        output data type
+    tile_size: int
+        Tile size of winograd transform. e.g. 2 for F(2x2, 3x3) and 4 for F(4x4, 3x3)
+
+    Returns
+    -------
+    output : tvm.Tensor
+        5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
+    """
+    raise ValueError("missing register for topi.nn.conv2d_NCHWc_winograd_without_weight_transform")

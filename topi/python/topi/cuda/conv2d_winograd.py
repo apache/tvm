@@ -1,16 +1,13 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument
 """Winograd template for cuda backend"""
-
-import numpy as np
-
 import tvm
 from tvm import autotvm
 
 from .. import nn
 from ..nn import conv2d, conv2d_winograd_without_weight_transform
-from ..util import get_const_int, get_const_tuple, const_matrix, traverse_inline
+from ..util import get_const_int, get_const_tuple, traverse_inline
 from ..generic import schedule_conv2d_winograd_without_weight_transform
-
+from ..nn.winograd_util import winograd_transform_matrices
 
 def _infer_tile_size(data, kernel):
     N, CI, H, W = get_const_tuple(data.shape)
@@ -48,53 +45,8 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
         _, _, CI, CO = get_const_tuple(kernel.shape)
 
     data_pad = nn.pad(data, (0, 0, HPAD, WPAD), (0, 0, HPAD, WPAD), name="data_pad")
-
-    if tile_size == 4:
-        G_data = np.array([
-            [1 / 4.0, 0, 0],
-            [-1 / 6.0, -1 / 6.0, -1 / 6.0],
-            [-1 / 6.0, 1 / 6.0, -1 / 6.0],
-            [1 / 24.0, 1 / 12.0, 1 / 6.0],
-            [1 / 24.0, -1 / 12.0, 1 / 6.0],
-            [0, 0, 1]], dtype=np.float32)
-
-        B_data = np.array([
-            [4, 0, 0, 0, 0, 0],
-            [0, -4, 4, -2, 2, 4],
-            [-5, -4, -4, -1, -1, 0],
-            [0, 1, -1, 2, -2, -5],
-            [1, 1, 1, 1, 1, 0],
-            [0, 0, 0, 0, 0, 1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0, 0, 0],
-            [1, 1, 1, 1],
-            [1, -1, 1, -1],
-            [1, 2, 4, 8],
-            [1, -2, 4, -8],
-            [0, 0, 0, 1]], out_dtype)
-    elif tile_size == 2:
-        G_data = np.array([
-            [1, 0, 0],
-            [1.0/2, 1.0/2, 1.0/2],
-            [1.0/2, -1.0/2, 1.0/2],
-            [0, 0, 1]], np.float32)
-
-        B_data = np.array([
-            [1, 0, 0, 0],
-            [0, 1, -1, 1],
-            [-1, 1, 1, 0],
-            [0, 0, 0, -1]], out_dtype)
-
-        A_data = np.array([
-            [1, 0],
-            [1, 1],
-            [1, -1],
-            [0, -1]], out_dtype)
-    else:
-        raise ValueError("Unsupported tile size for winograd: " + str(tile_size))
-
-    m = A_data.shape[1]
+    A, B, G = winograd_transform_matrices(tile_size, out_dtype)
+    m = tile_size
     r = 3
     alpha = m + r - 1
     H = (H + 2 * HPAD - KH) // HSTR + 1
@@ -104,7 +56,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
 
     # transform kernel
     if not pre_computed:
-        G = const_matrix(G_data, 'G')
         r_kh = tvm.reduce_axis((0, KH), name='r_kh')
         r_kw = tvm.reduce_axis((0, KW), name='r_kw')
         kernel_pack = tvm.compute((alpha, alpha, CI, CO), lambda eps, nu, ci, co:
@@ -120,7 +71,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
                              [p % nW * m + nu], name='d')
 
     # transform data
-    B = const_matrix(B_data)
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
     r_b = tvm.reduce_axis((0, alpha), 'r_a')
     data_pack = tvm.compute((alpha, alpha, CI, P), lambda eps, nu, ci, p:
@@ -135,7 +85,6 @@ def winograd_cuda(cfg, data, kernel, strides, padding, dilation, layout, out_dty
                                 axis=[ci]), name='bgemm')
 
     # inverse transform
-    A = const_matrix(A_data)
     r_a = tvm.reduce_axis((0, alpha), 'r_a')
     r_b = tvm.reduce_axis((0, alpha), 'r_a')
     inverse = tvm.compute((CO, P, m, m), lambda co, p, vh, vw:
