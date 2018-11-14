@@ -59,12 +59,10 @@ def verify_slice_like(data, slice_like, axes, output, dtype="float32"):
     ref_res = np_slice_like(x_data, y_data, axes)
 
     for target, ctx in ctx_list():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data, y_data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
-        op_res2 = intrp2.evaluate(func)(x_data, y_data)
-        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x_data, y_data)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 def test_slice_like():
     d1, d2, d3, d4 = tvm.var("d1"), tvm.var("d2"), tvm.var("d3"), tvm.var("d4")

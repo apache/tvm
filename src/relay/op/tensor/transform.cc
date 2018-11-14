@@ -1180,9 +1180,7 @@ bool SliceLikeRel(const Array<Type>& types,
   }
 
   const auto param = attrs.as<SliceLikeAttrs>();
-  if (param == nullptr) {
-    return false;
-  }
+  CHECK(param != nullptr);
 
   const Array<IndexExpr> dshape = data->shape;
   const Array<IndexExpr> target_shape = target->shape;
@@ -1199,17 +1197,18 @@ bool SliceLikeRel(const Array<Type>& types,
     }
   } else {
     CHECK(param->axes.size() != 0) << "Axes cannot be empty.";
-    for (Integer i : param->axes) {
-      if (reporter->Assert(i < make_const(Int(64), 0))) {
-        i += make_const(Int(64), dshape.size());
+    for (Integer val : param->axes) {
+      int axis = val->value;
+      if (axis < 0) {
+        axis += dshape.size();
       }
-      CHECK(reporter->Assert(i < make_const(Int(64), target_shape.size())))
-        << "Axis " << i << " exceeds dimension "
+      CHECK(axis < static_cast<int>(target_shape.size()))
+        << "Axis " << axis << " exceeds dimension "
         << target_shape.size() << " of target_shape.";
-      oshape[i] = target_shape[i];
-      CHECK(reporter->Assert(oshape[i] <= dshape[i]))
-        << "End index of axis " << i << " exceeds input shape: "
-        << oshape[i] << " vs " << dshape[i];
+      oshape[axis] = target_shape[axis];
+      CHECK(reporter->Assert(oshape[axis] <= dshape[axis]))
+        << "End index of axis " << axis << " exceeds input shape: "
+        << oshape[axis] << " vs " << dshape[axis];
     }
   }
 
@@ -1227,6 +1226,15 @@ Expr MakeSliceLike(Expr data,
   return CallNode::make(op, {data, shape_like}, Attrs(attrs), {});
 }
 
+// Adapter function to make int array.
+Array<Integer> GetIntArray(Array<IndexExpr> arr) {
+  for (size_t i = 0; i < arr.size(); ++i) {
+    CHECK(!arr[i].defined() || arr[i].as<IntImm>())
+        << "Expect an int array";
+  }
+  return Array<Integer>(arr.node_);
+}
+
 template<typename AttrType>
 Array<Tensor> SliceLikeCompute(const Attrs& attrs,
                                const Array<Tensor>& inputs,
@@ -1238,8 +1246,8 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
   Array<IndexExpr> target_shape = inputs[1]->shape;
   Array<IndexExpr> begin_idx, end_idx, strides;
   for (size_t i = 0; i < src_shape.size(); ++i) {
-    begin_idx.push_back(make_const(tvm::Int(32), 0));
-    strides.push_back(make_const(tvm::Int(32), 1));
+    begin_idx.push_back(0);
+    strides.push_back(1);
   }
   end_idx = Array<IndexExpr>(src_shape);
   if (!param->axes.defined()) {
@@ -1258,7 +1266,7 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
       if (axis < 0) {
         axis = static_cast<int>(src_shape.size()) + axis;
       }
-      end_idx.Set(static_cast<size_t>(axis), target_shape[axis]);
+      end_idx.Set(axis, target_shape[axis]);
       CHECK_LE(topi::GetConstInt(end_idx[axis]),
                topi::GetConstInt(src_shape[axis]))
         << "End index of axis " << axis << " exceeds input shape: "
@@ -1267,7 +1275,10 @@ Array<Tensor> SliceLikeCompute(const Attrs& attrs,
     }
   }
   return Array<Tensor>{
-    topi::strided_slice(inputs[0], begin_idx, end_idx, strides)
+    topi::strided_slice(inputs[0],
+                        GetIntArray(begin_idx),
+                        GetIntArray(end_idx),
+                        GetIntArray(strides))
   };
 }
 
