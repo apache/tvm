@@ -259,6 +259,22 @@ def structural_hash(value):
         raise TypeError(msg)
 
 
+def fold_constant(expr):
+    """Fold the constant expression in expr.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        The transformed expression.
+    """
+    return _ir_pass.FoldConstant(expr)
+
+
 def fuse_ops(expr, opt_level=1):
     """Fuse operators in expr together.
 

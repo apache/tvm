@@ -22,6 +22,23 @@ namespace relay {
 std::unordered_map<const Node*, size_t>
 GetExprRefCount(const Expr& body);
 
+/*!
+ * \brief Substitute var with subst.
+ * \param type The type to be substituted.
+ * \param tvar The type variable to be substituted.
+ * \param subst The target of substitution.
+ * \return The substituted result.
+ */
+Type TypeSubst(const Type& type, const TypeVar& tvar, const Type& subst);
+
+/*!
+ * \brief Substitute type vars in type.
+ * \param type The type to be substituted.
+ * \param subst_map The map of substitution.
+ * \return The substituted result.
+ */
+Type TypeSubst(const Type& type, const tvm::Map<TypeVar, Type>& subst_map);
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_PASS_PASS_UTIL_H_

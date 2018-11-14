@@ -24,7 +24,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/pass.h>
 #include "type_solver.h"
-#include "type_subst.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -278,7 +278,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     Type inst_ty = FuncTypeNode::make(fn_ty->arg_types,
                                       ret_type, {},
                                       fn_ty->type_constraints);
-    inst_ty = TypeSubst(inst_ty, subst_map);
+    inst_ty = Bind(inst_ty, subst_map);
     return Downcast<FuncType>(inst_ty);
   }
 

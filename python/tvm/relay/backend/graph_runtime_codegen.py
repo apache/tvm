@@ -102,6 +102,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         self.target = target
         self.nodes = []
         self.var_map = {}
+        self.params = {}
         self.compile_engine = compile_engine.get()
         self.lowered_funcs = set()
         self._name_map = {}
@@ -162,8 +163,12 @@ class GraphRuntimeCodegen(ExprFunctor):
         assert isinstance(vtuple, tuple)
         return vtuple[op.index]
 
-    def visit_constant(self, _):
-        raise RuntimeError("constant not supported")
+    def visit_constant(self, op):
+        index = len(self.params)
+        name = "p%d" % index
+        self.params[name] = op.data
+        node = InputNode(name, {})
+        return self.add_node(node, op.checked_type)
 
     def visit_function(self, _):
         raise RuntimeError("function not supported")
@@ -312,6 +317,9 @@ class GraphRuntimeCodegen(ExprFunctor):
 
         lowered_funcs : List[tvm.LoweredFunc]
             The lowered functions.
+
+        params : Dict[str, tvm.nd.NDArray]
+            Additional constant parameters.
         """
         # First we convert all the parameters into input nodes.
         for param in func.params:
@@ -324,7 +332,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         self.heads = self.visit(func.body)
         graph_json = self._get_json()
         lowered_funcs = list(self.lowered_funcs)
-        return graph_json, lowered_funcs
+        return graph_json, lowered_funcs, self.params
 
     def _get_unique_name(self, name):
         if name not in self._name_map:

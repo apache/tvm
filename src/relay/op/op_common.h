@@ -71,7 +71,8 @@ std::vector<T> AsVector(const Array<T> &array) {
     .add_argument("lhs", "Tensor", "The left hand side tensor.")  \
     .add_argument("rhs", "Tensor", "The right hand side tensor.") \
     .add_type_rel("Broadcast", BroadcastRel)                      \
-    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
+    .set_attr<TOpPattern>("TOpPattern", kBroadcast)               \
+    .set_attr<TOpIsStateful>("TOpIsStateful", false)
 
 }  // namespace relay
 }  // namespace tvm
