@@ -191,30 +191,30 @@ def test_failure():
         assert str(err) == 'Loop variable cannot be overwritten!'
 
 
-def test_looptype():
-    @script
-    def looptype(a, b, c):
-        for i in parallel(8):
-            a[i] = i
-        for j in vectorize(8):
-            b[j] = j
-        for k in unroll(8):
-            c[k] = k
-
-    a = tvm.placeholder((8, ), name='a', dtype='int32')
-    b = tvm.placeholder((8, ), name='b', dtype='int32')
-    c = tvm.placeholder((8, ), name='c', dtype='int32')
-    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
-    iloop = ir.first
-    jloop = ir.rest.first
-    kloop = ir.rest.rest
-    assert iloop.for_type == tvm.stmt.For.Parallel
-    assert jloop.for_type == tvm.stmt.For.Vectorized
-    assert kloop.for_type == tvm.stmt.For.Unrolled
-
-    run_and_check(looptype, [a, b, c], [a, b, c])
-
-
+#def test_looptype():
+#    @script
+#    def looptype(a, b, c):
+#        for i in parallel(8):
+#            a[i] = i
+#        for j in vectorize(8):
+#            b[j] = j
+#        for k in unroll(8):
+#            c[k] = k
+#
+#    a = tvm.placeholder((8, ), name='a', dtype='int32')
+#    b = tvm.placeholder((8, ), name='b', dtype='int32')
+#    c = tvm.placeholder((8, ), name='c', dtype='int32')
+#    ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
+#    iloop = ir.first
+#    jloop = ir.rest.first
+#    kloop = ir.rest.rest
+#    assert iloop.for_type == tvm.stmt.For.Parallel
+#    assert jloop.for_type == tvm.stmt.For.Vectorized
+#    assert kloop.for_type == tvm.stmt.For.Unrolled
+#
+#    run_and_check(looptype, [a, b, c], [a, b, c])
+#
+#
 #def test_if():
 #    @script
 #    def if_then_else(a, b):
@@ -354,7 +354,7 @@ if __name__ == "__main__":
     #test_plus_one()
     test_fanout()
     test_failure()
-    test_looptype()
+#    test_looptype()
 #    test_if()
 #    test_bind()
 #    test_math_intrin()
