@@ -45,9 +45,61 @@ def test_alter_conv2d_layout():
 
     # check copy layouts
     for node in ["data", "relu", "flatten", "softmax", "conv_weight"]:
-        assert(layouts[node] == layouts_origin[node])
-    assert(layouts["conv_alter"] == layouts_origin["conv"])
+        assert layouts[node] == layouts_origin[node]
+    assert layouts["conv_alter"] == layouts_origin["conv"]
+
+
+def test_consecutive_alter_layout():
+    data = sym.Variable("data", shape=(1, 32, 512, 512))
+    pool1 = sym.global_avg_pool2d(data, name="global_avg_pool2d_1", layout="NCHW")
+    pool2 = sym.global_avg_pool2d(pool1, name="global_avg_pool2d_2", layout="NCHW")
+    relu = sym.relu(pool2, name="relu")
+
+    g = graph.create(relu)
+    g = g.apply("CorrectLayout")
+    g = graph_attr.set_dtype_inputs(g, "float32")
+    g = g.apply(["InferShape", "InferType"])
+    assert g.json_attr("layout") == ['NCHW', 'NCHW', 'NCHW', 'NCHW']
+
+    @reg.register_alter_op_layout("global_avg_pool2d", level=100)
+    def alter_global_avg_pool2d_layout(attrs, inputs, tinfos):
+        new_attrs = {k : attrs[k] for k in attrs.keys()}
+        new_attrs["layout"] = "NCHW16c"
+        return sym.global_avg_pool2d(inputs[0], **new_attrs)
+
+    g = g.apply("AlterOpLayout")
+
+    # pool1 get replaced - output layout of pool1 is not recorded
+    # pool2 get replaced - input layout of pool2 is not recorded
+    # thus the second entry must be undefined - it can neither recover from pool1's output,
+    # nor from pool2's input.
+    assert g.json_attr("layout") == ['NCHW', '__undef__', 'NCHW', 'NCHW']
+
+
+def test_alter_func_return_none():
+    data = sym.Variable("data", shape=(1, 32, 512, 512))
+    pool1 = sym.global_max_pool2d(data, name="pool1", layout="NCHW")
+    pool2 = sym.global_max_pool2d(pool1, name="pool2", layout="NCHW")
+    relu = sym.relu(pool2, name="relu")
+
+    g = graph.create(relu)
+    g = g.apply("CorrectLayout")
+    g = graph_attr.set_dtype_inputs(g, "float32")
+    g = g.apply(["InferShape", "InferType"])
+    assert g.json_attr("layout") == ['NCHW', 'NCHW', 'NCHW', 'NCHW']
+
+    @reg.register_alter_op_layout("global_max_pool2d", level=100)
+    def alter_global_max_pool2d_layout(attrs, inputs, tinfos):
+        return None
+
+    g = g.apply("AlterOpLayout")
+
+    # alter func return none, nothing get replaced,
+    # the layouts should remain the same
+    assert g.json_attr("layout") == ['NCHW', 'NCHW', 'NCHW', 'NCHW']
 
 
 if __name__ == "__main__":
     test_alter_conv2d_layout()
+    test_consecutive_alter_layout()
+    test_alter_func_return_none()

@@ -46,7 +46,7 @@ Graph AlterOpLayout(const Graph& src) {
 
   std::vector<std::vector<Layout> > in_layouts_of_node(idx_graph.num_nodes());
   std::vector<std::vector<Layout> > out_layouts_of_node(idx_graph.num_nodes());
-  std::unordered_map<const Node*, uint32_t> new_nodes;
+  std::unordered_map<const Node*, uint32_t> unchanged_nodes;
 
   if (src.HasAttr("layout")) {
     // record layouts so that LayoutTransform pass can fix layouts correctly,
@@ -56,6 +56,11 @@ Graph AlterOpLayout(const Graph& src) {
     const auto& layouts = src.GetAttr<std::vector<Layout> >("layout");
     for (uint32_t nid = 0; nid < idx_graph.num_nodes(); ++nid) {
       const auto &inode = idx_graph[nid];
+<<<<<<< HEAD
+=======
+      // record input layouts for all nodes,
+      // while replaced nodes will ignore the records here and have undefined input layouts.
+>>>>>>> [Bugfix] Recover original layout when alter_layout function return None (#2101)
       std::vector<Layout> in_layout;
       for (const auto& e : inode.inputs) {
         in_layout.emplace_back(layouts[idx_graph.entry_id(e)]);
@@ -76,7 +81,8 @@ Graph AlterOpLayout(const Graph& src) {
     nnvm::compiler::FTVMAlterOpLayout fn_alter_op_layout =
       falter_op_layout.get(n->op(), nullptr);
     if (fn_alter_op_layout == nullptr) {
-      new_nodes[n.get()] = nid;
+      // will restore the original input layouts later.
+      unchanged_nodes[n.get()] = nid;
       return false;
     }
 
@@ -102,8 +108,13 @@ Graph AlterOpLayout(const Graph& src) {
     Symbol op;
     bool do_alter =
       fn_alter_op_layout(n->attrs, Symbol::CreateGroup(op_inputs), tensor_infos, &op);
-    if (do_alter) *ret = op.outputs;
-    else new_nodes[n.get()] = nid;
+
+    if (do_alter) {
+      *ret = op.outputs;
+    } else {
+      // will restore the original input layouts later.
+      unchanged_nodes[n.get()] = nid;
+    }
     return do_alter;
   };
 
@@ -115,15 +126,15 @@ Graph AlterOpLayout(const Graph& src) {
     std::vector<Layout> ret_layouts(ret_idx.num_node_entries(), Layout::Undef());
     for (uint32_t nid = 0; nid < ret_idx.num_nodes(); ++nid) {
       const auto& inode = ret_idx[nid];
-      if (new_nodes.count(inode.source)) {
+      if (unchanged_nodes.count(inode.source)) {
         const std::vector<Layout>& in_layouts =
-          in_layouts_of_node[new_nodes[inode.source]];
+          in_layouts_of_node[unchanged_nodes[inode.source]];
         for (uint32_t i = 0; i < inode.inputs.size(); ++i) {
           const auto& e = inode.inputs[i];
           ret_layouts[ret_idx.entry_id(e)] = in_layouts[i];
         }
         const std::vector<Layout>& out_layouts =
-          out_layouts_of_node[new_nodes[inode.source]];
+          out_layouts_of_node[unchanged_nodes[inode.source]];
         for (uint32_t i = 0; i < inode.source->num_outputs(); ++i) {
           ret_layouts[ret_idx.entry_id(nid, i)] = out_layouts[i];
         }
