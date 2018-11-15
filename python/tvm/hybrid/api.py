@@ -6,7 +6,6 @@ import types
 from .._ffi.base import decorate
 from .. import _api_internal as _tvm_internal
 from ..tensor import Tensor
-from .. import build_module as _build
 
 from .parser import parse_python
 from .util import _pruned_source
@@ -46,40 +45,3 @@ def script(pyfunc):
         return value
 
     return decorate(pyfunc, wrapped_func)
-
-
-def lower(func, args, simple_mode=False):
-    """Parse a subset of Python to HalideIR
-
-    Parameters
-    ----------
-    func : str or types.FunctionType
-        If it is a string, parse the source code
-        If it is a function, parse the function
-
-    args : list of Buffer or Tensor or Var
-        The argument lists to the function.
-        Leave it None if no buffer is related to the function to be parsed
-
-    simple_mode : Bool
-        If simple_mode is True, just return the function body for sanity check
-        O.w. return the output tensors
-
-    Returns
-    -------
-    root : Stmt
-        The result Halide IR and the parser class instance.
-    """
-    if isinstance(func, str):
-        src = func
-    else:
-        assert isinstance(func, types.FunctionType)
-        src = _pruned_source(func)
-    parser = parse_python(src, args)
-    body = parser.parsed_body
-
-    if simple_mode:
-        return body
-
-    args = parser.args + parser.outputs
-    return _build.lower(body, args, name=name, simple_mode=False)

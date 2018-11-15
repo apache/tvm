@@ -402,7 +402,23 @@ class HybridParser(ast.NodeVisitor):
 
 
 def parse_python(src, args):
-    """The helper function of calling the AST visitor"""
+    """The helper function of calling the AST visitor
+
+    Parameters
+    ----------
+    src : str
+        The source code of the function to be parsed.
+
+    args : list of Tensors or Vars
+        The argument lists to the function.
+        It is NOT encouraged to write a function without arguments.
+        It is NOT encouraged to write a function with side effect.
+
+    Returns
+    -------
+    root : Stmt
+        The result Halide IR and the parser class instance.
+    """
     root = ast.parse(src)
     var_usage = determine_variable_usage(root, args)
     parser = HybridParser(args, var_usage)

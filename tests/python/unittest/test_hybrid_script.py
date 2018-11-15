@@ -68,7 +68,8 @@ def test_outer_product():
     b = tvm.placeholder((m, ), name='b')
 
     try:
-        ir = tvm.hybrid.lower(outer_product, [n, m, a, b], simple_mode=True)
+        c = outer_product(n, m, a, b)
+        ir = c.op.body
     except IOError as err:
         assert sys.version_info[0] == 2 and str(err) == 'could not get source code'
         return
@@ -122,7 +123,8 @@ def test_fanout():
     n = tvm.var('n')
     a = tvm.placeholder((n, ), 'float32', name='a')
     try:
-        ir = tvm.hybrid.lower(fanout, [n, a], simple_mode=True)
+        b = fanout(n, a)
+        ir = b.op.body
     except IOError as err:
         assert sys.version_info[0] == 2 and str(err) == 'could not get source code'
         return
@@ -185,21 +187,6 @@ def test_fanout():
     run_and_check(fanout, [n, a], {n: 10})
 
 
-@script
-def failure():
-    for i in range(1, 100):
-        i = 0
-
-def test_failure():
-    try:
-        tvm.hybrid.lower(failure, [], simple_mode=True)
-    except IOError as err:
-        assert sys.version_info[0] == 2 and str(err) == 'could not get source code'
-        return
-    except Exception as err:
-        assert str(err) == 'Loop variable cannot be overwritten!'
-
-
 def test_looptype():
     @script
     def looptype(a, b, c):
@@ -218,7 +205,8 @@ def test_looptype():
     b = tvm.placeholder((8, ), name='b', dtype='int32')
     c = tvm.placeholder((8, ), name='c', dtype='int32')
     try:
-        ir = tvm.hybrid.lower(looptype, [a, b, c], simple_mode=True)
+        d, e, f = looptype(a, b, c)
+        ir = d.op.body
     except:
         return
     iloop = ir.first
@@ -435,7 +423,6 @@ def test_downstream():
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
-    test_failure()
     test_looptype()
     test_if()
     test_bind()
