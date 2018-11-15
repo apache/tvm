@@ -21,6 +21,7 @@ def test_fully_connected_output():
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_output", True):
             print("skip because extern function is not available")
             return
+        return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
         a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), ctx)
@@ -51,6 +52,7 @@ def test_fully_connected_inference():
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             print("skip because extern function is not available")
             return
+        return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [A, B, D, bias], target)
         a = tvm.nd.array(np.random.uniform(size=(l)).astype(A.dtype), ctx)
@@ -128,6 +130,7 @@ def test_convolution_inference():
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             print("skip because extern function is not available")
             return
+        return
         ctx = tvm.cpu(0)
         output = nnpack.convolution_inference(
             data, kernel, bias if with_bias else None,
@@ -189,7 +192,7 @@ def test_convolution_inference_without_weight_transform():
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             print("skip because extern function is not available")
             return
-
+        return
         ctx = tvm.cpu(0)
         transformed_kernel = nnpack.convolution_inference_weight_transform(
             kernel, algorithm=algorithm)
@@ -246,6 +249,7 @@ def test_convolution_output():
         if not tvm.get_global_func("tvm.contrib.nnpack.fully_connected_inference", True):
             print("skip because extern function is not available")
             return
+        return
         ctx = tvm.cpu(0)
         f = tvm.build(s, [data, kernel, bias, output], target)
 
