@@ -82,8 +82,6 @@ class ScheduleGetter :
       }
     }
     readable_name_stream_ << "fused";
-    // enter the target context
-    TargetContext target_ctx(target_);
     cache_node->outputs = this->VisitExpr(prim_func->body);
     cache_node->func_name = readable_name_stream_.str();
     CachedFunc cfunc(cache_node);
@@ -284,6 +282,9 @@ class CompileEngineImpl : public CompileEngineNode {
       value->use_count = 0;
       cache_[key] = value;
     }
+    // Enforce use the target.
+    TargetContext target_ctx(key->target);
+
     CHECK(!value->cached_func.defined());
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(

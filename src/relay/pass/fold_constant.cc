@@ -107,6 +107,10 @@ Expr FoldConstant(const Expr& expr) {
   ctx.device_type = kDLCPU;
   ctx.device_id = 0;
   Target target = Target::create("llvm");
+  // use a fresh build context
+  // in case we are already in a build context.
+  BuildConfigContext fresh_build_ctx(build_config());
+
   return ConstantFolder(CreateInterpreter(
       Module(nullptr), ctx, target)).Mutate(expr);
 }
