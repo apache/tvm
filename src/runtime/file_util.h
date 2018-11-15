@@ -79,5 +79,4 @@ void LoadMetaDataFromFile(
 void RemoveFile(const std::string& file_name);
 }  // namespace runtime
 }  // namespace tvm
-
 #endif  // TVM_RUNTIME_FILE_UTIL_H_
