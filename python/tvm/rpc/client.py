@@ -104,7 +104,7 @@ class RPCSession(object):
         return self._remote_funcs["download"](path)
 
     def remove(self, path):
-        """Remove fiole from remote temp folder.
+        """Remove file from remote temp folder.
     
         Parameters
         ----------
