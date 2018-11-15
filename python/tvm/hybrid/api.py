@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 import types
 
 from .._ffi.base import decorate
-from .._api_internal import _HybridOp
+from .. import _api_internal as _tvm_internal
 from ..tensor import Tensor
 from .. import build_module as _build
 
@@ -34,7 +34,7 @@ def script(pyfunc):
                 if isinstance(i, Tensor):
                     input_tensors.append(i)
 
-            op = _HybridOp(parser.func_name, "HybridOp", None, input_tensors,
+            op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
                            parser.outputs, parser.parsed_body)
             res = [op.output(i) for i in range(len(parser.outputs))]
 
