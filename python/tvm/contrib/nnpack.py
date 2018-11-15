@@ -5,16 +5,11 @@ from .. import api as _api
 from .. import intrin as _intrin
 from .._ffi.function import _init_api
 
-def config(nthreads):
-    """Configure the nnpack library.
-
-    Parameters
-    ----------
-    nthreads : int
-        The threads number of nnpack thread pool, must be a nonnegative.
-
+def is_available():
+    """Check whether NNPACK is available, that is, `nnp_initialize()`
+    returns `nnp_status_success`.
     """
-    _Config(nthreads)
+    return _initialize() == 0
 
 def fully_connected_inference(lhs, rhs, nthreads=1):
     """Create an extern op that compute fully connected of 1D tensor lhs and
