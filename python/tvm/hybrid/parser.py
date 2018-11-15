@@ -81,6 +81,7 @@ class HybridParser(ast.NodeVisitor):
         self.var_consts = {} # Variables that are determined as readonly in previous stage
         self.func_name = func_name # The name of the function to be lowered
         self.outputs = [] # Output tensors' name
+        self.side_effect = set() # Tensors with side effects
         self.parsed_body = None # The parsed HalideIR body
         self.returned = False
 
@@ -104,11 +105,13 @@ class HybridParser(ast.NodeVisitor):
         return body
 
 
-    def _get_buffer_from_id(self, s):
+    def _get_buffer_from_id(self, s, for_provide=False):
         _internal_assert((s in self._args.keys()) + (s in self.alloc_buffers.keys()) == 1,
                          "This %s is expected to be in either \
                           argument list or allocated buffer!" % s)
         if s in self._args.keys():
+            if for_provide:
+                self.side_effect.add(self._args[s])
             return self._args[s]
         return self.alloc_buffers[s][0]
 
@@ -180,7 +183,7 @@ class HybridParser(ast.NodeVisitor):
                 _internal_assert(lhs not in self.var_consts.keys(), \
                                  "A constant cannot be overwritten!")
                 _internal_assert(lhs not in self.alloc_buffers.keys(), \
-                    "This value should not be defined before this point!")
+                                 "This value should not be defined before this point!")
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
                     ph = _api.placeholder(shape, dtype=dtype, name=lhs)
@@ -206,7 +209,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(isinstance(lhs, _expr.Call), \
                              "An array access's LHS is expected to be a expr.Call!")
             #TODO: support slice later
-            buf = self._get_buffer_from_id(lhs.name)
+            buf = self._get_buffer_from_id(lhs.name, for_provide=True)
             return _make.Provide(buf.op, 0, rhs, lhs.args)
 
 

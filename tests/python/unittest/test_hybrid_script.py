@@ -259,6 +259,7 @@ def test_bind():
         c = output_tensor((1000, ), dtype='float32')
         for tx in bind('threadIdx.x', 1000):
             c[tx] = b[tx] + c[tx]
+        return c
 
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
     b = tvm.placeholder((1000, ), dtype='float32', name='b')
@@ -367,6 +368,7 @@ def test_allocate():
                 local[i] = b[i]
             for i in bind("threadIdx.x", 256):
                 c[i] = shared[i] + local[i]
+            return c
 
         a = tvm.placeholder((256, ), dtype='float32', name='a')
         b = tvm.placeholder((256, ), dtype='float32', name='b')
