@@ -63,6 +63,8 @@ class TensorRTExecManager {
   std::unordered_map<nvinfer1::ICudaEngine*, std::vector<std::string> > output_name_map_;
   /*! Max temporary memory for TensorRT to run a graph. */
   size_t max_workspace_size_;
+  /*! Use FP16 kernels in TensorRT when it is true. */
+  bool use_fp16_;
   /*! Use profiler of TensorRT if it is true. */
   bool use_profiler_;
 };

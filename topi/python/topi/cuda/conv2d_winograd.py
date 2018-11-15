@@ -344,6 +344,9 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos):
     """Alter op layout for pre-computing kernel transformation"""
+    from nnvm.compiler.build_module import BuildConfig
+    if attrs["layout"] == "NCHW" and BuildConfig.current.ext_accel == 'tensorrt':
+        return None
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
 
@@ -368,7 +371,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
 
     # NHWC -> NCHW
-    if attrs["layout"] == "NHWC":
+    if attrs["layout"] == "NHWC" and BuildConfig.current.ext_accel == 'tensorrt':
         new_attrs["layout"] = "NCHW"
         new_attrs["out_layout"] = "NCHW"
         new_attrs["kernel_layout"] = "OIHW"

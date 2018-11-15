@@ -155,7 +155,7 @@ def _update_shape_dtype(shape, dtype, params):
     return shape, dtype
 
 
-def optimize(graph, shape, dtype="float32", layout=None):
+def optimize(graph, shape, dtype="float32", layout=None, target=None):
     """Perform target and parameter invariant graph optimization.
 
     This is an advanced function that usually do not need to be called.
@@ -184,6 +184,13 @@ def optimize(graph, shape, dtype="float32", layout=None):
         graph = graph.apply(["InferShape", "InferType", "AlterOpLayout"])
         graph = graph_attr.set_layout_inputs(graph, layout)
         graph = graph.apply(["CorrectLayout"])
+
+    if cfg.ext_accel and cfg.ext_accel == 'tensorrt':
+        if isinstance(target, dict):
+            raise ValueError("External accelerator does not support input target as a dict")
+        target = tvm.target.create(target) if target else tvm.target.current_target()
+        if target and target.target_name == 'cuda':
+            graph = _subgraph._partition(graph, cfg.ext_accel)
 
     if cfg.pass_enabled("SimplifyInference"):
         graph = graph_attr.set_shape_inputs(graph, shape)
@@ -285,11 +292,6 @@ def build(graph, target=None, shape=None, dtype="float32",
 
         cfg = BuildConfig.current
         graph = graph if isinstance(graph, _graph.Graph) else _graph.create(graph)
-        if cfg.ext_accel is not None:
-            if cfg.ext_accel != 'tensorrt':
-                raise ValueError("only supports tensorrt as an external accelerator, while"
-                                 " received %s" % cfg.ext_accel)
-            graph = _subgraph._partition(graph, cfg.ext_accel)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
 
         # correct layout if necessary
@@ -313,7 +315,7 @@ def build(graph, target=None, shape=None, dtype="float32",
 
         _annotate_graph(graph, device_target, op_name_device, fallback_device)
         # Apply optimization
-        graph = optimize(graph, shape, dtype, layout)
+        graph = optimize(graph, shape, dtype, layout, target)
 
         # Clear extra params without nodes.
         _remove_noref_params(params, graph)

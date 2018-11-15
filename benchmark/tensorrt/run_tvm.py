@@ -4,6 +4,7 @@ import argparse
 import nnvm
 import tvm
 from tvm.contrib import graph_runtime
+from tvm.autotvm.measure.measure_methods import set_cuda_target_arch
 
 batch_size = 1
 
@@ -67,6 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--ext-accel', type=str, default='none', choices=['none', 'tensorrt'])
     parser.add_argument('--network', type=str, required=True, choices=models)
     parser.add_argument('--cuda-arch', type=str, required=True, choices=['sm_37', 'sm_70', 'sm_53', 'sm_62'])
+    parser.add_argument('--target-host', type=str, required=True, choices=['x86_64-linux-gnu', 'aarch64-linux-gnu'])
     parser.add_argument('--compile', dest='compile', action='store_true')
     parser.add_argument('--run', dest='run', action='store_true')
     parser.set_defaults(compile=False)
@@ -78,6 +80,8 @@ if __name__ == '__main__':
     data_shape = get_data_shape(network)
     ext_accel = None if args.ext_accel == 'none' else args.ext_accel
     cuda_arch = args.cuda_arch
+    set_cuda_target_arch(cuda_arch)
+    target_host = 'llvm -target=%s' % args.target_host
 
     if args.compile:
         net, params = get_tvm_workload(network, pretrained=True)
@@ -91,7 +95,7 @@ if __name__ == '__main__':
         start = time.time()
         with nnvm.compiler.build_config(opt_level=opt_level, ext_accel=ext_accel):
             graph, lib, params = nnvm.compiler.build(
-                net, target, shape={"data": data_shape}, params=params)
+                net, target, shape={"data": data_shape}, params=params, target_host=target_host)
         print("===========Compiling model %s took %.3fs" % (network, time.time() - start))
 
         print("===========Saving lowered graph for model %s" % network)
@@ -109,9 +113,9 @@ if __name__ == '__main__':
 
     if args.run:
         print("===========Starting to load model %s" % network)
-        loaded_json = open('%s_ext_accel_%s.json' % (network, ext_accel)).read()
-        loaded_lib = tvm.module.load('%s_ext_accel_%s.tar' % (network, ext_accel))
-        loaded_params = bytearray(open('%s_ext_accel_%s.params' % (network, ext_accel), 'rb').read())
+        loaded_json = open('%s_ext_accel_%s_%s.json' % (network, ext_accel, cuda_arch)).read()
+        loaded_lib = tvm.module.load('%s_ext_accel_%s_%s.tar' % (network, ext_accel, cuda_arch))
+        loaded_params = bytearray(open('%s_ext_accel_%s_%s.params' % (network, ext_accel, cuda_arch), 'rb').read())
         ctx = tvm.gpu()
         np.random.seed(3342902)
         data = np.random.uniform(-1, 1, size=data_shape).astype("float32")
@@ -142,4 +146,3 @@ if __name__ == '__main__':
         print("peak memory usage (bytes on OS X, kilobytes on Linux) {}"
               .format(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss))
         print("%s, ext_accel=%s, average time cost/forward: %.3fms" % (network, ext_accel, avg_time))
-

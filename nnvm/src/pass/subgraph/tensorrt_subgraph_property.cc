@@ -8,11 +8,27 @@
 #include <vector>
 #include <string>
 #include <stack>
+#include <iostream>
+#include <sstream>
 #include <unordered_set>
 #include "./subgraph_property.h"
 
 namespace nnvm {
 namespace pass {
+
+std::vector<std::string> TokenizeTuple(const std::string& tuple) {
+  CHECK(tuple.front() == '(' || tuple.front() == '[');
+  CHECK(tuple.back() == ')' || tuple.back() == ']');
+  std::stringstream ss(tuple.substr(1, tuple.size() - 2U));
+  std::vector<std::string> ret;
+  while (ss.good()) {
+    std::string substr;
+    std::getline(ss, substr, ',');
+    ret.push_back(substr);
+  }
+  CHECK(!ret.empty()) << "Tuple " << tuple << " contains no data";
+  return ret;
+}
 
 bool IsTensorRTCompatibleOp(const std::unordered_set<std::string>& op_names,
                             const nnvm::Node& node) {
@@ -21,13 +37,32 @@ bool IsTensorRTCompatibleOp(const std::unordered_set<std::string>& op_names,
   }
   const std::string& op_name = node.op()->name;
   const auto& params = node.attrs.dict;
-  if (op_name == "max_pool2d" || op_name == "avg_pool2d") {
+  if (op_name == "conv2d" || op_name == "conv2d_transpose") {
+    if ((params.count("layout") && params.at("layout") != "NCHW")
+        || (params.count("kernel_layout") && params.at("kernel_layout") != "OIHW")
+        || (params.count("out_layout") && params.at("out_layout") != "__undef__"
+            && params.at("out_layout") != "NCHW")) {
+      return false;
+    }
+  } else if (op_name == "max_pool2d" || op_name == "avg_pool2d"
+             || op_name == "global_avg_pool2d" || op_name == "global_max_pool2d") {
     // only support floor mode
     if (params.count("layout") && params.at("layout") != "NCHW") {
       return false;
     }
+    if (params.count("padding")) {
+      const auto paddings = TokenizeTuple(params.at("padding"));
+      // do not support asymmetric padding
+      if (paddings.size() == 4U && (paddings[0] != paddings[2] || paddings[1] != paddings[3])) {
+        return false;
+      }
+    }
     if (params.count("ceil_mode") &&
       (params.at("ceil_mode") == "True" || params.at("ceil_mode") == "1")) {
+      return false;
+    }
+  } else if (op_name == "batch_norm") {
+    if (params.count("axis") && params.at("axis") != "1") {
       return false;
     }
   } else if (op_name == "slice_like") {
