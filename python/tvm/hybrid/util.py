@@ -40,9 +40,9 @@ def _pruned_source(func):
     except IOError as err:
         if sys.version_info[0] == 2 and str(err) == 'could not get source code':
             logging.log(logging.CRITICAL, \
-                    'This module is not fully operated under Python2... ' \
-                    'Please move to Python3!')
-            quit()
+                        'This module is not fully operated under Python2... ' \
+                        'Please move to Python3!')
+            raise err
 
 
 def _is_tvm_arg_types(args):
