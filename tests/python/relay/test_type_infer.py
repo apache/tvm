@@ -197,10 +197,10 @@ def test_equal():
 def test_dup_type():
     a = relay.TypeVar("a")
     av = relay.Var("av", a)
-    make_id = relay.Function([av], relay.Tuple([av, av]), None, [a])
+    make_dup = relay.Function([av], relay.Tuple([av, av]), None, [a])
     t = relay.TensorType((10,))
     b = relay.Var("b", t)
-    assert relay.ir_pass.infer_type(make_id(b)).checked_type == relay.TupleType([t, t])
+    assert relay.ir_pass.infer_type(make_dup(b)).checked_type == relay.TupleType([t, t])
 
  
 if __name__ == "__main__":
