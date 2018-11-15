@@ -27,7 +27,7 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     outs = func(*args)
     op = outs[0].op if isinstance(outs, list) else outs.op
     sch = tvm.create_schedule(op)
-    module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]))
+    module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]), target=target)
     assert module
     
     out_tensors = []
