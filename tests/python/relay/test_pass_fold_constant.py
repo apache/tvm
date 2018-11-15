@@ -1,4 +1,5 @@
 import numpy as np
+import tvm
 from tvm import relay
 
 
@@ -19,7 +20,13 @@ def test_fold_const():
         y = relay.add(x, relay.const(c_folded))
         z = relay.add(y, relay.const(c_data))
         return relay.Function([x], z)
-    zz = relay.ir_pass.fold_constant(before())
+
+    def fail(x):
+        raise RuntimeError()
+    # the fold constant should work on any context.
+    with tvm.build_config(add_lower_pass=[(0, fail)]):
+        with tvm.target.create("cuda"):
+            zz = relay.ir_pass.fold_constant(before())
     zexpected = expected()
     assert relay.ir_pass.alpha_equal(zz, zexpected)
 
