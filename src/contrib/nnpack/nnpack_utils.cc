@@ -38,9 +38,10 @@ bool NNPackConfig(uint64_t nthreads) {
 }
 
 
-TVM_REGISTER_GLOBAL("contrib.nnpack._Config")
+TVM_REGISTER_GLOBAL("contrib.nnpack._initialize")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
-    CHECK(NNPackConfig(args[0]));
+    *ret = nnp_initialize();
   });
+
 }  // namespace contrib
 }  // namespace tvm
