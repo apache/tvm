@@ -193,7 +193,16 @@ def test_equal():
     # This should fail ....
     func = relay.Function([i], eq, ret_type=relay.TensorType([], 'int32'))
 
+ 
+def test_dup_type():
+    a = relay.TypeVar("a")
+    av = relay.Var("av", a)
+    make_id = relay.Function([av], relay.Tuple([av, av]), None, [a])
+    t = relay.TensorType((10,))
+    b = relay.Var("b", t)
+    assert relay.ir_pass.infer_type(make_id(b)).checked_type == relay.TupleType([t, t])
 
+ 
 if __name__ == "__main__":
     test_free_expr()
     test_dual_op()
@@ -208,3 +217,4 @@ if __name__ == "__main__":
     test_type_args()
     test_self_reference()
     test_global_var_cow_issue()
+    test_dup_type()
