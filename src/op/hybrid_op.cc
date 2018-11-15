@@ -163,6 +163,7 @@ Stmt HybridOpNode::BuildProvide(
   }
   auto n = make_node<HybridOpNode>(*this);
   ret = op::ReplaceTensor(ret, rmap);
+  ret = op::ReplaceProvideTensor(ret, rmap);
   return ret;
 }
 }  // namespace tvm

@@ -164,6 +164,43 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates) {
   return nest;
 }
 
+// replacer to replace tensors' usage in Provide
+class ProviderReplacer : public ir::IRMutator {
+ public:
+  explicit ProviderReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
+      : vmap_(vmap) {}
+
+  Stmt Mutate_(const ir::Provide* op, const Stmt& s) {
+    Tensor t = Operation(op->func.node_).output(op->value_index);
+    auto it = vmap_.find(t);
+    if (it != vmap_.end()) {
+      Stmt ret = ir::Provide::make(
+        it->second->op, it->second->value_index, op->value, op->args);
+      found = true;
+      return IRMutator::Mutate_(ret.as<ir::Provide>(), ret);
+    }
+    return IRMutator::Mutate_(op, s);
+  }
+
+  // whether it is found.
+  bool found{false};
+
+ private:
+  const std::unordered_map<Tensor, Tensor>& vmap_;
+};
+
+Stmt ReplaceProvideTensor(Stmt stmt,
+                   const std::unordered_map<Tensor, Tensor>& replace) {
+  ProviderReplacer repl(replace);
+  Stmt ret = repl.Mutate(stmt);
+  return repl.found ? ret : stmt;
+}
+Expr ReplaceProvideTensor(Expr expr,
+                   const std::unordered_map<Tensor, Tensor>& replace) {
+  ProviderReplacer repl(replace);
+  Expr ret = repl.Mutate(expr);
+  return repl.found ? ret : expr;
+}
 
 // replacer to replace tensors
 class TensorReplacer : public ir::IRMutator {
@@ -184,18 +221,6 @@ class TensorReplacer : public ir::IRMutator {
       }
     }
     return IRMutator::Mutate_(op, e);
-  }
-
-  Stmt Mutate_(const ir::Provide* op, const Stmt& s) {
-    Tensor t = Operation(op->func.node_).output(op->value_index);
-    auto it = vmap_.find(t);
-    if (it != vmap_.end()) {
-      Stmt ret = ir::Provide::make(
-        it->second->op, it->second->value_index, op->value, op->args);
-      found = true;
-      return IRMutator::Mutate_(ret.as<ir::Provide>(), ret);
-    }
-    return IRMutator::Mutate_(op, s);
   }
 
   // whether it is found.
