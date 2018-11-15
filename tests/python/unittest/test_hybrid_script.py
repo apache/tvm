@@ -393,6 +393,31 @@ def test_upstream():
     func(tvm_a, tvm_b, tvm_d)
     tvm.testing.assert_allclose(tvm_d.asnumpy(), ref, 1e-5, 1e-5)
 
+def test_downstream():
+    @tvm.hybrid.script
+    def downstream(a):
+        b = output_tensor((20, ), 'float32')
+        for i in range(20):
+            b[i] = a[i] * i
+        return b
+    
+    a = tvm.placeholder((20, ), 'float32')
+    b = downstream(a)
+    c = tvm.compute((20, ), lambda x: b[x] + 1.0)
+    sch = tvm.create_schedule(c.op)
+    module = tvm.build(sch, [a, c])
+    assert module
+
+    a = numpy.random.randn(20).astype('float32')
+    ref = numpy.zeros((20, )).astype('float32')
+    for i in range(20):
+        ref[i] = (a[i] * i) + 1.0
+
+    tvm_a = tvm.nd.array(a)
+    tvm_c = tvm.nd.array(numpy.zeros((20, )).astype('float32'))
+    module(tvm_a, tvm_c)
+    tvm.testing.assert_allclose(tvm_c.asnumpy(), ref, 1e-5, 1e-5)
+
 
 if __name__ == "__main__":
     test_outer_product()
@@ -406,7 +431,6 @@ if __name__ == "__main__":
     test_allocate()
     #test_inplace()
     test_upstream()
-    #test_downstream()
-    #test_lower()
+    test_downstream()
 
 
