@@ -142,5 +142,9 @@ void LoadMetaDataFromFile(
   fs.close();
 }
 
+void RemoveFile(const std::string& file_name) {
+  std::remove(file_name.c_str());
+}
+
 }  // namespace runtime
 }  // namespace tvm
