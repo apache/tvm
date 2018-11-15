@@ -1,8 +1,6 @@
 """APIs of lowering the Python subset to HalideIR"""
 from __future__ import absolute_import as _abs
 
-import types
-
 from .._ffi.base import decorate
 from .. import _api_internal as _tvm_internal
 from ..tensor import Tensor
