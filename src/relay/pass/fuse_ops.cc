@@ -464,14 +464,15 @@ class GraphPartitioner {
     return true;
   }
   /*!
-   * \brief Check all the node between src and sink satisfies fcond.
+   * \brief Check all the node and edge pattern
+   *  between src and sink satisfies fcond.
    *
-   * src and sink are not checked.
+   * src is not checked.
    *
    * \param src The source node.
    * \param sink The termination node.
    * \param fcond The condition to be checked.
-   * \tparam F the condition function.
+   * \tparam F the condition function, with signature
    * \note sink must be a post-dominator of src.
    */
   template<typename F>
@@ -596,18 +597,24 @@ class GraphPartitioner {
           }
         }
       } else if (group_node->pattern <= kBroadcast) {
-        // The fuse can be executed if all the intermediate ops are still broadcast.
-        auto fcond = [](OpPatternKind kind, bool is_sink) {
-          if (!is_sink) {
-            return kind <= kBroadcast;
-          } else {
-            return (kind <= kBroadcast ||
-                    kind == kCommReduce ||
-                    kind == kOutEWiseFusable);
+        // Pre-condition: can only be fused to parent which is injective or reduction.
+        if (dom_node->parent != nullptr &&
+            (dom_node->pattern <= kInjective ||
+             dom_node->pattern == kCommReduce)) {
+          // Check if all the intermediate ops are still broadcast.
+          // The final terminal node can already be fused to a OutEWiseFusable group.
+          auto fcond = [](OpPatternKind kind, bool is_sink) {
+            if (!is_sink) {
+              return kind <= kBroadcast;
+            } else {
+              return (kind <= kBroadcast ||
+                      kind == kCommReduce ||
+                      kind == kOutEWiseFusable);
+            }
+          };
+          if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
+            CommitFuse(graph_node, dom_node->parent->gnode);
           }
-        };
-        if (CheckPath(graph_node, dom_node->parent->gnode, fcond)) {
-          CommitFuse(graph_node, dom_node->parent->gnode);
         }
       } else if (group_node->pattern == kInjective) {
         // defer injective fusion to second phase.
