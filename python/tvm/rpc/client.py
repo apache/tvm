@@ -105,7 +105,7 @@ class RPCSession(object):
 
     def remove(self, path):
         """Remove file from remote temp folder.
-    
+
         Parameters
         ----------
         path: str
