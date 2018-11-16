@@ -13,7 +13,7 @@
 #include <vector>
 #include "../type_relations.h"
 #include "../op_common.h"
-#include "layout.h"
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {

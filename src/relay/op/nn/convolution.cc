@@ -6,7 +6,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
-#include "layout.h"
+
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -28,16 +29,16 @@ bool Conv2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->weight_layout);
-  CHECK(in_layout.convertible(kNCHW))
+  CHECK(in_layout.Convertible(kNCHW))
     << "Conv only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
-  CHECK(kernel_layout.convertible(kOIHW))
+  CHECK(kernel_layout.Convertible(kOIHW))
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
   Layout out_layout(param->out_layout);
   if (!out_layout.defined()) out_layout = in_layout;
-  CHECK(out_layout.convertible(kNCHW))
+  CHECK(out_layout.Convertible(kNCHW))
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
 
@@ -55,7 +56,7 @@ bool Conv2DRel(const Array<Type>& types,
          param->kernel_size[0],
          param->kernel_size[1]});
     wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
-    wshape[kernel_layout.indexof('O')] *= param->groups;
+    wshape[kernel_layout.Indexof('O')] *= param->groups;
     channels = param->channels;
     dilated_ksize_y = 1 + (param->kernel_size[0] - 1) * param->dilation[0];
     dilated_ksize_x = 1 + (param->kernel_size[1] - 1) * param->dilation[1];
@@ -177,10 +178,10 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   CHECK(param != nullptr);
   const Layout in_layout(param->data_layout);
   const Layout kernel_layout(param->weight_layout);
-  CHECK(in_layout.convertible(kNCHW))
+  CHECK(in_layout.Convertible(kNCHW))
     << "Conv only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
-  CHECK(kernel_layout.convertible(kOIHW))
+  CHECK(kernel_layout.Convertible(kOIHW))
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 

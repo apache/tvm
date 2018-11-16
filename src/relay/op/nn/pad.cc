@@ -7,7 +7,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
-#include "layout.h"
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {
