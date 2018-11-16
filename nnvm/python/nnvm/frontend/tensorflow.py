@@ -36,6 +36,7 @@ class AttrCvt(object):
         self._ignores.append('_node_name')
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
+        self._ignores.append('_input_0d_mismatch')
         # Retain the names
         try:
             attrs['name'] = attrs['_node_name']
@@ -319,8 +320,7 @@ def _expand_dims():
         dim_input = inputs.pop(1)
         axis = params[dim_input.list_output_names()[0]]
         params.pop(dim_input.list_output_names()[0])
-        return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
-                       extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+        return _expand_dims_0d_aware(inputs[0], attr, axis=axis.asnumpy()[0])
     return _impl
 
 def _resize_bilinear():
@@ -383,7 +383,7 @@ def _concat():
 def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
-        inputs_reshaped = [_sym.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
+        inputs_reshaped = [_expand_dims_0d_aware(i, attr, axis=axis, num_newaxis=1) for i in inputs]
         return _sym.concatenate(*inputs_reshaped, axis=axis, name=attr["_node_name"])
 
     return _impl
@@ -838,6 +838,13 @@ def _unpack():
         return _sym.Group([_sym.squeeze(split_item, axis=axis) for split_item in splitted])
     return _impl
 
+def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
+    if data in attr['_input_0d_mismatch']:
+        return data if num_newaxis == 1 else \
+            _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis-1)
+
+    return _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -1103,6 +1110,7 @@ class GraphProto(object):
         self._output_shapes = {}
         self._num_param = 0
         self._num_rnn_layer = False
+        self._outputs_are_0d = {}
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
@@ -1158,6 +1166,7 @@ class GraphProto(object):
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
             input_shapes = {}
+            input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
             #Variable converted to Const will not have only value attr
@@ -1177,6 +1186,9 @@ class GraphProto(object):
             else:
                 raise NotImplementedError( \
                     "Please freeze the graph with add_shapes=True")
+            self._outputs_are_0d[node.name] = [ \
+                not shape if isinstance(shape, list) else False \
+                for shape in self._output_shapes[node.name]]
 
             if node.op == "Placeholder":
                 self._nodes[node.name] = _sym.Variable(name=node.name,
@@ -1222,10 +1234,16 @@ class GraphProto(object):
                             in_sym = in_sym[tensor_slot]
                             input_shape = self._output_shapes[node_name][tensor_slot]
                         else:
+                            tensor_slot = 0
                             input_shape = self._output_shapes[node_name][0]
                         inputs.append(in_sym)
                         input_shapes[in_sym] = [input_shape]
+                        # This means the node is 1d in NNVM and 0d in TF.
+                        # See `_expand_dims_0d_aware`.
+                        if self._outputs_are_0d[node_name][tensor_slot] and input_shape:
+                            input_0d_mismatch.add(in_sym)
                 attr['_input_shapes'] = input_shapes
+                attr['_input_0d_mismatch'] = input_0d_mismatch
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
                 op = self._convert_operator(node.op, inputs, attr, graph)

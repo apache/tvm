@@ -559,12 +559,19 @@ def test_forward_split():
 # -------
 
 def _test_unstack(ip_shape, axis, dtype):
+    np_data = np.random.uniform(-5, 5, size=ip_shape).astype(dtype)
+
     tf.reset_default_graph()
     in_data = tf.placeholder(dtype, ip_shape, name="in_data")
     tf.unstack(in_data, axis=axis)
-    np_data = np.random.uniform(-5, 5, size=ip_shape).astype(dtype)
 
     compare_tf_with_tvm([np_data], ['in_data:0'], [f'unstack:{n}' for n in range(ip_shape[axis])])
+
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.stack(tf.unstack(in_data, axis=axis), axis=axis)
+
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'stack:0')
 
 def test_forward_unstack():
     '''test unstack layer'''
