@@ -73,6 +73,8 @@ class PackedFunc {
   using FType = std::function<void (TVMArgs args, TVMRetValue* rv)>;
   /*! \brief default constructor */
   PackedFunc() {}
+  /*! \brief constructor from null */
+  PackedFunc(std::nullptr_t null) {}  // NOLINT(*)
   /*!
    * \brief constructing a packed function from a std::function.
    * \param body the internal container of packed function.

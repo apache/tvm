@@ -158,6 +158,17 @@ Expr FoldConstant(const Expr& expr);
  */
 Expr FuseOps(const Expr& expr, int fuse_opt_level);
 
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ * \param expr The expression.
+ * \param rewrite_map_attr_name The Op's attr name which corresponds to the rewrite
+ *                              rule function.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \return The rewritten expression.
+ */
+Expr ForwardRewrite(const Expr& expr,
+                    const std::string& rewrite_map_attr_name,
+                    std::function<NodeRef(const Call&)> fcontext = nullptr);
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {

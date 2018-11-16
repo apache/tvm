@@ -85,6 +85,25 @@ using FTVMSchedule = runtime::TypedPackedFunc<
   Schedule(const Attrs& attrs,
            const Array<Tensor>& outs,
            const Target& target)>;
+
+/*!
+ * \brief Forward rewriting rule for a specific op.
+ *
+ * \param ref_call The reference old call type to be rewritten.
+ *                 We can make use of the op and type information.
+ * \param new_args The new arguments (some of them could be TempExpr).
+ * \param ctx  Optional context information about ref_call.
+ * \return The rewriten result call, can also return nullptr,
+ *         which indicate the rewriter should use the default fallback
+ *         rule that realizes all its input and compose the call.
+ *
+ * \note When we register the function, we can register
+ *       a different signature with ctx to be a specific node type.
+ */
+using FForwardRewrite = runtime::TypedPackedFunc<
+  Expr(const Call& ref_call,
+       const Array<Expr>& new_args,
+       const NodeRef& ctx)>;
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_OP_ATTR_TYPES_H_
