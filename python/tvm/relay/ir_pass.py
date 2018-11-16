@@ -305,6 +305,6 @@ def combine_parallel_conv2d(expr):
     Returns
     -------
     transformed_expr : tvm.relay.Expr
-        Transformed expression, containing folded conv2d.
+        Transformed expression
     """
     return _ir_pass.CombineParallelConv2D(expr)

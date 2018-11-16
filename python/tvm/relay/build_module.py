@@ -13,6 +13,7 @@ from .backend import graph_runtime_codegen as _graph_gen
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
+    "CombineParallelConv2D": 1,
     "OpFusion": 1,
     "FoldConstant": 2,
     "FoldScaleAxis": 3,
@@ -143,6 +144,10 @@ def optimize(func, params=None):
     if cfg.pass_enabled("SimplifyInference"):
         func = ir_pass.infer_type(func)
         func = ir_pass.simplify_inference(func)
+
+    if cfg.pass_enabled("CombineParallelConv2D"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.combine_parallel_conv2d(func)
 
     if cfg.pass_enabled("FoldScaleAxis"):
         func = ir_pass.infer_type(func)
