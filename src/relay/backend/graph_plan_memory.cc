@@ -270,12 +270,12 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     for (auto it = mid; it != end; ++it) {
       StorageToken *tok = it->second;
       if (tok->device_id != prototype->device_id) continue;
+      CHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
       tok->max_bytes = std::max(size, tok->max_bytes);
+      tok->ref_counter = prototype->ref_counter;
       // find a exact match, erase from map and return
       free_.erase(it);
-      CHECK_EQ(tok->ref_counter, 0);
-      tok->ref_counter = prototype->ref_counter;
       return tok;
     }
     // then search for memory blocks smaller than requested space
@@ -283,8 +283,10 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       --it;
       StorageToken *tok = it->second;
       if (tok->device_id != prototype->device_id) continue;
+      CHECK_EQ(tok->ref_counter, 0);
       // Use exect matching strategy
       tok->max_bytes = std::max(size, tok->max_bytes);
+      tok->ref_counter = prototype->ref_counter;
       // erase from map and return
       free_.erase(it);
       return tok;
