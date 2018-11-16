@@ -415,6 +415,32 @@ class TupleGetItemNode : public ExprNode {
 
 RELAY_DEFINE_NODE_REF(TupleGetItem, TupleGetItemNode, Expr);
 
+/*!
+ * \brief Base class of the temporary expression.
+ *
+ * TempExprs are pass specific expression that can be
+ * useful to define intermediate result in the
+ * rewriting pass such as layout or type transformation.
+ *
+ * Subclass TempExprNode allows us to pattern match on
+ * specific kind TempExpr and use them for expression rewriting.
+ *
+ * TempExpr should only be used within a pass,
+ */
+class TempExprNode : public ExprNode {
+ public:
+  /*!
+   * \brief Convert the expression to a normal(non-temp) Expr.
+   * \return The corresponding normal(non-temp) expression.
+   */
+  virtual Expr Realize() const = 0;
+
+  static constexpr const char* _type_key = "relay.TempExpr";
+  TVM_DECLARE_BASE_NODE_INFO(TempExprNode, ExprNode);
+};
+
+RELAY_DEFINE_NODE_REF(TempExpr, TempExprNode, Expr);
+
 // implementataions
 template<typename TTypeNode>
 inline const TTypeNode* ExprNode::type_as() const {

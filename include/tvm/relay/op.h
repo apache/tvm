@@ -276,6 +276,16 @@ class GenericOpMap {
    */
   template <typename ValueType>
   inline ValueType get(const Op& op, ValueType def_value) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param expr The key to the map
+   * \param def_value The default value when the key does not exist
+   *         or if expr is not an Op.
+   * \return the const reference to the content value.
+   * \tparam ValueType The content value type.
+   */
+  template <typename ValueType>
+  inline ValueType get(const Expr& expr, ValueType def_value) const;
 
  private:
   friend class OpRegistry;
@@ -313,6 +323,14 @@ class OpMap {
    * \return the const reference to the content value.
    */
   inline ValueType get(const Op& op, ValueType def_value) const;
+  /*!
+   * \brief get the corresponding value element at op with default value.
+   * \param expr The key to the map
+   * \param def_value The default value when the key does not exist
+   *         or if expr is not an Op.
+   * \return the const reference to the content value.
+   */
+  inline ValueType get(const Expr& expr, ValueType def_value) const;
 
  private:
   friend class Op;
@@ -497,6 +515,21 @@ inline ValueType GenericOpMap::get(const Op& op, ValueType value) const {
 }
 
 template <typename ValueType>
+inline ValueType GenericOpMap::get(const Expr& expr, ValueType value) const {
+  CHECK(expr.defined());
+  if (const OpNode* op = expr.as<OpNode>()) {
+    const uint32_t idx = op->index_;
+    if (idx < data_.size() && data_[idx].second != 0) {
+      return data_[idx].first;
+    } else {
+      return value;
+    }
+  } else {
+    return value;
+  }
+}
+
+template <typename ValueType>
 inline int OpMap<ValueType>::count(const Op& op) const {
   return map_.count(op);
 }
@@ -505,10 +538,17 @@ template <typename ValueType>
 inline ValueType OpMap<ValueType>::operator[](const Op& op) const {
   return map_[op];
 }
+
 template <typename ValueType>
 inline ValueType OpMap<ValueType>::get(const Op& op,
                                        ValueType def_value) const {
   return map_.get<ValueType>(op, def_value);
+}
+
+template <typename ValueType>
+inline ValueType OpMap<ValueType>::get(const Expr& expr,
+                                       ValueType def_value) const {
+  return map_.get<ValueType>(expr, def_value);
 }
 
 /*!
