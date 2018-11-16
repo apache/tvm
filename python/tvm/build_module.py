@@ -340,11 +340,6 @@ def lower(sch,
         bounds = schedule.InferBound(sch)
         stmt = schedule.ScheduleOps(sch, bounds)
         stmt = ir_pass.InjectPrefetch(stmt)
-    else:
-        #So far there is no op for hybrid script, so a plain ir body is given
-        if not isinstance(sch, _stmt.Stmt):
-            raise ValueError("sch should be either a Schedule or a Stmt")
-        stmt = sch
 
     for f in lower_phase0:
         stmt = f(stmt)
