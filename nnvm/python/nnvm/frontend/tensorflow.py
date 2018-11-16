@@ -215,7 +215,7 @@ def _conv(opname):
                 attr['channels'] = input_shape[3] * depth_mult
 
             if 'dilations' in attr:
-                attr['dilations'] = (attr['dilations'][0], attr['dilations'][1])
+                attr['dilations'] = (attr['dilations'][1], attr['dilations'][2])
             attr['strides'] = (attr['strides'][1], attr['strides'][2])
         elif attr['data_format'] == 'NCHW':
             depth_mult, _, kernel_h, kernel_w = weights_shape
@@ -252,8 +252,12 @@ def _conv(opname):
                 in_h = input_shape[2]
                 in_w = input_shape[3]
 
-            pad_v = _get_pad_pair(in_h, kernel_h, stride_h)
-            pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
+            dilation_h = attr['dilations'][0]
+            dilation_w = attr['dilations'][1]
+            dilated_kernel_h = (kernel_h - 1) * dilation_h + 1
+            dilated_kernel_w = (kernel_w - 1) * dilation_w + 1
+            pad_v = _get_pad_pair(in_h, dilated_kernel_h, stride_h)
+            pad_h = _get_pad_pair(in_w, dilated_kernel_w, stride_w)
 
             if attr['data_format'] == 'NHWC':
                 inputs[0] = _sym.pad(data=inputs[0],
@@ -783,6 +787,15 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
+def _split():
+    def _impl(inputs, attr, params):
+        axis = params.pop(inputs[0].list_output_names()[0])
+        return AttrCvt(
+            op_name="split", ignores=['T'],
+            transforms={'num_split': 'indices_or_sections'},
+            extras={'axis': axis.asnumpy()[0]})(inputs[1], attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -813,6 +826,7 @@ _convert_map = {
     'Add'                               : _elemwise('add'),
     'Sub'                               : _elemwise('sub'),
     'Mul'                               : _elemwise('mul'),
+    'RealDiv'                           : _elemwise('div'),
     'Maximum'                           : _elemwise('max'),
     'Minimum'                           : _elemwise('min'),
     'Sum'                               : _sum(),
@@ -849,6 +863,7 @@ _convert_map = {
     'GreaterEqual'                      : _broadcast('greater_equal'),
     'Equal'                             : _broadcast('equal'),
     'NotEqual'                          : _broadcast('not_equal'),
+    'Split'                             : _split(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
@@ -1144,21 +1159,26 @@ class GraphProto(object):
                 # Pass the target layout
                 attr["_target_layout"] = layout
 
-                #ToDo: Some of the tensorflow operators internaly maintain
-                #execution layers and its output name will the layer number along with
-                #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
-                #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
-                #the digit has to be ignored.
-                if ":" in node.input[0]:
-                    in_name, _ = node.input[0].split(':')
-                    node.input[0] = in_name
-
                 # Fill shapes for all inputs in a list
                 inputs = []
                 for i in node.input:
-                    if i in self._nodes:
-                        inputs.append(self._nodes[i])
-                        input_shapes[self._nodes[i]] = self._output_shapes[i]
+                    #ToDo: Some of the tensorflow operators internaly maintain
+                    #execution layers and its output name will the layer number along with
+                    #graph node name.eg: Node name:- 'Model/RNN/cell_0/RnnCell', but the
+                    #output name will be 'Model/RNN/cell_0/RnnCell:0'. In this case,
+                    #the digit has to be ignored.
+                    tensor_name = i.split(':')
+                    node_name = tensor_name[0]
+                    if node_name in self._nodes:
+                        in_sym = self._nodes[node_name]
+                        if len(in_sym.list_output_names()) > 1:
+                            tensor_slot = int(tensor_name[1]) if len(tensor_name) > 1 else 0
+                            in_sym = in_sym[tensor_slot]
+                            input_shape = (self._output_shapes[node_name])[tensor_slot]
+                        else:
+                            input_shape = self._output_shapes[node_name][0]
+                        inputs.append(in_sym)
+                        input_shapes[in_sym] = [input_shape]
                 attr['_input_shapes'] = input_shapes
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
