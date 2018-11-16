@@ -195,12 +195,6 @@ Stmt ReplaceProvideTensor(Stmt stmt,
   Stmt ret = repl.Mutate(stmt);
   return repl.found ? ret : stmt;
 }
-Expr ReplaceProvideTensor(Expr expr,
-                   const std::unordered_map<Tensor, Tensor>& replace) {
-  ProviderReplacer repl(replace);
-  Expr ret = repl.Mutate(expr);
-  return repl.found ? ret : expr;
-}
 
 // replacer to replace tensors
 class TensorReplacer : public ir::IRMutator {

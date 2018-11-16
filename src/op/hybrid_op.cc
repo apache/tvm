@@ -162,6 +162,26 @@ Stmt HybridOpNode::BuildProvide(
     rmap[outputs[i]] = stage->op.output(i);
   }
   auto n = make_node<HybridOpNode>(*this);
+  /*
+   * These two lines of codes replace tensors' reads & writes.
+   * This is the simplest way I (@were) can come up with to glue
+   * hybrid scripts to the structure of TVM op.
+   * NAMING CONFLICT: In hybrid script all the tensors have their own 
+   * names specified by the users. However, In TVM op, all the output
+   * tensors' names are the same as the op's name. I cannot change the
+   * name to the op's name in the function body after the op node is
+   * formed, because:
+   *   1. Output tensors all point to the corresponding op node. 
+   *   2. Once OpNode is wrapped up by an Operation node, it can
+   *      no longer be changed.
+   * This is a chiken-egg paradox. It is impossible to put the output
+   * tensors into the function body without forming the op node. The
+   * function body is immutable after the node is formed.
+   *
+   * Finally, I decided to resolve this issue "lazily". During the
+   * pipeline of compilation, these tensors will be replaced when
+   * forming the function body and passing to next stage of compilation.
+   * */
   ret = op::ReplaceTensor(ret, rmap);
   ret = op::ReplaceProvideTensor(ret, rmap);
   return ret;

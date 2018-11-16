@@ -55,13 +55,6 @@ std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates);
  */
 Stmt ReplaceProvideTensor(Stmt stmt,
                    const std::unordered_map<Tensor, Tensor>& replace);
-/*!
- * \brief Replace the tensor reference (especially in Provide's) in stmt by the replace map.
- * \param expr The expression to be processed.
- * \param replace The replacement rule.
- */
-Expr ReplaceProvideTensor(Expr expr,
-                   const std::unordered_map<Tensor, Tensor>& replace);
 
 /*!
  * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
