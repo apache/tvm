@@ -174,10 +174,10 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
 
     if dilation_h != 1 or dilation_w != 1:
         # undilate input data
-        dvshape = (N, OH // VH, OW // VW, CI, VH * KH, VW * KW)
-        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, vh, vw:
-                               data_pad[n][ci][(h*VH+vh//KH)*HSTR+(vh%KH)*dilation_h]
-                               [(w*VW+vw//KW)*WSTR+(vw%KW)*dilation_w],
+        dvshape = (N, OH // VH, OW // VW, CI, KH, KW, VH, VW)
+        data_vec = tvm.compute(dvshape, lambda n, h, w, ci, kh, kw, vh, vw:
+                               data_pad[n][ci][(h*VH+vh)*HSTR+kh*dilation_h]
+                               [(w*VW+vw)*WSTR+kw*dilation_w],
                                name='data_vec_undilated')
     else:
         dvshape = (N, OH // VH, OW // VW, CI, VH*HSTR + KH-1, VW*WSTR + KW-1)
@@ -198,7 +198,7 @@ def _decl_spatial_pack(cfg, data, kernel, strides, padding, dilation, layout, ou
 
     if dilation_h != 1 or dilation_w != 1:
         conv = tvm.compute(ovshape, lambda n, co, h, w, vh, vw, vc: \
-            tvm.sum(data_vec[n, h, w, ci, vh*KH+kh, vw*KW+kw].astype(out_dtype) *
+            tvm.sum(data_vec[n, h, w, ci, kh, kw, vh, vw].astype(out_dtype) *
                     kernel_vec[co, ci, kh, kw, vc].astype(out_dtype),
                     axis=[ci, kh, kw]), name='conv')
     else:
@@ -251,7 +251,10 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     # mark parallel
     s[last].parallel(co)
 
-    _, h, _, _, _, _ = s[data_vec].op.axis
+    if data_vec.op.name == 'data_vec_undilated':
+        _, h, _, _, _, _, _, _ = s[data_vec].op.axis
+    else:
+        _, h, _, _, _, _ = s[data_vec].op.axis
     s[data_vec].parallel(h)
 
     if kernel_vec.op.name == 'kernel_vec':
