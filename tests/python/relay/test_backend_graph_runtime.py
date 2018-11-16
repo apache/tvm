@@ -95,14 +95,17 @@ def test_with_params():
 
 def test_plan_memory():
     # it is sufficient to cycle through two memories.
+
     x = relay.var("x", shape=(10,))
-    z = relay.exp(x)
+    y = relay.var("x", shape=(1,))
+    y2 = relay.exp(y)
+    z = relay.add(x, y2)
     z = relay.exp(z)
     z = relay.exp(z)
     z = relay.exp(z)
     z = relay.exp(z)
     z = relay.exp(z)
-    func = relay.Function([x], z)
+    func = relay.Function([x, y], z)
     func = relay.ir_pass.infer_type(func)
     func = relay.ir_pass.fuse_ops(func, opt_level=0)
     func = relay.ir_pass.infer_type(func)
@@ -115,7 +118,7 @@ def test_plan_memory():
     # Current rule requires vars have unique storage id
     # because we don't do inplace, we will need another
     # two alternating temporary space.
-    assert len(storage_ids) == 3
+    assert len(storage_ids) == 4
 
 
 if __name__ == "__main__":
