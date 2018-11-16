@@ -168,13 +168,13 @@ inline bool BinaryBroadcastCorrectLayout(NodeAttrs& attrs,
     }
     if (l_start > 0 && r_start > 0) {
       LOG(FATAL) << lhs << " and " << rhs << " are not broadcast-convertible";
-    } else if (l_start > 0 && rhs.ndim() == lhs.ndim()-l_start) {
+    } else if (l_start > 0 && rhs.convertible(lhs.sublayout(l_start, lhs.ndim()-l_start))) {
       rhs = lhs.sublayout(l_start, lhs.ndim()-l_start);
       out = lhs;
-    } else if (r_start > 0 && lhs.ndim() == rhs.ndim()-r_start) {
+    } else if (r_start > 0 && lhs.convertible(rhs.sublayout(r_start, rhs.ndim()-r_start))) {
       lhs = rhs.sublayout(r_start, rhs.ndim()-r_start);
       out = rhs;
-    } else if (rhs.ndim() == lhs.ndim()) {
+    } else if (rhs.convertible(lhs)) {
       // prior to keep left layout
       rhs = lhs;
       out = lhs;
