@@ -72,18 +72,17 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     else:
         dilation_h, dilation_w = dilation
 
-    if dilation_h != 1 or dilation_w != 1:
-        Filter = dilate(Filter, (1, 1, dilation_h, dilation_w))
-
     batch, in_channel, in_height, in_width = Input.shape
     # shape of dilated kernel
     filter_channel, channel_multiplier, filter_height, filter_width = Filter.shape
 
+    dilated_kernel_h = (filter_height - 1) * dilation_h + 1
+    dilated_kernel_w = (filter_width - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (filter_height, filter_width))
+        padding, (dilated_kernel_h, dilated_kernel_w))
     out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # padding stage
     pad_before = [0, 0, pad_top, pad_left]
@@ -95,7 +94,8 @@ def depthwise_conv2d_nchw(Input, Filter, stride, padding, dilation, out_dtype=No
     Output = tvm.compute(
         (batch, out_channel, out_height, out_width),
         lambda b, c, i, j: tvm.sum(
-            (PaddedInput[b, c/channel_multiplier, i*stride_h+di, j*stride_w+dj].astype(out_dtype) *
+            (PaddedInput[b, c/channel_multiplier, i*stride_h+di*dilation_h,
+                         j*stride_w+dj*dilation_w].astype(out_dtype) *
              Filter[c/channel_multiplier, c%channel_multiplier, di, dj].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nchw")
@@ -143,18 +143,17 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     else:
         dilation_h, dilation_w = dilation
 
-    if dilation_h != 1 or dilation_w != 1:
-        Filter = dilate(Filter, (dilation_h, dilation_w, 1, 1))
-
     batch, in_height, in_width, in_channel = Input.shape
     # shape of dilated kernel
     filter_height, filter_width, filter_channel, channel_multiplier = Filter.shape
 
+    dilated_kernel_h = (filter_height - 1) * dilation_h + 1
+    dilated_kernel_w = (filter_width - 1) * dilation_w + 1
     pad_top, pad_left, pad_down, pad_right = get_pad_tuple(
-        padding, (filter_height, filter_width))
+        padding, (dilated_kernel_h, dilated_kernel_w))
     out_channel = simplify(in_channel * channel_multiplier)
-    out_height = simplify((in_height - filter_height + pad_top + pad_down) // stride_h + 1)
-    out_width = simplify((in_width - filter_width + pad_left + pad_right) // stride_w + 1)
+    out_height = simplify((in_height - dilated_kernel_h + pad_top + pad_down) // stride_h + 1)
+    out_width = simplify((in_width - dilated_kernel_w + pad_left + pad_right) // stride_w + 1)
 
     # padding stage
     pad_before = [0, pad_top, pad_left, 0]
@@ -166,8 +165,8 @@ def depthwise_conv2d_nhwc(Input, Filter, stride, padding, dilation, out_dtype=No
     Output = tvm.compute(
         (batch, out_height, out_width, out_channel),
         lambda b, i, j, c: tvm.sum(
-            (PaddedInput[b, i*stride_h + di, j*stride_w + dj, c/channel_multiplier].astype(
-                out_dtype) *
+            (PaddedInput[b, i*stride_h + di*dilation_h, j*stride_w + dj*dilation_w,
+                         c/channel_multiplier].astype(out_dtype) *
              Filter[di, dj, c/channel_multiplier, c%channel_multiplier].astype(out_dtype)),
             axis=[di, dj]),
         name='DepthwiseConv2d', tag="depthwise_conv2d_nhwc")

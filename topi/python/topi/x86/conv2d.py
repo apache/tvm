@@ -9,7 +9,6 @@ from .. import nn
 from ..util import get_const_tuple
 from ..nn.conv2d import conv2d, conv2d_NCHWc, \
     conv2d_alter_layout, _get_workload as _get_conv2d_workload
-from ..nn.dilate import dilate
 from ..nn.depthwise_conv2d import _get_workload as _get_depthwise_conv2d_workload
 from ..nn.depthwise_conv2d import depthwise_conv2d_NCHWc, depthwise_conv2d_nchw
 from ..nn.pad import pad
@@ -89,9 +88,6 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
     else:
         dilation_h, dilation_w = dilation
 
-    if dilation_h != 1 or dilation_w != 1:
-        kernel = dilate(kernel, (1, 1, dilation_h, dilation_w))
-
     HPAD, WPAD = padding
     HSTR, WSTR = strides
 
@@ -101,8 +97,10 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
     pad_height = in_height + 2 * HPAD
     pad_width = in_width + 2 * WPAD
 
-    out_height = (in_height + 2 * HPAD - kernel_height) // HSTR + 1
-    out_width = (in_width + 2 * WPAD - kernel_width) // WSTR + 1
+    dilated_kernel_h = (kernel_height - 1) * dilation_h + 1
+    dilated_kernel_w = (kernel_width - 1) * dilation_w + 1
+    out_height = (in_height + 2 * HPAD - dilated_kernel_h) // HSTR + 1
+    out_width = (in_width + 2 * WPAD - dilated_kernel_w) // WSTR + 1
 
     # pack data
     DOPAD = (HPAD != 0 or WPAD != 0)
@@ -136,8 +134,8 @@ def _declaration_conv_impl(cfg, data, kernel, strides, padding, dilation, layout
     kw = tvm.reduce_axis((0, kernel_width), name='kw')
 
     conv = tvm.compute(oshape, lambda n, oc_chunk, oh, ow, oc_block:
-                       tvm.sum(data_vec[n, ic//ic_bn, oh*HSTR+kh, ic%ic_bn,
-                                        ow*WSTR+kw].astype(out_dtype) *
+                       tvm.sum(data_vec[n, ic//ic_bn, oh*HSTR+kh*dilation_h, ic%ic_bn,
+                                        ow*WSTR+kw*dilation_w].astype(out_dtype) *
                                kernel_vec[oc_chunk, ic//ic_bn, kh, kw, ic%ic_bn,
                                           oc_block].astype(out_dtype),
                                axis=[ic, kh, kw]), name='conv')
