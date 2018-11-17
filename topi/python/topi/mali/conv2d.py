@@ -118,7 +118,10 @@ def _schedule_spatial_pack(cfg, s, output, conv, data_vec, kernel_vec):
         s[data_pad].compute_inline()
 
     # schedule data packing
-    _, h, w, ci, vh, vw = s[data_vec].op.axis
+    if isinstance(data_vec.op, tvm.tensor.ComputeOp) and data_vec.op.name == 'data_vec_undilated':
+        _, h, w, ci, _, _, vh, vw = s[data_vec].op.axis
+    else:
+        _, h, w, ci, vh, vw = s[data_vec].op.axis
     tile_and_bind3d(s, data_vec, h, w, ci, 1)
     if vh.dom.extent.value < max_unroll:
         s[data_vec].unroll(vh)
