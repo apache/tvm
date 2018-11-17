@@ -125,7 +125,8 @@ class BuildConfig(NodeBase):
         "data_alignment": -1,
         "restricted_func": True,
         "double_buffer_split_loop": 1,
-        "dump_pass_ir": False
+        "dump_pass_ir": False,
+        "instrument_bound_checkers": False
     }
     _dump_ir = DumpIR()
 
@@ -349,7 +350,7 @@ def lower(sch,
     for f in lower_phase0:
         stmt = f(stmt)
     # Phase 1
-    stmt = ir_pass.StorageFlatten(stmt, binds, 64)
+    stmt = ir_pass.StorageFlatten(stmt, binds, 64, cfg.instrument_bound_checkers)
     stmt = ir_pass.CanonicalSimplify(stmt)
     for f in lower_phase1:
         stmt = f(stmt)
@@ -375,6 +376,9 @@ def lower(sch,
     stmt = ir_pass.RewriteUnsafeSelect(stmt)
     for f in lower_phase3:
         stmt = f(stmt)
+    # Instrument BoundCheckers
+    if cfg.instrument_bound_checkers:
+        stmt = ir_pass.InstrumentBoundCheckers(stmt)
     if simple_mode:
         return stmt
     return ir_pass.MakeAPI(stmt, name, arg_list, 0, cfg.restricted_func)
