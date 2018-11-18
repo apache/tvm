@@ -491,11 +491,12 @@ std::vector<Expr> MakeBoundCheck(
       IntSet s = EvalSet(value, iset_dmap);
       Expr vmin = s.min();
       Expr vmax = s.max();
-      if (vmin.type() != value.type() || !can_prove(vmin >= iv->dom->min)) {
+      // The range of `value` resides in [vmin, vmax]
+      if (vmin.type() != value.type() || !can_prove(vmin >= 0)) {
         preds.emplace_back(value >= 0);
       }
       if (vmax.type() != value.type() || !can_prove(vmax < iv->dom->extent)) {
-        preds.emplace_back(value < (iv->dom->extent - iv->dom->min));
+        preds.emplace_back(value < iv->dom->extent);
       }
     }
   }
