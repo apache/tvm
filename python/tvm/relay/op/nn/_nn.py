@@ -9,7 +9,6 @@ from ..op import OpPattern, schedule_injective
 reg.register_schedule("nn.relu", schedule_injective)
 reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
-
 @reg.register_schedule("nn.softmax")
 def schedule_softmax(_, outputs, target):
     """Schedule definition of softmax"""
@@ -17,6 +16,15 @@ def schedule_softmax(_, outputs, target):
         return topi.generic.schedule_softmax(outputs)
 
 reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
+
+
+@reg.register_schedule("nn.log_softmax")
+def schedule_softmax(_, outputs, target):
+    """Schedule definition of log_softmax"""
+    with target:
+        return topi.generic.schedule_softmax(outputs)
+
+reg.register_pattern("nn.log_softmax", OpPattern.OPAQUE)
 
 
 # dense
