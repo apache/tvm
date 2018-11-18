@@ -7,6 +7,8 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/image.h>
+#include <topi/nn.h>
+#include <topi/nn/softmax.h>
 #include <vector>
 #include "../type_relations.h"
 #include "../op_common.h"
@@ -252,7 +254,15 @@ RELAY_REGISTER_OP("nn.softmax")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel);
+.add_type_rel("Identity", IdentityRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  const auto* param = attrs.as<SoftmaxAttrs>();
+  CHECK(param != nullptr);
+  return Array<Tensor>{ topi::nn::softmax(inputs[0], param->axis) };
+});
 
 
 TVM_REGISTER_API("relay.op.nn._make.log_softmax")
@@ -364,7 +374,13 @@ RELAY_REGISTER_OP("nn.relu")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel);
+.add_type_rel("Identity", IdentityRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  return Array<Tensor>{ topi::relu(inputs[0], 0.0f) };
+});
 
 
 // Positional relay function to create LRN operator used by frontend FFI.
