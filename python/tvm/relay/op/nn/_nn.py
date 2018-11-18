@@ -5,6 +5,20 @@ from topi.util import get_const_int, get_const_tuple
 from .. import op as reg
 from ..op import OpPattern, schedule_injective
 
+# relu
+reg.register_schedule("nn.relu", schedule_injective)
+reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
+
+
+@reg.register_schedule("nn.softmax")
+def schedule_softmax(_, outputs, target):
+    """Schedule definition of softmax"""
+    with target:
+        return topi.generic.schedule_softmax(outputs)
+
+reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
+
+
 # dense
 @reg.register_compute("nn.dense")
 def compute_dense(attrs, inputs, out_type, target):

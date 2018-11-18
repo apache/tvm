@@ -3,6 +3,7 @@ import tvm
 import numpy as np
 from tvm import relay
 from tvm.relay.testing import ctx_list
+import topi.testing
 
 def sigmoid(x):
     one = np.ones_like(x)
@@ -42,7 +43,7 @@ def test_unary_op():
                    (tvm.relay.sqrt, np.sqrt),
                    (tvm.relay.sigmoid, sigmoid),
                    (tvm.relay.tanh, np.tanh),
-                   (relay.nn.relu, None)]: # Just add RELU here after registering.
+                   (relay.nn.relu, relu)]:
         check_single_op(opfunc, ref)
 
 
@@ -120,12 +121,19 @@ def test_expand_dims_infer_type():
 
 
 def test_softmax():
-    n, d = tvm.var("n"), tvm.var("d")
-    x = relay.var("x", shape=(n, d))
+    shape = (10, 4)
+    x = relay.var("x", shape=shape)
     y = relay.nn.softmax(x, axis=1)
     assert "nn.softmax" in y.astext()
     yy = relay.ir_pass.infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, d))
+    assert yy.checked_type == relay.TensorType(shape)
+    func = relay.Function([x], y)
+    x_data = np.random.uniform(size=shape).astype("float32")
+    ref_res = topi.testing.softmax_python(x_data)
+    for target, ctx in ctx_list():
+        intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res = intrp.evaluate(func)(x_data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 def test_log_softmax():
