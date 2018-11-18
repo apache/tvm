@@ -12,6 +12,7 @@ def test_schedule0():
     assert isinstance(bounds, tvm.container.Map)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+
 def test_schedule1():
     m = tvm.var('m')
     l = tvm.var('l')
@@ -53,9 +54,12 @@ def test_schedule_scan():
     assert tuple(res.shape) == (m, n)
     s = tvm.create_schedule(res.op)
     s = s.normalize()
+    ir = tvm.lower(s, [s_state], simple_mode=True)
+    assert not hasattr(ir.body.body.body.body.rest.body.body.rest.body, "condition")
     bounds = tvm.schedule.InferBound(s)
     assert(bounds[res.op.scan_axis].min.value == 1)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+
 
 def test_inline_multi_reduce():
     def argmax_comp(x, y):
@@ -80,7 +84,6 @@ def test_inline_multi_reduce():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
-
 def test_auto_inline():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -95,6 +98,7 @@ def test_auto_inline():
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+
 
 def test_schedule_const_bound():
     n = 128
@@ -146,6 +150,7 @@ def test_scan_inline1():
     s[s_x1].compute_inline()
     stmt = tvm.lower(s, [x, res1, res2])
 
+
 def test_scan_inline2():
     m = tvm.var("m")
     n = tvm.var("n")
@@ -183,6 +188,7 @@ def test_schedule_cache():
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
+
 def test_schedule_middle_cache():
     m = tvm.var('m')
     n = tvm.var('n')
@@ -200,7 +206,6 @@ def test_schedule_middle_cache():
     #s[AA].compute_at(s[CC], CC.op.axis[0])
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
-
 
 
 def test_schedule_cache_relayout1():
@@ -248,6 +253,7 @@ def test_schedule_cache_relayout3():
     s = s.normalize()
     bounds = tvm.schedule.InferBound(s)
     stmt = tvm.schedule.ScheduleOps(s, bounds)
+
 
 def test_schedule_cache_relayout4():
     def _compute(*indice):
