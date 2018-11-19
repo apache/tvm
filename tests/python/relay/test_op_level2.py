@@ -295,6 +295,25 @@ def test_flatten_infer_type():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((d1, ((2*d3)*3)), "float32")
 
+    shape = (1, 5, 10, 10)
+    o_shape = (1, 500)
+    dtype = "float32"
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    z = relay.nn.batch_flatten(x)
+    yy = relay.ir_pass.infer_type(z)
+    assert yy.checked_type == relay.TensorType(o_shape, dtype)
+    func = relay.Function([x], z)
+    x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    ref_res = x_data.flatten().reshape(o_shape)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
 def test_pad_infer_type():
     # entirely concrete case
     n, c, h, w = 1, 2, 3, 4
@@ -320,6 +339,29 @@ def test_lrn():
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c , h, w))
 
+    shape = (1, 5, 10, 10)
+    dtype = "float32"
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    size=5
+    axis=1
+    bias=0.5
+    alpha=.00001
+    beta=0.75
+    z = relay.nn.lrn(x, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+    yy = relay.ir_pass.infer_type(z)
+    assert yy.checked_type == relay.TensorType(shape, dtype)
+    func = relay.Function([x], z)
+    x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    ref_res = topi.testing.lrn_python(x_data, size, axis, bias, alpha, beta)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
+
 def test_l2_normalize():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
     x = relay.var("x", shape=(n, c , h, w))
@@ -327,6 +369,26 @@ def test_l2_normalize():
     "axis=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c , h, w))
+
+    shape = (1, 5, 10, 10)
+    dtype = "float32"
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    eps=0.001
+    axis=1
+    z = relay.nn.l2_normalize(x, eps=0.001, axis=[axis])
+    yy = relay.ir_pass.infer_type(z)
+    assert yy.checked_type == relay.TensorType(shape, dtype)
+    func = relay.Function([x], z)
+    x_data = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    ref_res = topi.testing.l2_normalize_python(x_data, eps, axis)
+
+    for target, ctx in ctx_list():
+        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+        intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
+        op_res1 = intrp1.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
+        op_res2 = intrp2.evaluate(func)(x_data)
+        tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=1e-5)
 
 
 if __name__ == "__main__":

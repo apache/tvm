@@ -327,7 +327,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
 
 /*! \brief Attributes for LRN operator */
 struct LRNAttrs : public tvm::AttrsNode<LRNAttrs> {
-  IndexExpr size;
+  int size;
   int axis;
   double bias;
   double alpha;
