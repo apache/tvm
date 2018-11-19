@@ -49,14 +49,22 @@ MakeLoopNest(const Stage& stage,
 std::vector<Stmt> MakeIfNest(const std::vector<Expr>& predicates);
 
 /*!
- * \brief Replace the tensor reference in stmt by the replace map.
+ * \brief Replace the tensor reference (especially in Provide's) in stmt by the replace map.
+ * \param stmt The statement to be processed.
+ * \param replace The replacement rule.
+ */
+Stmt ReplaceProvideTensor(Stmt stmt,
+                   const std::unordered_map<Tensor, Tensor>& replace);
+
+/*!
+ * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
  * \param stmt The statement to be processed.
  * \param replace The replacement rule.
  */
 Stmt ReplaceTensor(Stmt stmt,
                    const std::unordered_map<Tensor, Tensor>& replace);
 /*!
- * \brief Replace the tensor reference in expr by the replace map.
+ * \brief Replace the tensor reference (especially in Call's) in stmt by the replace map.
  * \param expr The expression to be processed.
  * \param replace The replacement rule.
  */
