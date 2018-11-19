@@ -113,6 +113,11 @@ class TextMetaDataContext {
     return SaveJSON(Array<NodeRef>(meta_data_));
   }
 
+  /*! \return whether the meta data context is empty. */
+  bool empty() const {
+    return meta_data_.empty();
+  }
+
  private:
   /*! \brief additional metadata stored in TVM json format */
   std::vector<NodeRef> meta_data_;
@@ -125,8 +130,9 @@ class TextPrinter :
     public TypeFunctor<void (const Type&, std::ostream& os)>,  // NOLINT(*)
     public AttrFunctor<void (const NodeRef&, std::ostream& os)> { // NOLINT(*)
  public:
-  explicit TextPrinter(runtime::TypedPackedFunc<std::string(Expr)> annotate)
-      : annotate_(annotate) {}
+  explicit TextPrinter(bool show_meta_data,
+                       runtime::TypedPackedFunc<std::string(Expr)> annotate)
+      : show_meta_data_(show_meta_data), annotate_(annotate) {}
   /*!
    * \brief Print a node to string.
    * \param node.
@@ -144,13 +150,17 @@ class TextPrinter :
     } else {
       stream_ << node;
     }
-    std::string meta_json = meta_.GetMetaSection();
-    if (meta_json.length() != 0) {
-      // append meta data in the end.
-      stream_ << "# meta data\n"
-              << "r\"\"\"\n"
-              << meta_json << "\n"
-              << "\"\"\"";
+    if (!meta_.empty()) {
+      if (show_meta_data_) {
+        std::string meta_json = meta_.GetMetaSection();
+        // append meta data in the end.
+        stream_ << "# meta data\n"
+                << "r\"\"\"\n"
+                << meta_json << "\n"
+                << "\"\"\"";
+      } else {
+        stream_ << "# meta data omitted. you can use show_meta_data=True to include meta-data\n";
+      }
     }
     return stream_.str();
   }
@@ -227,7 +237,9 @@ class TextPrinter :
     TextValue id = this->AllocTempVar();
     this->PrintIndent();
     stream_ << id << " = " << meta_.GetMetaNode(GetRef<NodeRef>(op));
-    this->PrintEndInst("\n");
+    this->PrintEndInst("");
+    this->PrintOptionalInfo(GetRef<Expr>(op));
+    stream_ << '\n';
     return id;
   }
 
@@ -697,6 +709,8 @@ class TextPrinter :
  private:
   class AttrPrinter;
   friend class AttrPrinter;
+  /*! \brief Whether to print meta data. */
+  bool show_meta_data_;
   /*! \brief additional comment function */
   runtime::TypedPackedFunc<std::string(Expr)> annotate_;
   /*! \brief meta data context */
@@ -790,13 +804,14 @@ void TextPrinter::PrintCallAttrs(const Expr& op,
 }
 
 std::string RelayPrint(const NodeRef& node,
+                       bool show_meta_data,
                        runtime::TypedPackedFunc<std::string(Expr)> annotate) {
-  return TextPrinter(annotate).Print(node);
+  return TextPrinter(show_meta_data, annotate).Print(node);
 }
 
 TVM_REGISTER_API("relay._expr.RelayPrint")
 .set_body_typed<std::string(
-    const NodeRef&,
+    const NodeRef&, bool,
     runtime::TypedPackedFunc<std::string(Expr)>)>(RelayPrint);
 
 }  // namespace relay

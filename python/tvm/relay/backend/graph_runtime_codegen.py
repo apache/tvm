@@ -21,6 +21,7 @@ contrib.graph_runtime or any other TVM runtime comptatible system.
 from __future__ import absolute_import
 import json
 import attr
+from . import _backend
 from . import compile_engine
 from ..op import Op
 from ..expr import Function, GlobalVar, ExprFunctor
@@ -103,11 +104,12 @@ class GraphRuntimeCodegen(ExprFunctor):
         self.nodes = []
         self.var_map = {}
         self.params = {}
+        self.storage_map = None
         self.compile_engine = compile_engine.get()
         self.lowered_funcs = set()
         self._name_map = {}
 
-    def add_node(self, node, checked_type):
+    def add_node(self, node, expr):
         """
         Add a node to the graph.
 
@@ -116,14 +118,21 @@ class GraphRuntimeCodegen(ExprFunctor):
         node: Node
             The node to add to the graph.
 
-        checked_type: Type
-            The type of the node.
+        expr: tvm.relay.Expr
+            The corresponding expression.
 
         Returns
         -------
         node_ref: Union[NodeRef, List[NodeRef]]
             A reference to the node.
         """
+        checked_type = expr.checked_type
+        # setup storage ids
+        assert expr in self.storage_map
+        node.attrs["storage_id"] = [
+            x.value for x in self.storage_map[expr]
+        ]
+
         node_id = len(self.nodes)
         self.nodes.append(node)
         # Tuple return value, flatten as tuple
@@ -168,7 +177,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         name = "p%d" % index
         self.params[name] = op.data
         node = InputNode(name, {})
-        return self.add_node(node, op.checked_type)
+        return self.add_node(node, op)
 
     def visit_function(self, _):
         raise RuntimeError("function not supported")
@@ -244,7 +253,7 @@ class GraphRuntimeCodegen(ExprFunctor):
         op_name = cached_func.func_name
         op_node = OpNode(self._get_unique_name(op_name), {},
                          op_name, inputs, {})
-        return self.add_node(op_node, call.checked_type)
+        return self.add_node(op_node, call)
 
     def _get_json(self):
         """
@@ -281,8 +290,7 @@ class GraphRuntimeCodegen(ExprFunctor):
             assert node.num_outputs == len(node.attrs["shape"])
             shapes += node.attrs["shape"]
             dltypes += node.attrs["dtype"]
-            for i in range(node.num_outputs):
-                storage_ids.append(i + num_entry)
+            storage_ids += node.attrs["storage_id"]
             num_entry += node.num_outputs
             node_row_ptr.append(num_entry)
 
@@ -301,6 +309,14 @@ class GraphRuntimeCodegen(ExprFunctor):
         }
 
         return json.dumps(json_dict, indent=2)
+
+    def debug_dump_memory_plan(self, func):
+        """Debug function to dump memory plan."""
+        def _annotate(expr):
+            if expr in self.storage_map:
+                return str(self.storage_map[expr])
+            return ""
+        return func.astext(show_meta_data=False, annotate=_annotate)
 
     def codegen(self, func):
         """Compile a single function into a graph.
@@ -321,11 +337,12 @@ class GraphRuntimeCodegen(ExprFunctor):
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
+        self.storage_map = _backend.GraphPlanMemory(func)
         # First we convert all the parameters into input nodes.
         for param in func.params:
             node = InputNode(param.name_hint, {})
             self.var_map[param] = self.add_node(
-                node, param.type_annotation)
+                node, param)
 
         # Then we compile the body into a graph which can depend
         # on input variables.

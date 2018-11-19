@@ -77,7 +77,9 @@ def test_add_op_broadcast():
 def test_with_params():
     x = relay.var('x', shape=(10, 5))
     y = relay.var('y', shape=(1, 5))
-    func = relay.Function([x, y], add(x, y))
+    z = relay.add(x, y)
+    z = relay.exp(z)
+    func = relay.Function([x, y], z)
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(1, 5).astype('float32')
     params = {"y": y_data}
@@ -87,11 +89,40 @@ def test_with_params():
     mod.set_input(x=x_data)
     mod.run()
     res = mod.get_output(0).asnumpy()
-    ref_res = y_data + x_data
+    ref_res = np.exp(y_data + x_data)
     tvm.testing.assert_allclose(res, ref_res)
 
 
+def test_plan_memory():
+    # it is sufficient to cycle through two memories.
+
+    x = relay.var("x", shape=(10,))
+    y = relay.var("x", shape=(1,))
+    y2 = relay.exp(y)
+    z = relay.add(x, y2)
+    z = relay.exp(z)
+    z = relay.exp(z)
+    z = relay.exp(z)
+    z = relay.exp(z)
+    z = relay.exp(z)
+    func = relay.Function([x, y], z)
+    func = relay.ir_pass.infer_type(func)
+    func = relay.ir_pass.fuse_ops(func, opt_level=0)
+    func = relay.ir_pass.infer_type(func)
+    smap = relay.backend._backend.GraphPlanMemory(func)
+    storage_ids = set()
+    for k, v in smap.items():
+        for x in v:
+            storage_ids.add(x.value)
+
+    # Current rule requires vars have unique storage id
+    # because we don't do inplace, we will need another
+    # two alternating temporary space.
+    assert len(storage_ids) == 4
+
+
 if __name__ == "__main__":
+    test_plan_memory()
     test_with_params()
     test_add_op_scalar()
     test_add_op_tensor()
