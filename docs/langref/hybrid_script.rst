@@ -22,13 +22,15 @@ you need to use ``tvm.hybrid.script`` decorator to indicate this is a hybrid fun
 
     @tvm.hybrid.script
     def outer_product(a, b, c):
+        c = output_tensor((100, 99), 'float32')
         for i in range(a.shape[0]):
             for j in range(b.shape[0]):
                 c[i, j] = a[i] * b[j]
-    a = numpy.random.rand(100)
-    b = numpy.random.rand(99)
-    c = numpy.zeros((100, 99))
-    outer_product(a, b, c)
+          return c
+    a = numpy.random.randn(100)
+    b = numpy.random.randn(99)
+    c = outer_product(a, b)
+
 
 This decorator will import `Keywords`_ required spontaneously when software emulation.
 After software emulation is done, the imported keywords will be cleaned up. Users do not need
@@ -40,25 +42,25 @@ or ``numpy`` numeric type.
 Backend Compilation
 ~~~~~~~~~~~~~~~~~~~
 
+This function is not encouraged to use, users are encouraged to use the second interface.
 The current parse interface looks like:
 
 .. code-block:: python
 
    a = tvm.placeholder((100, ), name='a')
    b = tvm.placeholder((99, ), name='b')
-   c = tvm.placeholder((100, 99), name='c')
-   tvm.hybrid.parse(outer_product, [a, b, c]) # return an ir root of this function
+   parser = tvm.hybrid.parse(outer_product, [a, b]) # return the parser of this function
+
 
 If we pass these tvm tensors to this function, it returns a op node:
-
-**Under construction, we are still deciding what kind of node should be returned.**
 
 .. code-block:: python
 
    a = tvm.placeholder((100, ), name='a')
    b = tvm.placeholder((99, ), name='b')
-   c = tvm.placeholder((100, 99), name='c')
-   op = outer_product(a, b, c) # return the corresponding op node
+   c = outer_product(a, b, c) # return the output tensor(s) of the operator
+
+**Under construction, we are still deciding what kind of node should be returned.**
 
 Tuning
 ~~~~~~

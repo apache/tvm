@@ -313,6 +313,16 @@ TVM_REGISTER_API("_ExternOp")
                               args[6]);
   });
 
+TVM_REGISTER_API("_HybridOp")
+.set_body([](TVMArgs args,  TVMRetValue* ret) {
+    *ret = HybridOpNode::make(args[0],
+                              args[1],
+                              args[2],
+                              args[3],
+                              args[4],
+                              args[5]);
+  });
+
 TVM_REGISTER_API("_OpGetOutput")
 .set_body([](TVMArgs args,  TVMRetValue* ret) {
     *ret = args[0].operator Operation().output(
