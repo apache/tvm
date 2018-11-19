@@ -14,7 +14,7 @@ namespace relay {
 struct StorageToken {
   /*! \brief Reference counter */
   int ref_counter{0};
-  /*! \brief numbe of bytes */
+  /*! \brief number of bytes */
   size_t max_bytes{0};
   /*! \brief The corresponding tensor type node. */
   const TensorTypeNode* ttype{nullptr};
@@ -55,7 +55,6 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* op) final {
-    // Do nothing.
     std::vector<StorageToken*> fields;
     for (Expr field : op->fields) {
       auto tok = GetToken(field);
@@ -86,7 +85,7 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > token_map_;
 
   /*!
-   * \brief call get token to get the necessary token.
+   * \brief Get the necessary token.
    * \param expr The expression.
    * \return The corresponding token.
    */
@@ -223,7 +222,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     }
     // create token for the call node.
     CreateToken(op, true);
-    // check if there is orphaned output that can be released immediately/
+    // check if there is orphaned output that can be released immediately.
     for (StorageToken* tok : token_map_.at(op)) {
       CheckForRelease(tok);
     }
@@ -231,6 +230,14 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
       tok->ref_counter -= 1;
       CheckForRelease(tok);
     }
+  }
+  /*!
+   * \brief ceil(size/word_size) to get number of words.
+   * \param size The original size.
+   * \param word_size The element size.
+   */
+  static size_t DivRoundUp(size_t size, size_t word_size) {
+    return (size + word_size - 1) / word_size;
   }
   /*!
    * \brief Get the memory requirement.
@@ -248,7 +255,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
           << ttype->shape;
       size *= static_cast<size_t>(pval[0]);
     }
-    size *= (ttype->dtype.bits() * ttype->dtype.lanes() + 7) / 8;
+    size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
     return size;
   }
   /*!
