@@ -48,6 +48,7 @@ def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-ar
     """
     return numpy.zeros(shape).astype(dtype)
 
+output_tensor = allocate #pylint: disable=invalid-name
 
 def popcount(x):
     """
@@ -87,18 +88,19 @@ def sigmoid(x):
 
 
 HYBRID_GLOBALS = {
-    'unroll'    : unroll,
-    'vectorize' : vectorize,
-    'parallel'  : parallel,
-    'allocate'  : allocate,
-    'bind'      : bind,
-    'sqrt'      : numpy.sqrt,
-    'log'       : numpy.log,
-    'tanh'      : numpy.tanh,
-    'power'     : numpy.power,
-    'exp'       : numpy.exp,
-    'sigmoid'   : sigmoid,
-    'popcount'  : popcount
+    'unroll'       : unroll,
+    'vectorize'    : vectorize,
+    'parallel'     : parallel,
+    'allocate'     : allocate,
+    'output_tensor': output_tensor,
+    'bind'         : bind,
+    'sqrt'         : numpy.sqrt,
+    'log'          : numpy.log,
+    'tanh'         : numpy.tanh,
+    'power'        : numpy.power,
+    'exp'          : numpy.exp,
+    'sigmoid'      : sigmoid,
+    'popcount'     : popcount
 }
 
 
