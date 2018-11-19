@@ -467,6 +467,12 @@ def run_through_rpc(measure_input, build_result,
             ctx.sync()
 
         costs = time_f(*args).results
+
+        # clean up remote files
+        remote.remove(build_result.filename)
+        remote.remove(os.path.splitext(build_result.filename)[0] + '.so')
+        remote.remove('')
+
         if len(costs) > 2:  # remove largest and smallest value to reduce variance
             costs = list(costs)
             costs.sort()
