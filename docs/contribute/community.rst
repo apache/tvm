@@ -1,51 +1,30 @@
-TVM Community Structure
+TVM Community Guideline
 =======================
 
-TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use, contribute to, and influence the direction of the project. We actively invite contributors who have earned the merit to be part of the development community. There are several roles in the community:
-
-- Project Management Committee(PMC) Small group of active committers that moderate the discussion, RFC, manage project releases.
-- Committer Individual who has made substantial contributions to the project and is granted write access to the project and oversees the general direction of the projects.
-- Code Owner Individual who is responsible for a specific area of the codebase.
-- Reviewer Individual who is qualified to review for a specific area of the codebase.
-- Contributor Anyone who contributes to the project.
-
-This document explains responsibility and criteria for each role.
-See `CONTRIBUTORS.md <https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md>`_ for the current list of contributors and their roles.
+TVM adopts the Apache style model and governs by merit. We believe that it is important to create an inclusive community where everyone can use, contribute to, and influence the direction of the project. See `CONTRIBUTORS.md <https://github.com/dmlc/tvm/blob/master/CONTRIBUTORS.md>`_ for the current list of contributors.
 
 
-Project Management Committee
-----------------------------
+General Development Process
+---------------------------
+Everyone in the community is welcomed to send patches, documents, and propose new directions to the project. The key guideline here is to enable everyone in the community to get involved and participate the decision and development.  When major changes are proposed, an RFC should be sent to allow discussion by the community. We encourage public discussion, archivable channels such as issues, discuss forum and mailing-list, so that everyone in the community can participate and review the process later.
 
-The PMC consists of a small group of active committers that moderate the discussion, provide mentorship to committers and code owners and manage the project release. PMC members need to actively manage the general project directions. Note that most major design choices and proposed changes should reach consensus among the committers.
+Code reviews are one of the key ways to ensure the quality of the code. High-quality code reviews prevent technical debt for long-term and are crucial to the success of the project. A pull request needs to be reviewed before it gets merged. A committer who has the expertise of the corresponding area would moderate the pull request and the merge the code when it is ready. The corresponding committer could request multiple reviewers who are familiar with the area of the code. We encourage contributors to request code reviews themselves and help review each other's code -- remember everyone is volunteering their time to the community, high-quality code review itself costs as much as the actual code contribution, you could get your code quickly reviewed if you do others the same favor.
 
-Committer
----------
+The community should strive to reach a consensus on technical decisions through discussion. We expect committers and PMCs to moderate technical discussions in a diplomatic way, and provide suggestions with clear technical reasoning when necessary.
 
-Committers are individuals who are granted the write access to the project. Committers oversee the general project directions and participate in the evaluation of the RFCs involving major design changes. Here is a list of useful things to do to help become a committer.
 
-- Deep understanding of one or a few modules in the project.
-- Good understanding of general project structure, demonstrated by discussion over RFCs, code reviews and proposals of new features
-- Active history of code reviews that demonstrate a good technical ability
-- Contribution history of high-quality documentation and tutorials to the promote project
-- History of creating clean, maintainable code and including good test cases.
 
-New committers are nominated by current committers from current code owners.
-
-Code Owner
+Committers
 ----------
+Committers are individuals who are granted the write access to the project. A committer is usually responsible for a certain area or several areas of the code where they oversee the code review process. The area of contribution can take all forms, including code contributions and code reviews, documents, education, and outreach. Committers are essential for a high quality and healthy project. The community actively look for new committers from contributors. Here is a list of useful traits that help the community to recognize potential committers:
 
-A code owner is an individual who is responsible for a specific area of the code-base. Code owners are responsible for the areas they are in charge of and oversee the code review process of the corresponding module. Changes to a specific area need to be approved by one of its owners in order to be merged. Once a pull request is approved by the designated code owner, the code can be directly merged into the repo. Code owners are essential for a high quality and healthy codebase.
+- Sustained contribution to the project, demonstrated by discussion over RFCs, code reviews and proposals of new features, and other development activities. Being familiar with, and being able to take ownership on one or several areas of the project.
+- Quality of contributions: High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review.  History of creating clean, maintainable code and including good test cases. Informative code reviews to help other contributors that adhere to a good standard.
+- Community involvement: active participation in the discussion forum, promote the projects via tutorials, talks and outreach. We encourage committers to collaborate broadly, e.g. do code reviews and discuss designs with community members that they do not interact physically.
 
-We welcome new code owners that help to keep good code quality, testing, and documentation in specific areas. Here is a list of useful traits that help the community to recognize potential code owners:
+The Project Management Committee(PMC) consists group of active committers that moderate the discussion, manage the project release, and proposes new committer/PMC members. Potential candidates are usually proposed via an internal discussion among PMCs, followed by a consensus approval, i.e. least 3 +1 votes, and no vetoes. Any veto must be accompanied by reasoning. PMCs should serve the community by upholding the community practices and guidelines TVM a better community for everyone. PMCs should strive to identify new candidates outside of their own organization.
 
-- High-quality, readable code contributions indicated by pull requests that can be merged without a substantial code review
-- Good coverage of tests and documentation in the contributions
-- Informative code reviews to help other contributors that adhere to a good standard, spot problems in contributions etc.
-- Active participation in the discussion forum
 
-Reviewer
---------
-
-A reviewer is an individual who actively contributed to the project and is willing to participate in the code review of new contributions. We invite reviewers from active contributors. The reviewer invitation will be sent to the potential reviewer’s email, so please log in to the discussion forum so that we can know which email address we could send an invitation to.
-We actively seek reviews from reviewers. High-quality code reviews prevent technical debt for long-term and are crucial to the success of the project.
-A pull request to the project has to be reviewed by a reviewer in order to be merged.
+Reviewers
+---------
+Reviewers are individuals who actively contributed to the project and are willing to participate in the code review of new contributions. We identify reviewers from active contributors. The committers should explicitly solicit reviews from reviewers.  High-quality code reviews prevent technical debt for long-term and are crucial to the success of the project. A pull request to the project has to be reviewed by at least one reviewer in order to be merged.
