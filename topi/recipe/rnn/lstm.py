@@ -1,8 +1,6 @@
 """LSTM Example, still work in progress.."""
 import tvm
-import time
 import os
-import argparse
 from tvm.contrib import nvcc
 import numpy as np
 
