@@ -321,3 +321,22 @@ def combine_parallel_conv2d(expr):
         Transformed expression
     """
     return _ir_pass.CombineParallelConv2D(expr)
+
+
+def alter_op_layout(expr):
+    """Alternate the layouts of operators or replace primitive operators with
+    other expressions.
+    This pass can be used for computing convolution in custom layouts or
+    other general weight pre-transformation.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+
+    Returns
+    -------
+    transformed_expr : tvm.relay.Expr
+        Transformed expression with alternated layout.
+    """
+    return _ir_pass.AlterOpLayout(expr)

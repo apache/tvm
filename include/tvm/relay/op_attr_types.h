@@ -87,6 +87,18 @@ using FTVMSchedule = runtime::TypedPackedFunc<
            const Target& target)>;
 
 /*!
+ * \brief Alternate the layout of operators or replace the
+ *  operator with other expressions.
+ *
+ * \param attrs The attribute of the node.
+ * \param inputs The arguments of this operator.
+ * \return new_expr The modified expression.
+ */
+using FTVMAlterOpLayout = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args)>;
+
+/*!
  * \brief Forward rewriting rule for a specific op.
  *
  * \param ref_call The reference old call type to be rewritten.
