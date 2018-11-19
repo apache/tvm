@@ -35,5 +35,12 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.download")
     *rv = arr;
   });
 
+TVM_REGISTER_GLOBAL("tvm.rpc.server.remove")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+    std::string file_name = RPCGetPath(args[0]);
+    LOG(INFO) << "Remove " << file_name;
+    RemoveFile(file_name);
+  });
+
 }  // namespace runtime
 }  // namespace tvm

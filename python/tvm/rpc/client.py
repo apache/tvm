@@ -103,6 +103,19 @@ class RPCSession(object):
                 "tvm.rpc.server.download")
         return self._remote_funcs["download"](path)
 
+    def remove(self, path):
+        """Remove file from remote temp folder.
+
+        Parameters
+        ----------
+        path: str
+            The relative location to remote temp folder.
+        """
+        if "remove" not in self._remote_funcs:
+            self._remote_funcs["remove"] = self.get_function(
+                "tvm.rpc.server.remove")
+        self._remote_funcs["remove"](path)
+
     def load_module(self, path):
         """Load a remote module, the file need to be uploaded first.
 
