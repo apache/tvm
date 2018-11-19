@@ -17,6 +17,7 @@ def schedule_softmax(_, outputs, target):
 
 reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
 
+schedule_broadcast = schedule_injective
 
 @reg.register_schedule("nn.log_softmax")
 def schedule_log_softmax(_, outputs, target):
@@ -194,3 +195,47 @@ def schedule_global_avg_pool2d(_, outs, target):
         return topi.generic.schedule_global_pool(outs)
 
 reg.register_pattern("nn.global_avg_pool2d", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+# leaky_relu
+reg.register_schedule("nn.leaky_relu", schedule_broadcast)
+reg.register_pattern("nn.leaky_relu", OpPattern.ELEMWISE)
+
+# prelu
+reg.register_schedule("nn.prelu", schedule_broadcast)
+reg.register_pattern("nn.prelu", OpPattern.BROADCAST)
+
+# flatten
+reg.register_schedule("nn.batch_flatten", schedule_broadcast)
+reg.register_pattern("nn.batch_flatten", OpPattern.INJECTIVE)
+
+
+# lrn
+@reg.register_compute("nn.lrn")
+def compute_lrn(attrs, inputs, out_dtype, target):
+    """Compute definition of lrn"""
+    assert len(inputs) == 1
+    return [topi.nn.lrn(inputs[0], attrs.size, attrs.axis,
+                        attrs.alpha, attrs.beta, attrs.bias)]
+
+@reg.register_schedule("nn.lrn")
+def schedule_lrn(attrs, outs, target):
+    """Schedule definition of lrn"""
+    with target:
+        return topi.generic.schedule_lrn(outs)
+
+reg.register_pattern("nn.lrn", OpPattern.OPAQUE)
+
+
+# l2_normalize
+@reg.register_compute("nn.l2_normalize")
+def compute_l2_normalize(attrs, inputs, out_dtype, target):
+    """Compute definition of l2 normalize"""
+    return [topi.nn.l2_normalize(inputs[0], attrs.eps, attrs.axis)]
+
+@reg.register_schedule("nn.l2_normalize")
+def schedule_l2_normalize(attrs, outs, target):
+    """Schedule definition of l2 normalize"""
+    with target:
+        return topi.generic.schedule_l2_normalize(outs)
+
+reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
