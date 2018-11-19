@@ -199,7 +199,7 @@ class ParallelConv2DCombiner {
     size_t arg_channel_pos = channel_pos - toutput_a->shape.size() + ta->shape.size();
 
     // Channel super-dimension shoule be present and not broadcasted
-    if ((arg_channel_pos > channel_pos) || // size_t overflow
+    if ((arg_channel_pos > channel_pos) ||  // size_t overflow
         !eq(ta->shape[arg_channel_pos], toutput_a->shape[channel_pos]) ||
         !eq(tb->shape[arg_channel_pos], toutput_b->shape[channel_pos]))
       return false;
@@ -270,18 +270,18 @@ class ParallelConv2DCombiner {
                          size_t channel_pos) {
     int64_t index = 0;
     for (const auto& branch : branches) {
-    const CallNode* conv2d = branch[0];
-    int64_t channels = GetConv2DSuperChannelsDim(conv2d);
-    Array<Integer> begin;
-    Array<Integer> end;
-    for (size_t i = 0; i < channel_pos; i++) {
-      begin.push_back(0);
-      end.push_back(NullValue<Integer>());
-    }
-    begin.push_back(index);
-    index += channels;
-    end.push_back(index);
-    auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
+      const CallNode* conv2d = branch[0];
+      int64_t channels = GetConv2DSuperChannelsDim(conv2d);
+      Array<Integer> begin;
+      Array<Integer> end;
+      for (size_t i = 0; i < channel_pos; i++) {
+        begin.push_back(0);
+        end.push_back(NullValue<Integer>());
+      }
+      begin.push_back(index);
+      index += channels;
+      end.push_back(index);
+      auto slice = MakeStridedSlice(data, std::move(begin), std::move(end), Array<Integer>{});
       subst_map_[GetRef<Expr>(branch[depth])] = slice;
     }
   }
