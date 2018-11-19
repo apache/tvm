@@ -71,6 +71,12 @@ void SaveMetaDataToFile(
 void LoadMetaDataFromFile(
     const std::string& file_name,
     std::unordered_map<std::string, FunctionInfo>* fmap);
+
+/*!
+ * \brief Remove (unlink) a file.
+ * \param file_name The file name.
+ */
+void RemoveFile(const std::string& file_name);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_FILE_UTIL_H_
