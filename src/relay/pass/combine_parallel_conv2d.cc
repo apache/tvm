@@ -196,16 +196,16 @@ class ParallelConv2DCombiner {
       return false;
 
     // Position of the 'C' dimension in the argument
-    int64_t arg_channel_pos = channel_pos - toutput_a->shape.size() + ta->shape.size();
+    size_t arg_channel_pos = channel_pos - toutput_a->shape.size() + ta->shape.size();
 
     // Channel super-dimension shoule be present and not broadcasted
-    if ((arg_channel_pos < 0) ||
+    if ((arg_channel_pos > channel_pos) || // size_t overflow
         !eq(ta->shape[arg_channel_pos], toutput_a->shape[channel_pos]) ||
         !eq(tb->shape[arg_channel_pos], toutput_b->shape[channel_pos]))
       return false;
 
     for (size_t i = 0; i < ta->shape.size(); i++) {
-      if (i == static_cast<size_t>(arg_channel_pos)) continue;
+      if (i == arg_channel_pos) continue;
       if (!eq(ta->shape[i], tb->shape[i]))
         return false;
     }
