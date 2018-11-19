@@ -28,7 +28,8 @@
 namespace tvm {
 namespace relay {
 
-using Group = std::vector<std::vector<const CallNode*>>;
+using Branch = std::vector<const CallNode*>;
+using Group = std::vector<Branch>;
 
 /*
   Find parallel branches starting with conv2d as shown below and then group branches by kernel
@@ -55,7 +56,7 @@ class BranchGroupFinder : private ExprVisitor {
         auto&& branch = CreateBranch(conv);
         // add the branch to a group, or create a new group
         auto it = std::find_if(groups.begin(), groups.end(), [&](const Group& group) {
-          CHECK(group.size() && group[0].size());
+          CHECK(!group.empty() && !group[0].empty());
           return IsCompatibleConv2D(conv, group[0][0]);
         });
         if (it != groups.end()) {
@@ -98,10 +99,10 @@ class BranchGroupFinder : private ExprVisitor {
   }
 
   // Create a branch starting from conv2d.
-  std::vector<const CallNode*> CreateBranch(const CallNode* conv) {
+  Branch CreateBranch(const CallNode* conv) {
     static auto fpattern = Op::GetAttr<TOpPattern>("TOpPattern");
     // each branch has at least one element, the first element is always conv2d
-    std::vector<const CallNode*> branch{conv};
+    Branch branch{conv};
     auto it = children_map_.find(GetRef<Expr>(branch.back()));
     while (it != children_map_.end() && it->second.size() == 1) {
       const CallNode* call = it->second[0];
@@ -217,7 +218,7 @@ class ParallelConv2DCombiner {
     AttrsEqual attrs_equal;
     // check if all branches in current depth can be combined
     for (auto it = branches.begin() + 1; it != branches.end(); it++) {
-      const std::vector<const CallNode*>& branch = *it;
+      const Branch& branch = *it;
       if (!branch[depth]->op.same_as(call->op) ||
           !attrs_equal(branch[depth]->attrs, call->attrs) ||
           branch[depth]->args.size() != call->args.size()) {
@@ -286,7 +287,7 @@ class ParallelConv2DCombiner {
   }
 
   // Combine branches in a group. Conv2d in different branches in the same group are safe to
-  // combined. Subsequent ops may or may not be combined. We start from conv2d and try to
+  // combine. Subsequent ops may or may not be combined. We start from conv2d and try to
   // combine ops from all branches in the same depth.
   void CombineBranches(const Group& branches) {
     Call combined = MakeCombinedConv2D(branches);
@@ -296,8 +297,8 @@ class ParallelConv2DCombiner {
     size_t channel_pos = layout.find('C');
     CHECK_NE(channel_pos, std::string::npos);
     auto it = std::min_element(branches.begin(), branches.end(),
-                               [](const std::vector<const CallNode*>& branch_a,
-                                  const std::vector<const CallNode*>& branch_b) {
+                               [](const Branch& branch_a,
+                                  const Branch& branch_b) {
                                     return branch_a.size() < branch_b.size();
                                   });
     size_t depth = it->size();
