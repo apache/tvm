@@ -1,6 +1,4 @@
 """LSTM Example, still work in progress.."""
-from __future__ import division
-
 import tvm
 import time
 import os
