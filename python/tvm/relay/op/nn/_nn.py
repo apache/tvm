@@ -19,7 +19,7 @@ reg.register_pattern("nn.softmax", OpPattern.OPAQUE)
 
 
 @reg.register_schedule("nn.log_softmax")
-def schedule_softmax(_, outputs, target):
+def schedule_log_softmax(_, outputs, target):
     """Schedule definition of log_softmax"""
     with target:
         return topi.generic.schedule_softmax(outputs)
