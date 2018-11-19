@@ -137,12 +137,19 @@ def test_softmax():
 
 
 def test_log_softmax():
-    n, d = tvm.var("n"), tvm.var("d")
-    x = relay.var("x", shape=(n, d))
-    y = relay.nn.log_softmax(x, axis=0)
+    shape = (10, 4)
+    x = relay.var("x", shape=shape)
+    y = relay.nn.log_softmax(x, axis=1)
     assert "nn.log_softmax" in y.astext()
     yy = relay.ir_pass.infer_type(y)
-    assert yy.checked_type == relay.TensorType((n, d))
+    assert yy.checked_type == relay.TensorType(shape)
+    func = relay.Function([x], y)
+    x_data = np.random.uniform(size=shape).astype("float32")
+    ref_res = topi.testing.log_softmax_python(x_data)
+    for target, ctx in ctx_list():
+        intrp = relay.create_executor("graph", ctx=ctx, target=target)
+        op_res = intrp.evaluate(func)(x_data)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 def test_concatenate():
