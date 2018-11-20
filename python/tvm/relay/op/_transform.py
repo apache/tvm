@@ -5,9 +5,9 @@ import topi
 import topi.cuda
 from tvm import container
 from . import op as _reg
-from .op import (schedule_broadcast, schedule_injective,
-                 register_compute, register_schedule,
+from .op import (schedule_injective, register_compute, register_schedule,
                  register_pattern, OpPattern)
+from .tensor import schedule_broadcast
 
 # squeeze
 @register_compute("squeeze")
