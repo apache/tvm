@@ -20,6 +20,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx
+- [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
 
 ## Reviewers
 
