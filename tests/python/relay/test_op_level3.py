@@ -72,9 +72,9 @@ def test_squeeze():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
     verify_squeeze((1, 3, 2, 5), "float32", None)
-    verify_squeeze((1, 3, 1), "float32", 0)
-    verify_squeeze((1, 3, 2, 5, 1), "float32", -1)
-    verify_squeeze((1, 2, 1, 2, 1), "float32", (0, 2, 4))
+    verify_squeeze((1, 3, 1), "float32", [0])
+    verify_squeeze((1, 3, 2, 5, 1), "float32", [-1])
+    verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
 
 def test_transpose_infer_type():
@@ -310,6 +310,7 @@ if __name__ == "__main__":
     test_full_like()
     test_infer_type_leaky_relu()
     test_infer_type_prelu()
+    test_squeeze()
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
