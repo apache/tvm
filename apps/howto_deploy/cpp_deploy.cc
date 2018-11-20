@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
  * \brief Example code on load and run TVM module.s
- * \file cpp_deploy_example.cc
+ * \file cpp_deploy.cc
  */
 #include <cstdio>
 #include <dlpack/dlpack.h>
