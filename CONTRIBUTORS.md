@@ -11,6 +11,7 @@ See the [community structure document](http://docs.tvm.ai/contribute/community.h
 We add tag along with committer name to show areas that they are familiar with.
 We do encourage everyone to work anything they are interested in.
 
+- [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
