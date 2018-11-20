@@ -43,7 +43,8 @@ def test_unary_op():
                    (tvm.relay.sqrt, np.sqrt),
                    (tvm.relay.sigmoid, sigmoid),
                    (tvm.relay.tanh, np.tanh),
-                   (relay.nn.relu, relu)]:
+                   (relay.nn.relu, relu),
+                   (relay.nn.softmax, topi.testing.softmax_python)]:
         check_single_op(opfunc, ref)
 
 
