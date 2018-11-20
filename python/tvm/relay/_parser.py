@@ -8,7 +8,7 @@ import sys
 from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 
-from . import env
+from . import module
 from . import expr
 from . import ty
 from . import op
@@ -83,7 +83,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
     def __init__(self):
         # type: () -> None
-        self.env = env.Environment({})   # type: env.Environment
+        self.module = module.Module({})   # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
@@ -184,7 +184,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # type: (RelayParser.ProgContext) -> Union[expr.Expr, env.Environment]
         if ctx.defn():
             self.visit_list(ctx.defn())
-            return self.env
+            return self.module
 
         return self.visit(ctx.expr())
 
@@ -315,7 +315,7 @@ class ParseTreeToRelayIR(RelayVisitor):
             raise ParseError('Only global ids may be used in `def`s.')
         ident = expr.GlobalVar(ident.getText()[1:])
 
-        self.env[ident] = self.mk_func(ctx)
+        self.module[ident] = self.mk_func(ctx)
 
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> expr.Call

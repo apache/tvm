@@ -255,7 +255,7 @@ def test_defn():
             %x
         }
         """)
-    assert isinstance(id_defn, relay.Environment)
+    assert isinstance(id_defn, relay.Module)
 
 def test_ifelse():
     assert alpha_equal(

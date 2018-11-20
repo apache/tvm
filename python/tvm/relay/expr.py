@@ -622,5 +622,3 @@ def bind(expr, binds):
         The expression or function after binding.
     """
     return _expr.Bind(expr, binds)
-
-pretty_print = _expr._pretty_print
