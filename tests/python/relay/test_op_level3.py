@@ -65,10 +65,12 @@ def test_squeeze():
         x = relay.var("x", relay.TensorType(shape, dtype))
         squeeze = relay.squeeze(x, axis=axis)
 
+        np_axis = tuple(axis) if axis is not None else None
+
         data = np.random.random_sample(shape).astype(dtype)
         intrp = create_executor()
         op_res = intrp.evaluate(squeeze, { x : relay.const(data) })
-        ref_res = np.squeeze(data, axis=axis)
+        ref_res = np.squeeze(data, axis=np_axis)
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
     verify_squeeze((1, 3, 2, 5), "float32", None)
