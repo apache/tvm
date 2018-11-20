@@ -311,6 +311,7 @@ if __name__ == "__main__":
     test_binary_op()
     test_expand_dims_infer_type()
     test_concatenate()
+    test_expand_dims()
     test_softmax()
     test_log_softmax()
     test_dropout()
