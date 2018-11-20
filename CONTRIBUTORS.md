@@ -19,7 +19,7 @@ We do encourage everyone to work anything they are interested in.
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
-- [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx
+- [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
 
 ## Reviewers
