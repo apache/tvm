@@ -138,6 +138,19 @@ struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
         .describe("Stride values of the slice");
   }
 };
+
+
+struct SliceLikeAttrs : public tvm::AttrsNode<SliceLikeAttrs> {
+  Array<Integer> axes;
+
+  TVM_DECLARE_ATTRS(SliceLikeAttrs, "relay.attrs.SliceLikeAttrs") {
+    TVM_ATTR_FIELD(axes)
+        .describe("List of axes on which input data will be sliced according to the "
+                  "corresponding size of the second input. By default will slice "
+                  "on all axes. Negative axes mean counting in reverse.");
+  }
+};
+
 }  // namespace relay
 }  // namespace tvm
 #endif  // TVM_RELAY_ATTRS_TRANSFORM_H_
