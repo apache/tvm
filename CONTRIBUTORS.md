@@ -12,6 +12,7 @@ We add tag along with committer name to show areas that they are familiar with.
 We do encourage everyone to work anything they are interested in.
 
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
+- [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
