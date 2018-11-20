@@ -18,7 +18,8 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
-- [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
+- [Leyuan Wang](https://github.com/Laurawly): @Laurawly - topi
+- [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
 
 ## Reviewers
 
