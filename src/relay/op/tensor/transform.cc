@@ -307,7 +307,14 @@ RELAY_REGISTER_OP("transpose")
 .set_attrs_type_key("relay.attrs.TransposeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
-.add_type_rel("Transpose", TransposeRel);
+.add_type_rel("Transpose", TransposeRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  const auto* param = attrs.as<TransposeAttrs>();
+  return Array<Tensor>{ topi::transpose(inputs[0], IntegerArrayToExprArray(param->axes)) };
+});
 
 /* relay.reshape */
 
@@ -617,7 +624,19 @@ Examples::
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("indices", "Tensor", "The indices tensor.")
 .set_support_level(2)
-.add_type_rel("Take", TakeRel);
+.add_type_rel("Take", TakeRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  const auto* param = attrs.as<TakeAttrs>();
+  CHECK(param != nullptr);
+  if (!param->axis.defined()) {
+    return Array<Tensor>{topi::take(inputs[0], inputs[1]) };
+  } else {
+    return Array<Tensor>{topi::take(inputs[0], inputs[1], param->axis) };
+  }
+});
 
 // Init ops
 TVM_REGISTER_NODE_TYPE(InitOpAttrs);
