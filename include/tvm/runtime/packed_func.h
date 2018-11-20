@@ -41,6 +41,8 @@
 #include "ndarray.h"
 #include "object.h"
 #include "node_base.h"
+// TODO(gus): ...
+#include "../../../src/codegen/datatype/datatype_registry.h"
 
 namespace HalideIR {
 // Forward declare type for extensions
@@ -929,8 +931,20 @@ inline const char* TypeCode2Str(int type_code) {
     case kModuleHandle: return "ModuleHandle";
     case kNDArrayContainer: return "NDArrayContainer";
     case kObject: return "Object";
-    default: LOG(FATAL) << "unknown type_code="
-                        << static_cast<int>(type_code); return "";
+    default:
+      // This is (potentially) the case of a custom type code.
+      // TODO(gus): should only a range of codes be allowed for customs?
+
+      // TODO(gus): handle code-not-found error
+
+      auto type_name = DatatypeRegistry::GetTypeName((uint8_t)type_code);
+      std::ostringstream ss;
+      ss << "custom[" << type_name << "]";
+      auto str = ss.str();
+      return str.c_str();
+
+      // LOG(FATAL) << "unknown type_code="
+      //                   << static_cast<int>(type_code); return "";
   }
 }
 
@@ -939,6 +953,7 @@ inline std::ostream& operator<<(std::ostream& os, TVMType t) {  // NOLINT(*)
   if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
     os << "bool"; return os;
   }
+  // TODO(gus): need to handle custom type codes in this case.
   os << TypeCode2Str(t.code);
   if (t.code == kHandle) return os;
   os << static_cast<int>(t.bits);
@@ -994,6 +1009,18 @@ inline TVMType String2TVMType(std::string s) {
     t.bits = 1;
     t.lanes = 1;
     return t;
+  } else if (s.substr(0, 6) == "custom") {
+    // TODO(gus): too much hardcoding here.
+    scan = s.c_str() + 6;
+    if (*scan != '[') LOG(FATAL) << "expected opening brace after 'custom' type in" << s;
+    ++scan;
+    size_t custom_name_len = 0;
+    while (scan + custom_name_len <= s.c_str() + s.length() && *(scan+custom_name_len) != ']') ++custom_name_len;
+    if (*(scan+custom_name_len) != ']') LOG(FATAL) << "expected closing brace after 'custom' type in" << s;
+    scan += custom_name_len + 1;
+
+    auto type_name = s.substr(7, custom_name_len);
+    t.code = DatatypeRegistry::GetTypeCode(type_name);
   } else {
     scan = s.c_str();
     LOG(FATAL) << "unknown type " << s;

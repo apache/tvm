@@ -122,6 +122,8 @@ file(GLOB_RECURSE RELAY_SRCS
     )
 list(APPEND COMPILER_SRCS ${RELAY_SRCS})
 
+file(GLOB DATATYPE_SRCS src/codegen/datatype/*.cc)
+list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 
 if(NOT MSVC)
   file(GLOB COMPILER_VERILOG_SRCS src/codegen/verilog/*.cc)
