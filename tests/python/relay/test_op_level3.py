@@ -75,7 +75,6 @@ def test_squeeze():
 
     verify_squeeze((1, 3, 2, 5), "float32", None)
     verify_squeeze((1, 3, 1), "float32", [0])
-    verify_squeeze((1, 3, 2, 5, 1), "float32", [-1])
     verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
 
