@@ -12,10 +12,11 @@ We add tag along with committer name to show areas that they are familiar with.
 We do encourage everyone to work anything they are interested in.
 
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
-- [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta,
-- [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
-- [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
+- [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
+
 
 ## Reviewers
 
