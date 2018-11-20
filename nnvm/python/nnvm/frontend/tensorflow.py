@@ -355,6 +355,11 @@ def _matmul():
 
     return _impl
 
+def _undef():
+    def _impl(inputs, attr, params):
+        return _sym.__undef__()
+    return _impl
+
 def _identity():
     def _impl(inputs, attr, params):
         return inputs[0]
@@ -933,6 +938,8 @@ _convert_map = {
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Unpack'                            : _unpack(),
+    'QueueDequeueManyV2'                : _undef(),
+    'FIFOQueueV2'                       : _undef(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
