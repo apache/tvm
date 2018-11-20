@@ -143,6 +143,7 @@ This level support backpropagation of broadcast operators. It is temporary.
 
    tvm.relay.broadcast_to_like
    tvm.relay.collapse_sum_like
+   tvm.relay.slice_like
 
 
 Level 1 Definitions
@@ -231,7 +232,6 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.strided_slice
 
 
-
 Level 5 Definitions
 -------------------
 .. autofunction:: tvm.relay.image.resize
@@ -241,3 +241,4 @@ Level 10 Definitions
 --------------------
 .. autofunction:: tvm.relay.broadcast_to_like
 .. autofunction:: tvm.relay.collapse_sum_like
+.. autofunction:: tvm.relay.slice_like

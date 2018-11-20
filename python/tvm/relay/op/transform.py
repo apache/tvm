@@ -361,3 +361,29 @@ def strided_slice(data, begin, end, strides=None):
     """
     strides = strides or []
     return _make.strided_slice(data, list(begin), list(end), list(strides))
+
+
+def slice_like(data, shape_like, axes=None):
+    """Slice the first input with respect to the second input.
+
+    For an input array with shape ``(d1, d2, ..., dk)``, `slice_like` operation slices the
+    the input array corresponding size of second array. By default will slice on all axes.
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The source array.
+
+    shape_like : tvm.relay.Expr
+        The new shape.
+
+    axes : Optional[Tuple[int]]
+        List of axes on which input data will be sliced according to the corresponding size of
+        the second input. By default will slice on all axes. Negative axes mean counting in reverse.
+
+    Returns
+    -------
+    result : relay.Expr
+        The computed result.
+    """
+    return _make.slice_like(data, shape_like, axes)
