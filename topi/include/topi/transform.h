@@ -196,30 +196,34 @@ inline Tensor reshape(const Tensor& x,
 * \param x The input tensor
 * \param axis Indices of the dimensions to remove. If this is empty,
 * all entries with a constant size of 1 will be removed.
+ * \param atleast1d Whether the output need to be atleast1d.
 * \param name The name of the operation
 * \param tag The tag to mark the operation
 *
 * \return A Tensor whose op member is the squeeze operation
 */
 inline Tensor squeeze(const Tensor& x,
-                      Array<Expr> axis,
+                      Array<Integer> axis,
+                      bool atleast1d = false,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
-  auto axis_val = GetConstIntValues(axis, "axis");
   auto ndim = x->shape.size();
-  if (axis_val.size() == 0) {
+  std::vector<int> axis_val;
+  if (!axis.defined() || axis.size() == 0) {
     for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
         axis_val.push_back(static_cast<int>(i));
       }
     }
   } else {
-    for (size_t i = 0; i < axis_val.size(); ++i) {
-      if (axis_val[i] < 0) {
-        axis_val[i] += static_cast<int>(x->shape.size());
+    for (size_t i = 0; i < axis.size(); ++i) {
+      int64_t val = axis[i]->value;
+      if (val < 0) {
+        val += static_cast<int>(x->shape.size());
       }
-      CHECK_EQ(GetConstInt(x->shape[axis_val[i]]), 1) <<
-        "Dimension " << axis[i] << " must have size 1";
+      CHECK_EQ(GetConstInt(x->shape[val]), 1) <<
+          "Dimension " << val << " must have size 1";
+      axis_val.push_back(val);
     }
   }
 
@@ -231,7 +235,7 @@ inline Tensor squeeze(const Tensor& x,
       out_shape.push_back(x->shape[i]);
     }
   }
-  if (out_shape.size() == 0) {
+  if (out_shape.size() == 0 && atleast1d) {
     out_shape.push_back(1);
   }
 

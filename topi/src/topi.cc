@@ -59,9 +59,9 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
-Array<Expr> ArrayOrInt(TVMArgValue arg) {
+Array<Integer> ArrayOrInt(TVMArgValue arg) {
   if (arg.type_code() == kDLInt || arg.type_code() == kDLUInt) {
-    Array<Expr> result;
+    Array<Integer> result;
     result.push_back(arg.operator int());
     return result;
   } else {

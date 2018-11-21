@@ -28,6 +28,17 @@ inline tvm::Array<tvm::Expr> ShapeToArray(TShape shape) {
   return result;
 }
 
+/*
+ * \brief Helper function to convert TShape to TVM array. Useful for
+ * passing data from NNVM param structures to TOPI ops.
+ *
+ * \param shape The shape to convert
+ *
+ * \return An Array of Expr, where each element is a constant int32
+ */
+inline tvm::Array<tvm::Integer> ShapeToIntArray(TShape shape) {
+  return tvm::Array<tvm::Integer>(ShapeToArray(shape).node_);
+}
 }  // namespace compiler
 }  // namespace nnvm
 #endif  // NNVM_COMPILER_UTIL_H_

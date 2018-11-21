@@ -27,7 +27,7 @@ using namespace tvm;
 */
 inline Tensor l2_normalize(const Tensor& data,
                            float eps,
-                           const Array<Expr>& axis,
+                           const Array<Integer>& axis,
                            std::string name = "tensor",
                            std::string tag = "l2_normalize") {
   CHECK_EQ(data->shape.size(), 4) << "L2 normalization requires 4-D input";

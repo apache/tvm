@@ -756,8 +756,8 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const SqueezeParam& param = nnvm::get<SqueezeParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
-    return Array<Tensor>{ topi::squeeze(inputs[0], axis) };
+    auto axis = ShapeToIntArray(param.axis);
+    return Array<Tensor>{ topi::squeeze(inputs[0], axis, true) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,

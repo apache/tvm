@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <string>
-#include <set>
 #include <vector>
 #include <iterator>
 
@@ -20,13 +19,6 @@
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
 
-/*!
- * \brief macro flag to enable some legacy behavior which requires
- * reduction result to be at least 1d.
- */
-#ifndef TOPI_REDUCE_ATLEAST1D
-#define TOPI_REDUCE_ATLEAST1D 0
-#endif
 
 namespace topi {
 using namespace tvm;
@@ -42,30 +34,34 @@ using FCommReduce = std::function<
 * \brief Convert a reduction axis which could be empty or have negative
 * elements into a real axis with valid dimension indices.
 *
+* \param ndim Number of dimensions in the target.
+* \param axis The axis parameter.
+*
 * \return A non-empty sorted array of valid dimension indices, with no duplicates.
 * If the input axis is empty, the result will be an axis including all dimensions.
 * If any input element is negative, it will be treated as an offset from the
 * last dimension (same as python indexing rules).
 */
-inline std::vector<int> GetRealAxis(int ndim, const std::vector<int>& axis) {
+inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
   std::vector<int> real_axis;
-  if (axis.size() == 0) {
+  if (!axis.defined() || axis.size() == 0) {
     for (int i = 0; i < ndim; ++i) {
       real_axis.push_back(i);
     }
   } else {
     // Use a set so duplicates are removed and the dims are sorted
-    std::set<int> dims;
-    for (auto ele : axis) {
-      if (ele < 0) {
-        ele += ndim;
+    for (auto elem : axis) {
+      int64_t val = elem->value;
+      if (val < 0) {
+        val += ndim;
       }
-      if (ele >= ndim) {
-        LOG(ERROR) << ele << " exceeds the maximum dimension " << ndim;
-      }
-      dims.emplace(ele);
+      CHECK_LE(val, ndim) << " exceeds the maximum dimension " << ndim;
+      CHECK_GE(val, 0);
+      real_axis.push_back(static_cast<int>(val));
     }
-    std::copy(dims.begin(), dims.end(), std::back_inserter(real_axis));
+    std::sort(real_axis.begin(), real_axis.end());
+    real_axis.resize(
+        std::unique(real_axis.begin(), real_axis.end()) - real_axis.begin());
   }
   return real_axis;
 }
@@ -84,7 +80,8 @@ inline Array<IterVar> MakeReduceAxes(const std::vector<int>& real_axis, const Te
 /*! \brief Calculate the target shape for a reduce op */
 inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
                                          const Tensor& data,
-                                         bool keepdims) {
+                                         bool keepdims,
+                                         bool atleast1d) {
   auto ndim = data->shape.size();
   Array<Expr> target_shape;
   if (keepdims) {
@@ -104,7 +101,7 @@ inline Array<Expr> MakeReduceTargetShape(const std::vector<int>& real_axis,
       }
     }
   }
-  if (target_shape.size() == 0 && TOPI_REDUCE_ATLEAST1D) {
+  if (target_shape.size() == 0 && atleast1d) {
     target_shape.push_back(1);
   }
   return target_shape;
@@ -163,18 +160,19 @@ inline Tensor DoCommReduce(const Tensor& data,
  * \param keepdims If this is set to true, the axes which are reduced are
  * left in the result as dimensions with size one. This enables the result
  * to broadcast correctly against the input array.
+ * \param atleast1d Whether the output need to be atleast1d.
  *
  * \return The result tensor.
  */
 inline Tensor CommReduce(const Tensor& data,
-                         const Array<Expr>& axis,
+                         const Array<Integer>& axis,
                          FReduce func,
-                         bool keepdims = false) {
+                         bool keepdims,
+                         bool atleast1d) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto axis_val = detail::GetConstIntValues(axis, "axis");
-  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis_val);
-  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
+  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
+  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
   return DoCommReduce(data, func, target_shape, real_axis,
       keepdims ? std::vector<int>() : real_axis);
 }
@@ -188,19 +186,20 @@ inline Tensor CommReduce(const Tensor& data,
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return The result tensor.
 */
 inline Tensor CommReduceIdx(const Tensor& data,
-                            const Array<Expr>& axis,
+                            const Array<Integer>& axis,
                             FCommReduce func,
-                            bool keepdims = false) {
+                            bool keepdims,
+                            bool atleast1d) {
   auto ndim = data->shape.size();
   CHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
-  auto axis_val = detail::GetConstIntValues(axis, "axis");
-  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis_val);
+  auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
-  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims);
+  auto target_shape = MakeReduceTargetShape(real_axis, data, keepdims, atleast1d);
 
   auto compute = [ndim, keepdims, &real_axis, &reduce_axes, &func, &data]
   (const Array<Var>& indices) {
@@ -311,11 +310,15 @@ inline Expr ProdOp(Expr source, Array<IterVar> axis) {
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the sum operation
 */
-inline Tensor sum(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
-  return CommReduce(data, axis, tvm::sum, keepdims);
+inline Tensor sum(const Tensor& data,
+                  const Array<Integer>& axis,
+                  bool keepdims = false,
+                  bool atleast1d = false) {
+  return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
 }
 
 inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
@@ -356,11 +359,15 @@ inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the min operation
 */
-inline Tensor min(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
-  return CommReduce(data, axis, MinOp, keepdims);
+inline Tensor min(const Tensor& data,
+                  const Array<Integer>& axis,
+                  bool keepdims = false,
+                  bool atleast1d = false) {
+  return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
 
 /*!
@@ -373,11 +380,15 @@ inline Tensor min(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the max operation
 */
-inline Tensor max(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NOLINT(*)
-  return CommReduce(data, axis, MaxOp, keepdims);
+inline Tensor max(const Tensor& data,
+                  const Array<Integer>& axis,
+                  bool keepdims = false,
+                  bool atleast1d = false) {
+  return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
 
 /*!
@@ -390,10 +401,14 @@ inline Tensor max(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the argmin operation
 */
-inline Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor argmin(const Tensor& data,
+                     const Array<Integer>& axis,
+                     bool keepdims = false,
+                     bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
@@ -407,7 +422,7 @@ inline Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmin");
-  return CommReduceIdx(data, axis, func, keepdims);
+  return CommReduceIdx(data, axis, func, keepdims, atleast1d);
 }
 
 /*!
@@ -420,10 +435,14 @@ inline Tensor argmin(const Tensor& data, Array<Expr> axis, bool keepdims = false
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the argmax operation
 */
-inline Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false) {
+inline Tensor argmax(const Tensor& data,
+                     const Array<Integer>& axis,
+                     bool keepdims = false,
+                     bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
@@ -437,7 +456,7 @@ inline Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false
     return result;
   };
   auto func = MakeCommReducer(fcombine, fidentity, "argmax");
-  return CommReduceIdx(data, axis, func, keepdims);
+  return CommReduceIdx(data, axis, func, keepdims, atleast1d);
 }
 
 /*!
@@ -449,11 +468,15 @@ inline Tensor argmax(const Tensor& data, Array<Expr> axis, bool keepdims = false
 * \param keepdims If this is set to true, the axes which are reduced are
 * left in the result as dimensions with size one. This enables the result
 * to broadcast correctly against the input array.
+* \param atleast1d Whether the output need to be atleast1d.
 *
 * \return A Tensor whose op member is the prod operation
 */
-inline Tensor prod(const Tensor& data, Array<Expr> axis, bool keepdims = false) {  // NOLINT(*)
-  return CommReduce(data, axis, ProdOp, keepdims);
+inline Tensor prod(const Tensor& data,
+                   const Array<Integer>& axis,
+                   bool keepdims = false,
+                   bool atleast1d = false) {
+  return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }
 
 }  // namespace topi

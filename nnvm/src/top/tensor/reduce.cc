@@ -3,9 +3,6 @@
  * \file reduce.cc
  * \brief reduce operator.
  */
-// Enforce TOPI to use old behavior that reduces to at least 1d
-#define TOPI_REDUCE_ATLEAST1D 1
-
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
@@ -20,12 +17,11 @@
 #include "topi/reduction.h"
 #include "topi/transform.h"
 
-static_assert(TOPI_REDUCE_ATLEAST1D, "need to use legacy reduce behavior");
-
 namespace nnvm {
 namespace top {
 using namespace tvm;
 using namespace nnvm::compiler;
+
 
 // reduce
 DMLC_REGISTER_PARAMETER(ReduceParam);
@@ -168,9 +164,9 @@ Example::
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
-    auto axis = ShapeToArray(r_axes);
+    auto axis = ShapeToIntArray(r_axes);
     return Array<Tensor>{
-      topi::sum(inputs[0], axis, param.keepdims) };
+      topi::sum(inputs[0], axis, param.keepdims, true) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -202,9 +198,9 @@ NNVM_REGISTER_REDUCE_OP(max)
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
-    auto axis = ShapeToArray(r_axes);
+    auto axis = ShapeToIntArray(r_axes);
     return Array<Tensor>{
-      topi::max(inputs[0], axis, param.keepdims) };
+      topi::max(inputs[0], axis, param.keepdims, true) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -235,9 +231,9 @@ NNVM_REGISTER_REDUCE_OP(min)
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
-    auto axis = ShapeToArray(r_axes);
+    auto axis = ShapeToIntArray(r_axes);
     return Array<Tensor>{
-      topi::min(inputs[0], axis, param.keepdims) };
+      topi::min(inputs[0], axis, param.keepdims, true) };
 })
 .set_attr<FGradient>(
   "FGradient", [](const NodePtr& n,
@@ -299,8 +295,8 @@ values over a given axis.
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
-    auto axis = ShapeToArray(r_axes);
-    Tensor out = topi::argmax(inputs[0], axis, param.keepdims);
+    auto axis = ShapeToIntArray(r_axes);
+    Tensor out = topi::argmax(inputs[0], axis, param.keepdims, true);
     if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
     return Array<Tensor>{out};
 });
@@ -322,8 +318,8 @@ values over a given axis.
     const ReduceParam& param = nnvm::get<ReduceParam>(attrs.parsed);
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
-    auto axis = ShapeToArray(r_axes);
-    Tensor out = topi::argmin(inputs[0], axis, param.keepdims);
+    auto axis = ShapeToIntArray(r_axes);
+    Tensor out = topi::argmin(inputs[0], axis, param.keepdims, true);
     if (param.dtype == kFloat32) out = topi::cast(out, out_info[0]->dtype);
     return Array<Tensor>{out};
 });
@@ -352,7 +348,7 @@ Example::
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
-    auto axis = ShapeToArray(r_axes);
+    auto axis = ShapeToIntArray(r_axes);
 
     Expr count = make_const(inputs[0]->dtype, 1);
     for (auto& i : r_axes) {
@@ -360,7 +356,7 @@ Example::
     }
 
     return Array<Tensor>{
-      topi::divide(topi::sum(inputs[0], axis, param.keepdims), count) };
+      topi::divide(topi::sum(inputs[0], axis, param.keepdims, true), count) };
 });
 
 NNVM_REGISTER_REDUCE_OP(prod)
@@ -387,9 +383,9 @@ Example::
     TShape r_axes = GetReduceAxes(inputs[0]->shape.size(),
                                   param.axis, param.exclude);
     if (!r_axes.ndim()) return Array<Tensor> { topi::identity(inputs[0]) };
-    auto axis = ShapeToArray(r_axes);
+    auto axis = ShapeToIntArray(r_axes);
     return Array<Tensor>{
-      topi::prod(inputs[0], axis, param.keepdims) };
+      topi::prod(inputs[0], axis, param.keepdims, true) };
 });
 
 
