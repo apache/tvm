@@ -5,7 +5,7 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
-#include "../nn/layout.h"
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -25,7 +25,7 @@ bool ResizeRel(const Array<Type>& types,
   const ResizeAttrs* param = attrs.as<ResizeAttrs>();
   CHECK(param != nullptr);
   const Layout in_layout(param->layout);
-  CHECK(in_layout.convertible(kNCHW))
+  CHECK(in_layout.Convertible(kNCHW))
     << "Resize only support input layouts that are convertible from NCHW."
     << " But got " << in_layout;
 
