@@ -137,6 +137,10 @@ def test_vgg():
     net, params = tvm.relay.testing.vgg.get_workload(batch_size=1)
     net.astext()
 
+def test_densenet():
+    net, params = tvm.relay.densenet.get_workload(batch_size=1)
+    net.astext()
+
 if __name__ == "__main__":
     do_print[0] = True
     test_resnet()
