@@ -85,7 +85,7 @@ class Var : public HalideIR::VarExpr {
 
 
 /*!
- * \brief Container of constant ineteger (IntImm).
+ * \brief Container of constant integer (IntImm).
  *
  * This is used to store and automate type check
  * attributes that must be constant integer.

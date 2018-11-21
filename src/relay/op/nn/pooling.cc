@@ -8,7 +8,7 @@
 #include <tvm/relay/attrs/nn.h>
 #include <topi/nn/pooling.h>
 #include <vector>
-#include "layout.h"
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -33,13 +33,13 @@ bool Pool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.contains('H') && layout.contains('W') &&
-        !layout.contains('h') && !layout.contains('w'))
+  CHECK(layout.Contains('H') && layout.Contains('W') &&
+        !layout.Contains('h') && !layout.Contains('w'))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.indexof('H');
-  const auto widx = layout.indexof('W');
+  const auto hidx = layout.Indexof('H');
+  const auto widx = layout.Indexof('W');
 
   IndexExpr pad_h, pad_w;
   if (param->padding.size() == 1) {
@@ -102,10 +102,10 @@ Array<Tensor> Pool2DCompute(const Attrs& attrs,
   auto padding = param->padding;
   auto ceil_mode = param->ceil_mode;
   Layout layout(param->layout);
-  CHECK(layout.convertible(Layout("NCHW")))
+  CHECK(layout.Convertible(Layout("NCHW")))
       << "max_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.indexof('h'), -1) << "max_pool2d does not support input split on height";
-  CHECK_EQ(layout.indexof('w'), -1) << "max_pool2d does not support input split on width";
+  CHECK_EQ(layout.Indexof('h'), -1) << "max_pool2d does not support input split on height";
+  CHECK_EQ(layout.Indexof('w'), -1) << "max_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
       << "Pool2D only support 4-D input (e.g., NCHW)"
@@ -240,13 +240,13 @@ bool GlobalPool2DRel(const Array<Type>& types,
   CHECK(param != nullptr);
 
   Layout layout(param->layout);
-  CHECK(layout.contains('H') && layout.contains('W') &&
-        !layout.contains('h') && !layout.contains('w'))
+  CHECK(layout.Contains('H') && layout.Contains('W') &&
+        !layout.Contains('h') && !layout.Contains('w'))
     << "Invalid layout " << layout
     << ". Pool2D layout must have H and W, which cannot be split";
 
-  const auto hidx = layout.indexof('H');
-  const auto widx = layout.indexof('W');
+  const auto hidx = layout.Indexof('H');
+  const auto widx = layout.Indexof('W');
   std::vector<IndexExpr> oshape({dshape[0], dshape[1], dshape[2], dshape[3]});
   oshape[hidx] = oshape[widx] = 1;
 
@@ -264,11 +264,11 @@ Array<Tensor> GlobalPool2DCompute(const Attrs& attrs,
   const auto* param = attrs.as<GlobalPool2DAttrs>();
   CHECK(param != nullptr);
   Layout layout(param->layout);
-  CHECK(layout.convertible(Layout("NCHW")))
+  CHECK(layout.Convertible(Layout("NCHW")))
     << "global_avg_pool2d currently only supports layouts that are convertible from NCHW";
-  CHECK_EQ(layout.indexof('h'), -1)
+  CHECK_EQ(layout.Indexof('h'), -1)
     << "global_avg_pool2d does not support input split on height";
-  CHECK_EQ(layout.indexof('w'), -1)
+  CHECK_EQ(layout.Indexof('w'), -1)
     << "global_avg_pool2d does not support input split on width";
 
   CHECK(inputs[0].ndim() == 4U || inputs[0].ndim() == 5U)
