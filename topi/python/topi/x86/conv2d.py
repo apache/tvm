@@ -21,7 +21,7 @@ def _get_default_config(cfg, data, kernel, strides, padding, out_dtype, is_depth
     """
     if is_depthwise:
         wkl = _get_depthwise_conv2d_workload(data, kernel, strides, padding, out_dtype)
-        from depthwise_conv2d import _fallback_schedule
+        from .depthwise_conv2d import _fallback_schedule
         _fallback_schedule(cfg, wkl)
     else:
         wkl = _get_conv2d_workload(data, kernel, strides, padding, out_dtype)
