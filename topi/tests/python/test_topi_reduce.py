@@ -97,6 +97,10 @@ def verify_reduce_map_ele(in_shape, axis, keepdims, type="sum", dtype="float32")
 
 
 def test_reduce_map():
+    verify_reduce_map_ele(in_shape=(32,),
+                          axis=0,
+                          keepdims=False,
+                          type="argmax")
     verify_reduce_map_ele(in_shape=(128, 24, 128, 24),
                         axis=(1, 2, 3),
                         keepdims=True,

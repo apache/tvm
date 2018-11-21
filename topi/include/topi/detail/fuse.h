@@ -14,22 +14,16 @@ using namespace tvm;
 
 /*!
  * \brief Fuse all of the given args
- * 
+ *
  * \param stage The stage in which to apply the fuse
  * \param args The iteration variables to be fused
  *
  * \return The fused iteration variable
  */
 inline IterVar Fuse(Stage stage, const Array<IterVar>& args) {
-  CHECK_GE(args.size(), 1) << "Fuse requires at least 1 arg";
-
-  auto fused = args[0];
-  for (size_t i = 1; i < args.size(); ++i) {
-    IterVar out;
-    stage.fuse(fused, args[i], &out);
-    fused = out;
-  }
-  return fused;
+  IterVar res;
+  stage.fuse(args, &res);
+  return res;
 }
 
 }  // namespace detail

@@ -63,10 +63,12 @@ def _schedule_reduce(op, sch, is_idx_reduce=False):
             sch[temp_val_input].compute_at(sch[real_output], outer_in)
     else:
         if is_idx_reduce:
+            spatial_axis = sch[real_output].fuse(*(sch[real_output].op.axis))
+            sch[real_output].bind(spatial_axis, tvm.thread_axis("blockIdx.x"))
             sch[temp_idx_input].compute_at(sch[real_output],
-                                           sch[real_output].op.axis[0])
+                                           spatial_axis)
             sch[temp_val_input].compute_at(sch[real_output],
-                                           sch[real_output].op.axis[0])
+                                           spatial_axis)
     sch[real_output].set_store_predicate(thread_x.equal(0))
     return sch
 
