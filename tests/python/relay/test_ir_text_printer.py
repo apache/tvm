@@ -141,7 +141,7 @@ def test_vgg():
     net.astext()
 
 def test_densenet():
-    net, params = tvm.relay.densenet.get_workload(batch_size=1)
+    net, params = tvm.relay.testing.densenet.get_workload(batch_size=1)
     net.astext()
 
 
