@@ -107,13 +107,16 @@ def test_resnet():
     net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
     net.astext()
 
+
 def test_mobilenet():
     net, params = tvm.relay.testing.mobilenet.get_workload(batch_size=1)
     net.astext()
 
+
 def test_dqn():
     net, params = tvm.relay.testing.dqn.get_workload(batch_size=1)
     net.astext()
+
 
 def test_dcgan():
     net, params = tvm.relay.testing.dcgan.get_workload(batch_size=1)
@@ -140,6 +143,7 @@ def test_vgg():
 def test_densenet():
     net, params = tvm.relay.densenet.get_workload(batch_size=1)
     net.astext()
+
 
 if __name__ == "__main__":
     do_print[0] = True
