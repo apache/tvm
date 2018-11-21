@@ -37,6 +37,14 @@ inline bool is_injective(std::string tag) {
     tag.rfind(kInjective, 0) == 0;
 }
 
+/*!
+ * \brief macro flag to enable some legacy behavior which requires
+ * reduction result to be at least 1d.
+ */
+#ifndef TOPI_OUTPUT_ATLEAST1D
+#define TOPI_OUTPUT_ATLEAST1D 0
+#endif
+
 }  // namespace topi
 
 #endif  // TOPI_TAGS_H_

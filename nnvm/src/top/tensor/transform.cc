@@ -3,6 +3,9 @@
  * \file transform.cc
  * \brief Injective transformation of shape or type.
  */
+
+#define TOPI_OUTPUT_ATLEAST1D 1
+
 #include <nnvm/op.h>
 #include <nnvm/node.h>
 #include <nnvm/op_attr_types.h>
@@ -18,6 +21,8 @@
 #include "topi/elemwise.h"
 #include "topi/detail/constant_utils.h"
 #include "../../compiler/compile_engine.h"
+
+static_assert(TOPI_OUTPUT_ATLEAST1D, "need to use legacy reduce behavior");
 
 namespace nnvm {
 namespace top {
@@ -756,7 +761,7 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const SqueezeParam& param = nnvm::get<SqueezeParam>(attrs.parsed);
-    auto axis = ShapeToArray(param.axis);
+    auto axis = ShapeToIntArray(param.axis);
     return Array<Tensor>{ topi::squeeze(inputs[0], axis) };
 })
 .set_attr<FGradient>(
