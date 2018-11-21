@@ -1078,7 +1078,7 @@ bool SplitRel(const Array<Type>& types,
   }
   CHECK_LT(axis, data->shape.size())
     << "axis should be within the input dimension range.";
-  CHECK_GT(axis, 0)
+  CHECK_GE(axis, 0)
     << "axis should be within the input dimension range.";
 
   if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {

@@ -97,9 +97,11 @@ def test_variable_name():
     v1 = relay.var("1")
     assert "%v1" in v1.astext()
 
+
 def test_mlp():
     net, params = tvm.relay.testing.mlp.get_workload(batch_size=1)
     net.astext()
+
 
 def test_resnet():
     net, params = tvm.relay.testing.resnet.get_workload(batch_size=1)
@@ -116,6 +118,12 @@ def test_dqn():
 def test_dcgan():
     net, params = tvm.relay.testing.dcgan.get_workload(batch_size=1)
     net.astext()
+
+
+def test_lstm():
+    net, params = tvm.relay.testing.lstm.get_workload(4, 4)
+    net.astext()
+
 
 if __name__ == "__main__":
     do_print[0] = True
