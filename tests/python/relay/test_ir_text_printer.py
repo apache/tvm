@@ -151,6 +151,7 @@ if __name__ == "__main__":
     test_squeezenet()
     test_inception_v3()
     test_vgg()
+    test_densenet()
     test_func()
     test_env()
     test_meta_data()
