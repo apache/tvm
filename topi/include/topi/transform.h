@@ -204,7 +204,7 @@ inline Tensor reshape(const Tensor& x,
 */
 inline Tensor squeeze(const Tensor& x,
                       Array<Integer> axis,
-                      bool atleast1d = TOPI_OUTPUT_ATLEAST1D,
+                      bool atleast1d = false,
                       std::string name = "tensor",
                       std::string tag = kInjective) {
   auto ndim = x->shape.size();

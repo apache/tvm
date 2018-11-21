@@ -317,7 +317,7 @@ inline Expr ProdOp(Expr source, Array<IterVar> axis) {
 inline Tensor sum(const Tensor& data,
                   const Array<Integer>& axis,
                   bool keepdims = false,
-                  bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                  bool atleast1d = false) {
   return CommReduce(data, axis, tvm::sum, keepdims, atleast1d);
 }
 
@@ -366,7 +366,7 @@ inline Tensor collapse_sum(const Tensor& data, Array<Expr> target_shape) {
 inline Tensor min(const Tensor& data,
                   const Array<Integer>& axis,
                   bool keepdims = false,
-                  bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                  bool atleast1d = false) {
   return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
 
@@ -387,7 +387,7 @@ inline Tensor min(const Tensor& data,
 inline Tensor max(const Tensor& data,
                   const Array<Integer>& axis,
                   bool keepdims = false,
-                  bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                  bool atleast1d = false) {
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
 
@@ -408,7 +408,7 @@ inline Tensor max(const Tensor& data,
 inline Tensor argmin(const Tensor& data,
                      const Array<Integer>& axis,
                      bool keepdims = false,
-                     bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                     bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] <= rhs[1], lhs[0], rhs[0]));  // idx
@@ -442,7 +442,7 @@ inline Tensor argmin(const Tensor& data,
 inline Tensor argmax(const Tensor& data,
                      const Array<Integer>& axis,
                      bool keepdims = false,
-                     bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                     bool atleast1d = false) {
   auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
     Array<Expr> result;
     result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
@@ -475,7 +475,7 @@ inline Tensor argmax(const Tensor& data,
 inline Tensor prod(const Tensor& data,
                    const Array<Integer>& axis,
                    bool keepdims = false,
-                   bool atleast1d = TOPI_OUTPUT_ATLEAST1D) {
+                   bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }
 
