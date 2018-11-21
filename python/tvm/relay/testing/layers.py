@@ -105,7 +105,7 @@ def conv2d_transpose(data, weight=None, **kwargs):
         weight = relay.var(name + "_weight")
     return relay.nn.conv2d_transpose(data, weight, **kwargs)
 
-def dense_add_bias(data, weight=None, bias=None, **kwargs):
+def dense_add_bias(data, weight=None, bias=None, units=None, **kwargs):
     """Wrapper of dense which automatically creates weights if not given.
 
     Parameters
@@ -133,6 +133,6 @@ def dense_add_bias(data, weight=None, bias=None, **kwargs):
         weight = relay.var(name + "_weight")
     if not bias:
         bias = relay.var(name + "_bias")
-    data = relay.nn.dense(data, weight, **kwargs)
+    data = relay.nn.dense(data, weight, units, **kwargs)
     data = relay.nn.bias_add(data, bias)
     return data
