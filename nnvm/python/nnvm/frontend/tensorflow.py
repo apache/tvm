@@ -342,7 +342,7 @@ def _matmul():
     def _impl(inputs, attr, params):
         channels = _infer_channels(inputs[1], params, not attr['transpose_b'])
         if attr['transpose_a']:
-            inputs[0] = _sym.transpose(inputs[0], axes(1, 0))
+            inputs[0] = _sym.transpose(inputs[0], axes=(1, 0))
         if not attr['transpose_b']:
             inputs[1] = _sym.transpose(inputs[1], axes=(1, 0))
         return AttrCvt(op_name="dense",
