@@ -36,7 +36,7 @@ def deconv2d_bn_relu(data, prefix, **kwargs):
     """a block of deconv + batch norm + relu"""
     eps = 1e-5 + 1e-12
     net = deconv2d(data, name="%s_deconv" % prefix, **kwargs)
-    net = layers.batch_norm_infer(net, epsilon=eps, name="batch_norm")
+    net = layers.batch_norm_infer(net, epsilon=eps, name="%s_batch_norm" % prefix)
     net = relay.nn.relu(net)
     return net
 
