@@ -161,6 +161,14 @@ def test_split_infer_type():
                      relay.ty.TensorType((5, 1, 2, 2), "float32"),
                      relay.ty.TensorType((5, 1, 2, 2), "float32")])),
                   axis=1)
+    verify_split((5, 5, 2, 2), 5,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                     relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                     relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                     relay.ty.TensorType((1, 5, 2, 2), "float32"),
+                     relay.ty.TensorType((1, 5, 2, 2), "float32")])),
+                  axis=0)
     verify_split((d1, d2, d3, d4), 4,
                  relay.ty.TupleType(tvm.convert([
                      relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
@@ -168,6 +176,11 @@ def test_split_infer_type():
                      relay.ty.TensorType((d1, d2, d3/4, d4), "float32"),
                      relay.ty.TensorType((d1, d2, d3/4, d4), "float32")])),
                   axis=2)
+    verify_split((d1, d2, d3, d4), 2,
+                 relay.ty.TupleType(tvm.convert([
+                     relay.ty.TensorType((d1/2, d2, d3, d4), "float32"),
+                     relay.ty.TensorType((d1/2, d2, d3, d4), "float32")])),
+                  axis=0)
     verify_split((d1, d2, d3, d4), (2, 4, 7),
                  relay.ty.TupleType(tvm.convert([
                      relay.ty.TensorType((d1, 2, d3, d4), "float32"),
