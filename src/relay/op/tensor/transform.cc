@@ -313,6 +313,7 @@ RELAY_REGISTER_OP("transpose")
                                          const Type& out_type,
                                          const Target& target) {
   const auto* param = attrs.as<TransposeAttrs>();
+  CHECK(param != nullptr);
   return Array<Tensor>{ topi::transpose(inputs[0], IntegerArrayToExprArray(param->axes)) };
 });
 
@@ -632,9 +633,9 @@ Examples::
   const auto* param = attrs.as<TakeAttrs>();
   CHECK(param != nullptr);
   if (!param->axis.defined()) {
-    return Array<Tensor>{topi::take(inputs[0], inputs[1]) };
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1]) };
   } else {
-    return Array<Tensor>{topi::take(inputs[0], inputs[1], param->axis) };
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis) };
   }
 });
 
