@@ -18,7 +18,10 @@ if sys.version_info[0] == 3:
     numeric_types = integer_types + (float, np.float32)
     # this function is needed for python3
     # to convert ctypes.char_p .value back to python str
-    py_str = lambda x: x.decode('utf-8')
+    if sys.platform == "win32":
+        py_str = lambda x: x.decode('cp'+str(ctypes.cdll.kernel32.GetACP()))
+    else:
+        py_str = lambda x: x.decode('utf-8')
 else:
     string_types = (basestring,)
     integer_types = (int, long, np.int32)
