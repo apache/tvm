@@ -19,11 +19,11 @@
 #include <tvm/relay/attrs/nn.h>
 #include <tvm/relay/attrs/transform.h>
 #include <tvm/relay/op_attr_types.h>
-#include <numeric>
 #include <unordered_map>
 #include <unordered_set>
 #include "./expr_subst.h"
 #include "./pattern_util.h"
+
 
 namespace tvm {
 namespace relay {
