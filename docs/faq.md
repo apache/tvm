@@ -4,7 +4,7 @@ This document contains frequently asked questions.
 
 How to Install
 --------------
-See [Installation](http://tvm.ai/install/)
+See [Installation](http://docs.tvm.ai/install/)
 
 TVM's relation to Other IR/DSL Projects
 ---------------------------------------
