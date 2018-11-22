@@ -49,7 +49,27 @@ def test_extract_ext():
     assert fdict["mul"](3, 4) == 12
 
 
+def test_extern_call():
+    n = 10
+    A = tvm.placeholder((n,), name='A')
+    B = tvm.compute((n,), lambda *i: tvm.call_extern("float32", "TVMTestAddOne", A(*i)), name='B')
+    s = tvm.create_schedule(B.op)
+
+    def check_llvm():
+        if not tvm.module.enabled("llvm"):
+            return
+        f = tvm.build(s, [A, B], "llvm")
+        ctx = tvm.cpu(0)
+        # launch the kernel.
+        a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), ctx)
+        b = tvm.nd.array(np.zeros(n, dtype=B.dtype), ctx)
+        f(a, b)
+        tvm.testing.assert_allclose(b.asnumpy(), a.asnumpy() + 1)
+    check_llvm()
+
+
 if __name__ == "__main__":
+    test_extern_call()
     test_ext_dev()
     test_ext_vec()
     test_bind_add()
