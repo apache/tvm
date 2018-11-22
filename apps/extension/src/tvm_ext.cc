@@ -66,6 +66,11 @@ TVM_REGISTER_GLOBAL("device_api.ext_dev")
   });
 }  // namespace tvm_ext
 
+// External function exposed to runtime.
+extern "C" float TVMTestAddOne(float y) {
+  return y + 1;
+}
+
 // This callback approach allows extension allows tvm to extract
 // This way can be helpful when we want to use a header only
 // minimum version of TVM Runtime.
