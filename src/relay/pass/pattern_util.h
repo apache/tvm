@@ -11,6 +11,7 @@
 #include <tvm/relay/op.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/attrs/transform.h>
+#include <string>
 #include "../op/layout.h"
 
 
@@ -120,6 +121,19 @@ inline bool IsDepthwiseConv2D(const Call& call,
       is_const_int(wshape[1], 1);
 }
 
+/*!
+ * \brief Get super-dimension of output channels of conv2d
+ * \param call The conv2d call.
+ * \return Super-dimension size of output channels of conv2d.
+ */
+inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
+    auto param = call->attrs.as<Conv2DAttrs>();
+    auto tweight = call->args[1]->type_as<TensorTypeNode>();
+    auto index = param->weight_layout.find('O');
+    CHECK_NE(index, std::string::npos);
+    auto channels = as_const_int(tweight->shape[index]);
+    return *channels;
+}
 
 /*!
  * \brief Create a Constant with a scalar
@@ -171,6 +185,10 @@ inline Expr ReshapeLike(Expr lhs, Expr rhs) {
   static const Op& op = Op::Get("reshape_like");
   return CallNode::make(op, {lhs, rhs}, Attrs(), {});
 }
+
+Expr MakeConcatenate(Expr data, int axis);
+
+Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array<Integer> strides);
 
 }  // namespace relay
 }  // namespace tvm
