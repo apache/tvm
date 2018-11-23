@@ -31,13 +31,13 @@ void stream_copy(
 
 component void fetch(
   uint32_t insn_count,
-  insn_T *insns,
+  ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue) {
   for (int pc = 0; pc < insn_count; pc++) {
     // Read instruction fields
-    insn_T insn = insns[pc];
+    insn_T insn = insns.read();
     // Do some partial decoding
     opcode_T opcode = insn.slc<VTA_INSN_MEM_0_1-VTA_INSN_MEM_0_0+1>(VTA_INSN_MEM_0_0);
     memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
@@ -54,8 +54,8 @@ component void fetch(
 }
 
 component void load(
-  inp_vec_T *inputs,
-  wgt_vec_T *weights,
+  ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &inputs,
+  ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
@@ -104,13 +104,19 @@ component void load(
     sram_idx += x_pad_0;
     // Perform data transfer
     if (memory_type == VTA_MEM_ID_INP) {
-      _memcpy((unsigned char*)&inp_mem[sram_idx][0],
-             (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
-             x_size * VTA_INP_ELEM_BYTES);
+      // _memcpy((unsigned char*)&inp_mem[sram_idx][0],
+      //        (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
+      //        x_size * VTA_INP_ELEM_BYTES);
+      for (int x = 0; x < x_size; x++) {
+        inp_mem[sram_idx][0] = inputs.read();
+      }
     } else {
-      _memcpy((unsigned char*)&wgt_mem[sram_idx][0],
-             (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
-             x_size * VTA_WGT_ELEM_BYTES);
+      // _memcpy((unsigned char*)&wgt_mem[sram_idx][0],
+      //        (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
+      //        x_size * VTA_WGT_ELEM_BYTES);
+      for (int x = 0; x < x_size; x++) {
+        wgt_mem[sram_idx][0] = weights.read();
+      }
     }
     sram_idx += x_size;
     dram_idx += x_stride;
@@ -174,9 +180,9 @@ component void load(
 }
 
 component void compute(
-  uint32_t &done0,
-  uop_T *uops,
-  acc_vec_T *biases,
+  hls_avalon_slave_memory_argument(1*sizeof(uint32_t)) uint32_t * done0,
+  ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & uops,
+  ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & biases,
   ihc::stream_in<insn_T> &gemm_queue,
   ihc::stream_in<bool> &l2g_dep_queue,
   ihc::stream_in<bool> &s2g_dep_queue,
@@ -213,10 +219,10 @@ component void compute(
   // Perform action based on opcode
   if (opcode == VTA_OPCODE_FINISH) {
     // Set done flag if we reach a FINISH instruction
-    done0 = 1;
+    *done0 = 1;
   } else if (opcode == VTA_OPCODE_LOAD || opcode == VTA_OPCODE_STORE) {
     // Set done value
-    done0 = 0;
+    *done0 = 0;
 
     // Decode instruction
     memop_id_T memory_type = insn.slc<VTA_INSN_MEM_5_1-VTA_INSN_MEM_5_0+1>(VTA_INSN_MEM_5_0);
@@ -241,10 +247,12 @@ component void compute(
 
     if (memory_type == VTA_MEM_ID_UOP) {
       // Perform data transfer
-      _memcpy((unsigned char*)&uop_mem[sram_base],
-             (const unsigned char*) &uops[dram_base],
-             x_size * VTA_UOP_ELEM_BYTES);
-             // x_size);
+      // _memcpy((unsigned char*)&uop_mem[sram_base],
+      //        (const unsigned char*) &uops[dram_base],
+      //        x_size * VTA_UOP_ELEM_BYTES);
+      for (int x = 0; x < x_size; x++) {
+        uop_mem[sram_base] = uops.read();
+      }
     } else {
       // Skip vertical padding
       sram_idx += y_offset;
@@ -253,9 +261,12 @@ component void compute(
         // Skip padding along x dimension
         sram_idx += x_pad_0;
         // Perform data transfer
-        _memcpy((unsigned char*) &acc_mem[sram_idx][0],
-               (const unsigned char*) &biases[dram_idx * VTA_BATCH],
-               x_size*VTA_ACC_ELEM_BYTES);
+        // _memcpy((unsigned char*) &acc_mem[sram_idx][0],
+        //        (const unsigned char*) &biases[dram_idx * VTA_BATCH],
+        //        x_size*VTA_ACC_ELEM_BYTES);
+        for (int x = 0; x < x_size; x++) {
+          acc_mem[sram_idx][0] = biases.read();
+        }
         sram_idx += x_size;
         dram_idx += x_stride;
         // Skip padding along x dimension
@@ -264,7 +275,7 @@ component void compute(
     }
   } else if (opcode == VTA_OPCODE_GEMM || opcode == VTA_OPCODE_ALU) {
     // Set done value
-    done0 = 0;
+    *done0 = 0;
 
     // Decode
     bool reset_out = insn[VTA_INSN_GEM_5];
@@ -412,17 +423,17 @@ component void compute(
               }
 
               // Store to accum memory/store buffer
-              if (alu_opcode == VTA_ALU_OPCODE_MIN ||
-                  alu_opcode == VTA_ALU_OPCODE_MAX) {
-                acc_mem[dst_idx][i] = cmp_res;
-                out_mem[dst_idx][i] = short_cmp_res;
-              } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
-                acc_mem[dst_idx][i] = add_res;
-                out_mem[dst_idx][i] = short_add_res;
-              } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
-                acc_mem[dst_idx][i] = shr_res;
-                out_mem[dst_idx][i] = short_shr_res;
-              }
+              // if (alu_opcode == VTA_ALU_OPCODE_MIN ||
+              //     alu_opcode == VTA_ALU_OPCODE_MAX) {
+              //   acc_mem[dst_idx][i] = cmp_res;
+              //   out_mem[dst_idx][i] = short_cmp_res;
+              // } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
+              //   acc_mem[dst_idx][i] = add_res;
+              //   out_mem[dst_idx][i] = short_add_res;
+              // } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
+              //   acc_mem[dst_idx][i] = shr_res;
+              //   out_mem[dst_idx][i] = short_shr_res;
+              // }
             }
           }
         }
@@ -451,7 +462,10 @@ component void compute(
 }
 
 component void store(
-  out_vec_T *outputs,
+  // hls_avalon_slave_memory_argument(VTA_ACC_BUFF_DEPTH*VTA_BATCH*VTA_ACC_ELEM_BYTES) out_vec_T * outputs,
+  // ihc::mm_master<out_vec_T, ihc::aspace<6>, ihc::dwidth<64>, ihc::waitrequest<true>,
+  //                ihc::align<8*sizeof(uint64_t)>, ihc::latency<0> >& outputs,
+  ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
@@ -497,10 +511,12 @@ component void store(
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
-    _memcpy((unsigned char*)(&outputs[dram_idx*VTA_BATCH]),
-            (const unsigned char*) &out_mem[sram_idx][0],
-      x_size * VTA_INP_ELEM_BYTES);
-      // x_size);
+    // _memcpy((unsigned char*)(&outputs[dram_idx*VTA_BATCH]),
+    //         (const unsigned char*) &out_mem[sram_idx][0],
+    //   x_size * VTA_INP_ELEM_BYTES);
+    for (int x = 0; x < x_size; x++) {
+      outputs.write(out_mem[sram_idx][0]);
+    }
     sram_idx += x_size;
     dram_idx += x_stride;
     // Skip padding along x dimension
@@ -547,8 +563,30 @@ void vta(
   wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT];
   out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
 
+  ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > insns_stream;
+  ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > inputs_stream;
+  ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > weights_stream;
+  ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > uops_stream;
+  ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > biases_stream;
+  ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > outputs_stream;
+  for (int i = 0; i < insn_count; i++) {
+    insns_stream.write(insns);
+  }
+  for (int i = 0; i < VTA_INP_BUFF_DEPTH*VTA_BATCH; i++) {
+    inputs_stream.write(insns);
+  }
+  for (int i = 0; i < VTA_WGT_BUFF_DEPTH*VTA_BLOCK_OUT; i++) {
+    weights_stream.write(insns);
+  }
+  for (int i = 0; i < VTA_UOP_BUFF_DEPTH; i++) {
+    uops_stream.write(uops);
+  }
+  for (int i = 0; i < VTA_ACC_BUFF_DEPTH*VTA_BATCH; i++) {
+    biases_stream.write(biases);
+  }
+
   // Push all instructions into the queues
-  fetch(insn_count, insns, tmp_load_queue, tmp_gemm_queue, tmp_store_queue);
+  fetch(insn_count, insns_stream, tmp_load_queue, tmp_gemm_queue, tmp_store_queue);
 
   // Global done indicator
   uint32_t done = 0;
@@ -580,7 +618,7 @@ void vta(
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
         tmp_load_popped = false;
-        load(inputs, weights, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
+        load(inputs_stream, weights_stream, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -610,7 +648,7 @@ void vta(
         tmp_gemm_popped = false;
         stream_copy(l2g_dep_queue, l2g_dep_queue_cmp);
         stream_copy(s2g_dep_queue, s2g_dep_queue_cmp);
-        compute(done, uops, biases, gemm_queue, l2g_dep_queue_cmp, s2g_dep_queue_cmp,
+        compute(&done, uops_stream, biases_stream, gemm_queue, l2g_dep_queue_cmp, s2g_dep_queue_cmp,
                 g2l_dep_queue_cmp, g2s_dep_queue_cmp, inp_mem, wgt_mem, out_mem);
         stream_copy(g2l_dep_queue_cmp, g2l_dep_queue);
         stream_copy(g2s_dep_queue_cmp, g2s_dep_queue);
@@ -634,7 +672,7 @@ void vta(
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
         tmp_store_popped = false;
-        store(outputs, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
+        store(outputs_stream, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;

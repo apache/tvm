@@ -105,7 +105,7 @@ typedef ac_int<VTA_LOG_ACC_WIDTH, 1> aluop_sh_imm_T;
 */
 void fetch(
   uint32_t insn_count,
-  insn_T *insns,
+  ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &insns,
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue);
@@ -126,8 +126,8 @@ void fetch(
 * \param wgt_mem Local weight SRAM buffer. Write only single port BRAM.
 */
 void load(
-  inp_vec_T *inputs,
-  wgt_vec_T *weights,
+  ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &inputs,
+  ihc::stream_in<wgt_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > &weights,
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
@@ -158,9 +158,9 @@ void load(
 * \param out_mem Local output SRAM buffer. Write only single port BRAM.
 */
 void compute(
-  uint32_t &done,
-  uop_T *uops,
-  acc_vec_T *biases,
+  uint32_t *done,
+  ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & uops,
+  ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & biases,
   ihc::stream_in<insn_T> &gemm_queue,
   ihc::stream_in<bool> &l2g_dep_queue,
   ihc::stream_in<bool> &s2g_dep_queue,
@@ -184,7 +184,8 @@ void compute(
 * \param out_mem Local output SRAM buffer. Read only single port BRAM.
 */
 void store(
-  out_vec_T *outputs,
+  // out_vec_T *outputs,
+  ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > & outputs,
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
