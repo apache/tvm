@@ -314,7 +314,7 @@ RELAY_REGISTER_OP("transpose")
                                          const Target& target) {
   const auto* param = attrs.as<TransposeAttrs>();
   CHECK(param != nullptr);
-  return Array<Tensor>{ topi::transpose(inputs[0], IntegerArrayToExprArray(param->axes)) };
+  return Array<Tensor>{ topi::transpose(inputs[0], param->axes) };
 });
 
 /* relay.reshape */

@@ -86,11 +86,11 @@ inline Tensor expand_dims(const Tensor& x,
 * \return A Tensor whose op member is the transpose operation
 */
 inline Tensor transpose(const Tensor& x,
-                        Array<Expr> axes,
+                        Array<Integer> axes,
                         std::string name = "tensor",
                         std::string tag = kInjective) {
   if (axes.size() == 0) {
-    axes = Array<Expr>();
+    axes = Array<Integer>();
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }

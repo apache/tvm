@@ -74,22 +74,6 @@ inline std::vector<T> AsVector(const Array<T> &array) {
     .set_attr<TOpPattern>("TOpPattern", kBroadcast)               \
     .set_attr<TOpIsStateful>("TOpIsStateful", false)
 
-/*
- * \brief Helper function to convert Integer array to TVM array. useful for
- * passing data from Relay structures to TOPI ops.
- *
- * \param shape The shape to convert
- *
- * \return An Array of Expr
- */
-inline tvm::Array<tvm::Expr> IntegerArrayToExprArray(const Array<Integer> &shape) {
-  tvm::Array<tvm::Expr> result;
-  for (auto i : shape) {
-    result.push_back(static_cast<tvm::Expr>(i));
-  }
-  return result;
-}
-
 }  // namespace relay
 }  // namespace tvm
 
