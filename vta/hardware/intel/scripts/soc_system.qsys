@@ -1,0 +1,1748 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<system name="$${FILENAME}">
+ <component
+   name="$${FILENAME}"
+   displayName="$${FILENAME}"
+   version="1.0"
+   description=""
+   tags=""
+   categories="System" />
+ <parameter name="bonusData"><![CDATA[bonusData 
+{
+   element ILC
+   {
+      datum _sortIndex
+      {
+         value = "9";
+         type = "int";
+      }
+   }
+   element ILC.avalon_slave
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "196608";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128_0
+   {
+      datum _sortIndex
+      {
+         value = "14";
+         type = "int";
+      }
+   }
+   element acp_to_avst_dma_128_0.descriptor_slave
+   {
+      datum baseAddress
+      {
+         value = "131096";
+         type = "String";
+      }
+   }
+   element button_pio
+   {
+      datum _sortIndex
+      {
+         value = "7";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element button_pio.s1
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "20480";
+         type = "String";
+      }
+   }
+   element clk_0
+   {
+      datum _sortIndex
+      {
+         value = "10";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element custom_leds_0.avs_s0
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "12288";
+         type = "String";
+      }
+   }
+   element dipsw_pio
+   {
+      datum _sortIndex
+      {
+         value = "8";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element dipsw_pio.external_connection
+   {
+      datum _tags
+      {
+         value = "";
+         type = "String";
+      }
+   }
+   element dipsw_pio.s1
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "16384";
+         type = "String";
+      }
+   }
+   element f2sdram_only_master
+   {
+      datum _sortIndex
+      {
+         value = "4";
+         type = "int";
+      }
+   }
+   element fetch_0
+   {
+      datum _sortIndex
+      {
+         value = "13";
+         type = "int";
+      }
+   }
+   element fpga_only_master
+   {
+      datum _sortIndex
+      {
+         value = "3";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element hps_0
+   {
+      datum _sortIndex
+      {
+         value = "1";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element hps_0.f2h_axi_slave
+   {
+      datum baseAddress
+      {
+         value = "0";
+         type = "String";
+      }
+   }
+   element hps_only_master
+   {
+      datum _sortIndex
+      {
+         value = "2";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element jtag_uart
+   {
+      datum _sortIndex
+      {
+         value = "6";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element jtag_uart.avalon_jtag_slave
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "8192";
+         type = "String";
+      }
+   }
+   element mm_bridge_0
+   {
+      datum _sortIndex
+      {
+         value = "5";
+         type = "int";
+      }
+   }
+   element mm_bridge_0.s0
+   {
+      datum _lockedAddress
+      {
+         value = "0";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "0";
+         type = "String";
+      }
+   }
+   element onchip_memory2_0
+   {
+      datum _sortIndex
+      {
+         value = "11";
+         type = "int";
+      }
+   }
+   element onchip_memory2_0.s1
+   {
+      datum baseAddress
+      {
+         value = "0";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element soc_system
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element sysid_qsys
+   {
+      datum _sortIndex
+      {
+         value = "0";
+         type = "int";
+      }
+      datum sopceditor_expanded
+      {
+         value = "1";
+         type = "boolean";
+      }
+   }
+   element sysid_qsys.control_slave
+   {
+      datum _lockedAddress
+      {
+         value = "1";
+         type = "boolean";
+      }
+      datum baseAddress
+      {
+         value = "4096";
+         type = "String";
+      }
+   }
+   element vta_adaptor_0
+   {
+      datum _sortIndex
+      {
+         value = "12";
+         type = "int";
+      }
+   }
+   element vta_adaptor_0.compute_call_avs
+   {
+      datum baseAddress
+      {
+         value = "139264";
+         type = "String";
+      }
+   }
+   element vta_adaptor_0.fetch_call_avs
+   {
+      datum baseAddress
+      {
+         value = "131072";
+         type = "String";
+      }
+   }
+   element vta_adaptor_0.fetch_insn_count_avs
+   {
+      datum baseAddress
+      {
+         value = "131088";
+         type = "String";
+      }
+   }
+   element vta_adaptor_0.store_call_avs
+   {
+      datum baseAddress
+      {
+         value = "143360";
+         type = "String";
+      }
+   }
+}
+]]></parameter>
+ <parameter name="clockCrossingAdapter" value="HANDSHAKE" />
+ <parameter name="device" value="5CSEBA6U23I7" />
+ <parameter name="deviceFamily" value="Cyclone V" />
+ <parameter name="deviceSpeedGrade" value="7" />
+ <parameter name="fabricMode" value="QSYS" />
+ <parameter name="generateLegacySim" value="false" />
+ <parameter name="generationId" value="0" />
+ <parameter name="globalResetBus" value="false" />
+ <parameter name="hdlLanguage" value="VERILOG" />
+ <parameter name="hideFromIPCatalog" value="false" />
+ <parameter name="lockedInterfaceDefinition" value="" />
+ <parameter name="maxAdditionalLatency" value="1" />
+ <parameter name="projectName">DE10_NANO_SoC_GHRD.qpf</parameter>
+ <parameter name="sopcBorderPoints" value="false" />
+ <parameter name="systemHash" value="0" />
+ <parameter name="testBenchDutName" value="" />
+ <parameter name="timeStamp" value="0" />
+ <parameter name="useTestBenchNamingPattern" value="false" />
+ <instanceScript></instanceScript>
+ <interface
+   name="button_pio_external_connection"
+   internal="button_pio.external_connection"
+   type="conduit"
+   dir="end" />
+ <interface name="clk" internal="clk_0.clk_in" type="clock" dir="end" />
+ <interface
+   name="dipsw_pio_external_connection"
+   internal="dipsw_pio.external_connection"
+   type="conduit"
+   dir="end" />
+ <interface
+   name="hps_0_f2h_cold_reset_req"
+   internal="hps_0.f2h_cold_reset_req"
+   type="reset"
+   dir="end" />
+ <interface
+   name="hps_0_f2h_debug_reset_req"
+   internal="hps_0.f2h_debug_reset_req"
+   type="reset"
+   dir="end" />
+ <interface
+   name="hps_0_f2h_stm_hw_events"
+   internal="hps_0.f2h_stm_hw_events"
+   type="conduit"
+   dir="end" />
+ <interface
+   name="hps_0_f2h_warm_reset_req"
+   internal="hps_0.f2h_warm_reset_req"
+   type="reset"
+   dir="end" />
+ <interface
+   name="hps_0_h2f_reset"
+   internal="hps_0.h2f_reset"
+   type="reset"
+   dir="start" />
+ <interface name="hps_0_h2f_user0_clock" internal="hps_0.h2f_user0_clock" />
+ <interface name="hps_0_hps_io" internal="hps_0.hps_io" type="conduit" dir="end" />
+ <interface name="memory" internal="hps_0.memory" type="conduit" dir="end" />
+ <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
+ <interface
+   name="vta_adaptor_0_compute_biases"
+   internal="vta_adaptor_0.compute_biases" />
+ <interface
+   name="vta_adaptor_0_compute_done"
+   internal="vta_adaptor_0.compute_done" />
+ <interface
+   name="vta_adaptor_0_compute_upos"
+   internal="vta_adaptor_0.compute_upos" />
+ <interface
+   name="vta_adaptor_0_store_outputs"
+   internal="vta_adaptor_0.store_outputs" />
+ <module
+   name="ILC"
+   kind="interrupt_latency_counter"
+   version="18.0"
+   enabled="1">
+  <parameter name="CLOCK_RATE" value="50000000" />
+  <parameter name="INTR_TYPE" value="0" />
+  <parameter name="IRQ_PORT_CNT" value="3" />
+ </module>
+ <module
+   name="acp_to_avst_dma_128_0"
+   kind="acp_to_avst_dma_128"
+   version="1.0"
+   enabled="1">
+  <parameter name="AUTO_AXI_MASTER_ADDRESS_MAP"><![CDATA[<address-map><slave name='hps_0_axi_sdram.axi_slave0' start='0x0' end='0x80000000' /><slave name='hps_0_gmac0.axi_slave0' start='0xFF700000' end='0xFF702000' /><slave name='hps_0_gmac1.axi_slave0' start='0xFF702000' end='0xFF704000' /><slave name='hps_0_sdmmc.axi_slave0' start='0xFF704000' end='0xFF705000' /><slave name='hps_0_qspi.axi_slave0' start='0xFF705000' end='0xFF705100' /><slave name='hps_0_fpgamgr.axi_slave0' start='0xFF706000' end='0xFF707000' /><slave name='hps_0_gpio0.axi_slave0' start='0xFF708000' end='0xFF708100' /><slave name='hps_0_gpio1.axi_slave0' start='0xFF709000' end='0xFF709100' /><slave name='hps_0_gpio2.axi_slave0' start='0xFF70A000' end='0xFF70A100' /><slave name='hps_0_l3regs.axi_slave0' start='0xFF800000' end='0xFF801000' /><slave name='hps_0_nand0.axi_slave0' start='0xFF900000' end='0xFF910000' /><slave name='hps_0_qspi.axi_slave1' start='0xFFA00000' end='0xFFA00100' /><slave name='hps_0_usb0.axi_slave0' start='0xFFB00000' end='0xFFB40000' /><slave name='hps_0_usb1.axi_slave0' start='0xFFB40000' end='0xFFB80000' /><slave name='hps_0_nand0.axi_slave1' start='0xFFB80000' end='0xFFB90000' /><slave name='hps_0_fpgamgr.axi_slave1' start='0xFFB90000' end='0xFFB90100' /><slave name='hps_0_dcan0.axi_slave0' start='0xFFC00000' end='0xFFC01000' /><slave name='hps_0_dcan1.axi_slave0' start='0xFFC01000' end='0xFFC02000' /><slave name='hps_0_uart0.axi_slave0' start='0xFFC02000' end='0xFFC02100' /><slave name='hps_0_uart1.axi_slave0' start='0xFFC03000' end='0xFFC03100' /><slave name='hps_0_i2c0.axi_slave0' start='0xFFC04000' end='0xFFC04100' /><slave name='hps_0_i2c1.axi_slave0' start='0xFFC05000' end='0xFFC05100' /><slave name='hps_0_i2c2.axi_slave0' start='0xFFC06000' end='0xFFC06100' /><slave name='hps_0_i2c3.axi_slave0' start='0xFFC07000' end='0xFFC07100' /><slave name='hps_0_timer0.axi_slave0' start='0xFFC08000' end='0xFFC08100' /><slave name='hps_0_timer1.axi_slave0' start='0xFFC09000' end='0xFFC09100' /><slave name='hps_0_sdrctl.axi_slave0' start='0xFFC25000' end='0xFFC26000' /><slave name='hps_0_timer2.axi_slave0' start='0xFFD00000' end='0xFFD00100' /><slave name='hps_0_timer3.axi_slave0' start='0xFFD01000' end='0xFFD01100' /><slave name='hps_0_clkmgr.axi_slave0' start='0xFFD04000' end='0xFFD05000' /><slave name='hps_0_rstmgr.axi_slave0' start='0xFFD05000' end='0xFFD05100' /><slave name='hps_0_sysmgr.axi_slave0' start='0xFFD08000' end='0xFFD08400' /><slave name='hps_0_dma.axi_slave0' start='0xFFE01000' end='0xFFE02000' /><slave name='hps_0_spim0.axi_slave0' start='0xFFF00000' end='0xFFF00100' /><slave name='hps_0_spim1.axi_slave0' start='0xFFF01000' end='0xFFF01100' /><slave name='hps_0_arm_gic_0.axi_slave1' start='0xFFFEC100' end='0xFFFEC200' /><slave name='hps_0_timer.axi_slave0' start='0xFFFEC600' end='0xFFFEC700' /><slave name='hps_0_arm_gic_0.axi_slave0' start='0xFFFED000' end='0xFFFEE000' /><slave name='hps_0_L2.axi_slave0' start='0xFFFEF000' end='0xFFFF0000' /><slave name='hps_0_axi_ocram.axi_slave0' start='0xFFFF0000' end='0x100000000' /></address-map>]]></parameter>
+  <parameter name="AUTO_AXI_MASTER_ADDRESS_WIDTH" value="AddressWidth = 32" />
+  <parameter name="AUTO_CLK_CLOCK_DOMAIN" value="1" />
+  <parameter name="AUTO_CLK_CLOCK_RATE" value="50000000" />
+  <parameter name="AUTO_CLK_RESET_DOMAIN" value="1" />
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="AUTO_GENERATION_ID" value="0" />
+  <parameter name="AUTO_UNIQUE_ID">$${FILENAME}_acp_to_avst_dma_128_0</parameter>
+ </module>
+ <module name="button_pio" kind="altera_avalon_pio" version="18.0" enabled="1">
+  <parameter name="bitClearingEdgeCapReg" value="true" />
+  <parameter name="bitModifyingOutReg" value="false" />
+  <parameter name="captureEdge" value="true" />
+  <parameter name="clockRate" value="50000000" />
+  <parameter name="direction" value="Input" />
+  <parameter name="edgeType" value="FALLING" />
+  <parameter name="generateIRQ" value="true" />
+  <parameter name="irqType" value="EDGE" />
+  <parameter name="resetValue" value="0" />
+  <parameter name="simDoTestBenchWiring" value="false" />
+  <parameter name="simDrivenValue" value="0" />
+  <parameter name="width" value="2" />
+ </module>
+ <module name="clk_0" kind="clock_source" version="18.0" enabled="1">
+  <parameter name="clockFrequency" value="50000000" />
+  <parameter name="clockFrequencyKnown" value="true" />
+  <parameter name="inputClockFrequency" value="0" />
+  <parameter name="resetSynchronousEdges" value="NONE" />
+ </module>
+ <module name="dipsw_pio" kind="altera_avalon_pio" version="18.0" enabled="1">
+  <parameter name="bitClearingEdgeCapReg" value="true" />
+  <parameter name="bitModifyingOutReg" value="false" />
+  <parameter name="captureEdge" value="true" />
+  <parameter name="clockRate" value="50000000" />
+  <parameter name="direction" value="Input" />
+  <parameter name="edgeType" value="ANY" />
+  <parameter name="generateIRQ" value="true" />
+  <parameter name="irqType" value="EDGE" />
+  <parameter name="resetValue" value="0" />
+  <parameter name="simDoTestBenchWiring" value="false" />
+  <parameter name="simDrivenValue" value="0" />
+  <parameter name="width" value="4" />
+ </module>
+ <module
+   name="f2sdram_only_master"
+   kind="altera_jtag_avalon_master"
+   version="18.0"
+   enabled="1">
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="COMPONENT_CLOCK" value="0" />
+  <parameter name="FAST_VER" value="0" />
+  <parameter name="FIFO_DEPTHS" value="2" />
+  <parameter name="PLI_PORT" value="50000" />
+  <parameter name="USE_PLI" value="0" />
+ </module>
+ <module name="fetch_0" kind="fetch" version="1.0" enabled="1">
+  <parameter name="AUTO_CLOCK_CLOCK_DOMAIN" value="1" />
+  <parameter name="AUTO_CLOCK_CLOCK_RATE" value="50000000" />
+  <parameter name="AUTO_CLOCK_RESET_DOMAIN" value="1" />
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="AUTO_GENERATION_ID" value="0" />
+  <parameter name="AUTO_UNIQUE_ID">$${FILENAME}_fetch_0</parameter>
+ </module>
+ <module
+   name="fpga_only_master"
+   kind="altera_jtag_avalon_master"
+   version="18.0"
+   enabled="1">
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="COMPONENT_CLOCK" value="0" />
+  <parameter name="FAST_VER" value="0" />
+  <parameter name="FIFO_DEPTHS" value="2" />
+  <parameter name="PLI_PORT" value="50000" />
+  <parameter name="USE_PLI" value="0" />
+ </module>
+ <module name="hps_0" kind="altera_hps" version="18.0" enabled="1">
+  <parameter name="ABSTRACT_REAL_COMPARE_TEST" value="false" />
+  <parameter name="ABS_RAM_MEM_INIT_FILENAME" value="meminit" />
+  <parameter name="ACV_PHY_CLK_ADD_FR_PHASE" value="0.0" />
+  <parameter name="AC_PACKAGE_DESKEW" value="false" />
+  <parameter name="AC_ROM_USER_ADD_0" value="0_0000_0000_0000" />
+  <parameter name="AC_ROM_USER_ADD_1" value="0_0000_0000_1000" />
+  <parameter name="ADDR_ORDER" value="0" />
+  <parameter name="ADD_EFFICIENCY_MONITOR" value="false" />
+  <parameter name="ADD_EXTERNAL_SEQ_DEBUG_NIOS" value="false" />
+  <parameter name="ADVANCED_CK_PHASES" value="false" />
+  <parameter name="ADVERTIZE_SEQUENCER_SW_BUILD_FILES" value="false" />
+  <parameter name="AFI_DEBUG_INFO_WIDTH" value="32" />
+  <parameter name="ALTMEMPHY_COMPATIBLE_MODE" value="false" />
+  <parameter name="AP_MODE" value="false" />
+  <parameter name="AP_MODE_EN" value="0" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="AUTO_PD_CYCLES" value="0" />
+  <parameter name="AUTO_POWERDN_EN" value="false" />
+  <parameter name="AVL_DATA_WIDTH_PORT" value="32,32,32,32,32,32" />
+  <parameter name="AVL_MAX_SIZE" value="4" />
+  <parameter name="BONDING_OUT_ENABLED" value="false" />
+  <parameter name="BOOTFROMFPGA_Enable" value="false" />
+  <parameter name="BSEL" value="1" />
+  <parameter name="BSEL_EN" value="false" />
+  <parameter name="BYTE_ENABLE" value="true" />
+  <parameter name="C2P_WRITE_CLOCK_ADD_PHASE" value="0.0" />
+  <parameter name="CALIBRATION_MODE" value="Skip" />
+  <parameter name="CALIB_REG_WIDTH" value="8" />
+  <parameter name="CAN0_Mode" value="N/A" />
+  <parameter name="CAN0_PinMuxing" value="Unused" />
+  <parameter name="CAN1_Mode" value="N/A" />
+  <parameter name="CAN1_PinMuxing" value="Unused" />
+  <parameter name="CFG_DATA_REORDERING_TYPE" value="INTER_BANK" />
+  <parameter name="CFG_REORDER_DATA" value="true" />
+  <parameter name="CFG_TCCD_NS" value="2.5" />
+  <parameter name="COMMAND_PHASE" value="0.0" />
+  <parameter name="CONTROLLER_LATENCY" value="5" />
+  <parameter name="CORE_DEBUG_CONNECTION" value="EXPORT" />
+  <parameter name="CPORT_TYPE_PORT">Bidirectional,Bidirectional,Bidirectional,Bidirectional,Bidirectional,Bidirectional</parameter>
+  <parameter name="CSEL" value="0" />
+  <parameter name="CSEL_EN" value="false" />
+  <parameter name="CTI_Enable" value="false" />
+  <parameter name="CTL_AUTOPCH_EN" value="false" />
+  <parameter name="CTL_CMD_QUEUE_DEPTH" value="8" />
+  <parameter name="CTL_CSR_CONNECTION" value="INTERNAL_JTAG" />
+  <parameter name="CTL_CSR_ENABLED" value="false" />
+  <parameter name="CTL_CSR_READ_ONLY" value="1" />
+  <parameter name="CTL_DEEP_POWERDN_EN" value="false" />
+  <parameter name="CTL_DYNAMIC_BANK_ALLOCATION" value="false" />
+  <parameter name="CTL_DYNAMIC_BANK_NUM" value="4" />
+  <parameter name="CTL_ECC_AUTO_CORRECTION_ENABLED" value="false" />
+  <parameter name="CTL_ECC_ENABLED" value="false" />
+  <parameter name="CTL_ENABLE_BURST_INTERRUPT" value="true" />
+  <parameter name="CTL_ENABLE_BURST_TERMINATE" value="true" />
+  <parameter name="CTL_HRB_ENABLED" value="false" />
+  <parameter name="CTL_LOOK_AHEAD_DEPTH" value="4" />
+  <parameter name="CTL_SELF_REFRESH_EN" value="false" />
+  <parameter name="CTL_USR_REFRESH_EN" value="false" />
+  <parameter name="CTL_ZQCAL_EN" value="false" />
+  <parameter name="CUT_NEW_FAMILY_TIMING" value="true" />
+  <parameter name="DAT_DATA_WIDTH" value="32" />
+  <parameter name="DEBUGAPB_Enable" value="false" />
+  <parameter name="DEBUG_MODE" value="false" />
+  <parameter name="DEVICE_DEPTH" value="1" />
+  <parameter name="DEVICE_FAMILY_PARAM" value="" />
+  <parameter name="DISABLE_CHILD_MESSAGING" value="false" />
+  <parameter name="DISCRETE_FLY_BY" value="true" />
+  <parameter name="DLL_SHARING_MODE" value="None" />
+  <parameter name="DMA_Enable">No,No,No,No,No,No,No,No</parameter>
+  <parameter name="DQS_DQSN_MODE" value="DIFFERENTIAL" />
+  <parameter name="DQ_INPUT_REG_USE_CLKN" value="false" />
+  <parameter name="DUPLICATE_AC" value="false" />
+  <parameter name="ED_EXPORT_SEQ_DEBUG" value="false" />
+  <parameter name="EMAC0_Mode" value="N/A" />
+  <parameter name="EMAC0_PTP" value="false" />
+  <parameter name="EMAC0_PinMuxing" value="Unused" />
+  <parameter name="EMAC1_Mode" value="RGMII" />
+  <parameter name="EMAC1_PTP" value="false" />
+  <parameter name="EMAC1_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="ENABLE_ABS_RAM_MEM_INIT" value="false" />
+  <parameter name="ENABLE_BONDING" value="false" />
+  <parameter name="ENABLE_BURST_MERGE" value="false" />
+  <parameter name="ENABLE_CTRL_AVALON_INTERFACE" value="true" />
+  <parameter name="ENABLE_DELAY_CHAIN_WRITE" value="false" />
+  <parameter name="ENABLE_EMIT_BFM_MASTER" value="false" />
+  <parameter name="ENABLE_EXPORT_SEQ_DEBUG_BRIDGE" value="false" />
+  <parameter name="ENABLE_EXTRA_REPORTING" value="false" />
+  <parameter name="ENABLE_ISS_PROBES" value="false" />
+  <parameter name="ENABLE_NON_DESTRUCTIVE_CALIB" value="false" />
+  <parameter name="ENABLE_NON_DES_CAL" value="false" />
+  <parameter name="ENABLE_NON_DES_CAL_TEST" value="false" />
+  <parameter name="ENABLE_SEQUENCER_MARGINING_ON_BY_DEFAULT" value="false" />
+  <parameter name="ENABLE_USER_ECC" value="false" />
+  <parameter name="EXPORT_AFI_HALF_CLK" value="false" />
+  <parameter name="EXTRA_SETTINGS" value="" />
+  <parameter name="F2H_AXI_CLOCK_FREQ" value="50000000" />
+  <parameter name="F2H_SDRAM0_CLOCK_FREQ" value="50000000" />
+  <parameter name="F2H_SDRAM1_CLOCK_FREQ" value="100" />
+  <parameter name="F2H_SDRAM2_CLOCK_FREQ" value="100" />
+  <parameter name="F2H_SDRAM3_CLOCK_FREQ" value="100" />
+  <parameter name="F2H_SDRAM4_CLOCK_FREQ" value="100" />
+  <parameter name="F2H_SDRAM5_CLOCK_FREQ" value="100" />
+  <parameter name="F2SCLK_COLDRST_Enable" value="true" />
+  <parameter name="F2SCLK_DBGRST_Enable" value="true" />
+  <parameter name="F2SCLK_PERIPHCLK_Enable" value="false" />
+  <parameter name="F2SCLK_PERIPHCLK_FREQ" value="0" />
+  <parameter name="F2SCLK_SDRAMCLK_Enable" value="false" />
+  <parameter name="F2SCLK_SDRAMCLK_FREQ" value="0" />
+  <parameter name="F2SCLK_WARMRST_Enable" value="true" />
+  <parameter name="F2SDRAM_Type">Avalon-MM Bidirectional</parameter>
+  <parameter name="F2SDRAM_Width" value="256" />
+  <parameter name="F2SINTERRUPT_Enable" value="true" />
+  <parameter name="F2S_Width" value="3" />
+  <parameter name="FIX_READ_LATENCY" value="8" />
+  <parameter name="FORCED_NON_LDC_ADDR_CMD_MEM_CK_INVERT" value="false" />
+  <parameter name="FORCED_NUM_WRITE_FR_CYCLE_SHIFTS" value="0" />
+  <parameter name="FORCE_DQS_TRACKING" value="AUTO" />
+  <parameter name="FORCE_MAX_LATENCY_COUNT_WIDTH" value="0" />
+  <parameter name="FORCE_SEQUENCER_TCL_DEBUG_MODE" value="false" />
+  <parameter name="FORCE_SHADOW_REGS" value="AUTO" />
+  <parameter name="FORCE_SYNTHESIS_LANGUAGE" value="" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_EMAC0_RX_CLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_EMAC0_TX_CLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_EMAC1_RX_CLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_EMAC1_TX_CLK_IN" value="100" />
+  <parameter
+     name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_EMAC_PTP_REF_CLOCK"
+     value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_I2C0_SCL_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_I2C1_SCL_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_I2C2_SCL_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_I2C3_SCL_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_SPIS0_SCLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_SPIS1_SCLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_USB0_CLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_INPUT_CLOCK_FREQ_USB1_CLK_IN" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_EMAC0_GTX_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_EMAC0_MD_CLK" value="100.0" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_EMAC1_GTX_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_EMAC1_MD_CLK" value="100.0" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_I2C0_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_I2C1_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_I2C2_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_I2C3_CLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_QSPI_SCLK_OUT" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_SDIO_CCLK" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_SPIM0_SCLK_OUT" value="100" />
+  <parameter name="FPGA_PERIPHERAL_OUTPUT_CLOCK_FREQ_SPIM1_SCLK_OUT" value="100" />
+  <parameter name="GPIO_Enable">No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,Yes,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,Yes,Yes,No,No,No,No,No,No,Yes,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No</parameter>
+  <parameter name="GP_Enable" value="false" />
+  <parameter name="H2F_AXI_CLOCK_FREQ" value="50000000" />
+  <parameter name="H2F_CTI_CLOCK_FREQ" value="100" />
+  <parameter name="H2F_DEBUG_APB_CLOCK_FREQ" value="100" />
+  <parameter name="H2F_LW_AXI_CLOCK_FREQ" value="50000000" />
+  <parameter name="H2F_TPIU_CLOCK_IN_FREQ" value="100" />
+  <parameter name="HARD_EMIF" value="true" />
+  <parameter name="HCX_COMPAT_MODE" value="false" />
+  <parameter name="HHP_HPS" value="true" />
+  <parameter name="HHP_HPS_SIMULATION" value="false" />
+  <parameter name="HHP_HPS_VERIFICATION" value="false" />
+  <parameter name="HLGPI_Enable" value="false" />
+  <parameter name="HPS_PROTOCOL" value="DDR3" />
+  <parameter name="I2C0_Mode" value="I2C" />
+  <parameter name="I2C0_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="I2C1_Mode" value="I2C" />
+  <parameter name="I2C1_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="I2C2_Mode" value="N/A" />
+  <parameter name="I2C2_PinMuxing" value="Unused" />
+  <parameter name="I2C3_Mode" value="N/A" />
+  <parameter name="I2C3_PinMuxing" value="Unused" />
+  <parameter name="INCLUDE_BOARD_DELAY_MODEL" value="false" />
+  <parameter name="INCLUDE_MULTIRANK_BOARD_DELAY_MODEL" value="false" />
+  <parameter name="IS_ES_DEVICE" value="false" />
+  <parameter name="LOANIO_Enable">No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No,No</parameter>
+  <parameter name="LOCAL_ID_WIDTH" value="8" />
+  <parameter name="LRDIMM_EXTENDED_CONFIG">0x000000000000000000</parameter>
+  <parameter name="LWH2F_Enable" value="true" />
+  <parameter name="MARGIN_VARIATION_TEST" value="false" />
+  <parameter name="MAX_PENDING_RD_CMD" value="16" />
+  <parameter name="MAX_PENDING_WR_CMD" value="8" />
+  <parameter name="MEM_ASR" value="Manual" />
+  <parameter name="MEM_ATCL" value="Disabled" />
+  <parameter name="MEM_AUTO_LEVELING_MODE" value="true" />
+  <parameter name="MEM_BANKADDR_WIDTH" value="3" />
+  <parameter name="MEM_BL" value="OTF" />
+  <parameter name="MEM_BT" value="Sequential" />
+  <parameter name="MEM_CK_PHASE" value="0.0" />
+  <parameter name="MEM_CK_WIDTH" value="1" />
+  <parameter name="MEM_CLK_EN_WIDTH" value="1" />
+  <parameter name="MEM_CLK_FREQ" value="400.0" />
+  <parameter name="MEM_CLK_FREQ_MAX" value="800.0" />
+  <parameter name="MEM_COL_ADDR_WIDTH" value="10" />
+  <parameter name="MEM_CS_WIDTH" value="1" />
+  <parameter name="MEM_DEVICE" value="MISSING_MODEL" />
+  <parameter name="MEM_DLL_EN" value="true" />
+  <parameter name="MEM_DQ_PER_DQS" value="8" />
+  <parameter name="MEM_DQ_WIDTH" value="32" />
+  <parameter name="MEM_DRV_STR" value="RZQ/6" />
+  <parameter name="MEM_FORMAT" value="DISCRETE" />
+  <parameter name="MEM_GUARANTEED_WRITE_INIT" value="false" />
+  <parameter name="MEM_IF_BOARD_BASE_DELAY" value="10" />
+  <parameter name="MEM_IF_DM_PINS_EN" value="true" />
+  <parameter name="MEM_IF_DQSN_EN" value="true" />
+  <parameter name="MEM_IF_SIM_VALID_WINDOW" value="0" />
+  <parameter name="MEM_INIT_EN" value="false" />
+  <parameter name="MEM_INIT_FILE" value="" />
+  <parameter name="MEM_MIRROR_ADDRESSING" value="0" />
+  <parameter name="MEM_NUMBER_OF_DIMMS" value="1" />
+  <parameter name="MEM_NUMBER_OF_RANKS_PER_DEVICE" value="1" />
+  <parameter name="MEM_NUMBER_OF_RANKS_PER_DIMM" value="1" />
+  <parameter name="MEM_PD" value="DLL off" />
+  <parameter name="MEM_RANK_MULTIPLICATION_FACTOR" value="1" />
+  <parameter name="MEM_ROW_ADDR_WIDTH" value="15" />
+  <parameter name="MEM_RTT_NOM" value="RZQ/6" />
+  <parameter name="MEM_RTT_WR" value="Dynamic ODT off" />
+  <parameter name="MEM_SRT" value="Normal" />
+  <parameter name="MEM_TCL" value="7" />
+  <parameter name="MEM_TFAW_NS" value="37.5" />
+  <parameter name="MEM_TINIT_US" value="500" />
+  <parameter name="MEM_TMRD_CK" value="4" />
+  <parameter name="MEM_TRAS_NS" value="35.0" />
+  <parameter name="MEM_TRCD_NS" value="13.75" />
+  <parameter name="MEM_TREFI_US" value="7.8" />
+  <parameter name="MEM_TRFC_NS" value="300.0" />
+  <parameter name="MEM_TRP_NS" value="13.75" />
+  <parameter name="MEM_TRRD_NS" value="7.5" />
+  <parameter name="MEM_TRTP_NS" value="7.5" />
+  <parameter name="MEM_TWR_NS" value="15.0" />
+  <parameter name="MEM_TWTR" value="4" />
+  <parameter name="MEM_USER_LEVELING_MODE" value="Leveling" />
+  <parameter name="MEM_VENDOR" value="Other" />
+  <parameter name="MEM_VERBOSE" value="true" />
+  <parameter name="MEM_VOLTAGE" value="1.5V DDR3" />
+  <parameter name="MEM_WTCL" value="7" />
+  <parameter name="MPU_EVENTS_Enable" value="false" />
+  <parameter name="MRS_MIRROR_PING_PONG_ATSO" value="false" />
+  <parameter name="MULTICAST_EN" value="false" />
+  <parameter name="NAND_Mode" value="N/A" />
+  <parameter name="NAND_PinMuxing" value="Unused" />
+  <parameter name="NEXTGEN" value="true" />
+  <parameter name="NIOS_ROM_DATA_WIDTH" value="32" />
+  <parameter name="NUM_DLL_SHARING_INTERFACES" value="1" />
+  <parameter name="NUM_EXTRA_REPORT_PATH" value="10" />
+  <parameter name="NUM_OCT_SHARING_INTERFACES" value="1" />
+  <parameter name="NUM_OF_PORTS" value="1" />
+  <parameter name="NUM_PLL_SHARING_INTERFACES" value="1" />
+  <parameter name="OCT_SHARING_MODE" value="None" />
+  <parameter name="P2C_READ_CLOCK_ADD_PHASE" value="0.0" />
+  <parameter name="PACKAGE_DESKEW" value="false" />
+  <parameter name="PARSE_FRIENDLY_DEVICE_FAMILY_PARAM" value="" />
+  <parameter name="PARSE_FRIENDLY_DEVICE_FAMILY_PARAM_VALID" value="false" />
+  <parameter name="PHY_CSR_CONNECTION" value="INTERNAL_JTAG" />
+  <parameter name="PHY_CSR_ENABLED" value="false" />
+  <parameter name="PHY_ONLY" value="false" />
+  <parameter name="PINGPONGPHY_EN" value="false" />
+  <parameter name="PLL_ADDR_CMD_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_ADDR_CMD_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_ADDR_CMD_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_ADDR_CMD_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_ADDR_CMD_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_ADDR_CMD_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_AFI_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_AFI_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_AFI_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_AFI_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_HALF_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_AFI_HALF_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_AFI_HALF_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_HALF_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_AFI_HALF_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_AFI_HALF_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_PHY_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_AFI_PHY_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_AFI_PHY_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_AFI_PHY_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_AFI_PHY_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_AFI_PHY_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_C2P_WRITE_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_C2P_WRITE_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_C2P_WRITE_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_C2P_WRITE_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_C2P_WRITE_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_C2P_WRITE_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_CLK_PARAM_VALID" value="false" />
+  <parameter name="PLL_CONFIG_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_CONFIG_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_CONFIG_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_CONFIG_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_CONFIG_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_CONFIG_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_DR_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_DR_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_DR_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_DR_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_DR_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_DR_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_HR_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_HR_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_HR_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_HR_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_HR_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_HR_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_LOCATION" value="Top_Bottom" />
+  <parameter name="PLL_MEM_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_MEM_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_MEM_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_MEM_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_MEM_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_MEM_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_NIOS_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_NIOS_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_NIOS_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_NIOS_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_NIOS_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_NIOS_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_P2C_READ_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_P2C_READ_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_P2C_READ_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_P2C_READ_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_P2C_READ_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_P2C_READ_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_SHARING_MODE" value="None" />
+  <parameter name="PLL_WRITE_CLK_DIV_PARAM" value="0" />
+  <parameter name="PLL_WRITE_CLK_FREQ_PARAM" value="0.0" />
+  <parameter name="PLL_WRITE_CLK_FREQ_SIM_STR_PARAM" value="" />
+  <parameter name="PLL_WRITE_CLK_MULT_PARAM" value="0" />
+  <parameter name="PLL_WRITE_CLK_PHASE_PS_PARAM" value="0" />
+  <parameter name="PLL_WRITE_CLK_PHASE_PS_SIM_STR_PARAM" value="" />
+  <parameter name="POWER_OF_TWO_BUS" value="false" />
+  <parameter name="PRIORITY_PORT" value="1,1,1,1,1,1" />
+  <parameter name="QSPI_Mode" value="N/A" />
+  <parameter name="QSPI_PinMuxing" value="Unused" />
+  <parameter name="RATE" value="Full" />
+  <parameter name="RDIMM_CONFIG" value="0000000000000000" />
+  <parameter name="READ_DQ_DQS_CLOCK_SOURCE" value="INVERTED_DQS_BUS" />
+  <parameter name="READ_FIFO_SIZE" value="8" />
+  <parameter name="REFRESH_BURST_VALIDATION" value="false" />
+  <parameter name="REFRESH_INTERVAL" value="15000" />
+  <parameter name="REF_CLK_FREQ" value="25.0" />
+  <parameter name="REF_CLK_FREQ_MAX_PARAM" value="0.0" />
+  <parameter name="REF_CLK_FREQ_MIN_PARAM" value="0.0" />
+  <parameter name="REF_CLK_FREQ_PARAM_VALID" value="false" />
+  <parameter name="S2FCLK_COLDRST_Enable" value="false" />
+  <parameter name="S2FCLK_PENDINGRST_Enable" value="false" />
+  <parameter name="S2FCLK_USER0CLK_Enable" value="false" />
+  <parameter name="S2FCLK_USER1CLK_Enable" value="false" />
+  <parameter name="S2FCLK_USER1CLK_FREQ" value="100.0" />
+  <parameter name="S2FCLK_USER2CLK" value="4" />
+  <parameter name="S2FCLK_USER2CLK_Enable" value="false" />
+  <parameter name="S2FCLK_USER2CLK_FREQ" value="100.0" />
+  <parameter name="S2FINTERRUPT_CAN_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_CLOCKPERIPHERAL_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_CTI_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_DMA_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_EMAC_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_FPGAMANAGER_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_GPIO_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_I2CEMAC_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_I2CPERIPHERAL_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_L4TIMER_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_NAND_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_OSCTIMER_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_QSPI_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_SDMMC_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_SPIMASTER_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_SPISLAVE_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_UART_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_USB_Enable" value="false" />
+  <parameter name="S2FINTERRUPT_WATCHDOG_Enable" value="false" />
+  <parameter name="S2F_Width" value="2" />
+  <parameter name="SDIO_Mode" value="4-bit Data" />
+  <parameter name="SDIO_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="SEQUENCER_TYPE" value="NIOS" />
+  <parameter name="SEQ_MODE" value="0" />
+  <parameter name="SKIP_MEM_INIT" value="true" />
+  <parameter name="SOPC_COMPAT_RESET" value="false" />
+  <parameter name="SPEED_GRADE" value="7" />
+  <parameter name="SPIM0_Mode" value="N/A" />
+  <parameter name="SPIM0_PinMuxing" value="Unused" />
+  <parameter name="SPIM1_Mode" value="Single Slave Select" />
+  <parameter name="SPIM1_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="SPIS0_Mode" value="N/A" />
+  <parameter name="SPIS0_PinMuxing" value="Unused" />
+  <parameter name="SPIS1_Mode" value="N/A" />
+  <parameter name="SPIS1_PinMuxing" value="Unused" />
+  <parameter name="STARVE_LIMIT" value="10" />
+  <parameter name="STM_Enable" value="true" />
+  <parameter name="SYS_INFO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="TEST_Enable" value="false" />
+  <parameter name="TIMING_BOARD_AC_EYE_REDUCTION_H" value="0.0" />
+  <parameter name="TIMING_BOARD_AC_EYE_REDUCTION_SU" value="0.0" />
+  <parameter name="TIMING_BOARD_AC_SKEW" value="0.02" />
+  <parameter name="TIMING_BOARD_AC_SLEW_RATE" value="1.0" />
+  <parameter name="TIMING_BOARD_AC_TO_CK_SKEW" value="0.0" />
+  <parameter name="TIMING_BOARD_CK_CKN_SLEW_RATE" value="2.0" />
+  <parameter name="TIMING_BOARD_DELTA_DQS_ARRIVAL_TIME" value="0.0" />
+  <parameter name="TIMING_BOARD_DELTA_READ_DQS_ARRIVAL_TIME" value="0.0" />
+  <parameter name="TIMING_BOARD_DERATE_METHOD" value="AUTO" />
+  <parameter name="TIMING_BOARD_DQS_DQSN_SLEW_RATE" value="2.0" />
+  <parameter name="TIMING_BOARD_DQ_EYE_REDUCTION" value="0.0" />
+  <parameter name="TIMING_BOARD_DQ_SLEW_RATE" value="1.0" />
+  <parameter name="TIMING_BOARD_DQ_TO_DQS_SKEW" value="0.0" />
+  <parameter name="TIMING_BOARD_ISI_METHOD" value="AUTO" />
+  <parameter name="TIMING_BOARD_MAX_CK_DELAY" value="0.6" />
+  <parameter name="TIMING_BOARD_MAX_DQS_DELAY" value="0.6" />
+  <parameter name="TIMING_BOARD_READ_DQ_EYE_REDUCTION" value="0.0" />
+  <parameter name="TIMING_BOARD_SKEW_BETWEEN_DIMMS" value="0.05" />
+  <parameter name="TIMING_BOARD_SKEW_BETWEEN_DQS" value="0.02" />
+  <parameter name="TIMING_BOARD_SKEW_CKDQS_DIMM_MAX" value="0.01" />
+  <parameter name="TIMING_BOARD_SKEW_CKDQS_DIMM_MIN" value="-0.01" />
+  <parameter name="TIMING_BOARD_SKEW_WITHIN_DQS" value="0.02" />
+  <parameter name="TIMING_BOARD_TDH" value="0.0" />
+  <parameter name="TIMING_BOARD_TDS" value="0.0" />
+  <parameter name="TIMING_BOARD_TIH" value="0.0" />
+  <parameter name="TIMING_BOARD_TIS" value="0.0" />
+  <parameter name="TIMING_TDH" value="125" />
+  <parameter name="TIMING_TDQSCK" value="400" />
+  <parameter name="TIMING_TDQSCKDL" value="1200" />
+  <parameter name="TIMING_TDQSCKDM" value="900" />
+  <parameter name="TIMING_TDQSCKDS" value="450" />
+  <parameter name="TIMING_TDQSH" value="0.35" />
+  <parameter name="TIMING_TDQSQ" value="120" />
+  <parameter name="TIMING_TDQSS" value="0.25" />
+  <parameter name="TIMING_TDS" value="50" />
+  <parameter name="TIMING_TDSH" value="0.2" />
+  <parameter name="TIMING_TDSS" value="0.2" />
+  <parameter name="TIMING_TIH" value="250" />
+  <parameter name="TIMING_TIS" value="175" />
+  <parameter name="TIMING_TQH" value="0.38" />
+  <parameter name="TIMING_TQHS" value="300" />
+  <parameter name="TIMING_TQSH" value="0.38" />
+  <parameter name="TPIUFPGA_Enable" value="false" />
+  <parameter name="TPIUFPGA_alt" value="false" />
+  <parameter name="TRACE_Mode" value="N/A" />
+  <parameter name="TRACE_PinMuxing" value="Unused" />
+  <parameter name="TRACKING_ERROR_TEST" value="false" />
+  <parameter name="TRACKING_WATCH_TEST" value="false" />
+  <parameter name="TREFI" value="35100" />
+  <parameter name="TRFC" value="350" />
+  <parameter name="UART0_Mode" value="No Flow Control" />
+  <parameter name="UART0_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="UART1_Mode" value="N/A" />
+  <parameter name="UART1_PinMuxing" value="Unused" />
+  <parameter name="USB0_Mode" value="N/A" />
+  <parameter name="USB0_PinMuxing" value="Unused" />
+  <parameter name="USB1_Mode" value="SDR" />
+  <parameter name="USB1_PinMuxing" value="HPS I/O Set 0" />
+  <parameter name="USER_DEBUG_LEVEL" value="1" />
+  <parameter name="USE_AXI_ADAPTOR" value="false" />
+  <parameter name="USE_FAKE_PHY" value="false" />
+  <parameter name="USE_MEM_CLK_FREQ" value="false" />
+  <parameter name="USE_MM_ADAPTOR" value="true" />
+  <parameter name="USE_SEQUENCER_BFM" value="false" />
+  <parameter name="WEIGHT_PORT" value="0,0,0,0,0,0" />
+  <parameter name="WRBUFFER_ADDR_WIDTH" value="6" />
+  <parameter name="can0_clk_div" value="1" />
+  <parameter name="can1_clk_div" value="1" />
+  <parameter name="configure_advanced_parameters" value="false" />
+  <parameter name="customize_device_pll_info" value="false" />
+  <parameter name="dbctrl_stayosc1" value="true" />
+  <parameter name="dbg_at_clk_div" value="0" />
+  <parameter name="dbg_clk_div" value="1" />
+  <parameter name="dbg_trace_clk_div" value="0" />
+  <parameter name="desired_can0_clk_mhz" value="100.0" />
+  <parameter name="desired_can1_clk_mhz" value="100.0" />
+  <parameter name="desired_cfg_clk_mhz" value="100.0" />
+  <parameter name="desired_emac0_clk_mhz" value="250.0" />
+  <parameter name="desired_emac1_clk_mhz" value="250.0" />
+  <parameter name="desired_gpio_db_clk_hz" value="32000" />
+  <parameter name="desired_l4_mp_clk_mhz" value="100.0" />
+  <parameter name="desired_l4_sp_clk_mhz" value="100.0" />
+  <parameter name="desired_mpu_clk_mhz" value="800.0" />
+  <parameter name="desired_nand_clk_mhz" value="12.5" />
+  <parameter name="desired_qspi_clk_mhz" value="370.0" />
+  <parameter name="desired_sdmmc_clk_mhz" value="200.0" />
+  <parameter name="desired_spi_m_clk_mhz" value="200.0" />
+  <parameter name="desired_usb_mp_clk_mhz" value="200.0" />
+  <parameter name="device_name" value="5CSEBA6U23I7" />
+  <parameter name="device_pll_info_manual">{320000000 1600000000} {320000000 1000000000} {800000000 400000000 400000000}</parameter>
+  <parameter name="eosc1_clk_mhz" value="25.0" />
+  <parameter name="eosc2_clk_mhz" value="25.0" />
+  <parameter name="gpio_db_clk_div" value="6249" />
+  <parameter name="l3_mp_clk_div" value="1" />
+  <parameter name="l3_sp_clk_div" value="1" />
+  <parameter name="l4_mp_clk_div" value="1" />
+  <parameter name="l4_mp_clk_source" value="1" />
+  <parameter name="l4_sp_clk_div" value="1" />
+  <parameter name="l4_sp_clk_source" value="1" />
+  <parameter name="main_pll_c3" value="3" />
+  <parameter name="main_pll_c4" value="3" />
+  <parameter name="main_pll_c5" value="15" />
+  <parameter name="main_pll_m" value="63" />
+  <parameter name="main_pll_n" value="0" />
+  <parameter name="nand_clk_source" value="2" />
+  <parameter name="periph_pll_c0" value="3" />
+  <parameter name="periph_pll_c1" value="3" />
+  <parameter name="periph_pll_c2" value="1" />
+  <parameter name="periph_pll_c3" value="19" />
+  <parameter name="periph_pll_c4" value="4" />
+  <parameter name="periph_pll_c5" value="9" />
+  <parameter name="periph_pll_m" value="79" />
+  <parameter name="periph_pll_n" value="1" />
+  <parameter name="periph_pll_source" value="0" />
+  <parameter name="qspi_clk_source" value="1" />
+  <parameter name="quartus_ini_hps_emif_pll" value="false" />
+  <parameter
+     name="quartus_ini_hps_ip_enable_all_peripheral_fpga_interfaces"
+     value="false" />
+  <parameter name="quartus_ini_hps_ip_enable_bsel_csel" value="false" />
+  <parameter
+     name="quartus_ini_hps_ip_enable_emac0_peripheral_fpga_interface"
+     value="false" />
+  <parameter
+     name="quartus_ini_hps_ip_enable_low_speed_serial_fpga_interfaces"
+     value="false" />
+  <parameter name="quartus_ini_hps_ip_enable_test_interface" value="false" />
+  <parameter name="quartus_ini_hps_ip_f2sdram_bonding_out" value="false" />
+  <parameter name="quartus_ini_hps_ip_fast_f2sdram_sim_model" value="false" />
+  <parameter name="quartus_ini_hps_ip_suppress_sdram_synth" value="false" />
+  <parameter name="sdmmc_clk_source" value="2" />
+  <parameter name="show_advanced_parameters" value="false" />
+  <parameter name="show_debug_info_as_warning_msg" value="false" />
+  <parameter name="show_warning_as_error_msg" value="false" />
+  <parameter name="spi_m_clk_div" value="0" />
+  <parameter name="usb_mp_clk_div" value="0" />
+  <parameter name="use_default_mpu_clk" value="true" />
+ </module>
+ <module
+   name="hps_only_master"
+   kind="altera_jtag_avalon_master"
+   version="18.0"
+   enabled="1">
+  <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
+  <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
+  <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
+  <parameter name="COMPONENT_CLOCK" value="0" />
+  <parameter name="FAST_VER" value="0" />
+  <parameter name="FIFO_DEPTHS" value="2" />
+  <parameter name="PLI_PORT" value="50000" />
+  <parameter name="USE_PLI" value="0" />
+ </module>
+ <module
+   name="jtag_uart"
+   kind="altera_avalon_jtag_uart"
+   version="18.0"
+   enabled="1">
+  <parameter name="allowMultipleConnections" value="true" />
+  <parameter name="avalonSpec" value="2.0" />
+  <parameter name="clkFreq" value="50000000" />
+  <parameter name="hubInstanceID" value="0" />
+  <parameter name="readBufferDepth" value="64" />
+  <parameter name="readIRQThreshold" value="8" />
+  <parameter name="simInputCharacterStream" value="" />
+  <parameter name="simInteractiveOptions">INTERACTIVE_ASCII_OUTPUT</parameter>
+  <parameter name="useRegistersForReadBuffer" value="false" />
+  <parameter name="useRegistersForWriteBuffer" value="false" />
+  <parameter name="useRelativePathForSimFile" value="false" />
+  <parameter name="writeBufferDepth" value="64" />
+  <parameter name="writeIRQThreshold" value="8" />
+ </module>
+ <module
+   name="mm_bridge_0"
+   kind="altera_avalon_mm_bridge"
+   version="18.0"
+   enabled="1">
+  <parameter name="ADDRESS_UNITS" value="SYMBOLS" />
+  <parameter name="ADDRESS_WIDTH" value="10" />
+  <parameter name="DATA_WIDTH" value="32" />
+  <parameter name="LINEWRAPBURSTS" value="0" />
+  <parameter name="MAX_BURST_SIZE" value="1" />
+  <parameter name="MAX_PENDING_RESPONSES" value="4" />
+  <parameter name="PIPELINE_COMMAND" value="1" />
+  <parameter name="PIPELINE_RESPONSE" value="1" />
+  <parameter name="SYMBOL_WIDTH" value="8" />
+  <parameter name="SYSINFO_ADDR_WIDTH" value="18" />
+  <parameter name="USE_AUTO_ADDRESS_WIDTH" value="1" />
+  <parameter name="USE_RESPONSE" value="0" />
+ </module>
+ <module
+   name="onchip_memory2_0"
+   kind="altera_avalon_onchip_memory2"
+   version="18.0"
+   enabled="1">
+  <parameter name="allowInSystemMemoryContentEditor" value="false" />
+  <parameter name="autoInitializationFileName">$${FILENAME}_onchip_memory2_0</parameter>
+  <parameter name="blockType" value="AUTO" />
+  <parameter name="copyInitFile" value="false" />
+  <parameter name="dataWidth" value="32" />
+  <parameter name="dataWidth2" value="32" />
+  <parameter name="deviceFamily" value="Cyclone V" />
+  <parameter name="deviceFeatures">ADDRESS_STALL 1 ADVANCED_INFO 0 ALLOWS_COMPILING_OTHER_FAMILY_IP 1 ANY_QFP 0 CELL_LEVEL_BACK_ANNOTATION_DISABLED 0 COMPILER_SUPPORT 1 DSP 0 DSP_SHIFTER_BLOCK 0 DUMP_ASM_LAB_BITS_FOR_POWER 0 EMUL 1 ENABLE_ADVANCED_IO_ANALYSIS_GUI_FEATURES 1 ENABLE_PIN_PLANNER 0 ENGINEERING_SAMPLE 0 EPCS 1 ESB 0 FAKE1 0 FAKE2 0 FAKE3 0 FAMILY_LEVEL_INSTALLATION_ONLY 0 FASTEST 0 FINAL_TIMING_MODEL 0 FITTER_USE_FALLING_EDGE_DELAY 1 FPP_COMPLETELY_PLACES_AND_ROUTES_PERIPHERY 0 GENERATE_DC_ON_CURRENT_WARNING_FOR_INTERNAL_CLAMPING_DIODE 1 HARDCOPY 0 HAS_18_BIT_MULTS 1 HAS_ACE_SUPPORT 1 HAS_ACTIVE_PARALLEL_FLASH_SUPPORT 0 HAS_ADJUSTABLE_OUTPUT_IO_TIMING_MEAS_POINT 1 HAS_ADVANCED_IO_INVERTED_CORNER 1 HAS_ADVANCED_IO_POWER_SUPPORT 1 HAS_ADVANCED_IO_TIMING_SUPPORT 1 HAS_ALM_SUPPORT 1 HAS_ATOM_AND_ROUTING_POWER_MODELED_TOGETHER 0 HAS_AUTO_DERIVE_CLOCK_UNCERTAINTY_SUPPORT 1 HAS_AUTO_FIT_SUPPORT 1 HAS_BALANCED_OPT_TECHNIQUE_SUPPORT 1 HAS_BENEFICIAL_SKEW_SUPPORT 0 HAS_BITLEVEL_DRIVE_STRENGTH_CONTROL 1 HAS_BSDL_FILE_GENERATION 1 HAS_CDB_RE_NETWORK_PRESERVATION_SUPPORT 0 HAS_CGA_SUPPORT 1 HAS_CHECK_NETLIST_SUPPORT 1 HAS_CLOCK_REGION_CHECKER_ENABLED 1 HAS_CORE_JUNCTION_TEMP_DERATING 0 HAS_CROSSTALK_SUPPORT 0 HAS_CUSTOM_REGION_SUPPORT 1 HAS_DAP_JTAG_FROM_HPS 0 HAS_DATA_DRIVEN_ACVQ_HSSI_SUPPORT 1 HAS_DDB_FDI_SUPPORT 1 HAS_DESIGN_ANALYZER_SUPPORT 1 HAS_DETAILED_IO_RAIL_POWER_MODEL 1 HAS_DETAILED_LEIM_STATIC_POWER_MODEL 0 HAS_DETAILED_LE_POWER_MODEL 1 HAS_DETAILED_ROUTING_MUX_STATIC_POWER_MODEL 0 HAS_DETAILED_THERMAL_CIRCUIT_PARAMETER_SUPPORT 1 HAS_DEVICE_MIGRATION_SUPPORT 1 HAS_DIAGONAL_MIGRATION_SUPPORT 0 HAS_EMIF_TOOLKIT_SUPPORT 1 HAS_ERROR_DETECTION_SUPPORT 1 HAS_FAMILY_VARIANT_MIGRATION_SUPPORT 0 HAS_FANOUT_FREE_NODE_SUPPORT 1 HAS_FAST_FIT_SUPPORT 1 HAS_FITTER_ECO_SUPPORT 1 HAS_FIT_NETLIST_OPT_RETIME_SUPPORT 1 HAS_FIT_NETLIST_OPT_SUPPORT 1 HAS_FORMAL_VERIFICATION_SUPPORT 0 HAS_FPGA_XCHANGE_SUPPORT 1 HAS_FSAC_LUTRAM_REGISTER_PACKING_SUPPORT 1 HAS_FULL_DAT_MIN_TIMING_SUPPORT 1 HAS_FULL_INCREMENTAL_DESIGN_SUPPORT 1 HAS_FUNCTIONAL_SIMULATION_SUPPORT 0 HAS_FUNCTIONAL_VERILOG_SIMULATION_SUPPORT 1 HAS_FUNCTIONAL_VHDL_SIMULATION_SUPPORT 1 HAS_GLITCH_FILTERING_SUPPORT 1 HAS_HARDCOPYII_SUPPORT 0 HAS_HC_READY_SUPPORT 0 HAS_HIGH_SPEED_LOW_POWER_TILE_SUPPORT 0 HAS_HOLD_TIME_AVOIDANCE_ACROSS_CLOCK_SPINE_SUPPORT 1 HAS_HSPICE_WRITER_SUPPORT 1 HAS_HSSI_POWER_CALCULATOR 1 HAS_IBISO_WRITER_SUPPORT 0 HAS_ICD_DATA_IP 0 HAS_IDB_SUPPORT 1 HAS_INCREMENTAL_DAT_SUPPORT 1 HAS_INCREMENTAL_SYNTHESIS_SUPPORT 1 HAS_IO_ASSIGNMENT_ANALYSIS_SUPPORT 1 HAS_IO_DECODER 1 HAS_IO_PLACEMENT_OPTIMIZATION_SUPPORT 1 HAS_IO_PLACEMENT_USING_GEOMETRY_RULE 0 HAS_IO_PLACEMENT_USING_PHYSIC_RULE 0 HAS_IO_SMART_RECOMPILE_SUPPORT 0 HAS_JITTER_SUPPORT 1 HAS_JTAG_SLD_HUB_SUPPORT 1 HAS_LOGIC_LOCK_SUPPORT 1 HAS_MICROPROCESSOR 0 HAS_MIF_SMART_COMPILE_SUPPORT 1 HAS_MINMAX_TIMING_MODELING_SUPPORT 1 HAS_MIN_TIMING_ANALYSIS_SUPPORT 1 HAS_MUX_RESTRUCTURE_SUPPORT 1 HAS_NADDER_STYLE_CLOCKING 0 HAS_NADDER_STYLE_FF 0 HAS_NADDER_STYLE_LCELL_COMB 0 HAS_NEW_CDB_NAME_FOR_M20K_SCLR 0 HAS_NEW_HC_FLOW_SUPPORT 0 HAS_NEW_SERDES_MAX_RESOURCE_COUNT_REPORTING_SUPPORT 0 HAS_NEW_VPR_SUPPORT 1 HAS_NONSOCKET_TECHNOLOGY_MIGRATION_SUPPORT 0 HAS_NO_HARDBLOCK_PARTITION_SUPPORT 0 HAS_NO_JTAG_USERCODE_SUPPORT 0 HAS_OPERATING_SETTINGS_AND_CONDITIONS_REPORTING_SUPPORT 1 HAS_PAD_LOCATION_ASSIGNMENT_SUPPORT 0 HAS_PARTIAL_RECONFIG_SUPPORT 1 HAS_PASSIVE_PARALLEL_SUPPORT 0 HAS_PDN_MODEL_STATUS 0 HAS_PHYSICAL_DESIGN_PLANNER_SUPPORT 0 HAS_PHYSICAL_NETLIST_OUTPUT 0 HAS_PHYSICAL_ROUTING_SUPPORT 1 HAS_PIN_SPECIFIC_VOLTAGE_SUPPORT 1 HAS_PLDM_REF_SUPPORT 0 HAS_POWER_BINNING_LIMITS_DATA 1 HAS_POWER_ESTIMATION_SUPPORT 1 HAS_PRELIMINARY_CLOCK_UNCERTAINTY_NUMBERS 0 HAS_PRE_FITTER_FPP_SUPPORT 1 HAS_PRE_FITTER_LUTRAM_NETLIST_CHECKER_ENABLED 1 HAS_PVA_SUPPORT 1 HAS_QUARTUS_HIERARCHICAL_DESIGN_SUPPORT 0 HAS_RAPID_RECOMPILE_SUPPORT 1 HAS_RCF_SUPPORT 1 HAS_RCF_SUPPORT_FOR_DEBUGGING 0 HAS_RED_BLACK_SEPARATION_SUPPORT 0 HAS_RE_LEVEL_TIMING_GRAPH_SUPPORT 1 HAS_RISEFALL_DELAY_SUPPORT 1 HAS_SIGNAL_PROBE_SUPPORT 1 HAS_SIGNAL_TAP_SUPPORT 1 HAS_SIMULATOR_SUPPORT 0 HAS_SPLIT_IO_SUPPORT 1 HAS_SPLIT_LC_SUPPORT 1 HAS_STRICT_PRESERVATION_SUPPORT 1 HAS_SYNTHESIS_ON_ATOMS 1 HAS_SYNTH_FSYN_NETLIST_OPT_SUPPORT 1 HAS_SYNTH_NETLIST_OPT_RETIME_SUPPORT 0 HAS_SYNTH_NETLIST_OPT_SUPPORT 1 HAS_TCL_FITTER_SUPPORT 0 HAS_TECHNOLOGY_MIGRATION_SUPPORT 0 HAS_TEMPLATED_REGISTER_PACKING_SUPPORT 1 HAS_TIME_BORROWING_SUPPORT 0 HAS_TIMING_DRIVEN_SYNTHESIS_SUPPORT 1 HAS_TIMING_INFO_SUPPORT 1 HAS_TIMING_OPERATING_CONDITIONS 1 HAS_TIMING_SIMULATION_SUPPORT 0 HAS_TITAN_BASED_MAC_REGISTER_PACKER_SUPPORT 1 HAS_U2B2_SUPPORT 0 HAS_USER_HIGH_SPEED_LOW_POWER_TILE_SUPPORT 0 HAS_USE_FITTER_INFO_SUPPORT 0 HAS_VCCPD_POWER_RAIL 1 HAS_VERTICAL_MIGRATION_SUPPORT 1 HAS_VIEWDRAW_SYMBOL_SUPPORT 0 HAS_VIO_SUPPORT 1 HAS_VIRTUAL_DEVICES 0 HAS_WYSIWYG_DFFEAS_SUPPORT 1 HAS_XIBISO2_WRITER_SUPPORT 0 HAS_XIBISO_WRITER_SUPPORT 1 IFP_USE_LEGACY_IO_CHECKER 1 INCREMENTAL_DESIGN_SUPPORTS_COMPATIBLE_CONSTRAINTS 0 INSTALLED 0 INTERNAL_POF_SUPPORT_ENABLED 0 INTERNAL_USE_ONLY 0 ISSUE_MILITARY_TEMPERATURE_WARNING 0 IS_BARE_DIE 0 IS_CONFIG_ROM 0 IS_DEFAULT_FAMILY 0 IS_FOR_INTERNAL_TESTING_ONLY 0 IS_HARDCOPY_FAMILY 0 IS_HBGA_PACKAGE 0 IS_HIGH_CURRENT_PART 0 IS_LOW_POWER_PART 0 IS_REVE_SILICON 0 IS_SDM_ONLY_PACKAGE 0 IS_SMI_PART 0 LOAD_BLK_TYPE_DATA_FROM_ATOM_WYS_INFO 0 LVDS_IO 1 M10K_MEMORY 1 M144K_MEMORY 0 M20K_MEMORY 0 M4K_MEMORY 0 M512_MEMORY 0 M9K_MEMORY 0 MLAB_MEMORY 1 MRAM_MEMORY 0 NOT_LISTED 0 NOT_MIGRATABLE 0 NO_FITTER_DELAY_CACHE_GENERATED 0 NO_PIN_OUT 0 NO_POF 0 NO_RPE_SUPPORT 0 NO_SUPPORT_FOR_LOGICLOCK_CONTENT_BACK_ANNOTATION 1 NO_SUPPORT_FOR_STA_CLOCK_UNCERTAINTY_CHECK 0 NO_TDC_SUPPORT 0 POSTFIT_BAK_DATABASE_EXPORT_ENABLED 1 POSTMAP_BAK_DATABASE_EXPORT_ENABLED 1 PROGRAMMER_ONLY 0 PROGRAMMER_SUPPORT 1 PVA_SUPPORTS_ONLY_SUBSET_OF_ATOMS 0 QFIT_IN_DEVELOPMENT 0 QMAP_IN_DEVELOPMENT 0 RAM_LOGICAL_NAME_CHECKING_IN_CUT_ENABLED 1 REPORTS_METASTABILITY_MTBF 1 REQUIRES_INSTALLATION_PATCH 0 REQUIRES_LIST_OF_TEMPERATURE_AND_VOLTAGE_OPERATING_CONDITIONS 1 REQUIRE_QUARTUS_HIERARCHICAL_DESIGN 0 REQUIRE_SPECIAL_HANDLING_FOR_LOCAL_LABLINE 0 RESERVES_SIGNAL_PROBE_PINS 0 RESOLVE_MAX_FANOUT_EARLY 1 RESOLVE_MAX_FANOUT_LATE 0 RESPECTS_FIXED_SIZED_LOCKED_LOCATION_LOGICLOCK 1 RESTRICTED_USER_SELECTION 0 RESTRICT_PARTIAL_RECONFIG 0 RISEFALL_SUPPORT_IS_HIDDEN 0 SHOW_HIDDEN_FAMILY_IN_PROGRAMMER 0 STRICT_TIMING_DB_CHECKS 0 SUPPORTS_ADDITIONAL_OPTIONS_FOR_UNUSED_IO 1 SUPPORTS_CRC 1 SUPPORTS_DIFFERENTIAL_AIOT_BOARD_TRACE_MODEL 1 SUPPORTS_DSP_BALANCING_BACK_ANNOTATION 0 SUPPORTS_GENERATION_OF_EARLY_POWER_ESTIMATOR_FILE 1 SUPPORTS_GLOBAL_SIGNAL_BACK_ANNOTATION 1 SUPPORTS_HIPI_RETIMING 0 SUPPORTS_LICENSE_FREE_PARTIAL_RECONFIG 0 SUPPORTS_MAC_CHAIN_OUT_ADDER 1 SUPPORTS_RAM_PACKING_BACK_ANNOTATION 0 SUPPORTS_REG_PACKING_BACK_ANNOTATION 0 SUPPORTS_SIGNALPROBE_REGISTER_PIPELINING 1 SUPPORTS_SINGLE_ENDED_AIOT_BOARD_TRACE_MODEL 1 SUPPORTS_USER_MANUAL_LOGIC_DUPLICATION 1 SUPPORTS_VID 0 SUPPORT_HIGH_SPEED_HPS 0 TMV_RUN_CUSTOMIZABLE_VIEWER 1 TMV_RUN_INTERNAL_DETAILS 1 TMV_RUN_INTERNAL_DETAILS_ON_IO 0 TMV_RUN_INTERNAL_DETAILS_ON_IOBUF 1 TMV_RUN_INTERNAL_DETAILS_ON_LCELL 0 TMV_RUN_INTERNAL_DETAILS_ON_LRAM 0 TRANSCEIVER_3G_BLOCK 1 TRANSCEIVER_6G_BLOCK 1 USES_ACV_FOR_FLED 1 USES_ADB_FOR_BACK_ANNOTATION 1 USES_ALTERA_LNSIM 0 USES_ASIC_ROUTING_POWER_CALCULATOR 0 USES_DATA_DRIVEN_PLL_COMPUTATION_UTIL 1 USES_DEV 1 USES_ICP_FOR_ECO_FITTER 0 USES_LIBERTY_TIMING 0 USES_NETWORK_ROUTING_POWER_CALCULATOR 0 USES_PART_INFO_FOR_DISPLAYING_CORE_VOLTAGE_VALUE 0 USES_POWER_SIGNAL_ACTIVITIES 1 USES_PVAFAM2 0 USES_SECOND_GENERATION_PART_INFO 0 USES_SECOND_GENERATION_POWER_ANALYZER 0 USES_THIRD_GENERATION_TIMING_MODELS_TIS 1 USES_U2B2_TIMING_MODELS 0 USES_XML_FORMAT_FOR_EMIF_PIN_MAP_FILE 0 USE_ADVANCED_IO_POWER_BY_DEFAULT 1 USE_ADVANCED_IO_TIMING_BY_DEFAULT 1 USE_BASE_FAMILY_DDB_PATH 0 USE_OCT_AUTO_CALIBRATION 1 USE_RELAX_IO_ASSIGNMENT_RULES 0 USE_RISEFALL_ONLY 1 USE_SEPARATE_LIST_FOR_TECH_MIGRATION 0 USE_SINGLE_COMPILER_PASS_PLL_MIF_FILE_WRITER 1 USE_TITAN_IO_BASED_IO_REGISTER_PACKER_UTIL 1 USING_28NM_OR_OLDER_TIMING_METHODOLOGY 1 WYSIWYG_BUS_WIDTH_CHECKING_IN_CUT_ENABLED 1</parameter>
+  <parameter name="dualPort" value="false" />
+  <parameter name="ecc_enabled" value="false" />
+  <parameter name="enPRInitMode" value="false" />
+  <parameter name="enableDiffWidth" value="false" />
+  <parameter name="initMemContent" value="true" />
+  <parameter name="initializationFileName" value="onchip_mem.hex" />
+  <parameter name="instanceID" value="NONE" />
+  <parameter name="memorySize" value="32" />
+  <parameter name="readDuringWriteMode" value="DONT_CARE" />
+  <parameter name="resetrequest_enabled" value="true" />
+  <parameter name="simAllowMRAMContentsFile" value="false" />
+  <parameter name="simMemInitOnlyFilename" value="0" />
+  <parameter name="singleClockOperation" value="false" />
+  <parameter name="slave1Latency" value="1" />
+  <parameter name="slave2Latency" value="1" />
+  <parameter name="useNonDefaultInitFile" value="true" />
+  <parameter name="useShallowMemBlocks" value="false" />
+  <parameter name="writable" value="true" />
+ </module>
+ <module
+   name="sysid_qsys"
+   kind="altera_avalon_sysid_qsys"
+   version="18.0"
+   enabled="1">
+  <parameter name="id" value="-1395322110" />
+ </module>
+ <module name="vta_adaptor_0" kind="vta_adaptor" version="1.0" enabled="1" />
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="acp_to_avst_dma_128_0.axi_master"
+   end="hps_0.f2h_axi_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="hps_0.h2f_lw_axi_master"
+   end="mm_bridge_0.s0">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="jtag_uart.avalon_jtag_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x2000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="ILC.avalon_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00030000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="vta_adaptor_0.compute_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00022000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="sysid_qsys.control_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x1000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="acp_to_avst_dma_128_0.descriptor_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020018" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="vta_adaptor_0.fetch_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="vta_adaptor_0.fetch_insn_count_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020010" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="dipsw_pio.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x4000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="button_pio.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x5000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="onchip_memory2_0.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="mm_bridge_0.m0"
+   end="vta_adaptor_0.store_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00023000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="jtag_uart.avalon_jtag_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x2000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="ILC.avalon_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00030000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="vta_adaptor_0.compute_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00022000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="sysid_qsys.control_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x1000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="acp_to_avst_dma_128_0.descriptor_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020018" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="hps_only_master.master"
+   end="hps_0.f2h_axi_slave">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="f2sdram_only_master.master"
+   end="hps_0.f2h_sdram0_data">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="vta_adaptor_0.fetch_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="vta_adaptor_0.fetch_insn_count_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00020010" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="button_pio.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x5000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="dipsw_pio.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x4000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="onchip_memory2_0.s1">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x0000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon"
+   version="18.0"
+   start="fpga_only_master.master"
+   end="vta_adaptor_0.store_call_avs">
+  <parameter name="arbitrationPriority" value="1" />
+  <parameter name="baseAddress" value="0x00023000" />
+  <parameter name="defaultConnection" value="false" />
+ </connection>
+ <connection
+   kind="avalon_streaming"
+   version="18.0"
+   start="acp_to_avst_dma_128_0.avst_source"
+   end="fetch_0.insns" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="hps_only_master.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="sysid_qsys.clk" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="fpga_only_master.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="dipsw_pio.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="button_pio.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="jtag_uart.clk" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="f2sdram_only_master.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="mm_bridge_0.clk" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="ILC.clk" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="acp_to_avst_dma_128_0.clk" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="onchip_memory2_0.clk1" />
+ <connection kind="clock" version="18.0" start="clk_0.clk" end="fetch_0.clock" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="vta_adaptor_0.clock" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="hps_0.f2h_axi_clock" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="hps_0.f2h_sdram0_clock" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="hps_0.h2f_axi_clock" />
+ <connection
+   kind="clock"
+   version="18.0"
+   start="clk_0.clk"
+   end="hps_0.h2f_lw_axi_clock" />
+ <connection
+   kind="conduit"
+   version="18.0"
+   start="fetch_0.call"
+   end="vta_adaptor_0.fetch_call">
+  <parameter name="endPort" value="" />
+  <parameter name="endPortLSB" value="0" />
+  <parameter name="startPort" value="" />
+  <parameter name="startPortLSB" value="0" />
+  <parameter name="width" value="0" />
+ </connection>
+ <connection
+   kind="conduit"
+   version="18.0"
+   start="acp_to_avst_dma_128_0.data_length"
+   end="vta_adaptor_0.fetch_insn_count_2">
+  <parameter name="endPort" value="" />
+  <parameter name="endPortLSB" value="0" />
+  <parameter name="startPort" value="" />
+  <parameter name="startPortLSB" value="0" />
+  <parameter name="width" value="0" />
+ </connection>
+ <connection
+   kind="conduit"
+   version="18.0"
+   start="fetch_0.insn_count"
+   end="vta_adaptor_0.fetch_insn_count">
+  <parameter name="endPort" value="" />
+  <parameter name="endPortLSB" value="0" />
+  <parameter name="startPort" value="" />
+  <parameter name="startPortLSB" value="0" />
+  <parameter name="width" value="0" />
+ </connection>
+ <connection
+   kind="interrupt"
+   version="18.0"
+   start="hps_0.f2h_irq0"
+   end="jtag_uart.irq">
+  <parameter name="irqNumber" value="2" />
+ </connection>
+ <connection
+   kind="interrupt"
+   version="18.0"
+   start="hps_0.f2h_irq0"
+   end="button_pio.irq">
+  <parameter name="irqNumber" value="1" />
+ </connection>
+ <connection
+   kind="interrupt"
+   version="18.0"
+   start="hps_0.f2h_irq0"
+   end="dipsw_pio.irq">
+  <parameter name="irqNumber" value="0" />
+ </connection>
+ <connection kind="interrupt" version="18.0" start="ILC.irq" end="jtag_uart.irq">
+  <parameter name="irqNumber" value="2" />
+ </connection>
+ <connection kind="interrupt" version="18.0" start="ILC.irq" end="button_pio.irq">
+  <parameter name="irqNumber" value="1" />
+ </connection>
+ <connection kind="interrupt" version="18.0" start="ILC.irq" end="dipsw_pio.irq">
+  <parameter name="irqNumber" value="0" />
+ </connection>
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="hps_only_master.clk_reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="fpga_only_master.clk_reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="f2sdram_only_master.clk_reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="sysid_qsys.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="dipsw_pio.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="button_pio.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="jtag_uart.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="mm_bridge_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="fetch_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="vta_adaptor_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="acp_to_avst_dma_128_0.reset" />
+ <connection
+   kind="reset"
+   version="18.0"
+   start="clk_0.clk_reset"
+   end="onchip_memory2_0.reset1" />
+ <connection kind="reset" version="18.0" start="clk_0.clk_reset" end="ILC.reset_n" />
+ <interconnectRequirement for="$system" name="qsys_mm.clockCrossingAdapter" value="HANDSHAKE" />
+ <interconnectRequirement for="$system" name="qsys_mm.maxAdditionalLatency" value="1" />
+</system>
