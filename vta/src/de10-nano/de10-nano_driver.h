@@ -52,15 +52,15 @@ uint32_t VTAReadMappedReg(void* base_addr, uint32_t offset);
 */
 #define VTA_FETCH_ADDR    0xFF220000
 /*! \brief VTA compute stage configuration register address
-*   from auto-generated COMPUTE_0_S_AXI_CONTROL_BUS_BASEADDR define
-*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
-*/
-#define VTA_COMPUTE_ADDR  0xFF221000
-/*! \brief VTA compute stage configuration register address
 *   from auto-generated LOAD_0_S_AXI_CONTROL_BUS_BASEADDR define
 *   in hps_0.h (under build/hardware/intel/hls/<design name>/)
 */
-#define VTA_LOAD_ADDR     0xFF222000
+#define VTA_LOAD_ADDR     0xFF221000
+/*! \brief VTA compute stage configuration register address
+*   from auto-generated COMPUTE_0_S_AXI_CONTROL_BUS_BASEADDR define
+*   in hps_0.h (under build/hardware/intel/hls/<design name>/)
+*/
+#define VTA_COMPUTE_ADDR  0xFF222000
 /*! \brief VTA store stage configuration register address
 *   from auto-generated STORE_0_S_AXI_CONTROL_BUS_BASEADDR define
 *   in hps_0.h (under build/hardware/intel/hls/<design name>/)

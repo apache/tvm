@@ -40,8 +40,19 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
-#include "cma.h"
+#include "cma_api.h"
 
+#ifndef CMA_IOCTL_MAGIC
+#define CMA_IOCTL_MAGIC  0xf2
+#endif
+
+#define CMA_ALLOC_CACHED           _IOC(_IOC_WRITE|_IOC_READ,  CMA_IOCTL_MAGIC, 1, 4)
+#define CMA_ALLOC_NONCACHED         _IOC(_IOC_WRITE|_IOC_READ,  CMA_IOCTL_MAGIC, 2, 4)
+#define CMA_FREE              _IOC(_IOC_WRITE,      CMA_IOCTL_MAGIC, 3, 4)
+#define CMA_GET_PHY_ADDR           _IOC(_IOC_WRITE|_IOC_READ,  CMA_IOCTL_MAGIC, 4, 4)
+#define CMA_GET_SIZE             _IOC(_IOC_WRITE|_IOC_READ,  CMA_IOCTL_MAGIC, 5, 4)
+
+#define CMA_IOCTL_MAXNR            5
 
 #ifndef CMA_DEBUG
   #define CMA_DEBUG       0
@@ -49,8 +60,6 @@
 #ifndef DRIVER_NODE_NAME
   #define DRIVER_NODE_NAME   "cma"
 #endif
-
-
 
 #if CMA_DEBUG == 1
   #define __DEBUG(fmt, args...)  printf("CMA_API_DEBUG: " fmt, ##args)
@@ -107,8 +116,8 @@ int cma_free(void *mem) {
   unsigned data, v_addr;
 
   /* save user space pointer value */
-  data   = (unsigned)mem;
-  v_addr = (unsigned)mem;
+  data   = *((unsigned int*)(&mem)); // (unsigned)mem;
+  v_addr = *((unsigned int*)(&mem)); // (unsigned)mem;
 
   if ( ioctl(cma_fd, CMA_GET_SIZE, &data) == -1 ) {
     __DEBUG("cma_free - ioctl command unsuccsessful - 0\n");
@@ -133,7 +142,7 @@ unsigned cma_get_phy_addr(void *mem) {
   unsigned data;
 
   /* save user space pointer value */
-  data = (unsigned)mem;
+  data = *((unsigned int*)(&mem)); // (unsigned)mem;
 
   /* get physical address */
   if ( ioctl(cma_fd, CMA_GET_PHY_ADDR, &data) == -1 ) {
