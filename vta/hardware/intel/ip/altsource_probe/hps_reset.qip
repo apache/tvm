@@ -1,0 +1,5 @@
+set_global_assignment -name IP_TOOL_NAME "In-System Sources and Probes"
+set_global_assignment -name IP_TOOL_VERSION "18.0"
+set_global_assignment -name IP_GENERATED_DEVICE_FAMILY "{Cyclone V}"
+set_global_assignment -name VERILOG_FILE [file join $::quartus(qip_path) "hps_reset.v"]
+set_global_assignment -name MISC_FILE [file join $::quartus(qip_path) "hps_reset_bb.v"]
