@@ -3,6 +3,7 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 
+import warnings
 # Numpy support
 import numpy as np
 
@@ -303,7 +304,8 @@ def _conv(opname):
 def _decode_image():
     def _impl(inputs, attr, params):
         # Image decode wrapper: Expecting user to feed decoded input to next layer drop this layer.
-        print("DecodeJpeg: It's a pass through, please handle preprocessing before input")
+        warnings.warn("DecodeJpeg: It's a pass through, "
+                      "please handle preprocessing before input")
         return inputs[0]
     return _impl
 
@@ -938,8 +940,6 @@ _convert_map = {
     'Split'                             : _split(False),
     'SplitV'                            : _split(True),
     'Unpack'                            : _unpack(),
-    'QueueDequeueManyV2'                : _undef(),
-    'FIFOQueueV2'                       : _undef(),
 }
 
 # _convert_map_rnn defines maps of rnn operator name to
@@ -1184,42 +1184,57 @@ class GraphProto(object):
         if missing_operators:
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
+
         for node in graph.node:
             if node.op == 'Placeholder':
-                self._input_shapes[node.name] = tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
-                self._input_shapes[node.name][0] = 1
+                if shape and node.name in shape:
+                    self._input_shapes[node.name] = list(shape[node.name])
+                    continue
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(node.attr['shape'].shape)
+                for idx, dim in enumerate(self._input_shapes[node.name]):
+                    if dim < 0:
+                        self._input_shapes[node.name][idx] = 1
+                        warnings.warn("Use 1 instead of -1 in shape of operator %s."
+                                      % node.name)
+
+            # Ignore user's input shape for Non placeholder
             elif node.op == 'Const':
                 tensor_value = node.attr['value'].tensor
-                self._input_shapes[node.name] = tensor_util.TensorShapeProtoToList(tensor_value.tensor_shape)
+                self._input_shapes[node.name] = \
+                    tensor_util.TensorShapeProtoToList(tensor_value.tensor_shape)
+                if shape and node.name in shape:
+                    warnings.warn("Ignore the passed shape. "
+                                  "Shape in graphdef will be used for operator %s." % node.name)
 
         final_op = None
         # Parse the nodes to re-create TF graph using Symbol API of NNVM
         for node in graph.node:
-            # Tensorflow doesn't have seperate list for params extraction.
+            # Tensorflow doesn't have separate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
             input_shapes = {}
             input_0d_mismatch = set()
             attr = self._parse_attr(node.attr)
 
-            #Variable converted to Const will not have only value attr
+            #  Variable converted to Const will not have only value attr
             if 'value' in attr and node.op == 'Const':
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
+            elif shape and node.name in shape:
+                # Give priority to user argument.
+                self._output_shapes[node.name] = [shape[node.name]]
             elif node.op == 'Placeholder':
                 self._output_shapes[node.name] = [self._input_shapes[node.name]]
-            elif shape and node.name in shape:
-	        # Give priority to user argument.
-		self._output_shapes[node.name] = [shape[node.name]]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
                     [tensor_util.TensorShapeProtoToList(tshape) \
                     for tshape in attr['_output_shapes']]
-            elif shape:
+            else:
                 # Keep the list indexable to avoid key error.
                 # Actual value will be filled after node creation.
+                # Will infer shapes if the graph is not frozen with add_shapes=True
                 self._output_shapes[node.name] = [None]
-            else:
-                self._output_shapes[node.name] = None
+
             self._outputs_are_0d[node.name] = [ \
                 not tshape if isinstance(tshape, list) else False \
                 for tshape in self._output_shapes[node.name]]
@@ -1241,7 +1256,7 @@ class GraphProto(object):
 
             else:
                 # Pass the parsed shapes instead
-                output_shapes = self._output_shapes[node.name]
+                attr["_output_shapes"] = output_shapes = self._output_shapes[node.name]
 
                 # Pass the node name too in attr
                 attr["_node_name"] = node.name
@@ -1282,7 +1297,7 @@ class GraphProto(object):
                 inputs = self._fix_extranodes(node.op, attr, inputs)
                 op = self._convert_operator(node.op, inputs, attr, graph)
 
-                # Check is op is converted to param
+                # Check if op is converted to param
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
                     op = _sym.Variable(name=node.name,
@@ -1291,19 +1306,25 @@ class GraphProto(object):
                 # Assuming only one output.
                 self._nodes[node.name] = op
                 final_op = op
-                # Infer shapes if passed explicitely
-                node_output = self._nodes[node.name]
-                if shape:
-                    g = _graph.create(node_output)
-                    shape_dict = {k: v.shape for k, v in self._params.items()}
-                    shape_dict.update(shape)
-                    _, out_shapes = graph_util.infer_shape(g, **shape_dict)
-                    self._output_shapes[node.name] = out_shapes
-                elif output_shapes == None:
-                    g = _graph.create(node_output)
-                    self._output_shapes[node.name] = list(graph_util.infer_shape(g, **self._input_shapes))[-1]
-                else:
-                    self._output_shapes[node.name] = output_shapes
+
+                # Infer shapes even without specifying "add_shapes=True"
+                if output_shapes == [None]:
+                    g = _graph.create(final_op)
+                    self._output_shapes[node.name] = \
+                        list(graph_util.infer_shape(g, **self._input_shapes))[-1]
+
+                if self._output_shapes[node.name] and shape and node.name in shape:
+                    assert self._output_shapes[node.name] == list(shape[node.name])
+
+            # Infer shapes if passed explicitely
+            node_output = self._nodes[node.name]
+            if shape and (not self._output_shapes[node.name][0]
+                          or -1 in self._output_shapes[node.name][0]):
+                g = _graph.create(node_output)
+                shape_dict = {k: v.shape for k, v in self._params.items()}
+                shape_dict.update(shape)
+                _, out_shapes = graph_util.infer_shape(g, **shape_dict)
+                self._output_shapes[node.name] = out_shapes
 
         out = []
         if outputs is None:

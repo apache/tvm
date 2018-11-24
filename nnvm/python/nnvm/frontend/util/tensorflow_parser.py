@@ -2,32 +2,13 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 import os
-
-try:
-    from tensorflow.core.framework import graph_pb2
-except ImportError as e:
-    from nnvm.frontend.protobuf import graph_pb2
-
-
-try:
-    from tempfile import TemporaryDirectory
-except ImportError:
-    import tempfile
-    import shutil
-
-    class TemporaryDirectory(object):
-        def __enter__(self):
-            self.name = tempfile.mkdtemp()
-            return self.name
-
-        def __exit__(self, exc, value, tb):
-            shutil.rmtree(self.name)
+from tensorflow.core.framework import graph_pb2
+from tvm.contrib import util
 
 
 class TFParser(object):
     """A Wrapper to handle tensorflow models parsing
-       Works w/o installing tensorflow,
-       Protocol Buffer is needed
+       TensorFlow is needed
     ```
     parser = TfParser(model_dir)
     graph = parser.parse()
@@ -39,7 +20,7 @@ class TFParser(object):
     """
 
     def __init__(self, model_dir):
-        self._tmp_dir = TemporaryDirectory()
+        self._tmp_dir = util.tempdir()
         self._model_dir = model_dir
         self._graph = graph_pb2.GraphDef()
 
@@ -51,21 +32,6 @@ class TFParser(object):
         """Get Graph"""
         return self._graph
 
-    def _output_graph(self):
-        import logging
-        logging.basicConfig(level=logging.DEBUG)
-        for node in self._get_graph().node:
-            logging.info("Name: {}".format(node.name))
-            logging.info("\top: {}".format(node.op))
-            for input in node.input:
-                logging.info("\t\tinput: {}".format(input))
-            logging.info("\t\tdevice: {}".format(node.device))
-            logging.info("\t\tAttrValue: ")
-            for key in node.attr.keys():
-                logging.info("\t\t\tkey: {} => value: {}"
-                             .format(key, node.attr[key]))
-            logging.info(node.attr['shape'].shape)
-
     def _load_pb_file(self):
         """Load single pb file"""
         graph = self._get_graph()
@@ -73,19 +39,30 @@ class TFParser(object):
             graph.ParseFromString(f.read())
         return graph
 
-    def _get_output_names(self, model_path):
+    def _get_tag_set(self):
+        """Return the tag set of saved model, multiple metagraphs are not supported"""
+        try:
+            from tensorflow.contrib.saved_model.python.saved_model import reader
+        except ImportError:
+            raise ImportError(
+                "InputConfiguration: Unable to import saved_model.reader which is "
+                "required to get tag set from saved model.")
+        tag_sets = reader.get_saved_model_tag_sets(self._model_dir)
+        return tag_sets[0]
+
+    def _get_output_names(self):
         """Return the concatenated output names"""
         try:
             import tensorflow as tf
-        except ImportError as e:
+        except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "
-                "required to restore from saved model. {}".format(e))
-
+                "required to restore from saved model.")
+        tags = self._get_tag_set()
         with tf.Session() as sess:
             meta_graph_def = tf.saved_model.loader.load(sess,
-                                                        [tf.saved_model.tag_constants.SERVING],
-                                                        model_path)
+                                                        tags,
+                                                        self._model_dir)
             output_names = set()
             for k in meta_graph_def.signature_def.keys():
                 outputs_tensor_info = meta_graph_def.signature_def[k].outputs
@@ -97,19 +74,18 @@ class TFParser(object):
     def _load_saved_model(self):
         """Load the tensorflow saved model."""
         try:
-            import tensorflow as tf
             from tensorflow.python.tools import freeze_graph
             from tensorflow.python.framework import ops
             from tensorflow.python.framework import graph_util
-        except ImportError as e:
+        except ImportError:
             raise ImportError(
                 "InputConfiguration: Unable to import tensorflow which is "
-                "required to restore from saved model. {}".format(e))
+                "required to restore from saved model.")
 
         saved_model_dir = self._model_dir
-        output_graph_filename = os.path.join(self._tmp_dir.name, "neo_frozen_model.pb")
+        output_graph_filename = self._tmp_dir.relpath("tf_frozen_model.pb")
         input_saved_model_dir = saved_model_dir
-        output_node_names = self._get_output_names(self._model_dir)
+        output_node_names = self._get_output_names()
 
         input_binary = False
         input_saver_def_path = False
@@ -119,7 +95,7 @@ class TFParser(object):
         input_meta_graph = False
         checkpoint_path = None
         input_graph_filename = None
-        saved_model_tags = tf.saved_model.tag_constants.SERVING
+        saved_model_tags = ",".join(self._get_tag_set())
 
         freeze_graph.freeze_graph(input_graph_filename, input_saver_def_path,
                                   input_binary, checkpoint_path, output_node_names,
@@ -145,6 +121,7 @@ class TFParser(object):
         file.
         """
         graph = None
+
         if os.path.isdir(self._model_dir):
             ckpt = os.path.join(self._model_dir, "checkpoint")
             if not os.path.isfile(ckpt):
