@@ -191,7 +191,7 @@ std::string CodeGenC::GetStructRef(
       case intrinsic::kArrTypeLanes: os << "dtype.lanes"; break;
       case intrinsic::kArrDeviceId: os << "ctx.device_id"; break;
       case intrinsic::kArrDeviceType: os << "ctx.device_type"; break;
-      default: LOG(FATAL) << "unknown field code" << static_cast<int>(kind);
+      default: LOG(FATAL) << "unknown field code";
     }
     os << ')';
     return os.str();

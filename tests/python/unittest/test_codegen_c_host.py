@@ -47,7 +47,7 @@ def test_add_pipeline():
     s[C].pragma(xo2, "parallel_barrier_when_finish")
     s[C].vectorize(xi)
 
-    def check_llvm():
+    def check_c():
         if not tvm.module.enabled("llvm"):
             return
         # Specifically allow offset to test codepath when offset is available
@@ -76,7 +76,7 @@ def test_add_pipeline():
             c.asnumpy(), a.asnumpy() + b.asnumpy())
 
     with tvm.build_config(offset_factor=4):
-        check_llvm()
+        check_c()
 
 if __name__ == "__main__":
     test_add()
