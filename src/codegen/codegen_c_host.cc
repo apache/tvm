@@ -193,7 +193,7 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
       size = (num->value * sizeof(TVMArray) + unit - 1) / unit;
     } else {
       LOG(FATAL) << "Unknown stack alloca type " << type;
-    }   
+    }
     this->PrintIndent();
     this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
     os << stack_name;

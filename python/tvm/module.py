@@ -6,7 +6,6 @@ from collections import namedtuple
 
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
-from ._ffi.libinfo import find_include_path
 from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
