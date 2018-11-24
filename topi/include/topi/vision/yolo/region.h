@@ -53,7 +53,7 @@ inline Tensor region(const Tensor &data,
                                      input_shape[2],
                                      input_shape[3]};
   auto data_block = reshape(data, intermediate_shape);
-  Array <Expr> split_indices;
+  Array <Integer> split_indices;
   for (int i = 1; i < split_size; ++i) {
     split_indices.push_back(i);
   }

@@ -62,7 +62,7 @@ struct TransposeAttrs : public tvm::AttrsNode<TransposeAttrs> {
 
 /*! \brief Attributes used in reshape operators */
 struct ReshapeAttrs : public tvm::AttrsNode<ReshapeAttrs> {
-  Array<IndexExpr> newshape;
+  Array<Integer> newshape;
   TVM_DECLARE_ATTRS(ReshapeAttrs, "relay.attrs.ReshapeAttrs") {
     TVM_ATTR_FIELD(newshape)
         .describe("The new shape. Should be compatible with the original shape.");

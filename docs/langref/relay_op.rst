@@ -82,6 +82,7 @@ This level enables additional math and transform operators.
    tvm.relay.reshape_like
    tvm.relay.copy
    tvm.relay.transpose
+   tvm.relay.squeeze
    tvm.relay.floor
    tvm.relay.ceil
    tvm.relay.trunc
@@ -114,7 +115,7 @@ This level enables additional math and transform operators.
    tvm.relay.less_equal
    tvm.relay.maximum
    tvm.relay.minimum
-   tvm.relay.pow
+   tvm.relay.power
    tvm.relay.where
    tvm.relay.argmax
    tvm.relay.argmin
@@ -196,6 +197,7 @@ Level 3 Definitions
 .. autofunction:: tvm.relay.reshape
 .. autofunction:: tvm.relay.reshape_like
 .. autofunction:: tvm.relay.copy
+.. autofunction:: tvm.relay.squeeze
 .. autofunction:: tvm.relay.transpose
 .. autofunction:: tvm.relay.take
 .. autofunction:: tvm.relay.zeros
@@ -220,7 +222,7 @@ Level 4 Definitions
 .. autofunction:: tvm.relay.less_equal
 .. autofunction:: tvm.relay.maximum
 .. autofunction:: tvm.relay.minimum
-.. autofunction:: tvm.relay.pow
+.. autofunction:: tvm.relay.power
 .. autofunction:: tvm.relay.where
 .. autofunction:: tvm.relay.argmax
 .. autofunction:: tvm.relay.argmin

@@ -54,7 +54,7 @@ def Inception7A(data,
                       name=('%s_pool_%s_pool' % (pool, name)))
 
     cproj = Conv(pooling, proj, name=('%s_tower_2' % name), suffix='_conv')
-    concat = relay.concatenate((tower_1x1, tower_5x5, tower_3x3, cproj), axis=0)
+    concat = relay.concatenate((tower_1x1, tower_5x5, tower_3x3, cproj), axis=1)
     return concat
 
 # First Downsample
@@ -72,7 +72,7 @@ def Inception7B(data,
                       name=('%s_tower' % name), suffix='_conv_2')
     pooling = Pooling(data=data, kernel=(3, 3), stride=(2, 2), pad=(0, 0), pool_type="max",
                       name=('max_pool_%s_pool' % name))
-    concat = relay.concatenate((tower_3x3, tower_d3x3, pooling), axis=0)
+    concat = relay.concatenate((tower_3x3, tower_d3x3, pooling), axis=1)
     return concat
 
 def Inception7C(data,
@@ -101,7 +101,7 @@ def Inception7C(data,
     cproj = Conv(data=pooling, num_filter=proj, kernel=(1, 1),
                  name=('%s_tower_2' % name), suffix='_conv')
     # concat
-    concat = relay.concatenate((tower_1x1, tower_d7, tower_q7, cproj), axis=0)
+    concat = relay.concatenate((tower_1x1, tower_d7, tower_q7, cproj), axis=1)
     return concat
 
 def Inception7D(data,
@@ -124,7 +124,7 @@ def Inception7D(data,
     pooling = Pooling(data=data, kernel=(3, 3), stride=(2, 2), pool_type=pool, pad=(0, 0),
                       name=('%s_pool_%s_pool' % (pool, name)))
     # concat
-    concat = relay.concatenate((tower_3x3, tower_d7_3x3, pooling), axis=0)
+    concat = relay.concatenate((tower_3x3, tower_d7_3x3, pooling), axis=1)
     return concat
 
 def Inception7E(data,
@@ -153,7 +153,7 @@ def Inception7E(data,
                  suffix='_conv')
     # concat
     concat = relay.concatenate(
-        (tower_1x1, tower_d3_a, tower_d3_b, tower_3x3_d3_a, tower_3x3_d3_b, cproj), axis=0)
+        (tower_1x1, tower_d3_a, tower_d3_b, tower_3x3_d3_a, tower_3x3_d3_b, cproj), axis=1)
     return concat
 
 def get_net(batch_size,

@@ -31,7 +31,10 @@ class StorageAllocaBaseVisitor : public ExprVisitor {
     for (Var param : func->params) {
       CreateToken(param.operator->(), false);
     }
-    this->VisitExpr(func->body);
+    // must always keep output alive.
+    for (StorageToken* tok : GetToken(func->body)) {
+      tok->ref_counter += 1;
+    }
   }
 
   void VisitExpr_(const ConstantNode* op) final {

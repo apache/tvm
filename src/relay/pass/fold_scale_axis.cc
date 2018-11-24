@@ -344,6 +344,7 @@ Expr MultiplyForwardRewrite(const Call& ref_call,
                             const Array<Expr>& new_args,
                             const AxesSet& expected_out_axes) {
   if (!expected_out_axes.defined()) return Expr();
+  if (expected_out_axes.size() == 0) return Expr();
   // TODO(tvm-team) allow same axes accumulation
   // not as important because it is less common in nn.
   const auto* slhs = new_args[0].as<ScaledExprNode>();
@@ -681,7 +682,9 @@ AxesSet AddSubBackwardPrep(const Call& call, const Array<AxesSet>& in_axes) {
     // add of two elements.
     return in_axes[0];
   } else {
-    return NullValue<AxesSet>();
+    auto res = NullValue<AxesSet>();
+    CHECK(!res.defined());
+    return res;
   }
 }
 
@@ -751,14 +754,14 @@ Expr MultiplyBackwardTransform(const Call& call,
   const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
   AxesSet lhs_axes = transformer->GetExpectedAxes(call->args[0]);
   AxesSet rhs_axes = transformer->GetExpectedAxes(call->args[1]);
-  if (lhs_axes.defined()) {
+  if (lhs_axes.defined() && lhs_axes.size() != 0) {
     // NOTE we won't recursively call mutating on scale part.
     // since there  won't be scale chance within scale part.
     Expr rhs = call->args[1];
     if (MatchBroadcastToLeftAxes(tlhs, trhs, lhs_axes, &rhs)) {
       return transformer->Transform(call->args[0], lhs_axes, rhs);
     }
-  } else if (rhs_axes.defined()) {
+  } else if (rhs_axes.defined() && rhs_axes.size() != 0) {
     Expr lhs = call->args[0];
     if (MatchBroadcastToLeftAxes(trhs, tlhs, rhs_axes, &lhs)) {
       return transformer->Transform(call->args[1], rhs_axes, lhs);
