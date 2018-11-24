@@ -67,7 +67,7 @@ void CodeGenCHost::AddFunction(LoweredFunc f) {
   int func_scope = this->BeginScope();
   this->PrintStmt(f->body);
   this->PrintIndent();
-	this->stream << "return 0;\n";
+  this->stream << "return 0;\n";
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
@@ -157,14 +157,14 @@ void CodeGenCHost::PrintGetFuncFromBackend(std::string func_name, std::string pa
 void CodeGenCHost::PrintFuncCall(std::string packed_func_name, int num_args) {
   this->PrintIndent();
   std::string ret_val = GetUniqueName("ret_val");
-	std::string ret_type_code = GetUniqueName("ret_type_code");
-	this->stream << "TVMValue " << ret_val << ";\n";
+  std::string ret_type_code = GetUniqueName("ret_type_code");
+  this->stream << "TVMValue " << ret_val << ";\n";
   this->PrintIndent();
-	this->stream << "int " << ret_type_code << ";\n";
+  this->stream << "int " << ret_type_code << ";\n";
   this->PrintIndent();
   this->stream << "if (TVMFuncCall(" << packed_func_name << ", "
-							 << "(TVMValue*) stack_value" << ", " << "(int*) stack_tcode" << ", "
-							 << num_args << ", " << "&" << ret_val << ", " << "&"
+               << "(TVMValue*) stack_value" << ", " << "(int*) stack_tcode" << ", "
+               << num_args << ", " << "&" << ret_val << ", " << "&"
                << ret_type_code << ") != 0) {\n";
   int func_call_scope = this->BeginScope();
   this->PrintIndent();
@@ -203,7 +203,7 @@ void CodeGenCHost::VisitExpr_(const Call *op, std::ostream& os) { // NOLINT(*)
     int64_t begin = op->args[3].as<IntImm>()->value;
     int64_t end = op->args[4].as<IntImm>()->value;
     int64_t num_args = end - begin;
-		CHECK_GE(num_args, 0);
+    CHECK_GE(num_args, 0);
     std::string func_name = s->value;
     std::string packed_func_name = GetUniqueName(func_name + "_packed");
     decl_stream << "static void* " << packed_func_name << " = NULL;\n";
