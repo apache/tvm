@@ -187,10 +187,11 @@ std::string CodeGenC::GetStructRef(
       case intrinsic::kArrNDim: os << "ndim"; break;
       case intrinsic::kArrTypeCode: os << "dtype.code"; break;
       case intrinsic::kArrTypeBits: os << "dtype.bits"; break;
+      case intrinsic::kArrByteOffset: os << "byte_offset"; break;
       case intrinsic::kArrTypeLanes: os << "dtype.lanes"; break;
       case intrinsic::kArrDeviceId: os << "ctx.device_id"; break;
       case intrinsic::kArrDeviceType: os << "ctx.device_type"; break;
-      default: LOG(FATAL) << "unknown field code";
+      default: LOG(FATAL) << "unknown field code" << static_cast<int>(kind);
     }
     os << ')';
     return os.str();
@@ -834,8 +835,10 @@ void CodeGenC::VisitStmt_(const Evaluate *op) {
     }
   }
   std::string vid = this->PrintExpr(op->value);
-  this->PrintIndent();
-  this->stream << "(void)" << vid << ";\n";
+  if (vid != "") {
+    this->PrintIndent();
+    this->stream << "(void)" << vid << ";\n";
+  }
 }
 
 void CodeGenC::VisitStmt_(const ProducerConsumer *op) {
