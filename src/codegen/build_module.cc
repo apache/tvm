@@ -103,6 +103,10 @@ Target CreateTarget(const std::string& target_name,
     t->device_type = kDLCPU;
   } else if (target_name == "ext_dev") {
     t->device_type = kDLExtDev;
+  } else if (target_name == "c") {
+    // TODO: get this to work
+    t->device_type = kDLCPU;
+    t->keys_array.push_back(ir::StringImm::make("c"));
   } else {
     LOG(ERROR) << "Unknown target name " << target_name;
     return target::stackvm();
