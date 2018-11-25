@@ -22,12 +22,42 @@ void CodeGenC::InitFuncState(LoweredFunc f) {
   handle_data_type_.clear();
   CodeGenSourceBase::ClearFuncState();
 }
+
+void CodeGenC::ReserveKeywordsAsUnique() {
+  GetUniqueName("_");
+  GetUniqueName("extern");
+  GetUniqueName("void");
+  GetUniqueName("int");
+  GetUniqueName("float");
+  GetUniqueName("double");
+  GetUniqueName("char");
+  GetUniqueName("unsigned");
+  GetUniqueName("short");
+  GetUniqueName("long");
+  GetUniqueName("if");
+  GetUniqueName("else");
+  GetUniqueName("switch");
+  GetUniqueName("case");
+  GetUniqueName("default");
+  GetUniqueName("for");
+  GetUniqueName("do");
+  GetUniqueName("while");
+  GetUniqueName("goto");
+  GetUniqueName("register");
+  GetUniqueName("continue");
+  GetUniqueName("break");
+  GetUniqueName("typedef");
+  GetUniqueName("struct");
+  GetUniqueName("enum");
+  GetUniqueName("union");
+  GetUniqueName("return");
+}
+
 void CodeGenC::AddFunction(LoweredFunc f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // skip the first underscore, so SSA variable starts from _1
-  GetUniqueName("_");
-  GetUniqueName("extern");
+  ReserveKeywordsAsUnique();
   // add to alloc buffer type.
   for (const auto & kv : f->handle_data_type) {
     RegisterHandleType(kv.first.get(), kv.second.type());

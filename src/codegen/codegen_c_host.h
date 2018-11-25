@@ -32,7 +32,6 @@ class CodeGenCHost final : public CodeGenC {
   std::string module_name;
   void PrintGetFuncFromBackend(std::string func_name, std::string packed_func_name);
   void PrintFuncCall(std::string packed_func_name, int num_args);
-  void ReserveKeywordsAsUnique();
 };
 
 }  // namespace codegen
