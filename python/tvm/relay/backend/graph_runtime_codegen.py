@@ -357,4 +357,4 @@ class GraphRuntimeCodegen(ExprFunctor):
             return name
         index = self._name_map[name]
         self._name_map[name] += 1
-        return self.get_unique_name(name + str(index))
+        return self._get_unique_name(name + str(index))

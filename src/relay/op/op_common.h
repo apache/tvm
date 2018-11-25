@@ -16,7 +16,7 @@ namespace tvm {
 namespace relay {
 
 template<typename T>
-std::vector<T> AsVector(const Array<T> &array) {
+inline std::vector<T> AsVector(const Array<T> &array) {
     std::vector<T> result;
     result.reserve(array.size());
     for (const T& ele : array) {

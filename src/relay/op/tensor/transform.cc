@@ -8,9 +8,10 @@
 #include <tvm/ir_operator.h>
 #include <tvm/ir.h>
 #include <topi/transform.h>
+#include <topi/elemwise.h>
 #include <vector>
 #include "../op_common.h"
-
+#include "../../../arithmetic/compute_expr.h"
 
 namespace tvm {
 namespace relay {
@@ -37,6 +38,16 @@ bool CastRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> CastCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const CastAttrs *param = attrs.as<CastAttrs>();
+  CHECK(param != nullptr);
+  DataType dtype = param->dtype;
+  return { topi::cast(inputs[0], dtype) };
+}
+
 Expr MakeCast(Expr data,
               DataType dtype) {
   auto attrs = make_node<CastAttrs>();
@@ -58,8 +69,9 @@ RELAY_REGISTER_OP("cast")
 .set_attrs_type_key("relay.attrs.CastAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
-.add_type_rel("Cast", CastRel);
-
+.add_type_rel("Cast", CastRel)
+.set_attr<FTVMCompute>("FTVMCompute", CastCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise);
 
 // relay.expand_dims
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
@@ -104,6 +116,15 @@ bool ExpandDimsRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> ExpandDimsCompute(const Attrs& attrs,
+                                const Array<Tensor>& inputs,
+                                const Type& out_type,
+                                const Target& target) {
+  const ExpandDimsAttrs *param = attrs.as<ExpandDimsAttrs>();
+  CHECK(param != nullptr);
+  return { topi::expand_dims(inputs[0], param->axis, param->num_newaxis) };
+}
+
 Expr MakeExpandDims(Expr data,
                     int axis,
                     int num_newaxis) {
@@ -129,7 +150,9 @@ RELAY_REGISTER_OP("expand_dims")
 .set_attrs_type_key("relay.attrs.ExpandDimsAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("ExpandDims", ExpandDimsRel);
+.add_type_rel("ExpandDims", ExpandDimsRel)
+.set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
@@ -303,13 +326,81 @@ bool ReshapeRel(const Array<Type>& types,
         << types[0];
     return false;
   }
+
   const auto* param = attrs.as<ReshapeAttrs>();
-  reporter->Assign(types[1], TensorTypeNode::make(param->newshape, data->dtype));
+  Array<IndexExpr> oshape;
+  size_t src_idx = 0;
+  int infer_idx = -1;
+
+  for (size_t i = 0; i < param->newshape.size(); ++i) {
+    int svalue = param->newshape[i]->value;
+    // special flag handling for shape inference.
+    if (svalue > 0) {
+      oshape.push_back(param->newshape[i]);
+      ++src_idx;
+    } else if (svalue == 0) {
+      // keep same
+      CHECK_LT(src_idx, data->shape.size());
+      oshape.push_back(data->shape[src_idx++]);
+    } else if (svalue == -1) {
+      // inference based on rest
+      CHECK_LT(infer_idx, 0)
+          << "One and only one dim can be inferred";
+      infer_idx = i;
+      oshape.push_back(1);
+      ++src_idx;
+    } else if (svalue == -2) {
+      // copy all remaining dims from source
+      while (src_idx < data->shape.size()) {
+        oshape.push_back(data->shape[src_idx++]);
+      }
+    } else if (svalue == -3) {
+      // merge two dims from source
+      CHECK_LT(src_idx + 1, data->shape.size());
+      IndexExpr d1 = data->shape[src_idx++];
+      IndexExpr d2 = data->shape[src_idx++];
+      oshape.push_back(d1 * d2);
+    } else if (svalue == -4) {
+      // split the source dim s into two dims
+      // read the left dim and then the right dim (either can be -1)
+      CHECK_LT(i + 2, param->newshape.size());
+      CHECK_LT(src_idx, data->shape.size());
+      IndexExpr d0 = data->shape[src_idx++];
+      Integer d1 = param->newshape[++i];
+      Integer d2 = param->newshape[++i];
+      if (d1->value == -1) {
+        CHECK(d2->value != -1)
+            << "Split dims cannot both be -1.";
+        oshape.push_back(d0 / d2);
+        oshape.push_back(d2);
+      } else {
+        CHECK_EQ(d2->value, -1);
+        oshape.push_back(d1);
+        oshape.push_back(d0 / d1);
+      }
+    }
+  }
+
+  if (infer_idx >= 0) {
+    IndexExpr new_size = arith::ComputeReduce<tvm::ir::Mul>(oshape, 1);
+    IndexExpr old_size = arith::ComputeReduce<tvm::ir::Mul>(data->shape, 1);
+    oshape.Set(infer_idx, old_size / new_size);
+  }
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
   return true;
 }
 
+Array<Tensor> ReshapeCompute(const Attrs& attrs,
+                             const Array<Tensor>& inputs,
+                             const Type& out_type,
+                             const Target& target) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  CHECK(out_ttype != nullptr);
+  return { topi::reshape(inputs[0], out_ttype->shape) };
+}
+
 Expr MakeReshape(Expr data,
-                 Array<IndexExpr> newshape) {
+                 Array<Integer> newshape) {
   auto attrs = make_node<ReshapeAttrs>();
   attrs->newshape = std::move(newshape);
   static const Op& op = Op::Get("reshape");
@@ -377,14 +468,8 @@ Example::
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Reshape", ReshapeRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  const auto* param = attrs.as<ReshapeAttrs>();
-  CHECK(param != nullptr);
-  return Array<Tensor>{ topi::reshape(inputs[0], param->newshape) };
-});
+.set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
 /*!
@@ -440,12 +525,8 @@ the input array into an output array with the same shape as the second input arr
 .add_argument("shape_like", "Tensor", "Shape tensor.")
 .set_support_level(3)
 .add_type_rel("ReshapeLike", ReshapeLikeRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  return Array<Tensor>{ topi::reshape(inputs[0], inputs[1]->shape) };
-});
+.set_attr<FTVMCompute>("FTVMCompute", ReshapeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
 // Take
@@ -788,6 +869,7 @@ TVM_REGISTER_API("relay.op._make.squeeze")
     runtime::detail::unpack_call<Expr, 2>(MakeSqueeze, args, rv);
   });
 
+
 bool SqueezeRel(const Array<Type>& types,
                 int num_inputs,
                 const Attrs& attrs,
@@ -816,7 +898,13 @@ bool SqueezeRel(const Array<Type>& types,
       original_shape.push_back(std::pair<IndexExpr, bool>(e, true));
     }
     for (const auto& e : param->axis) {
-      original_shape.at(e->value).second = false;
+      int64_t axis_val = e->value;
+      if (axis_val < 0) {
+        axis_val += static_cast<int64_t>(original_shape.size());
+      }
+      CHECK_GE(axis_val, 0);
+      CHECK_LT(axis_val, original_shape.size());
+      original_shape.at(axis_val).second = false;
     }
     for (const auto p : original_shape) {
       if (p.second) {
@@ -832,6 +920,16 @@ bool SqueezeRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> SqueezeCompute(const Attrs& attrs,
+                             const Array<Tensor>& inputs,
+                             const Type& out_type,
+                             const Target& target) {
+  const SqueezeAttrs *param = attrs.as<SqueezeAttrs>();
+  CHECK(param != nullptr);
+  return { topi::squeeze(inputs[0], param->axis) };
+}
+
+
 RELAY_REGISTER_OP("squeeze")
 .describe(R"code(Squeeze the input tensor at the dimensions given by axes
 
@@ -842,7 +940,10 @@ RELAY_REGISTER_OP("squeeze")
 .set_attrs_type_key("relay.attrs.SqueezeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
-.add_type_rel("Squeeze", SqueezeRel);
+.add_type_rel("Squeeze", SqueezeRel)
+.set_attr<FTVMCompute>("FTVMCompute", SqueezeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
 
 // Have no idea how to assert the constraint.
 // CollapseSumLike: <A, B> -> B where BroadCast(A, B) = A
@@ -1034,8 +1135,8 @@ Array<Tensor> StridedSliceCompute(const Attrs& attrs,
 
 
 TVM_REGISTER_API("relay.op._make.strided_slice")
-  .set_body([](const TVMArgs& args, TVMRetValue* rv) {
-      runtime::detail::unpack_call<Expr, 4>(MakeStridedSlice, args, rv);
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 4>(MakeStridedSlice, args, rv);
   });
 
 
@@ -1082,7 +1183,7 @@ bool SplitRel(const Array<Type>& types,
   // `types` contains: [data, result]
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-  CHECK(data != nullptr);
+  if (data == nullptr) return false;
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
   const auto param = attrs.as<SplitAttrs>();
   CHECK(param != nullptr);
@@ -1131,6 +1232,23 @@ bool SplitRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> SplitCompute(const Attrs& attrs,
+                           const Array<Tensor>& inputs,
+                           const Type& out_type,
+                           const Target& target) {
+  const auto param = attrs.as<SplitAttrs>();
+  CHECK(param != nullptr);
+
+  if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
+    int64_t num_sections = sections->value;
+    return Array<Tensor>{
+      topi::split_sections(inputs[0], num_sections, param->axis) };
+  } else {
+    auto indices = Downcast<Array<Integer> >(param->indices_or_sections);
+    return Array<Tensor>{ topi::split(inputs[0], indices, param->axis) };
+  }
+}
+
 Expr MakeSplit(Expr data,
                NodeRef indices_or_sections,
                int axis) {
@@ -1165,7 +1283,9 @@ the entries indicate where along axis the array is split.
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
-.add_type_rel("Split", SplitRel);
+.add_type_rel("Split", SplitRel)
+.set_attr<FTVMCompute>("FTVMCompute", SplitCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
 TVM_REGISTER_NODE_TYPE(SliceLikeAttrs);
@@ -1249,12 +1369,11 @@ Array<Integer> GetIntArray(Array<IndexExpr> arr) {
   return Array<Integer>(arr.node_);
 }
 
-template<typename AttrType>
 Array<Tensor> SliceLikeCompute(const Attrs& attrs,
                                const Array<Tensor>& inputs,
                                const Type& out_type,
                                const Target& target) {
-  const auto* param = attrs.as<AttrType>();
+  const auto* param = attrs.as<SliceLikeAttrs>();
   CHECK(param != nullptr);
   Array<IndexExpr> src_shape = inputs[0]->shape;
   Array<IndexExpr> target_shape = inputs[1]->shape;
@@ -1312,7 +1431,8 @@ RELAY_REGISTER_OP("slice_like")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
 .set_support_level(10)
 .add_type_rel("SliceLike", SliceLikeRel)
-.set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute<SliceLikeAttrs>);
+.set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm

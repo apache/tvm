@@ -145,7 +145,7 @@ def conv2d_transpose(data,
                                   weight_layout, output_padding, out_dtype)
 
 
-def softmax(data, axis=1):
+def softmax(data, axis=-1):
     r"""Computes softmax.
 
     .. math:: \text{softmax}(x)_i = \frac{exp(x_i)}{\sum_j exp(x_j)}
@@ -169,7 +169,7 @@ def softmax(data, axis=1):
     return _make.softmax(data, axis)
 
 
-def log_softmax(data, axis):
+def log_softmax(data, axis=-1):
     r"""Computes log softmax.
 
     .. math::

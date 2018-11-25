@@ -420,9 +420,9 @@ along which to split the array.
       return Array<Tensor>{
         topi::split_sections(inputs[0], param.indices_or_sections[0], param.axis) };
     } else {
-      Array<Expr> indices;
+      Array<Integer> indices;
       for (auto i : param.indices_or_sections) {
-        indices.push_back(tvm::make_const(tvm::Int(32), i));
+        indices.push_back(static_cast<int>(i));
       }
       return Array<Tensor>{ topi::split(inputs[0], indices, param.axis) };
     }

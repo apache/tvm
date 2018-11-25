@@ -273,4 +273,5 @@ def concatenate_compute(attrs, inputs, output_type, target):
     return [topi.concatenate(inputs, axis=attrs.axis)]
 
 register_schedule("concatenate", schedule_injective)
-register_pattern("concatenate", OpPattern.INJECTIVE)
+# TODO(tqchen): renable concat as injective
+register_pattern("concatenate", OpPattern.OPAQUE)

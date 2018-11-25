@@ -7,7 +7,7 @@ from . import ty
 from . import expr
 from . import module
 from . import ir_pass
-from .build_module import build, create_executor
+from .build_module import build, build_config, create_executor
 
 # Root operators
 from .op import Op
@@ -17,6 +17,7 @@ from .op.transform import *
 from . import nn
 from . import vision
 from . import image
+from . import frontend
 from . import backend
 
 from .scope_builder import ScopeBuilder
@@ -40,6 +41,7 @@ IncompleteType = ty.IncompleteType
 scalar_type = ty.scalar_type
 
 # Expr
+Expr = expr.Expr
 Constant = expr.Constant
 Tuple = expr.Tuple
 Var = expr.Var

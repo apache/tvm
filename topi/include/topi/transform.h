@@ -332,7 +332,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
 * \return A Tensor whose op member is the split operation
 */
 inline Array<Tensor> split(const Tensor& x,
-                           Array<Expr> split_indices,
+                           Array<Integer> split_indices,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
@@ -342,14 +342,15 @@ inline Array<Tensor> split(const Tensor& x,
   CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
 
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
-
-  auto split_indices_val = GetConstIntValues(split_indices, "split_indices");
-  CHECK(std::is_sorted(split_indices_val.begin(), split_indices_val.end())) <<
-    "split_indices must be sorted";
-
   std::vector<int> begin_ids;
   begin_ids.push_back(0);
-  std::copy(split_indices_val.begin(), split_indices_val.end(), std::back_inserter(begin_ids));
+
+  for (Integer idx : split_indices) {
+    int val = static_cast<int>(idx->value);
+    CHECK_GT(val, begin_ids.back())
+        << "split_indices must be sorted";
+    begin_ids.push_back(val);
+  }
 
   Array< Array<Expr> > out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
@@ -508,10 +509,10 @@ inline Tensor strided_slice(const Tensor& x,
 * \return A Tensor whose op member is the split operation
 */
 inline Array<Tensor> split_sections(const Tensor& x,
-                           int num_sections,
-                           int axis,
-                           std::string name = "tensor",
-                           std::string tag = kInjective) {
+                                    int num_sections,
+                                    int axis,
+                                    std::string name = "tensor",
+                                    std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
@@ -524,7 +525,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
     << "num_sections must be an integer factor of the size of axis " << axis
     << " (" << src_axis_size << ")";
 
-  Array<Expr> split_indices;
+  Array<Integer> split_indices;
   auto seg_size = src_axis_size / num_sections;
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()

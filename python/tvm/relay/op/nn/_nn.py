@@ -1,5 +1,7 @@
 #pylint: disable=invalid-name, unused-argument
 """Backend compiler related feature registration"""
+from __future__ import absolute_import
+
 import topi
 from topi.util import get_const_int, get_const_tuple
 from .. import op as reg

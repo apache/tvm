@@ -5,6 +5,8 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <topi/elemwise.h>
+#include <topi/reduction.h>
 #include <numeric>
 #include <limits>
 #include "../op_common.h"
@@ -15,12 +17,12 @@ namespace relay {
 
 /*! \brief Attributes for Reduce operators */
 struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
-  Array<IndexExpr> axis;
+  Array<Integer> axis;
   bool keepdims;
   bool exclude;
 
   TVM_DECLARE_ATTRS(ReduceAttrs, "relay.attrs.ReduceAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(NullValue<Array<IndexExpr>>())
+    TVM_ATTR_FIELD(axis).set_default(NullValue<Array<Integer>>())
         .describe(R"code(The axis or axes along which to perform the reduction.
 
       The default, `axis=()`, will compute over all elements into a
@@ -50,7 +52,7 @@ struct ReduceAttrs : public tvm::AttrsNode<ReduceAttrs> {
 * \return r_axes The new reduced axes of the output.
 */
 inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
-                                          const Array<IndexExpr>& inaxis,
+                                          const Array<Integer>& inaxis,
                                           bool exclude) {
   if (!inaxis.defined()) {
     std::vector<int64_t> r_axes(indim);
@@ -60,9 +62,7 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
 
   std::vector<int64_t> in_axes;
   for (auto i : inaxis) {
-    const int64_t* k = as_const_int(i);
-    CHECK(k != nullptr) << "Reduce axis need to be constant, cannot be symbolic";
-    int64_t axis = k[0];
+    int64_t axis = i->value;
     if (axis < 0) {
       axis = axis + indim;
     }
@@ -95,6 +95,53 @@ inline std::vector<int64_t> GetReduceAxes(const uint32_t indim,
     r_axes[k++] = i;
   }
   return r_axes;
+}
+
+
+// Get axis under exclude condition.
+Array<Integer> GetExcludeAxes(size_t indim,
+                              const Array<Integer>& inaxis) {
+  std::vector<bool> axis_flag(indim, true);
+  for (auto i : inaxis) {
+    int64_t axis = i->value;
+    if (axis < 0) {
+      axis = axis + static_cast<int64_t>(indim);
+    }
+    // Check out of bounds error
+    CHECK_GE(axis, 0)
+      << "Axis out of bounds in reduce operator.";
+    CHECK_LT(axis, static_cast<int64_t>(indim))
+      << "Axis out of bounds in reduce operator.";
+    axis_flag[axis] = false;
+  }
+
+  Array<Integer> r_axes;
+
+  for (size_t i = 0; i < axis_flag.size(); ++i) {
+    if (axis_flag[i]) {
+      r_axes.push_back(static_cast<int>(i));
+    }
+  }
+  return r_axes;
+}
+
+
+template<typename F>
+Array<Tensor> ReduceCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target,
+                            F f) {
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
+  auto axes = param->axis;
+  if (param->exclude) {
+    axes = GetExcludeAxes(inputs[0]->shape.size(), param->axis);
+  }
+  if (axes.size() == 0) {
+    return { topi::identity(inputs[0]) };
+  }
+  return { f(inputs[0], axes, param->keepdims, false) };
 }
 
 /*!
@@ -200,7 +247,7 @@ bool ReduceRel(const Array<Type>& types,
   TVM_REGISTER_API("relay.op._make." OpName)                       \
   .set_body([](const TVMArgs& args, TVMRetValue* rv) {             \
     auto make_func = [](Expr data,                                 \
-                        Array<IndexExpr> axis,                     \
+                        Array<Integer> axis,                       \
                         bool keepdims,                             \
                         bool exclude) {                            \
       auto attrs = make_node<ReduceAttrs>();                       \
@@ -217,6 +264,14 @@ bool ReduceRel(const Array<Type>& types,
   .add_argument("data", "Tensor", "The input tensor.")
 
 
+Array<Tensor> ArgMaxCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::argmax);
+}
+
+
 RELAY_REGISTER_REDUCE_OP("argmax")
 .describe(R"code(Creates an operation that finds the indices of the maximum
 values over a given axis.
@@ -224,8 +279,17 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("ArgReduce", ArgReduceRel);
+.add_type_rel("ArgReduce", ArgReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", ArgMaxCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
+
+Array<Tensor> ArgMinCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::argmin);
+}
 
 RELAY_REGISTER_REDUCE_OP("argmin")
 .describe(R"code(Creates an operation that finds the indices of the minimum
@@ -234,7 +298,16 @@ values over a given axis.
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("ArgReduce", ArgReduceRel);
+.add_type_rel("ArgReduce", ArgReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", ArgMinCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+Array<Tensor> SumCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::sum);
+}
 
 
 RELAY_REGISTER_REDUCE_OP("sum")
@@ -257,8 +330,17 @@ Example::
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("Reduce", ReduceRel);
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", SumCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
+
+Array<Tensor> MaxCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::max);
+}
 
 RELAY_REGISTER_REDUCE_OP("max")
 .describe(R"code(Computes the max of array elements over given axes.
@@ -266,7 +348,17 @@ RELAY_REGISTER_REDUCE_OP("max")
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("Reduce", ReduceRel);
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", MaxCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> MinCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::min);
+}
 
 
 RELAY_REGISTER_REDUCE_OP("min")
@@ -275,7 +367,57 @@ RELAY_REGISTER_REDUCE_OP("min")
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("Reduce", ReduceRel);
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", MinCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> ProdCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  return ReduceCompute(attrs, inputs, out_type, target, topi::prod);
+}
+
+RELAY_REGISTER_REDUCE_OP("prod")
+.describe(R"code(Computes the products of array elements over given axes.
+
+Example::
+
+  data = [[[1,2],[2,3],[1,3]],
+          [[1,4],[4,3],[5,2]],
+          [[7,1],[7,2],[7,3]]]
+
+  mean(data, axis=1)
+  [35562240]
+
+  mean(data, axis=[1,2])
+  [ 36  480  2058]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.ReduceAttrs")
+.set_support_level(4)
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", ProdCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
+
+
+Array<Tensor> MeanCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  IndexExpr count = make_const(inputs[0]->dtype, 1);
+  const ReduceAttrs* param = attrs.as<ReduceAttrs>();
+  CHECK(param != nullptr);
+  auto axes = param->axis;
+  for (int64_t i : GetReduceAxes(inputs[0]->shape.size(),
+                                 param->axis,
+                                 param->exclude)) {
+    count *= inputs[0]->shape[i];
+  }
+  auto res = ReduceCompute(attrs, inputs, out_type, target, topi::sum);
+  return {topi::divide(res[0], count)};
+}
 
 
 RELAY_REGISTER_REDUCE_OP("mean")
@@ -296,28 +438,8 @@ Example::
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.ReduceAttrs")
 .set_support_level(4)
-.add_type_rel("Reduce", ReduceRel);
-
-
-RELAY_REGISTER_REDUCE_OP("prod")
-.describe(R"code(Computes the products of array elements over given axes.
-
-Example::
-
-  data = [[[1,2],[2,3],[1,3]],
-          [[1,4],[4,3],[5,2]],
-          [[7,1],[7,2],[7,3]]]
-
-  mean(data, axis=1)
-  [35562240]
-
-  mean(data, axis=[1,2])
-  [ 36  480  2058]
-
-)code" TVM_ADD_FILELINE)
-.set_attrs_type_key("relay.attrs.ReduceAttrs")
-.set_support_level(4)
-.add_type_rel("Reduce", ReduceRel);
-
+.add_type_rel("Reduce", ReduceRel)
+.set_attr<FTVMCompute>("FTVMCompute", MeanCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
 }  // namespace relay
 }  // namespace tvm

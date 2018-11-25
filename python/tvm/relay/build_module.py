@@ -13,7 +13,7 @@ from .backend import graph_runtime_codegen as _graph_gen
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
-    "CombineParallelConv2D": 1,
+    "CombineParallelConv2D": 4,
     "OpFusion": 1,
     "FoldConstant": 2,
     "FoldScaleAxis": 3,
@@ -157,7 +157,6 @@ def optimize(func, params=None):
 
     if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
-
     return func
 
 

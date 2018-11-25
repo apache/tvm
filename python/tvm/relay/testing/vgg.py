@@ -24,20 +24,24 @@ from tvm import relay
 from .init import create_workload
 from . import layers as wrapper
 
-def get_feature(internel_layer, layers, filters, batch_norm=False):
+
+def get_feature(internal_layer, layers, filters, batch_norm=False):
     """Get VGG feature body as stacks of convoltions."""
     for i, num in enumerate(layers):
         for j in range(num):
-            internel_layer = wrapper.conv2d(
-                data=internel_layer, kernel_size=(3, 3), padding=(1, 1),
-                channels=filters[i], name="conv%s_%s"%(i + 1, j + 1))
+            internal_layer = wrapper.conv2d(
+                data=internal_layer, kernel_size=(3, 3), padding=(1, 1),
+                channels=filters[i], name="conv%s_%s" % (i + 1, j + 1))
+            internal_layer = relay.nn.bias_add(
+                internal_layer, relay.var("conv%s_%s_bias" % (i + 1, j + 1)))
             if batch_norm:
-                internel_layer = wrapper.batch_norm_infer(
-                    data=internel_layer, name="bn%s_%s" %(i + 1, j + 1))
-            internel_layer = relay.nn.relu(data=internel_layer)
-        internel_layer = relay.nn.max_pool2d(
-            data=internel_layer, pool_size=(2, 2), strides=(2, 2))
-    return internel_layer
+                internal_layer = wrapper.batch_norm_infer(
+                    data=internal_layer, name="bn%s_%s" %(i + 1, j + 1))
+            internal_layer = relay.nn.relu(data=internal_layer)
+        internal_layer = relay.nn.max_pool2d(
+            data=internal_layer, pool_size=(2, 2), strides=(2, 2))
+    return internal_layer
+
 
 def get_classifier(input_data, num_classes):
     """Get VGG classifier layers as fc layers."""
@@ -50,6 +54,7 @@ def get_classifier(input_data, num_classes):
     drop7 = relay.nn.dropout(data=relu7, rate=0.5)
     fc8 = wrapper.dense_add_bias(data=drop7, units=num_classes, name="fc8")
     return fc8
+
 
 def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_norm=False):
     """
@@ -68,7 +73,7 @@ def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_no
         The data type
 
     num_layers : int
-        Number of layers for the variant of densenet. Options are 11, 13, 16, 19.
+        Number of layers for the variant of vgg. Options are 11, 13, 16, 19.
 
     batch_norm : bool, default False
         Use batch normalization.
@@ -88,7 +93,12 @@ def get_net(batch_size, image_shape, num_classes, dtype, num_layers=11, batch_no
     args = relay.ir_pass.free_vars(symbol)
     return relay.Function(args, symbol)
 
-def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224), dtype="float32"):
+
+def get_workload(batch_size,
+                 num_classes=1000,
+                 image_shape=(3, 224, 224),
+                 dtype="float32",
+                 num_layers=11):
     """Get benchmark workload for VGG nets.
 
     Parameters
@@ -105,6 +115,9 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224), dtype=
     dtype : str, optional
         The data type
 
+    num_layers : int
+        Number of layers for the variant of vgg. Options are 11, 13, 16, 19.
+
     Returns
     -------
     net : nnvm.Symbol
@@ -113,5 +126,5 @@ def get_workload(batch_size, num_classes=1000, image_shape=(3, 224, 224), dtype=
     params : dict of str to NDArray
         The parameters.
     """
-    net = get_net(batch_size, image_shape, num_classes, dtype)
+    net = get_net(batch_size, image_shape, num_classes, dtype, num_layers)
     return create_workload(net)
