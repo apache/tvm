@@ -30,6 +30,7 @@ def check_rts(expr, args, expected_result, mod=None):
     eval_result = intrp.evaluate(expr)(*args)
     rts_result = graph.evaluate(expr)(*args)
     tvm.testing.assert_allclose(eval_result.asnumpy(), rts_result.asnumpy())
+    tvm.testing.assert_allclose(eval_result.asnumpy(), expected_result)
 
 def test_add_op_scalar():
     """
