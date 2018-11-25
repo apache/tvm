@@ -72,8 +72,18 @@ class CompileEngine(NodeBase):
         cached_func: CachedFunc
             The result of lowering.
         """
-        key = _get_cache_key(source_func, target)
-        return _backend._CompileEngineLower(self, key)
+        # pylint: disable=broad-except
+        try:
+            key = _get_cache_key(source_func, target)
+            return _backend._CompileEngineLower(self, key)
+        except Exception:
+            import traceback
+            msg = traceback.format_exc()
+            msg += "Error during compile func\n"
+            msg += "--------------------------\n"
+            msg += source_func.astext(show_meta_data=False)
+            msg += "--------------------------\n"
+            raise RuntimeError(msg)
 
     def jit(self, source_func, target=None):
         """JIT a source_func to a tvm.Function.

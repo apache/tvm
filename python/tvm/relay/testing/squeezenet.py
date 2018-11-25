@@ -31,19 +31,21 @@ from .init import create_workload
 from . import layers
 
 # Helpers
-def _make_fire(net, squeeze_channels, expand1x1_channels, expand3x3_channels):
-    net = _make_fire_conv(net, squeeze_channels, 1, 0)
+def _make_fire(net, squeeze_channels, expand1x1_channels, expand3x3_channels, prefix):
+    net = _make_fire_conv(net, squeeze_channels, 1, 0, "%s_input" % prefix)
 
-    left = _make_fire_conv(net, expand1x1_channels, 1, 0)
-    right = _make_fire_conv(net, expand3x3_channels, 3, 1)
+    left = _make_fire_conv(net, expand1x1_channels, 1, 0, "%s_left" % prefix)
+    right = _make_fire_conv(net, expand3x3_channels, 3, 1, "%s_right" % prefix)
     # NOTE : Assume NCHW layout here
     net = relay.concatenate((left, right), axis=1)
-
     return net
 
-def _make_fire_conv(net, channels, kernel_size, padding=0):
-    net = layers.conv2d(net, channels=channels, kernel_size=(kernel_size, kernel_size),
-                        padding=(padding, padding), name="conv2d")
+def _make_fire_conv(net, channels, kernel_size, padding=0, prefix=""):
+    net = layers.conv2d(net,
+                        channels=channels,
+                        kernel_size=(kernel_size, kernel_size),
+                        padding=(padding, padding), name="%s_conv" % prefix)
+    net = relay.nn.bias_add(net, relay.var("%s_conv_bias" % prefix))
     net = relay.nn.relu(net)
     return net
 
@@ -75,41 +77,44 @@ def get_net(batch_size, image_shape, num_classes, version, dtype):
                             kernel_size=(7, 7),
                             strides=(2, 2),
                             padding=(3, 3),
-                            name="conv2d")
-        net = relay.nn.bias_add(net, relay.var("dense1_bias"))
+                            name="conv1")
+        net = relay.nn.bias_add(net, relay.var("conv1_bias"))
         net = relay.nn.relu(net)
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 16, 64, 64)
-        net = _make_fire(net, 16, 64, 64)
-        net = _make_fire(net, 32, 128, 128)
+        net = _make_fire(net, 16, 64, 64, "fire1")
+        net = _make_fire(net, 16, 64, 64, "fire2")
+        net = _make_fire(net, 32, 128, 128, "fire3")
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 32, 128, 128)
-        net = _make_fire(net, 48, 192, 192)
-        net = _make_fire(net, 48, 192, 192)
-        net = _make_fire(net, 64, 256, 256)
+        net = _make_fire(net, 32, 128, 128, "fire4")
+        net = _make_fire(net, 48, 192, 192, "fire5")
+        net = _make_fire(net, 48, 192, 192, "fire6")
+        net = _make_fire(net, 64, 256, 256, "fire7")
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 64, 256, 256)
+        net = _make_fire(net, 64, 256, 256, "fire8")
     else:
         net = layers.conv2d(net,
                             channels=64,
                             kernel_size=(3, 3),
                             strides=(2, 2),
                             padding=(1, 1),
-                            name="conv2d")
+                            name="conv1")
+        net = relay.nn.bias_add(net, relay.var("conv1_bias"))
         net = relay.nn.relu(net)
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 16, 64, 64)
-        net = _make_fire(net, 16, 64, 64)
+        net = _make_fire(net, 16, 64, 64, "fire1")
+        net = _make_fire(net, 16, 64, 64, "fire2")
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 32, 128, 128)
-        net = _make_fire(net, 32, 128, 128)
+        net = _make_fire(net, 32, 128, 128, "fire3")
+        net = _make_fire(net, 32, 128, 128, "fire4")
         net = relay.nn.max_pool2d(net, pool_size=(3, 3), strides=(2, 2))
-        net = _make_fire(net, 48, 192, 192)
-        net = _make_fire(net, 48, 192, 192)
-        net = _make_fire(net, 64, 256, 256)
-        net = _make_fire(net, 64, 256, 256)
+        net = _make_fire(net, 48, 192, 192, "fire5")
+        net = _make_fire(net, 48, 192, 192, "fire6")
+        net = _make_fire(net, 64, 256, 256, "fire7")
+        net = _make_fire(net, 64, 256, 256, "fire8")
     net = relay.nn.dropout(net, rate=0.5)
-    net = layers.conv2d(net, channels=num_classes, kernel_size=(1, 1), name="conv2d")
+    net = layers.conv2d(
+        net, channels=num_classes, kernel_size=(1, 1), name="conv_final")
+    net = relay.nn.bias_add(net, relay.var("conv_final_bias"))
     net = relay.nn.relu(net)
     net = relay.nn.global_avg_pool2d(net)
     net = relay.nn.batch_flatten(net)
@@ -117,8 +122,12 @@ def get_net(batch_size, image_shape, num_classes, version, dtype):
     args = relay.ir_pass.free_vars(net)
     return relay.Function(args, net)
 
-def get_workload(batch_size=1, num_classes=1000, version='1.0',
-                 image_shape=(3, 224, 224), dtype="float32"):
+
+def get_workload(batch_size=1,
+                 num_classes=1000,
+                 version='1.0',
+                 image_shape=(3, 224, 224),
+                 dtype="float32"):
     """Get benchmark workload for SqueezeNet
 
     Parameters

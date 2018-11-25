@@ -115,7 +115,7 @@ def test_squeeze_bad_axes_infer_type():
 
 
 def test_reshape_infer_type():
-    n, t, d1, d2 = tvm.var("n"), tvm.var("t"), 100, 20
+    n, t, d1, d2 = 10, 20, 100, 20
     x = relay.var("x", relay.TensorType((n, t, d1, d2), "float32"))
     y = relay.reshape(x, newshape=(n, t, 2000))
     assert "newshape=" in y.astext()

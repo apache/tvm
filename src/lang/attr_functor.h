@@ -163,6 +163,7 @@ class AttrsHashHandler :
    * \param node The node to be hashed.
    */
   size_t Hash(const NodeRef& node) {
+    if (!node.defined()) return 0;
     return this->VisitAttr(node);
   }
 
