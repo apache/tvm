@@ -19,7 +19,8 @@ if sys.version_info[0] == 3:
     # this function is needed for python3
     # to convert ctypes.char_p .value back to python str
     if sys.platform == "win32":
-        py_str = lambda x: x.decode('cp'+str(ctypes.cdll.kernel32.GetACP()))
+        format = 'cp'+str(ctypes.cdll.kernel32.GetACP())
+        py_str = lambda x : x.decode(format)  
     else:
         py_str = lambda x: x.decode('utf-8')
 else:
