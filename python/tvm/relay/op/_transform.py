@@ -53,3 +53,11 @@ _reg.register_schedule("strided_slice", schedule_injective)
 # slice_like
 _reg.register_schedule("slice_like", schedule_injective)
 _reg.register_pattern("slice_like", OpPattern.INJECTIVE)
+
+# reshape
+_reg.register_schedule("reshape", schedule_injective)
+_reg.register_pattern("reshape", OpPattern.INJECTIVE)
+
+# reshape_like
+_reg.register_schedule("reshape_like", schedule_injective)
+_reg.register_pattern("reshape_like", OpPattern.INJECTIVE)

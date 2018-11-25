@@ -376,7 +376,15 @@ Example::
 .set_attrs_type_key("relay.attrs.ReshapeAttrs")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
-.add_type_rel("Reshape", ReshapeRel);
+.add_type_rel("Reshape", ReshapeRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  const auto* param = attrs.as<ReshapeAttrs>();
+  CHECK(param != nullptr);
+  return Array<Tensor>{ topi::reshape(inputs[0], param->newshape) };
+});
 
 
 /*!
@@ -431,7 +439,13 @@ the input array into an output array with the same shape as the second input arr
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("shape_like", "Tensor", "Shape tensor.")
 .set_support_level(3)
-.add_type_rel("ReshapeLike", ReshapeLikeRel);
+.add_type_rel("ReshapeLike", ReshapeLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  return Array<Tensor>{ topi::reshape(inputs[0], inputs[1]->shape) };
+});
 
 
 // Take
