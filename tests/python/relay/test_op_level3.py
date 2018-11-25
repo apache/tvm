@@ -60,6 +60,22 @@ def test_clip():
     np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
+def test_squeeze():
+    def verify_squeeze(shape, dtype, axis):
+        x = relay.var("x", relay.TensorType(shape, dtype))
+        squeeze = relay.squeeze(x, axis=axis)
+
+        np_axis = tuple(axis) if axis is not None else None
+
+        data = np.random.random_sample(shape).astype(dtype)
+        intrp = create_executor()
+        op_res = intrp.evaluate(squeeze, { x : relay.const(data) })
+        ref_res = np.squeeze(data, axis=np_axis)
+        np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+    verify_squeeze((1, 3, 2, 5), "float32", None)
+    verify_squeeze((1, 3, 1), "float32", [0])
+    verify_squeeze((1, 2, 1, 2, 1), "float32", [0, 2])
 
 
 def test_transpose_infer_type():
@@ -308,6 +324,7 @@ if __name__ == "__main__":
     test_full_like()
     test_infer_type_leaky_relu()
     test_infer_type_prelu()
+    test_squeeze()
     test_squeeze_infer_type()
     test_squeeze_bad_axes_infer_type()
     test_split_infer_type()
