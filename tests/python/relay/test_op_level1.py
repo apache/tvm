@@ -90,6 +90,22 @@ def test_binary_op():
         check_binary_op(opfunc, ref)
 
 
+def test_expand_dims():
+    # based on topi test
+    def verify_expand_dims(dshape, dtype, oshape, axis, num_newaxis):
+        x = relay.Var("x", relay.TensorType(dshape, dtype))
+        func = relay.Function([x], relay.expand_dims(x, axis, num_newaxis))
+        for target, ctx in ctx_list():
+            data = np.random.uniform(size=dshape).astype(dtype)
+            ref_res = data.reshape(oshape)
+            intrp = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(data)
+            np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
+
+    verify_expand_dims((3, 10), 'float32', (3, 10, 1, 1), 2, 2)
+    verify_expand_dims((3, 10), 'float32', (1, 3, 10), -3, 1)
+
+
 def test_bias_add():
     xshape=(10, 2, 3, 4)
     bshape=(2,)
@@ -295,6 +311,7 @@ if __name__ == "__main__":
     test_binary_op()
     test_expand_dims_infer_type()
     test_concatenate()
+    test_expand_dims()
     test_softmax()
     test_log_softmax()
     test_dropout()
