@@ -123,8 +123,28 @@ def test_reshape_infer_type():
     assert yy.checked_type == relay.TensorType(
         (n, t, 2000), "float32")
 
+def test_reshape():
+    def verify_reshape(shape, oshape):
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        ref_res = np.reshape(x_data, oshape)
 
-def test_reshape_like():
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        z = relay.reshape(x, newshape=ref_res.shape)
+        zz = relay.ir_pass.infer_type(z)
+        assert "newshape=" in z.astext()
+        assert zz.checked_type == relay.ty.TensorType(oshape, "float32")
+
+        func = relay.Function([x], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_reshape((2, 3, 4), (8, 3))
+    verify_reshape((4, 7), (2, 7, 2))
+
+def test_reshape_like_infer_type():
     # concrete shape
     x = relay.var("x", relay.TensorType((1, 2, 3), "float32"))
     y = relay.var("y", relay.TensorType((1,6), "float32"))
@@ -140,6 +160,29 @@ def test_reshape_like():
     zz = relay.ir_pass.infer_type(z)
     assert zz.checked_type == relay.TensorType((1, 8, 8), "float32")
 
+
+def test_reshape_like():
+    def verify_reshape_like(shape, oshape):
+        x_data = np.random.uniform(low=-1, high=1, size=shape).astype("float32")
+        y_data = np.random.uniform(low=-1, high=1, size=oshape).astype("float32")
+        ref_res = np.reshape(x_data, y_data.shape)
+
+        x = relay.var("x", relay.TensorType(shape, "float32"))
+        y = relay.var("x", relay.TensorType(oshape, "float32"))
+        z = relay.reshape_like(x, y)
+        zz = relay.ir_pass.infer_type(z)
+        assert zz.checked_type == relay.ty.TensorType(ref_res.shape, "float32")
+
+        func = relay.Function([x, y], z)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, y_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_reshape_like((2, 3, 4), (1, 8, 3))
+    verify_reshape_like((4, 7), (2, 7, 2))
 
 def test_take_infer_type():
     def verify_take(dshape, indices_shape, oshape, axis=None):
@@ -318,6 +361,8 @@ if __name__ == "__main__":
     test_clip()
     test_transpose_infer_type()
     test_reshape_infer_type()
+    test_reshape()
+    test_reshape_like_infer_type()
     test_reshape_like()
     test_take_infer_type()
     test_full()
