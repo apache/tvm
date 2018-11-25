@@ -183,7 +183,7 @@ def _mx_activations(inputs, attrs):
             one = _expr.const(1, dtype="float32")
             exp_neg_abs_x = _op.exp(_op.negative(_op.abs(x)))
             return _op.add(_op.log(_op.add(one, exp_neg_abs_x)),
-                             _op.nn.relu(x))
+                           _op.nn.relu(x))
         return _stable_softrelu(inputs[0])
     raise RuntimeError("Do not support act_type: {}".format(act_type))
 
