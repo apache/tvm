@@ -5,6 +5,9 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
+#include <tvm/relay/op_attr_types.h>
+#include <topi/elemwise.h>
+#include <topi/nn/upsampling.h>
 #include "../layout.h"
 
 namespace tvm {
@@ -82,7 +85,27 @@ RELAY_REGISTER_OP("nn.upsampling")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
-.add_type_rel("UpSampling", UpSamplingRel);
+.add_type_rel("UpSampling", UpSamplingRel)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const Attrs& attrs,
+          const Array<Tensor>& inputs,
+          const Type& out_type,
+          const Target& target) {
+  const auto* param = attrs.as<UpSamplingAttrs>();
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  CHECK(param != nullptr);
+  CHECK(param->layout == "NCHW" || param->layout == "NHWC");
+  CHECK(out_ttype != nullptr);
+  Array<IndexExpr> oshape;
+  if (param->layout == "NCHW") {
+    oshape.push_back(out_ttype->shape[2]);
+    oshape.push_back(out_ttype->shape[3]);
+  } else if (param->layout == "NHWC") {
+    oshape.push_back(out_ttype->shape[1]);
+    oshape.push_back(out_ttype->shape[2]);
+  }
+  return Array<Tensor>{ topi::nn::upsampling(inputs[0], oshape, param->layout, param->method)};
+});
 
 }  // namespace relay
 }  // namespace tvm
