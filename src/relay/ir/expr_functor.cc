@@ -233,22 +233,23 @@ void ExprVisitor::VisitType(const Type& t) { return; }
 class ExprApplyVisit : public ExprVisitor {
  public:
   explicit ExprApplyVisit(std::function<void(const Expr&)> f) : f_(f) {}
-   void VisitExpr(const Expr& e) final {
+  void VisitExpr(const Expr& e) final {
     if (visited_.count(e.get()) != 0) return;
     visited_.insert(e.get());
     ExprVisitor::VisitExpr(e);
     f_(e);
   }
-  private:
+
+ private:
   std::function<void(const Expr&)> f_;
   std::unordered_set<const Node*> visited_;
 };
 
- void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
+void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
- TVM_REGISTER_API("relay._ir_pass.post_order_visit")
+TVM_REGISTER_API("relay._ir_pass.post_order_visit")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     PackedFunc f = args[1];
     PostOrderVisit(args[0], [f](const Expr& n) {
