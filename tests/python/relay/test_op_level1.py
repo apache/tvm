@@ -188,20 +188,22 @@ def test_concatenate():
 
     x = relay.var("x", shape=(10, 5))
     y = relay.var("y", shape=(10, 5))
+    t = relay.var("z", shape=())
     z = relay.concatenate((x, y), axis=1)
-
+    z = relay.add(z, t)
     # Check result.
-    func = relay.Function([x, y], z)
+    func = relay.Function([x, y, t], z)
     x_data = np.random.rand(10, 5).astype('float32')
     y_data = np.random.rand(10, 5).astype('float32')
-    ref_res = np.concatenate((x_data, y_data), axis=1)
+    t_data = np.random.uniform(size=()).astype('float32')
+    ref_res = np.concatenate((x_data, y_data), axis=1) + t_data
 
     for target, ctx in ctx_list():
         intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
         intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(x_data, y_data)
+        op_res1 = intrp1.evaluate(func)(x_data, y_data, t_data)
         tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=0.01)
-        op_res2 = intrp2.evaluate(func)(x_data, y_data)
+        op_res2 = intrp2.evaluate(func)(x_data, y_data, t_data)
         tvm.testing.assert_allclose(op_res2.asnumpy(), ref_res, rtol=0.01)
 
 def test_dropout():
@@ -306,11 +308,11 @@ def test_dense():
 
 
 if __name__ == "__main__":
+    test_concatenate()
     test_bias_add()
     test_unary_op()
     test_binary_op()
     test_expand_dims_infer_type()
-    test_concatenate()
     test_expand_dims()
     test_softmax()
     test_log_softmax()
