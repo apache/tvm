@@ -56,30 +56,26 @@ class ScheduleGetter :
         Op::GetAttr<FTVMSchedule>("FTVMSchedule");
     auto cache_node = make_node<CachedFuncNode>();
     cache_node->target = target_;
-
-    if (prim_func->params.size() == 1 &&
-        prim_func->params[0]->checked_type().as<TupleTypeNode>()) {
-      // Handle tuple input type by flattening them.
-      // This is the current calling convention of tuple input.
+    for (Var param : prim_func->params) {
       Array<tvm::Tensor> inputs;
-      for (Type field : prim_func->params[0]->type_as<TupleTypeNode>()->fields) {
-        const auto* ttype = field.as<TensorTypeNode>();
-        CHECK(ttype != nullptr);
+      if (const auto* ttype = param->checked_type().as<TensorTypeNode>()) {
         tvm::Tensor tensor = tvm::placeholder(
             GetShape(ttype->shape), ttype->dtype);
         cache_node->inputs.push_back(tensor);
         inputs.push_back(tensor);
+      } else {
+        // flatten tuple of tensor type.
+        const auto* tuple_type = param->type_as<TupleTypeNode>();
+        for (Type field : tuple_type->fields) {
+          const auto* ttype = field.as<TensorTypeNode>();
+          CHECK(ttype != nullptr);
+          tvm::Tensor tensor = tvm::placeholder(
+              GetShape(ttype->shape), ttype->dtype);
+          cache_node->inputs.push_back(tensor);
+          inputs.push_back(tensor);
+        }
       }
-      memo_[prim_func->params[0]] = inputs;
-
-    } else {
-      for (Var param : prim_func->params) {
-        const auto* ttype = param->type_as<TensorTypeNode>();
-        tvm::Tensor tensor = tvm::placeholder(
-            GetShape(ttype->shape), ttype->dtype);
-        cache_node->inputs.push_back(tensor);
-        memo_[param] = Array<Tensor>({tensor});
-      }
+      memo_[param] = inputs;
     }
     readable_name_stream_ << "fused";
     cache_node->outputs = this->VisitExpr(prim_func->body);
@@ -161,8 +157,9 @@ class ScheduleGetter :
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined())
-          << "Two complicated op in a primitive function";
+      CHECK(!master_op_.defined() || master_op_patetrn_ < kCommReduce)
+          << "Two complicated op in a primitive function "
+          << " master=" << master_op_ << " current=" << op;
     }
     if (op_pattern >= master_op_patetrn_) {
       master_op_ = op;
