@@ -182,6 +182,14 @@ class ExprMutator
   std::unordered_map<Expr, Expr, NodeHash, NodeEqual> memo_;
 };
 
+/*!
+ * \brief recursively visit the ir in post DFS order node, apply fvisit
+ * Each node is guaranteed to be visited only once.
+ * \param node The ir to be visited.
+ * \param fvisit The visitor function to be applied.
+ */
+void PostOrderVisit(const NodeRef& node, std::function<void(const NodeRef&)> fvisit);
+
 /*
  * \brief Bind function parameters or free variables.
  *

@@ -5,6 +5,7 @@
  */
 #include <tvm/relay/expr.h>
 #include <tvm/relay/op.h>
+#include <tvm/relay/attrs/transform.h>
 #include <topi/elemwise.h>
 #include "../type_relations.h"
 #include "../op_common.h"
@@ -89,19 +90,8 @@ RELAY_REGISTER_UNARY_OP("relay.op._make.", "copy")
 .add_type_rel("Identity", IdentityRel)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_UNARY_COMPUTE(topi::identity));
 
-
-// Clip
-struct ClipAttrs : public tvm::AttrsNode<ClipAttrs> {
-  double a_min;
-  double a_max;
-
-  TVM_DECLARE_ATTRS(ClipAttrs, "relay.attrs.ClipAttrs") {
-  TVM_ATTR_FIELD(a_min)
-    .describe("The minimum clip value.");
-  TVM_ATTR_FIELD(a_max)
-    .describe("The maximum clip value.");
-  }
-};
+// relay.clip
+TVM_REGISTER_NODE_TYPE(ClipAttrs);
 
 TVM_REGISTER_API("relay.op._make.clip")
   .set_body_typed<Expr(Expr, double, double)>([](Expr a, double a_min, double a_max) {

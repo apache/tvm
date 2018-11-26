@@ -10,6 +10,19 @@ from . import _make
 from .expr import Expr
 from .ty import Type
 
+def post_order_visit(expr, fvisit):
+    """Recursively visit the ir in post DFS order node,
+    apply fvisit. Each node is guaranteed to be visited
+    only once.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr
+        The input expression.
+    fvisit : function
+        The visitor function to be applied.
+    """
+    return _ir_pass.post_order_visit(expr, fvisit)
 
 def infer_type(expr, mod=None):
     """Infer the type of expr under the context of mod.
