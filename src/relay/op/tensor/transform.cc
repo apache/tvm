@@ -282,6 +282,15 @@ bool TransposeRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> TransposeCompute(const Attrs& attrs,
+                               const Array<Tensor>& inputs,
+                               const Type& out_type,
+                               const Target& target) {
+  const auto* param = attrs.as<TransposeAttrs>();
+  CHECK(param != nullptr);
+  return Array<Tensor>{ topi::transpose(inputs[0], param->axes) };
+}
+
 Expr MakeTranspose(Expr data,
                    Array<Integer> axes) {
   auto attrs = make_node<TransposeAttrs>();
@@ -308,14 +317,8 @@ RELAY_REGISTER_OP("transpose")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(3)
 .add_type_rel("Transpose", TransposeRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  const auto* param = attrs.as<TransposeAttrs>();
-  CHECK(param != nullptr);
-  return Array<Tensor>{ topi::transpose(inputs[0], param->axes) };
-});
+.set_attr<FTVMCompute>("FTVMCompute", TransposeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.reshape */
 
@@ -583,6 +586,19 @@ bool TakeRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> TakeCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const auto* param = attrs.as<TakeAttrs>();
+  CHECK(param != nullptr);
+  if (!param->axis.defined()) {
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1]) };
+  } else {
+    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis) };
+  }
+}
+
 Expr MakeTake(Expr data,
               Expr indices,
               Integer axis) {
@@ -626,18 +642,9 @@ Examples::
 .add_argument("indices", "Tensor", "The indices tensor.")
 .set_support_level(2)
 .add_type_rel("Take", TakeRel)
-.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
-                                         const Array<Tensor>& inputs,
-                                         const Type& out_type,
-                                         const Target& target) {
-  const auto* param = attrs.as<TakeAttrs>();
-  CHECK(param != nullptr);
-  if (!param->axis.defined()) {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1]) };
-  } else {
-    return Array<Tensor>{ topi::take(inputs[0], inputs[1], param->axis) };
-  }
-});
+.set_attr<FTVMCompute>("FTVMCompute", TakeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
+
 
 // Init ops
 TVM_REGISTER_NODE_TYPE(InitOpAttrs);
