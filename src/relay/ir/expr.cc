@@ -258,5 +258,13 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
   p->stream << "TupleGetItemNode(" << node->tuple << ", " << node->index << ")";
 });
 
+
+TVM_REGISTER_API("relay._expr.TempExprRealize")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+    TempExpr temp = args[0];
+    *ret = temp->Realize();
+});
+
+
 }  // namespace relay
 }  // namespace tvm
