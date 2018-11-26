@@ -327,6 +327,17 @@ class Layout : public NodeRef {
     return operator->()->name == rhs->name;
   }
 
+  /*!
+ * \brief allow output string of layout to ostream
+ * \param os the output stream
+ * \param l the layout
+ * \return the ostream
+ */
+  friend std::ostream& operator<<(std::ostream& os, const Layout& l) {
+    os << l.name();
+    return os;
+  }
+
   using ContainerType = LayoutNode;
 
  private:

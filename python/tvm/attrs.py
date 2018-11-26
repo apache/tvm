@@ -8,8 +8,8 @@ from . import _api_internal
 class Attrs(NodeBase):
     """Attribute node, which is mainly use for defining attributes of relay operators.
 
-    Used by python registration of compute and schedule function.
-    Attrs is passed as the first argument to schedule and compute function.
+    Used by function registered in python side, such as compute, schedule and alter_layout.
+    Attrs is passed as the first argument to these functions.
     """
     def list_field_info(self):
         """ Get fields information

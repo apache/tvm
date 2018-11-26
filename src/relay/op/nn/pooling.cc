@@ -9,12 +9,39 @@
 #include <topi/nn/pooling.h>
 #include <vector>
 #include "../layout.h"
+#include "../../pass/alter_op_layout.h"
 
 namespace tvm {
 namespace relay {
 
+// relay.nn.max_pool2d & relay.nn.avg_pool2d
 TVM_REGISTER_NODE_TYPE(MaxPool2DAttrs);
 TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
+
+template <typename T>
+Array<Array<Layout> > Pool2DInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& in_layouts) {
+  CHECK_EQ(in_layouts.size(), 1);
+
+  // NOTE: Discard "const" qualifier here.
+  T *params = const_cast<T*>(attrs.as<T>());
+  Layout input = in_layouts[0];
+  const Layout raw_layout(params->layout);
+  if (input.defined()) {
+    CHECK(input.Convertible(raw_layout));
+    if (input.Indexof('W') != raw_layout.Indexof('W') ||
+        input.Indexof('H') != raw_layout.Indexof('H') ||
+        input.Contains('w') || input.Contains('h')) {
+      // if the new layout changes width or height dimension,
+      // fallback to old layout;
+      input = raw_layout;
+    }
+    params->layout = input.name();  // modify self to follow the input layout
+  }
+
+  return Array<Array<Layout> >{{params->layout}, {params->layout}};
+}
 
 template <typename AttrType>
 bool Pool2DRel(const Array<Type>& types,
@@ -163,6 +190,7 @@ RELAY_REGISTER_OP("nn.max_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("MaxPool2D", Pool2DRel<MaxPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<MaxPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<MaxPool2DAttrs, topi::nn::kMaxPool>);
 
 
@@ -219,9 +247,10 @@ Average pooling operation for one dimensional data.
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("AvgPool2D", Pool2DRel<AvgPool2DAttrs>)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Pool2DInferCorrectLayout<AvgPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", Pool2DCompute<AvgPool2DAttrs, topi::nn::kAvgPool>);
 
-// Global Pool
+// relay.nn.global_pool_2d & relay.nn.max_pool_2d
 TVM_REGISTER_NODE_TYPE(GlobalPool2DAttrs);
 
 bool GlobalPool2DRel(const Array<Type>& types,
@@ -247,8 +276,9 @@ bool GlobalPool2DRel(const Array<Type>& types,
 
   const auto hidx = layout.Indexof('H');
   const auto widx = layout.Indexof('W');
-  std::vector<IndexExpr> oshape({dshape[0], dshape[1], dshape[2], dshape[3]});
-  oshape[hidx] = oshape[widx] = 1;
+  Array<IndexExpr> oshape(dshape);
+  oshape.Set(hidx, 1);
+  oshape.Set(widx, 1);
 
   // assign output type
   reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
@@ -307,6 +337,8 @@ RELAY_REGISTER_OP("nn.global_avg_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("GlobalAvgPool2D", GlobalPool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kAvgPool>);
 
 // GlobalMaxPool
@@ -338,6 +370,8 @@ RELAY_REGISTER_OP("nn.global_max_pool2d")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
 .add_type_rel("GlobalMaxPool2D", GlobalPool2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Pool2DInferCorrectLayout<GlobalPool2DAttrs>)
 .set_attr<FTVMCompute>("FTVMCompute", GlobalPool2DCompute<topi::nn::kMaxPool>);
 
 }  // namespace relay

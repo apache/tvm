@@ -191,6 +191,23 @@ def simplify_inference(expr):
     return _ir_pass.simplify_inference(expr)
 
 
+def simplify_bias_add(expr):
+    """ Simplify the bias_add to expand_dims and broadcast_add.
+    This can simplify latter layout related passes (e.g. alter_op_layout)
+
+    Parameters
+    ----------
+    e: tvm.relay.Expr
+        The input Expression
+
+    Returns
+    -------
+    result: tvm.relay.Expr
+        An expression without bias_add
+    """
+    return _ir_pass.simplify_bias_add(expr)
+
+
 def dead_code_elimination(expr):
     """ Remove expressions which does not effect the program result (dead code).
 
