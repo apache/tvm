@@ -212,7 +212,7 @@ class Interpreter :
     // Marshal the arguments.
     // Handle tuple input/output by flattening them.
     size_t arg_len = 0;
-    for (size_t i = 0; i < args.size(); i++) {
+    for (size_t i = 0; i < args.size(); ++i) {
       if (args[i].as<TensorValueNode>()) {
         ++arg_len;
       } else {
@@ -242,22 +242,19 @@ class Interpreter :
         << context_ << ", but get " << arg_ctx;
     };
 
-    if (func->params.size() == 1 &&
-        func->params[0]->checked_type().as<TupleTypeNode>()) {
-      // handle tuple input.
-      const TupleValueNode* tuple = args[0].as<TupleValueNode>();
-      CHECK(tuple);
-      for (size_t i = 0; i < tuple->fields.size(); ++i) {
-        fset_input(i, tuple->fields[i]);
-      }
-    } else {
-      CHECK_EQ(num_inputs, args.size());
-      // Decide the target context.
-      // Primitive functions always sit in the same context.
-      for (size_t i = 0; i < args.size(); i++) {
-        fset_input(i, args[i]);
+    int arg_counter = 0;
+    for (Value arg : args) {
+      if (arg.as<TensorValueNode>()) {
+        fset_input(arg_counter++,  arg);
+      } else {
+        const TupleValueNode* tuple = arg.as<TupleValueNode>();
+        CHECK(tuple != nullptr);
+        for (size_t i = 0; i < tuple->fields.size(); ++i) {
+          fset_input(arg_counter++, tuple->fields[i]);
+        }
       }
     }
+
     // TVM's calling convention is that the final argument is the output
     // buffer. To preserve the illusion of being a functional language
     // we need to allocate space for the output buffer based on the

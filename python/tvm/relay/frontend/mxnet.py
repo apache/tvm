@@ -589,11 +589,11 @@ def from_mxnet(symbol,
         shape, dtype = _update_shape_dtype(shape, dtype, params)
         sym = _from_mxnet_impl(symbol, shape, dtype)
     elif isinstance(symbol, mx.gluon.HybridBlock):
-        if args_params is not None or aux_params is not None:
+        if arg_params is not None or aux_params is not None:
             raise ValueError("arg_params and aux_params ae not used when importing HybridBlock")
         params = {}
         for k, v in symbol.collect_params().items():
-            params[k] = tvm.nd.array(v.data().asnumpy())
+            params[k] = _nd.array(v.data().asnumpy())
         data = mx.sym.Variable("data")
         sym = symbol(data)
         shape, dtype = _update_shape_dtype(shape, dtype, params)
