@@ -173,7 +173,6 @@ def test_reduce_functions():
         verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
-        verify_reduce(func, (4, 4, 3), None, True, False, (1, 1, 1))
         verify_reduce(func, (4, 4, 3), None, False, True, ())
         verify_reduce(func, (4, 4, 3), (0, 2), False, False, (4,))
         verify_reduce(func, (128, 24, 128), (0, 1), False, False, (128,))
