@@ -236,18 +236,14 @@ class GraphRuntimeCodegen(ExprFunctor):
             self.lowered_funcs.add(loweredf)
 
         inputs = []
-        tuple_arg_count = 0
+        # flatten tuple in the call.
         for arg in call.args:
+            res = self.visit(arg)
             if isinstance(arg.checked_type, TupleType):
-                tuple_arg_count += 1
-            inputs.append(self.visit(arg))
-        # We need to specially handle tuple inputs and
-        # tuple output cases.
-        # Tuple input function(e.g. concat)
-        if tuple_arg_count:
-            assert len(call.args) == 1
-            assert isinstance(inputs[0], tuple)
-            inputs = list(inputs[0])
+                assert isinstance(res, tuple)
+                inputs += res
+            else:
+                inputs.append(res)
 
         inputs = [x.to_json() for x in inputs]
         op_name = cached_func.func_name
