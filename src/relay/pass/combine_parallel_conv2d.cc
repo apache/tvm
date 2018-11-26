@@ -47,17 +47,21 @@ using Group = std::vector<Branch>;
 class BranchGroupFinder : private ExprVisitor {
  public:
   std::vector<Group> Find(const Expr& expr) {
+    static const Op& conv2d = Op::Get("nn.conv2d");
+
     this->VisitExpr(expr);
 
     std::vector<Group> groups;
     for (const auto& root : conv_roots_) {
-      const auto& convs = children_map_.at(root);
-      for (const CallNode* conv : convs) {
-        auto&& branch = CreateBranch(conv);
+      const auto& children = children_map_.at(root);
+      for (const CallNode* child : children) {
+        if (!child->op.same_as(conv2d)) continue;
+
+        auto&& branch = CreateBranch(child);
         // add the branch to a group, or create a new group
         auto it = std::find_if(groups.begin(), groups.end(), [&](const Group& group) {
           CHECK(!group.empty() && !group[0].empty());
-          return IsCompatibleConv2D(conv, group[0][0]);
+          return IsCompatibleConv2D(child, group[0][0]);
         });
         if (it != groups.end()) {
           it->push_back(branch);
