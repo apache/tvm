@@ -242,3 +242,12 @@ def schedule_l2_normalize(attrs, outs, target):
         return topi.generic.schedule_l2_normalize(outs)
 
 reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_schedule("nn.upsampling")
+def schedule_upsampling(_, outs, target):
+    """Schedule definition of upsampling"""
+    with target:
+        return topi.generic.schedule_injective(outs)
+
+reg.register_pattern("nn.upsampling", OpPattern.INJECTIVE)
