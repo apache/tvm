@@ -37,7 +37,7 @@ using Group = std::vector<Branch>;
   Intermediate nodes have exactly one successor. It is possible that branches meet at a point,
   which should be handled in ParallelConv2DCombiner.
 
-          data
+         data
         /    \
     conv2d   conv2d
       |        |
