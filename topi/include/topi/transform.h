@@ -96,33 +96,35 @@ inline Tensor transpose(const Tensor& x,
     }
   }
 
-  std::vector<int> axes_val;
+  Array<Expr> new_shape;
   for (size_t i = 0; i < axes.size(); ++i) {
-    int axis = GetConstInt(axes[i]);
+    int axis = static_cast<int>(axes[i]->value);
     int new_axis = axis;
     if (axis < 0) {
       new_axis = static_cast<int>(x->shape.size()) + axis;
+      axes.Set(i, new_axis);
     }
-    CHECK((0 <= new_axis) && (new_axis < static_cast<int>(x->shape.size())))
+    CHECK((new_axis >= 0) && (new_axis < static_cast<int>(x->shape.size())))
       << "axis=" << axis << " is invalid for the "
       << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
-    axes_val.push_back(new_axis);
+
+    for (size_t j = 0; j < axes.size(); ++j) {
+      if (i !=j) {
+        CHECK(new_axis != static_cast<int>(axes[j]->value)) << "repeated axis in transpose";
+      }
+    }
+    new_shape.push_back(x->shape[new_axis]);
   }
 
-  Array<Expr> new_shape;
-  for (size_t i = 0; i < axes_val.size(); ++i) {
-    CHECK(1 == std::count(std::begin(axes_val), std::end(axes_val), axes_val[i]))
-      << "repeated axis in transpose";
-    new_shape.push_back(x->shape[axes_val[i]]);
-  }
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       std::vector<Expr> idx;
-      for (size_t i = 0; i < axes_val.size(); ++i) {
+      for (size_t i = 0; i < axes.size(); ++i) {
         idx.push_back(1);
       }
-      for (size_t i = 0; i < axes_val.size(); ++i) {
-        idx[axes_val[i]] = indices[i];
+      for (size_t i = 0; i < axes.size(); ++i) {
+        int axis = static_cast<int>(axes[i]->value);
+        idx[axis] = indices[i];
       }
       return x(idx);
     }, name, tag);
