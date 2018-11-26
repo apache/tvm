@@ -320,6 +320,23 @@ class TupleGetItem(Expr):
             _make.TupleGetItem, tuple_value, index)
 
 
+class TempExpr(Expr):
+    """Baseclass of all TempExpr.
+
+    TempExprs are pass specific expression that can be
+    useful to define intermediate result in the
+    rewriting pass such as layout or type transformation.
+    """
+    def realize(self):
+        """Convert the expression to a normal(non-temp) Expr.
+
+        Returns
+        -------
+        The corresponding normal expression.
+        """
+        return _expr.TempExprRealize(self)
+
+
 class ExprFunctor(object):
     """
     An abstract visitor defined over Expr.
