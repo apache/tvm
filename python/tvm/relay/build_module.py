@@ -274,8 +274,8 @@ def create_executor(kind="debug",
     kind : str
         The type of executor
 
-    mod : relay.Mod
-        The mod
+    mod : tvm.relay.Module
+        The Relay module containing collection of functions
 
     ctx : tvm.TVMContext
         The context to execute the code.

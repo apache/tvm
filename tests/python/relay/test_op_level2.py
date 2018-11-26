@@ -412,6 +412,42 @@ def test_batch_flatten():
         np.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=0.01)
 
 
+def _test_upsampling(layout, method):
+    n, c, h, w = tvm.var("n"), 16, 32, 32
+    scale = 2
+    dtype = "float32"
+    def get_shape():
+        if layout == "NCHW":
+            return (c, h, w), (c, h*scale, w*scale)
+        else:
+            return (h, w, c), (h*scale, w*scale, c)
+    ishape, oshape = get_shape()
+    x = relay.var("x", relay.TensorType((n,) + ishape, dtype))
+    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType((n,) + oshape, dtype)
+    dshape = (1,) + ishape
+    x = relay.var("x", shape=dshape)
+    y = relay.nn.upsampling(x, scale=scale, layout=layout, method=method)
+    func = relay.Function([x], y)
+    data = np.random.uniform(size=dshape).astype(dtype)
+    if method == "NEAREST_NEIGHBOR":
+        ref = topi.testing.upsampling_python(data, scale, layout)
+    else:
+        ref = topi.testing.bilinear_resize_python(data, (h*scale, w*scale), layout)
+    for target, ctx in ctx_list():
+        executor = relay.create_executor("graph", ctx=ctx, target=target)
+        out = executor.evaluate(func)(data)
+        tvm.testing.assert_allclose(out.asnumpy(), ref, rtol=1e-5, atol=1e-5)
+
+
+def test_upsampling():
+    _test_upsampling("NCHW", "NEAREST_NEIGHBOR")
+    _test_upsampling("NCHW", "BILINEAR")
+    _test_upsampling("NHWC", "NEAREST_NEIGHBOR")
+    _test_upsampling("NHWC", "BILINEAR")
+
+
 if __name__ == "__main__":
     test_pool2d()
     test_avg_pool2d_no_count_pad()
@@ -425,3 +461,4 @@ if __name__ == "__main__":
     test_conv2d_transpose_run()
     test_conv2d_run()
     test_batch_flatten()
+    test_upsampling()

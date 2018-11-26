@@ -1212,7 +1212,7 @@ bool SplitRel(const Array<Type>& types,
     auto indices = param->indices_or_sections.as<ArrayNode>()->data;
     auto begin = IndexExpr(make_zero(Int(32)));
     std::vector<Type> fields;
-    for (uint i = 0; i < indices.size(); ++i) {
+    for (unsigned int i = 0; i < indices.size(); ++i) {
       CHECK(reporter->Assert(IndexExpr(indices[i]) > begin))
           << "indices_or_sections need to be a sorted ascending list";
       std::vector<IndexExpr>&& oshape = AsVector(data->shape);
