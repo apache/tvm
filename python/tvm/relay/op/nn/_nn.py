@@ -76,7 +76,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     elif layout == "NHWC" and \
-         kernel_layout == "HWOI" and\
+         weight_layout == "HWOI" and\
          get_const_int(inputs[1].shape[2]) == groups and \
          get_const_int(inputs[1].shape[3]) == 1:
         out = topi.nn.depthwise_conv2d_nhwc(
