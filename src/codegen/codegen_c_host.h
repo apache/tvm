@@ -1,7 +1,7 @@
 /*!
  *  Copyright (c) 2017 by Contributors
- * \file codegen_opencl.h
- * \brief Generate OpenCL device code.
+ * \file codegen_c_host.h
+ * \brief Generate C host code.
  */
 #ifndef TVM_CODEGEN_CODEGEN_C_HOST_H_
 #define TVM_CODEGEN_CODEGEN_C_HOST_H_

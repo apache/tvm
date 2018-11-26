@@ -50,7 +50,7 @@ def _linux_shared(output, objects, options, cc="g++"):
         cmd += objects
     if options:
         cmd += options
-    cmd += ["-I"+path for path in find_include_path()]
+    cmd += ["-I" + path for path in find_include_path()]
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()

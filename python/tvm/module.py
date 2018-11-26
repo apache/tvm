@@ -98,7 +98,7 @@ class Module(ModuleBase):
             return
 
         if not (self.type_key == "llvm" or self.type_key == "c"):
-            raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
+            raise ValueError("Module[%s]: Only llvm and c support export shared" % self.type_key)
         temp = _util.tempdir()
         if fcompile is not None and hasattr(fcompile, "object_format"):
             object_format = fcompile.object_format

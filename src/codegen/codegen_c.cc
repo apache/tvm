@@ -24,6 +24,7 @@ void CodeGenC::InitFuncState(LoweredFunc f) {
 }
 
 void CodeGenC::ReserveKeywordsAsUnique() {
+  // skip the first underscore, so SSA variable starts from _1
   GetUniqueName("_");
   GetUniqueName("extern");
   GetUniqueName("void");
@@ -56,7 +57,7 @@ void CodeGenC::ReserveKeywordsAsUnique() {
 void CodeGenC::AddFunction(LoweredFunc f) {
   // clear previous generated state.
   this->InitFuncState(f);
-  // skip the first underscore, so SSA variable starts from _1
+  // reserve keywords
   ReserveKeywordsAsUnique();
   // add to alloc buffer type.
   for (const auto & kv : f->handle_data_type) {

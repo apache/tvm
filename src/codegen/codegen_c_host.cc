@@ -42,8 +42,9 @@ void CodeGenCHost::AddFunction(LoweredFunc f) {
     if (i != 0) stream << ", ";
     if (v.type().is_handle()) {
       auto it = alloc_storage_scope_.find(v.get());
-      if (it != alloc_storage_scope_.end())
+      if (it != alloc_storage_scope_.end()) {
         PrintStorageScope(it->second, stream);
+      }
       stream << ' ';
 
       if (handle_data_type_.count(v.get())) {
