@@ -26,11 +26,8 @@ class RelayNode(NodeBase):
     def astext(self, show_meta_data=True, annotate=None):
         """Get the text format of the expression.
 
-        Returns
-        -------
-        text : str
-            The text format of the expression.
-
+        Parameters
+        ----------
         show_meta_data : bool
             Whether to include meta data section in the text
             if there is meta data.
@@ -44,6 +41,11 @@ class RelayNode(NodeBase):
         meta data section is necessary to fully parse the text format.
         However, it can contain dumps that are big(constat weights),
         so it can be helpful to skip printing the meta data section.
+
+        Returns
+        -------
+        text : str
+            The text format of the expression.
         """
         return _expr.RelayPrint(self, show_meta_data, annotate)
 
