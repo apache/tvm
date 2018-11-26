@@ -86,42 +86,45 @@ inline Tensor expand_dims(const Tensor& x,
 * \return A Tensor whose op member is the transpose operation
 */
 inline Tensor transpose(const Tensor& x,
-                        Array<Expr> axes,
+                        Array<Integer> axes,
                         std::string name = "tensor",
                         std::string tag = kInjective) {
-  if (axes.size() == 0) {
-    axes = Array<Expr>();
+  if (!axes.defined() || axes.size() == 0) {
+    axes = Array<Integer>();
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }
   }
 
-  auto axes_val = GetConstIntValues(axes, "axes");
-  for (size_t i = 0; i < axes_val.size(); ++i) {
-    int axis = axes_val[i];
-    if (axes_val[i] < 0) {
-      axes_val[i] = static_cast<int>(x->shape.size()) + axes_val[i];
+  Array<Expr> new_shape;
+  for (size_t i = 0; i < axes.size(); ++i) {
+    int axis = static_cast<int>(axes[i]->value);
+    int new_axis = axis;
+    if (axis < 0) {
+      new_axis = static_cast<int>(x->shape.size()) + axis;
+      axes.Set(i, new_axis);
     }
-    CHECK((0 <= axes_val[i]) && (axes_val[i] < static_cast<int>(x->shape.size())))
+    CHECK((new_axis >= 0) && (new_axis < static_cast<int>(x->shape.size())))
       << "axis=" << axis << " is invalid for the "
       << static_cast<int>(x->shape.size()) << "-dimensional input tensor";
 
-    CHECK(1 == std::count(std::begin(axes_val), std::end(axes_val), axes_val[i]))
-      << "repeated axis in transpose";
+    for (size_t j = 0; j < axes.size(); ++j) {
+      if (i !=j) {
+        CHECK(new_axis != static_cast<int>(axes[j]->value)) << "repeated axis in transpose";
+      }
+    }
+    new_shape.push_back(x->shape[new_axis]);
   }
 
-  Array<Expr> new_shape;
-  for (size_t i = 0; i < axes_val.size(); ++i) {
-    new_shape.push_back(x->shape[axes_val[i]]);
-  }
   return compute(
     new_shape, [&](const Array<Var>& indices) {
       std::vector<Expr> idx;
-      for (size_t i = 0; i < axes_val.size(); ++i) {
+      for (size_t i = 0; i < axes.size(); ++i) {
         idx.push_back(1);
       }
-      for (size_t i = 0; i < axes_val.size(); ++i) {
-        idx[axes_val[i]] = indices[i];
+      for (size_t i = 0; i < axes.size(); ++i) {
+        int axis = static_cast<int>(axes[i]->value);
+        idx[axis] = indices[i];
       }
       return x(idx);
     }, name, tag);

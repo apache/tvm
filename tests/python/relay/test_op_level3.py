@@ -87,6 +87,22 @@ def test_transpose_infer_type():
     assert yy.checked_type == relay.TensorType(
         (t, n, 100), "float32")
 
+def test_transpose():
+    def verify_transpose(dshape, axes):
+        x = relay.var("x", relay.TensorType(dshape, "float32"))
+        z = relay.transpose(x, axes=axes)
+
+        func = relay.Function([x], z)
+        x_data = np.random.uniform(low=-1, high=1, size=dshape).astype("float32")
+        ref_res = np.transpose(x_data, axes=axes)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_transpose((2, 3, 4), (0, 2, 1))
+
 
 def test_squeeze_infer_type():
     n, t, d = 1, 4, 1
@@ -201,6 +217,35 @@ def test_take_infer_type():
     verify_take((d1, d2), (d3, d4, d5), (d3, d4, d5, d2), 0)
     verify_take((d1, d2), (d3, d4, d5), (d1, d3, d4, d5), 1)
     verify_take((d1, d2, d3, d4), (d5, d6), (d1, d2, d5, d6, d4), -2)
+
+def test_take():
+    def verify_take(src_shape, indices_src, axis=None):
+        src_dtype = "float32"
+        indices_dtype = "int32"
+        indices_src = np.array(indices_src, dtype=indices_dtype)
+        x = relay.var("x", relay.TensorType(src_shape, src_dtype))
+        indices = relay.var("indices", relay.TensorType(indices_src.shape, indices_dtype))
+        z = relay.take(x, indices, axis=axis)
+
+        func = relay.Function([x, indices], z)
+        x_data = np.random.uniform(low=-1, high=1, size=src_shape).astype(src_dtype)
+        ref_res = np.take(x_data, indices=indices_src, axis=axis)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, indices_src)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+
+    verify_take((4,), [1])
+    verify_take((4,), [[0,1,2,3]])
+    verify_take((3,3,3), [[11,25]])
+    verify_take((4,), [[0,1],[2,3]])
+    verify_take((4,), [1], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 0)
+    verify_take((2,2), [[[1,0],[0,1]]], 1)
+    verify_take((4,3,5,6), [[2,1,0,0]], -2)
+
 
 def test_split_infer_type():
     def verify_split(dshape, indices_or_sections, ret_type, axis=None):
@@ -360,11 +405,13 @@ if __name__ == "__main__":
     test_unary_identity()
     test_clip()
     test_transpose_infer_type()
+    test_transpose()
     test_reshape_infer_type()
     test_reshape()
     test_reshape_like_infer_type()
     test_reshape_like()
     test_take_infer_type()
+    test_take()
     test_full()
     test_full_like()
     test_infer_type_leaky_relu()

@@ -874,7 +874,7 @@ Examples::
                     const Array<Tensor>& inputs,
                     const Array<Tensor>& out_info) {
     const TransposeParam& param = nnvm::get<TransposeParam>(attrs.parsed);
-    auto axes = ShapeToArray(param.axes);
+    auto axes = ShapeToIntArray(param.axes);
     return Array<Tensor>{ topi::transpose(inputs[0], axes) };
 })
 .set_attr<FGradient>(
