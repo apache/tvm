@@ -54,3 +54,10 @@ class RelayNode(NodeBase):
 class Span(RelayNode):
     def __init__(self, source, lineno, col_offset):
         self.__init_handle_by_constructor__(_make.Span, source, lineno, col_offset)
+
+
+@register_relay_node
+class Id(NodeBase):
+    """Unique identifier(name) for Var across type checking."""
+    def __init__(self):
+        raise RuntimeError("Cannot directly construct Id")

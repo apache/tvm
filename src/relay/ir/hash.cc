@@ -202,7 +202,8 @@ class RelayHashHandler:
   }
 
   size_t VisitExpr_(const VarNode* var) final {
-    size_t name_hash = std::hash<std::string>()(var->name_hint);
+    // hash free variable
+    size_t name_hash = std::hash<const Node*>()(var->vid.get());
     return Combine(name_hash, TypeHash(var->type_annotation));
   }
 

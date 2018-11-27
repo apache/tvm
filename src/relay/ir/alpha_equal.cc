@@ -241,7 +241,7 @@ class AlphaEqualHandler:
 
   bool VisitExpr_(const VarNode* lhs, const Expr& other) final {
     if (const VarNode* rhs = other.as<VarNode>()) {
-      if (lhs->name_hint != rhs->name_hint) return false;
+      if (lhs->name_hint() != rhs->name_hint()) return false;
       if (!TypeEqual(lhs->type_annotation, rhs->type_annotation)) return false;
       return LeafNodeEqual(GetRef<NodeRef>(lhs), other);
     } else {
