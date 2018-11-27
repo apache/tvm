@@ -13,9 +13,9 @@ from .backend import graph_runtime_codegen as _graph_gen
 # List of optimization pass and level when switch on
 OPT_PASS_LEVEL = {
     "SimplifyInference": 0,
-    "CombineParallelConv2D": 4,
     "OpFusion": 1,
     "FoldConstant": 2,
+    "CombineParallelConv2D": 3,
     "FoldScaleAxis": 3,
 }
 

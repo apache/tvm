@@ -37,7 +37,7 @@ using Group = std::vector<Branch>;
   Intermediate nodes have exactly one successor. It is possible that branches meet at a point,
   which should be handled in ParallelConv2DCombiner.
 
-          data
+         data
         /    \
     conv2d   conv2d
       |        |
@@ -47,17 +47,22 @@ using Group = std::vector<Branch>;
 class BranchGroupFinder : private ExprVisitor {
  public:
   std::vector<Group> Find(const Expr& expr) {
+    static const Op& conv2d = Op::Get("nn.conv2d");
+
     this->VisitExpr(expr);
 
     std::vector<Group> groups;
     for (const auto& root : conv_roots_) {
-      const auto& convs = children_map_.at(root);
-      for (const CallNode* conv : convs) {
-        auto&& branch = CreateBranch(conv);
+      const auto& children = children_map_.at(root);
+      size_t ngroups = groups.size();
+      for (const CallNode* child : children) {
+        if (!child->op.same_as(conv2d)) continue;
+
+        auto&& branch = CreateBranch(child);
         // add the branch to a group, or create a new group
-        auto it = std::find_if(groups.begin(), groups.end(), [&](const Group& group) {
+        auto it = std::find_if(groups.begin() + ngroups, groups.end(), [&](const Group& group) {
           CHECK(!group.empty() && !group[0].empty());
-          return IsCompatibleConv2D(conv, group[0][0]);
+          return IsCompatibleConv2D(child, group[0][0]);
         });
         if (it != groups.end()) {
           it->push_back(branch);
@@ -108,7 +113,7 @@ class BranchGroupFinder : private ExprVisitor {
       const CallNode* call = it->second[0];
       auto pattern = fpattern[Downcast<Op>(call->op)];
       if (pattern <= kBroadcast) {
-        branch.push_back(it->second[0]);
+        branch.push_back(call);
         it = children_map_.find(GetRef<Expr>(branch.back()));
       } else {
         break;
