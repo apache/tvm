@@ -64,7 +64,7 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
               << node->col_offset << ")";
   });
 
+TVM_REGISTER_NODE_TYPE(IdNode);
+
 }  // namespace relay
 }  // namespace tvm
-
-

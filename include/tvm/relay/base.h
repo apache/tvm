@@ -165,6 +165,34 @@ class RelayNode : public Node {
   TVM_DECLARE_BASE_NODE_INFO(RelayNode, Node);
 };
 
+/*!
+ * \brief The unique identifier of variables.
+ *
+ * Id is like name to the variables,
+ * except that id is unique for each Var.
+ *
+ * \note Do not create Id directly, they are created in Var.
+ */
+class IdNode : public Node {
+ public:
+  /*!
+   * \brief The name of the variable,
+   *  this only acts as a hint to the user,
+   *  and is not used for equality.
+   */
+  std::string name_hint;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("name_hint", &name_hint);
+  }
+
+  static constexpr const char* _type_key = "relay.Id";
+  TVM_DECLARE_NODE_TYPE_INFO(IdNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(Id, IdNode, NodeRef);
+
+
 struct Module;
 
 }  // namespace relay
