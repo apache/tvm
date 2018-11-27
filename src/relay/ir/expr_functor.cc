@@ -30,7 +30,7 @@ Expr ExprMutator::VisitExpr_(const VarNode* op) {
   if (op->type_annotation.defined()) {
     auto type = this->VisitType(op->type_annotation);
     if (!op->type_annotation.same_as(type)) {
-      return VarNode::make(op->name_hint, type);
+      return VarNode::make(op->vid, type);
     }
   }
   // default case return self.

@@ -690,7 +690,7 @@ class TextPrinter :
    * \return The corresponding name.
    */
   TextValue AllocVarName(const Var& var) {
-    std::string name = var->name_hint;
+    std::string name = var->name_hint();
     // always make sure first name is alpha
     if (name.length() != 0 && !std::isalpha(name[0])) {
       name = "%v" + name;

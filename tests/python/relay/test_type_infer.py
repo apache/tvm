@@ -141,6 +141,7 @@ def test_free_expr():
     y = relay.add(x, x)
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.scalar_type("float32")
+    assert x.vid.same_as(yy.args[0].vid)
 
 
 def test_type_args():

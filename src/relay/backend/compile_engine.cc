@@ -99,7 +99,7 @@ class ScheduleGetter :
   }
 
   Array<Tensor> VisitExpr_(const VarNode* op) final {
-    LOG(FATAL) << "Free variable " << op->name_hint;
+    LOG(FATAL) << "Free variable " << op->name_hint();
     return {};
   }
 
