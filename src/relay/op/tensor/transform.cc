@@ -9,6 +9,8 @@
 #include <tvm/ir.h>
 #include <topi/transform.h>
 #include <topi/elemwise.h>
+#include <topi/broadcast.h>
+#include <topi/reduction.h>
 #include <vector>
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
@@ -1008,6 +1010,15 @@ Expr MakeCollapseSumLike(Expr data,
   return CallNode::make(op, {data, collapse_type}, Attrs(), {});
 }
 
+Array<Tensor> CollapseSumLikeCompute(const Attrs& attrs,
+                                     const Array<Tensor>& inputs,
+                                     const Type& out_type,
+                                     const Target& target) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  CHECK(out_ttype != nullptr);
+  return { topi::collapse_sum(inputs[0], out_ttype->shape) };
+}
+
 TVM_REGISTER_API("relay.op._make.collapse_sum_like")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 2>(MakeCollapseSumLike, args, rv);
@@ -1020,7 +1031,9 @@ RELAY_REGISTER_OP("collapse_sum_like")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("collapse_type", "Tensor", "Provide the type to collapse to.")
 .set_support_level(10)
-.add_type_rel("CollapseSumLike", CollapseSumLikeRel);
+.add_type_rel("CollapseSumLike", CollapseSumLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", CollapseSumLikeCompute)
+.set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
 // BroadCastToLike: <A, B> -> B where BroadCast(A, B) = B
 bool BroadCastToLikeRel(const Array<Type>& types,
@@ -1038,6 +1051,15 @@ Expr MakeBroadCastToLike(Expr data,
   return CallNode::make(op, {data, broadcast_type}, Attrs(), {});
 }
 
+Array<Tensor> BroadCastToLikeCompute(const Attrs& attrs,
+                                     const Array<Tensor>& inputs,
+                                     const Type& out_type,
+                                     const Target& target) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  CHECK(out_ttype != nullptr);
+  return { topi::broadcast_to(inputs[0], out_ttype->shape) };
+}
+
 TVM_REGISTER_API("relay.op._make.broadcast_to_like")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 2>(MakeBroadCastToLike, args, rv);
@@ -1050,7 +1072,9 @@ RELAY_REGISTER_OP("broadcast_to_like")
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("broadcast_type", "Tensor", "Provide the type to broadcast to.")
 .set_support_level(10)
-.add_type_rel("BroadCastToLike", BroadCastToLikeRel);
+.add_type_rel("BroadCastToLike", BroadCastToLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", BroadCastToLikeCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 
 // strided_slice

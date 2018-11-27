@@ -6,19 +6,44 @@ from tvm import relay
 from tvm.relay.testing import ctx_list
 
 def test_collapse_sum_like():
-    x = relay.Var("x", relay.ty.TensorType((3, 4, 5, 6), "int8"))
-    y = relay.Var("y", relay.ty.TensorType((4, 1, 6), "int8"))
+    shape = (3, 4, 5, 6)
+    shape_like = (4, 5, 6)
+    dtype = "float32"
+    x = relay.Var("x", relay.ty.TensorType(shape , dtype))
+    y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
     z = relay.collapse_sum_like(x, y)
     zz = relay.ir_pass.infer_type(z)
-    assert zz.checked_type == relay.ty.TensorType((4, 1, 6), "int8")
+    assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
 
+    func = relay.Function([x, y], z)
+    x = np.random.uniform(size=shape).astype(dtype)
+    y = np.random.uniform(size=shape_like).astype(dtype)
+    ref_res = np.sum(x, 0)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x, y)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 def test_broadcast_to_like():
-    x = relay.Var("x", relay.ty.TensorType((3, 4, 5, 6), "int8"))
-    y = relay.Var("y", relay.ty.TensorType((4, 1, 6), "int8"))
-    z = relay.broadcast_to_like(y, x)
+    shape = (4, 1, 6)
+    shape_like = (3, 4, 5, 6)
+    dtype = "float32"
+    x = relay.Var("x", relay.ty.TensorType(shape , dtype))
+    y = relay.Var("y", relay.ty.TensorType(shape_like, dtype))
+    z = relay.broadcast_to_like(x, y)
     zz = relay.ir_pass.infer_type(z)
-    assert zz.checked_type == relay.ty.TensorType((3, 4, 5, 6), "int8")
+    assert zz.checked_type == relay.ty.TensorType(shape_like, dtype)
+
+    func = relay.Function([x, y], z)
+    x = np.random.uniform(size=shape).astype(dtype)
+    y = np.random.uniform(size=shape_like).astype(dtype)
+    ref_res = np.broadcast_to(x, shape_like)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(x, y)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 def np_slice_like(np_data, np_shape_like, axis=None):
