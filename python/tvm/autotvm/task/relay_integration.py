@@ -47,7 +47,7 @@ def deserialize_args(args):
     return ret
 
 
-# Task extractor for relay program 
+# Task extractor for relay program
 class TaskExtractEnv:
     """Global environment for extracting tuning tasks from relay program"""
     current = None
@@ -60,7 +60,7 @@ class TaskExtractEnv:
         # relay op -> topi compute
         self.op2topi = {
             relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
-                              topi.nn.group_conv2d_nchw],
+                                 topi.nn.group_conv2d_nchw],
             relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
             relay.op.nn.dense: [topi.nn.dense],
         }
