@@ -247,7 +247,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
         if op_name in env.op2topi:
             topi_funcs.extend(env.op2topi[op_name])
         else:
-            warnings.warn("Symbol %s is not tunable, ignored" % op_name)
+            warnings.warn("Op %s is not tunable, ignored" % op_name)
 
     # run compiler to collect all TOPI calls during compilation
     env.reset(topi_funcs)
@@ -300,11 +300,11 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     env = TaskExtractEnv.get()
 
     topi_funcs = []
-    for sym_name in symbols:
-        if sym_name in env.symbol2topi:
-            topi_funcs.extend(env.symbol2topi[sym_name])
+    for op_name in ops:
+        if op_name in env.op2topi:
+            topi_funcs.extend(env.op2topi[op_name])
         else:
-            warnings.warn("Symbol %s is not tunable, ignored" % sym_name)
+            warnings.warn("Op %s is not tunable, ignored" % op_name)
 
     # run compiler to collect all TOPI calls during compilation
     env.reset(topi_funcs)
