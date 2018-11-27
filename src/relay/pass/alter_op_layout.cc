@@ -116,15 +116,23 @@ RELAY_DEFINE_NODE_REF(LayoutAlternatedExpr, LayoutAlternatedExprNode, TempExpr);
 // Return inferred_input_layout, inferred_output_layout, success
 std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
     const Call& call,
-    const Array<Layout>& inputs) {
+    const Array<Layout>& in_layouts,
+    const Array<Array<IndexExpr>>& in_shapes) {
   static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
 
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {
     Array<Array<Layout> > inferred_layouts;
-    inferred_layouts = finfer_layout[op](call->attrs, inputs);
+    inferred_layouts = finfer_layout[op](call->attrs, in_layouts, in_shapes);
     CHECK_EQ(inferred_layouts.size(), 2)
       << "FInferCorrectLayout should return an array with size of 2";
+    for (auto x : inferred_layouts) {
+      for (auto y : x) {
+        if (!y.defined()) {  // inference fails
+          return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
+        }
+      }
+    }
     return std::make_tuple<>(inferred_layouts[0], inferred_layouts[1], true);
   } else {
     return std::make_tuple<>(Array<Layout>(nullptr), Array<Layout>(nullptr), false);
@@ -167,6 +175,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
                           const NodeRef& ctx) {
   std::vector<LayoutAlternatedExpr> inputs;
   std::vector<Expr> normal_new_args;
+  Array<Array<IndexExpr>> input_shapes;
 
   // NOTE: discard the "const" qualifier
   TransformMemorizer memorizer = Downcast<TransformMemorizer>(ctx);
@@ -192,9 +201,13 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
     new_in.push_back(inp->new_layout);
   }
 
+  for (auto arg : ref_call->args) {
+    input_shapes.push_back(arg->type_as<TensorTypeNode>()->shape);
+  }
+
   // old_in, old_out = op.infer(old_in)
   bool success = false;
-  std::tie(old_in, old_out, success) = CallInfer(ref_call, old_in);
+  std::tie(old_in, old_out, success) = CallInfer(ref_call, old_in, input_shapes);
   if (!success) { return Expr(nullptr); }
   CHECK_EQ(old_in.size(), new_in.size());
 
@@ -211,7 +224,12 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->is_type<OpNode>()) {
     success = false;
-    std::tie(new_in2, new_out, success) = CallInfer(new_call, new_in);
+    for (size_t i = 0; i < input_shapes.size(); ++i) {
+      if (old_in.defined()) {
+        input_shapes.Set(i, ConvertLayout(input_shapes[i], old_in[i], new_in[i]));
+      }
+    }
+    std::tie(new_in2, new_out, success) = CallInfer(new_call, new_in, input_shapes);
     if (!success) { return Expr(nullptr); }
   } else {
     return Expr(nullptr);

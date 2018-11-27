@@ -105,7 +105,8 @@ bool Conv2DRel(const Array<Type>& types,
 
 template<typename T>
 Array<Array<Layout> > Conv2DInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& in_layouts) {
+                                               const Array<Layout>& in_layouts,
+                                               const Array<Array<IndexExpr>> &in_shapes) {
   const T* params = attrs.as<T>();
   Layout out_layout(params->out_layout);
 

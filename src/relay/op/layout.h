@@ -185,7 +185,7 @@ class Layout : public NodeRef {
         CHECK_GT(block_size, 0);
         new_layout << block_size;
       }
-      new_layout << layout_simplified[i]->value;
+      new_layout << static_cast<char>(layout_simplified[i]->value);
     }
     return Layout(new_layout.str());
   }
@@ -239,6 +239,16 @@ class Layout : public NodeRef {
   /*! \return number of dimensions */
   size_t ndim() const {
     return operator->()->layout_simplified.size();
+  }
+
+  /*! \return number of super dimension */
+  size_t ndim_super() const {
+    size_t ct = 0;
+    for (auto x : operator->()->layout_simplified) {
+      if (IsSuperdim(x))
+        ct++;
+    }
+    return ct;
   }
 
   /*!

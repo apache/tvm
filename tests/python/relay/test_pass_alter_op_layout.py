@@ -108,7 +108,7 @@ def test_alter_layout():
                             weight_layout="OIHW16i",
                             data_layout="NCHW16c")
         b = relay.expand_dims(bias, axis=1, num_newaxis=2)
-        b = relay.layout_transform(b, "NCHW", "NCHW16c")
+        b = relay.layout_transform(b, "CHW", "CHW16c")
         y = relay.add(y, b)
 
         y = relay.nn.relu(y)
@@ -255,9 +255,62 @@ def test_alter_layout_resnet():
 
     assert(alpha_equal(a, b))
 
+
+def test_alter_layout_broadcast_op():
+    """Test boradcast operators """
+    def before():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        bias = relay.var("bias", shape=(64,))
+        scale = relay.var("scale", shape=(64, 1, 1))
+        weight = relay.var("weight")
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1))
+        y = relay.nn.bias_add(y, bias) # test broadcasting to lhs
+        y = relay.multiply(scale, y)         # test broadcasting to rhs
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    @register_alter_op_layout("nn.conv2d", level=102)
+    def alter_conv2d(attrs, inputs, tinfos):
+        data, weight = inputs
+        new_attrs = dict(attrs)
+        new_attrs['data_layout'] = 'NCHW16c'
+        return relay.nn.conv2d(data, weight, **new_attrs)
+
+    def expected():
+        x = relay.var("x", shape=(1, 64, 56, 56))
+        bias = relay.var("bias", shape=(64,))
+        scale = relay.var("scale", shape=(64, 1, 1))
+        weight = relay.var("weight")
+        x = relay.layout_transform(x, "NCHW", "NCHW16c")
+        bias = relay.expand_dims(bias, 1, 2)
+        bias = relay.layout_transform(bias, "CHW", "CHW16c")
+        scale = relay.layout_transform(scale, "CHW", "CHW16c")
+        y = relay.nn.conv2d(x, weight, channels=64, kernel_size=(3, 3), padding=(1, 1),
+                            data_layout="NCHW16c")
+        y = relay.add(y, bias)          # test broadcasting to lhs
+        y = relay.multiply(scale, y)      # test broadcasting to rhs
+        y = relay.layout_transform(y, "NCHW16c", "NCHW")
+        y = relay.Function(free_vars(y), y)
+        return y
+
+    a = before()
+    a = infer_type(a)
+    a = simplify_bias_add(a)
+    a = infer_type(a)
+    a = alter_op_layout(a)
+    a = infer_type(a)
+
+    b = expected()
+    b = infer_type(b)
+
+    assert(alpha_equal(a, b))
+
+
 if __name__ == "__main__":
     test_alter_op()
     test_alter_return_none()
     test_alter_layout()
     test_alter_layout_dual_path()
     test_alter_layout_resnet()
+    test_alter_layout_broadcast_op()
+

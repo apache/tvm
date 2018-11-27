@@ -1518,30 +1518,6 @@ RELAY_REGISTER_OP("slice_like")
 
 
 // relay.layout_transform
-std::pair<Layout, Layout> RemoveLeadingReduandantDimensions(
-    const Layout &src_layout, const Layout &dst_layout, size_t keep_size) {
-  // For example, when broadcasting (1, 64, 16, 16) with (64, 1, 1),
-  // we can still apply rule `NCHW -> NCHW16c` to the right tensor,
-  // by deleting the leading redundant dimension "N" and apply normal "CHW -> CHW16c".
-  CHECK_GE(src_layout.ndim(), keep_size)
-    << "Apply a " << src_layout.ndim() << "-dimensional rule " << src_layout
-    << " to " << keep_size << "-dimensional tensor";
-  int n_remove = src_layout.ndim() - keep_size;
-  CHECK_GT(dst_layout.ndim(), n_remove);
-  for (int i = 0; i < n_remove; ++i) {
-    CHECK_EQ(src_layout[i], dst_layout[i])
-      << "Can only delete the same dimension during layout transform";
-    CHECK(Layout::IsSuperdim(src_layout[i]))
-      << "Can only delete a super dimension during layout transform";
-    CHECK_EQ(src_layout.Subsizeof(src_layout[i]), -1)
-      << "Cannot delete a layout dimension with sub_dimension > 0";
-    CHECK_EQ(dst_layout.Subsizeof(dst_layout[i]), -1)
-      << "Cannot delete a layout dimension with sub_dimension > 0";
-  }
-  return std::make_pair(Layout(src_layout.name().substr(n_remove)),
-                        Layout(dst_layout.name().substr(n_remove)));
-}
-
 Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
@@ -1560,9 +1536,6 @@ Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
     << "cannot convert from/to undefined layout";
   CHECK(src_layout.Convertible(dst_layout))
     << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
-
-  std::tie(src_layout, dst_layout) = RemoveLeadingReduandantDimensions(
-      src_layout, dst_layout, inputs[0]->shape.size());
 
   const auto& out_shape = ConvertLayout(inputs[0]->shape, src_layout, dst_layout);
   return Array<Tensor> {
@@ -1607,8 +1580,6 @@ bool LayoutTransformRel(const Array<Type>& types,
     << "cannot convert from/to undefined layout";
   CHECK(src_layout.Convertible(dst_layout))
     << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
-  std::tie(src_layout, dst_layout) = RemoveLeadingReduandantDimensions(
-      src_layout, dst_layout, data->shape.size());
 
   const auto& out_shape = ConvertLayout(data->shape, src_layout, dst_layout);
   reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));

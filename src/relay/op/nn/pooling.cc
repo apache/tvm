@@ -21,7 +21,8 @@ TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 template <typename T>
 Array<Array<Layout> > Pool2DInferCorrectLayout(
     const Attrs& attrs,
-    const Array<Layout>& in_layouts) {
+    const Array<Layout>& in_layouts,
+    const Array<Array<IndexExpr>> &in_shapes) {
   CHECK_EQ(in_layouts.size(), 1);
 
   // NOTE: Discard "const" qualifier here.

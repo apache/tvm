@@ -1,5 +1,5 @@
 """Backend compiler related feature registration"""
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,unused-argument
 from __future__ import absolute_import
 import topi
 from . import op as _reg
@@ -11,6 +11,7 @@ schedule_broadcast = _reg.schedule_injective
 
 _reg.register_schedule("collapse_sum_like", _schedule_reduce)
 _reg.register_schedule("broadcast_to_like", schedule_broadcast)
+_reg.register_schedule("squeeze", schedule_injective)
 _reg.register_schedule("expand_dims", schedule_broadcast)
 _reg.register_schedule("squeeze", schedule_injective)
 _reg.register_schedule("reshape", schedule_injective)
