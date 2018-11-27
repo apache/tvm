@@ -11,7 +11,8 @@ def test_combine_parallel_conv2d():
         # y3 cannot be combined
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.nn.conv2d(x, w4)
-        y = relay.Tuple((y1, y2, y3, y4))
+        y5 = relay.nn.max_pool2d(x)
+        y = relay.Tuple((y1, y2, y3, y4, y5))
         return relay.Function(args, y)
 
     def expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4):
@@ -24,7 +25,8 @@ def test_combine_parallel_conv2d():
         y3 = relay.nn.conv2d(x, w3)
         y4 = relay.strided_slice(y, [0, channels1 + channels2],
                                  [None, channels1 + channels2 + channels4])
-        y = relay.Tuple((y1, y2, y3, y4))
+        y5 = relay.nn.max_pool2d(x)
+        y = relay.Tuple((y1, y2, y3, y4, y5))
         return relay.Function(args, y)
 
     def check(x_shape, channels1, channels2, channels3, channels4):
