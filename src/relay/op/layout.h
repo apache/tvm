@@ -241,7 +241,7 @@ class Layout : public NodeRef {
     return operator->()->layout_simplified.size();
   }
 
-  /*! \return number of super dimension */
+  /*! \return number of super dimensions */
   size_t ndim_super() const {
     size_t ct = 0;
     for (auto x : operator->()->layout_simplified) {
