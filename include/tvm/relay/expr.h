@@ -124,18 +124,22 @@ RELAY_DEFINE_NODE_REF(Tuple, TupleNode, Expr);
  * Its semantics are similar to tvm.Var node used in TVM's low level
  * tensor expression language.
  *
- * \note Each Var is bind only once and is immutable/
+ * \note Each Var is bind only once and is immutable.
  */
 class Var;
 /*! \brief Container for Var */
 class VarNode : public ExprNode {
  public:
   /*!
-   * \brief The name of the variable,
-   *  this only acts as a hint to the user,
-   *  and is not used for equality.
+   * \brief The unique identifier of the Var.
+   *
+   * vid will be preserved for the same Var during type inference
+   * and other rewritings, while the VarNode might be recreated
+   * to attach additional information.
+   * This property can be used to keep track of parameter Var
+   * information across passes.
    */
-  std::string name_hint;
+  Id vid;
   /*!
    * \brief type annotaion of the variable.
    * This field records user provided type annotation of the Var.
@@ -143,14 +147,22 @@ class VarNode : public ExprNode {
    */
   Type type_annotation;
 
+  /*! \return The name hint of the variable */
+  const std::string& name_hint() const {
+    return vid->name_hint;
+  }
+
   void VisitAttrs(tvm::AttrVisitor* v) final {
-    v->Visit("name_hint", &name_hint);
+    v->Visit("vid", &vid);
     v->Visit("type_annotation", &type_annotation);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
   }
 
   TVM_DLL static Var make(std::string name_hint,
+                          Type type_annotation);
+
+  TVM_DLL static Var make(Id vid,
                           Type type_annotation);
 
   static constexpr const char* _type_key = "relay.Var";

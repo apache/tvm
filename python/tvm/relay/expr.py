@@ -166,6 +166,12 @@ class Var(Expr):
         self.__init_handle_by_constructor__(
             _make.Var, name_hint, type_annotation)
 
+    @property
+    def name_hint(self):
+        """Get name hint of the current var."""
+        name = self.vid.name_hint
+        return name
+
 
 @register_relay_node
 class GlobalVar(Expr):

@@ -63,23 +63,30 @@ TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
     p->stream << "Tuple(" << node->fields << ")";
   });
 
-Var VarNode::make(std::string name_hint, Type type_annotation) {
+
+Var VarNode::make(Id vid, Type type_annotation) {
   NodePtr<VarNode> n = make_node<VarNode>();
-  n->name_hint = std::move(name_hint);
+  n->vid = std::move(vid);
   n->type_annotation = std::move(type_annotation);
   return Var(n);
+}
+
+Var VarNode::make(std::string name_hint, Type type_annotation) {
+  NodePtr<IdNode> n = make_node<IdNode>();
+  n->name_hint = std::move(name_hint);
+  return VarNode::make(Id(n), type_annotation);
 }
 
 TVM_REGISTER_NODE_TYPE(VarNode);
 
 TVM_REGISTER_API("relay._make.Var")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-    *ret = VarNode::make(args[0], args[1]);
+    *ret = VarNode::make(args[0].operator std::string(), args[1]);
   });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
 .set_dispatch<VarNode>([](const VarNode* node, tvm::IRPrinter* p) {
-    p->stream << "Var(" << node->name_hint;
+    p->stream << "Var(" << node->name_hint();
     if (node->type_annotation.defined()) {
       p->stream << ", ty=";
       p->print(node->type_annotation);
