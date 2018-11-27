@@ -673,6 +673,14 @@ bool FullRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> FullCompute(const Attrs& attrs,
+                          const Array<Tensor>& inputs,
+                          const Type& out_type,
+                          const Target& target) {
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return { topi::full(out_ttype->shape, out_ttype->dtype, inputs[0]()) };
+}
+
 Expr MakeFull(Expr fill_value,
               Array<IndexExpr> shape,
               DataType dtype) {
@@ -696,7 +704,9 @@ RELAY_REGISTER_OP("full")
 .set_num_inputs(1)
 .add_argument("fill_value", "double", "The value to fill.")
 .set_support_level(3)
-.add_type_rel("Full", FullRel);
+.add_type_rel("Full", FullRel)
+.set_attr<FTVMCompute>("FTVMCompute", FullCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise);
 
 bool InitOpRel(const Array<Type>& types,
                int num_inputs,
@@ -777,6 +787,13 @@ bool FullLikeRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> FullLikeCompute(const Attrs& attrs,
+                              const Array<Tensor>& inputs,
+                              const Type& out_type,
+                              const Target& target) {
+  return { topi::full_like(inputs[0], inputs[1]()) };
+}
+
 Expr MakeFullLike(Expr data,
                   Expr fill_value) {
   static const Op& op = Op::Get("full_like");
@@ -797,7 +814,9 @@ and type as the input array.
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("fill_value", "double", "Scalar value to fill.")
 .set_support_level(3)
-.add_type_rel("FullLike", FullLikeRel);
+.add_type_rel("FullLike", FullLikeRel)
+.set_attr<FTVMCompute>("FTVMCompute", FullLikeCompute)
+.set_attr<TOpPattern>("TOpPattern", kElemWise);
 
 // where operator
 bool WhereRel(const Array<Type>& types,

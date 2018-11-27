@@ -293,7 +293,7 @@ def test_split_infer_type():
                      relay.ty.TensorType((d1, (d2-7), d3, d4), "float32")])),
                   axis=1)
 
-def test_full():
+def test_full_infer_type():
     # default settings: match input dtype
     x = relay.var("x", relay.TensorType((), "int8"))
     y = relay.full(x, ())
@@ -308,7 +308,22 @@ def test_full():
     assert yy.checked_type == relay.TensorType((1, 2), "int8")
 
 
-def test_full_like():
+def test_full():
+    def verify_full(fill_value, src_shape, dtype):
+        x = relay.var("x", relay.scalar_type(dtype))
+        z = relay.full(x, src_shape, dtype)
+        func = relay.Function([x], z)
+        ref_res = np.full(src_shape, fill_value)
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(fill_value)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_full(4, (1, 3, 4, 4), "int32")
+    verify_full(4.0, (1, 4), "float32")
+
+
+def test_full_like_infer_type():
     # concrete shape
     base = relay.var("base", relay.TensorType((1, 2, 3), "float32"))
     fill = relay.var("fill", relay.TensorType((), "float32"))
@@ -323,6 +338,26 @@ def test_full_like():
     y = relay.full_like(base, fill)
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType((n, c, h, w), "float32")
+
+
+def test_full_like():
+    def verify_full_like(base, fill_value, dtype):
+        x_data = np.random.uniform(low=-1, high=1, size=base).astype(dtype)
+        x = relay.var("x", relay.TensorType(base, dtype))
+        y = relay.var("y", relay.scalar_type(dtype))
+        z = relay.full_like(x, y)
+
+        func = relay.Function([x, y], z)
+        ref_res = np.full_like(x_data, fill_value)
+
+        for target, ctx in ctx_list():
+            for kind in ["graph", "debug"]:
+                intrp = relay.create_executor(kind, ctx=ctx, target=target)
+                op_res = intrp.evaluate(func)(x_data, fill_value)
+                tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
+    verify_full_like((1, 3, 4, 4), 4, "int32")
+    verify_full_like((1, 1), 44.0, "float32")
+
 
 def test_infer_type_leaky_relu():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
@@ -412,7 +447,9 @@ if __name__ == "__main__":
     test_reshape_like()
     test_take_infer_type()
     test_take()
+    test_full_infer_type()
     test_full()
+    test_full_like_infer_type()
     test_full_like()
     test_infer_type_leaky_relu()
     test_infer_type_prelu()
