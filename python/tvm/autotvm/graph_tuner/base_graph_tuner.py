@@ -90,7 +90,7 @@ class BaseGraphTuner(object):
                element-wise like node is required as well.
 
             Arguments for this function should be (wkl, current_sch, target_sch,
-            batch_size, is_elemlike, elemlike_shape), and it should return input_shape,
+            batch_size, elemlike_shape), and it should return input_shape,
             output_shape and is_valid. Check utils.infer_layout_shape_avx for reference
             implementation.
 
