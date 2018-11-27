@@ -12,7 +12,7 @@ from ..rpc.proxy import Proxy
 
 def find_example_resource():
     """Find resource examples."""
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     base_path = os.path.join(curr_path, "../../../")
     index_page = os.path.join(base_path, "web/example_rpc.html")
     js_files = [
