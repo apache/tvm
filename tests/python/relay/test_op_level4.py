@@ -108,11 +108,9 @@ def test_where():
     assert zz.checked_type == relay.TensorType(shape, dtype)
 
     func = relay.Function([cond, x, y], z)
-
     condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
     x = np.random.uniform(size=shape).astype(dtype)
     y = np.random.uniform(size=shape).astype(dtype)
-
     ref_res = np.where(condition, x, y)
     for target, ctx in ctx_list():
         for kind in ["graph", "debug"]:

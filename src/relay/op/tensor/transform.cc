@@ -861,7 +861,7 @@ Array<Tensor> WhereCompute(const Attrs& attrs,
                            const Array<Tensor>& inputs,
                            const Type& out_type,
                            const Target& target) {
-  return Array<Tensor>{ topi::where(inputs[0], inputs[1], inputs[2]) };
+  return { topi::where(inputs[0], inputs[1], inputs[2]) };
 }
 
 TVM_REGISTER_API("relay.op._make.where")
