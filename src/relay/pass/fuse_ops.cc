@@ -744,7 +744,8 @@ class FuseMutator : private ExprMutator {
     return TupleNode::make(new_fields);
   }
 
-  Array<Expr> GetNewArguments(const tvm::Array<Expr>& args, GraphPartitioner::Group* current_group) {
+  Array<Expr> GetNewArguments(const tvm::Array<Expr>& args,
+                              GraphPartitioner::Group* current_group) {
     Array<Expr> new_args;
     for (auto arg : args) {
       auto* arg_group = gmap_.at(arg.get())->FindRoot();
