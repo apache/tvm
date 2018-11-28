@@ -3,8 +3,6 @@ Introduction to Relay IR
 This article introduces Relay IR -- the second generation of NNVM.
 We expect readers from two kinds of background -- those who have a programming language background and deep learning
 framework developers who are familiar with the computational graph representation.
-This article is mainly written for deep learning framework developers who are familiar with the computational graph representation.
-It can also be useful for PL background readers to understand the additional rationale of the deep learning framework builders.
 
 We briefly summarize the design goal here, and will touch upon these points in the later part of the article.
 
@@ -15,7 +13,7 @@ We briefly summarize the design goal here, and will touch upon these points in t
 Build Computational Graph with Relay
 ------------------------------------
 Traditional deep learning frameworks use computational graphs as their intermediate representation.
-A computational graph (or data-flow graph), is a directed acyclic graph (DAG) that represent the computation.
+A computational graph (or data-flow graph), is a directed acyclic graph (DAG) that represents the computation.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow.png
     :align: center
@@ -26,12 +24,12 @@ You can use Relay to build a computational(dataflow) graph. Specifically, the ab
 construct a simple two-node graph. You can find that the syntax of the example is not that different from existing
 computational graph IR like NNVMv1, with the only difference in terms of terminology:
 
-- Existing frameworks usually uses graph and subgraph
+- Existing frameworks usually use graph and subgraph
 - Relay uses function e.g. --  ``fn (%x)``, to indicate the graph
 
 Each data-flow node is a CallNode in Relay. The relay python DSL allows you to construct a data-flow quickly.
 One thing we want to highlight in the above code -- is that we explicitly constructed an Add node with
-both input points to ``%1``.  When a deep learning framework evaluates the above program, it will compute
+both input point to ``%1``.  When a deep learning framework evaluates the above program, it will compute
 the nodes in topological order, and ``%1`` will only be computed once.
 While the this fact is very natural to deep learning framework builders, it is something that might
 surprise a PL folk in the first place.  If we implement a simple visitor to print out the result and
@@ -68,7 +66,7 @@ shows an example of a function calling another function.
 The Module can be viewed as a ``Map<GlobalVar, Function>``. Here GlobalVar is just an id that is used to represent the functions
 in the module. ``@muladd`` and ``@myfunc`` are GlobalVars in the above example. When a CallNode is used to call another function,
 the corresponding GlobalVar is stored in the op field of the CallNode. It contains a level of indirection -- we need to look up
-body of the called function from the modele using the corresponding GlobalVar. In this particular case, we could also directly
+body of the called function from the module using the corresponding GlobalVar. In this particular case, we could also directly
 store the reference to the Function as op in the CallNode. So, why do we need to introduce GlobalVar? The main reason is that
 GlobalVar decouples the definition/declaration and enables recursion and delayed declaration of the function.
 
@@ -125,7 +123,7 @@ affect the compiler code we are going to write. For example, if we want to detec
 
 Different data structures will impact how you might write transformations, and we need to keep that in mind.
 So now, as a deep learning framework developer, you might ask, why do we need let-binding.
-Yours PL friends will always tell you that let is important -- as PL is a quite established field,
+Your PL friends will always tell you that let is important -- as PL is a quite established field,
 there must be some wisdom behind that.
 
 
@@ -156,7 +154,7 @@ We don’t know where should we compute ``%1``. It can either be outside the clo
   }
 
 Let binding solves this problem, as the computation of the value happens at the let node. In both programs,
-if we change ``%1 = log(%x)`` to ``let %v1 = log(%x)``, we clearly specifies the computation location to
+if we change ``%1 = log(%x)`` to ``let %v1 = log(%x)``, we clearly specify the computation location to
 be outside of the if scope and closure. As you can see let-binding gives a more precise specification of the computation site
 and could be useful when we generate backend code(as such specification is in the IR).
 
@@ -164,7 +162,7 @@ On the other hand, the data-flow form, which does not specify the scope of compu
 -- we don’t need to worry about where to put the let when we generate the code. The dataflow form also gives more freedom
 to the later passes to decide where to put the evaluation point. As a result, it might not be a bad idea to use data flow
 form of the program in the initial phases of optimizations when you find it is convenient.
-As a matter of fact, many optimizations in relay today are written to optimize dataflow programs.
+As a matter of fact, many optimizations in Relay today are written to optimize dataflow programs.
 
 However, when we lower the IR to actual runtime program, we need to be precise about the scope of computation.
 In particular, we want to explicitly specify where the scope of computation should happen when we are using
@@ -182,7 +180,7 @@ Relay choose to support both the data-flow form and let binding. We believe that
 framework developer choose the representation they are familiar with.
 This does, however, have some implications on how we write passes:
 
-- If you come from a data-flow background and want to handle let, keep a map of var to the expressions so you can perform lookup when encountering a var. This is a likely means a minimum change as we already need a map from expr-> transformed expression anyway. Note that this will effectively remove all the let in the program.
+- If you come from a data-flow background and want to handle let, keep a map of var to the expressions so you can perform lookup when encountering a var. This likely means a minimum change as we already need a map from expr-> transformed expression anyway. Note that this will effectively remove all the let in the program.
 - If you come from a PL background and like A-normal form, we will provide a dataflow -> A-normal form pass.
 - For PL folks, when you are implementing something (like dataflow->ANF transformation), be mindful that the expression can be DAG, and this usually means that we should visit expressions with a ``Map<Expr, Result>`` and only compute the transformed result once, so the result expression keeps the common structure.
 
