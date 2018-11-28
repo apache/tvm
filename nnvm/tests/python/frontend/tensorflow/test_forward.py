@@ -249,6 +249,49 @@ def test_forward_convolution():
     _test_convolution([4, 17, 17, 12], [3, 3, 12, 32], [1, 1], [2, 2], 'VALID', 'NHWC')
 
 #######################################################################
+# Separable Convolution
+# ---------------------
+
+def _test_sep_convolution(tensor_in_sizes, dwfilter_size, pwfilter_size,
+                         dilations, strides, padding, data_format):
+    """ One iteration of separable convolution with given shapes and attributes """
+
+    total_size_1 = 1
+    total_size_2 = 1
+    total_size_3 = 1
+    for s in tensor_in_sizes:
+        total_size_1 *= s
+    for s in dwfilter_size:
+        total_size_2 *= s
+    for s in pwfilter_size:
+        total_size_3 *= s
+    # Initializes the input tensor with array containing incrementing
+    # numbers from 1.
+    data_array = [f * 1.0 for f in range(1, total_size_1 + 1)]
+    dwfilter_array = [f * 1.0 for f in range(1, total_size_2 + 1)]
+    pwfilter_array = [f * 1.0 for f in range(1, total_size_3 + 1)]
+
+    with tf.Graph().as_default():
+        in_data = array_ops.placeholder(shape=tensor_in_sizes, dtype='float32')
+        dw_filter = constant_op.constant(dwfilter_array, shape=dwfilter_size, dtype='float32')
+        pw_filter = constant_op.constant(pwfilter_array, shape=pwfilter_size, dtype='float32')
+        strides = [1] + strides + [1]
+        dilations = [1] + dilations + [1]
+
+        nn.separable_conv2d(in_data,
+                      dw_filter,
+                      pw_filter,
+                      strides=strides,
+                      padding=padding,
+                      data_format=data_format)
+
+        compare_tf_with_tvm(np.reshape(data_array, tensor_in_sizes).astype('float32'),
+                            'Placeholder:0', 'separable_conv2d:0')
+
+def test_forward_sep_convolution():
+    _test_sep_convolution([1, 32, 32, 3], [7, 7, 3, 8], [1, 1, 24, 64], [1, 1], [1, 1], 'SAME', 'NHWC')
+
+#######################################################################
 # Reshape
 # -------
 
@@ -1077,6 +1120,7 @@ if __name__ == '__main__':
 
     # NN
     test_forward_convolution()
+    test_forward_sep_convolution()
     test_forward_pooling()
     if tf.__version__ == '1.4.1':
         _test_forward_concat_v2()

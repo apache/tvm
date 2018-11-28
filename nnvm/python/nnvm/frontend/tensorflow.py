@@ -208,6 +208,7 @@ def _conv(opname):
 
         if attr['data_format'] == 'NHWC':
             kernel_h, kernel_w, _, depth_mult = weights_shape
+            attr['kernel_layout'] = 'HWIO'
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
             if opname == 'conv':
                 attr['channels'] = weights_shape[3]

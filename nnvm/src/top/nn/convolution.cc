@@ -33,6 +33,7 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
                              std::vector<TShape>* out_shape) {
   static const Layout kNCHW("NCHW");
   static const Layout kOIHW("OIHW");
+  bool depthwise = false;
 
   const Conv2DParam& param = nnvm::get<Conv2DParam>(attrs.parsed);
 
@@ -51,6 +52,9 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
     << "Conv only support output layouts that are convertible from NCHW."
     << " But got " << out_layout;
 
+  if (param.groups != 1 && param.groups == param.channels)
+    depthwise = true;
+
   if (param.use_bias) {
     CHECK_EQ(in_shape->size(), 3U) << "Input:[data, weight, bias]";
   } else {
@@ -68,8 +72,11 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
       << "incorrect stride size: " << param.strides;
   CHECK_EQ(param.dilation.ndim(), 2U)
       << "incorrect dilate size: " << param.dilation;
-  CHECK_EQ(dshape[1] % param.groups, 0U)
-      << "input channels must divide group size";
+
+  if (depthwise == false)
+    CHECK_EQ(dshape[1] % param.groups, 0U)
+        << "input channels must divide group size";
+
   CHECK_EQ(param.channels % param.groups, 0U)
       << "output channels must divide group size";
 
@@ -78,9 +85,18 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
                  param.kernel_size[0],
                  param.kernel_size[1]});
 
+  if (depthwise == true) {
+    TShape dw_shape({param.channels / dshape[1],
+                     dshape[1],
+                     param.kernel_size[0],
+                     param.kernel_size[1]});
+    wshape = dw_shape;
+  }
+
   wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
 
-  wshape[kernel_layout.indexof('O')] *= param.groups;
+  if (depthwise == false)
+    wshape[kernel_layout.indexof('O')] *= param.groups;
 
   if (in_shape->at(Conv2DParam::kWeight).ndim() == 0) {
     NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, Conv2DParam::kWeight, wshape);

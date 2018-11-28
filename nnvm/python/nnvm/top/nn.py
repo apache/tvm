@@ -117,6 +117,12 @@ def compute_conv2d(attrs, inputs, _):
          groups == channels:
         out = topi.nn.depthwise_conv2d_nhwc(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
+    elif layout == "NHWC" and \
+         kernel_layout == "HWIO" and \
+         groups == get_const_int(inputs[0].shape[3]) * get_const_int(inputs[1].shape[3]) and \
+         groups == channels:
+        out = topi.nn.depthwise_conv2d_nhwc(
+            inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     else:
         raise ValueError("not support arbitrary group number for now")
 
@@ -133,7 +139,6 @@ def schedule_conv2d(attrs, outs, target):
     groups = attrs.get_int("groups")
     channels = attrs.get_int("channels")
     layout = attrs["layout"]
-    kernel_layout = attrs["kernel_layout"]
 
     with tvm.target.create(target):
         if groups == 1 and layout == "NCHW":
@@ -144,7 +149,7 @@ def schedule_conv2d(attrs, outs, target):
             return topi.generic.schedule_conv2d_nhwc(outs)
         elif groups == channels and layout == "NCHW":
             return topi.generic.schedule_depthwise_conv2d_nchw(outs)
-        elif groups == channels and layout == "NHWC" and kernel_layout == "HWOI":
+        elif groups == channels and layout == "NHWC":
             return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
         elif layout in ["NCHW", "NCHW4c"]:
             return topi.generic.schedule_group_conv2d_nchw(outs)
