@@ -257,6 +257,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
 
     # use a "tracing" target to do a fake compile for collecting topi calls
     tracing_target = _target.create("llvm -device=tracing")
+    relay.backend.compile_engine.get().clear()
     relay.build(func, target=tracing_target, target_host=target_host, params=params)
 
     logger.disabled = old_state
