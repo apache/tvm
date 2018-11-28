@@ -1,6 +1,6 @@
 import tvm
 import numpy as np
-from tvm._ffi.libinfo import find_include_path
+from tvm.contrib import util
 
 def test_add():
     nn = 1024
@@ -15,8 +15,10 @@ def test_add():
         fsplits = [x for x in tvm.ir_pass.SplitHostDevice(f1)]
         fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
         mhost = tvm.codegen.build_module(fsplits[0], "c")
-        mhost.export_library("mod.so")
-        m = tvm.module.load("mod.so")
+        temp = util.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm.module.load(path_dso)
         fadd = m['fadd']
         ctx = tvm.cpu(0)
         # launch the kernel.
@@ -62,8 +64,10 @@ def test_add_pipeline():
         fsplits = [x for x in tvm.ir_pass.SplitHostDevice(f1)]
         fsplits[0] = tvm.ir_pass.LowerTVMBuiltin(fsplits[0])
         mhost = tvm.codegen.build_module(fsplits[0], "c")
-        mhost.export_library("mod.so") 
-        m = tvm.module.load("mod.so")
+        temp = util.tempdir()
+        path_dso = temp.relpath("temp.so")
+        mhost.export_library(path_dso)
+        m = tvm.module.load(path_dso)
         fadd = m["fadd_pipeline"]
         ctx = tvm.cpu(0)
         # launch the kernel.
