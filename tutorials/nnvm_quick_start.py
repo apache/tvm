@@ -50,7 +50,7 @@ data_shape = (batch_size,) + image_shape
 out_shape = (batch_size, num_class)
 
 net, params = nnvm.testing.resnet.get_workload(
-    layers=18, batch_size=batch_size, image_shape=image_shape)
+    num_layers=18, batch_size=batch_size, image_shape=image_shape)
 print(net.debug_str())
 
 ######################################################################
