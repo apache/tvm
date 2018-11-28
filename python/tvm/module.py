@@ -97,17 +97,21 @@ class Module(ModuleBase):
             self.save(file_name)
             return
 
-        if self.type_key != "llvm":
-            raise ValueError("Module[%s]: Only llvm support export shared" % self.type_key)
+        if not (self.type_key == "llvm" or self.type_key == "c"):
+            raise ValueError("Module[%s]: Only llvm and c support export shared" % self.type_key)
         temp = _util.tempdir()
         if fcompile is not None and hasattr(fcompile, "object_format"):
             object_format = fcompile.object_format
         else:
-            object_format = "o"
+            if self.type_key == "llvm":
+                object_format = "o"
+            else:
+                assert self.type_key == "c"
+                object_format = "cc"
         path_obj = temp.relpath("lib." + object_format)
         self.save(path_obj)
         files = [path_obj]
-        is_system_lib = self.get_function("__tvm_is_system_module")()
+        is_system_lib = self.type_key == "llvm" and self.get_function("__tvm_is_system_module")()
         if self.imported_modules:
             path_cc = temp.relpath("devc.cc")
             with open(path_cc, "w") as f:
