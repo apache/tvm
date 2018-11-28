@@ -9,10 +9,10 @@ import warnings
 import logging
 
 
-from ... import tensor, placeholder, create_schedule, target as _target
+from ... import tensor, placeholder, target as _target
 
 from ..util import get_const_tuple
-from .task import create, register
+from .task import create
 from .nnvm_integration import TaskExtractEnv
 
 logger = logging.getLogger('autotvm')
@@ -96,7 +96,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
     # use a "tracing" target to do a fake compile for collecting topi calls
     tracing_target = _target.create("llvm -device=tracing")
     relay.backend.compile_engine.get().clear()
-    # wrap build call in thread to avoid multiprocessing problems 
+    # wrap build call in thread to avoid multiprocessing problems
     build_thread = threading.Thread(target=relay.build, args=(func,
                                                               tracing_target,
                                                               target_host,
