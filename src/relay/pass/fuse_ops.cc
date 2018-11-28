@@ -232,8 +232,11 @@ class IndexedForwardGraph::Creator : private ExprVisitor {
   }
 
   void VisitExpr_(const TupleNode* op) {
+    CHECK(graph_.node_map.count(op));
+    Node* tuple_node = graph_.node_map.at(op);
+    tuple_node->pattern = kInjective;
     for (const Expr& field : op->fields) {
-      this->Update(field, nullptr, kOpaque);
+      this->Update(field, tuple_node, kInjective);
     }
     ExprVisitor::VisitExpr_(op);
     this->AddNode(op);
@@ -712,21 +715,8 @@ class FuseMutator : private ExprMutator {
       // then we must have a group assignment for it already.
       CHECK(gmap_.count(call));
       auto* ret_group = gmap_.at(call)->FindRoot();
-      Array<Expr> new_args;
-      for (auto arg : call->args) {
-        auto type = arg->checked_type();
-        CHECK(gmap_.count(arg.get()))
-            << "cannot find group of " << arg;
-        auto* arg_group = gmap_.at(arg.get())->FindRoot();
-        Expr new_arg = this->Mutate(arg);
+      Array<Expr> new_args = GetNewArguments(call->args, ret_group);
 
-        if (ret_group != arg_group) {
-          Var param = ginfo_[ret_group].GetOrAllocParam(new_arg, type);
-          new_args.push_back(param);
-        } else {
-          new_args.push_back(new_arg);
-        }
-      }
       auto new_call = CallNode::make(
           call->op, new_args, call->attrs, call->type_args);
 
@@ -747,6 +737,29 @@ class FuseMutator : private ExprMutator {
       return ExprMutator::VisitExpr_(call);
     }
   }
+
+  Expr VisitExpr_(const TupleNode* tuple) {
+    auto* ret_group = gmap_.at(tuple)->FindRoot();
+    Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
+    return TupleNode::make(new_fields);
+  }
+
+  Array<Expr> GetNewArguments(const tvm::Array<Expr>& args, GraphPartitioner::Group* current_group) {
+    Array<Expr> new_args;
+    for (auto arg : args) {
+      auto* arg_group = gmap_.at(arg.get())->FindRoot();
+      auto type = arg->checked_type();
+      Expr new_arg = this->Mutate(arg);
+      if (current_group != arg_group) {
+        Var param = ginfo_[current_group].GetOrAllocParam(new_arg, type);
+        new_args.push_back(param);
+      } else {
+        new_args.push_back(new_arg);
+      }
+    }
+    return new_args;
+  }
+
   // Debug function, dump the group assignment in text.
   void DebugDumpGroup(const Expr& body) {
     std::string text = RelayPrint(body, false, [this](const Expr& expr) -> std::string {
