@@ -4,6 +4,7 @@ Decorator and utilities for the integration with TOPI and Relay
 99.9% copy-paste of implementation by @MerryMercy
 
 """
+import threading
 import warnings
 import logging
 
@@ -258,8 +259,13 @@ def extract_from_program(func, params, ops, target, target_host=None):
     # use a "tracing" target to do a fake compile for collecting topi calls
     tracing_target = _target.create("llvm -device=tracing")
     relay.backend.compile_engine.get().clear()
-    relay.build(func, target=tracing_target, target_host=target_host, params=params)
-
+    # wrap build call in thread to avoid multiprocessing problems 
+    build_thread = threading.Thread(target=relay.build, args=(func,
+                                                              tracing_target,
+                                                              target_host,
+                                                              params))
+    build_thread.start()
+    build_thread.join()
     logger.disabled = old_state
 
     # create tasks for target
@@ -317,7 +323,13 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     tracing_target = _target.create("llvm -device=tracing")
 
     for func, param in zip(funcs, params):
-        relay.build(func, target=tracing_target, target_host=target_host, params=param)
+        # wrap build call in thread to avoid multiprocessing problems
+        build_thread = threading.Thread(target=relay.build, args=(func,
+                                                                  tracing_target,
+                                                                  target_host,
+                                                                  params))
+        build_thread.start()
+        build_thread.join()
 
     logger.disabled = old_state
 
