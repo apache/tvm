@@ -183,6 +183,8 @@ class CodeGenC :
   std::unordered_map<const Variable*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */
   std::unordered_map<const Variable*, Type> handle_data_type_;
+  /*! \brief reserves common C keywords */
+  void ReserveKeywordsAsUnique();
 
  private:
   /*! \brief whether to print in SSA form */
