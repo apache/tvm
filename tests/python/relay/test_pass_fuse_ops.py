@@ -137,7 +137,6 @@ def test_concatenate():
     z = relay.ir_pass.infer_type(z)
     zz = relay.ir_pass.fuse_ops(z, opt_level=2)
     zz = relay.ir_pass.infer_type(zz)
-    print(zz.astext())
     after = relay.ir_pass.infer_type(expected(dshape))
     assert relay.ir_pass.alpha_equal(zz, after)
 
