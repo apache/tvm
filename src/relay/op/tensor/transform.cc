@@ -857,6 +857,13 @@ Expr MakeWhere(const Expr& condition, const Expr& x, const Expr& y) {
   return CallNode::make(op, {condition, x, y});
 }
 
+Array<Tensor> WhereCompute(const Attrs& attrs,
+                           const Array<Tensor>& inputs,
+                           const Type& out_type,
+                           const Target& target) {
+  return { topi::where(inputs[0], inputs[1], inputs[2]) };
+}
+
 TVM_REGISTER_API("relay.op._make.where")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   runtime::detail::unpack_call<Expr, 3>(MakeWhere, args, rv);
@@ -896,7 +903,9 @@ Examples::
 .add_argument("y", "Tensor", "Second array to be selected")
 .set_num_inputs(3)
 .set_support_level(4)
-.add_type_rel("Where", WhereRel);
+.add_type_rel("Where", WhereRel)
+.set_attr<FTVMCompute>("FTVMCompute", WhereCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
 
 // Squeeze
