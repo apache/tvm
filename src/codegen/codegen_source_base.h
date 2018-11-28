@@ -113,6 +113,13 @@ class CodeGenSourceBase {
 runtime::Module SourceModuleCreate(std::string code, std::string fmt);
 
 /*!
+ * \brief Create a C source module for viewing and compiling GCC code.
+ * \param code The code to be viewed.
+ * \param fmt The code. format.
+ */
+runtime::Module CSourceModuleCreate(std::string code, std::string fmt);
+
+/*!
  * \brief Create a source module for viewing and limited saving for device.
  * \param data The code data to be viewed.
  * \param fmt The code. format.
