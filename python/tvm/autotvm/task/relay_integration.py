@@ -88,7 +88,6 @@ class TaskExtractEnv:
         self._register_topi_task()
         self.task_collection = []
         self.wanted_topi_funcs = list(self.topi_to_task.keys())
-        print("init env??")
 
     def _register_tracing(self):
         """Register tracing function to track the topi function call"""
