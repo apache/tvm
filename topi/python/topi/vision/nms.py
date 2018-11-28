@@ -324,7 +324,6 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
     valid_count_dtype = "int32"
     valid_count_buf = api.decl_buffer(valid_count.shape, valid_count_dtype,
                                       "valid_count_buf", data_alignment=4)
-    data_buf = api.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     score_axis = 1
     score_shape = (batch_size, num_anchors)
     score_tensor = tvm.compute(score_shape, lambda i, j: data[i, j, score_axis])
@@ -343,23 +342,11 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
                    in_buffers=[score_tensor_buf, valid_count_buf],
                    out_buffers=sort_tensor_buf,
                    name="nms_sort")
-    d_plc = tvm.placeholder(data.shape, name="nms_out", dtype="float32")
-    out = tvm.placeholder(data.shape, name="nms_out", dtype="float32")
-    inter_func = hybrid.parse(hybrid_nms, [data, sort_tensor, valid_count, out, nms_threshold, force_suppress, nms_topk])
-    print(inter_func)
-    out = \
-        tvm.extern(data.shape,
-                   [data, sort_tensor, valid_count],
-                   lambda ins, outs: hybrid.parse(
-                       hybrid_nms,
-                       [ins[0], ins[1], ins[2], outs[0], nms_threshold,
-                        force_suppress, nms_topk]),
-                   dtype="float32",
-                   in_buffers=[data_buf, sort_tensor_buf, valid_count_buf],
-                   tag="nms")
+    out = tvm.placeholder(data.shape, dtype=data.dtype)
+    out = hybrid_nms(data, sort_tensor, valid_count, out,
+                     tvm.convert(nms_threshold), tvm.convert(force_suppress),
+                     tvm.convert(nms_topk))
     if do_rearrange:
-        out = tvm.extern(out.shape, [out],
-                         lambda ins, outs: hybrid.parse(
-                             rearrange_out, [ins[0], outs[0]]),
-                         dtype="float32",)
+        out = rearrange_out(out)
+
     return out
