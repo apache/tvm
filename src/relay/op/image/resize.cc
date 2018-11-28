@@ -5,7 +5,10 @@
  */
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/image.h>
+#include <topi/elemwise.h>
+#include <topi/image/resize.h>
 #include "../layout.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relay {
@@ -40,6 +43,29 @@ bool ResizeRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> ResizeCompute(const Attrs& attrs,
+                            const Array<Tensor>& inputs,
+                            const Type& out_type,
+                            const Target& target) {
+  const auto* param = attrs.as<ResizeAttrs>();
+  CHECK(param != nullptr);
+  CHECK(param->layout == "NCHW" || param->layout == "NHWC");
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  CHECK(out_ttype != nullptr);
+  Array<IndexExpr> oshape;
+  if (param->layout == "NCHW") {
+    oshape.push_back(out_ttype->shape[2]);
+    oshape.push_back(out_ttype->shape[3]);
+  } else if (param->layout == "NHWC") {
+    oshape.push_back(out_ttype->shape[1]);
+    oshape.push_back(out_ttype->shape[2]);
+  }
+  return Array<Tensor>{ topi::image::resize(inputs[0],
+                                            oshape,
+                                            param->layout,
+                                            param->align_corners,
+                                            param->method) };
+}
 
 // Positional relay function to create image operator
 // used by frontend FFI.
@@ -82,7 +108,9 @@ RELAY_REGISTER_OP("image.resize")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(5)
-.add_type_rel("Resize", ResizeRel);
+.add_type_rel("Resize", ResizeRel)
+.set_attr<FTVMCompute>("FTVMCompute", ResizeCompute)
+.set_attr<TOpPattern>("TOpPattern", kInjective);
 
 }  // namespace relay
 }  // namespace tvm
