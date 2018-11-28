@@ -53,6 +53,52 @@ runtime::Module SourceModuleCreate(std::string code, std::string fmt) {
   return runtime::Module(n);
 }
 
+// Simulator function
+class CSourceModuleNode : public runtime::ModuleNode {
+ public:
+  CSourceModuleNode(std::string code,
+                   std::string fmt)
+      : code_(code), fmt_(fmt) {}
+  const char* type_key() const {
+    return "c";
+  }
+
+  PackedFunc GetFunction(
+      const std::string& name,
+      const std::shared_ptr<ModuleNode>& sptr_to_self) final {
+    LOG(FATAL) << "C Source module cannot execute, to get executable module"
+               << " build TVM with \'" << fmt_ << "\' runtime support";
+    return PackedFunc();
+  }
+
+  std::string GetSource(const std::string& format) final {
+    return code_;
+  }
+
+  void SaveToFile(const std::string& file_name,
+                  const std::string& format) final {
+    std::string fmt = GetFileFormat(file_name, format);
+    std::string meta_file = GetMetaFilePath(file_name);
+    if (fmt == "cc") {
+      CHECK_NE(code_.length(), 0);
+      SaveBinaryToFile(file_name, code_);
+    } else {
+      CHECK_EQ(fmt, fmt_)
+          << "Can only save to format=" << fmt_;
+    }
+  }
+
+ protected:
+  std::string code_;
+  std::string fmt_;
+};
+
+runtime::Module CSourceModuleCreate(std::string code, std::string fmt) {
+  std::shared_ptr<CSourceModuleNode> n =
+      std::make_shared<CSourceModuleNode>(code, fmt);
+  return runtime::Module(n);
+}
+
 // supports limited save without cross compile
 class DeviceSourceModuleNode final : public runtime::ModuleNode {
  public:
