@@ -98,12 +98,25 @@ def test_binary_int_broadcast():
 
 
 def test_where():
-    cond = relay.var("cond", relay.TensorType((3, 4), "float32"))
-    x = relay.var("x", relay.TensorType((3, 4), "float32"))
-    y = relay.var("y", relay.TensorType((3, 4), "float32"))
+    shape = (3, 4)
+    dtype = "float32"
+    cond = relay.var("cond", relay.TensorType(shape, dtype))
+    x = relay.var("x", relay.TensorType(shape, dtype))
+    y = relay.var("y", relay.TensorType(shape, dtype))
     z = relay.where(cond, x, y)
     zz = relay.ir_pass.infer_type(z)
-    assert zz.checked_type == relay.TensorType((3, 4), "float32")
+    assert zz.checked_type == relay.TensorType(shape, dtype)
+
+    func = relay.Function([cond, x, y], z)
+    condition = np.random.uniform(low=-1, high=1, size=shape).astype(dtype)
+    x = np.random.uniform(size=shape).astype(dtype)
+    y = np.random.uniform(size=shape).astype(dtype)
+    ref_res = np.where(condition, x, y)
+    for target, ctx in ctx_list():
+        for kind in ["graph", "debug"]:
+            intrp = relay.create_executor(kind, ctx=ctx, target=target)
+            op_res = intrp.evaluate(func)(condition, x, y)
+            tvm.testing.assert_allclose(op_res.asnumpy(), ref_res, rtol=1e-5)
 
 
 def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32"):
