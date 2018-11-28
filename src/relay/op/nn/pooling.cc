@@ -21,24 +21,22 @@ TVM_REGISTER_NODE_TYPE(AvgPool2DAttrs);
 template <typename T>
 Array<Array<Layout> > Pool2DInferCorrectLayout(
     const Attrs& attrs,
-    const Array<Layout>& in_layouts,
-    const Array<Array<IndexExpr>> &in_shapes) {
-  CHECK_EQ(in_layouts.size(), 1);
-
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
   // NOTE: Discard "const" qualifier here.
   T *params = const_cast<T*>(attrs.as<T>());
-  Layout input = in_layouts[0];
-  const Layout raw_layout(params->layout);
-  if (input.defined()) {
-    CHECK(input.Convertible(raw_layout));
-    if (input.Indexof('W') != raw_layout.Indexof('W') ||
-        input.Indexof('H') != raw_layout.Indexof('H') ||
-        input.Contains('w') || input.Contains('h')) {
-      // if the new layout changes width or height dimension,
-      // fallback to old layout;
-      input = raw_layout;
+
+  if (new_in_layouts.defined()) {
+    CHECK_EQ(new_in_layouts.size(), 1);
+
+    Layout raw_layout(params->layout);
+    Layout input = new_in_layouts[0];
+    if (input.Indexof('W') == raw_layout.Indexof('W') &&
+        input.Indexof('H') == raw_layout.Indexof('H') &&
+        !input.Contains('w') && !input.Contains('h')) {
+      params->layout = input.name();  // modify self to follow the input layout
     }
-    params->layout = input.name();  // modify self to follow the input layout
   }
 
   return Array<Array<Layout> >{{params->layout}, {params->layout}};

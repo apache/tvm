@@ -112,6 +112,22 @@ class ForwardRewriter : private ExprMutator {
     }
   }
 
+  Expr VisitExpr_(const TupleNode* op) final {
+    tvm::Array<Expr> fields;
+    bool all_fields_unchanged = true;
+    for (auto field : op->fields) {
+      auto new_field = this->GetTempExpr(field);
+      fields.push_back(new_field);
+      all_fields_unchanged &= new_field.same_as(field);
+    }
+
+    if (all_fields_unchanged) {
+      return GetRef<Expr>(op);
+    } else {
+      return TupleNode::make(fields);
+    }
+  }
+
   Expr VisitExpr_(const CallNode* call_node) final {
     const Call& ref_call = GetRef<Call>(call_node);
     PackedFunc frewrite;

@@ -19,44 +19,54 @@ namespace relay {
 /*!
  * \brief Infer & correct function of node layout. See \p Layout for layout convention
  * \param attrs The attribute of the node.
- * \param in_layouts The layouts of input arguments.
- * \param in_shapes The shapes of input arguments.
+ * \param new_in_layouts The layouts of input arguments after alter_op_layout.
+ *                       This can be undefined, which means we call this function before alternating
+ *                       any operators.
+ * \param old_in_layouts The layouts of input arguments before alter_op_layout.
+ * \param old_in_shapes The shapes of old input arguments.
  * \return infered_layout An array of two elements that are inferred input layouts and
  *                        inferred output layouts.
  */
 using FInferCorrectLayout = runtime::TypedPackedFunc<
     Array<Array<Layout>>(const Attrs& attrs,
-                         const Array<Layout>& in_layouts,
-                         const Array<Array<IndexExpr>> &in_shapes)>;
+                         const Array<Layout>& new_in_layouts,
+                         const Array<Layout>& old_in_layouts,
+                         const Array<Array<IndexExpr>> &old_in_shapes)>;
 
 /*! \brief take arbitrary input layout and copy to output */
 inline Array<Array<Layout> > ElemwiseArbitraryLayout(const Attrs& attrs,
-                                                     const Array<Layout>& in_layouts,
-                                                     const Array<Array<IndexExpr> > &in_shapes) {
-  Array<Layout> inferred_ins;
+                                                     const Array<Layout>& new_in_layouts,
+                                                     const Array<Layout>& old_in_layouts,
+                                                     const Array<Array<IndexExpr>> &old_in_shapes) {
+  Layout ret;
 
-  Layout in;
-  for (size_t i = 0; i < in_layouts.size(); ++i) {
-    if (!in.defined()) in = in_layouts[i];
-    CHECK(in.Equals(in_layouts[i]))
-      << "Incompatible layout at " << i << "-th input: expected " << in
-      << ", got " << in_layouts[i];
-  }
-  for (size_t i = 0; i < in_layouts.size(); ++i) {
-    inferred_ins.push_back(in);
+  if (new_in_layouts.defined()) {
+    CHECK_GE(new_in_layouts.size(), 1);
+    ret = new_in_layouts[0];
+  } else {
+    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
+      if (old_in_layouts[i].defined()) {
+        ret = old_in_layouts[i];
+        break;
+      }
+    }
   }
 
-  return Array<Array<Layout> >{inferred_ins, {in}};
+  return Array<Array<Layout> >{Array<Layout>(old_in_layouts.size(), ret), {ret}};
 }
 
 /*! \brief Infer layout for binary broadcast operators */
 inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
-                                                   const Array<Layout>& in_layouts,
-                                                   const Array<Array<IndexExpr> > &in_shapes) {
-  CHECK_EQ(in_layouts.size(), 2);
-  CHECK_EQ(in_shapes.size(), 2);
+                                                   const Array<Layout>& new_in_layouts,
+                                                   const Array<Layout>& old_in_layouts,
+                                                   const Array<Array<IndexExpr>> &old_in_shapes) {
+  Array<Layout> layouts;
 
-  Array<Layout> layouts = in_layouts;
+  if (new_in_layouts.defined()) {
+    layouts.assign(new_in_layouts.begin(), new_in_layouts.end());
+  } else {
+    layouts.assign(old_in_layouts.begin(), old_in_layouts.end());
+  }
 
   if (!layouts[0].defined() && !layouts[1].defined()) {
     // both undefined, infer fails
@@ -66,11 +76,11 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
     int defined_idx = layouts[0].defined() ? 0 : 1;
     int undef_idx = 1 - defined_idx;
 
-    if (in_shapes[defined_idx].size() >= in_shapes[undef_idx].size()) {
+    if (old_in_shapes[defined_idx].size() >= old_in_shapes[undef_idx].size()) {
       layouts.Set(undef_idx,
                   layouts[defined_idx].Sublayout(
-                      in_shapes[defined_idx].size() - in_shapes[undef_idx].size(),
-                      in_shapes[undef_idx].size()));
+                      old_in_shapes[defined_idx].size() - old_in_shapes[undef_idx].size(),
+                      old_in_shapes[undef_idx].size()));
       return Array<Array<Layout> > {layouts, {layouts[defined_idx]}};
     } else {
       // only know the tensor with smaller dimensions,
@@ -79,7 +89,7 @@ inline Array<Array<Layout> > BinaryBroadcastLayout(const Attrs& attrs,
       return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
     }
   } else {
-    // try to broadcast to the tensors to the larger dimension
+    // try to broadcast the tensors to the larger dimension
     int large_idx = layouts[0].ndim_super() >= layouts[1].ndim_super() ? 0 : 1;
     int small_idx = 1 - large_idx;
     Layout ret = layouts[large_idx];

@@ -104,12 +104,16 @@ bool Conv2DRel(const Array<Type>& types,
 }
 
 template<typename T>
-Array<Array<Layout> > Conv2DInferCorrectLayout(const Attrs& attrs,
-                                               const Array<Layout>& in_layouts,
-                                               const Array<Array<IndexExpr>> &in_shapes) {
+Array<Array<Layout> > Conv2DInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
   const T* params = attrs.as<T>();
   Layout out_layout(params->out_layout);
 
+  // We always make other operators to fit the layouts of convolution layers
+  // So this inference ignores all inputs
   return Array<Array<Layout> >{{params->data_layout, params->weight_layout},
                                {out_layout.defined() ? out_layout : params->data_layout}};
 }

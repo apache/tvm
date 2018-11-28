@@ -66,6 +66,9 @@ class TransformMemorizer : public NodeRef {
 
   // Transform layout with memorizer
   Expr Transform(Expr raw, const Layout& src_layout, const Layout& dst_layout) {
+    if (src_layout.Equals(dst_layout))
+      return raw;
+
     std::tuple<const Node*, std::string, std::string> key =
         std::make_tuple<>(raw.get(), src_layout.name(), dst_layout.name());
     auto& memo = operator->()->memo;
@@ -116,14 +119,16 @@ RELAY_DEFINE_NODE_REF(LayoutAlternatedExpr, LayoutAlternatedExprNode, TempExpr);
 // Return inferred_input_layout, inferred_output_layout, success
 std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
     const Call& call,
-    const Array<Layout>& in_layouts,
-    const Array<Array<IndexExpr>>& in_shapes) {
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
   static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
 
   Op op = Downcast<Op>(call->op);
   if (finfer_layout.count(op)) {
     Array<Array<Layout> > inferred_layouts;
-    inferred_layouts = finfer_layout[op](call->attrs, in_layouts, in_shapes);
+    inferred_layouts = finfer_layout[op](call->attrs, new_in_layouts,
+                                         old_in_layouts, old_in_shapes);
     CHECK_EQ(inferred_layouts.size(), 2)
       << "FInferCorrectLayout should return an array with size of 2";
     for (auto x : inferred_layouts) {
@@ -180,17 +185,27 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   // NOTE: discard the "const" qualifier
   TransformMemorizer memorizer = Downcast<TransformMemorizer>(ctx);
 
-  // fill incomplete state
-  for (auto arg : new_args) {
-    if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
-      inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
-      normal_new_args.push_back(inp->value);
+  // fill incomplete state and expand tuple
+  for (auto new_arg : new_args) {
+    auto push_back_one_arg = [&](Expr arg) {
+      if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
+        inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
+        normal_new_args.push_back(inp->value);
+      } else {
+        auto inode = make_node<LayoutAlternatedExprNode>();
+        inode->value = arg;
+        inode->memorizer = memorizer;
+        inputs.push_back(LayoutAlternatedExpr(inode));
+        normal_new_args.push_back(arg);
+      }
+    };
+    if (new_arg->is_type<TupleNode>()) {
+      Tuple tuple_new_arg = Downcast<Tuple>(new_arg);
+      for (auto x : tuple_new_arg->fields) {
+        push_back_one_arg(x);
+      }
     } else {
-      auto inode = make_node<LayoutAlternatedExprNode>();
-      inode->value = arg;
-      inode->memorizer = memorizer;
-      inputs.push_back(LayoutAlternatedExpr(inode));
-      normal_new_args.push_back(arg);
+      push_back_one_arg(new_arg);
     }
   }
 
@@ -202,12 +217,21 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   }
 
   for (auto arg : ref_call->args) {
-    input_shapes.push_back(arg->type_as<TensorTypeNode>()->shape);
+    if (arg->is_type<TupleNode>()) {  // expand tuple
+      Tuple tuple_arg = Downcast<Tuple>(arg);
+      for (auto x : tuple_arg->fields) {
+        input_shapes.push_back(x->type_as<TensorTypeNode>()->shape);
+      }
+    } else {
+      input_shapes.push_back(arg->type_as<TensorTypeNode>()->shape);
+    }
   }
 
   // old_in, old_out = op.infer(old_in)
   bool success = false;
-  std::tie(old_in, old_out, success) = CallInfer(ref_call, old_in, input_shapes);
+  std::tie(old_in, old_out, success) = CallInfer(ref_call,
+                                                 Array<Layout>(nullptr),
+                                                 old_in, input_shapes);
   if (!success) { return Expr(nullptr); }
   CHECK_EQ(old_in.size(), new_in.size());
 
@@ -224,12 +248,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   // new_in2, new_out = op.infer(new_in)
   if (new_call->op->is_type<OpNode>()) {
     success = false;
-    for (size_t i = 0; i < input_shapes.size(); ++i) {
-      if (old_in.defined()) {
-        input_shapes.Set(i, ConvertLayout(input_shapes[i], old_in[i], new_in[i]));
-      }
-    }
-    std::tie(new_in2, new_out, success) = CallInfer(new_call, new_in, input_shapes);
+    std::tie(new_in2, new_out, success) = CallInfer(new_call, new_in, old_in, input_shapes);
     if (!success) { return Expr(nullptr); }
   } else {
     return Expr(nullptr);

@@ -15,6 +15,7 @@
 #include <vector>
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
+#include "../../pass/alter_op_layout.h"
 #include "../layout.h"
 
 namespace tvm {
@@ -204,6 +205,42 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
+Array<Array<Layout>> ConcatenateLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  const ConcatenateAttrs* param = attrs.as<ConcatenateAttrs>();
+
+  size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
+                static_cast<size_t>(param->axis);
+
+  Layout ret;
+  if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
+    Layout::LayoutDim concate_dim = old_in_layouts[0][axis];
+    for (size_t i = 0; i < new_in_layouts.size(); ++i) {
+      if (new_in_layouts[i].ndim() > axis &&
+          new_in_layouts[i][axis] == concate_dim) {
+        ret = new_in_layouts[i];
+        break;
+      }
+    }
+  } else {  // this function is called on the original correct relay ir
+    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
+      if (old_in_layouts[i].defined()) {
+        ret = old_in_layouts[i];
+        break;
+      }
+    }
+
+    if (ret.ndim() <= axis || Layout::IsSubdim(ret[axis])) {
+      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
+    }
+  }
+
+  return Array<Array<Layout> > {Array<Layout>(old_in_layouts.size(), ret), {ret}};
+}
+
 Expr MakeConcatenate(Expr data,
                      int axis) {
   auto attrs = make_node<ConcatenateAttrs>();
@@ -229,7 +266,8 @@ RELAY_REGISTER_OP("concatenate")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
-.add_type_rel("Concatenate", ConcatenateRel);
+.add_type_rel("Concatenate", ConcatenateRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout);
 
 /* relay.transpose */
 TVM_REGISTER_NODE_TYPE(TransposeAttrs);
