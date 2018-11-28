@@ -110,7 +110,7 @@ class BaseGraphTuner(object):
         self._sch_dict = {}
         self._layout_transform_dict = {}
         self._elemlike_shape_dict = {}
-        self. _stage_dict = {}
+        self._stage_dict = {}
         self._dep_dict = {}
         self._counted_nodes_set = set()
         self._input_shapes = input_shapes
