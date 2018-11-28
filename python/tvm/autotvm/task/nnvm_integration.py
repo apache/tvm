@@ -54,6 +54,7 @@ class TaskExtractEnv:
     def __init__(self):
         import topi
         import nnvm
+        from tvm import relay
 
         # NOTE: To add more symbols, you only need to change the following lists
         # nnvm symbol -> topi compute
@@ -62,6 +63,15 @@ class TaskExtractEnv:
                               topi.nn.group_conv2d_nchw],
             nnvm.sym.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
             nnvm.sym.dense: [topi.nn.dense],
+        }
+
+        # NOTE: To add more ops, you only need to change the following lists
+        # relay op -> topi compute
+        self.op2topi = {
+            relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
+                                 topi.nn.group_conv2d_nchw],
+            relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
+            relay.op.nn.dense: [topi.nn.dense],
         }
 
         # topi compute -> autotvm task name
