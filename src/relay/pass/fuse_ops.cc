@@ -752,7 +752,7 @@ class FuseMutator : private ExprMutator {
         return ExprMutator::VisitExpr_(tuple);
       }
       // This tuple has been fused other ops before it
-      return MakeNewFunction(ret_group, TupleType(), new_tuple);
+      return MakeNewFunction(ret_group, tuple->checked_type(), new_tuple);
     }
     return new_tuple;
   }
