@@ -660,8 +660,13 @@ class FuseMutator : private ExprMutator {
     auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(
         graph);
     for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
+      // Make sure to init counts
+      node_count_[groups[nid]] = 0;
+    }
+    for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
       CHECK(graph.post_dfs_order[nid]->ref != nullptr);
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
+      ++node_count_[groups[nid]->FindRoot()];
     }
     // The following line can be used for debug.
     // this->DebugDumpGroup(body);
@@ -698,6 +703,9 @@ class FuseMutator : private ExprMutator {
   std::unordered_map<const Node*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
+  /* \brief Counts the number of nodes in a group*/
+  std::unordered_map<GraphPartitioner::Group*, size_t> node_count_;
+
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
     NodeRef res = FunctionGetAttr(GetRef<Function>(fn_node), "Primitive");
@@ -723,11 +731,7 @@ class FuseMutator : private ExprMutator {
       if (ret_group->root_ref == call) {
         // This is the root of the group
         // create the new call node.
-        const GroupInfo& ginfo = ginfo_[ret_group];
-        auto func = FunctionNode::make(
-            ginfo.params, new_call, call->checked_type(), {});
-        func = FunctionSetAttr(func, "Primitive", tvm::Integer(1));
-        return CallNode::make(func, ginfo.arguments, Attrs());
+        return MakeNewFunction(ret_group, call->checked_type(), new_call);
       } else {
         // This is an intermediate node of a fused function
         // simply return the new call.
@@ -741,7 +745,23 @@ class FuseMutator : private ExprMutator {
   Expr VisitExpr_(const TupleNode* tuple) {
     auto* ret_group = gmap_.at(tuple)->FindRoot();
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
-    return TupleNode::make(new_fields);
+    Tuple new_tuple = TupleNode::make(new_fields);
+    if (ret_group == gmap_.at(tuple)) {
+      if (node_count_[ret_group] == 1) {
+        // Do not put a isolated tuple into a function
+        return ExprMutator::VisitExpr_(tuple);
+      }
+      // This tuple has been fused other ops before it
+      return MakeNewFunction(ret_group, TupleType(), new_tuple);
+    }
+	return new_tuple;
+  }
+
+  Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
+    const GroupInfo& ginfo = ginfo_[group];
+    auto func = FunctionNode::make(ginfo.params, body, ret_type, {});
+    func = FunctionSetAttr(func, "Primitive", tvm::Integer(1));
+    return CallNode::make(func, ginfo.arguments, Attrs());
   }
 
   Array<Expr> GetNewArguments(const tvm::Array<Expr>& args,
