@@ -20,6 +20,16 @@ def test_simplify():
     zz = zz.a
     assert zz.a == x and zz.b.value == 4
 
+    n = tvm.var('n')
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % (-1)), tvm.const(0))
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % 1), tvm.const(0))
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / 1), n)
+    tvm.ir_pass.CanonicalSimplify(n / (-1))
+    # This is not true in the current implementation
+    #  assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / (-1)),
+    #                           tvm.ir_pass.CanonicalSimplify(-n))
+
+
 def test_simplify_mod():
     """Not yet working, mock design"""
     ib = tvm.ir_builder.create()

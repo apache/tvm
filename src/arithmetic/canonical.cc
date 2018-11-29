@@ -515,7 +515,15 @@ class Canonical::Internal : public IRMutator {
         n->elem.push_back(e);
       }
       Expr ret = Sum2Expr(ComExpr(n), v.type()) % v;
-      return Binary(ret.as<Mod>(), ret);
+      if (const Mod* mod = ret.as<Mod>()) {
+        return Binary(mod, ret);
+      } else {
+        // Sometimes the result is a constant, this may happen when value is -1
+        CHECK(is_const(ret)) << "CanonicalSimplify: "
+          << Sum2Expr(ComExpr(n), v.type()) << " % " << v << " is " << ret
+          << " which is neither Mod, nor a constant";
+        return ret;
+      }
     }
     ret_entry_.sum = pair[1];
     ret_entry_.max_level = stack_.back().max_level;
