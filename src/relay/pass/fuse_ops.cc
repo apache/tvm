@@ -740,7 +740,7 @@ class FuseMutator : private ExprMutator {
     Tuple new_tuple = TupleNode::make(new_fields);
     if (ret_group == gmap_.at(tuple)) {
       bool isolated = true;
-	  for (int i = 0; i < new_fields.size(); ++i) {
+      for (int i = 0; i < new_fields.size(); ++i) {
         isolated &= (new_fields[i] == ginfo_[ret_group].params[i]);
       }
       if (isolated) {
