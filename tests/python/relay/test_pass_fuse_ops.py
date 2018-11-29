@@ -145,7 +145,7 @@ def test_concatenate():
 
 
 def test_tuple_root():
-    """Test fusion case involving concat op and Tuple node"""
+    """Test fusion case where Tuple node is the root in its group"""
 
     def before(dshape):
         x = relay.var("x", shape=dshape)

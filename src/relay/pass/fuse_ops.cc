@@ -660,13 +660,8 @@ class FuseMutator : private ExprMutator {
     auto groups = GraphPartitioner(&arena_, fuse_opt_level).Partition(
         graph);
     for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
-      // Make sure to init counts
-      node_count_[groups[nid]] = 0;
-    }
-    for (size_t nid = 0; nid < graph.post_dfs_order.size(); ++nid) {
       CHECK(graph.post_dfs_order[nid]->ref != nullptr);
       gmap_[graph.post_dfs_order[nid]->ref] = groups[nid];
-      ++node_count_[groups[nid]->FindRoot()];
     }
     // The following line can be used for debug.
     // this->DebugDumpGroup(body);
@@ -703,9 +698,6 @@ class FuseMutator : private ExprMutator {
   std::unordered_map<const Node*, GraphPartitioner::Group*> gmap_;
   /* \brief Internal group information map. */
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
-  /* \brief Counts the number of nodes in a group*/
-  std::unordered_map<GraphPartitioner::Group*, size_t> node_count_;
-
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
     NodeRef res = FunctionGetAttr(GetRef<Function>(fn_node), "Primitive");
@@ -747,13 +739,18 @@ class FuseMutator : private ExprMutator {
     Array<Expr> new_fields = GetNewArguments(tuple->fields, ret_group);
     Tuple new_tuple = TupleNode::make(new_fields);
     if (ret_group == gmap_.at(tuple)) {
-      if (node_count_[ret_group] == 1) {
+      bool isolated = true;
+	  for (int i = 0; i < new_fields.size(); ++i) {
+        isolated &= (new_fields[i] == ginfo_[ret_group].params[i]);
+      }
+      if (isolated) {
         // Do not put a isolated tuple into a function
         return ExprMutator::VisitExpr_(tuple);
       }
-      // This tuple has been fused other ops before it
+      // This tuple has been fused with other ops before it
       return MakeNewFunction(ret_group, tuple->checked_type(), new_tuple);
     }
+    // This tuple is an intermediate node in the group
     return new_tuple;
   }
 
