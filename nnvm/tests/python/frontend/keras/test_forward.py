@@ -74,7 +74,7 @@ def test_forward_elemwise_add():
     verify_keras_frontend(keras_model)
 
 
-def test_forward_dense():
+def _test_forward_dense():
     data = keras.layers.Input(shape=(32,32,1))
     x = keras.layers.Flatten()(data)
     x = keras.layers.Dropout(0.5)(x)
@@ -82,6 +82,15 @@ def test_forward_dense():
     keras_model = keras.models.Model(data, x)
     verify_keras_frontend(keras_model)
 
+def _test_forward_dense_with_3d_inp():
+    data = keras.layers.Input(shape=(1, 20))
+    x = keras.layers.Dense(10, activation='relu', kernel_initializer='uniform')(data)
+    keras_model = keras.models.Model(data, x)
+    verify_keras_frontend(keras_model, need_transpose=False)
+
+def test_forward_dense():
+    _test_forward_dense()
+    _test_forward_dense_with_3d_inp()
 
 def test_forward_pool():
     data = keras.layers.Input(shape=(32,32,1))
@@ -226,8 +235,8 @@ def test_forward_reuse_layers():
     keras_model = keras.models.Model(data, z)
     verify_keras_frontend(keras_model)
 
-def _test_LSTM(inputs, hidden, return_state=True):
-    data = keras.layers.Input(shape=(1, inputs))
+def _test_LSTM(time_steps, inputs, hidden, return_state=True):
+    data = keras.layers.Input(shape=(time_steps, inputs))
     lstm_out = keras.layers.LSTM(hidden,
                                  return_state=return_state,
                                  recurrent_activation='sigmoid',
@@ -250,8 +259,9 @@ def _test_LSTM_MultiLayer(inputs, hidden):
 
 
 def test_forward_LSTM():
-    _test_LSTM(8, 8, return_state=True)
-    _test_LSTM(4, 4, return_state=False)
+    _test_LSTM(1, 8, 8, return_state=True)
+    _test_LSTM(1, 4, 4, return_state=False)
+    _test_LSTM(20, 16, 256, return_state=False)
     _test_LSTM_MultiLayer(4, 4)
 
 def _test_RNN(inputs, units):
