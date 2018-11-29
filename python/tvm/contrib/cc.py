@@ -7,7 +7,6 @@ import os
 
 from .._ffi.base import py_str
 from .util import tempdir
-from .._ffi.libinfo import find_include_path
 
 
 def create_shared(output,
@@ -50,7 +49,6 @@ def _linux_shared(output, objects, options, cc="g++"):
         cmd += objects
     if options:
         cmd += options
-    cmd += ["-I" + path for path in find_include_path()]
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     (out, _) = proc.communicate()
