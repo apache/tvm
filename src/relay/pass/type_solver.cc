@@ -136,8 +136,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     std::vector<TypeVar> type_params;
     for (size_t i = 0; i < ft1->type_params.size(); i++) {
-      RegisterChildType(ft1, ft1->type_params[i]);
-      RegisterChildType(ft2, ft2->type_params[i]);
       Type unified_var = Unify(ft1->type_params[i], ft2->type_params[i]);
       const auto* tvn = unified_var.as<TypeVarNode>();
       CHECK(tvn) << "Two type vars unified into a non type var? "
@@ -147,8 +145,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     std::vector<TypeConstraint> type_constraints;
     for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
-      RegisterChildType(ft1, ft1->type_constraints[i]);
-      RegisterChildType(ft2, ft2->type_constraints[i]);
       Type unified_constraint = Unify(ft1->type_constraints[i],
                                       ft2->type_constraints[i]);
       const auto* tcn = unified_constraint.as<TypeConstraintNode>();
