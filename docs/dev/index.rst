@@ -12,4 +12,5 @@ In this part of documentation, we share the rationale for the specific choices m
    nnvm_json_spec
    nnvm_overview
    hybrid_script
+   relay_intro
    relay_add_op
