@@ -36,7 +36,6 @@ This level enables fully connected multi-layer perceptron.
    tvm.relay.divide
    tvm.relay.mod
    tvm.relay.tanh
-   tvm.relay.sigmoid
    tvm.relay.nn.relu
    tvm.relay.nn.dropout
    tvm.relay.nn.batch_norm
@@ -159,7 +158,6 @@ Level 1 Definitions
 .. autofunction:: tvm.relay.divide
 .. autofunction:: tvm.relay.mod
 .. autofunction:: tvm.relay.tanh
-.. autofunction:: tvm.relay.sigmoid
 .. autofunction:: tvm.relay.concatenate
 .. autofunction:: tvm.relay.nn.softmax
 .. autofunction:: tvm.relay.nn.log_softmax
