@@ -271,7 +271,7 @@ if __name__ == '__main__':
     parser.add_argument("--code", action='store_true')
 
     args = parser.parse_args()
-    logging.basicConfig(level=logger.INFO)
+    logging.basicConfig(level=logging.INFO)
 
     if args.mode == 'pick':
         args.o = args.o or args.i + ".best.log"
