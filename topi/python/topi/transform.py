@@ -269,3 +269,23 @@ def matmul(a, b, transp_a=False, transp_b=False):
     A Tensor whose op member is the matmul operation
     """
     return cpp.matmul(a, b, transp_a, transp_b)
+
+
+def tensordot(a, b, axes):
+    """A generalization of matrix multiplication to tensor.
+
+    Parameters
+    ----------
+    a : The tensor A
+    b : The tensor B
+    axes : The number of dimensions to reduce over
+
+    Returns
+    -------
+    A Tensor computing the result
+    """
+    if isinstance(axes, int):
+        return cpp.tensordot(a, b, axes)
+    if isinstance(axes[0], int):
+        return cpp.tensordot(a, b, (axes[0],), (axes[1],))
+    return cpp.tensordot(a, b, axes[0], axes[1])
