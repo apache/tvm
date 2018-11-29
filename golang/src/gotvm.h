@@ -23,12 +23,6 @@ extern "C" {
 // Some type definitions for golang "C"
 typedef void* native_voidp;
 
-// golang TVMType
-typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } _tvmtype_;
-
-// golang TVMContext
-typedef struct { int device_type; int device_id; } _tvmcontext_;
-
 // Version
 extern char* _TVM_VERSION(void);
 

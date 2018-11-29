@@ -38,6 +38,10 @@ extern "C" {
 static _gostring_ _native_to_gostring(const char *p, size_t l) {
   _gostring_ ret;
   ret.p = reinterpret_cast<char*>(malloc(l));
+  if (NULL == ret.p) {
+    ret.n = 0;
+    return ret;
+  }
   memcpy(ret.p, p, l);
   ret.n = l;
   return ret;
@@ -83,6 +87,9 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
   int result;
 
   result = TVMFuncListGlobalNames(&names_size, (char const ***)&names_array);
+  if (result) {
+    return result;
+  }
 
   size_t tot = 8;
   for (int ii = 0; ii < names_size ; ++ii) {
@@ -100,6 +107,10 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
     off += strlen(names_array[ii]);
   }
   *names = _native_to_gostring(str.data(), str.size());
+  if (str.size() != names->n) {
+    TVMAPISetLastError("malloc failed during _native_to_gostring");
+    result = 1;
+  }
   return result;
 }
 
