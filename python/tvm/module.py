@@ -6,6 +6,7 @@ from collections import namedtuple
 
 from ._ffi.function import ModuleBase, _set_class_module
 from ._ffi.function import _init_api
+from ._ffi.libinfo import find_include_path
 from .contrib import cc as _cc, tar as _tar, util as _util
 
 ProfileResult = namedtuple("ProfileResult", ["mean", "results"])
@@ -122,6 +123,8 @@ class Module(ModuleBase):
                 fcompile = _tar.tar
             else:
                 fcompile = _cc.create_shared
+        if self.type_key == "c":
+            kwargs.update({'options': ["-I" + path for path in find_include_path()]})
         fcompile(file_name, files, **kwargs)
 
     def time_evaluator(self, func_name, ctx, number, repeat=1):
