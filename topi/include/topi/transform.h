@@ -753,6 +753,121 @@ inline tvm::Tensor matmul(const tvm::Tensor& A,
   return tvm::compute(output_shape, l, name, tag);
 }
 
+/*!
+ * \brief A generalization of matrix multiplication to tensors.
+ *
+ * \param A The tensor A
+ * \param B The tensor B
+ * \param axes The number of the dimensions to reduce over
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor computing the result
+ */
+inline Tensor tensordot(const Tensor& A,
+                        const tvm::Tensor& B,
+                        int axes = 2,
+                        std::string name = "tensor",
+                        std::string tag = kMatMul) {
+  CHECK_GE(A->shape.size(), axes);
+  CHECK_GE(B->shape.size(), axes);
+
+  Array<Expr> output_shape(A->shape.begin(), A->shape.end() + (-axes));
+  for (auto it = B->shape.begin() + axes; it != B->shape.end(); ++it)
+    output_shape.push_back(*it);
+
+  Array<IterVar> iter_vars;
+  for (int i = 0; i < axes; ++i)
+    iter_vars.push_back(reduce_axis(Range(0, B->shape[i]), "k" + std::to_string(i)));
+
+  auto func =
+    [&A, &B, &iter_vars, axes]
+    (const Array<Var>& input_indices) {
+      Array<Expr> A_indices(
+          input_indices.begin(),
+          input_indices.begin() + (A->shape.size() - axes));
+      for (auto& v : iter_vars)
+        A_indices.push_back(v);
+
+      Array<Expr> B_indices;
+      for (auto& v : iter_vars)
+        B_indices.push_back(v);
+
+      auto it = input_indices.begin() + (A->shape.size() - axes);
+      for (; it != input_indices.end(); ++it)
+        B_indices.push_back(*it);
+
+      // Some passes don't like reductions with empty axis, so avoid it here
+      if (iter_vars.empty())
+        return A(A_indices) * B(B_indices);
+      else
+        return sum(A(A_indices) * B(B_indices), iter_vars);
+    };
+
+  return compute(output_shape, func, name, tag);
+}
+
+/*!
+ * \brief A generalization of matrix multiplication to tensors.
+ *
+ * \param A The tensor A
+ * \param B The tensor B
+ * \param A_axes The indices of the dimensions of tensor A to reduce over
+ * \param B_axes The indices of the dimensions of tensor B to reduce over
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor computing the result
+ */
+inline Tensor tensordot(const Tensor& A,
+                        const tvm::Tensor& B,
+                        Array<Expr> A_axes,
+                        Array<Expr> B_axes,
+                        std::string name = "tensor",
+                        std::string tag = kMatMul) {
+  CHECK_EQ(A_axes.size(), B_axes.size());
+
+  auto A_axes_val = GetConstIntValues(A_axes, "A_axes");
+  auto B_axes_val = GetConstIntValues(B_axes, "B_axes");
+
+  Array<Expr> output_shape;
+  for (unsigned i = 0; i < A->shape.size(); ++i)
+    if (std::find(A_axes_val.begin(), A_axes_val.end(), i) == A_axes_val.end())
+      output_shape.push_back(A->shape[i]);
+  for (unsigned i = 0; i < B->shape.size(); ++i)
+    if (std::find(B_axes_val.begin(), B_axes_val.end(), i) == B_axes_val.end())
+      output_shape.push_back(B->shape[i]);
+
+  Array<IterVar> iter_vars;
+    for (unsigned i = 0; i < B_axes_val.size(); ++i)
+      iter_vars.push_back(reduce_axis(Range(0, B->shape[B_axes_val[i]]), "k" + std::to_string(i)));
+
+  auto func =
+    [&A, &B, &iter_vars, A_axes_val, B_axes_val]
+    (const Array<Var>& input_indices) {
+      int idx_input = 0;
+      Array<Expr> A_indices;
+      for (unsigned i = 0; i < A->shape.size(); ++i) {
+        auto axes_pos = std::find(A_axes_val.begin(), A_axes_val.end(), i);
+        if (axes_pos == A_axes_val.end())
+          A_indices.push_back(input_indices[idx_input++]);
+        else
+          A_indices.push_back(iter_vars[axes_pos - A_axes_val.begin()]);
+      }
+
+      Array<Expr> B_indices;
+      for (unsigned i = 0; i < B->shape.size(); ++i) {
+        auto axes_pos = std::find(B_axes_val.begin(), B_axes_val.end(), i);
+        if (axes_pos == B_axes_val.end())
+          B_indices.push_back(input_indices[idx_input++]);
+        else
+          B_indices.push_back(iter_vars[axes_pos - B_axes_val.begin()]);
+      }
+      return sum(A(A_indices) * B(B_indices), iter_vars);
+    };
+  return compute(output_shape, func, name, tag);
+}
+
 
 }  // namespace topi
 #endif  // TOPI_TRANSFORM_H_
