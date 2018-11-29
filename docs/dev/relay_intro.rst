@@ -31,7 +31,7 @@ Each data-flow node is a CallNode in Relay. The relay python DSL allows you to c
 One thing we want to highlight in the above code -- is that we explicitly constructed an Add node with
 both input point to ``%1``.  When a deep learning framework evaluates the above program, it will compute
 the nodes in topological order, and ``%1`` will only be computed once.
-While the this fact is very natural to deep learning framework builders, it is something that might
+While this fact is very natural to deep learning framework builders, it is something that might
 surprise a PL folk in the first place.  If we implement a simple visitor to print out the result and
 treat the result as nested Call expression, it becomes ``log(%x) + log(%x)``.
 
@@ -118,7 +118,7 @@ Now, please take a close look at the AST structure. While the two programs are s
 Since program optimizations take these AST data structures and transform them, the two different structure will
 affect the compiler code we are going to write. For example, if we want to detect a pattern ``add(log(x), y)``:
 
-- In the data-flow form, we can first access the add node, then directly look at its first arguments to see if it is a log
+- In the data-flow form, we can first access the add node, then directly look at its first argument to see if it is a log
 - In the A-normal form, we cannot directly do the check anymore, because the first input to add is ``%v1`` -- we will need to keep a map from variable to its bound values and lookup that map, in order to know that ``%v1`` is a log.
 
 Different data structures will impact how you might write transformations, and we need to keep that in mind.
