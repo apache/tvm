@@ -113,7 +113,7 @@ The code example below shows one program with two forms side by side.
 
 The nested let-binding is called A-normal form, and it is commonly used as IRs in functional programming languages.
 Now, please take a close look at the AST structure. While the two programs are semantically identical
-(so are their textual representations, except that A-normal form has let prefix), there AST structure are different from each other.
+(so are their textual representations, except that A-normal form has let prefix), their AST structures are different from each other.
 
 Since program optimizations take these AST data structures and transform them, the two different structure will
 affect the compiler code we are going to write. For example, if we want to detect a pattern ``add(log(x), y)``:
@@ -180,7 +180,7 @@ Relay choose to support both the data-flow form and let binding. We believe that
 framework developer choose the representation they are familiar with.
 This does, however, have some implications on how we write passes:
 
-- If you come from a data-flow background and want to handle let, keep a map of var to the expressions so you can perform lookup when encountering a var. This likely means a minimum change as we already need a map from expr-> transformed expression anyway. Note that this will effectively remove all the let in the program.
+- If you come from a data-flow background and want to handle let, keep a map of var to the expressions so you can perform lookup when encountering a var. This likely means a minimum change as we already need a map from expr -> transformed expression anyway. Note that this will effectively remove all the let in the program.
 - If you come from a PL background and like A-normal form, we will provide a dataflow -> A-normal form pass.
 - For PL folks, when you are implementing something (like dataflow->ANF transformation), be mindful that the expression can be DAG, and this usually means that we should visit expressions with a ``Map<Expr, Result>`` and only compute the transformed result once, so the result expression keeps the common structure.
 
