@@ -5,6 +5,7 @@
  */
 #include <string>
 #include "type_solver.h"
+#include "../ir/type_functor.h"
 
 namespace tvm {
 namespace relay {
@@ -38,6 +39,128 @@ class TypeSolver::Reporter : public TypeReporterNode {
   TypeSolver* solver_;
 };
 
+class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
+ public:
+  explicit Unifier(TypeSolver* solver) : solver_(solver) {}
+
+  Type Unify(const Type& src, const Type& dst) {
+    // Known limitation
+    // - handle shape pattern matching
+    TypeNode* lhs = solver_->GetTypeNode(dst);
+    TypeNode* rhs = solver_->GetTypeNode(src);
+
+    // do occur check so we don't create self-referencing structure
+    if (lhs->FindRoot() == rhs->FindRoot()) {
+      return lhs->resolved_type;
+    }
+    if (lhs->resolved_type.as<IncompleteTypeNode>()) {
+      solver_->MergeFromTo(lhs, rhs);
+      return rhs->resolved_type;
+    } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
+      solver_->MergeFromTo(rhs, lhs);
+      return lhs->resolved_type;
+    } else {
+      Type resolved =
+        this->VisitType(lhs->resolved_type, rhs->resolved_type);
+      CHECK(resolved.defined())
+        << "Unable to unify parent types: "
+        << lhs->resolved_type << " and " << rhs->resolved_type;
+      rhs->resolved_type = resolved;
+      solver_->MergeFromTo(lhs, rhs);
+      return resolved;
+    }
+  }
+
+  // child type needs to be listed in parent's relations, even though
+  // the child is not an argument to the relations (still have to
+  // update the relations if the child changes)
+  void RegisterChildType(const Type& parent, const Type& child) {
+    TypeNode* parent_node = solver_->GetTypeNode(parent);
+    TypeNode* child_node = solver_->GetTypeNode(child);
+    solver_->TransferQueue(parent_node, child_node);
+  }
+
+  // default: unify only if alpha-equal
+  Type VisitTypeDefault_(const Node* op, const Type& tn) override {
+    NodeRef nr = GetRef<NodeRef>(op);
+    Type t1 = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    if (!AlphaEqual(t1, tn)) {
+      return Type(nullptr);
+    }
+    return t1;
+  }
+
+  Type VisitType_(const TupleTypeNode* op, const Type& tn) override {
+    const auto* ttn = tn.as<TupleTypeNode>();
+    if (!ttn || op->fields.size() != ttn->fields.size()) {
+      return Type(nullptr);
+    }
+
+    TupleType tt1 = GetRef<TupleType>(op);
+    TupleType tt2 = GetRef<TupleType>(ttn);
+
+    std::vector<Type> new_fields;
+    for (size_t i = 0; i < tt1->fields.size(); i++) {
+      RegisterChildType(tt1, tt1->fields[i]);
+      RegisterChildType(tt2, tt1->fields[i]);
+      new_fields.push_back(Unify(tt1->fields[i], tt2->fields[i]));
+    }
+    return TupleTypeNode::make(new_fields);
+  }
+
+  Type VisitType_(const FuncTypeNode* op, const Type& tn) override {
+    const auto* ftn = tn.as<FuncTypeNode>();
+    if (!ftn
+        || op->arg_types.size() != ftn->arg_types.size()
+        || op->type_params.size() != ftn->type_params.size()
+        || op->type_constraints.size() != ftn->type_constraints.size()) {
+      return Type(nullptr);
+    }
+
+    FuncType ft1 = GetRef<FuncType>(op);
+    FuncType ft2 = GetRef<FuncType>(ftn);
+
+    RegisterChildType(ft1, ft1->ret_type);
+    RegisterChildType(ft2, ft2->ret_type);
+    Type ret_type = Unify(ft1->ret_type, ft2->ret_type);
+
+    std::vector<Type> arg_types;
+    for (size_t i = 0; i < ft1->arg_types.size(); i++) {
+      RegisterChildType(ft1, ft1->arg_types[i]);
+      RegisterChildType(ft2, ft2->arg_types[i]);
+      arg_types.push_back(Unify(ft1->arg_types[i], ft2->arg_types[i]));
+    }
+
+    std::vector<TypeVar> type_params;
+    for (size_t i = 0; i < ft1->type_params.size(); i++) {
+      RegisterChildType(ft1, ft1->type_params[i]);
+      RegisterChildType(ft2, ft2->type_params[i]);
+      Type unified_var = Unify(ft1->type_params[i], ft2->type_params[i]);
+      const auto* tvn = unified_var.as<TypeVarNode>();
+      CHECK(tvn) << "Two type vars unified into a non type var? "
+                 << ft1->type_params[i] << " and " << ft2->type_params[i];
+      type_params.push_back(GetRef<TypeVar>(tvn));
+    }
+
+    std::vector<TypeConstraint> type_constraints;
+    for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
+      RegisterChildType(ft1, ft1->type_constraints[i]);
+      RegisterChildType(ft2, ft2->type_constraints[i]);
+      Type unified_constraint = Unify(ft1->type_constraints[i],
+                                      ft2->type_constraints[i]);
+      const auto* tcn = unified_constraint.as<TypeConstraintNode>();
+      CHECK(tcn) << "Two type constraints unified into a non-constraint?"
+                 << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
+      type_constraints.push_back(GetRef<TypeConstraint>(tcn));
+    }
+
+    return FuncTypeNode::make(arg_types, ret_type, type_params, type_constraints);
+  }
+
+ private:
+  TypeSolver* solver_;
+};
+
 // constructor
 TypeSolver::TypeSolver()
     : reporter_(make_node<Reporter>(this)) {
@@ -56,29 +179,8 @@ TypeSolver::~TypeSolver() {
 
 // Add equality constraint
 Type TypeSolver::Unify(const Type& dst, const Type& src) {
-  // Known limitation
-  // - handle composite types whose component can be unknown.
-  // - handle shape pattern matching
-  TypeNode* lhs = GetTypeNode(dst);
-  TypeNode* rhs = GetTypeNode(src);
-
-  // do occur check so we don't create self-referencing structure
-  if (lhs->FindRoot() == rhs->FindRoot()) {
-    return lhs->resolved_type;
-  }
-  if (lhs->resolved_type.as<IncompleteTypeNode>()) {
-    MergeFromTo(lhs, rhs);
-    return rhs->resolved_type;
-  } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
-    MergeFromTo(rhs, lhs);
-    return lhs->resolved_type;
-  } else {
-    lhs->parent = rhs;
-    CHECK(AlphaEqual(lhs->resolved_type, rhs->resolved_type))
-        << "Incompatible parent types in UF:"
-        << lhs->resolved_type << " and " << rhs->resolved_type;
-    return rhs->resolved_type;
-  }
+  Unifier unifier(this);
+  return unifier.Unify(dst, src);
 }
 
 // Add type constraint to the solver.
