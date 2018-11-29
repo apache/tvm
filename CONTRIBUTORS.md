@@ -38,6 +38,7 @@ We do encourage everyone to work anything they are interested in.
 - [Ziheng Jiang](https://github.com/ZihengJiang): @ZihengJiang
 - [Wuwei Lin](https://github.com/vinx13): @vinx13
 - [Masahiro Masuda](https://github.com/masahi): @masahi
+- [Sergey Mironov](https://github.com/grwlf): @grwlf
 - [Thierry Moreau](https://github.com/tmoreau89): @tmoreau89
 - [Kazutaka Morita](https://github.com/kazum): @kazum
 - [Tatsuya Nishiyama](https://github.com/nishi-t): @nishi-t
