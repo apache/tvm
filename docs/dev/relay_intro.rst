@@ -137,7 +137,7 @@ which does not use let binding.
     :scale: 70%
 
 The problem comes when we try to decide where we should evaluate node ``%1``. In particular, while the text format seems
-to suggest that we should evaluate node ``%1`` outside the if checking, the AST(as shown in the picture) does not show that relation.
+to suggest that we should evaluate node ``%1`` outside the if scope, the AST(as shown in the picture) does not suggest so.
 Actually, a dataflow graph never defines its scope of the evaluation. This introduces some ambiguity in the semantics.
 
 This ambiguity becomes more interesting when we have closures. Consider the following program, which returns a closure.
@@ -162,19 +162,19 @@ On the other hand, the data-flow form, which does not specify the scope of compu
 -- we don’t need to worry about where to put the let when we generate the code. The dataflow form also gives more freedom
 to the later passes to decide where to put the evaluation point. As a result, it might not be a bad idea to use data flow
 form of the program in the initial phases of optimizations when you find it is convenient.
-As a matter of fact, many optimizations in Relay today are written to optimize dataflow programs.
+Many optimizations in Relay today are written to optimize dataflow programs.
 
 However, when we lower the IR to actual runtime program, we need to be precise about the scope of computation.
 In particular, we want to explicitly specify where the scope of computation should happen when we are using
-sub-functions and closures. Let-binding is used to solve this problem in later stage execution specific optimizations.
+sub-functions and closures. Let-binding can be used to solve this problem in later stage execution specific optimizations.
 
 
 Implication on IR Transformations
 ---------------------------------
 
 Hopefully, by now you are familiar with the two kinds of representations.
-Most functional programming languages do their analysis in A-normal form, in the case of A-normal form,
-the analyzer does not need to be mindful that the expressions are DAGs.
+Most functional programming languages do their analysis in A-normal form,
+where the analyzer does not need to be mindful that the expressions are DAGs.
 
 Relay choose to support both the data-flow form and let binding. We believe that it is important to let the
 framework developer choose the representation they are familiar with.
