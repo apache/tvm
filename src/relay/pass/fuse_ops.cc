@@ -741,7 +741,7 @@ class FuseMutator : private ExprMutator {
     if (ret_group == gmap_.at(tuple)) {
       bool isolated = true;
       for (size_t i = 0; i < new_fields.size(); ++i) {
-        isolated &= (new_fields[i] == ginfo_[ret_group].params[i]);
+        isolated &= (new_fields[i].same_as(ginfo_[ret_group].params[i]));
       }
       if (isolated) {
         // Do not put a isolated tuple into a function
