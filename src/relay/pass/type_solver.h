@@ -65,6 +65,7 @@ class TypeSolver {
   Type Unify(const Type& lhs, const Type& rhs);
 
  private:
+  class Unifier;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
@@ -159,6 +160,24 @@ class TypeSolver {
     update_queue_.push(rel);
   }
   /*!
+   * \brief Adds relations in relation queue of src to dst
+   * \param src The source operand
+   * \param dst The dst operand
+   */
+  void TransferQueue(TypeNode* src, TypeNode* dst) {
+    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
+      // store next pointer first before rlink get moved
+      auto* next = rlink->next;
+      // if the relation is not yet resolved
+      // send the relation to the queue
+      if (!rlink->value->resolved) {
+        this->AddToQueue(rlink->value);
+        dst->rel_list.Push(rlink);
+      }
+      rlink = next;
+    }
+  }
+  /*!
    * \brief Merge rhs type node to lhs
    * \param src The source operand
    * \param dst The dst operand.
@@ -167,17 +186,7 @@ class TypeSolver {
     if (src == dst) return;
     src->parent = dst;
     // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
-      // store next pointer first before rlink get moved
-      auto* next = rlink->next;
-      // if the relation is not yet resolved
-      // send the relation to the new
-      if (!rlink->value->resolved) {
-        this->AddToQueue(rlink->value);
-        dst->rel_list.Push(rlink);
-      }
-      rlink = next;
-    }
+    TransferQueue(src, dst);
   }
 };
 
