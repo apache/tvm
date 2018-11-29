@@ -65,8 +65,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       CHECK(resolved.defined())
         << "Unable to unify parent types: "
         << lhs->resolved_type << " and " << rhs->resolved_type;
-      rhs->resolved_type = resolved;
-      solver_->MergeFromTo(lhs, rhs);
       return resolved;
     }
   }
@@ -77,6 +75,11 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   void RegisterChildType(const Type& parent, const Type& child) {
     TypeNode* parent_node = solver_->GetTypeNode(parent);
     TypeNode* child_node = solver_->GetTypeNode(child);
+
+    // if child is already concrete type, nothing to do
+    if (!child_node->resolved_type.as<IncompleteTypeNode>()) {
+      return;
+    }
     solver_->TransferQueue(parent_node, child_node);
   }
 
@@ -102,7 +105,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     std::vector<Type> new_fields;
     for (size_t i = 0; i < tt1->fields.size(); i++) {
       RegisterChildType(tt1, tt1->fields[i]);
-      RegisterChildType(tt2, tt1->fields[i]);
+      RegisterChildType(tt2, tt2->fields[i]);
       new_fields.push_back(Unify(tt1->fields[i], tt2->fields[i]));
     }
     return TupleTypeNode::make(new_fields);
