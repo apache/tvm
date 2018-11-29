@@ -114,12 +114,13 @@ class LayoutAlternatedExprNode : public TempExprNode {
 RELAY_DEFINE_NODE_REF(LayoutAlternatedExpr, LayoutAlternatedExprNode, TempExpr);
 
 // Call registered FInferCorrectLayout of an op.
-// Return inferred_input_layout, inferred_output_layout, success
+// Parameters are the same as the parameters for FInferCorrectLayout
+// Returns inferred_input_layout, inferred_output_layout, success
 std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
     const Call& call,
     const Array<Layout>& new_in_layouts,
     const Array<Layout>& old_in_layouts,
-    const Array<Array<IndexExpr>> &old_in_shapes) {
+    const Array<Array<IndexExpr> > &old_in_shapes) {
   static auto finfer_layout = Op::GetAttr<FInferCorrectLayout>("FInferCorrectLayout");
 
   Op op = Downcast<Op>(call->op);
@@ -143,7 +144,7 @@ std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
 }
 
 // Call registered FTVMAlterOpLayout of an op
-// Return altered expression
+// Returns the altered expression
 Call CallAlter(const Call& ref_call,
                const std::vector<Expr>& new_args) {
   static auto falter_layout = Op::GetAttr<FTVMAlterOpLayout>("FTVMAlterOpLayout");
