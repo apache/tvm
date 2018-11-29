@@ -131,6 +131,14 @@ def _convert_dense(insym, keras_layer, symtab):
     if keras_layer.use_bias:
         params['use_bias'] = True
         params['bias'] = symtab.new_const(weightList[1])
+    input_shape = keras_layer.input_shape
+    input_dim = len(input_shape)
+    # In case of RNN dense, input shape will be (1, 1, n)
+    if input_dim > 2:
+        input_shape = tuple(dim if dim else 1 for dim in _as_list(input_shape)[0])
+        if input_dim != 3 or input_shape[0] != 1 or input_shape[1] != 1:
+            raise ValueError("Cannot flatten the inputs with shape.", input_shape, " for dense.")
+        insym = _sym.squeeze(insym, axis=0)
     out = _sym.dense(data=insym, **params)
     # defuse activation
     if sys.version_info.major < 3:
@@ -139,6 +147,8 @@ def _convert_dense(insym, keras_layer, symtab):
         act_type = keras_layer.activation.__name__
     if act_type != 'linear':
         out = _convert_activation(out, act_type, symtab)
+    if input_dim > 2:
+        out = _sym.expand_dims(out, axis=0)
     return out
 
 
@@ -408,10 +418,11 @@ def _convert_lstm(insym, keras_layer, symtab):
         insym = [insym, h_sym, c_sym]
 
     in_data = insym[0]
-    in_state_h = insym[1]
-    in_state_c = insym[2]
+    next_h = insym[1]
+    next_c = insym[2]
 
     weightList = keras_layer.get_weights()
+    inp_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.input_shape)[0])
 
     kernel_wt = symtab.new_const(weightList[0].transpose([1, 0]))
     recurrent_wt = symtab.new_const(weightList[1].transpose([1, 0]))
@@ -419,16 +430,20 @@ def _convert_lstm(insym, keras_layer, symtab):
 
     units = list(weightList[0].shape)[1]
 
-    in_data = _sym.flatten(in_data)
-    ixh1 = _sym.dense(in_data, kernel_wt, use_bias=False, units=units)
-    ixh2 = _sym.dense(in_state_h, recurrent_wt, in_bias, use_bias=True, units=units)
-    gate = ixh1 + ixh2
-    gates = _sym.split(gate, indices_or_sections=4, axis=1)
-    in_gate = _convert_recurrent_activation(gates[0], keras_layer)
-    in_transform = _convert_recurrent_activation(gates[1], keras_layer)
-    next_c = in_transform * in_state_c + in_gate * _convert_activation(gates[2], keras_layer, None)
-    out_gate = _convert_recurrent_activation(gates[3], keras_layer)
-    next_h = out_gate * _convert_activation(next_c, keras_layer, None)
+    time_steps = inp_shape[1]
+    in_data = _sym.squeeze(in_data, axis=0)
+    in_data = _sym.split(in_data, indices_or_sections=time_steps, axis=0)
+    #loop for the number of time_steps
+    for data in in_data:
+        ixh1 = _sym.dense(data, kernel_wt, use_bias=False, units=units)
+        ixh2 = _sym.dense(next_h, recurrent_wt, in_bias, use_bias=True, units=units)
+        gate = ixh1 + ixh2
+        gates = _sym.split(gate, indices_or_sections=4, axis=1)
+        in_gate = _convert_recurrent_activation(gates[0], keras_layer)
+        in_transform = _convert_recurrent_activation(gates[1], keras_layer)
+        next_c = in_transform * next_c + in_gate * _convert_activation(gates[2], keras_layer, None)
+        out_gate = _convert_recurrent_activation(gates[3], keras_layer)
+        next_h = out_gate * _convert_activation(next_c, keras_layer, None)
 
     out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
     out = _sym.reshape(next_h, shape=out_shape)
@@ -656,6 +671,12 @@ def from_keras(model):
                 raise TypeError("Unknown layer type or unsupported Keras version : {}"
                                 .format(keras_layer))
             for node_idx, node in enumerate(inbound_nodes):
+                # If some nodes in imported model is not relevant to the current model,
+                # skip such layers. model._network_nodes contains keys of all nodes relevant
+                # to the current model.
+                if not model._node_key(keras_layer, node_idx) in model._network_nodes:
+                    continue
+
                 insym = []
 
                 # Since Keras allows creating multiple layers from the same name instance,
