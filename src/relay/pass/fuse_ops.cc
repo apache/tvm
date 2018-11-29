@@ -754,7 +754,7 @@ class FuseMutator : private ExprMutator {
       // This tuple has been fused other ops before it
       return MakeNewFunction(ret_group, TupleType(), new_tuple);
     }
-	return new_tuple;
+    return new_tuple;
   }
 
   Expr MakeNewFunction(GraphPartitioner::Group* group, Type ret_type, Expr body) {
