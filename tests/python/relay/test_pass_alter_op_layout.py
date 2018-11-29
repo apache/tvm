@@ -119,7 +119,7 @@ def test_alter_layout():
 
     a = before()
     a = infer_type(a)
-    a = simplify_bias_add(a)
+    a = canonicalize_ops(a)
     a = infer_type(a)
     a = alter_op_layout(a)
     a = infer_type(a)
@@ -295,7 +295,7 @@ def test_alter_layout_broadcast_op():
 
     a = before()
     a = infer_type(a)
-    a = simplify_bias_add(a)
+    a = canonicalize_ops(a)
     a = infer_type(a)
     a = alter_op_layout(a)
     a = infer_type(a)

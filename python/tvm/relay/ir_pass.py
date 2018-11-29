@@ -191,9 +191,9 @@ def simplify_inference(expr):
     return _ir_pass.simplify_inference(expr)
 
 
-def simplify_bias_add(expr):
-    """ Simplify the bias_add to expand_dims and broadcast_add.
-    This can simplify latter layout related passes (e.g. alter_op_layout)
+def canonicalize_ops(expr):
+    """ Canonicalize special operators to basic operators.
+    This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
 
     Parameters
     ----------
@@ -205,7 +205,7 @@ def simplify_bias_add(expr):
     result: tvm.relay.Expr
         An expression without bias_add
     """
-    return _ir_pass.simplify_bias_add(expr)
+    return _ir_pass.canonicalize_ops(expr)
 
 
 def dead_code_elimination(expr):

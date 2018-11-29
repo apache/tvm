@@ -1,8 +1,8 @@
 /*!
  * Copyright (c) 2018 by Contributors
- * \file expand_bias_add.cc
- * \brief Expand bias_add to expand_dims and broadcast_add.
- *        This can simplify the passes related to layout (e.g. alter_op_layout).
+ * \file canonicalize_ops.cc
+ * \brief Canonicalize special operators to basic operators.
+    This can simplify latter analysis. (e.g. Expand bias_add to expand_dims and broadcast_add.)
  */
 #include <tvm/relay/pass.h>
 #include <tvm/relay/expr_functor.h>
@@ -33,13 +33,13 @@ class BiasAddSimplifier : public ExprMutator {
   }
 };
 
-Expr SimplifyBiasAdd(const Expr& e) {
+Expr CanonicalizeOps(const Expr& e) {
   return BiasAddSimplifier().Mutate(e);
 }
 
-TVM_REGISTER_API("relay._ir_pass.simplify_bias_add")
+TVM_REGISTER_API("relay._ir_pass.canonicalize_ops")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-*ret = SimplifyBiasAdd(args[0]);
+*ret = CanonicalizeOps(args[0]);
 });
 
 }  // namespace relay

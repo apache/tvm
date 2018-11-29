@@ -23,8 +23,7 @@ namespace alter_op_layout {
 
 // Make a transform CallNode
 Expr TransformLayout(Expr raw, Layout src_layout, Layout dst_layout) {
-  if (src_layout.Equals(dst_layout))
-    return raw;
+  if (src_layout.Equals(dst_layout)) { return raw; }
   CHECK(src_layout.defined() && dst_layout.defined())
     << "Cannot insert layout transform because there are undefined layouts";
   CHECK(src_layout.Convertible(dst_layout))
@@ -41,12 +40,12 @@ Expr TransformLayout(Expr raw, Layout src_layout, Layout dst_layout) {
 // Memorize layout transform so we can reuse internal transformed nodes
 class TransformMemorizerNode : public Node {
  public:
+  // map from (Expr, src_layout, dst_layout) to transformed Expr
   using TransformKey = std::tuple<const Node*, std::string, std::string>;
   struct key_hash : public std::unary_function<TransformKey , std::size_t> {
     std::size_t operator()(const TransformKey& k) const {
-      return std::hash<const Node*>()(std::get<0>(k)) ^
-             std::hash<std::string>()(std::get<1>(k)) ^
-             std::hash<std::string>()(std::get<2>(k));
+      return dmlc::HashCombine<std::string>(dmlc::HashCombine<std::string>(
+              std::hash<const Node*>()(std::get<0>(k)), std::get<1>(k)), (std::get<2>(k)));
     }
   };
 
@@ -66,8 +65,7 @@ class TransformMemorizer : public NodeRef {
 
   // Transform layout with memorizer
   Expr Transform(Expr raw, const Layout& src_layout, const Layout& dst_layout) {
-    if (src_layout.Equals(dst_layout))
-      return raw;
+    if (src_layout.Equals(dst_layout)) { return raw; }
 
     std::tuple<const Node*, std::string, std::string> key =
         std::make_tuple<>(raw.get(), src_layout.name(), dst_layout.name());
@@ -180,7 +178,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
                           const NodeRef& ctx) {
   std::vector<LayoutAlternatedExpr> inputs;
   std::vector<Expr> normal_new_args;
-  Array<Array<IndexExpr>> input_shapes;
+  Array<Array<IndexExpr> > input_shapes;
 
   // NOTE: discard the "const" qualifier
   TransformMemorizer memorizer = Downcast<TransformMemorizer>(ctx);
@@ -188,6 +186,8 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   // fill incomplete state and expand tuple
   for (auto new_arg : new_args) {
     auto push_back_one_arg = [&](Expr arg) {
+      // We always expect LayoutAlternatedExpr.
+      // This is used to convert the normal expr into LayoutAlternatedExpr.
       if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
         inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
         normal_new_args.push_back(inp->value);
@@ -199,6 +199,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
         normal_new_args.push_back(arg);
       }
     };
+
     if (new_arg->is_type<TupleNode>()) {
       Tuple tuple_new_arg = Downcast<Tuple>(new_arg);
       for (auto x : tuple_new_arg->fields) {

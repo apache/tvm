@@ -161,7 +161,7 @@ def optimize(func, params=None):
 
     if cfg.pass_enabled("AlterOpLayout"):
         func = ir_pass.infer_type(func)
-        func = ir_pass.simplify_bias_add(func)
+        func = ir_pass.canonicalize_ops(func)
         func = ir_pass.infer_type(func)
         func = ir_pass.alter_op_layout(func)
 
