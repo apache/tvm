@@ -113,7 +113,7 @@ class LayoutAlternatedExprNode : public TempExprNode {
 
 RELAY_DEFINE_NODE_REF(LayoutAlternatedExpr, LayoutAlternatedExprNode, TempExpr);
 
-// Call FInferCorrectLayout of an op.
+// Call registered FInferCorrectLayout of an op.
 // Return inferred_input_layout, inferred_output_layout, success
 std::tuple<Array<Layout>, Array<Layout>, bool> CallInfer(
     const Call& call,
@@ -187,7 +187,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   for (auto new_arg : new_args) {
     auto push_back_one_arg = [&](Expr arg) {
       // We always expect LayoutAlternatedExpr.
-      // This is used to convert the normal expr into LayoutAlternatedExpr.
+      // This is used to convert the normal Expr to LayoutAlternatedExpr.
       if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
         inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
         normal_new_args.push_back(inp->value);
