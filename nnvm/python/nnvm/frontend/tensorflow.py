@@ -1280,9 +1280,9 @@ class GraphProto(object):
             for f in fields:
                 if getattr(x.list, f):
                     if f == "type":
-                        ret = [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
+                        ret += [dtypes.as_dtype(x) for x in list(getattr(x.list, f))]
                     else:
-                        ret = list(getattr(x.list, f))
+                        ret += list(getattr(x.list, f))
         else:
             for f in fields:
                 if x.HasField(f):
