@@ -17,6 +17,7 @@ OPT_PASS_LEVEL = {
     "FoldConstant": 2,
     "CombineParallelConv2D": 3,
     "FoldScaleAxis": 3,
+    "AlterOpLayout": 3,
 }
 
 class BuildConfig(object):
@@ -157,6 +158,13 @@ def optimize(func, params=None):
 
     if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
+
+    if cfg.pass_enabled("AlterOpLayout"):
+        func = ir_pass.infer_type(func)
+        func = ir_pass.canonicalize_ops(func)
+        func = ir_pass.infer_type(func)
+        func = ir_pass.alter_op_layout(func)
+
     return func
 
 

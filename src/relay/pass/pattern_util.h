@@ -73,7 +73,7 @@ inline bool MatchBroadcastToLeftAxes(const TensorTypeNode* tlhs,
  * the target Tensor on the specified axis via broadcasting rule.
  *
  * \param bias The bias.
- * \param target_ndim target dimension.
+ * \param target_ndim Target dimension.
  * \param axes The axis on the output we want to match on.
  */
 inline Expr ExpandBiasToMatchAxis(Expr bias,

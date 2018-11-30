@@ -80,12 +80,3 @@ def clip_compute(attrs, inputs, output_type, target):
     return [topi.clip(inputs[0], attrs.a_min, attrs.a_max)]
 
 register_schedule("clip", schedule_elemwise)
-register_pattern("clip", OpPattern.ELEMWISE)
-
-# concatenate
-@register_compute("concatenate")
-def concatenate_compute(attrs, inputs, output_type, target):
-    return [topi.concatenate(inputs, axis=attrs.axis)]
-
-register_schedule("concatenate", schedule_injective)
-register_pattern("concatenate", OpPattern.INJECTIVE)

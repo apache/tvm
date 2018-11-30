@@ -459,7 +459,7 @@ inline const TTypeNode* ExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
   CHECK(checked_type_.defined())
-      << "Type inference for this Expr has not completed";
+      << "Type inference for this Expr has not completed. Try to call infer_type pass.";
   const TTypeNode* node = checked_type_.as<TTypeNode>();
   CHECK(node != nullptr)
       << "Expected type to be " << TTypeNode::_type_key

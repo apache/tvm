@@ -107,7 +107,7 @@ def register_schedule(op_name, schedule=None, level=10):
     op_name : str
         The name of the op.
 
-    schedule : function
+    schedule : function (attrs: Attrs, outs: List[Tensor], target: Target) -> sch: Schedule
         The schedule function.
 
     level : int
@@ -124,13 +124,31 @@ def register_compute(op_name, compute=None, level=10):
     op_name : str
         The name of the op.
 
-    compute : function
+    compute : function (attrs: Attrs, inputs: List[Tensor], out_type: Type, target:Target)
+                       -> List[Tensor]
         The compute function.
 
     level : int
         The priority level
     """
     return register(op_name, "FTVMCompute", compute, level)
+
+
+def register_alter_op_layout(op_name, alter_layout=None, level=10):
+    """Register alter op layout function for an op
+
+    Parameters
+    ----------
+    op_name : str
+        The name of the operator
+
+    alter_layout: function (attrs: Attrs, inputs: List[Expr]) -> new_expr: Expr
+        The function for changing the layout or replacing the operator
+
+    level : int
+        The priority level
+    """
+    return register(op_name, "FTVMAlterOpLayout", alter_layout, level)
 
 
 def register_pattern(op_name, pattern, level=10):

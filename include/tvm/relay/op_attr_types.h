@@ -87,6 +87,21 @@ using FTVMSchedule = runtime::TypedPackedFunc<
            const Target& target)>;
 
 /*!
+ * \brief Alternate the layout of operators or replace the
+ *  operator with other expressions. This function will be invoked
+ *  in AlterOpLayout pass.
+ * \param attrs The attribute of the original node.
+ * \param inputs The input symbols of the original node.
+ * \param tinfos An array of placeholders, use for getting the inferred shape
+ *               and dtype of the inputs.
+ * \return new_expr The modified expression.
+ */
+using FTVMAlterOpLayout = runtime::TypedPackedFunc<
+  Expr(const Attrs& attrs,
+       const Array<Expr>& args,
+       const Array<Tensor>& tinfos)>;
+
+/*!
  * \brief Forward rewriting rule for a specific op.
  *
  * \param ref_call The reference old call type to be rewritten.

@@ -11,9 +11,12 @@
 #include <topi/elemwise.h>
 #include <topi/broadcast.h>
 #include <topi/reduction.h>
+#include <topi/nn.h>
 #include <vector>
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
+#include "../../pass/alter_op_layout.h"
+#include "../layout.h"
 
 namespace tvm {
 namespace relay {
@@ -156,6 +159,7 @@ RELAY_REGISTER_OP("expand_dims")
 .set_attr<FTVMCompute>("FTVMCompute", ExpandDimsCompute)
 .set_attr<TOpPattern>("TOpPattern", kBroadcast);
 
+// relay.concatenate
 TVM_REGISTER_NODE_TYPE(ConcatenateAttrs);
 
 bool ConcatenateRel(const Array<Type>& types,
@@ -201,6 +205,42 @@ bool ConcatenateRel(const Array<Type>& types,
   return true;
 }
 
+Array<Array<Layout>> ConcatenateLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  const ConcatenateAttrs* param = attrs.as<ConcatenateAttrs>();
+
+  size_t axis = param->axis < 0 ? param->axis + old_in_shapes[0].size() :
+                static_cast<size_t>(param->axis);
+
+  Layout ret;
+  if (new_in_layouts.defined()) {  // this function is called after some operators are alternated.
+    Layout::LayoutDim concate_dim = old_in_layouts[0][axis];
+    for (size_t i = 0; i < new_in_layouts.size(); ++i) {
+      if (new_in_layouts[i].ndim() > axis &&
+          new_in_layouts[i][axis] == concate_dim) {
+        ret = new_in_layouts[i];
+        break;
+      }
+    }
+  } else {  // this function is called on the original correct relay ir
+    for (size_t i = 0; i < old_in_layouts.size(); ++i) {
+      if (old_in_layouts[i].defined()) {
+        ret = old_in_layouts[i];
+        break;
+      }
+    }
+
+    if (ret.ndim() <= axis || Layout::IsSubdim(ret[axis])) {
+      return Array<Array<Layout> > {{Layout::Undef()}, {Layout::Undef()}};
+    }
+  }
+
+  return Array<Array<Layout> > {Array<Layout>(old_in_layouts.size(), ret), {ret}};
+}
+
 Expr MakeConcatenate(Expr data,
                      int axis) {
   auto attrs = make_node<ConcatenateAttrs>();
@@ -226,7 +266,8 @@ RELAY_REGISTER_OP("concatenate")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input list of tensors.")
 .set_support_level(1)
-.add_type_rel("Concatenate", ConcatenateRel);
+.add_type_rel("Concatenate", ConcatenateRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ConcatenateLayout);
 
 /* relay.transpose */
 TVM_REGISTER_NODE_TYPE(TransposeAttrs);
@@ -323,7 +364,6 @@ RELAY_REGISTER_OP("transpose")
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 /* relay.reshape */
-
 TVM_REGISTER_NODE_TYPE(ReshapeAttrs);
 
 bool ReshapeRel(const Array<Type>& types,
@@ -1252,7 +1292,7 @@ Examples::
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
-// Split
+// relay.split
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
 bool SplitRel(const Array<Type>& types,
@@ -1367,6 +1407,7 @@ the entries indicate where along axis the array is split.
 .set_attr<TOpPattern>("TOpPattern", kInjective);
 
 
+// relay.slice_like
 TVM_REGISTER_NODE_TYPE(SliceLikeAttrs);
 
 /*!
@@ -1512,6 +1553,105 @@ RELAY_REGISTER_OP("slice_like")
 .add_type_rel("SliceLike", SliceLikeRel)
 .set_attr<FTVMCompute>("FTVMCompute", SliceLikeCompute)
 .set_attr<TOpPattern>("TOpPattern", kInjective);
+
+
+// relay.layout_transform
+Array<Tensor> LayoutTransformCompute(const Attrs& attrs,
+                                     const Array<Tensor>& inputs,
+                                     const Type& out_type,
+                                     const Target& target) {
+  const LayoutTransformAttrs *param = attrs.as<LayoutTransformAttrs>();
+  CHECK(param != nullptr);
+
+  Layout src_layout(param->src_layout);
+  Layout dst_layout(param->dst_layout);
+
+  if (src_layout.Equals(dst_layout)) {
+    return Array<Tensor>{ inputs[0] };
+  }
+
+  CHECK(src_layout.defined() && dst_layout.defined())
+    << "cannot convert from/to undefined layout";
+  CHECK(src_layout.Convertible(dst_layout))
+    << "cannot convert from " << param->src_layout << " to " << param->dst_layout;
+
+  const auto& out_shape = ConvertLayout(inputs[0]->shape, src_layout, dst_layout);
+  return Array<Tensor> {
+      topi::layout_transform(inputs[0], out_shape, [&](const Array<tvm::Var>& dst_indices) {
+        std::vector<tvm::Expr> dst_to_src_indices;
+        for (size_t i = 0; i < src_layout.ndim(); ++i) {
+          Layout::LayoutDim src_axis = src_layout[i];
+          int dst_major_pos = dst_layout.Indexof(Layout::ToSuperdim(src_axis));
+          int dst_minor_pos = dst_layout.Indexof(Layout::ToSubdim(src_axis));
+          int32_t src_factor = static_cast<int32_t>(src_layout.Subsizeof(src_axis));
+          int32_t dst_factor = static_cast<int32_t>(dst_layout.Subsizeof(src_axis));
+
+          tvm::Expr src_index(dst_indices[dst_major_pos]);
+          if (dst_minor_pos >= 0) {
+            CHECK_GT(dst_factor, 0);
+            src_index = src_index * dst_factor + dst_indices[dst_minor_pos];
+          }
+          if (Layout::IsSuperdim(src_axis) && src_factor > 0) {
+            src_index = src_index / src_factor;
+          } else if (Layout::IsSubdim(src_axis) && src_factor > 0) {
+            src_index = src_index % src_factor;
+          }
+          dst_to_src_indices.push_back(src_index);
+        }
+        return Array<tvm::Expr>(dst_to_src_indices);
+      })
+  };
+}
+
+bool LayoutTransformRel(const Array<Type>& types,
+                        int num_inputs,
+                        const Attrs& attrs,
+                        const TypeReporter& reporter) {
+  const auto* data = types[0].as<TensorTypeNode>();
+  CHECK(data != nullptr);
+  const LayoutTransformAttrs* params = attrs.as<LayoutTransformAttrs>();
+
+  Layout src_layout(params->src_layout);
+  Layout dst_layout(params->dst_layout);
+
+  CHECK(src_layout.defined() && dst_layout.defined())
+    << "cannot convert from/to undefined layout";
+  CHECK(src_layout.Convertible(dst_layout))
+    << "cannot convert from " << params->src_layout << " to " << params->dst_layout;
+
+  const auto& out_shape = ConvertLayout(data->shape, src_layout, dst_layout);
+  reporter->Assign(types[1], TensorTypeNode::make(out_shape, data->dtype));
+  return true;
+}
+
+Expr MakeLayoutTransform(Expr data,
+                         std::string src_layout,
+                         std::string dst_layout) {
+  auto attrs = make_node<LayoutTransformAttrs>();
+  attrs->src_layout = std::move(src_layout);
+  attrs->dst_layout = std::move(dst_layout);
+  static const Op& op = Op::Get("layout_transform");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_API("relay.op._make.layout_transform")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  runtime::detail::unpack_call<Expr, 3>(MakeLayoutTransform, args, rv);
+});
+
+RELAY_REGISTER_OP("layout_transform")
+.describe(R"code(Transform the input data layout.
+
+For transforming from NCHW to N16cHWC, the `__layout_transform__` operator reshapes
+the input array by output[n, c, h, w, C] = data[n, C*16+c, h, w]
+
+)code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.LayoutTransformAttrs")
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.add_type_rel("layout_transform", LayoutTransformRel)
+.set_support_level(5)
+.set_attr<FTVMCompute>("FTVMCompute", LayoutTransformCompute);
 
 }  // namespace relay
 }  // namespace tvm

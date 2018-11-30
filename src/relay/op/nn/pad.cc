@@ -12,6 +12,7 @@
 namespace tvm {
 namespace relay {
 
+// relay.nn.pad
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
 bool PadRel(const Array<Type>& types,
