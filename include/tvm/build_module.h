@@ -220,6 +220,9 @@ class BuildConfigNode : public Node {
   /*! \brief Whether to dump the IR of each pass (only when building from python) */
   bool dump_pass_ir = false;
 
+  /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
+  bool instrument_bound_checkers = false;
+
   void VisitAttrs(AttrVisitor* v) final {
     v->Visit("data_alignment", &data_alignment);
     v->Visit("offset_factor", &offset_factor);
@@ -232,6 +235,7 @@ class BuildConfigNode : public Node {
     v->Visit("detect_global_barrier", &detect_global_barrier);
     v->Visit("partition_const_loop", &partition_const_loop);
     v->Visit("dump_pass_ir", &dump_pass_ir);
+    v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
