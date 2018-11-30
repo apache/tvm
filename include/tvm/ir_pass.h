@@ -181,11 +181,13 @@ Stmt Inline(Stmt stmt,
  * \param extern_buffer Map specifies external
  *    buffer assignment of input and outputs.
  * \param cache_line_size The size of CPU cache line.
+ * \param create_bound_attribute Whether to create bound attributes.
  * \return Transformed stmt.
  */
 Stmt StorageFlatten(Stmt stmt,
                     Map<Tensor, Buffer> extern_buffer,
-                    int cache_line_size);
+                    int cache_line_size,
+                    bool create_bound_attribute = false);
 
 /*!
  * \brief Remove No Op from the Stmt.
@@ -233,6 +235,13 @@ Stmt UnrollLoop(Stmt stmt,
  * \return Transformed stmt.
  */
 Stmt VectorizeLoop(Stmt stmt);
+
+/*!
+* \brief instruments bound checkers.
+* \param stmt The statment to be instrumented.
+* \return Instrumented Stmt.
+*/
+Stmt InstrumentBoundCheckers(Stmt stmt);
 
 /*!
  * \brief Inject virtual thread loops into stmt.
