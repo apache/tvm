@@ -161,11 +161,11 @@ class AttrCvt(object):
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
-        pad = max(kernel1d - stride1d, 0)
+        pad = tvm.select((kernel1d - stride1d) > 0, (kernel1d - stride1d), relay.const(0))
     else:
-        pad = max(kernel1d - (input1d % stride1d), 0)
+        pad = tvm.select((kernel1d - (input1d % stride1d)) > 0, (kernel1d - (input1d % stride1d)), relay.const(0))
 
-    pad_before = pad // 2
+    pad_before = pad // relay.const(2)
     pad_after = pad - pad_before
 
     return [pad_before, pad_after]
@@ -318,7 +318,7 @@ def _conv(opname):
             attr['data_format'] = "NCHW"
             attr['strides'] = [attr['strides'][ii] for ii in (0, 3, 1, 2)]
             flip_layout = True
-
+        print("W Shape:", weights_shape)
         if attr['data_format'] == 'NHWC':
             kernel_h, kernel_w, _, depth_mult = weights_shape
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
@@ -369,38 +369,43 @@ def _conv(opname):
             pad_h = _get_pad_pair(in_w, kernel_w, stride_w)
 
             if attr['data_format'] == 'NHWC':
-                inputs[0] = _op.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1]),
-                                                (0, 0)))
+                inputs[0] = _op.nn.pad(data=inputs[0],
+                                       pad_width=((0, 0),
+                                                  (pad_v[0], pad_v[1]),
+                                                  (pad_h[0], pad_h[1]),
+                                                  (0, 0)))
             else:
-                inputs[0] = _op.pad(data=inputs[0],
-                                     pad_width=((0, 0),
-                                                (0, 0),
-                                                (pad_v[0], pad_v[1]),
-                                                (pad_h[0], pad_h[1])))
+                inputs[0] = _op.nn.pad(data=inputs[0],
+                                       pad_width=((0, 0),
+                                                  (0, 0),
+                                                  (pad_v[0], pad_v[1]),
+                                                  (pad_h[0], pad_h[1])))
 
             attr['padding'] = [0, 0]
 
         else:
             raise TypeError("Unsupported padding type : {}".format(attr['padding']))
 
-        if 'kernel_layout' not in attr:
+        if 'weight_layout' not in attr:
             if opname == 'conv':
-                attr['kernel_layout'] = 'HWIO' if attr['data_format'] == 'NHWC' else 'OIHW'
+                attr['weight_layout'] = 'HWIO' if attr['data_format'] == 'NHWC' else 'OIHW'
             else:
-                attr['kernel_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
+                attr['weight_layout'] = 'HWOI' if attr['data_format'] == 'NHWC' else 'OIHW'
+
+        use_bias = len(inputs) == 3
+        channel_axis = 1 if attr['data_format'] == "NCHW" else 3
 
         out = AttrCvt(
             op_name=_dimension_picker('conv'),
             transforms={
                 'kernel_shape': 'kernel_size',
-                'data_format': 'layout',
+                'data_format': 'data_layout',
                 'dilations': ('dilation', (0, 0)),
                 'group': ('groups', 1)},
-            extras={'use_bias': len(inputs) == 3},
-            custom_check=_dimension_constraint())(inputs, attr)
+            custom_check=_dimension_constraint())([inputs[0], inputs[1]], attr)
+
+        if use_bias:
+            out = _op.nn.bias_add(out, inputs[2], axis=channel_axis)
 
         if flip_layout:
             out = _op.transpose(out, axes=(0, 2, 3, 1))
@@ -954,7 +959,6 @@ class GraphProto(object):
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
 
-        shape = None
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
@@ -1035,7 +1039,7 @@ class GraphProto(object):
                 for i in node.input:
                     if i in self._nodes:
                         inputs.append(self._nodes[i][0])
-                        #input_shapes[self._nodes[i]] = self._output_shapes[i] // TODO
+                        input_shapes[self._nodes[i][0]] = self._output_shapes[i]
                 attr['_input_shapes'] = input_shapes
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
@@ -1060,12 +1064,8 @@ class GraphProto(object):
 
             # Infer shapes if passed explicitely
             node_output = self._nodes[node.name]
-            if shape:
-                g = _graph.create(node_output)
-                shape_dict = {k: v.shape for k, v in self._params.items()}
-                shape_dict.update(shape)
-                _, out_shapes = graph_util.infer_shape(g, **shape_dict)
-                self._output_shapes[node.name] = out_shapes
+            out_type = relay.ir_pass.infer_type(node_output[0])
+            self._output_shapes[node.name] = [out_type.checked_type.shape]
 
         out = op
         out = out[0] if len(out) == 1 else _expr.Tuple(out)

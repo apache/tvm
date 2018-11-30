@@ -1056,6 +1056,14 @@ def test_forward_rel_ops():
 # Main
 # ----
 if __name__ == '__main__':
+    # NN
+    test_forward_convolution()
+    #test_forward_pooling()
+    #if tf.__version__ == '1.4.1':
+    #    _test_forward_concat_v2()
+    #test_forward_lrn()
+    #test_forward_l2_normalize()
+    exit(0)
     # Transforms
     test_forward_transpose()
     test_forward_reshape()
@@ -1078,14 +1086,6 @@ if __name__ == '__main__':
     test_forward_argminmax()
     test_forward_reduce()
     test_forward_mean()
-
-    # NN
-    #test_forward_convolution()
-    #test_forward_pooling()
-    #if tf.__version__ == '1.4.1':
-    #    _test_forward_concat_v2()
-    #test_forward_lrn()
-    #test_forward_l2_normalize()
 
     # General
     #test_forward_multi_input()
