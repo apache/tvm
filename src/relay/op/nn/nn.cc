@@ -12,12 +12,14 @@
 #include <topi/nn/flatten.h>
 #include <vector>
 #include "../type_relations.h"
+#include "../../pass/alter_op_layout.h"
 #include "../op_common.h"
 #include "../layout.h"
 
 namespace tvm {
 namespace relay {
 
+// relay.nn.bias_add
 TVM_REGISTER_NODE_TYPE(BiasAddAttrs);
 
 bool BiasAddRel(const Array<Type>& types,
@@ -74,6 +76,7 @@ RELAY_REGISTER_OP("nn.bias_add")
 .add_type_rel("BiasAdd", BiasAddRel);
 
 
+// relay.nn.dense
 TVM_REGISTER_NODE_TYPE(DenseAttrs);
 
 
@@ -143,6 +146,8 @@ RELAY_REGISTER_OP("nn.dense")
 .set_support_level(1)
 .add_type_rel("Dense", DenseRel);
 
+// relay.leaky_relu
+TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
 // Positional relay function to create leaky relu operator used by frontend FFI.
 Expr MakeLeakyRelu(Expr data,
@@ -171,6 +176,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 .add_argument("data", "Tensor", "Input data.")
 .set_support_level(3)
 .add_type_rel("Identity", IdentityRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
@@ -181,6 +187,7 @@ RELAY_REGISTER_OP("nn.leaky_relu")
 });
 
 
+// relay.prelu
 TVM_REGISTER_NODE_TYPE(PReluAttrs);
 
 bool PReluRel(const Array<Type>& types,
@@ -235,6 +242,7 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
 .add_argument("alpha", "Tensor", "Input channelwise alpha.")
 .set_support_level(3)
 .add_type_rel("PRelu", PReluRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>(
   "FTVMCompute", [](const Attrs& attrs,
                     const Array<Tensor>& inputs,
@@ -244,6 +252,9 @@ where :math:`*` is an channelwise multiplication for each sample in the batch.
     return Array<Tensor>{ topi::prelu(inputs[0], inputs[1], param->axis)};
 });
 
+
+// relay.softmax
+TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 TVM_REGISTER_API("relay.op.nn._make.softmax")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
@@ -282,6 +293,7 @@ RELAY_REGISTER_OP("nn.softmax")
 });
 
 
+// relay.nn.log_softmax
 TVM_REGISTER_API("relay.op.nn._make.log_softmax")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
   auto make_func = [](Expr data, int axis) {
@@ -321,8 +333,7 @@ RELAY_REGISTER_OP("nn.log_softmax")
 });
 
 
-
-// BatchFlatten
+// relay.nn.batch_flatten
 bool BatchFlattenRel(const Array<Type>& types,
                      int num_inputs,
                      const Attrs& attrs,
@@ -410,6 +421,7 @@ RELAY_REGISTER_OP("nn.relu")
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
 .add_type_rel("Identity", IdentityRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Type& out_type,
@@ -460,6 +472,7 @@ centered at that value (zero padding is added where necessary).
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
 
@@ -495,6 +508,7 @@ Normalizes along dimension axis using an L2 norm
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Identity", IdentityRel);
 
 // Dropout
@@ -538,6 +552,7 @@ The whole array is rescaled by ``1/(1-p)`` to keep the expected sum of the input
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "Input to which dropout will be applied.")
 .set_support_level(1)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
 .add_type_rel("Dropout", DropoutRel);
 
 // batch_norm

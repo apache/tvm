@@ -23,71 +23,65 @@ namespace relay {
 
 
 // Addition
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "add")
+RELAY_REGISTER_BINARY_OP("add")
 .describe("Elementwise add with with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::add));
 
 // Subtraction
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "subtract")
+RELAY_REGISTER_BINARY_OP("subtract")
 .describe("Elementwise substract with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::subtract));
 
 // Right shift
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "right_shift")
+RELAY_REGISTER_BINARY_OP("right_shift")
 .describe("Elementwise right shift with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::right_shift));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "left_shift")
+
+RELAY_REGISTER_BINARY_OP("left_shift")
 .describe("Elementwise left shift with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::left_shift));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "maximum")
+
+RELAY_REGISTER_BINARY_OP("maximum")
 .describe("Elementwise maximum of two tensors with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::maximum));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "minimum")
+
+RELAY_REGISTER_BINARY_OP("minimum")
 .describe("Elementwise minimum of two tensors with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::minimum));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "divide")
+
+RELAY_REGISTER_BINARY_OP("divide")
 .describe("Elementwise divide with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::divide));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "multiply")
+
+RELAY_REGISTER_BINARY_OP("multiply")
 .describe("Elementwise multiply with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::multiply));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "power")
+
+RELAY_REGISTER_BINARY_OP("power")
 .describe("Elementwise power with broadcasting")
 .set_support_level(4)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::power));
 
-RELAY_REGISTER_BINARY_OP("relay.op._make.", "mod")
+
+RELAY_REGISTER_BINARY_OP("mod")
 .describe("Elementwise mod with broadcasting")
 .set_support_level(1)
 .set_attr<FTVMCompute>("FTVMCompute", RELAY_BINARY_COMPUTE(topi::mod));
 
-// Comparisons
-#define RELAY_REGISTER_CMP_OP(OpName)                               \
-  TVM_REGISTER_API("relay.op._make." OpName)                        \
-  .set_body_typed<Expr(Expr, Expr)>([](Expr lhs, Expr rhs) {        \
-    static const Op& op = Op::Get(OpName);                          \
-    return CallNode::make(op, {lhs, rhs}, Attrs(), {});             \
-  });                                                               \
-  RELAY_REGISTER_OP(OpName)                                         \
-    .set_num_inputs(2)                                              \
-    .add_argument("lhs", "Tensor", "The left hand side tensor.")    \
-    .add_argument("rhs", "Tensor", "The right hand side tensor.")   \
-    .add_type_rel("BroadcastComp", BroadcastCompRel)                \
-    .set_attr<TOpPattern>("TOpPattern", kBroadcast)
 
 RELAY_REGISTER_CMP_OP("equal")
 .describe("Elementwise equal compare with broadcasting")

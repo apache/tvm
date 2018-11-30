@@ -21,6 +21,20 @@ def register_relay_node(type_key=None):
     return _register_tvm_node(type_key)
 
 
+def register_relay_attr_node(type_key=None):
+    """register relay attribute node
+
+    Parameters
+    ----------
+    type_key : str or cls
+        The type key of the node
+    """
+    if not isinstance(type_key, str):
+        return _register_tvm_node(
+            "relay.attrs." + type_key.__name__)(type_key)
+    return _register_tvm_node(type_key)
+
+
 class RelayNode(NodeBase):
     """Base class of all relay node."""
     def astext(self, show_meta_data=True, annotate=None):

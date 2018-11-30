@@ -29,11 +29,11 @@ using runtime::TypedPackedFunc;
 // FoldScaleAxis algorithm:
 //
 // The general idea is to transform Expr to tuple of
-// (value, axes, scale), where the final result satiesfies:
+// (value, axes, scale), where the final result satisfies:
 //
 // result = value
 // for i, k in enumerate(axes):
-//    k-ith dimension of result *= i-th dimension of scale
+//    k-th dimension of result *= i-th dimension of scale
 //
 // Then we can propagate this signal along and fold the scale if necessary.
 // However, it is possible that certain scale may never be consumed

@@ -105,6 +105,7 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
   int groups;
   std::string data_layout;
   std::string weight_layout;
+  std::string out_layout;
   DataType out_dtype;
 
   TVM_DECLARE_ATTRS(Conv2DTransposeAttrs, "relay.attrs.Conv2DTransposeAttrs") {
@@ -139,6 +140,10 @@ struct Conv2DTransposeAttrs : public tvm::AttrsNode<Conv2DTransposeAttrs> {
       .describe("Dimension ordering of data and weight. Can be 'OIHW', 'OIHW16o16i', etc."
                 "'O', 'I', 'H', 'W' stands for num_filter, input_channel, height, and width"
                 "dimensions respectively.");
+    TVM_ATTR_FIELD(out_layout).set_default("")
+        .describe("Dimension ordering of output. Can be 'NCHW', 'NHWC', etc."
+                      "'N', 'C', 'H', 'W' stands for batch, channel, height, and width"
+                      "dimensions respectively. Default to be same as input layout.");
     TVM_ATTR_FIELD(out_dtype)
         .set_default(NullValue<DataType>())
         .describe("Output data type, set to explicit type under mixed precision setting");

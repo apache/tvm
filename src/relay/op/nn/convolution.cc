@@ -7,11 +7,13 @@
 #include <tvm/relay/attrs/nn.h>
 #include <vector>
 
+#include "../../pass/alter_op_layout.h"
 #include "../layout.h"
 
 namespace tvm {
 namespace relay {
 
+// relay.nn.conv2d
 TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 bool Conv2DRel(const Array<Type>& types,
@@ -101,6 +103,20 @@ bool Conv2DRel(const Array<Type>& types,
   return true;
 }
 
+template<typename T>
+Array<Array<Layout> > Conv2DInferCorrectLayout(
+    const Attrs& attrs,
+    const Array<Layout>& new_in_layouts,
+    const Array<Layout>& old_in_layouts,
+    const Array<Array<IndexExpr>> &old_in_shapes) {
+  const T* params = attrs.as<T>();
+  Layout out_layout(params->out_layout);
+
+  // We always make other operators to fit the layouts of convolution layers
+  // So this inference ignores all inputs
+  return Array<Array<Layout> >{{params->data_layout, params->weight_layout},
+                               {out_layout.defined() ? out_layout : params->data_layout}};
+}
 
 // Positional relay function to create conv2d operator
 // used by frontend FFI.
@@ -156,10 +172,11 @@ with the layer input to produce a tensor of outputs.
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
-.add_type_rel("Conv2D", Conv2DRel);
+.add_type_rel("Conv2D", Conv2DRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", Conv2DInferCorrectLayout<Conv2DAttrs>);
 
 
-// Conv2DTranspose
+// relay.nn.conv2d_transpose
 TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 
 bool Conv2DTransposeRel(const Array<Type>& types,
@@ -184,6 +201,12 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   CHECK(kernel_layout.Convertible(kOIHW))
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
+
+  Layout out_layout(param->out_layout);
+  if (!out_layout.defined()) out_layout = in_layout;
+  CHECK(out_layout.Convertible(kNCHW))
+    << "Conv only support output layouts that are convertible from NCHW."
+    << " But got " << out_layout;
 
   IndexExpr channels, dilated_ksize_y, dilated_ksize_x;
 
@@ -241,7 +264,7 @@ bool Conv2DTransposeRel(const Array<Type>& types,
   if (out_dtype.bits() == 0) {
     out_dtype = data->dtype;
   }
-  oshape = ConvertLayout(oshape, kNCHW, in_layout);
+  oshape = ConvertLayout(oshape, kNCHW, out_layout);
   reporter->Assign(types[2], TensorTypeNode::make(oshape, out_dtype));
   return true;
 }
@@ -307,6 +330,8 @@ v            (batch_size, channels, out_height, out_width) if `layout` is `NCHW`
 .add_argument("data", "Tensor", "The input tensor.")
 .add_argument("weight", "Tensor", "The weight tensor.")
 .set_support_level(2)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout",
+                               Conv2DInferCorrectLayout<Conv2DTransposeAttrs>)
 .add_type_rel("Conv2DTranspose", Conv2DTransposeRel);
 
 }  // namespace relay

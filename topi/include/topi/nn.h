@@ -448,6 +448,7 @@ inline tvm::Tensor group_conv2d_ngchw(const tvm::Tensor& I,
 }
 
 using FLayoutIndicesTransform = std::function<Array<Expr>(const Array<Var>& indices)>;
+
 /*!
  * \brief Transform the layout according to the mapping function \p to_src_indices.
  * \param src the source input.
