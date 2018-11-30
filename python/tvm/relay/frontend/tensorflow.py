@@ -3,9 +3,11 @@
 from __future__ import absolute_import as _abs
 from __future__ import print_function
 
+import logging
 # Numpy support
 import numpy as np
 
+from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -20,7 +22,14 @@ import tvm
 __all__ = ['from_tensorflow']
 
 def _get_relay_op(op_name):
-    op = getattr(_op, op_name)
+    try:
+        op = getattr(_op, op_name)
+    except AttributeError:
+        try:
+            op = getattr(_op.nn, op_name)
+        except:
+            op = getattr(_op.image, op_name)
+
     if not op:
         raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
     return op
@@ -78,10 +87,10 @@ class AttrCvt(object):
         self._ignores.append('is_training')
         self._ignores.append('_target_layout')
         # Retain the names
-        try:
-            attrs['name'] = attrs['_node_name']
-        except KeyError:
-            pass
+        #try:
+        #    attrs['name'] = attrs['_node_name']
+        #except KeyError:
+        #    pass
 
         # apply custom check
         if self._custom_check:
@@ -89,7 +98,7 @@ class AttrCvt(object):
             if not func(attrs):
                 raise RuntimeError("Check failed: {}".format(msg))
         # get new op_name
-        if isinstance(self._op_name, string_types):
+        if isinstance(self._op_name, str):
             op_name = self._op_name
         else:
             assert callable(self._op_name), "op_name can either be string or callable"
@@ -132,14 +141,14 @@ class AttrCvt(object):
             k, v, t = target[0], target[1], target[2]
         else:
             k = None  # should raise
-        if not isinstance(k, string_types):
+        if not isinstance(k, str):
             msg = "{} is not a valid target, (name, default) expected.".format(target)
             raise ValueError(msg)
         return k, v, t
 
     def _parse_bool(self, value):
         """Helper function to parse default boolean values."""
-        if isinstance(value, string_types):
+        if isinstance(value, str):
             return value.strip().lower() in ['true', '1', 't', 'y', 'yes']
         return bool(value)
 
@@ -203,8 +212,8 @@ def _argx(func, func_name):
         try:
             # In Tensorflow, `axis` argument is a Tensor, not attribute. We
             # support the case where it inputs from a scalar constant.
-            axis_input_name = inputs[1].list_output_names()[0]
-            axis_input_vlaue = params[axis_input_name].asnumpy()[0]
+            axis_input_name = inputs[1].name_hint
+            axis_input_vlaue = [params[axis_input_name].asnumpy()[0]]
         except (IndexError, KeyError):
             raise TypeError( \
                 "Unsupported argument for `{}` : `axis` should be a constant".format(func_name))
@@ -214,7 +223,7 @@ def _argx(func, func_name):
 def _elemwise(name):
     def _impl(inputs, attr, *args):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(len(inputs))
-        return _get_relay_op(op_name)(*inputs)
+        return _get_relay_op(name)(*inputs)
     return _impl
 
 def _pooling(name):
@@ -408,17 +417,14 @@ def _decode_image():
 
 def _cast():
     def _impl(inputs, attr, params):
-        # Convert from tensorflow Dtype to str
-        attr['DstT'] = attr['DstT'].name
-        return AttrCvt(op_name='cast', transforms={'DstT': 'dtype'},
-                       ignores=['SrcT', 'Truncate'])(inputs, attr)
+        return inputs[0].astype(attr['DstT'].name)
     return _impl
 
 def _expand_dims():
     def _impl(inputs, attr, params):
         dim_input = inputs.pop(1)
-        axis = params[dim_input.list_output_names()[0]]
-        params.pop(dim_input.list_output_names()[0])
+        axis = params[dim_input.name_hint]
+        params.pop(dim_input.name_hint)
         return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
                        extras={'axis': axis.asnumpy()[0]})(inputs, attr)
     return _impl
@@ -463,8 +469,8 @@ def _identity():
 def _concatV2():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(len(inputs)-1)
-        axis = params[pop_node.list_output_names()[0]]
-        params.pop(pop_node.list_output_names()[0])
+        axis = params[pop_node.name_hint]
+        params.pop(pop_node.name_hint)
         return AttrCvt(
             op_name="concatenate", ignores=['T', 'N', 'Tidx'],
             extras={'axis': axis.asnumpy()[0]})(inputs, attr)
@@ -473,8 +479,8 @@ def _concatV2():
 def _concat():
     def _impl(inputs, attr, params):
         pop_node = inputs.pop(0)
-        axis = params[pop_node.list_output_names()[0]]
-        params.pop(pop_node.list_output_names()[0])
+        axis = params[pop_node.name_hint]
+        params.pop(pop_node.name_hint)
         return AttrCvt(
             op_name="concatenate", ignores=['N'],
             extras={'axis': axis.asnumpy()[0]})(inputs, attr)
@@ -484,8 +490,7 @@ def _pack():
     def _impl(inputs, attr, params):
         axis = int(attr["axis"])
         inputs_reshaped = [_op.expand_dims(i, axis=axis, num_newaxis=1) for i in inputs]
-        return _op.concatenate(*inputs_reshaped, axis=axis, name=attr["_node_name"])
-
+        return _op.concatenate(inputs_reshaped, axis)
     return _impl
 
 def _reshape():
@@ -497,7 +502,7 @@ def _reshape():
 
             return AttrCvt(
                 op_name="reshape",
-                extras={'shape':tuple(shape_arg.asnumpy())},
+                extras={'newshape':tuple(shape_arg.asnumpy())},
                 ignores=['Tshape'])(inputs, attr)
         except KeyError:
             # Shape operator is already pruned, hence
@@ -509,7 +514,7 @@ def _reshape():
                 inputs.pop(1)
                 return AttrCvt(
                     op_name="reshape",
-                    extras={'shape':tuple(params_new[0].asnumpy().flatten())},
+                    extras={'newshape':tuple(params_new[0].asnumpy().flatten())},
                     ignores=['Tshape'])(inputs, attr)
             else:
                 raise RuntimeError("Reshape with dynamic shape input not supported yet.")
@@ -522,6 +527,8 @@ def _bias_add():
 
 def _squeeze():
     def _impl(inputs, attr, params):
+        if 0 == len(attr['squeeze_dims']):
+            attr['squeeze_dims'] = None
         return AttrCvt(
             op_name="squeeze",
             transforms={'squeeze_dims':'axis'},
@@ -613,14 +620,14 @@ def _lrn():
 
 def _sum():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].list_output_names()[0]).asnumpy()
+        axis = params.pop(inputs[1].name_hint).asnumpy()
         # convert to tuple for preventing invalid parameter format error
         axis = tuple(axis)
         return AttrCvt(
             op_name='sum',
             extras={'axis': axis},
             transforms={'keep_dims':'keepdims'},
-            ignores=['name', 'Tidx'])(inputs[0], attr)
+            ignores=['name', 'Tidx'])([inputs[0]], attr)
     return _impl
 
 def _square():
@@ -631,7 +638,7 @@ def _square():
 def _gather_v2():
     "Tensorflow now support only gatherv2"
     def _impl(inputs, attr, params):
-        axis = params[inputs.pop(2).list_output_names()[0]].asnumpy()[0]
+        axis = params[inputs.pop(2).name_hint].asnumpy()[0]
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
@@ -656,9 +663,9 @@ def _stridedSlice():
         Tensorflow mask validation: https://github.com/tensorflow/tensorflow/blob/master/
         tensorflow/core/util/strided_slice_op.cc#L147-L368
         """
-        begin = params.pop(inputs[1].list_output_names()[0]).asnumpy().tolist()
-        end = params.pop(inputs[2].list_output_names()[0]).asnumpy().tolist()
-        stride = params.pop(inputs[3].list_output_names()[0]).asnumpy().tolist()
+        begin = params.pop(inputs[1].name_hint).asnumpy().tolist()
+        end = params.pop(inputs[2].name_hint).asnumpy().tolist()
+        stride = params.pop(inputs[3].name_hint).asnumpy().tolist()
         begin_mask = int(attr.get('begin_mask', 0))
         end_mask = int(attr.get('end_mask', 0))
         ellipsis_mask = int(attr.get('ellipsis_mask', 0))
@@ -751,7 +758,7 @@ def _stridedSlice():
 
 def _pad(name):
     def _impl(inputs, attr, params):
-        padlist_key = inputs[1].list_output_names()[0]
+        padlist_key = inputs[1].name_hint
         if padlist_key in params:
             padlist = params.pop(padlist_key).asnumpy()
         else:
@@ -761,7 +768,7 @@ def _pad(name):
         attr['pad_value'] = 0
         new_inputs = [inputs[0]]
         if name == 'PadV2':
-            constant_values = params.pop(inputs[2].list_output_names()[0]).asnumpy()
+            constant_values = params.pop(inputs[2].name_hint).asnumpy()
             attr['pad_value'] = constant_values[0]
         return AttrCvt(
             op_name='pad',
@@ -773,7 +780,6 @@ def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
         # otherwise its value is get from params
-        print("Inputs:", inputs)
         param_name = inputs[1].name_hint
         axes = params.get(param_name, tvm.nd.array([])).asnumpy()
         return _op.transpose(inputs[0], axes=tuple(axes))
@@ -794,9 +800,9 @@ def _rank():
 
 def _range():
     def _impl(inputs, attr, params):
-        start = params.pop(inputs[0].list_output_names()[0]).asnumpy()[0]
-        limit = params.pop(inputs[1].list_output_names()[0]).asnumpy()[0]
-        delta = params.pop(inputs[2].list_output_names()[0]).asnumpy()[0]
+        start = params.pop(inputs[0].name_hint).asnumpy()[0]
+        limit = params.pop(inputs[1].name_hint).asnumpy()[0]
+        delta = params.pop(inputs[2].name_hint).asnumpy()[0]
 
         name = attr["_node_name"]
         params[name] = tvm.nd.array([start, limit, delta])
@@ -807,30 +813,29 @@ def _range():
 
 def _elu():
     def _impl(inputs, attr, params):
-        alpha = 1.0
-        return -alpha * _op.relu(1 - _op.exp(inputs[0])) + _op.relu(inputs[0])
+        alpha = relay.const(-1.0, attr['T'].name)
+        return alpha * _op.nn.relu(relay.const(1, attr['T'].name) - _op.exp(inputs[0])) + _op.nn.relu(inputs[0])
     return _impl
 
 def _selu():
     def _impl(inputs, attr, params):
-        alpha = 1.6732632423543772848170429916717
-        gamma = 1.0507009873554804934193349852946
-        return gamma * (-alpha * _op.relu(1 - _op.exp(inputs[0])) + _op.relu(inputs[0]))
+        alpha = relay.const(-1.6732632423543772848170429916717)
+        gamma = relay.const(1.0507009873554804934193349852946)
+        return gamma * (alpha * _op.nn.relu(relay.const(1, attr['T'].name) - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
 
 def _mean():
     def _impl(inputs, attr, params):
-        axis = params.pop(inputs[1].list_output_names()[0])
+        axis = params.pop(inputs[1].name_hint)
         return AttrCvt(op_name="mean", ignores=['Tdim', 'Tidx'],
                        transforms={'keep_dims': 'keepdims'},
-                       extras={'axis': tuple(axis.asnumpy())})(inputs[0], attr)
+                       extras={'axis': tuple(axis.asnumpy())})([inputs[0]], attr)
     return _impl
 
 def _broadcast(name):
     def _impl(inputs, attr, params):
-        op_name = _math_name_picker(name)(attr)
         return AttrCvt(
-            op_name=op_name,
+            op_name=name,
             ignores=['name', 'Tidx']
         )(inputs, attr)
     return _impl
@@ -864,7 +869,7 @@ _convert_map = {
     'MaxPool'                           : _pooling('max_pool'),
     'Add'                               : _elemwise('add'),
     'Sub'                               : _elemwise('sub'),
-    'Mul'                               : _elemwise('mul'),
+    'Mul'                               : _elemwise('multiply'),
     'Maximum'                           : _elemwise('max'),
     'Minimum'                           : _elemwise('min'),
     'Sum'                               : _sum(),
@@ -991,7 +996,6 @@ class GraphProto(object):
                     "Please freeze the graph with add_shapes=True")
 
             if node.op == "Placeholder":
-                print("Place Holder Attr:", attr)
                 self._nodes[node.name] = [_expr.var(node.name,
                                                     shape=self._output_shapes[node.name][0],
                                                     dtype=attr['dtype'].name)]
@@ -1036,7 +1040,6 @@ class GraphProto(object):
 
                 inputs = self._fix_extranodes(node.op, attr, inputs)
 
-                attr = StrAttrsDict(attr)
                 op = self._convert_operator(node.op, inputs, attr, graph)
 
                 # Check is op is converted to param
@@ -1067,6 +1070,9 @@ class GraphProto(object):
         out = op
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(ir_pass.free_vars(out), out)
+        print("OP:", op)
+        print("Func:", func)
+        print("Shape:", relay.ir_pass.infer_type(op[0]).checked_type)
 
         return func, self._params
 
@@ -1215,7 +1221,7 @@ class GraphProto(object):
             # Require some times flatten of data before it goes to softmax
             # Need to relook into this with latest softmax axis support.
             op = AttrCvt(op_name='flatten')(inputs, {})
-            node_output = op.list_output_names()
+            node_output = op.name_hint
             for k, i in zip(list(node_output), range(len(node_output))):
                 self._nodes[k] = op[i]
             inputs = [op]

@@ -1057,23 +1057,14 @@ def test_forward_rel_ops():
 # ----
 if __name__ == '__main__':
     # Transforms
-    print("Test Case ")
     test_forward_transpose()
-    print("Test Case ")
     test_forward_reshape()
-    print("Test Case ")
     test_forward_squeeze()
-    print("Test Case ")
     test_forward_pack()
-    print("Test Case ")
     test_forward_resize_bilinear()
-    print("Test Case ")
-    test_forward_pad()
-    print("Test Case ")
+    #test_forward_pad()
     test_forward_gather()
-    print("Test Case ")
-    test_forward_stridedslice()
-    print("Test Case ")
+    #test_forward_stridedslice()
 
     # Activations
     test_forward_sigmoid()
@@ -1089,27 +1080,27 @@ if __name__ == '__main__':
     test_forward_mean()
 
     # NN
-    test_forward_convolution()
-    test_forward_pooling()
-    if tf.__version__ == '1.4.1':
-        _test_forward_concat_v2()
-    test_forward_lrn()
-    test_forward_l2_normalize()
+    #test_forward_convolution()
+    #test_forward_pooling()
+    #if tf.__version__ == '1.4.1':
+    #    _test_forward_concat_v2()
+    #test_forward_lrn()
+    #test_forward_l2_normalize()
 
     # General
-    test_forward_multi_input()
-    test_forward_multi_output()
-    test_forward_variable()
+    #test_forward_multi_input()
+    #test_forward_multi_output()
+    #test_forward_variable()
 
     # End to End
-    test_forward_inception_v3()
-    test_forward_inception_v1()
-    test_forward_mobilenet()
-    test_forward_resnetv2()
-    test_forward_ptb()
+    #test_forward_inception_v3()
+    #test_forward_inception_v1()
+    #test_forward_mobilenet()
+    #test_forward_resnetv2()
+    #test_forward_ptb()
 
     # RNN
-    test_forward_lstm()
+    #test_forward_lstm()
 
     # Elementwise
     test_forward_ceil()
