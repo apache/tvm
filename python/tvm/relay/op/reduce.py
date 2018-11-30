@@ -30,6 +30,7 @@ def argmax(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.argmax(data, axis, keepdims, exclude)
 
 def argmin(data, axis=None, keepdims=False, exclude=False):
@@ -59,6 +60,7 @@ def argmin(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.argmin(data, axis, keepdims, exclude)
 
 
@@ -89,6 +91,7 @@ def sum(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.sum(data, axis, keepdims, exclude)
 
 
@@ -119,6 +122,7 @@ def max(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.max(data, axis, keepdims, exclude)
 
 
@@ -149,6 +153,7 @@ def min(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.min(data, axis, keepdims, exclude)
 
 
@@ -179,6 +184,7 @@ def mean(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.mean(data, axis, keepdims, exclude)
 
 
@@ -209,4 +215,5 @@ def prod(data, axis=None, keepdims=False, exclude=False):
     result : relay.Expr
         The computed result.
     """
+    axis = [axis] if isinstance(axis, int) else axis
     return _make.prod(data, axis, keepdims, exclude)

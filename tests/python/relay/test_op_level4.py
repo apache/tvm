@@ -145,7 +145,7 @@ def verify_reduce(funcs, data, axis, keepdims, exclude, output, dtype="float32")
     elif ref_func in [np.max, np.min, np.mean, np.prod]:
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
     else: #argmin/argmax
-        if axis and len(axis) > 1:
+        if axis and not isinstance(axis, int) and len(axis) > 1 :
             return
         ref_res = ref_func(x_data + 0, axis=axis, keepdims=keepdims)
 
@@ -164,7 +164,7 @@ def test_reduce_functions():
                 return func(data, axis=axis)
             else:
                 if axis is not None:
-                    axis = axis[0]
+                    axis = axis if isinstance(axis, int) else axis[0]
                     out_shape = list(data.shape)
                     out_shape[axis] = 1
                 else:
@@ -180,10 +180,11 @@ def test_reduce_functions():
                  [relay.prod, np.prod],
                  [relay.argmin, _with_keepdims(np.argmin)],
                  [relay.argmax, _with_keepdims(np.argmax)]]:
-        verify_reduce(func, (d1, d2, d3, d4), (2,), True, False, (d1, d2, 1, d4))
-        verify_reduce(func, (d1, d2, d3), (1,), True, False, (d1, 1, d3))
+        verify_reduce(func, (d1, d2, d3, d4), 2, True, False, (d1, d2, 1, d4))
+        verify_reduce(func, (d1, d2, d3), 1, True, False, (d1, 1, d3))
         verify_reduce(func, (d1, d2, d3), None, True, False, (1, 1, 1))
         verify_reduce(func, (d1, d2, d3), (0, 1), True, False, (1, 1, d3))
+        verify_reduce(func, (2, 3, 4), 1, True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (1,), True, False, (2, 1, 4))
         verify_reduce(func, (2, 3, 4), (0, 1, 2), False, False, ())
         verify_reduce(func, (4, 4, 3), None, False, True, ())
