@@ -3,6 +3,7 @@
  * \file attrs.cc
  */
 #include <tvm/attrs.h>
+#include <tvm/api_registry.h>
 #include "attr_functor.h"
 
 namespace tvm {
@@ -320,5 +321,10 @@ bool DictAttrsNode::ContentEqual(const Node* other, AttrsEqual equal) const {
   if (this->type_index() != other->type_index()) return false;
   return equal(this->dict, static_cast<const DictAttrsNode*>(other)->dict);
 }
+
+TVM_REGISTER_API("_AttrsListFieldInfo")
+.set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = args[0].operator Attrs()->ListFieldInfo();
+});
 
 }  // namespace tvm
