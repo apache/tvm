@@ -76,7 +76,27 @@ def test_fold_tuple():
     assert relay.ir_pass.graph_equal(zz, zexpected)
 
 
+def test_fold_concat():
+    c_data = np.array([[1, 2, 3]]).astype("float32")
+
+    def before():
+        a = relay.const(c_data)
+        b = relay.const(c_data)
+        y = relay.concatenate((a, b), axis=0)
+        return relay.Function([], y)
+
+    def expected():
+        y_data = np.concatenate((c_data, c_data), axis=0)
+        y = relay.const(y_data)
+        return relay.Function([], y)
+
+    zz = relay.ir_pass.fold_constant(before())
+    zexpected = expected()
+    assert relay.ir_pass.graph_equal(zz, zexpected)
+
+
 if __name__ == "__main__":
     test_fold_const()
     test_fold_let()
     test_fold_tuple()
+    test_fold_concat()
