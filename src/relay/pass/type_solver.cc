@@ -212,6 +212,9 @@ class TypeSolver::Resolver : public TypeMutator {
   explicit Resolver(TypeSolver* solver) : solver_(solver) {}
 
   Type Resolve(const Type& t) {
+    if (!t.defined()) {
+      return t;
+    }
     return VisitType(t);
   }
 
@@ -277,14 +280,8 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
 Type TypeSolver::Resolve(const Type& type) {
   Resolver resolver(this);
   auto it = tmap_.find(type);
-  if (it != tmap_.end()) {
-    return resolver.Resolve(it->second->FindRoot()->resolved_type);
-  } else {
-    if (!type.defined()) {
-      return type;
-    }
-    return resolver.Resolve(type);
-  }
+  Type t = (it != tmap_.end()) ? it->second->FindRoot()->resolved_type : type;
+  return resolver.Resolve(t);
 }
 
 bool TypeSolver::Solve() {
