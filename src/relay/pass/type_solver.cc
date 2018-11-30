@@ -56,8 +56,8 @@ class TypeSolver::RecurrenceChecker : public TypeVisitor {
   }
 
  private:
-  TypeSolver *solver_;
-  TypeNode *var_;
+  TypeSolver* solver_;
+  TypeNode* var_;
   bool found_;
 };
 
@@ -112,7 +112,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       auto* value = rlink->value;
       if (!value->resolved) {
         solver_->AddToQueue(value);
-
         auto* copy = solver_->arena_.make<LinkNode<RelationNode*> >();
         copy->value = value;
         child_node->rel_list.Push(copy);
@@ -208,6 +207,23 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   TypeSolver* solver_;
 };
 
+class TypeSolver::Resolver : public TypeMutator {
+ public:
+  explicit Resolver(TypeSolver* solver) : solver_(solver) {}
+
+  Type Resolve(const Type& t) {
+    return VisitType(t);
+  }
+
+  Type VisitType_(const IncompleteTypeNode* op) override {
+    auto* node = solver_->GetTypeNode(GetRef<IncompleteType>(op));
+    return node->resolved_type;
+  }
+
+ private:
+  TypeSolver* solver_;
+};
+
 // constructor
 TypeSolver::TypeSolver()
     : reporter_(make_node<Reporter>(this)) {
@@ -260,11 +276,13 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
 // Resolve a type in the solver context.
 Type TypeSolver::Resolve(const Type& type) {
   auto it = tmap_.find(type);
+  Type t = type;
   if (it != tmap_.end()) {
-    return it->second->FindRoot()->resolved_type;
-  } else {
-    return type;
+    t = it->second->FindRoot()->resolved_type;
   }
+
+  Resolver resolver(this);
+  return resolver.Resolve(t);
 }
 
 bool TypeSolver::Solve() {

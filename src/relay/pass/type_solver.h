@@ -67,6 +67,7 @@ class TypeSolver {
  private:
   class RecurrenceChecker;
   class Unifier;
+  class Resolver;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
