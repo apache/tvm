@@ -106,16 +106,17 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     TypeNode* parent_node = solver_->GetTypeNode(parent);
     TypeNode* child_node = solver_->GetTypeNode(child);
 
-    // allocate copies to avoid making a circular linked list
+    // allocate copies to avoid introducing circular link
     for (auto* rlink = parent_node->rel_list.head; rlink != nullptr;) {
       auto* next = rlink->next;
       auto* value = rlink->value;
       if (!value->resolved) {
         solver_->AddToQueue(value);
+
+        auto* copy = solver_->arena_.make<LinkNode<RelationNode*> >();
+        copy->value = value;
+        child_node->rel_list.Push(copy);
       }
-      auto* copy = solver_->arena_.make<LinkNode<RelationNode*> >();
-      copy->value = value;
-      child_node->rel_list.Push(copy);
 
       rlink = next;
     }
