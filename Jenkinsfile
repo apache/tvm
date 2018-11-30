@@ -51,9 +51,11 @@ stage("Sanity Check") {
 def make(docker_type, path, make_flag) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
+      sh "${docker_run} ${docker_type} source /etc/profile"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
     } catch (exc) {
       echo 'Incremental compilation failed. Fall back to build from scratch'
+      sh "${docker_run} ${docker_type} source /etc/profile"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}"
       sh "${docker_run} ${docker_type} ./tests/scripts/task_build.sh ${path} ${make_flag}"
     }
