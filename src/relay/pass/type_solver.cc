@@ -275,8 +275,8 @@ TVM_REGISTER_API("relay._ir_pass._test_type_solver")
             return solver->Solve();
           });
       } else if (name == "Unify") {
-        return TypedPackedFunc<void(Type, Type)>([solver](Type lhs, Type rhs) {
-            solver->Unify(lhs, rhs);
+        return TypedPackedFunc<Type(Type, Type)>([solver](Type lhs, Type rhs) {
+            return solver->Unify(lhs, rhs);
           });
       } else if (name == "Resolve") {
         return TypedPackedFunc<Type(Type)>([solver](Type t) {
