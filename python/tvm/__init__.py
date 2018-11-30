@@ -13,6 +13,7 @@ from . import container
 from . import schedule
 from . import module
 from . import node
+from . import attrs
 from . import ir_builder
 from . import target
 from . import generic
