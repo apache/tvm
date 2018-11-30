@@ -1,5 +1,6 @@
 import tvm
 from tvm import relay
+from nose.tools import raises
 
 
 def make_rel(name, args, num_inputs=None, attrs=None):
@@ -115,6 +116,21 @@ def test_recursive_backward_solving():
     assert solver.Resolve(tup2) == tup1
 
 
+@raises(tvm._ffi.base.TVMError)
+def test_incompatible_tuple_unification():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+
+    tensor1 = relay.ty.TensorType((1, 2, 3), "float32")
+    tensor2 = relay.ty.TensorType((2, 3), "float32")
+    tensor3 = relay.ty.TensorType((3,), "float32")
+
+    tup1 = relay.ty.TupleType([relay.ty.TupleType([t1, t1]), t2])
+    tup2 = relay.ty.TupleType([relay.ty.TupleType([tensor1, tensor2]), tensor3])
+    solver.Unify(tup1, tup2)
+
+
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
@@ -122,3 +138,4 @@ if __name__ == "__main__":
     test_unify_functype()
     test_recursive_unify()
     test_recursive_backward_solving()
+    test_incompatible_tuple_unification()
