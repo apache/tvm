@@ -788,11 +788,7 @@ DEFINE_CODEGEN_CMP_OP(GE);
 llvm::Value* CodeGenLLVM::VisitExpr_(const Div* op) {
   llvm::Value* a = MakeValue(op->a);
   llvm::Value* b = MakeValue(op->b);
-  int shift;
-  if ((op->type.is_int() || op->type.is_uint()) &&
-      is_const_power_of_two_integer(op->b, &shift)) {
-    return builder_->CreateAShr(a, shift);
-  } else if (op->type.is_int()) {
+  if (op->type.is_int()) {
     return builder_->CreateSDiv(a, b);
   } else if (op->type.is_uint()) {
     return builder_->CreateUDiv(a, b);
