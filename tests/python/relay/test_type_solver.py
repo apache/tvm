@@ -48,7 +48,77 @@ def test_backward_solving():
     assert solver.Resolve(t3) == relay.ty.TensorType((10, 10, 20), "float32")
 
 
+def test_unify_tuple():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.TensorType((10, 20), "float32")
+
+    tup1 = relay.ty.TupleType([t1, t2])
+    tup2 = relay.ty.TupleType([t3, t3])
+
+    unified = solver.Unify(tup1, tup2)
+    assert unified == tup2
+
+
+def test_unify_functype():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.IncompleteType()
+
+    unit = relay.ty.TupleType([])
+    tensor1 = relay.ty.TensorType((10, 20), "float32")
+    tensor2 = relay.ty.TensorType((10,), "float32")
+
+    ft1 = relay.ty.FuncType([t1, t2], t3)
+    ft2 = relay.ty.FuncType([tensor1, tensor2], unit)
+
+    unified = solver.Unify(ft1, ft2)
+    assert unified == ft2
+
+
+def test_recursive_unify():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+
+    tensor1 = relay.ty.TensorType((10, 10, 20), "float32")
+    tensor2 = relay.ty.TensorType((10, 20), "float32")
+
+    tup1 = relay.ty.TupleType([relay.ty.TupleType([t1, t2]), t2])
+    tup2 = relay.ty.TupleType([relay.ty.TupleType([tensor1, tensor2]), tensor2])
+
+    ft1 = relay.ty.FuncType([tup1, tensor2], tensor2)
+    ft2 = relay.ty.FuncType([tup2, tensor2], tensor2)
+
+    unified = solver.Unify(ft1, ft2)
+    assert unified == ft2
+
+
+def test_recursive_backward_solving():
+    solver = make_solver()
+
+    tensor1 = relay.ty.TensorType((10, 20), "float32")
+    tensor2 = relay.ty.TensorType((10, 1, 1), "float32")
+    tensor3 = relay.ty.TensorType((10,), "float32")
+
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.IncompleteType()
+
+    tup1 = relay.ty.TupleType([relay.ty.TupleType([tensor1, tensor2]), tensor3])
+    tup2 = relay.ty.TupleType([relay.ty.TupleType([t1, t2]), t3])
+    solver.gen_type("Identity", [tup1], out=tup2)
+
+    assert solver.Solve()
+    assert solver.Resolve(tup2) == tup1
+
 
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
+    test_unify_tuple()
+    test_unify_functype()
+    test_recursive_unify()
+    test_recursive_backward_solving()
