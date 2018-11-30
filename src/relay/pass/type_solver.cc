@@ -65,6 +65,9 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       CHECK(resolved.defined())
         << "Unable to unify parent types: "
         << lhs->resolved_type << " and " << rhs->resolved_type;
+      TypeNode* top = solver_->GetTypeNode(resolved);
+      solver_->MergeFromTo(lhs, top);
+      solver_->MergeFromTo(rhs, top);
       return resolved;
     }
   }
@@ -76,11 +79,19 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     TypeNode* parent_node = solver_->GetTypeNode(parent);
     TypeNode* child_node = solver_->GetTypeNode(child);
 
-    // if child is already concrete type, nothing to do
-    if (!child_node->resolved_type.as<IncompleteTypeNode>()) {
-      return;
+    // allocate copies to avoid making a circular linked list
+    for (auto* rlink = parent_node->rel_list.head; rlink != nullptr;) {
+      auto* next = rlink->next;
+      auto* value = rlink->value;
+      if (!value->resolved) {
+        solver_->AddToQueue(value);
+      }
+      auto* copy = solver_->arena_.make<LinkNode<RelationNode*> >();
+      copy->value = value;
+      child_node->rel_list.Push(copy);
+
+      rlink = next;
     }
-    solver_->TransferQueue(parent_node, child_node);
   }
 
   // default: unify only if alpha-equal
@@ -104,9 +115,10 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
 
     std::vector<Type> new_fields;
     for (size_t i = 0; i < tt1->fields.size(); i++) {
-      RegisterChildType(tt1, tt1->fields[i]);
-      RegisterChildType(tt2, tt2->fields[i]);
-      new_fields.push_back(Unify(tt1->fields[i], tt2->fields[i]));
+      Type field = Unify(tt1->fields[i], tt2->fields[i]);
+      RegisterChildType(tt1, field);
+      RegisterChildType(tt2, field);
+      new_fields.push_back(field);
     }
     return TupleTypeNode::make(new_fields);
   }
@@ -123,15 +135,16 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     FuncType ft1 = GetRef<FuncType>(op);
     FuncType ft2 = GetRef<FuncType>(ftn);
 
-    RegisterChildType(ft1, ft1->ret_type);
-    RegisterChildType(ft2, ft2->ret_type);
     Type ret_type = Unify(ft1->ret_type, ft2->ret_type);
+    RegisterChildType(ft1, ret_type);
+    RegisterChildType(ft2, ret_type);
 
     std::vector<Type> arg_types;
     for (size_t i = 0; i < ft1->arg_types.size(); i++) {
-      RegisterChildType(ft1, ft1->arg_types[i]);
-      RegisterChildType(ft2, ft2->arg_types[i]);
-      arg_types.push_back(Unify(ft1->arg_types[i], ft2->arg_types[i]));
+      Type arg_type = Unify(ft1->arg_types[i], ft2->arg_types[i]);
+      RegisterChildType(ft1, arg_type);
+      RegisterChildType(ft2, arg_type);
+      arg_types.push_back(arg_type);
     }
 
     std::vector<TypeVar> type_params;
