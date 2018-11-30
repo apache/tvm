@@ -97,6 +97,23 @@ def test_recursive_unify():
     assert unified == ft2
 
 
+def test_unify_vars_under_tuples():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+
+    tup1 = relay.ty.TupleType([t1, t1])
+    unified = solver.Unify(tup1, tup1)
+    assert unified == tup1
+
+    t2 = relay.ty.IncompleteType()
+    tup2 = relay.ty.TupleType([t2, t2])
+
+    tup3 = relay.ty.TupleType([t1, t2])
+    tup4 = relay.ty.TupleType([t2, t1])
+    unified = solver.Unify(tup3, tup4)
+    assert (unified == tup1 or unified == tup2)
+
+
 def test_recursive_backward_solving():
     solver = make_solver()
 
@@ -131,11 +148,20 @@ def test_incompatible_tuple_unification():
     solver.Unify(tup1, tup2)
 
 
+@raises(tvm._ffi.base.TVMError)
+def test_bad_recursive_unification():
+    solver = make_solver()
+    t1 = relay.ty.IncompleteType()
+    solver.Unify(t1, relay.ty.TupleType([t1, t1]))
+
+
 if __name__ == "__main__":
     test_bcast()
     test_backward_solving()
     test_unify_tuple()
     test_unify_functype()
     test_recursive_unify()
+    test_unify_vars_under_tuples()
     test_recursive_backward_solving()
     test_incompatible_tuple_unification()
+    test_bad_recursive_unification()
