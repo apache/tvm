@@ -65,6 +65,7 @@ class TypeSolver {
   Type Unify(const Type& lhs, const Type& rhs);
 
  private:
+  class RecurrenceChecker;
   class Unifier;
   class Reporter;
   struct TypeNode;
