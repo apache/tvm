@@ -135,6 +135,38 @@ def test_recursive_backward_solving():
     assert solver.Resolve(tup2) == tup1
 
 
+def test_backward_solving_after_child_update():
+    solver = make_solver()
+
+    tensor1 = relay.ty.TensorType((10, 20), "float32")
+    tensor2 = relay.ty.TensorType((10, 1, 1), "float32")
+
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.IncompleteType()
+
+    tup1 = relay.ty.TupleType([t1, t2])
+    tup2 = relay.ty.TupleType([t1, t3])
+
+    tup_concrete = relay.ty.TupleType([tensor1, tensor2])
+
+    t4 = solver.gen_type("Identity", [tup1])
+    t5 = solver.gen_type("Identity", [tup2])
+
+    solver.gen_type("Identity", [t4], out=t5)
+    assert solver.Solve()
+    assert solver.Resolve(t3) == t3 or solver.Resolve(t3) == t2
+    assert solver.Resolve(t4) == tup1 or solver.Resolve(t4) == tup2
+    assert solver.Resolve(t5) == tup1 or solver.Resolve(t5) == tup2
+
+    # updating the variables *inside* tup1 and tup2 should update t4 and t5
+    solver.gen_type("Identity", [t1], out=tensor1)
+    solver.gen_type("Identity", [t2], out=tensor2)
+    assert solver.Solve()
+    assert solver.Resolve(t4) == tup_concrete
+    assert solver.Resolve(t5) == tup_concrete
+
+
 @raises(tvm._ffi.base.TVMError)
 def test_incompatible_tuple_unification():
     solver = make_solver()
@@ -165,5 +197,6 @@ if __name__ == "__main__":
     test_recursive_unify()
     test_unify_vars_under_tuples()
     test_recursive_backward_solving()
+    test_backward_solving_after_child_update()
     test_incompatible_tuple_unification()
     test_bad_recursive_unification()
