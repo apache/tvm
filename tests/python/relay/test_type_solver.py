@@ -83,15 +83,17 @@ def test_recursive_unify():
     solver = make_solver()
     t1 = relay.ty.IncompleteType()
     t2 = relay.ty.IncompleteType()
+    t3 = relay.ty.IncompleteType()
 
     tensor1 = relay.ty.TensorType((10, 10, 20), "float32")
     tensor2 = relay.ty.TensorType((10, 20), "float32")
+    tensor3 = relay.ty.TensorType((10,), "float32")
 
     tup1 = relay.ty.TupleType([relay.ty.TupleType([t1, t2]), t2])
     tup2 = relay.ty.TupleType([relay.ty.TupleType([tensor1, tensor2]), tensor2])
 
-    ft1 = relay.ty.FuncType([tup1, tensor2], tensor2)
-    ft2 = relay.ty.FuncType([tup2, tensor2], tensor2)
+    ft1 = relay.ty.FuncType([tup1, t3], t3)
+    ft2 = relay.ty.FuncType([tup2, tensor3], tensor3)
 
     unified = solver.Unify(ft1, ft2)
     assert unified == ft2
