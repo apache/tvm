@@ -280,7 +280,10 @@ Type TypeSolver::Resolve(const Type& type) {
   if (it != tmap_.end()) {
     return resolver.Resolve(it->second->FindRoot()->resolved_type);
   } else {
-    return type;
+    if (!type.defined()) {
+      return type;
+    }
+    return resolver.Resolve(type);
   }
 }
 
