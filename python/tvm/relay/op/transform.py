@@ -387,3 +387,25 @@ def slice_like(data, shape_like, axes=None):
         The computed result.
     """
     return _make.slice_like(data, shape_like, axes)
+
+
+def layout_transform(data, src_layout, dst_layout):
+    """Transform the layout of a tensor
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The source tensor to be transformed
+
+    src_layout: str
+        The source layout.  (e.g NCHW)
+
+    dst_layout: str
+        The destination layout.  (e.g. NCHW16c)
+
+    Returns
+    -------
+    ret : relay.Expr
+        The transformed tensor.
+    """
+    return _make.layout_transform(data, src_layout, dst_layout)

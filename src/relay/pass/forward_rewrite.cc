@@ -42,13 +42,20 @@ class TempRealizer : private ExprMutator {
 
 class ForwardRewriter : private ExprMutator {
  public:
-  ForwardRewriter(const OpMap<FForwardRewrite>& rewrite_map,
+  ForwardRewriter(const OpMap<FForwardRewrite>* rewrite_map,
                   std::function<NodeRef(const Call&)> fcontext,
                   std::function<Expr(const Expr&)> fmulti_ref_trigger)
       : rewrite_map_(rewrite_map),
         fcontext_(fcontext),
-        fmulti_ref_trigger_(fmulti_ref_trigger) {
-  }
+        fmulti_ref_trigger_(fmulti_ref_trigger) {}
+
+  ForwardRewriter(const FForwardRewrite* rewrite_func,
+                  std::function<NodeRef(const Call&)> fcontext,
+                  std::function<Expr(const Expr&)> fmulti_ref_trigger)
+      : rewrite_func_(rewrite_func),
+        fcontext_(fcontext),
+        fmulti_ref_trigger_(fmulti_ref_trigger) {}
+
 
   // Transform expression.
   Expr Rewrite(Expr expr) {
@@ -60,8 +67,9 @@ class ForwardRewriter : private ExprMutator {
 
  private:
   // The rewrite rule.
-  const OpMap<FForwardRewrite>& rewrite_map_;
-  // The context.
+  const OpMap<FForwardRewrite>* rewrite_map_{nullptr};
+  const FForwardRewrite* rewrite_func_{nullptr};
+  // The context.const
   std::function<NodeRef(const Call&)> fcontext_{nullptr};
   // The multiple reference trigger
   std::function<Expr(const Expr&)> fmulti_ref_trigger_{nullptr};
@@ -104,9 +112,31 @@ class ForwardRewriter : private ExprMutator {
     }
   }
 
+  Expr VisitExpr_(const TupleNode* op) final {
+    tvm::Array<Expr> fields;
+    bool all_fields_unchanged = true;
+    for (auto field : op->fields) {
+      auto new_field = this->GetTempExpr(field);
+      fields.push_back(new_field);
+      all_fields_unchanged &= new_field.same_as(field);
+    }
+
+    if (all_fields_unchanged) {
+      return GetRef<Expr>(op);
+    } else {
+      return TupleNode::make(fields);
+    }
+  }
+
   Expr VisitExpr_(const CallNode* call_node) final {
     const Call& ref_call = GetRef<Call>(call_node);
-    PackedFunc frewrite = rewrite_map_.get(call_node->op, nullptr);
+    PackedFunc frewrite;
+    if (rewrite_func_) {
+      frewrite = *rewrite_func_;
+    } else {
+      CHECK(rewrite_map_);
+      frewrite = rewrite_map_->get(call_node->op, nullptr);
+    }
 
     auto new_op = this->Mutate(call_node->op);
     bool unchanged = call_node->op.same_as(new_op);
@@ -147,9 +177,16 @@ Expr ForwardRewrite(const Expr& expr,
                     std::function<NodeRef(const Call&)> fcontext,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger) {
   auto rewrite_map = Op::GetAttr<FForwardRewrite>(rewrite_map_name);
-  return ForwardRewriter(rewrite_map,
-                         fcontext,
-                         fmulti_ref_trigger).Rewrite(expr);
+  return ForwardRewriter(&rewrite_map, fcontext, fmulti_ref_trigger).Rewrite(expr);
 }
+
+Expr ForwardRewrite(const Expr& expr,
+                    const FForwardRewrite& rewrite_func,
+                    std::function<NodeRef(const Call&)> fcontext,
+                    std::function<Expr(const Expr&)> fmulti_ref_trigger) {
+  return ForwardRewriter(&rewrite_func, fcontext, fmulti_ref_trigger).Rewrite(expr);
+}
+
+
 }  // namespace relay
 }  // namespace tvm

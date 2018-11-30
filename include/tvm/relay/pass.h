@@ -8,6 +8,7 @@
 
 #include <tvm/relay/module.h>
 #include <tvm/relay/expr.h>
+#include <tvm/relay/op_attr_types.h>
 #include <string>
 
 namespace tvm {
@@ -172,6 +173,21 @@ Expr ForwardRewrite(const Expr& expr,
                     const std::string& rewrite_map_attr_name,
                     std::function<NodeRef(const Call&)> fcontext = nullptr,
                     std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
+/*!
+ * \brief Apply rewrite rules to rewrite the expr in post DFS order.
+ * \param expr The expression.
+ * \param rewrite_func The rewrite func that will apply to all operators.
+ * \param fcontext Additional callback to provide context argument for each call node.
+ * \param fmulti_ref_trigger Transformation function to be called when
+ *                           an Expr consumed by multiple callers.
+ * \return The rewritten expression.
+ */
+Expr ForwardRewrite(const Expr& expr,
+                    const FForwardRewrite& rewrite_func,
+                    std::function<NodeRef(const Call&)> fcontext = nullptr,
+                    std::function<Expr(const Expr&)> fmulti_ref_trigger = nullptr);
+
 
 /*! \brief A hashing structure in the style of std::hash. */
 struct StructuralHash {
