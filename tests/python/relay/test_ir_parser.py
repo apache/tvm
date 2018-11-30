@@ -80,8 +80,6 @@ def test_comments():
         UNIT
     )
 
-    assert False
-
 def test_int_literal():
     assert isinstance(relay.fromtext("1"), relay.Constant)
     assert isinstance(relay.fromtext("1").data, tvm.ndarray.NDArray)
@@ -91,6 +89,8 @@ def test_int_literal():
     assert get_scalar(relay.fromtext("0")) == 0
     assert get_scalar(relay.fromtext("-100")) == -100
     assert get_scalar(relay.fromtext("-05")) == -5
+
+    assert False
 
 def test_float_literal():
     assert get_scalar(relay.fromtext("1.0")) == 1.0
