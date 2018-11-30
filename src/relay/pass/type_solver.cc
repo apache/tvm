@@ -275,14 +275,13 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
 
 // Resolve a type in the solver context.
 Type TypeSolver::Resolve(const Type& type) {
-  auto it = tmap_.find(type);
-  Type t = type;
-  if (it != tmap_.end()) {
-    t = it->second->FindRoot()->resolved_type;
-  }
-
   Resolver resolver(this);
-  return resolver.Resolve(t);
+  auto it = tmap_.find(type);
+  if (it != tmap_.end()) {
+    return resolver.Resolve(it->second->FindRoot()->resolved_type);
+  } else {
+    return type;
+  }
 }
 
 bool TypeSolver::Solve() {
