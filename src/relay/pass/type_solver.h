@@ -160,11 +160,14 @@ class TypeSolver {
     update_queue_.push(rel);
   }
   /*!
-   * \brief Adds relations in relation queue of src to dst
+   * \brief Merge rhs type node to lhs
    * \param src The source operand
-   * \param dst The dst operand
+   * \param dst The dst operand.
    */
-  void TransferQueue(TypeNode* src, TypeNode* dst) {
+  void MergeFromTo(TypeNode* src, TypeNode* dst) {
+    if (src == dst) return;
+    src->parent = dst;
+    // move the link to the to dst
     for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
       // store next pointer first before rlink get moved
       auto* next = rlink->next;
@@ -176,17 +179,6 @@ class TypeSolver {
       }
       rlink = next;
     }
-  }
-  /*!
-   * \brief Merge rhs type node to lhs
-   * \param src The source operand
-   * \param dst The dst operand.
-   */
-  void MergeFromTo(TypeNode* src, TypeNode* dst) {
-    if (src == dst) return;
-    src->parent = dst;
-    // move the link to the to dst
-    TransferQueue(src, dst);
   }
 };
 
