@@ -25,7 +25,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
     # inplace) or the install directory (if TVM is installed).
     # An installed TVM's curr_path will look something like:
     #   $PREFIX/lib/python3.6/site-packages/tvm/_ffi
-    ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    ffi_dir = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     source_dir = os.path.join(ffi_dir, "..", "..", "..")
     install_lib_dir = os.path.join(ffi_dir, "..", "..", "..", "..")
 
@@ -49,7 +49,7 @@ def find_lib_path(name=None, search_path=None, optional=False):
 
     dll_path.append(install_lib_dir)
 
-    dll_path = [os.path.abspath(x) for x in dll_path]
+    dll_path = [os.path.realpath(x) for x in dll_path]
     if search_path is not None:
         if search_path is list:
             dll_path = dll_path + search_path

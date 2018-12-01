@@ -111,7 +111,7 @@ class VPIHandle(NodeBase):
 
 
 def _find_vpi_path():
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     api_path = os.path.join(curr_path, '../../../lib/')
     vpi_path = [curr_path, api_path]
     vpi_path = [os.path.join(p, 'tvm_vpi.vpi') for p in vpi_path]
@@ -123,7 +123,7 @@ def _find_vpi_path():
 
 def search_path():
     """Get the search directory."""
-    curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+    curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
     ver_path = [os.path.join(curr_path, '../../../verilog/')]
     ver_path += [os.path.join(curr_path, '../../../tests/verilog/unittest/')]
     ver_path += [os.path.join(curr_path, '../../../tests/verilog/integration/')]
