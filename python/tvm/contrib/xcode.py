@@ -206,9 +206,9 @@ def popen_test_rpc(host,
     if "TVM_IOS_RPC_ROOT" in os.environ:
         rpc_root = os.environ["TVM_IOS_RPC_ROOT"]
     else:
-        curr_path = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
+        curr_path = os.path.dirname(os.path.realpath(os.path.expanduser(__file__)))
         rpc_root = os.path.join(curr_path, "../../../apps/ios_rpc")
-    proj_path = os.path.abspath(os.path.join(rpc_root, "tvmrpc.xcodeproj"))
+    proj_path = os.path.realpath(os.path.join(rpc_root, "tvmrpc.xcodeproj"))
     if not os.path.exists(proj_path):
         raise RuntimeError("Cannot find tvmrpc.xcodeproj in %s," +
                            (" please set env TVM_IOS_RPC_ROOT correctly" % rpc_root))
