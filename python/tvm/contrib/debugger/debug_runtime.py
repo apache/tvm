@@ -146,7 +146,7 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         """
         # make the dump folder if not given
         if not self._dump_root:
-            self._dump_root = tempfile.mktemp(prefix=_DUMP_ROOT_PREFIX)
+            self._dump_root = tempfile.mkdtemp(prefix=_DUMP_ROOT_PREFIX)
 
         # format the context
         ctx = self._format_context(ctx)
