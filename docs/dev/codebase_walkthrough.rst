@@ -15,9 +15,9 @@ At the root of the TVM repository, we have following subdirectories that togethe
 - ``topi`` - Compute definitions and backend schedules for standard neural network operators.
 - ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. Depends on three directories above.
 
-Using standard Deep Learning terminologies, ``nnvm`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructures implemented in ``src`` and ``python``. Operators corresponding to each node are registered in ``nnvm``. Registration can be done via C++ or Python. Implemenations for operators are in ``topi``, and they are also coded in either C++ or Python.
+Using standard Deep Learning terminologies, ``nnvm`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructures implemented in ``src`` and ``python``. Operators corresponding to each node are registered in ``nnvm``. Registration can be done via C++ or Python. Implementations for operators are in ``topi``, and they are also coded in either C++ or Python.
 
-When an user invokes graph compilation by ``nnvm.compiler.build(...)``, the following sequence of actions happens for each node in the graph:
+When a user invokes graph compilation by ``nnvm.compiler.build(...)``, the following sequence of actions happens for each node in the graph:
 
 - Look up an operator implementation by querying the operator registry
 - Generate a compute expression and a schdule for the operator
@@ -25,7 +25,7 @@ When an user invokes graph compilation by ``nnvm.compiler.build(...)``, the foll
 
 One of the interesting aspects of TVM codebase is that interop between C++ and Python is not unidirectional. Typically, all code that do heavy liftings are implemented in C++, and Python bindings are provided for user interface. This is also true in TVM, but in TVM codebase, C++ code also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in nnvm.
 
-At the time of writing (Nov. 30, 2018), there is an going effort to reimplement functionality offered by ``nnvm`` in a new intermidiate representation called Relay. New Relay code resides in ``src/relay`` and ``python/tvm/relay``.
+At the time of writing (Nov. 30, 2018), there is an ongoing effort to reimplement functionality offered by ``nnvm`` in a new intermediate representation called Relay. New Relay code resides in ``src/relay`` and ``python/tvm/relay``.
 
 This guide focuses on contents in ``src`` and ``python`` subdirectories. We may cover ``topi`` and ``nnvm`` in another documents.
 
@@ -42,7 +42,7 @@ We use a simple example that does not use topi or nnvm. The example is vector ad
    B = tvm.placeholder((n,), name='B')
    C = tvm.compute(A.shape, lambda i: A[i] + B[i], name="C")
 
-Here, types of ``A``, ``B``, ``C`` are ``tvm.tensor.Tensor``, defined in ``python/tvm/tensor.py``. The Python ``Tensor`` is backed by C++ ``Tensor``, implemented in ``include/tvm/tensor.h`` and ``src/lang/tensor.cc``. All Python types in TVM can be thought of as a handle to the underlining C++ type with the same name. If you look at the definition of Python ``Tensor`` type below, you can see it is an subclass of ``NodeBase``.
+Here, types of ``A``, ``B``, ``C`` are ``tvm.tensor.Tensor``, defined in ``python/tvm/tensor.py``. The Python ``Tensor`` is backed by C++ ``Tensor``, implemented in ``include/tvm/tensor.h`` and ``src/lang/tensor.cc``. All Python types in TVM can be thought of as a handle to the underlining C++ type with the same name. If you look at the definition of Python ``Tensor`` type below, you can see it is a subclass of ``NodeBase``.
 
 ::
 
@@ -70,7 +70,7 @@ The Node system is the basis of exposing C++ types to frontend languages, includ
 
 We use ``TVM_REGISTER_*`` macro to expose C++ functions to frontend languages, in the form of `PackedFunc <https://docs.tvm.ai/dev/runtime.html#packedfunc>`_. ``PackedFunc`` is another mechanism by which TVM implements C++ and Python interop. In particular, this is what makes calling Python functions from the C++ codebase very easy.
 
-A ``Tensor`` object has an ``Operation`` object associated with it, defined in ``python/tvm/tensor.py``, ``include/tvm/operation.h``, and ``src/tvm/op`` subdirectory. A ``Tensor`` is an output of its ``Operation`` object. Each ``Operation`` object has in turn ``input_tensors()`` method, which returns a list of input ``Tensors`` to it. This way we can keep track of dependencies between ``Operation``.
+A ``Tensor`` object has an ``Operation`` object associated with it, defined in ``python/tvm/tensor.py``, ``include/tvm/operation.h``, and ``src/tvm/op`` subdirectory. A ``Tensor`` is an output of its ``Operation`` object. Each ``Operation`` object has in turn ``input_tensors()`` method, which returns a list of input ``Tensor`` to it. This way we can keep track of dependencies between ``Operation``.
 
 We pass the operation corresponding to the output tensor ``C`` to ``tvm.create_schedule()`` function in ``python/tvm/schedule.py``.
 
@@ -103,7 +103,7 @@ To keep it simple, we call ``tvm.build(...)`` on the default schedule created by
 
 The process of ``tvm.build()`` can be divided into two steps:
 
-- Lowering, where an high level, initial loop nest structures are transformed into a final, low level IR
+- Lowering, where a high level, initial loop nest structures are transformed into a final, low level IR
 - Code generation, where target machine code is generated from the low level IR
 
 Lowering is done by ``tvm.lower()`` function, defined in ``python/tvm/build_module.py``. First, bound inference is peformed, and an initial loop nest structure is created.
@@ -154,7 +154,7 @@ Code generation is done by ``build_module()`` function, defined in ``python/tvm/
    }
 
 
-``Build()`` function looks up code generators for a particular target in the ``PackedFunc`` registry, and invokes the function found. For example, ``codegen.build_cuda`` function is registered in ``src/codegen/build_cuda_on.cc``, like this:
+``Build()`` function looks up the code generator for the given target in the ``PackedFunc`` registry, and invokes the function found. For example, ``codegen.build_cuda`` function is registered in ``src/codegen/build_cuda_on.cc``, like this:
 
 ::
 
@@ -165,7 +165,7 @@ Code generation is done by ``build_module()`` function, defined in ``python/tvm/
 
 ``BuildCUDA()`` above generates CUDA kernel source from the lowered IR using ``CodeGenCUDA`` class defined in ``src/codegen/codegen_cuda.cc``, and compile the kernel using NVRTC. If you target a backend that uses LLVM, which includes x86, ARM, NVPTX and AMDGPU, code generation is done primarily by ``CodeGenLLVM`` class defined in ``src/codegen/llvm/codegen_llvm.cc``. ``CodeGenLLVM`` translates TVM IR into LLVM IR, runs a number of LLVM optimization passes, and generates target machine code.
 
-``Build()`` function in ``src/codegen/codegen.cc`` returns a ``runtime::Module`` object, defined in ``include/tvm/runtime/module.h`` and ``src/runtime/module.cc``. A ``Module`` object is a container for the underlining target specific ``ModuleNode`` object. Each backend implements a subclass of ``ModuleNode`` to add target specific runtime API calls. For example, CUDA backends implements ``CUDAModuleNode`` class in ``src/runtime/cuda/cuda_module.cc``, which manages CUDA driver API. ``BuildCUDA()`` function above wraps ``CUDAModuleNode`` with ``runtime::Module`` and return it to the Python side. The LLVM backend implements ``LLVMModuleNode`` in ``src/codegen/llvm/llvm_module.cc``, which handles JIT execution of compiled code. Other subclasses of ``ModuleNode`` can be found under subdirectories of ``src/runtime`` corresponding to each backend.
+``Build()`` function in ``src/codegen/codegen.cc`` returns a ``runtime::Module`` object, defined in ``include/tvm/runtime/module.h`` and ``src/runtime/module.cc``. A ``Module`` object is a container for the underlining target specific ``ModuleNode`` object. Each backend implements a subclass of ``ModuleNode`` to add target specific runtime API calls. For example, the CUDA backend implements ``CUDAModuleNode`` class in ``src/runtime/cuda/cuda_module.cc``, which manages CUDA driver API. ``BuildCUDA()`` function above wraps ``CUDAModuleNode`` with ``runtime::Module`` and return it to the Python side. The LLVM backend implements ``LLVMModuleNode`` in ``src/codegen/llvm/llvm_module.cc``, which handles JIT execution of compiled code. Other subclasses of ``ModuleNode`` can be found under subdirectories of ``src/runtime`` corresponding to each backend.
 
 The returned module, which can be thought of as a combination of a compiled function and a device API, can be invoked on TVM's NDArray objects.
 
@@ -178,7 +178,7 @@ The returned module, which can be thought of as a combination of a compiled func
    fadd(a, b, c)
    output = c.asnumpy()
 
-Under the hood, TVM allocates device memory and manages memory transfer automatically. To do that, each backend needs to subclass ``DeviceAPI`` class, defined in ``include/tvm/runtime/device_api.h``, and override memory management methods to use device specific API. For example, the CUDA backend implements ``CUDADeviceAPI`` in ``src/runtime/cuda/cuda_device_api.cc`` to use ``cudaMalloc``, ``cudaMemcpy`` etc.
+Under the hood, TVM allocates device memory and manages memory transfers automatically. To do that, each backend needs to subclass ``DeviceAPI`` class, defined in ``include/tvm/runtime/device_api.h``, and override memory management methods to use device specific API. For example, the CUDA backend implements ``CUDADeviceAPI`` in ``src/runtime/cuda/cuda_device_api.cc`` to use ``cudaMalloc``, ``cudaMemcpy`` etc.
 
 The first time you invoke the compiled module with ``fadd(a, b, c)``, ``GetFunction()`` method of ``ModuleNode`` is called to get a ``PackedFunc`` that can be used for a kernel call. For example, in ``src/runtime/cuda/cuda_module.cc`` the CUDA backend implements ``CUDAModuleNode::GetFunction()`` like this:
 
