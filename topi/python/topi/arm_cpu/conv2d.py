@@ -582,7 +582,8 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
                 tile_size = _pick_tile_size(tinfos[0], tinfos[1])
                 VC = cfg['tile_bna'].val
 
-            weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1], tile_size=tile_size)
+            weight = sym.contrib.conv2d_winograd_weight_transform(copy_inputs[1],
+                                                                  tile_size=tile_size)
             weight = sym.reshape(weight,
                                  shape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
             weight = sym.transpose(weight, axes=[0, 1, 2, 4, 3])
