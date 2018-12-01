@@ -10,11 +10,16 @@ compiler stack.
 .. toctree::
    :maxdepth: 2
 
+   backend
    base
-   env
+   build_module
    expr
-   ir_builder
+   frontend
+   image
    ir_pass
+   module
+   nn
    op
-   to_tvm
-   type
+   scope_builder
+   ty
+   vision

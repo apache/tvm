@@ -8,12 +8,12 @@ from . import _expr
 NodeBase = NodeBase
 
 def register_relay_node(type_key=None):
-    """register relay node type
+    """Register a Relay node type.
 
     Parameters
     ----------
     type_key : str or cls
-        The type key of the node
+        The type key of the node.
     """
     if not isinstance(type_key, str):
         return _register_tvm_node(
@@ -22,12 +22,12 @@ def register_relay_node(type_key=None):
 
 
 def register_relay_attr_node(type_key=None):
-    """register relay attribute node
+    """Register a Relay attribute node.
 
     Parameters
     ----------
     type_key : str or cls
-        The type key of the node
+        The type key of the node.
     """
     if not isinstance(type_key, str):
         return _register_tvm_node(
@@ -66,12 +66,16 @@ class RelayNode(NodeBase):
 
 @register_relay_node
 class Span(RelayNode):
+    """Specifies a location in a source program."""
+
     def __init__(self, source, lineno, col_offset):
         self.__init_handle_by_constructor__(_make.Span, source, lineno, col_offset)
 
 
 @register_relay_node
 class Id(NodeBase):
-    """Unique identifier(name) for Var across type checking."""
+    """Unique identifier(name) used in Var.
+       Guaranteed to be stable across all passes.
+    """
     def __init__(self):
         raise RuntimeError("Cannot directly construct Id")
