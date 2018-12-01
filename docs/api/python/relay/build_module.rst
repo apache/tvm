@@ -17,6 +17,3 @@ tvm.relay.build_module
 
 .. autoclass:: tvm.relay.build_module.GraphExecutor
     :members:
-
-
-
