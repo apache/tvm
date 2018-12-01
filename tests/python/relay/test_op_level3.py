@@ -87,6 +87,13 @@ def test_transpose_infer_type():
     assert yy.checked_type == relay.TensorType(
         (t, n, 100), "float32")
 
+    y = relay.transpose(x)
+    "axes=" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType(
+        (100, t, n), "float32")
+
+
 def test_transpose():
     def verify_transpose(dshape, axes):
         x = relay.var("x", relay.TensorType(dshape, "float32"))
