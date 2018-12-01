@@ -251,3 +251,6 @@ def schedule_upsampling(_, outs, target):
         return topi.generic.schedule_injective(outs)
 
 reg.register_pattern("nn.upsampling", OpPattern.INJECTIVE)
+
+# pad
+reg.register_schedule("nn.pad", schedule_broadcast)
