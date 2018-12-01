@@ -1,6 +1,6 @@
 if(USE_ANTLR)
   if(EXISTS /usr/local/lib/antlr-4.7.1-complete.jar)
-    set(ANTLR4 "${JAVA_HOME}/bin/java -jar /usr/local/lib/antlr-4.7.1-complete.jar")
+    set(ANTLR4 "$ENV{JAVA_HOME}/bin/java -jar /usr/local/lib/antlr-4.7.1-complete.jar")
 
     set(RELAY_PARSER_DIR
       ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm/relay/grammar)
