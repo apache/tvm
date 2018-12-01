@@ -409,7 +409,18 @@ def test_schedule_tensor_compute3():
     stmt = tvm.schedule.ScheduleOps(s, bounds)
 
 
+def test_loop_dep_reduce():
+    X = tvm.placeholder(shape=(10,), name="x")
+    def f(n):
+        rv = tvm.reduce_axis((0, n))
+        return tvm.sum(X[rv], axis=rv)
+    Y = tvm.compute(X.shape, f, name="y")
+    s = tvm.create_schedule([Y.op])
+    f = tvm.build(s, [X, Y])
+
+
 if __name__ == "__main__":
+    test_loop_dep_reduce()
     test_schedule_middle_cache()
     test_inline_multi_reduce()
     test_schedule_cache_relayout4()
