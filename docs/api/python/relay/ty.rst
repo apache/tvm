@@ -1,5 +1,6 @@
 tvm.relay.ty
---------------
+------------
+
 .. automodule:: tvm.relay.ty
     :members:
 
