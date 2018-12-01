@@ -41,6 +41,7 @@ tests: all
 	@(cd sample; python3 deploy.py)
 	@export GOPATH=$(GOPATH); \
 	export CGO_CPPFLAGS=$(CGO_CPPFLAGS); \
+	export CGO_CXXFLAGS=$(CGO_CXXFLAGS); \
 	export CGO_CFLAGS=$(CGO_CFLAGS); \
 	export CGO_LDFLAGS=$(CGO_LDFLAGS); \
 	(cd $(GOPATHDIR) \

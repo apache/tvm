@@ -125,9 +125,9 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
  * \param array index in native array.
  */
 void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
-  TVMValue **from_p = reinterpret_cast<TVMValue**>(from_ptr);
+  TVMValue *from_p = reinterpret_cast<TVMValue*>(from_ptr);
   TVMValue *to_p = reinterpret_cast<TVMValue*>(to_ptr);
-  memcpy(&(to_p[ind]), from_p, sizeof(TVMValue));
+  memcpy(to_p+ind, from_p, sizeof(TVMValue));
 }
 
 /*!
@@ -140,8 +140,8 @@ void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
  */
 void _TVMValueNativeGet(void* to_ptr, void* from_ptr, int ind) {
   TVMValue *from_p = reinterpret_cast<TVMValue*>(from_ptr);
-  TVMValue **to_p = reinterpret_cast<TVMValue**>(to_ptr);
-  memcpy(to_p, &(from_p[ind]), sizeof(TVMValue));
+  TVMValue *to_p = reinterpret_cast<TVMValue*>(to_ptr);
+  memcpy(to_p, from_p+ind, sizeof(TVMValue));
 }
 
 extern int goTVMCallback(void*, void*, int, void*, void*);

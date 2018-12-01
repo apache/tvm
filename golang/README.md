@@ -94,3 +94,14 @@ godoc -http=:6060  -goroot=./gopath
 After above command try http://127.0.0.1:6060 from any browser.
 
 Also please refer to the sample applications under sample folder.
+
+## Docker
+Docker setup may need below additions for dependencies and environment preparation.
+
+Please refer ```docker/install/ubuntu_install_golang.sh``` for the packages dependencies.
+
+go compiler 1.10 on ubuntu doesn't install on standard path, hence an explicit export may be needed as shown below.
+
+```bash
+export PATH="/usr/lib/go-1.10/bin:$PATH"```
+```
