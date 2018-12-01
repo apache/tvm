@@ -539,7 +539,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
     out_dtype = attrs["out_dtype"]
     out_dtype = tinfos[0].dtype if out_dtype == "same" else out_dtype
 
-    if layout != 'NCHW' or groups != 1:
+    if layout != 'NCHW':
         return None
     if dilation != (1, 1):
         warnings.warn("Does not support weight pre-transform for dilated convolution.")
@@ -627,4 +627,6 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos):
             dispatch_ctx.update(target, new_workload, cfg)
 
             return sym.conv2d(*copy_inputs, **new_attrs)
-
+        else:
+            # add more schedule templates
+            return None
