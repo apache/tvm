@@ -8,4 +8,3 @@ embedded languages in TVM stack.
 
    relay_op
    hybrid_script
-   relay/index
