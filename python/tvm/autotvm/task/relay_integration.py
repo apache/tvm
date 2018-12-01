@@ -11,11 +11,11 @@ import logging
 
 from ... import tensor, placeholder, target as _target
 
-from ..util import get_const_tuple
 from .task import create
-from .nnvm_integration import TaskExtractEnv
+from .topi_integration import TaskExtractEnv
 
 logger = logging.getLogger('autotvm')
+
 
 def serialize_args(args):
     """serialize arguments of a topi function to a hashable tuple.
@@ -75,14 +75,24 @@ def extract_from_program(func, params, ops, target, target_host=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
-    from tvm import relay
-
     env = TaskExtractEnv.get()
+    import tvm.relay.op
+    from tvm import relay
+    import topi
+
+    # NOTE: To add more ops, you only need to change the following lists
+    # relay op -> topi compute
+    OP2TOPI = {
+        tvm.relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
+                             topi.nn.group_conv2d_nchw],
+        tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
+        tvm.relay.op.nn.dense: [topi.nn.dense],
+    }
 
     topi_funcs = []
     for op_name in ops:
-        if op_name in env.op2topi:
-            topi_funcs.extend(env.op2topi[op_name])
+        if op_name in OP2TOPI:
+            topi_funcs.extend(OP2TOPI[op_name])
         else:
             warnings.warn("Op %s is not tunable, ignored" % op_name)
 
@@ -138,14 +148,24 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     task: Array of autotvm.task.Task
         collected tasks
     """
-    from tvm import relay
-
     env = TaskExtractEnv.get()
+    import tvm.relay.op
+    from tvm import relay
+    import topi
+
+    # NOTE: To add more ops, you only need to change the following lists
+    # relay op -> topi compute
+    OP2TOPI = {
+        tvm.relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
+                             topi.nn.group_conv2d_nchw],
+        tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
+        tvm.relay.op.nn.dense: [topi.nn.dense],
+    }
 
     topi_funcs = []
     for op_name in ops:
-        if op_name in env.op2topi:
-            topi_funcs.extend(env.op2topi[op_name])
+        if op_name in OP2TOPI:
+            topi_funcs.extend(OP2TOPI[op_name])
         else:
             warnings.warn("Op %s is not tunable, ignored" % op_name)
 
