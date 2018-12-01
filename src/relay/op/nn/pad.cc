@@ -81,8 +81,9 @@ Array<Tensor> PadCompute(const Attrs& attrs,
   for (size_t i = 0; i < pad_width.size(); ++i) {
     pad_after.push_back(pad_width[i][1]);
   }
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
   return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
-                                  tvm::make_const(tvm::Float(32), param->pad_value)) };
+                                  tvm::make_const(out_ttype->dtype, param->pad_value)) };
 }
 
 // Handler to create a call to the padding op used by front-end FFI

@@ -331,17 +331,20 @@ def test_pad_infer_type():
     assert yy.checked_type == relay.TensorType((n + 2, 6, 9, w + 8), "float32")
 
 def test_pad_run():
-    dtype = 'float32'
-    dshape = (4, 10, 7, 7)
-    x = relay.var("x", shape=dshape)
-    y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
-    func = relay.Function([x], y)
-    data = np.random.uniform(size=dshape).astype(dtype)
-    ref_res = np.pad(data, ((1, 1), (2, 2), (3, 3), (4, 4)), 'constant')
-    for target, ctx in ctx_list():
-        intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
-        op_res1 = intrp1.evaluate(func)(data)
-        tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+    def _test_run(dtype):
+        dshape = (4, 10, 7, 7)
+        x = relay.var("x", shape=dshape)
+        y = relay.nn.pad(x, ((1, 1), (2, 2), (3, 3), (4, 4)))
+        func = relay.Function([x], y)
+        data = np.random.uniform(size=dshape).astype(dtype)
+        ref_res = np.pad(data, ((1, 1), (2, 2), (3, 3), (4, 4)), 'constant')
+        for target, ctx in ctx_list():
+            intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
+            op_res1 = intrp1.evaluate(func)(data)
+            tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5, atol=1e-5)
+
+    _test_run('float32')
+    _test_run('int32')
 
 def test_lrn():
     n, c , h, w = tvm.var("n"), tvm.var("c"), tvm.var("h"), tvm.var("w")
