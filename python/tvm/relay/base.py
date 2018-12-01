@@ -36,7 +36,7 @@ def register_relay_attr_node(type_key=None):
 
 
 class RelayNode(NodeBase):
-    """Base class of all relay node."""
+    """Base class of all Relay nodes."""
     def astext(self, show_meta_data=True, annotate=None):
         """Get the text format of the expression.
 
@@ -52,8 +52,8 @@ class RelayNode(NodeBase):
 
         Note
         ----
-        meta data section is necessary to fully parse the text format.
-        However, it can contain dumps that are big(constat weights),
+        The metadata section is necessary to fully parse the text format.
+        However, it can contain dumps that are big (e.g constant weights)a,
         so it can be helpful to skip printing the meta data section.
 
         Returns
