@@ -73,14 +73,14 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
   CHECK_EQ(param.channels % param.groups, 0U)
       << "output channels must divide group size";
 
-  TShape wshape({param.channels / param.groups,
+  // Restore depthwise conv2d kernel layout
+  // otherwise we will get error if we split output channel
+  // of depthwise conv2d kernel (because it will be 1 if
+  // use param.channels divide param.groups).
+  TShape wshape({param.channels,
                  dshape[1] / param.groups,
                  param.kernel_size[0],
                  param.kernel_size[1]});
-  // Restore depthwise conv2d kernel layout
-  // otherwise we will get error if we split output channel
-  // of depthwise conv2d kernel (because it will be 1 if we don't restore).
-  wshape[kernel_layout.indexof('O')] *= param.groups;
   wshape = ConvertLayout(wshape, kOIHW, kernel_layout);
 
   if (in_shape->at(Conv2DParam::kWeight).ndim() == 0) {
