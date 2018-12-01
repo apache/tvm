@@ -939,19 +939,20 @@ def test_forward_l2_normalize():
 # transpose
 # ---------
 def _test_forward_transpose(ishape, axes=None):
-    input = np.random.uniform(size=ishape).astype(np.float32)
+    data = np.random.uniform(size=ishape).astype(np.float32)
 
     with tf.Graph().as_default():
-        in1 = tf.placeholder(shape=input.shape, dtype=input.dtype, name="transpose_data")
+        in1 = tf.placeholder(shape=data.shape, dtype=data.dtype, name="transpose_data")
 
         if axes is None:
             tf.transpose(in1)
         else:
             tf.transpose(in1, perm=axes)
 
-        compare_tf_with_tvm(input, 'transpose_data:0', 'transpose:0')
+        compare_tf_with_tvm(data, 'transpose_data:0', 'transpose:0')
 
 def test_forward_transpose():
+    _test_forward_transpose((2, 3, 4), (1, 2, 0))
     _test_forward_transpose((2, 3, 4))
     _test_forward_transpose((7, 8, 8, 10))
     _test_forward_transpose((2, 3, 4), (1, 2, 0))
@@ -1056,16 +1057,8 @@ def test_forward_rel_ops():
 # Main
 # ----
 if __name__ == '__main__':
-    # NN
-    test_forward_convolution()
-    #test_forward_pooling()
-    #if tf.__version__ == '1.4.1':
-    #    _test_forward_concat_v2()
-    #test_forward_lrn()
-    #test_forward_l2_normalize()
-    exit(0)
     # Transforms
-    test_forward_transpose()
+    #test_forward_transpose()
     test_forward_reshape()
     test_forward_squeeze()
     test_forward_pack()
@@ -1108,3 +1101,11 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
+
+    # NN
+    #test_forward_convolution()
+    #test_forward_pooling()
+    #if tf.__version__ == '1.4.1':
+    #    _test_forward_concat_v2()
+    #test_forward_lrn()
+    #test_forward_l2_normalize()

@@ -1,4 +1,4 @@
-# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines
+# pylint: disable=import-self, invalid-name, unused-argument, too-many-lines, len-as-condition
 """TF: Tensorflow frontend."""
 from __future__ import absolute_import as _abs
 from __future__ import print_function
@@ -7,17 +7,11 @@ import logging
 # Numpy support
 import numpy as np
 
+import tvm
 from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
-from ... import nd as _nd
-from .common import StrAttrsDict
-
-import tvm
-#from .. import graph as _graph
-#from .. compiler import graph_util, build_module
-#from .common import get_nnvm_op, AttrConverter as AttrConvert
 
 __all__ = ['from_tensorflow']
 
@@ -27,7 +21,7 @@ def _get_relay_op(op_name):
     except AttributeError:
         try:
             op = getattr(_op.nn, op_name)
-        except:
+        except AttributeError:
             op = getattr(_op.image, op_name)
 
     if not op:
@@ -161,14 +155,20 @@ class AttrCvt(object):
 
 def _get_pad_pair(input1d, kernel1d, stride1d):
     if input1d % stride1d == 0:
-        pad = tvm.select((kernel1d - stride1d) > 0, (kernel1d - stride1d), relay.const(0))
+        pad = max(kernel1d - stride1d, 0)
     else:
-        pad = tvm.select((kernel1d - (input1d % stride1d)) > 0, (kernel1d - (input1d % stride1d)), relay.const(0))
+        pad = max(kernel1d - (input1d % stride1d), 0)
 
-    pad_before = pad // relay.const(2)
+    pad_before = pad // 2
     pad_after = pad - pad_before
 
     return [pad_before, pad_after]
+
+def _get_name_hint(node):
+    name = ''
+    if hasattr(node, "name_hint"):
+        name = node.name_hint
+    return name
 
 def _math_name_picker(surfix):
     def _impl(attr):
@@ -318,7 +318,7 @@ def _conv(opname):
             attr['data_format'] = "NCHW"
             attr['strides'] = [attr['strides'][ii] for ii in (0, 3, 1, 2)]
             flip_layout = True
-        print("W Shape:", weights_shape)
+
         if attr['data_format'] == 'NHWC':
             kernel_h, kernel_w, _, depth_mult = weights_shape
             attr['kernel_shape'] = (weights_shape[0], weights_shape[1])
@@ -532,7 +532,7 @@ def _bias_add():
 
 def _squeeze():
     def _impl(inputs, attr, params):
-        if 0 == len(attr['squeeze_dims']):
+        if len(attr['squeeze_dims']) == 0:
             attr['squeeze_dims'] = None
         return AttrCvt(
             op_name="squeeze",
@@ -591,7 +591,7 @@ def _batch_norm():
 
 def _relu6():
     def _impl(inputs, attr, params):
-        return _op.clip(inputs[0], a_min=0, a_max=6, name=attr['_node_name'])
+        return _op.clip(inputs[0], a_min=0, a_max=6)
     return _impl
 
 def _shape():
@@ -647,11 +647,10 @@ def _gather_v2():
         new_input = []
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
-        return AttrCvt(
-            op_name="take",
-            extras={'axis':axis},
-            ignores=['Tindices', 'Tparams', 'validate_indices', \
-                     'Taxis', '_class'])(new_input, attr)
+        return  AttrCvt(op_name="take",
+                        extras={'axis': tvm.const(axis)},
+                        ignores=['Tindices', 'Tparams', 'validate_indices', \
+                                 'Taxis', '_class'])(new_input, attr)
     return _impl
 
 def _infer_out_shapes(inputs, params):
@@ -744,7 +743,7 @@ def _stridedSlice():
         fshape_indices = None
         if begin_mask or end_mask or ellipsis_mask or new_axis_mask or shrink_axis_mask:
             begin, end, stride, fshape_indices = _transform_mask(stride_dim, ellipsis_mask)
-        out = _op.strided_slice(inputs[0], begin=begin, end=end, stride=stride)
+        out = _op.strided_slice(inputs[0], begin=begin, end=end, strides=stride)
         out_shape = _infer_out_shapes(out, params)[0]
         if not fshape_indices:
             fshape_indices = range(len(out_shape))
@@ -758,7 +757,7 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
-        return _op.reshape(out, shape=tuple(final_output))
+        return _op.reshape(out, newshape=tuple(final_output))
     return _impl
 
 def _pad(name):
@@ -785,9 +784,12 @@ def _transpose():
     def _impl(inputs, attr, params):
         # If perm is not specified, axes is left empty,
         # otherwise its value is get from params
-        param_name = inputs[1].name_hint
-        axes = params.get(param_name, tvm.nd.array([])).asnumpy()
-        return _op.transpose(inputs[0], axes=tuple(axes))
+        param_name = _get_name_hint(inputs[1])
+        if param_name in params:
+            axes = tuple(params.get(param_name).asnumpy())
+        else:
+            axes = None
+        return _op.transpose(inputs[0], axes=axes)
     return _impl
 
 def _rank():
@@ -799,7 +801,7 @@ def _rank():
         params[name] = tvm.nd.array([len(input_shapes[0])])
         return [_expr.var(name,
                           shape=params[name].shape,
-                          dtype=params[name].dtype)]
+                          dtype='int32')]
 
     return _impl
 
@@ -813,20 +815,22 @@ def _range():
         params[name] = tvm.nd.array([start, limit, delta])
         return [_expr.var(name,
                           shape=params[name].shape,
-                          dtype=params[name].dtype)]
+                          dtype='int32')]
     return _impl
 
 def _elu():
     def _impl(inputs, attr, params):
         alpha = relay.const(-1.0, attr['T'].name)
-        return alpha * _op.nn.relu(relay.const(1, attr['T'].name) - _op.exp(inputs[0])) + _op.nn.relu(inputs[0])
+        return alpha * _op.nn.relu(relay.const(1, attr['T'].name) \
+                                   - _op.exp(inputs[0])) + _op.nn.relu(inputs[0])
     return _impl
 
 def _selu():
     def _impl(inputs, attr, params):
         alpha = relay.const(-1.6732632423543772848170429916717)
         gamma = relay.const(1.0507009873554804934193349852946)
-        return gamma * (alpha * _op.nn.relu(relay.const(1, attr['T'].name) - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
+        return gamma * (alpha * _op.nn.relu(relay.const(1, attr['T'].name) \
+                                            - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
 
 def _mean():
@@ -873,7 +877,7 @@ _convert_map = {
     'MatMul'                            : _matmul(),
     'MaxPool'                           : _pooling('max_pool'),
     'Add'                               : _elemwise('add'),
-    'Sub'                               : _elemwise('sub'),
+    'Sub'                               : _elemwise('subtract'),
     'Mul'                               : _elemwise('multiply'),
     'Maximum'                           : _elemwise('max'),
     'Minimum'                           : _elemwise('min'),
@@ -971,10 +975,8 @@ class GraphProto(object):
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
-        final_op = None
         # Parse the nodes to re-create TF graph using Symbol API of NNVM
         for node in graph.node:
-            print("Node: ", node.name, "Node Op:", node.op)
             # Tensorflow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
 
@@ -1070,9 +1072,6 @@ class GraphProto(object):
         out = op
         out = out[0] if len(out) == 1 else _expr.Tuple(out)
         func = _expr.Function(ir_pass.free_vars(out), out)
-        print("OP:", op)
-        print("Func:", func)
-        print("Shape:", relay.ir_pass.infer_type(op[0]).checked_type)
 
         return func, self._params
 
