@@ -103,7 +103,7 @@ def find_cuda_path():
     (out, _) = proc.communicate()
     out = py_str(out)
     if proc.returncode == 0:
-        return os.path.abspath(os.path.join(str(out).strip(), "../.."))
+        return os.path.realpath(os.path.join(str(out).strip(), "../.."))
     cuda_path = "/usr/local/cuda"
     if os.path.exists(os.path.join(cuda_path, "bin/nvcc")):
         return cuda_path
