@@ -3,6 +3,6 @@ tvm.relay.frontend
 --------------
 .. automodule:: tvm.relay.frontend
 
-.. autofunc:: tvm.relay.frontend.from_mxnet
+.. autofunction:: tvm.relay.frontend.from_mxnet
 
 
