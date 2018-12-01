@@ -2,8 +2,11 @@ tvm.relay.expr
 --------------
 .. automodule:: tvm.relay.expr
 
-.. autoclass:: tvm.relay.expr.ExprBuilder
-    :members:
+.. autofunction:: tvm.relay.expr.var
+
+.. autofunction:: tvm.relay.expr.const
+
+.. autofunction:: tvm.relay.expr.bind
 
 .. autoclass:: tvm.relay.expr.Expr
     :members:
@@ -14,13 +17,10 @@ tvm.relay.expr
 .. autoclass:: tvm.relay.expr.Tuple
     :members:
 
-.. autoclass:: tvm.relay.expr.LocalVar
+.. autoclass:: tvm.relay.expr.Var
     :members:
 
 .. autoclass:: tvm.relay.expr.GlobalVar
-    :members:
-
-.. autoclass:: tvm.relay.expr.Param
     :members:
 
 .. autoclass:: tvm.relay.expr.Function
@@ -34,3 +34,19 @@ tvm.relay.expr
 
 .. autoclass:: tvm.relay.expr.If
     :members:
+
+.. autoclass:: tvm.relay.expr.TupleGetItem
+    :members:
+
+.. autoclass:: tvm.relay.expr.TempExpr
+    :members:
+
+.. autoclass:: tvm.relay.expr.ExprFunctor
+    :members:
+
+.. autoclass:: tvm.relay.expr.ExprMutator
+    :members:
+
+.. autoclass:: tvm.relay.expr.TupleWrapper
+    :members
+

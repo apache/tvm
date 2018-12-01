@@ -1,6 +1,7 @@
 tvm.relay.ty
 --------------
 .. automodule:: tvm.relay.ty
+    :members:
 
 .. autoclass:: tvm.relay.ty.Type
     :members:
@@ -11,17 +12,20 @@ tvm.relay.ty
 .. autoclass:: tvm.relay.ty.Kind
     :members:
 
-.. autoclass:: tvm.relay.ty.TypeParam
+.. autoclass:: tvm.relay.ty.TypeVar
     :members:
 
 .. autoclass:: tvm.relay.ty.TypeConstraint
     :members:
 
+.. autoclass:: tvm.relay.ty.TupleType
+    :members:
+
 .. autoclass:: tvm.relay.ty.FuncType
     :members:
 
-.. autoclass:: tvm.relay.ty.TypeCall
+.. autoclass:: tvm.relay.ty.IncompleteType
     :members:
 
-.. autoclass:: tvm.relay.ty.IncompleteType
+.. autoclass:: tvm.relay.ty.TypeRelation
     :members:
