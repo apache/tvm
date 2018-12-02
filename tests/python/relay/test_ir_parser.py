@@ -1,11 +1,15 @@
 import tvm
 from tvm import relay
-from tvm.relay._parser import ParseError
-from tvm.relay.ir_pass import alpha_equal
 from tvm.relay.parser import enabled
+from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
 from typing import Union
 from functools import wraps
+if enabled():
+    from tvm.relay._parser import ParseError
+    raises_parse_error = raises(ParseError)
+else:
+    raises_parse_error = lambda x: x
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -201,12 +205,12 @@ def test_seq():
         )
     )
 
-@raises(ParseError)
+@raises_parse_error
 @if_parser_enabled
 def test_let_global_var():
     relay.fromtext("let @x = 1; ()")
 
-@raises(ParseError)
+@raises_parse_error
 @if_parser_enabled
 def test_let_op():
     relay.fromtext("let x = 1; ()")
@@ -298,7 +302,7 @@ def test_ifelse():
         )
     )
 
-@raises(ParseError)
+@raises_parse_error
 @if_parser_enabled
 def test_ifelse_scope():
     relay.fromtext(
