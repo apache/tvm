@@ -98,6 +98,7 @@ stage('Build') {
            echo set\\(USE_GRAPH_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_STACKVM_RUNTIME ON\\) >> config.cmake
            echo set\\(USE_GRAPH_RUNTIME_DEBUG ON\\) >> config.cmake
+           echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(USE_BLAS openblas\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
@@ -133,6 +134,7 @@ stage('Build') {
            echo set\\(USE_LLVM llvm-config-4.0\\) >> config.cmake
            echo set\\(USE_NNPACK ON\\) >> config.cmake
            echo set\\(NNPACK_PATH /NNPACK/build/\\) >> config.cmake
+           echo set\\(USE_ANTLR ON\\) >> config.cmake
            echo set\\(CMAKE_CXX_COMPILER g++\\) >> config.cmake
            echo set\\(CMAKE_CXX_FLAGS -Werror\\) >> config.cmake
            """

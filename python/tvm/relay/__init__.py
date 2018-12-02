@@ -8,6 +8,7 @@ from . import expr
 from . import module
 from . import ir_pass
 from .build_module import build, build_config, create_executor
+from . import parser
 
 # Root operators
 from .op import Op
@@ -52,7 +53,6 @@ Let = expr.Let
 If = expr.If
 TupleGetItem = expr.TupleGetItem
 
-
 # helper functions
 var = expr.var
 const = expr.const
@@ -63,3 +63,6 @@ bind = expr.bind
 def _debug(*args):
     import pdb
     pdb.set_trace()
+
+# Parser
+fromtext = parser.fromtext
