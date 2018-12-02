@@ -8,6 +8,7 @@ from __future__ import print_function
 import numpy as np
 import nnvm.compiler
 import tvm
+from tvm import relay
 import tensorflow as tf
 from tensorflow.python.framework import constant_op
 from tensorflow.python.framework import graph_util
@@ -22,7 +23,6 @@ from tensorflow.python.ops import init_ops
 from tensorflow.core.framework import graph_pb2
 
 import nnvm.testing.tf
-from tvm import relay
 
 #######################################################################
 # Generic run functions for TVM & tensorflow
@@ -364,7 +364,7 @@ def _test_argx(func, data, **kwargs):
 
     with tf.Graph().as_default():
         inp = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="c0")
-        func(inp, name="argx0", **kwargs, output_type=tf.int32)
+        func(inp, name="argx0", output_type=tf.int32, **kwargs)
 
         compare_tf_with_tvm(data, 'c0:0', 'argx0:0')
 

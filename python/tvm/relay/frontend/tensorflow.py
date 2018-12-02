@@ -8,7 +8,6 @@ import logging
 import numpy as np
 
 import tvm
-from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -820,16 +819,16 @@ def _range():
 
 def _elu():
     def _impl(inputs, attr, params):
-        alpha = relay.const(-1.0, attr['T'].name)
-        return alpha * _op.nn.relu(relay.const(1, attr['T'].name) \
+        alpha = tvm.relay.const(-1.0, attr['T'].name)
+        return alpha * _op.nn.relu(tvm.relay.const(1, attr['T'].name) \
                                    - _op.exp(inputs[0])) + _op.nn.relu(inputs[0])
     return _impl
 
 def _selu():
     def _impl(inputs, attr, params):
-        alpha = relay.const(-1.6732632423543772848170429916717)
-        gamma = relay.const(1.0507009873554804934193349852946)
-        return gamma * (alpha * _op.nn.relu(relay.const(1, attr['T'].name) \
+        alpha = tvm.relay.const(-1.6732632423543772848170429916717)
+        gamma = tvm.relay.const(1.0507009873554804934193349852946)
+        return gamma * (alpha * _op.nn.relu(tvm.relay.const(1, attr['T'].name) \
                                             - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
 
@@ -1066,7 +1065,7 @@ class GraphProto(object):
 
             # Infer shapes if passed explicitely
             node_output = self._nodes[node.name]
-            out_type = relay.ir_pass.infer_type(node_output[0])
+            out_type = ir_pass.infer_type(node_output[0])
             self._output_shapes[node.name] = [out_type.checked_type.shape]
 
         out = op
