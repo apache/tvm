@@ -556,9 +556,7 @@ class BackwardTransformerNode :
    * \return The result of transformation.
    */
   Expr Transform(const Expr& expr, AxesSet axes, Expr scale) {
-    // NOTE: the result of Transform is not memoized.
-    // However, in the current rule, Transform will
-    // only be called to expr that is referred once.
+    // NOTE: the result of Transform is memoized.
     if (const CallNode* call_node = expr.as<CallNode>()) {
       return Transform(call_node, axes, scale);
     } else {
@@ -572,7 +570,14 @@ class BackwardTransformerNode :
    * \return the result of the call Mutation.
    */
   Expr NormalCallTransform(const CallNode* call_node) {
-    return ExprMutator::VisitExpr_(call_node);
+    const Call call = GetRef<Call>(call_node);
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    Expr new_expr = ExprMutator::VisitExpr_(call_node);
+    memo_[call] = new_expr;
+    return new_expr;
   }
   /*!
    * \brief Get the expected axes on expr.
@@ -620,10 +625,17 @@ Expr BackwardTransformerNode::Transform(
       Op::GetAttr<FBackwardTransform>("FScaleAxisBackwardTransform");
   auto f = ftransform.get(call_node->op, nullptr);
   if (f != nullptr) {
-    return f(GetRef<Call>(call_node),
-             axes,
-             scale,
-             GetRef<BackwardTransformer>(this));
+    const Call call = GetRef<Call>(call_node);
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    Expr new_expr = f(GetRef<Call>(call_node),
+                      axes,
+                      scale,
+                      GetRef<BackwardTransformer>(this));
+    memo_[call] = new_expr;
+    return new_expr;
   } else {
     CHECK(!axes.defined()) << "outstanding scale";
     return NormalCallTransform(call_node);
