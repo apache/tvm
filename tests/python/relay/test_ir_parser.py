@@ -3,6 +3,7 @@ from tvm import relay
 from tvm.relay.parser import enabled
 from tvm.relay.ir_pass import alpha_equal
 from nose.tools import nottest, raises
+from numpy import isclose
 from typing import Union
 from functools import wraps
 if enabled():
@@ -49,9 +50,6 @@ TYPES = {
 def get_scalar(x):
     # type: (relay.Constant) -> (Union[float, int, bool])
     return x.data.asnumpy().item()
-
-def is_close(x, y, precision=0.001):
-    return x - y < precision and y - x < precision
 
 int32 = relay.scalar_type("int32")
 
@@ -107,18 +105,18 @@ def test_int_literal():
 @if_parser_enabled
 def test_float_literal():
     assert get_scalar(relay.fromtext("1.0")) == 1.0
-    assert is_close(get_scalar(relay.fromtext("1.56667")), 1.56667)
+    assert isclose(get_scalar(relay.fromtext("1.56667")), 1.56667)
     assert get_scalar(relay.fromtext("0.0")) == 0.0
     assert get_scalar(relay.fromtext("-10.0")) == -10.0
 
     # scientific notation
-    assert is_close(get_scalar(relay.fromtext("1e-1")), 1e-1)
+    assert isclose(get_scalar(relay.fromtext("1e-1")), 1e-1)
     assert get_scalar(relay.fromtext("1e+1")) == 1e+1
-    assert is_close(get_scalar(relay.fromtext("1E-1")), 1E-1)
+    assert isclose(get_scalar(relay.fromtext("1E-1")), 1E-1)
     assert get_scalar(relay.fromtext("1E+1")) == 1E+1
-    assert is_close(get_scalar(relay.fromtext("1.0e-1")), 1.0e-1)
+    assert isclose(get_scalar(relay.fromtext("1.0e-1")), 1.0e-1)
     assert get_scalar(relay.fromtext("1.0e+1")) == 1.0e+1
-    assert is_close(get_scalar(relay.fromtext("1.0E-1")), 1.0E-1)
+    assert isclose(get_scalar(relay.fromtext("1.0E-1")), 1.0E-1)
     assert get_scalar(relay.fromtext("1.0E+1")) == 1.0E+1
 
 @if_parser_enabled
@@ -142,7 +140,6 @@ def test_bin_op():
 
 @if_parser_enabled
 def test_parens():
-    print(relay.fromtext("1 * 1 + 1"))
     assert alpha_equal(relay.fromtext("1 * 1 + 1"), relay.fromtext("(1 * 1) + 1"))
     assert not alpha_equal(relay.fromtext("1 * 1 + 1"), relay.fromtext("1 * (1 + 1)"))
 
