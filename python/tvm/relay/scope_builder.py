@@ -61,7 +61,7 @@ class ScopeBuilder(object):
 
     Examples
     --------
-    ..code-block: python
+    .. code-block: python
 
         sb = relay.ScopeBuilder()
         cond = relay.var("cond", 'bool')
@@ -115,7 +115,7 @@ class ScopeBuilder(object):
 
         Parameters
         ----------
-        cond: tvm.relay.Expr
+        cond: tvm.relay.expr.Expr
             The condition
 
         Returns
@@ -165,7 +165,7 @@ class ScopeBuilder(object):
 
         Parameters
         ----------
-        value: tvm.relay.Expr
+        value: tvm.relay.expr.Expr
             The return value.
         """
         if self._ret_values[-1] is not None:
@@ -177,7 +177,7 @@ class ScopeBuilder(object):
 
         Returns
         -------
-        value: tvm.relay.Expr
+        value: tvm.relay.expr.Expr
             The final result of the expression.
         """
         if len(self._bindings) != 1:

@@ -1,5 +1,5 @@
 #pylint: disable=no-else-return
-"""An interface to the Realy interpreter."""
+"""The Python interface to the Relay reference interpreter."""
 from __future__ import absolute_import
 
 import numpy as np
@@ -23,6 +23,7 @@ class Value(NodeBase):
 
 @register_relay_node
 class TupleValue(Value):
+    """A tuple value produced by the interpreter."""
     def __init__(self, *fields):
         self.__init_handle_by_constructor__(
             _make.TupleValue, fields)
@@ -33,12 +34,13 @@ class TupleValue(Value):
 
 @register_relay_node
 class Closure(Value):
+    """A closure produced by the interpreter."""
     pass
 
 
 @register_relay_node
 class TensorValue(Value):
-    """A Tensor value produced by the evaluator."""
+    """A Tensor value produced by the interpreter."""
 
     def __init__(self, data):
         """Allocate a new TensorValue and copy the data from `array` into
