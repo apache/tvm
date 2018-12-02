@@ -63,7 +63,7 @@ class Intrin {
   std::string description;
   /*!
    * \brief inplace optimization for intrinsic.
-   * \eg. for intrinsic "vadd dst_buffer, src_buffer1, src_buffer2",
+   *  for intrinsic "vadd dst_buffer, src_buffer1, src_buffer2",
    *  if inplace is set, dst_buffer can inplace src_buffer1 or src_buffer2 
    *  in storage rewrite, which means they share the same buffer allocation
    */
