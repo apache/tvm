@@ -45,8 +45,10 @@ def transpose(data, axes=None):
     result : relay.Expr
         The transposed result.
     """
-    axes = axes or []
-    return _make.transpose(data, list(axes))
+
+    if axes is not None:
+        axes = list(axes)
+    return _make.transpose(data, axes)
 
 
 def squeeze(data, axis=None):

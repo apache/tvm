@@ -82,10 +82,17 @@ def test_transpose_infer_type():
     n, t, d = tvm.var("n"), tvm.var("t"), 100
     x = relay.var("x", relay.TensorType((n, t, d), "float32"))
     y = relay.transpose(x, axes=(1, 0, 2))
-    "axes=" in y.astext()
+    assert "axes=" in y.astext()
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type == relay.TensorType(
         (t, n, 100), "float32")
+
+    y = relay.transpose(x)
+    assert "axes=" in y.astext()
+    yy = relay.ir_pass.infer_type(y)
+    assert yy.checked_type == relay.TensorType(
+        (100, t, n), "float32")
+
 
 def test_transpose():
     def verify_transpose(dshape, axes):
