@@ -11,6 +11,7 @@ import tvm
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
+from topi.util import get_const_int, get_const_tuple
 
 __all__ = ['from_tensorflow']
 
@@ -202,7 +203,8 @@ def _infer_channels(inputs, params, transpose=False):
 
 def _rsqrt():
     def _impl(inputs, attr, *args):
-        return AttrCvt(op_name="__pow_scalar__", extras={'scalar': -0.5})(inputs, attr)
+        inputs.append(tvm.relay.const(-0.5))
+        return AttrCvt(op_name="power")(inputs, attr)
     return _impl
 
 def _argx(func, func_name):
@@ -636,7 +638,7 @@ def _sum():
 
 def _square():
     def _impl(inputs, attr, params):
-        return _op.elemwise_mul(inputs[0], inputs[0])
+        return _op.multiply(inputs[0], inputs[0])
     return _impl
 
 def _gather_v2():
@@ -878,8 +880,8 @@ _convert_map = {
     'Add'                               : _elemwise('add'),
     'Sub'                               : _elemwise('subtract'),
     'Mul'                               : _elemwise('multiply'),
-    'Maximum'                           : _elemwise('max'),
-    'Minimum'                           : _elemwise('min'),
+    'Maximum'                           : _elemwise('maximum'),
+    'Minimum'                           : _elemwise('minimum'),
     'Sum'                               : _sum(),
     'Square'                            : _square(),
     'Pack'                              : _pack(),
@@ -978,6 +980,8 @@ class GraphProto(object):
         for node in graph.node:
             # Tensorflow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
+            print("Node:", node.name)
+            print("Op:", node.op)
 
             input_shapes = {}
             attr = self._parse_attr(node.attr)
@@ -1066,7 +1070,7 @@ class GraphProto(object):
             # Infer shapes if passed explicitely
             node_output = self._nodes[node.name]
             out_type = ir_pass.infer_type(node_output[0])
-            self._output_shapes[node.name] = [out_type.checked_type.shape]
+            self._output_shapes[node.name] = [get_const_tuple(out_type.checked_type.shape)]
 
         out = op
         out = out[0] if len(out) == 1 else _expr.Tuple(out)

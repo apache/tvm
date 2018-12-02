@@ -56,7 +56,8 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    with relay.build_config(opt_level=3):
+    #with relay.build_config(opt_level=3):
+    with relay.build_config(opt_level=2):
             graph, lib, params = relay.build(sym, target, params=params)
 
     ctx = tvm.context(target, 0)
@@ -1085,6 +1086,14 @@ if __name__ == '__main__':
     #test_forward_multi_output()
     #test_forward_variable()
 
+    # NN
+    test_forward_convolution()
+    test_forward_pooling()
+    #if tf.__version__ == '1.4.1':
+    #    _test_forward_concat_v2()
+    test_forward_lrn()
+    test_forward_l2_normalize()
+
     # End to End
     #test_forward_inception_v3()
     #test_forward_inception_v1()
@@ -1102,10 +1111,4 @@ if __name__ == '__main__':
     # Relational ops
     test_forward_rel_ops()
 
-    # NN
-    #test_forward_convolution()
-    #test_forward_pooling()
-    #if tf.__version__ == '1.4.1':
-    #    _test_forward_concat_v2()
-    #test_forward_lrn()
-    #test_forward_l2_normalize()
+
