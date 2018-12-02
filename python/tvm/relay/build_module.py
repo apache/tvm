@@ -240,13 +240,13 @@ class GraphExecutor(_interpreter.Executor):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : :py:class:`~tvm.relay.module.Module`
         The module to support the execution.
 
-    ctx : tvm.TVMContext
+    ctx : :py:class:`TVMContext`
         The runtime context to run the code on.
 
-    target : tvm.Target
+    target : :py:class:`Target`
         The target option to build the function.
     """
     def __init__(self, mod, ctx, target):
@@ -282,13 +282,13 @@ def create_executor(kind="debug",
     kind : str
         The type of executor
 
-    mod : tvm.relay.Module
+    mod : :py:class:`~tvm.relay.module.Module`
         The Relay module containing collection of functions
 
-    ctx : tvm.TVMContext
+    ctx : :py:class:`tvm.TVMContext`
         The context to execute the code.
 
-    target : tvm.Target
+    target : :py:class:`tvm.Target`
         The corresponding context
     """
     if ctx is not None:
