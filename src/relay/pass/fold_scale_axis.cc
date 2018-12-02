@@ -572,8 +572,9 @@ class BackwardTransformerNode :
   Expr NormalCallTransform(const CallNode* call_node) {
     const Call call = GetRef<Call>(call_node);
     const auto it = memo_.find(call);
-    if (it != memo_.end())
+    if (it != memo_.end()) {
       return it->second;
+    }
     Expr new_expr = ExprMutator::VisitExpr_(call_node);
     memo_[call] = new_expr;
     return new_expr;
@@ -626,8 +627,9 @@ Expr BackwardTransformerNode::Transform(
   if (f != nullptr) {
     const Call call = GetRef<Call>(call_node);
     const auto it = memo_.find(call);
-    if (it != memo_.end())
+    if (it != memo_.end()) {
       return it->second;
+    }
     Expr new_expr = f(GetRef<Call>(call_node),
                       axes,
                       scale,
