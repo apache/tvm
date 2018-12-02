@@ -325,7 +325,7 @@ inline const ValueType& IntrinMap<ValueType>::operator[](const Intrin* op) const
 }
 
 template<typename ValueType>
-inline const ValueType& IntrinMap<ValueType>::get(const Intrin* op, 
+inline const ValueType& IntrinMap<ValueType>::get(const Intrin* op,
     const ValueType& def_value) const {
   if (op == nullptr) return def_value;
   const uint32_t idx = op->index_;
