@@ -1,6 +1,6 @@
 /*!
  *  Copyright (c) 2018 by Contributors
- * \file tvm/Intrin.h
+ * \file tvm/intrin.h
  * \brief instrinsic information structor.
  */
 #ifndef TVM_INTRIN_H_
@@ -61,11 +61,11 @@ class Intrin {
    *  This can be used to generate docstring automatically for the instrinsic.
    */
   std::string description;
-    /*!
+  /*!
    * \brief inplace optimization for intrinsic.
-   * \example: vadd dst_buffer, src_buffer1, src_buffer2
-   * \if inplace is set, dst_buffer can inplace src_buffer1 or src_buffer2 in storage rewrite,
-   * \which means they share the same buffer allocation
+   * \eg. for intrinsic "vadd dst_buffer, src_buffer1, src_buffer2",
+   *  if inplace is set, dst_buffer can inplace src_buffer1 or src_buffer2 
+   *  in storage rewrite, which means they share the same buffer allocation
    */
   bool inplace;
   /*!
