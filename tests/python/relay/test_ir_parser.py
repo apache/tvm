@@ -5,6 +5,7 @@ from tvm.relay.ir_pass import alpha_equal
 from tvm.relay.parser import enabled
 from nose.tools import nottest, raises
 from typing import Union
+from functools import wraps
 
 BINARY_OPS = {
     "*": relay.multiply,
@@ -60,6 +61,8 @@ UNIT = relay.Tuple([])
 
 # decorator to determine if parser is enabled
 def if_parser_enabled(func):
+    # https://stackoverflow.com/q/7727678
+    @wraps(func)
     def wrapper():
         if not enabled():
             return
