@@ -3,8 +3,8 @@
  * \file tvm/Intrin.h
  * \brief instrinsic information structor.
  */
-#ifndef INTRIN_H_
-#define INTRIN_H_
+#ifndef TVM_INTRIN_H_
+#define TVM_INTRIN_H_
 
 #include <string>
 #include <vector>
@@ -290,20 +290,20 @@ inline Intrin& Intrin::set_inplace(bool inplace) { // NOLINT(*)
 }
 
 inline Intrin& Intrin::set_detect_inplace(std::string& target, inplace_func fn) {  // NOLINT(*)
-  CHECK(!target.empty())<<"Invalid target name!";
+  CHECK(!target.empty()) << "Invalid target name!";
   this->inplace_map.at(target) = fn;
   return *this;
 }
 
 inline bool Intrin::detect_inplace() const { // NOLINT(*)
-   return this->inplace;
+  return this->inplace;
 }
 
 inline bool Intrin::detect_inplace(std::string& target, const HalideIR::Expr& expr) const { // NOLINT(*)
-   if (this->inplace) return true;
-   if (this->inplace_map.count(target) == 0) return false;
-   auto fn = this->inplace_map.at(target);
-   return fn(expr);
+  if (this->inplace) return true;
+  if (this->inplace_map.count(target) == 0) return false;
+  auto fn = this->inplace_map.at(target);
+  return fn(expr);
 }
 
 // member functions of IntrinMap
@@ -325,7 +325,8 @@ inline const ValueType& IntrinMap<ValueType>::operator[](const Intrin* op) const
 }
 
 template<typename ValueType>
-inline const ValueType& IntrinMap<ValueType>::get(const Intrin* op, const ValueType& def_value) const {
+inline const ValueType& IntrinMap<ValueType>::get(const Intrin* op, 
+    const ValueType& def_value) const {
   if (op == nullptr) return def_value;
   const uint32_t idx = op->index_;
   if (idx < data_.size() && data_[idx].second) {
@@ -337,4 +338,4 @@ inline const ValueType& IntrinMap<ValueType>::get(const Intrin* op, const ValueT
 
 }  // namespace tvm
 
-#endif  // INTRIN_H_
+#endif  // TVM_INTRIN_H_
