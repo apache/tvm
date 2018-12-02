@@ -207,8 +207,8 @@ class IntrinMap {
  *
  *  TVM_REGISTER_INTRIN(add)
  *  .describe("add two inputs together")
- *  .set_num_inputs(2)
- *  .set_attr<IntrinKernel>("gpu_kernel", AddKernel);
+ *  .set_inplace(true);
+ *  .set_attr<PatternMatch>("pattern_match", vadd_transform);
  *
  * \endcode
  */
