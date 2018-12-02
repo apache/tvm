@@ -128,3 +128,6 @@ set(USE_ROCBLAS OFF)
 
 # Whether use contrib sort
 set(USE_SORT OFF)
+
+# Build ANTLR parser for Relay text format
+set(USE_ANTLR OFF)

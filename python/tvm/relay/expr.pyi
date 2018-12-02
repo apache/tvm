@@ -22,7 +22,7 @@ class Constant(Expr):
 
 
 class Tuple(Expr):
-    fields = ..  # type: List[Expr]
+    fields = ...  # type: List[Expr]
 
     def __init__(self, fields):
         # type: (List[Expr]) -> None
@@ -77,10 +77,10 @@ class Call(Expr):
     """A function call in Relay, see tvm/relay/expr.h for more details."""
     op = ...  # type: Expr
     args = ...  # type: List[Expr]
-    # todo(@jroesch): add attrs
+    # todo(@jroesch): add attrs. revise attrs type in __init__
 
-    def __init__(self, op, args, attrs, ty_args=None):
-        # type: (Expr, List[Expr], Optional[List[Type]]) -> None
+    def __init__(self, op, args, attrs=None, ty_args=None):
+        # type: (Expr, List[Expr], Optional[List[Any]], Optional[List[Type]]) -> None
         if not ty_args:
             ty_args = []
 
