@@ -39,9 +39,9 @@ class TypeSolver::Reporter : public TypeReporterNode {
   TypeSolver* solver_;
 };
 
-class TypeSolver::RecurrenceChecker : public TypeVisitor {
+class TypeSolver::OccursChecker : public TypeVisitor {
  public:
-  explicit RecurrenceChecker(TypeSolver* solver, TypeNode* var)
+  explicit OccursChecker(TypeSolver* solver, TypeNode* var)
     : solver_(solver), var_(var), found_(false) {}
 
   bool Check(const Type& t) {
@@ -76,13 +76,13 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       return lhs->resolved_type;
     }
     if (lhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!CheckRecurrence(lhs, rhs->resolved_type))
+      CHECK(!CheckOccurs(lhs, rhs->resolved_type))
         << "Incomplete type " << lhs->resolved_type << " occurs in "
         << rhs->resolved_type << ", cannot unify";
       solver_->MergeFromTo(lhs, rhs);
       return rhs->resolved_type;
     } else if (rhs->resolved_type.as<IncompleteTypeNode>()) {
-      CHECK(!CheckRecurrence(rhs, lhs->resolved_type))
+      CHECK(!CheckOccurs(rhs, lhs->resolved_type))
         << "Incomplete type " << rhs->resolved_type << " occurs in "
         << lhs->resolved_type << ", cannot unify";
       solver_->MergeFromTo(rhs, lhs);
@@ -121,10 +121,12 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
   }
 
-  // Checks whether lhs (taken to be a type var) appears in t, meaning
+  // Checks whether lhs (taken to be a type var) occurs in t, meaning
   // there is a recursive equality constraint, which should be rejected.
-  bool CheckRecurrence(TypeNode *lhs, const Type &t) {
-    RecurrenceChecker rc(solver_, lhs);
+  // N.b.: A tautology like ?a = ?a is okay and should be checked for
+  // *before* calling this method
+  bool CheckOccurs(TypeNode *lhs, const Type &t) {
+    OccursChecker rc(solver_, lhs);
     return rc.Check(t);
   }
 

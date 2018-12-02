@@ -65,7 +65,7 @@ class TypeSolver {
   Type Unify(const Type& lhs, const Type& rhs);
 
  private:
-  class RecurrenceChecker;
+  class OccursChecker;
   class Unifier;
   class Resolver;
   class Reporter;
