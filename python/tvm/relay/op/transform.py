@@ -46,7 +46,7 @@ def transpose(data, axes=None):
         The transposed result.
     """
 
-    if axes:
+    if axes is not None:
         axes = list(axes)
     return _make.transpose(data, axes)
 
