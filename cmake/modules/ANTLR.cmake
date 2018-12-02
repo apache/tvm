@@ -1,6 +1,6 @@
 if(USE_ANTLR)
   if(EXISTS /usr/local/lib/antlr-4.7.1-complete.jar)
-    set(ANTLR4 "$ENV{JAVA_HOME}/bin/java -jar /usr/local/lib/antlr-4.7.1-complete.jar")
+    set(ANTLR4 "/usr/local/lib/antlr-4.7.1-complete.jar")
 
     set(RELAY_PARSER_DIR
       ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm/relay/grammar)
@@ -16,8 +16,8 @@ if(USE_ANTLR)
 
     # Generate ANTLR grammar for parsing.
     add_custom_command(OUTPUT ${RELAY_PARSER}
-      COMMAND ${ANTLR4} -visitor -no-listener -Dlanguage=Python2 ${RELAY_PARSER_DIR}/Relay.g4 -o ${RELAY_PARSER_DIR}/py2
-      COMMAND ${ANTLR4} -visitor -no-listener -Dlanguage=Python3 ${RELAY_PARSER_DIR}/Relay.g4 -o ${RELAY_PARSER_DIR}/py3
+      COMMAND $ENV{JAVA_HOME}/bin/java -jar ${ANTLR4} -visitor -no-listener -Dlanguage=Python2 ${RELAY_PARSER_DIR}/Relay.g4 -o ${RELAY_PARSER_DIR}/py2
+      COMMAND $ENV{JAVA_HOME}/bin/java -jar ${ANTLR4} -visitor -no-listener -Dlanguage=Python3 ${RELAY_PARSER_DIR}/Relay.g4 -o ${RELAY_PARSER_DIR}/py3
       DEPENDS ${RELAY_PARSER_DIR}/Relay.g4
       WORKING_DIRECTORY ${RELAY_PARSER_DIR})
 
