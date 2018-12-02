@@ -54,7 +54,7 @@ static const uint32_t kVarg = std::numeric_limits<uint32_t>::max();
  */
 class Intrin {
  public:
-  /*! \brief name of the instrinsic: Target_IntrinName */
+  /*! \brief name of the instrinsic: IntrinName */
   std::string name;
   /*!
    * \brief detailed description of the instrinsic
