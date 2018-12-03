@@ -26,7 +26,7 @@ class AlphaEqualHandler:
    * Check equality of two nodes.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool Equal(const NodeRef& lhs, const NodeRef& rhs) {
     if (lhs.same_as(rhs)) return true;
@@ -46,7 +46,7 @@ class AlphaEqualHandler:
    * Check equality of two attributes.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
     return AttrsEqualHandler::Equal(lhs, rhs);
@@ -55,7 +55,7 @@ class AlphaEqualHandler:
    * Check equality of two types.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
     if (lhs.same_as(rhs)) return true;
@@ -72,7 +72,7 @@ class AlphaEqualHandler:
    *
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool ExprEqual(const Expr& lhs, const Expr& rhs) {
     if (lhs.same_as(rhs)) return true;
@@ -94,7 +94,7 @@ class AlphaEqualHandler:
    * \brief Check if data type equals each other.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool DataTypeEqual(const DataType& lhs, const DataType& rhs) {
     return lhs == rhs;
@@ -104,7 +104,7 @@ class AlphaEqualHandler:
    *  if map_free_var_ is set to true, try to map via equal node.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return the compare result.
+   * \return The compare result.
    */
   bool LeafNodeEqual(const NodeRef& lhs, const NodeRef& rhs) {
     if (lhs.same_as(rhs)) return true;
