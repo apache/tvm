@@ -99,28 +99,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
   }
 
-  // child type needs to be listed in parent's relations, even though
-  // the child is not an argument to the relations (still have to
-  // update the relations if the child changes)
-  void RegisterChildType(const Type& parent, const Type& child) {
-    TypeNode* parent_node = solver_->GetTypeNode(parent);
-    TypeNode* child_node = solver_->GetTypeNode(child);
-
-    // allocate copies to avoid introducing circular link
-    for (auto* rlink = parent_node->rel_list.head; rlink != nullptr;) {
-      auto* next = rlink->next;
-      auto* value = rlink->value;
-      if (!value->resolved) {
-        solver_->AddToQueue(value);
-        auto* copy = solver_->arena_.make<LinkNode<RelationNode*> >();
-        copy->value = value;
-        child_node->rel_list.Push(copy);
-      }
-
-      rlink = next;
-    }
-  }
-
   // Checks whether lhs (taken to be a type var) occurs in t, meaning
   // there is a recursive equality constraint, which should be rejected.
   // N.b.: A tautology like ?a = ?a is okay and should be checked for
@@ -152,8 +130,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     std::vector<Type> new_fields;
     for (size_t i = 0; i < tt1->fields.size(); i++) {
       Type field = Unify(tt1->fields[i], tt2->fields[i]);
-      RegisterChildType(tt1, field);
-      RegisterChildType(tt2, field);
       new_fields.push_back(field);
     }
     return TupleTypeNode::make(new_fields);
@@ -172,14 +148,10 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     FuncType ft2 = GetRef<FuncType>(ftn);
 
     Type ret_type = Unify(ft1->ret_type, ft2->ret_type);
-    RegisterChildType(ft1, ret_type);
-    RegisterChildType(ft2, ret_type);
 
     std::vector<Type> arg_types;
     for (size_t i = 0; i < ft1->arg_types.size(); i++) {
       Type arg_type = Unify(ft1->arg_types[i], ft2->arg_types[i]);
-      RegisterChildType(ft1, arg_type);
-      RegisterChildType(ft2, arg_type);
       arg_types.push_back(arg_type);
     }
 
@@ -229,6 +201,63 @@ class TypeSolver::Resolver : public TypeMutator {
   TypeSolver* solver_;
 };
 
+// It ends up being more compact to simply have TypeFunctor<void(const Type&) than
+// a TypeVisitor because we can use the default case to dispense with
+// most of the overrides.
+class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
+ public:
+  explicit Propagator(TypeSolver* solver, RelationNode* rel) : solver_(solver), rel_(rel) {}
+
+  // adds the relation node to t and all child types of t
+  void Propagate(const Type& t) {
+    VisitType(t);
+  }
+
+  void AddRelToList(const Type& t) {
+    TypeNode* tnode = solver_->GetTypeNode(t);
+    LinkNode<RelationNode*>* rlink = solver_->arena_.make<LinkNode<RelationNode*> >();
+    rlink->value = rel_;
+    tnode->rel_list.Push(rlink);
+  }
+
+  void VisitTypeDefault_(const Node* op) override {
+    NodeRef nr = GetRef<NodeRef>(op);
+    Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    AddRelToList(t);
+  }
+
+  void VisitType_(const TupleTypeNode* op) override {
+    TupleType tt = GetRef<TupleType>(op);
+    AddRelToList(tt);
+
+    for (const Type& t : tt->fields) {
+      Propagate(t);
+    }
+  }
+
+  void VisitType_(const FuncTypeNode* op) override {
+    FuncType ft = GetRef<FuncType>(op);
+    AddRelToList(ft);
+
+    Propagate(ft->ret_type);
+    for (auto arg_type : ft->arg_types) {
+      Propagate(arg_type);
+    }
+
+    for (auto type_param : ft->type_params) {
+      Propagate(type_param);
+    }
+
+    for (auto type_cs : ft->type_constraints) {
+      Propagate(type_cs);
+    }
+  }
+
+ private:
+  TypeSolver* solver_;
+  RelationNode* rel_;
+};
+
 // constructor
 TypeSolver::TypeSolver()
     : reporter_(make_node<Reporter>(this)) {
@@ -266,9 +295,8 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
       tlink->value = tnode;
       rnode->type_list.Push(tlink);
       // insert type->relation node
-      LinkNode<RelationNode*>* rlink = arena_.make<LinkNode<RelationNode*> >();
-      rlink->value = rnode;
-      tnode->rel_list.Push(rlink);
+      Propagator prop(this, rnode);
+      prop.Propagate(tnode->resolved_type);
     }
     // add the relation to the working queue.
     this->AddToQueue(rnode);
@@ -296,7 +324,7 @@ bool TypeSolver::Solve() {
     // update the relation with given evidence.
     Array<Type> args;
     for (auto* tlink = rnode->type_list.head; tlink != nullptr; tlink = tlink->next) {
-      args.push_back(tlink->value->FindRoot()->resolved_type);
+      args.push_back(Resolve(tlink->value->FindRoot()->resolved_type));
       CHECK_LE(args.size(), rel->args.size());
     }
     // call the function

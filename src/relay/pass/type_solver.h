@@ -68,6 +68,7 @@ class TypeSolver {
   class OccursChecker;
   class Unifier;
   class Resolver;
+  class Propagator;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
