@@ -164,6 +164,22 @@ reg.register_schedule("elemwise_mod", _fschedule_broadcast)
 reg.register_pattern("elemwise_pow", OpPattern.BROADCAST)
 reg.register_schedule("elemwise_pow", _fschedule_broadcast)
 
+# bitwise_and
+reg.register_pattern("bitwise_and", OpPattern.ELEMWISE)
+reg.register_schedule("bitwise_and", _fschedule_broadcast)
+
+# bitwise_or
+reg.register_pattern("bitwise_or", OpPattern.ELEMWISE)
+reg.register_schedule("bitwise_or", _fschedule_broadcast)
+
+# bitwise_xor
+reg.register_pattern("bitwise_xor", OpPattern.ELEMWISE)
+reg.register_schedule("bitwise_xor", _fschedule_broadcast)
+
+# bitwise_not
+reg.register_pattern("bitwise_not", OpPattern.ELEMWISE)
+reg.register_schedule("bitwise_not", _fschedule_broadcast)
+
 # broadcast_add
 reg.register_pattern("broadcast_add", OpPattern.BROADCAST)
 reg.register_schedule("broadcast_add", _fschedule_broadcast)

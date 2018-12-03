@@ -1047,6 +1047,49 @@ def test_forward_rel_ops():
     _test_forward_rel_op([t1, t2], math_ops.equal)
     _test_forward_rel_op([t1, t2], math_ops.not_equal)
 
+#######################################################################
+# Bitwise operators
+# --------------------
+
+def test_bitwise_and():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in2')
+        out = tf.bitwise.bitwise_and(in1, in2, name='out')
+        in_data1 = np.random.uniform(10,100,size=(1, 4, 4, 3)).astype('int32')
+        in_data2 = np.random.uniform(20,200,size=(1, 4, 4, 3)).astype('int32')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_bitwise_or():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in2')
+        out = tf.bitwise.bitwise_or(in1, in2, name='out')
+        in_data1 = np.random.uniform(10,100,size=(1, 4, 4, 3)).astype('int32')
+        in_data2 = np.random.uniform(20,200,size=(1, 4, 4, 3)).astype('int32')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_bitwise_xor():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in1')
+        in2 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in2')
+        out = tf.bitwise.bitwise_xor(in1, in2, name='out')
+        in_data1 = np.random.uniform(10,100,size=(1, 4, 4, 3)).astype('int32')
+        in_data2 = np.random.uniform(20,200,size=(1, 4, 4, 3)).astype('int32')
+        compare_tf_with_tvm([in_data1, in_data2], ['in1:0', 'in2:0'], 'out:0')
+
+def test_bitwise_not():
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.int32, shape=[1, 4, 4, 3], name='in1')
+        out = tf.bitwise.invert(in1, name='out')
+        in_data1 = np.random.uniform(-100,100,size=(1, 4, 4, 3)).astype('int32')
+        compare_tf_with_tvm(in_data1, 'in1:0', 'out:0')
+
+def test_forward_bitwise():
+    test_bitwise_and()
+    test_bitwise_or()
+    test_bitwise_xor()
+    test_bitwise_not()
 
 #######################################################################
 # Main
@@ -1104,3 +1147,6 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
+
+    # Bitwise ops
+    test_forward_bitwise()

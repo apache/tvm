@@ -361,6 +361,43 @@ NNVM_REGISTER_ELEMWISE_BINARY_OP(elemwise_pow)
       return Array<Tensor>{ topi::power(inputs[0], inputs[1]) };
 });
 
+// bitwise
+NNVM_REGISTER_ELEMWISE_BINARY_OP(bitwise_and)
+.describe(R"code(Elementwise compute the bitwise AND
+
+)code")
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::bitwise_and(inputs[0], inputs[1]) };
+});
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(bitwise_or)
+.describe(R"code(Elementwise compute the bitwise OR
+
+)code")
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::bitwise_or(inputs[0], inputs[1]) };
+});
+
+NNVM_REGISTER_ELEMWISE_BINARY_OP(bitwise_xor)
+.describe(R"code(Elementwise compute the bitwise XOR
+
+)code")
+.set_support_level(1)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::bitwise_xor(inputs[0], inputs[1]) };
+});
+
 // negative
 NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
 .describe(R"code(Elemenwise numeric negative
@@ -381,6 +418,19 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(negative)
     return std::vector<NodeEntry>{
       MakeNode("negative", n->attrs.name + "_grad_0", {ograds[0]}),
     };
+});
+
+// bitwise NOT
+NNVM_REGISTER_ELEMWISE_UNARY_OP(bitwise_not)
+.describe(R"code(Elementwise compute the bitwise NOT
+
+)code"  NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::bitwise_not(inputs[0]) };
 });
 
 // copy
