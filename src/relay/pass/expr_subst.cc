@@ -18,7 +18,7 @@ class ExprSubstituter : public ExprMutator {
   Expr VisitExpr(const Expr& expr) final {
     auto it = subst_map_.find(expr);
     if (it != subst_map_.end()) {
-      return (*it).second;
+      return ExprMutator::VisitExpr((*it).second);
     }
     return ExprMutator::VisitExpr(expr);
   }
