@@ -38,7 +38,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * It can be hard to design a text format for all the possible nodes
  * as the set of nodes can grow when we do more extensions.
  *
- * Instead of trying to design readable text format for every nodes,
+ * Instead of trying to design readable text format for every node,
  * we support a meta-data section in the text format.
  * We allow the text format to refer to a node in the meta-data section.
  *
@@ -73,7 +73,7 @@ inline std::ostream& operator<<(std::ostream& os, const TextValue& val) {  // NO
  * \endcode
  *
  * Note that we store tvm.var("n") in the meta data section.
- * Since it is stored in the index-0 in the meta-data seciton,
+ * Since it is stored in the index-0 in the meta-data section,
  * we print it as meta.Variable(0).
  *
  * The text parser can recover this object by loading from the corresponding
