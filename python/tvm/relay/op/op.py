@@ -185,5 +185,16 @@ def schedule_injective(attrs, outputs, target):
     with target:
         return topi.generic.schedule_injective(outputs)
 
+__DEBUG_COUNTER__ = 0
+
 def debug(expr, debug_func=None):
-    return _make.debug(expr)
+    global __DEBUG_COUNTER__
+
+    if debug_func:
+        name = "debugger_func{}".format(__DEBUG_COUNTER__)
+        register_func(name, debug_func)
+        __DEBUG_COUNTER__ += 1
+    else:
+        name = ''
+
+    return _make.debug(expr, name)

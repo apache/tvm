@@ -8,6 +8,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/attrs/debug.h>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -245,10 +246,18 @@ class Interpreter :
     if (call_node) {
       auto debug = Op::Get("debug");
       if (call_node->op == debug) {
-        auto is = this->get_state();
-        is->current_expr = expr;
-        RELAY_DEBUG(is);
-        return Eval(call_node->args[0]);
+        auto dattrs = call_node->attrs.as<DebugAttrs>();
+        auto is = this->get_state(call_node->args[0]);
+        if (dattrs->debug_func.defined()) {
+          dattrs->debug_func(is);
+        } else {
+          RELAY_DEBUG(is);
+        }
+        auto kont = FunctionNode::make(
+          func->params,
+          call_node->args[0],
+          Type(), {}, Attrs());
+        return this->Eval(kont);
       }
     }
 
