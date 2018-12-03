@@ -2,11 +2,10 @@
 """
 Tensorflow testcases
 ====================
-This article is a test script to test tensorflow operator with NNVM.
+This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
 import numpy as np
-import nnvm.compiler
 import tvm
 from tvm import relay
 import tensorflow as tf
@@ -33,7 +32,7 @@ def convert_to_list(x):
     return x
 
 def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm', out_names=None):
-    """ Generic function to compile on nnvm and execute on tvm """
+    """ Generic function to compile on relay and execute on tvm """
     input_data = convert_to_list(input_data)
     input_node = convert_to_list(input_node)
 
@@ -130,7 +129,7 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
                 continue
 
             tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device)
-            # since the names from tensorflow and nnvm runs are not exactly same, 
+            # since the names from tensorflow and relay runs are not exactly same,
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
                 tvm.testing.assert_allclose(tf_output[i], tvm_output[i], atol=1e-5, rtol=1e-5)
@@ -1095,10 +1094,10 @@ if __name__ == '__main__':
     test_forward_l2_normalize()
 
     # End to End
-    #test_forward_inception_v3()
-    #test_forward_inception_v1()
-    #test_forward_mobilenet()
-    #test_forward_resnetv2()
+    test_forward_inception_v3()
+    test_forward_inception_v1()
+    test_forward_mobilenet()
+    test_forward_resnetv2()
     #test_forward_ptb()
 
     # RNN

@@ -8,10 +8,10 @@ import logging
 import numpy as np
 
 import tvm
+from topi.util import get_const_tuple
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
-from topi.util import get_const_int, get_const_tuple
 
 __all__ = ['from_tensorflow']
 
@@ -50,9 +50,9 @@ class AttrCvt(object):
         A list of excluded attributes that should `NOT` appear.
         Raise NotImplementedError if occured.
     disables : list
-        A list of attributes that is disabled in nnvm. Log warnings.
+        A list of attributes that is disabled in relay. Log warnings.
     ignores : list
-        A list of attributes that is ignored in nnvm. Debug level logging.
+        A list of attributes that is ignored in relay. Debug level logging.
     extras : dict
         A series of additional attributes should be added anyway to the returned
         attribute dict.
@@ -103,9 +103,9 @@ class AttrCvt(object):
             if k in self._excludes:
                 raise NotImplementedError("Attribute {} not supported yet.".format(k))
             elif k in self._disables:
-                logging.warning("Attribute %s is disabled in nnvm.sym.%s", k, op_name)
+                logging.warning("Attribute %s is disabled in relay.%s", k, op_name)
             elif k in self._ignores:
-                logging.debug("Attribute %s is ignored in nnvm.sym.%s", k, op_name)
+                logging.debug("Attribute %s is ignored in relay.%s", k, op_name)
             elif k in self._transforms:
                 new_name, defaults, transform = self._parse_default(self._transforms[k])
                 if defaults is None:
@@ -195,9 +195,8 @@ def _infer_channels(inputs, params, transpose=False):
     """A hack for getting 'channles' or 'units' since tensorflow don't provide
     these attributes. We check the shape of weights provided to get the number.
     """
-    g = _graph.create(inputs)
-    shape_dict = {k: v.shape for k, v in params.items()}
-    _, out_shapes = graph_util.infer_shape(g, **shape_dict)
+    out_type = ir_pass.infer_type(inputs)
+    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
     return channels
 
@@ -432,7 +431,7 @@ def _expand_dims():
         axis = params[dim_input.name_hint]
         params.pop(dim_input.name_hint)
         return AttrCvt(op_name="expand_dims", ignores=['Tdim'],
-                       extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+                       extras={'axis': int(axis.asnumpy()[0])})(inputs, attr)
     return _impl
 
 def _resize_bilinear():
@@ -462,7 +461,7 @@ def _matmul():
         if not attr['transpose_b']:
             inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
         return AttrCvt(op_name="dense",
-                       extras={'use_bias': False, 'units': channels},
+                       extras={'units': channels},
                        ignores=['transpose_a', 'transpose_b', 'T'])(inputs, attr)
 
     return _impl
@@ -479,7 +478,7 @@ def _concatV2():
         params.pop(pop_node.name_hint)
         return AttrCvt(
             op_name="concatenate", ignores=['T', 'N', 'Tidx'],
-            extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+            extras={'axis': int(axis.asnumpy()[0])})([inputs], attr)
     return _impl
 
 def _concat():
@@ -489,7 +488,7 @@ def _concat():
         params.pop(pop_node.name_hint)
         return AttrCvt(
             op_name="concatenate", ignores=['N'],
-            extras={'axis': axis.asnumpy()[0]})(inputs, attr)
+            extras={'axis': int(axis.asnumpy()[0])})([inputs], attr)
     return _impl
 
 def _pack():
@@ -528,7 +527,7 @@ def _reshape():
 
 def _bias_add():
     def _impl(inputs, attr, params):
-        return _op.broadcast_add(inputs[0], inputs[1])
+        return _op.add(inputs[0], inputs[1])
     return _impl
 
 def _squeeze():
@@ -850,6 +849,12 @@ def _broadcast(name):
         )(inputs, attr)
     return _impl
 
+def _softmax():
+    def _impl(inputs, attr, params):
+        return AttrCvt(op_name='softmax',
+                       transforms={'axis': ('axis', 1)})([inputs[0]], attr)
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -890,7 +895,7 @@ _convert_map = {
     'Reshape'                           : _reshape(),
     'ResizeBilinear'                    : _resize_bilinear(),
     'Selu'                              : _selu(),
-    'Softmax'                           : AttrCvt('softmax', {'axis': ('axis', 1)}),
+    'Softmax'                           : _softmax(),
     'Rsqrt'                             : _rsqrt(),
     'Squeeze'                           : _squeeze(),
     'FusedBatchNorm'                    : _fused_batch_norm(),
@@ -919,7 +924,7 @@ _convert_map = {
 }
 
 class GraphProto(object):
-    """ A helper class for handling nnvm graph copying from Tensorflow GraphDef.
+    """ A helper class for handling relay graph copying from Tensorflow GraphDef.
     Definition:
         https://github.com/tensorflow/tensorflow/blob/master/tensorflow/core/framework/graph.proto
     """
@@ -930,7 +935,7 @@ class GraphProto(object):
         self._num_param = 0
 
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
-        """Construct nnvm nodes from tensorflow  graph definition - GraphDef.
+        """Construct relay nodes from tensorflow  graph definition - GraphDef.
 
         Follow the tensorflow graph definition to parse and convert it to NNVM.
         Some of the assumptions listed below.
@@ -958,8 +963,8 @@ class GraphProto(object):
 
         Returns
         -------
-        sym : nnvm.sym.Symbol
-            The returned nnvm symbol
+        sym : relay.op
+            The returned relay operator
         params : dict
             A dict of name: tvm.nd.array pairs, used as pretrained weights
         """
@@ -980,8 +985,6 @@ class GraphProto(object):
         for node in graph.node:
             # Tensorflow doesn't have seperate list for params extraction.
             # Operator name 'Const' is treated as a parameter to build NNVM params dict.
-            print("Node:", node.name)
-            print("Op:", node.op)
 
             input_shapes = {}
             attr = self._parse_attr(node.attr)
@@ -1005,6 +1008,7 @@ class GraphProto(object):
                     "Please freeze the graph with add_shapes=True")
 
             if node.op == "Placeholder":
+                self._output_shapes[node.name] = [shape[node.name]]
                 self._nodes[node.name] = [_expr.var(node.name,
                                                     shape=self._output_shapes[node.name][0],
                                                     dtype=attr['dtype'].name)]
@@ -1013,7 +1017,7 @@ class GraphProto(object):
                 # All Const nodes are Param nodes, lets parse
                 self._num_param += 1
                 for key, value in node.attr.items():
-                    self._parse_param(key, value, node.name)
+                    self._parse_param(key, value, node.name, shape)
                 if node.name not in self._nodes:
                     raise NotImplementedError( \
                         "Const {} couldn't be converted to Param.".format(node.name))
@@ -1047,14 +1051,13 @@ class GraphProto(object):
                         input_shapes[self._nodes[i][0]] = self._output_shapes[i]
                 attr['_input_shapes'] = input_shapes
 
-                inputs = self._fix_extranodes(node.op, attr, inputs)
-
+                #inputs = self._fix_extranodes(node.op, attr, inputs)
                 op = self._convert_operator(node.op, inputs, attr, graph)
 
                 # Check is op is converted to param
                 if isinstance(op, np.ndarray):
                     self._params[node.name] = tvm.nd.array(op)
-                    op = [_expr.var(node_name,
+                    op = [_expr.var(node.name,
                                     shape=self._params[node.name].shape,
                                     dtype=self._params[node.name].dtype)]
 
@@ -1098,7 +1101,7 @@ class GraphProto(object):
 
         return missing_operators
 
-    def _parse_param(self, key, value, name):
+    def _parse_param(self, key, value, name, shape):
         try:
             from tensorflow.python.framework import tensor_util
         except ImportError as e:
@@ -1111,7 +1114,7 @@ class GraphProto(object):
             if np_array.dtype == np.dtype(object):
                 # Object types are generally tensorflow DT_STRING (DecodeJpeg op).
                 # Just leave it as placeholder.
-                self._nodes[name] = [_expr.var(node_name)] # TODO: shape, dtype
+                self._nodes[name] = [_expr.var(name, shape=shape[name], dtype='uint8')]
 
                 return
 
@@ -1184,7 +1187,7 @@ class GraphProto(object):
 
     def _convert_operator(self, op_name, inputs, attrs,
                           graph, identity_list=None, convert_map=None):
-        """Convert from Tensorflow operator to nnvm operator.
+        """Convert from Tensorflow operator to relay operator.
         The converter must specify conversions explicity for incompatible name, and
         apply handlers to operator attributes.
 
@@ -1192,7 +1195,7 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as Conv2D, AvgPool
-        inputs : list of nnvm.Symbol
+        inputs : list of relay.op
             List of input symbols.
         attrs : dict
             Dict of operator attributes
@@ -1200,18 +1203,18 @@ class GraphProto(object):
             List of operators that don't require conversion
         convert_map : dict
             Dict of name : callable, where name is the op's name that
-            require conversion to nnvm, callable are functions which
+            require conversion to relay, callable are functions which
             take attrs and return (new_op_name, new_attrs)
 
         Returns
         -------
-        sym : nnvm.Symbol
-            Converted nnvm Symbol
+        sym : relay.op
+            Converted relay operator
         """
         identity_list = identity_list if identity_list else _identity_list
         convert_map = convert_map if convert_map else _convert_map
         if op_name in identity_list:
-            sym = get_nnvm_op(op_name)(*inputs, **attrs)
+            sym = _get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         else:
@@ -1222,7 +1225,7 @@ class GraphProto(object):
         if op_name == "Softmax":
             # Require some times flatten of data before it goes to softmax
             # Need to relook into this with latest softmax axis support.
-            op = AttrCvt(op_name='flatten')(inputs, {})
+            op = AttrCvt(op_name='batch_flatten')(inputs, {})
             node_output = op.name_hint
             for k, i in zip(list(node_output), range(len(node_output))):
                 self._nodes[k] = op[i]
@@ -1231,7 +1234,7 @@ class GraphProto(object):
         return inputs
 
 def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
-    """  Load tensorflow graph which is a python tensorflow graph object into nnvm graph.
+    """  Load tensorflow graph which is a python tensorflow graph object into relay.
     The companion parameters will be handled automatically.
 
     Parameters
@@ -1241,8 +1244,8 @@ def from_tensorflow(graph, layout="NHWC", shape=None, outputs=None):
 
     Returns
     -------
-    sym : nnvm.Symbol
-        Compatible nnvm symbol
+    sym : relay.op
+        Compatible relay operator
 
     params : dict of str to tvm.ndarray
         Dict of converted parameters stored in tvm.ndarray format
