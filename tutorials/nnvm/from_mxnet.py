@@ -96,7 +96,7 @@ print('TVM prediction top-1:', top1, synset[top1])
 ######################################################################
 # Use MXNet symbol with pretrained weights
 # ----------------------------------------
-# MXNet often use `arg_prams` and `aux_params` to store network parameters
+# MXNet often use `arg_params` and `aux_params` to store network parameters
 # separately, here we show how to use these weights with existing API
 def block2symbol(block):
     data = mx.sym.Variable('data')
