@@ -49,6 +49,11 @@ using TOpPattern = int;
 using TOpIsStateful = bool;
 
 /*!
+ * \brief Mark the operator as non-computational.
+ */
+using TNonComputational = bool;
+
+/*!
  * \brief Computation description interface.
  *
  * \note This function have a special convention

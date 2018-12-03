@@ -9,6 +9,7 @@ from . import module
 from . import ir_pass
 from .build_module import build, build_config, create_executor
 from . import parser
+from . import debug
 
 # Root operators
 from .op import Op
@@ -57,12 +58,6 @@ TupleGetItem = expr.TupleGetItem
 var = expr.var
 const = expr.const
 bind = expr.bind
-
-# pylint: disable=unused-argument
-@register_func("relay.debug")
-def _debug(*args):
-    import pdb
-    pdb.set_trace()
 
 # Parser
 fromtext = parser.fromtext

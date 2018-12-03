@@ -124,6 +124,38 @@ struct Stack {
   };
 };
 
+/*! \brief A representation of the interpreter state which can be passed back to Python. */
+class InterpreterState;
+
+/*! \brief Interpreter state container. */
+class InterpreterStateNode : public Node {
+ public:
+  using Frame = tvm::Map<Var, Value>;
+  using Stack = tvm::Array<Frame>;
+  /*! \brief the fields of the tuple */
+  Expr current_expr;
+  Stack stack;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("current_expr", &current_expr);
+    v->Visit("stack", &stack);
+  }
+
+  TVM_DLL static InterpreterState make(Expr current_expr, Stack stack);
+
+  static constexpr const char* _type_key = "relay.InterpreterState";
+  TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(InterpreterState, InterpreterStateNode, NodeRef);
+
+InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
+  NodePtr<InterpreterStateNode> n = make_node<InterpreterStateNode>();
+  n->current_expr = std::move(current_expr);
+  n->stack = std::move(stack);
+  return InterpreterState(n);
+}
+
 // NOTE: the current interpreter assumes A-normal form.
 // which is better for execution.
 //
@@ -209,6 +241,17 @@ class Interpreter :
 
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
+    auto call_node = func->body.as<CallNode>();
+    if (call_node) {
+      auto debug = Op::Get("debug");
+      if (call_node->op == debug) {
+        auto is = this->get_state();
+        is->current_expr = expr;
+        RELAY_DEBUG(is);
+        return Eval(call_node->args[0]);
+      }
+    }
+
     // Marshal the arguments.
     // Handle tuple input/output by flattening them.
     size_t arg_len = 0;
@@ -386,6 +429,16 @@ class Interpreter :
       LOG(FATAL) << "type error, type system should have caught this";
       return Value();
     }
+  }
+
+  InterpreterState get_state(Expr e = Expr()) const {
+    InterpreterStateNode::Stack stack;
+    for (auto fr : this->stack_.frames) {
+      InterpreterStateNode::Frame frame = fr.locals;
+      stack.push_back(frame);
+    }
+    auto state = InterpreterStateNode::make(Expr(), stack);
+    return state;
   }
 
  private:

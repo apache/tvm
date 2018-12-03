@@ -8,6 +8,7 @@ from ..base import register_relay_node
 from ..expr import Expr
 from ...api import register_func
 from ...build_module import lower, build
+from . import _make
 
 @register_relay_node
 class Op(Expr):
@@ -183,3 +184,6 @@ def schedule_injective(attrs, outputs, target):
     """Generic schedule for binary broadcast."""
     with target:
         return topi.generic.schedule_injective(outputs)
+
+def debug(expr, debug_func=None):
+    return _make.debug(expr)
