@@ -84,7 +84,7 @@ def extract_from_program(func, params, ops, target, target_host=None):
     # relay op -> topi compute
     OP2TOPI = {
         tvm.relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
-                             topi.nn.group_conv2d_nchw],
+                                 topi.nn.group_conv2d_nchw],
         tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
         tvm.relay.op.nn.dense: [topi.nn.dense],
     }
@@ -157,7 +157,7 @@ def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     # relay op -> topi compute
     OP2TOPI = {
         tvm.relay.op.nn.conv2d: [topi.nn.conv2d, topi.nn.depthwise_conv2d_nchw,
-                             topi.nn.group_conv2d_nchw],
+                                 topi.nn.group_conv2d_nchw],
         tvm.relay.op.nn.conv2d_transpose: [topi.nn.conv2d_transpose_nchw],
         tvm.relay.op.nn.dense: [topi.nn.dense],
     }

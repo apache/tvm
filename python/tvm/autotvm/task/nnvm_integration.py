@@ -7,7 +7,7 @@ import warnings
 import logging
 
 
-from ... import tensor, placeholder, target as _target
+from ... import target as _target
 
 from .task import create
 from .topi_integration import TaskExtractEnv
