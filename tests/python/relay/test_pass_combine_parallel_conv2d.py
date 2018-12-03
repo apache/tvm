@@ -134,7 +134,46 @@ def test_combine_parallel_conv2d_scale():
 
     check((1, 4, 16, 16), 4, 8)
 
+
+def test_combine_parallel_conv2d_multiple_blocks():
+    def before(x, w, repeat):
+        args = [x, w]
+        y = x
+        for i in range(repeat):
+            y1 = relay.nn.conv2d(y, w)
+            y2 = relay.nn.conv2d(y, w)
+            y = relay.concatenate((y1, y2), axis=1)
+        return relay.Function(args, y)
+
+    def expected(x, w, channels, repeat):
+        args = [x, w]
+        y = x
+        for i in range(repeat):
+            w_concat = relay.concatenate((w, w), axis=0)
+            y = relay.nn.conv2d(y, w_concat, channels=channels*2)
+            y1 = relay.strided_slice(y, [0, 0], [None, channels])
+            y2 = relay.strided_slice(y, [0, channels], [None, channels * 2])
+            y = relay.concatenate((y1, y2), axis=1)
+        return relay.Function(args, y)
+
+    def check(x_shape, repeat):
+        x = relay.var("x", shape=x_shape)
+        in_c = x_shape[1]
+        out_c = in_c // 2
+        w = relay.var("w", shape=(out_c, in_c, 1, 1))
+        y_before = before(x, w, repeat)
+        y = relay.ir_pass.infer_type(y_before)
+        y = relay.ir_pass.combine_parallel_conv2d(y)
+        y = relay.ir_pass.infer_type(y)
+        y_expected = expected(x, w, out_c, repeat)
+        y_expected = relay.ir_pass.infer_type(y_expected)
+        assert relay.ir_pass.alpha_equal(y, y_expected)
+
+    check((1, 4, 16, 16), 4)
+
+
 if __name__ == "__main__":
     test_combine_parallel_conv2d()
     test_combine_parallel_conv2d_scale_relu()
     test_combine_parallel_conv2d_scale()
+    test_combine_parallel_conv2d_multiple_blocks()
