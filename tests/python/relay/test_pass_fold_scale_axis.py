@@ -1,11 +1,11 @@
 from tvm import relay
+import numpy as np
 
 
 def test_fold_fwd_simple():
     """Simple testcase."""
     def before(x, conv_weight, in_bias, in_scale, channels):
-        args = [x, conv_weight, in_bias, in_scale]
-        in_scale = relay.expand_dims(in_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, in_bias]
         in_bias = relay.expand_dims(in_bias, axis=1, num_newaxis=2)
         x = relay.multiply(x, in_scale)
         x = relay.nn.relu(x)
@@ -18,8 +18,7 @@ def test_fold_fwd_simple():
 
     def expected(x, conv_weight, in_bias, in_scale, channels):
         # use a fixed order of args so alpha equal check can pass
-        args = [x, conv_weight, in_bias, in_scale]
-        in_scale = relay.expand_dims(in_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, in_bias]
         in_bias = relay.expand_dims(in_bias, axis=1, num_newaxis=2)
         squeezed_scale = relay.squeeze(in_scale, axis=[1,2])
         x = relay.nn.relu(x)
@@ -38,7 +37,7 @@ def test_fold_fwd_simple():
         in_channels = shape[1]
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.var("in_scale", shape=(in_channels,))
+        in_scale = relay.const(np.random.uniform(size=(in_channels, 1, 1)).astype('float32'))
 
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
@@ -56,7 +55,7 @@ def test_fold_fwd_simple():
 def test_fold_fwd_dual_path():
     """scale axis being consumed by two consumers"""
     def before(x, conv_weight, in_bias, in_scale, channels):
-        args = [x, conv_weight, in_bias, in_scale]
+        args = [x, conv_weight, in_bias]
         x = relay.multiply(in_scale, x)
         x = relay.nn.relu(x)
         x = relay.subtract(x, in_bias)
@@ -78,7 +77,7 @@ def test_fold_fwd_dual_path():
         return relay.Function(args, z)
 
     def expected(x, conv_weight, in_bias, in_scale, channels):
-        args = [x, conv_weight, in_bias, in_scale]
+        args = [x, conv_weight, in_bias]
         x = relay.nn.relu(x)
         in_bias = relay.divide(in_bias, in_scale)
         x = relay.subtract(x, in_bias)
@@ -108,7 +107,7 @@ def test_fold_fwd_dual_path():
         assert in_channels == channels
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.var("in_scale", shape=(in_channels,))
+        in_scale = relay.const(np.random.uniform(size=(in_channels,)).astype("float32"))
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
@@ -142,7 +141,7 @@ def test_fold_fwd_fail():
         assert in_channels == channels
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.var("in_scale", shape=(in_channels,))
+        in_scale = relay.const(np.random.uniform(size=(in_channels,)).astype("float32"))
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
@@ -151,11 +150,42 @@ def test_fold_fwd_fail():
     check((2, 11, 10, 4), 4)
 
 
+def test_fold_fwd_relu_fail():
+    """testcase where we canont fold because scale can not pass relu"""
+    def before(x, conv_weight, in_bias, in_scale, channels):
+        x = relay.multiply(x, in_scale)
+        xx = relay.nn.relu(x)
+        y1 = relay.nn.conv2d(xx, conv_weight,
+                             channels=channels,
+                             kernel_size=(3, 3),
+                             data_layout="NHWC",
+                             padding=(1, 1))
+        z = relay.add(y1, x)
+        return relay.Function(relay.ir_pass.free_vars(z), z)
+
+    def check(shape, channels, in_scale):
+        x =  relay.var("x", shape=shape)
+        in_channels = shape[-1]
+        # test depthwise
+        assert in_channels == channels
+        weight = relay.var("weight")
+        in_bias = relay.var("in_bias", shape=(in_channels,))
+        in_scale = relay.var("in_scale", shape=(in_channels,))
+        y1 = before(x, weight, in_bias, in_scale, channels)
+        y1 = relay.ir_pass.infer_type(y1)
+        y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
+        assert relay.ir_pass.alpha_equal(y1, y1_folded)
+
+    in_scale = relay.var("in_scale", shape=(4,))
+    check((2, 11, 10, 4), 4, in_scale)
+    in_scale = relay.const(np.random.uniform(size=(4,), low=-1.0, high=0.0)).astype("float32")
+    check((2, 11, 10, 4), 4, in_scale)
+
+
 def test_fold_bwd_simple():
     """Simple testcase."""
     def before(x, conv_weight, out_bias, out_scale, channels):
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         y = relay.nn.conv2d(x, conv_weight,
                             channels=channels,
@@ -168,8 +198,7 @@ def test_fold_bwd_simple():
 
     def expected(x, conv_weight, out_bias, out_scale, channels):
         # use a fixed order of args so alpha equal check can pass
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         squeezed_scale = relay.squeeze(out_scale, axis=[1,2])
         conv_weight = relay.multiply(
@@ -190,7 +219,7 @@ def test_fold_bwd_simple():
         in_channels = shape[1]
         weight = relay.var("weight")
         out_bias = relay.var("out_bias", shape=(channels,))
-        out_scale = relay.var("out_scale", shape=(channels,))
+        out_scale = relay.const(np.random.uniform(size=(channels, 1, 1)).astype("float32"))
 
         y1 = before(x, weight, out_bias, out_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
@@ -208,9 +237,7 @@ def test_fold_bwd_simple():
 def test_fold_bwd_dual_path():
     """Dual path testcase."""
     def before(x, conv_weight, out_bias, out_scale, channels):
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
-        out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         y1 = relay.nn.conv2d(x, conv_weight,
                              channels=channels,
                              kernel_size=(3, 3),
@@ -227,8 +254,7 @@ def test_fold_bwd_dual_path():
 
     def expected(x, conv_weight, out_bias, out_scale, channels):
         # use a fixed order of args so alpha equal check can pass
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         squeezed_scale = relay.squeeze(out_scale, axis=[1,2])
         def fold_conv_weight():
@@ -253,7 +279,7 @@ def test_fold_bwd_dual_path():
         in_channels = shape[1]
         weight = relay.var("weight")
         out_bias = relay.var("out_bias", shape=(channels,))
-        out_scale = relay.var("out_scale", shape=(channels,))
+        out_scale = relay.const(np.random.uniform(size=(channels, 1, 1)).astype("float32"))
 
         y1 = before(x, weight, out_bias, out_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
@@ -270,8 +296,7 @@ def test_fold_bwd_dual_path():
 
 def test_fold_bwd_dual_consumer():
     def before(x, conv_weight, out_bias, out_scale, channels):
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         y0 = relay.nn.conv2d(x, conv_weight,
                              channels=channels,
                              kernel_size=(3, 3),
@@ -298,8 +323,7 @@ def test_fold_bwd_dual_consumer():
 
     def expected(x, conv_weight, out_bias, out_scale, channels):
         # use a fixed order of args so alpha equal check can pass
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         def fold_conv_weight():
             squeezed_scale = relay.squeeze(out_scale, axis=[1,2])
             return  relay.multiply(
@@ -328,7 +352,7 @@ def test_fold_bwd_dual_consumer():
         in_channels = shape[1]
         weight = relay.var("weight")
         out_bias = relay.var("out_bias", shape=(channels,))
-        out_scale = relay.var("out_scale", shape=(channels,))
+        out_scale = relay.const(np.random.uniform(size=(channels,1, 1)).astype("float32"))
 
         y1 = before(x, weight, out_bias, out_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
@@ -346,8 +370,7 @@ def test_fold_bwd_dual_consumer():
 def test_fold_bwd_fail():
     """Dual path testcase."""
     def fail1(x, conv_weight, out_bias, out_scale, channels):
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         y1 = relay.nn.conv2d(x, conv_weight,
                              channels=channels,
@@ -367,8 +390,7 @@ def test_fold_bwd_fail():
         return relay.Function(args, y)
 
     def fail2(x, conv_weight, out_bias, out_scale, channels):
-        args = [x, conv_weight, out_bias, out_scale]
-        out_scale = relay.expand_dims(out_scale, axis=1, num_newaxis=2)
+        args = [x, conv_weight, out_bias]
         out_bias = relay.expand_dims(out_bias, axis=1, num_newaxis=2)
         y1 = relay.nn.conv2d(x, conv_weight,
                              channels=channels,
@@ -380,13 +402,12 @@ def test_fold_bwd_fail():
         y = relay.add(y1, y2)
         return relay.Function(args, y)
 
-
     def check(shape, channels, fbefore):
         x =  relay.var("x", shape=shape)
         in_channels = shape[1]
         weight = relay.var("weight")
         out_bias = relay.var("out_bias", shape=(channels,))
-        out_scale = relay.var("out_scale", shape=(channels,))
+        out_scale = relay.const(np.random.uniform(size=(channels, 1, 1)).astype("float32"))
         y1 = fbefore(x, weight, out_bias, out_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         y1_folded = relay.ir_pass.backward_fold_scale_axis(y1)
@@ -396,11 +417,40 @@ def test_fold_bwd_fail():
     check((4, 4, 10, 10), 4, fail2)
 
 
+def test_fold_bwd_relu_fail():
+    """testcase where we canont fold because scale can not pass relu"""
+    def before(x, conv_weight, out_scale, channels):
+        y = relay.nn.conv2d(x, conv_weight,
+                             channels=channels,
+                             kernel_size=(3, 3),
+                             data_layout="NCHW",
+                             padding=(1, 1))
+        y = relay.nn.relu(y)
+        y = relay.multiply(x, out_scale)
+        return relay.Function(relay.ir_pass.free_vars(y), y)
+
+    def check(shape, channels, out_scale):
+        x =  relay.var("x", shape=shape)
+        in_channels = shape[1]
+        weight = relay.var("weight")
+        y1 = before(x, weight, out_scale, channels)
+        y1 = relay.ir_pass.infer_type(y1)
+        y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
+        assert relay.ir_pass.alpha_equal(y1, y1_folded)
+
+    out_scale = relay.var("in_scale", shape=(4, 1, 1))
+    check((4, 4, 10, 10), 4, out_scale)
+    out_scale = relay.const(np.random.uniform(size=(4, 1, 1), low=-1.0, high=0.0)).astype("float32")
+    check((4, 4, 10, 10), 4, out_scale)
+
+
 if __name__ == "__main__":
     test_fold_fwd_simple()
     test_fold_fwd_dual_path()
     test_fold_fwd_fail()
+    test_fold_fwd_relu_fail()
     test_fold_bwd_simple()
     test_fold_bwd_dual_path()
     test_fold_bwd_dual_consumer()
     test_fold_bwd_fail()
+    test_fold_bwd_relu_fail()

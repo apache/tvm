@@ -150,13 +150,14 @@ def optimize(func, params=None):
         func = ir_pass.infer_type(func)
         func = ir_pass.combine_parallel_conv2d(func)
 
+    if cfg.pass_enabled("FoldConstant"):
+        func = ir_pass.fold_constant(func)
+
     if cfg.pass_enabled("FoldScaleAxis"):
         func = ir_pass.infer_type(func)
         func = ir_pass.backward_fold_scale_axis(func)
         func = ir_pass.infer_type(func)
         func = ir_pass.forward_fold_scale_axis(func)
-
-    if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
 
     if cfg.pass_enabled("AlterOpLayout"):
