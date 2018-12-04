@@ -192,8 +192,10 @@ Expr MakeStridedSlice(Expr data, Array<Integer> begin, Array<Integer> end, Array
 
 
 template <typename T>
-bool IsNDArrayGreaterEqual(const runtime::NDArray& tensor, T value) {
-  CHECK(tensor->ctx.device_type == kDLCPU);
+bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
+  CHECK_EQ(tensor->ctx.device_type, kDLCPU);
+  CHECK(tensor->strides == nullptr);
+  CHECK_EQ(tensor->byte_offset, 0);
   const T* data = static_cast<const T*>(tensor->data);
   int64_t num_elems = 1;
   for (int i = 0; i < tensor->ndim; ++i) {
@@ -219,17 +221,17 @@ inline bool IsPositiveConstant(const Expr& expr) {
   if (dtype.lanes != 1) {
     // pass
   } else if (dtype.code == kDLFloat && dtype.bits == 32) {
-    return IsNDArrayGreaterEqual<float>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<float>(tensor, 0);
   } else if (dtype.code == kDLFloat && dtype.bits == 64) {
-    return IsNDArrayGreaterEqual<double>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<double>(tensor, 0);
   } else if (dtype.code == kDLInt && dtype.bits == 8) {
-    return IsNDArrayGreaterEqual<int8_t>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<int8_t>(tensor, 0);
   } else if (dtype.code == kDLInt && dtype.bits == 32) {
-    return IsNDArrayGreaterEqual<int32_t>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<int32_t>(tensor, 0);
   } else if (dtype.code == kDLUInt && dtype.bits == 8) {
-    return IsNDArrayGreaterEqual<uint8_t>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<uint8_t>(tensor, 0);
   } else if (dtype.code == kDLUInt && dtype.bits == 32) {
-    return IsNDArrayGreaterEqual<uint32_t>(tensor, 0);
+    return IsNDArrayAllGreaterEqual<uint32_t>(tensor, 0);
   }
 
   LOG(WARNING) << "Unsupported data type (code = " << dtype.code
