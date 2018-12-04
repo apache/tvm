@@ -140,6 +140,7 @@ class DebugResult(object):
             for j in range(num_outputs):
                 op = node['op']
                 if node['op'] == 'param':
+                    eid += 1
                     continue
                 name = node['name']
                 shape = str(self._output_tensor_list[eid].shape)
