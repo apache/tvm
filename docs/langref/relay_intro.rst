@@ -2,31 +2,18 @@
 Introduction
 ============
 
-Relay is a differentiable programming language with support for
-closures, control flow, and recursion. It has an advanced
-static type system specifically designed for programs written
-by machine learning practitioners and researchers. Relay is intended to replace
-the computation graph-based intermediate representations currently employed by deep
-learning frameworks and compilers.
+Relay is a functional, differentiable programming language that has been
+designed to be an expressive intermediate representation for machine
+learning systems. It features support for closures, control flow, and
+recursion, thus allowing for representing more complex models directly
+in Relay. Relay also includes a form of dependent typing using type
+relations in order to handle to shape analysis
 
-The deep learning community has organically evolved a representation of machine learning
-models that was useful for the form of computation originally desired, i.e., a directed 
-acyclic graph of primitive functions. Computation graphs also serve a dual purpose as both a 
-compile-time and run-time data structure. While computation graphs are a good fit
-for models with a static topology, they make it tricky to incorporate control flow and
-abstraction. Additionally, the conflation of the description of a computation, the
-representation used for optimizing it, and the data structure used to execute it unnecessarily 
-hamper the goals of machine learning frameworks. We believe having a high-level, expressive language 
-designed for writing compiler optimizations is essential to the future of an end-to-end
-deep learning compiler stack.
 
-Relay's design is influenced by the authors' experience building advanced optimizing compilers
-for high-level languages, as well as by challenges presented by the current version of the
-TVM stack, and NNVM's IR. We address a few important challenges with Relay's design.
-Relay is an IR with closures, control-flow, recursion, and an advanced type system supporting
-complex shape relationships and symbolic dimensions. We define a series of
-automatic differentiation rules over the language, with the goal of enabling higher-order
-differentiation of programs with control flow and closures.
+Additionally, Relay is designed to be easily extensible by
+machine learning researchers and practitioners in order to facilitate
+the inclusion and development of new large-scale program transformations
+and optimizations.
 
 ==================
 Language
