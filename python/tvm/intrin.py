@@ -492,6 +492,3 @@ def _rule_float_direct(op):
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)
 # default pattern for exp
 register_intrin_rule("default", "exp", _rule_float_suffix, override=True)
-
-# default pattern for sigmoid
-register_intrin_rule("default", "sigmoid", lambda op: 1.0 / (1.0 + exp(-op.args[0])))
