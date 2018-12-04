@@ -13,7 +13,7 @@
 namespace tvm {
 namespace relay {
 
-// Alpha equal handler for relay.
+// Alpha Equal handler for Relay.
 class AlphaEqualHandler:
       public AttrsEqualHandler,
       public TypeFunctor<bool(const Type&, const Type&)>,
@@ -26,7 +26,7 @@ class AlphaEqualHandler:
    * Check equality of two nodes.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return The compare result.
+   * \return The comparison result.
    */
   bool Equal(const NodeRef& lhs, const NodeRef& rhs) {
     if (lhs.same_as(rhs)) return true;
@@ -46,7 +46,7 @@ class AlphaEqualHandler:
    * Check equality of two attributes.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return The compare result.
+   * \return The comparison result.
    */
   bool AttrEqual(const NodeRef& lhs, const NodeRef& rhs) {
     return AttrsEqualHandler::Equal(lhs, rhs);
@@ -55,7 +55,7 @@ class AlphaEqualHandler:
    * Check equality of two types.
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return The compare result.
+   * \return the comparison result.
    */
   bool TypeEqual(const Type& lhs, const Type& rhs) {
     if (lhs.same_as(rhs)) return true;
@@ -72,7 +72,7 @@ class AlphaEqualHandler:
    *
    * \param lhs The left hand operand.
    * \param rhs The right hand operand.
-   * \return The compare result.
+   * \return The comparison result.
    */
   bool ExprEqual(const Expr& lhs, const Expr& rhs) {
     if (lhs.same_as(rhs)) return true;

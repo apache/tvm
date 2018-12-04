@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include "topi/tags.h"
+#include "topi/elemwise.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
@@ -288,7 +289,7 @@ inline Tensor resize_bilinear_nchw(const Tensor& input,
 * \return A Tensor resized to given shape
 */
 inline Tensor resize_bilinear(const Tensor& input,
-                              const Array<Expr>& shape,
+                              const Array<tvm::Expr>& shape,
                               std::string layout = "NCHW",
                               bool align_corners = false,
                               std::string name = "tensor",

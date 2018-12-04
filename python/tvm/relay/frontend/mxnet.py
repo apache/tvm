@@ -8,137 +8,13 @@ from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
 from .common import StrAttrsDict
+from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
+from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
+from .nnvm_common import _clip, _transpose, _upsampling
+from .nnvm_common import _elemwise_sum, _reshape
+from .nnvm_common import _warn_not_used
 
 __all__ = ['from_mxnet']
-
-
-def _get_relay_op(op_name):
-    op = getattr(_op, op_name)
-    if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
-    return op
-
-
-def _warn_not_used(attr, op='nnvm'):
-    import warnings
-    err = "{} is ignored in {}.".format(attr, op)
-    warnings.warn(err)
-
-
-def _rename(new_op):
-    if isinstance(new_op, str):
-        new_op = _get_relay_op(new_op)
-    # attrs are ignored.
-    def impl(inputs, _):
-        return new_op(*inputs)
-    return impl
-
-
-def _reshape(inputs, attrs):
-    if attrs.get_bool("reverse", False):
-        raise RuntimeError("reshape do not support option reverse")
-    shape = attrs.get_int_tuple("shape")
-    return _op.reshape(inputs[0], newshape=shape)
-
-
-def _init_op(new_op):
-    """Init ops like zeros/ones"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 0
-        shape = attrs.get_int_tuple("shape")
-        dtype = attrs.get_str("dtype", "float32")
-        return new_op(shape=shape, dtype=dtype)
-    return _impl
-
-
-def _softmax_op(new_op):
-    """softmax/log_softmax"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int("axis", -1)
-        return new_op(inputs[0], axis=axis)
-    return _impl
-
-
-def _reduce(new_op):
-    """Reduction ops like sum/min/max"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int_tuple("axis", [])
-        keepdims = attrs.get_bool("keepdims", False)
-        # use None for reduce over all axis.
-        axis = None if len(axis) == 0 else axis
-        return new_op(inputs[0], axis=axis, keepdims=keepdims)
-    return _impl
-
-
-def _arg_reduce(new_op):
-    """Arg Reduction ops like argmin/argmax"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int("axis", None)
-        keepdims = attrs.get_bool("keepdims", False)
-        res = new_op(inputs[0], axis=[axis], keepdims=keepdims)
-        # cast to dtype.
-        res = res.astype("float32")
-        return res
-    return _impl
-
-
-def _cast(inputs, attrs):
-    """Type cast"""
-    dtype = attrs.get_str("dtype")
-    return _op.cast(inputs[0], dtype=dtype)
-
-
-def _clip(inputs, attrs):
-    a_min = attrs.get_float("a_min")
-    a_max = attrs.get_float("a_max")
-    return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
-
-
-def _transpose(inputs, attrs):
-    axes = attrs.get_int_tuple("axes", None)
-    # translate default case
-    axes = None if len(axes) == 0 else axes
-    return _op.transpose(inputs[0], axes=axes)
-
-
-def _upsampling(inputs, attrs):
-    scale = attrs.get_int("scale")
-    return _op.nn.upsampling(inputs[0], scale=scale)
-
-
-def _elemwise_sum(inputs, _):
-    assert len(inputs) > 0
-    res = inputs[0]
-    for x in inputs[1:]:
-        res = _op.add(res, x)
-    return res
-
-
-def _binop_scalar(new_op):
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
-        return new_op(inputs[0], scalar)
-    return _impl
-
-
-def _rbinop_scalar(new_op):
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
-        return new_op(scalar, inputs[0])
-    return _impl
-
-# All the functions with _mx prefix specific to MXNet.
-# The functions without _mx prefix can be reused for
-# NNVMv1 conversion to _op.
 
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
@@ -493,6 +369,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
     jnodes = jgraph["nodes"]
     node_map = {}
 
+
     for nid, node in enumerate(jnodes):
         children = [node_map[e[0]][e[1]] for e in node["inputs"]]
         attrs = StrAttrsDict(node.get("attrs", {}))
@@ -501,7 +378,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
         if op_name == "null":
             shape = shape_dict[node_name] if node_name in shape_dict else None
             if isinstance(dtype_info, dict):
-                dtype = dtype_info[node_name] if node_name in dtype_dict else "float32"
+                dtype = dtype_info[node_name] if node_name in dtype_info else "float32"
             else:
                 dtype = dtype_info
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]

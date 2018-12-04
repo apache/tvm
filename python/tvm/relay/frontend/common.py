@@ -101,10 +101,63 @@ class StrAttrsDict(object):
         """
         if key in self.attrs:
             tshape = self.attrs[key]
-            return tuple(int(x.strip()) for x in tshape.strip('()').split(','))
+            return tuple(int(x.strip()) for x in tshape.strip('()[]').split(','))
         if isinstance(default, RequiredAttr):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
+
+    def get_tuple_tuple_int(self, key, default=RequiredAttr()):
+        """Get int list attribute
+
+        Parameters
+        ----------
+        key : str
+            The attribute key
+
+        default : float
+            The default value.
+
+        Returns
+        -------
+        value : The result
+        """
+        if key in self.attrs:
+            value = self.attrs[key]
+            seq = []
+            for tup in value.strip('()').split('),'):
+                tup = tup.strip('[]()')
+                els = [int(x.strip('( ')) for x in tup.split(',')]
+                seq.append(tuple(els))
+
+            return tuple(seq)
+
+        if isinstance(default, RequiredAttr):
+            raise AttributeError("Required attribute {} not found.".format(key))
+        return default
+
+    def get_int_list(self, key, default=RequiredAttr()):
+        """Get int list attribute
+
+        Parameters
+        ----------
+        key : str
+            The attribute key
+
+        default : float
+            The default value.
+
+        Returns
+        -------
+        value : The result
+        """
+        if key in self.attrs:
+            tshape = self.attrs[key]
+            return tuple(int(x.strip()) for x in tshape.strip('[]()').split(','))
+        if isinstance(default, RequiredAttr):
+            raise AttributeError("Required attribute {} not found.".format(key))
+        return default
+
+
 
     def get_bool(self, key, default=RequiredAttr()):
         """Get bool tuple attribute
