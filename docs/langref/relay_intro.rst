@@ -1,169 +1,25 @@
-============
-Introduction
-============
+=====================
+Introduction to Relay
+=====================
 
 Relay is a functional, differentiable programming language that has been
 designed to be an expressive intermediate representation for machine
 learning systems. It features support for closures, control flow, and
 recursion, thus allowing for representing more complex models directly
 in Relay. Relay also includes a form of dependent typing using type
-relations in order to handle to shape analysis
-
+relations in order to handle shape analysis for operators with complex
+requirements on argument shapes.
 
 Additionally, Relay is designed to be easily extensible by
 machine learning researchers and practitioners in order to facilitate
 the inclusion and development of new large-scale program transformations
 and optimizations.
 
-==================
-Language
-==================
+The below pages describe the grammar, type system, and operators in Relay, respectively.
 
-Relay is a purely functional, differentiable intermediate representation.
+.. toctree::
+   :maxdepth: 2
 
-==================
-IR Reference
-==================
-
-The IR has a global environment that stores the set of definitions,
-constants, options, and attributes, and provides access to features
-including type inferecnce, constant evaluation, and more.
-
-~~~~~~~~~~
-Relay Node
-~~~~~~~~~~
-
-The fundamental unit of the IR is the node, which only contains a Span.
-
-.. code-block:: python
-
-    class Node:
-        span: Span
-
-==================
-Variables
-==================
-
-Relay has two notions of variables: local and global.
-Our design draws inspiration from LLVM, which differentiates between identifier types.
-This enables writers of optimizations to know precisely what an identifier references without needing
-information beyond the kind of identifier.
-
-Globals are written with `@`, locals are written with `%`, and variables written without a
-sigil name the corresponding operator. The distinction between global and local identifiers
-makes certain kinds of transformation easier. For example, inlining a global definition
-requires no analysis, as you can write a pass that directly inlines the definitions.
-Ensuring there is no spooky action at a distance; introducing a new identifier return
-type is omitted we will infer the return type based on the text of the program.
-
-
-Global Variable
-~~~~~~~~~~~~~~~~~~
-
-Global identifiers are prefixed by the `@` sigil. A global identifier always
-references a globally visibly definition contained in the environment. You
-can write a global identifier as `@global`.
-
-Local Variable
-~~~~~~~~~~~~~~~~~
-
-Local identifiers are prefixed by the :code:`%` sigil. A local identifier always
-references a parameter, or let bound expression. You can write a local
-identifier as :code:`%local`.
-
-
-================
-Global Functions
-================
-
-A function definition consists of a name, parameters, type parameters, and an optional return
-type. A global function is no different from a procedure or function in a typical programming
-language and generalizes the concept of a named subgraph.
-
-A definition minimally consists of an identifier :code:`@id`, an empty set of
-parameters, and a body expression contained by curly braces.
-
-.. code-block:: python
-
-    def @id() { body }
-
-A definition may also contain any number of parameters. For example, a
-simple function which just adds two tensors:
-
-.. code-block:: python
-
-    def @add(%x, %y) { %x + %y }
-
-It is also possible for us to annotate explicit types on definitions. For example,
-we can restrict the above definition to only work on certain types:
-
-.. code-block:: python
-
-    def @add(%x: Tensor<Float,10, 10>, %y: Tensor<Float, 10, 10>) -> Tensor<Float, 10, 10> {
-        %x + %y
-    }
-
-A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.ty.Type`. They represent
-the formal parameters of functions and definitions, and are written as :code:`%x : T`.
-
-Parameters may only appear in function literals and definitions and have no relation
-to parameters in the machine learning.
-
-When the type information is omitted, we will attempt to infer the most general type
-for the users. This property is known as generalization: for a definition without
-explicit annotations, we will attempt to assign the most general type. When the
-return type is omitted, we will infer the return type based on the text of the
-program.
-
-Finally, we can directly construct type-polymorphic definitions by writing down
-a set of type parameters for a definition. For example, one can definte a
-polymorphic identity function for tensors as follows:
-::
-    def @id<s: Shape, bt: BaseType>(%x: Tensor<bt, s>) {
-        %x
-    }
-
-Notice we can omit the return type and it will still be inferred.
-
-.. *Note: this is not yet implemented.*
-
-.. Finally we allow a definition be prefixed by metadata, which adds
-extra properties to the definition.
-
-.. It is important to be able to annotate metadata that is external to
-the computational behavior of a definition. For example, we can use
-this to add an `inline` or `noinline` attribute that the compiler
-can consider when performing inlining.
-
-.. For example we can set the attributes for :code:`@id_real`.::
-
-
-..    attributes id_real {
-        inline: true
-    }
-
-..    def id_real(%x:Real) { ret %x }
-
-
-=========
-Operators
-=========
-
-An operator is a primitive operation that is not defined in the Relay language but is provided 
-externally. Currently we back these operator's registrations with the operators
-exposed by TVM's TOPI. An operator requires a user to provide an implementation
-of the operator, its type, and various required attributes.
-
-The input methods for Relay programs do not provide a way to describe operators in
-Relay; they must be explicitly registered in the global environment via Python or C++.
-Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`) when pretty-
-printing Relay programs. Operators are explicitly contained in the program and are uniquely
-identifiable by pointer during a run of the Relay compiler.
-
-Programs
-~~~~~~~~
-
-Now that we have presented both global functions and operators, we have
-everything in hand to describe a complete Relay program. A Relay program consists of a
-registry of operators, one or more functions, as well as the global configuration
-stored in the environment.
+   relay_expr
+   relay_type
+   relay_op
