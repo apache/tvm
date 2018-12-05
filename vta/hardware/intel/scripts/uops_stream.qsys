@@ -17,7 +17,7 @@
          type = "int";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -25,7 +25,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -33,7 +33,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -41,7 +41,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -49,7 +49,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -57,7 +57,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -65,7 +65,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -73,7 +73,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -81,7 +81,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -89,7 +89,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -97,7 +97,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -105,7 +105,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -113,7 +113,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -121,7 +121,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -129,7 +129,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -137,7 +137,7 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -145,7 +145,47 @@
          type = "String";
       }
    }
-   element acp_to_avst_dma_128
+   element uops_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element uops_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element uops_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element uops_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element uops_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element uops_stream
    {
       datum _originalDeviceFamily
       {
@@ -236,7 +276,9 @@
    internal="stream_acp_adaptor_0.axi_slave"
    type="avalon"
    dir="end" />
+ <interface name="insns_length" internal="stream_acp_adaptor_0.insns_length" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
+ <interface name="uops_length" internal="stream_acp_adaptor_0.uops_length" />
  <module
    name="AXI_cache_secruity_bridge_0"
    kind="AXI_cache_secruity_bridge"
@@ -265,17 +307,17 @@
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
   <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
   <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
-  <parameter name="AUTO_MM_READ_ADDRESS_MAP" value="" />
-  <parameter name="AUTO_MM_READ_ADDRESS_WIDTH" value="AddressWidth = -1" />
+  <parameter name="AUTO_MM_READ_ADDRESS_MAP"><![CDATA[<address-map><slave name='AXI_cache_secruity_bridge_0.axi_slave' start='0x0' end='0x100000000' /></address-map>]]></parameter>
+  <parameter name="AUTO_MM_READ_ADDRESS_WIDTH" value="AddressWidth = 32" />
   <parameter name="AUTO_MM_WRITE_ADDRESS_MAP" value="" />
   <parameter name="AUTO_MM_WRITE_ADDRESS_WIDTH" value="AddressWidth = -1" />
   <parameter name="BURST_ENABLE" value="0" />
   <parameter name="BURST_WRAPPING_SUPPORT" value="0" />
   <parameter name="CHANNEL_ENABLE" value="0" />
   <parameter name="CHANNEL_WIDTH" value="8" />
-  <parameter name="DATA_FIFO_DEPTH" value="16" />
-  <parameter name="DATA_WIDTH" value="128" />
-  <parameter name="DESCRIPTOR_FIFO_DEPTH" value="32" />
+  <parameter name="DATA_FIFO_DEPTH" value="128" />
+  <parameter name="DATA_WIDTH" value="32" />
+  <parameter name="DESCRIPTOR_FIFO_DEPTH" value="16" />
   <parameter name="ENHANCED_FEATURES" value="0" />
   <parameter name="ERROR_ENABLE" value="0" />
   <parameter name="ERROR_WIDTH" value="8" />
@@ -300,7 +342,9 @@
    name="msgdma_to_hls_avst_0"
    kind="msgdma_to_hls_avst"
    version="1.0"
-   enabled="1" />
+   enabled="1">
+  <parameter name="LENGTH" value="32" />
+ </module>
  <module
    name="stream_acp_adaptor_0"
    kind="stream_acp_adaptor"
