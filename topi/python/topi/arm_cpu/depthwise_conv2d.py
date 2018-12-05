@@ -221,7 +221,6 @@ def _schedule_spatial_pack(cfg, s, data_vec, kernel_vec,
     else:
         _, dv_oh, dv_ow, dv_c, dv_vh, dv_vw = s[data_vec].op.axis
 
-    _, dv_oh, dv_ow, dv_c, dv_vh, dv_vw = s[data_vec].op.axis
     data_pad = data_vec.op.input_tensors[0]
     if data_pad.op.name == "data_pad":
         assert isinstance(data_pad.op, tvm.tensor.ComputeOp)
