@@ -127,7 +127,8 @@ program.
 We can directly construct type-polymorphic definitions by writing down
 a set of type parameters for a definition. For example, one can define a
 polymorphic identity function for tensors as follows:
-::
+
+.. code-block:: python
     def @id<s: Shape, bt: BaseType>(%x: Tensor<bt, s>) {
         %x
     }
@@ -219,7 +220,7 @@ members.
 
     (a, b, c) : Tuple<A, B, C>
 
-    (a + b + c, d) : Tuple<Tensor<f32, (10, 10)>, Tensor<f32, 100, 100>>
+    (add(add(a, b), c), d) : Tuple<Tensor<float32, (10, 10)>, Tensor<float32, (100, 100)>>
 
 See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
 
@@ -315,6 +316,7 @@ following example the entire expression evaluates to a tensor
 of shape (10, 10) where all elements are 2:
 
 .. code-block:: python
+
    let %x : Tensor<float32, (10, 10)> = Consantt(1, float32, (10, 10));
    add(%x, %x)
 
@@ -327,9 +329,10 @@ may be evaluated in either order because neither has a dataflow
 dependency on the other:
 
 .. code-block:: python
-    let %x = add(%a, %b);
-    let %y = add(%c, %d);
-    multiply(%x, %y)
+
+   let %x = add(%a, %b);
+   let %y = add(%c, %d);
+   multiply(%x, %y)
 
 See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
 
@@ -348,11 +351,19 @@ meaning that they can be invoked via a function call. These consist of
 any expression that evaluates to a closure (i.e., function expressions
 or global functions) and Relay operators.
 
+When a closure is called, the body is evaluated in the closure's stored
+environment (i.e., using the stored values for free variables) with
+local variable bindings added for each argument; the final value
+obtained by evaluating the body is the call's return value.
+In the case of operators, the implementation is opaque to Relay,
+so the result is left up to the registered TVM implementation.
+
 For example, we can call the previously defined `%fact` because it
 has a function type:
 
 .. code-block:: python
-    %fact(10)
+
+   %fact(10)
 
 A type-polymorphic function can also include type arguments at a call
 site. The type arguments are substituted for type parameters when
@@ -375,6 +386,7 @@ on a single value of type :code:`bool`, i.e., a zero-rank
 tensor of booleans (:code:`Tensor<bool, ()>`).
 
 .. code-block:: python
+
     if (sum(equal(t, u))) {
         return x:
     } else {
