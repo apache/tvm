@@ -39,6 +39,7 @@ def _alias(name):
         'vtacpu': 'vta',
 
         'metal': 'opencl',
+        'vulkan': 'opencl',
         'nvptx': 'cuda',
     }
     return table.get(name, name)
