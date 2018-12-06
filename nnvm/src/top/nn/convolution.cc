@@ -68,8 +68,12 @@ inline bool Conv2DInferShape(const nnvm::NodeAttrs& attrs,
       << "incorrect stride size: " << param.strides;
   CHECK_EQ(param.dilation.ndim(), 2U)
       << "incorrect dilate size: " << param.dilation;
-  CHECK_EQ(dshape[1] % param.groups, 0U)
-      << "input channels must divide group size";
+
+  // In case of depthwise, groups is set to (depth_mult * channels)
+  if (param.groups == 1)
+    CHECK_EQ(dshape[1] % param.groups, 0U)
+        << "input channels must divide group size";
+
   CHECK_EQ(param.channels % param.groups, 0U)
       << "output channels must divide group size";
 
