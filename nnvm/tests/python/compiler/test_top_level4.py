@@ -706,7 +706,7 @@ def test_argmax():
     np_reshape = np.reshape(data, (1, 320, 640, 2))
     np_transpose = np.transpose(np_reshape, axes=(0, 3, 1, 2))
     np_argmax = np.argmax(np_transpose, axis=1)
-    out = m.get_output(0, tvm.nd.empty(shape=oshape, dtype='int32'))
+    out = m.get_output(0)
     np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
