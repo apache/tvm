@@ -42,36 +42,12 @@ class DPTuner(BaseGraphTuner):
         """Forward pass in DP to generate states for all stages.
         """
         self._logger.info("Start forward pass...")
-        input_idx_list = []
-        for key, _ in self._out_nodes_dict.items():
-            node_name = self._node_list[key]["name"]
-            if node_name in self._input_shapes.keys():
-                input_idx_list.append(key)
-
-        bfs_q = queue.Queue()
-        for input_idx in input_idx_list:
-            for out_idx in self._out_nodes_dict[input_idx]:
-                bfs_q.put(out_idx)
-        while not bfs_q.empty():
-            node_idx = bfs_q.get()
-            if node_idx in self._stage_dict:
-                continue
-            all_inputs_visited = True
-            for input_idx in self._in_nodes_dict[node_idx]:
-                if (not is_input_node(self._global_data_dict["node_list"],
-                                      self._input_shapes.keys(), input_idx)
-                        and input_idx not in self._stage_dict):
-                    all_inputs_visited = False
-                    break
-            if not all_inputs_visited:
-                bfs_q.put(node_idx)
-                continue
-            stage = DPStage(idx=node_idx, target_op=self._target_op,
-                            **self._global_data_dict)
-            self._check_num_states(stage.full_states.size)
-            self._stage_dict[node_idx] = stage
-            for out_idx in self._out_nodes_dict[node_idx]:
-                bfs_q.put(out_idx)
+        for node_idx, node in enumerate(self._node_list):
+            if node["op"] == self._target_op or is_elemlike_op(node):
+                stage = DPStage(idx=node_idx, target_op=self._target_op,
+                                **self._global_data_dict)
+                self._check_num_states(stage.full_states.size)
+                self._stage_dict[node_idx] = stage
         self._logger.info("Finished forward pass.")
 
     def _backward(self):

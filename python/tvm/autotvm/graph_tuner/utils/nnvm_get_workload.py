@@ -11,6 +11,7 @@ import tvm
 
 from tvm import autotvm
 from topi.nn.conv2d import conv2d_NCHWc
+from topi.nn.depthwise_conv2d import depthwise_conv2d_NCHWc
 
 
 def _parse_int(input_str):
@@ -20,7 +21,7 @@ def _parse_int(input_str):
     return int(input_str)
 
 
-def get_workload(op_name):
+def nnvm_get_workload(op_name):
     """Register function for getting operator workloads.
 
     Parameters
@@ -70,8 +71,8 @@ def get_workload(op_name):
     return _wrapper
 
 
-@get_workload("conv2d")
-def get_conv2d_NCHWc_AVX_workload(**kwargs):
+@nnvm_get_workload("conv2d")
+def nnvm_get_conv2d_NCHWc_AVX_workload(**kwargs):
     """Get workload for conv2d of Intel CPU.
 
     Parameters
@@ -103,14 +104,21 @@ def get_conv2d_NCHWc_AVX_workload(**kwargs):
         kernel_shape = (kernel_shape[3], kernel_shape[2], kernel_shape[0], kernel_shape[1])
     data = tvm.placeholder(data_shape, name="data")
     kernel = tvm.placeholder(kernel_shape, name="kernel")
+    in_channel = data_shape[1]
+    out_channel = attrs["channels"]
+    groups = attrs["groups"] if "groups" in attrs else 1
+    is_depthwise = groups == in_channel and groups == out_channel
 
-    if "groups" in attrs and _parse_int(attrs["groups"]) != 1:
-        raise RuntimeError("Currenly depthwise convolution is not supported")
+    if groups != 1 and not is_depthwise:
+        raise RuntimeError("Currenly only depthwise or direct convolution are supported.")
     padding = [_parse_int(i) for i in (attrs["padding"])[1:-1].split(',')] \
         if "padding" in attrs else (0, 0)
     strides = [_parse_int(i) for i in (attrs["strides"])[1:-1].split(',')] \
         if "strides" in attrs else (1, 1)
+    dilation = [_parse_int(i) for i in (attrs["dilation"])[1:-1].split(',')] \
+        if "dilation" in attrs else (1, 1)
     out_dtype = str(attrs["out_dtype "]) if "out_dtype" in attrs else "float32"
-    workload = autotvm.task.args_to_workload([data, kernel, strides, padding, layout,
-                                              layout, out_dtype], conv2d_NCHWc)
+    op_func = depthwise_conv2d_NCHWc if is_depthwise else conv2d_NCHWc
+    workload = autotvm.task.args_to_workload([data, kernel, strides, padding, dilation,
+                                              layout, out_dtype], op_func)
     return workload

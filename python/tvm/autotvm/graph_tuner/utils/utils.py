@@ -3,6 +3,7 @@
 import json
 
 from .._base import ELEMLIKE_NODE_NAMES
+from tvm import relay
 
 
 def is_elemlike_op(node):
@@ -151,3 +152,43 @@ def get_real_node(in_node_dict, node_list, idx, target_op):
         anc_node_idx = in_node_dict[anc_node_idx][0]
         anc_node = node_list[anc_node_idx]
     return anc_node_idx
+
+def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
+    """Bind input variables of a relay function expression
+    to new shapes and/or dtypes.
+
+    Parameters
+    ----------
+    expr : tvm.relay.Expr.Function
+        Input relay function expression.
+
+    input_shapes : dict of str to tuple of int, optional
+        Input shapes.
+
+    input_dtypes : str or dict of str to str, optional
+        Input dtypes.
+
+    Returns
+    -------
+    out : tvm.relay.Expr.Function
+        Bind relay function expression.
+    """
+    if input_shapes is None:
+        return expr
+    if isinstance(input_dtypes, str):
+        input_dtypes = {key : input_dtypes for key in input_shapes.keys()}
+
+    updated_input_dict = {}
+    for input_name in input_shapes.keys():
+        updated_input = relay.var(input_name, shape=input_shapes[input_name],
+                                 dtype=input_dtypes[input_name])
+        updated_input_dict[input_name] = updated_input
+
+    rebind_dict = {}
+    for var in expr.params:
+        if var.name_hint in updated_input_dict:
+            rebind_dict[var] = updated_input_dict[var.name_hint]
+    updated_expr = relay.expr.bind(expr, rebind_dict)
+
+    return relay.ir_pass.infer_type(updated_expr)
+

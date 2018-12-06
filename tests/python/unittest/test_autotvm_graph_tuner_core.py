@@ -8,7 +8,7 @@ from tvm import autotvm
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.measure import MeasureResult, MeasureInput
 from tvm.autotvm.graph_tuner import DPTuner
-from tvm.autotvm.graph_tuner.utils import get_conv2d_NCHWc_AVX_workload, infer_layout_shape_avx
+from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, infer_layout_shape_avx
 from test_autotvm_graph_tuner_utils import create_workload
 
 
@@ -23,9 +23,9 @@ def _create_data(target, dshape, dtype, layout):
                                             symbols=(sym.conv2d,))
     g = nnvm.graph.create(out)
     wkl_list = [
-        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1), layout, layout, dtype, dtype),
-        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0), layout, layout, dtype, dtype),
-        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1), layout, layout, dtype, dtype),
+        create_workload((1, 3, 8, 8), (16, 3, 3, 3), (1, 1), (1, 1), (1, 1),layout, layout, dtype, dtype),
+        create_workload((1, 16, 8, 8), (32, 16, 1, 1), (1, 1), (0, 0), (1, 1),layout, layout, dtype, dtype),
+        create_workload((1, 32, 8, 8), (32, 32, 3, 3), (1, 1), (1, 1), (1, 1),layout, layout, dtype, dtype),
     ]
     costs = [0.04, 0.012, 0.03]
     config_list = []
@@ -98,7 +98,7 @@ def test_graph_tuner_layout_transform():
     data_layout = "NCHWc"
 
     g, records, ltf_records, ltf_keys, _ = _create_data(target, dshape, dtype, layout)
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                        ("tile_ic", "tile_oc"), infer_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)
@@ -152,7 +152,7 @@ def test_DPTuner_run():
         ms_output = MeasureResult(costs=(cost,), error_no=0, all_cost=-1, timestamp=-1)
         records.append((ms_input, ms_output))
 
-    graph_wkl_list = get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
+    graph_wkl_list = nnvm_get_conv2d_NCHWc_AVX_workload(g, {"data": dshape}, unique_wkl=False)
     executor = DPTuner(g, {"data": dshape}, records, graph_wkl_list, target_op, data_layout,
                        ("tile_ic", "tile_oc"), infer_layout_shape_avx, log_file=log_file)
     executor.benchmark_layout_transform(target, records=ltf_records, infer_layout=True)

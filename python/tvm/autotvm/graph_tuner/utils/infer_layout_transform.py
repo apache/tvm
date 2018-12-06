@@ -46,7 +46,7 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
         Whether this is a valid layout transformation.
         An invalid transformation usually happens for concatenate operator.
     """
-    layout = wkl[5]
+    layout = wkl[6]
     if layout == "NCHW":
         batch_size, in_channel, height, width, _ = wkl[1]
         out_channel = wkl[2][0]
