@@ -223,7 +223,7 @@ class VulkanModuleNode final :public runtime::ModuleNode {
   std::mutex mutex_;
 };
 
-// a wrapped function class to get packed fucn.
+// a wrapped function class to get packed func.
 class VulkanWrappedFunc {
  public:
   // initialize the VULKAN function.
