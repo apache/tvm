@@ -221,7 +221,7 @@ class ScheduleGetter :
 
 class CompileEngineImpl : public CompileEngineNode {
  public:
-  // Lower the fucntion.
+  // Lower the function.
   CachedFunc Lower(const CCacheKey& key)  {
     return LowerInternal(key)->cached_func;
   }

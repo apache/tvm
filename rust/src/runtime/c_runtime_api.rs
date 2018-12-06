@@ -750,7 +750,7 @@ extern "C" {
   ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-  /// \brief Simple static initialization fucntion.
+  /// \brief Simple static initialization function.
   /// Run f once and set handle to be not null.
   /// This function is mainly used for test purpose.
   ///
