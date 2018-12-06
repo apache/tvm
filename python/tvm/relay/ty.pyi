@@ -121,7 +121,7 @@ class FuncType(Type):
 
     This is the type assigned to functions in Relay. They consist of
     a list of type parameters which enable the definition of generic
-    fucntions, a set of type constraints which we omit for the time
+    functions, a set of type constraints which we omit for the time
     being, a sequence of argument types, and a return type.
 
     We informally write them as:
