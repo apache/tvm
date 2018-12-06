@@ -503,6 +503,83 @@ def test_forward_gather():
 
 
 #######################################################################
+# Split
+# -----
+
+def _test_split(in_shape, axis, num_split, dtype):
+    """ One iteration of a Split """
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(dtype, in_shape, name="in_data")
+        tf.split(in_data, num_split, axis)
+        np_data = np.random.uniform(size=in_shape).astype(dtype)
+        compare_tf_with_tvm(np_data, 'in_data:0', 'split:0')
+
+def test_forward_split():
+    '''test split layer'''
+    # rank 1
+    _test_split((3,), 0, 1, 'float32')
+    _test_split((3,), 0, 3, 'float32')
+    _test_split((6,), 0, 3, 'float32')
+    # rank 2
+    _test_split((6, 2), 0, 3, 'float32')
+    _test_split((2, 6), 1, 3, 'float32')
+    # rank 3
+    _test_split((6, 2, 4), 0, 3, 'float32')
+    _test_split((2, 6, 4), 1, 3, 'float32')
+    _test_split((2, 4, 6), 2, 3, 'float32')
+    # rank 4
+    _test_split((6, 1, 3, 5), 0, 3, 'float32')
+    _test_split((1, 6, 3, 5), 1, 3, 'float32')
+    _test_split((1, 3, 6, 5), 2, 3, 'float32')
+    _test_split((1, 3, 5, 6), 3, 3, 'float32')
+    # split along negative axis
+    _test_split((6, 1, 3, 5), -4, 3, 'float32')
+    _test_split((1, 6, 3, 5), -3, 3, 'float32')
+    _test_split((1, 3, 6, 5), -2, 3, 'float32')
+    _test_split((1, 3, 5, 6), -1, 3, 'float32')
+
+
+#######################################################################
+# Split followed by concat
+# ------------------------
+
+def _test_split_concat(in_shape, axis, num_split, dtype):
+    """ One iteration of a split_concat pair"""
+
+    with tf.Graph().as_default():
+        in_data = tf.placeholder(dtype, in_shape, name="in_data")
+        splitted = tf.split(in_data, num_split, axis)
+        tf.concat(splitted, axis)
+        np_data = np.random.uniform(size=in_shape).astype(dtype)
+        compare_tf_with_tvm(np_data, 'in_data:0', 'concat:0')
+
+def test_forward_split_concat():
+    '''test split followed by concat layers'''
+    # rank 1
+    _test_split_concat((3,), 0, 1, 'float32')
+    _test_split_concat((3,), 0, 3, 'float32')
+    _test_split_concat((6,), 0, 3, 'float32')
+    # rank 2
+    _test_split_concat((6, 2), 0, 3, 'float32')
+    _test_split_concat((2, 6), 1, 3, 'float32')
+    # rank 3
+    _test_split_concat((6, 2, 4), 0, 3, 'float32')
+    _test_split_concat((2, 6, 4), 1, 3, 'float32')
+    _test_split_concat((2, 4, 6), 2, 3, 'float32')
+    # rank 4
+    _test_split((6, 1, 3, 5), 0, 3, 'float32')
+    _test_split((1, 6, 3, 5), 1, 3, 'float32')
+    _test_split((1, 3, 6, 5), 2, 3, 'float32')
+    _test_split((1, 3, 5, 6), 3, 3, 'float32')
+    # split along negative axis
+    _test_split((6, 1, 3, 5), -4, 3, 'float32')
+    _test_split((1, 6, 3, 5), -3, 3, 'float32')
+    _test_split((1, 3, 6, 5), -2, 3, 'float32')
+    _test_split((1, 3, 5, 6), -1, 3, 'float32')
+
+
+#######################################################################
 # Multi Input to graph
 # --------------------
 
@@ -1061,6 +1138,8 @@ if __name__ == '__main__':
     test_forward_pad()
     test_forward_gather()
     test_forward_stridedslice()
+    test_forward_split()
+    test_forward_split_concat()
 
     # Activations
     test_forward_sigmoid()
