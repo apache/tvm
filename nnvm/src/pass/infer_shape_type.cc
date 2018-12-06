@@ -215,7 +215,7 @@ NNVM_REGISTER_PASS(InferShape)
 .set_change_graph(false)
 .provide_graph_attr("shape");
 
-// inference fucntion for same type
+// inference function for same type
 inline bool SameType(const NodeAttrs& attrs,
                      std::vector<int> *iattr,
                      std::vector<int> *oattr) {

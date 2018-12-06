@@ -163,7 +163,7 @@ class MetalModuleNode final :public runtime::ModuleNode {
   std::mutex mutex_;
 };
 
-// a wrapped function class to get packed fucn.
+// a wrapped function class to get packed func.
 class MetalWrappedFunc {
  public:
   // initialize the METAL function.
