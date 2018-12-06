@@ -16,7 +16,7 @@ namespace runtime {
  * \param t The type
  * \param code The type code.
  * \param bits The number of bits to be matched.
- * \param lanes The number of lanes sin the type.
+ * \param lanes The number of lanes in the type.
  */
 inline bool TypeMatch(TVMType t, int code, int bits, int lanes = 1) {
   return t.code == code && t.bits == bits && t.lanes == lanes;
