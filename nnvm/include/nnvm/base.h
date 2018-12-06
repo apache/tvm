@@ -25,6 +25,9 @@ using dmlc::array_view;
 /*!\brief getter function of any type */
 using dmlc::get;
 
+/*!\brief "unsafe" getter function of any type */
+using dmlc::unsafe_get;
+
 }  // namespace nnvm
 
 // describe op registration point
