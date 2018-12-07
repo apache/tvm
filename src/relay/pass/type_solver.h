@@ -18,6 +18,7 @@ namespace relay {
 
 using common::LinkNode;
 using common::LinkedList;
+
 /*!
  * \brief Interface of type solver used in type inference.
  *
@@ -135,6 +136,8 @@ class TypeSolver {
   common::Arena arena_;
   /*! \brief Reporter that reports back to self */
   TypeReporter reporter_;
+  /*! \brief Data structure for unifying types */
+  TypeUnifier unifier_;
   /*!
    * \brief GetTypeNode that is corresponds to t.
    * if it do not exist, create a new one.
