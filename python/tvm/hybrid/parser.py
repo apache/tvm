@@ -144,14 +144,14 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Name(self, node):
         _id = node.id
-        if _id in self._args.keys() and isinstance(self._args[_id], _expr.Var):
+        if _id in self._args.keys() and isinstance(self._args[_id], (_expr.Var, _expr.ConstExpr)):
             return self._args[_id]
         elif _id in self.loops_above.keys():
             return self.loops_above[_id]
         _internal_assert(_id not in self._args.keys(), \
-                "This id %s should be handled in visit_Subscript!" % _id)
+                         "This id %s should be handled in visit_Subscript!" % _id)
         _internal_assert(_id in self.usage.keys(), \
-                "This id %s is expected to be a defined variable!" % _id)
+                         "This id %s is expected to be a defined variable!" % _id)
         # Buffer
         if _id in self.alloc_buffers.keys():
             _buf, _ = self.alloc_buffers[_id]
@@ -166,6 +166,15 @@ class HybridParser(ast.NodeVisitor):
         return _api.const(node.n)
 
 
+    def visit_AugAssign(self, node):
+        lhs = self.visit(node.target)
+        rhs = self.visit(node.value)
+        rhs = HybridParser._binop_maker[type(node.op)](lhs, rhs)
+        _internal_assert(isinstance(lhs, _expr.Call), \
+                         "The LHS of an AugAssign is supposed to be a call!")
+        return _make.Provide(lhs.func, 0, rhs, lhs.args)
+
+
     def visit_Assign(self, node):
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
@@ -177,7 +186,7 @@ class HybridParser(ast.NodeVisitor):
             lhs_ = lhs
             lhs = lhs.id
             _internal_assert(lhs not in self.loops_above.keys(), \
-                    "Loop variable cannot be overwritten!")
+                             "Loop variable cannot be overwritten!")
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
                 _internal_assert(lhs not in self.var_consts.keys(), \
@@ -227,16 +236,16 @@ class HybridParser(ast.NodeVisitor):
             return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
 
         _internal_assert(isinstance(node.value, ast.Attribute), \
-                "Only variable and attribute's subscript supported so far")
+                         "Only variable and attribute's subscript supported so far")
         _internal_assert(isinstance(node.value.value, ast.Name), \
-            "The root of array access is expect to be a id!")
+                         "The root of array access is expect to be a id!")
         _internal_assert(node.value.attr == "shape", \
-            "Attribute access so far only 'shape' is supported!")
+                         "Attribute access so far only 'shape' is supported!")
         _internal_assert(len(args) == 1, "For 'shape' access the argument should be only one!")
         args = args[0]
         #TODO: maybe support non-constant value later?
         _internal_assert(isinstance(args, (_expr.IntImm, _expr.UIntImm)), \
-            "So far only constant shape access supported!")
+                         "So far only constant shape access supported!")
         buf = self._get_buffer_from_id(node.value.value.id)
         return buf.shape[args.value]
 
@@ -294,7 +303,7 @@ class HybridParser(ast.NodeVisitor):
     def visit_Call(self, node):
         # Yet, no function pointer supported
         _internal_assert(isinstance(node.func, ast.Name), \
-            "Only id-function function call is supported so far!")
+                         "Only id-function function call is supported so far!")
         func_id = node.func.id
         n = len(node.args)
         if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
@@ -311,7 +320,7 @@ class HybridParser(ast.NodeVisitor):
         elif func_id == 'bind':
             _internal_assert(n == 2, "A loop bind should only have 2 arguments!")
             _internal_assert(isinstance(node.args[0], ast.Str), \
-                "A loop bind's first argument should be a string!")
+                             "A loop bind's first argument should be a string!")
             _vn = node.args[0].s
             iter_var = thread_axis(node.args[0].s)
             low, ext = _api.const(0, dtype='int32'), self.visit(node.args[1])
@@ -321,11 +330,11 @@ class HybridParser(ast.NodeVisitor):
             return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
         elif func_id in ['allocate', 'output_tensor']:
             _internal_assert(isinstance(node.args[0], ast.Tuple), \
-                "allocate's first argument should be a tuple of shape!")
+                             "allocate's first argument should be a tuple of shape!")
             shape = tuple(self.visit(i) for i in node.args[0].elts)
             if func_id == 'output_tensor':
                 _internal_assert(not self.loops_above, \
-                        "Are you sure to allocate a output buffer multiple times?")
+                                 "Are you sure to allocate a output buffer multiple times?")
             for i in shape:
                 _internal_assert(isinstance(i, _expr.Expr), "The shape should be an expression")
             if n > 1:
@@ -333,18 +342,18 @@ class HybridParser(ast.NodeVisitor):
                     dtype = node.args[1].s
                 else:
                     _internal_assert(isinstance(node.args[1], ast.Attribute), \
-                            "Unable to evaluate to get data type")
+                                     "Unable to evaluate to get data type")
                     to_eval = node.args[1]
                     _internal_assert(isinstance(to_eval.value, ast.Name), \
-                            "Unable to evaluate the attribute to get data type")
+                                     "Unable to evaluate the attribute to get data type")
                     _internal_assert(to_eval.attr == 'dtype', \
-                            "Only dtype attribute is supported so far")
+                                     "Only dtype attribute is supported so far")
                     dtype = self._get_buffer_from_id(to_eval.value.id).dtype
             else:
                 dtype = 'float32'
             if n > 2:
                 _internal_assert(isinstance(node.args[2], ast.Str), \
-                        "The data scope should be an string")
+                                 "The data scope should be an string")
                 _internal_assert(func_id != 'output_tensor', "Output tensor cannot specify scope")
                 scope = node.args[2].s
             else:
@@ -361,7 +370,7 @@ class HybridParser(ast.NodeVisitor):
     def visit_For(self, node):
         iter_var, low, ext, for_type = self.visit(node.iter)
         _internal_assert(isinstance(node.target, ast.Name), \
-                "The loop iterator should be a variable!")
+                         "The loop iterator should be a variable!")
         _name = node.target.id
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
@@ -389,7 +398,7 @@ class HybridParser(ast.NodeVisitor):
             ids.append(node.value.id)
         else:
             _internal_assert(isinstance(node.value, ast.Tuple), \
-                    "You should return either a single tensor or a tuple")
+                             "You should return either a single tensor or a tuple")
             for i in node.value.elts:
                 _internal_assert(isinstance(i, ast.Name), "What do you return?")
                 ids.append(i.id)
