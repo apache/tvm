@@ -75,13 +75,20 @@ struct ResolvedTypeInfo {
 // Converts incomplete types remaining in function signature to type vars
 class Generalizer : public TypeMutator {
  public:
-  Generalizer() : subst_map_({}), varno_(0) {}
+  Generalizer() : subst_map_({}), vars_({}), varno_(0) {}
 
   // turns each distinct incomplete type into a type var and returns
   // the transformed type with an array of all type vars present
-  Type Generalize(const Type &t, Array<TypeVar>* vars) {
-    vars_ = vars;
-    return VisitType(t);
+  Type Generalize(const Type &t) {
+    Type ret = VisitType(t);
+
+    auto* ftn = ret.as<FuncTypeNode>();
+    if (ftn == nullptr) {
+      return ret;
+    }
+
+    // for a func type, we add the type vars to the list at top
+    return FuncTypeNode::make(ftn->arg_types, ftn->ret_type, vars_, ftn->type_constraints);
   }
 
   Type VisitType_(const IncompleteTypeNode *op) override {
@@ -96,14 +103,26 @@ class Generalizer : public TypeMutator {
     ss << "_var_" << varno_;
     varno_++;
     TypeVar new_var = TypeVarNode::make(ss.str(), TypeVarNode::Kind::kType);
-    vars_->push_back(new_var);
+    vars_.push_back(new_var);
     subst_map_.Set(t, new_var);
     return new_var;
   }
 
+  Type VisitType_(const FuncTypeNode *op) override {
+    // drop type params, only do it at the top level
+    Array<Type> arg_types;
+    for (auto arg_type : op->arg_types) {
+      arg_types.push_back(this->VisitType(arg_type));
+    }
+
+    Type ret_type = this->VisitType(op->ret_type);
+
+    return FuncTypeNode::make(arg_types, ret_type, {}, op->type_constraints);
+  }
+
  private:
   tvm::Map<IncompleteType, TypeVar> subst_map_;
-  Array<TypeVar>* vars_;
+  Array<TypeVar> vars_;
   int varno_;
 };
 
@@ -374,9 +393,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const FunctionNode* f) final {
-    // first get blank f type
-    // unify with candidate
-    // generalize
+    solver_.Solve();
     Array<Type> incomplete_arg_types;
     for (auto param : f->params) {
       incomplete_arg_types.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
@@ -398,26 +415,22 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
                                                     rtype,
                                                     f->type_params, {});
 
-    solver_.Solve();
-    auto unified =
-      GetRef<FuncType>(Unify(incompleteFuncType,
-                             candidateFuncType, f->span)
-                       .as<FuncTypeNode>());
+    return Unify(incompleteFuncType, candidateFuncType, f->span);
 
-    // generalize remaining incomplete types
-    Generalizer gen;
-    Array<Type> arg_types;
-    Array<TypeVar> type_params;
-    for (auto param : unified->type_params) {
-      Type gen_param = gen.Generalize(param, &type_params);
-      Type atype = Unify(param, gen_param, f->span);
-      arg_types.push_back(atype);
-    }
+    // // generalize remaining incomplete types
+    // Generalizer gen;
+    // Array<Type> arg_types;
+    // Array<TypeVar> type_params;
+    // for (auto param : unified->type_params) {
+    //   Type gen_param = gen.Generalize(param, &type_params);
+    //   Type atype = Unify(param, gen_param, f->span);
+    //   arg_types.push_back(atype);
+    // }
 
-    Type gen_ret = gen.Generalize(unified->ret_type, &type_params);
-    Type final_ret = Unify(gen_ret, unified->ret_type, f->span);
+    // Type gen_ret = gen.Generalize(unified->ret_type, &type_params);
+    // Type final_ret = Unify(gen_ret, unified->ret_type, f->span);
 
-    return FuncTypeNode::make(arg_types, final_ret, type_params, {});
+    // return FuncTypeNode::make(arg_types, final_ret, type_params, {});
 
     // for (auto param : f->params) {
     //   GetType(param);
@@ -509,6 +522,8 @@ class TypeInferencer::Resolver : public ExprMutator {
     auto it = tmap_.find(GetRef<Expr>(op));
     CHECK(it != tmap_.end());
     Type checked_type = solver_->Resolve(it->second.checked_type);
+    Generalizer gen;
+    checked_type = gen.Generalize(checked_type);
     CHECK(checked_type.as<IncompleteTypeNode>() == nullptr)
         << "Cannot resolve type of " << GetRef<Expr>(op)
         << " at " << op->span;
@@ -605,6 +620,7 @@ Expr TypeInferencer::Infer(Expr expr) {
   GetType(expr);
   // Step 1: Solve the constraints.
   solver_.Solve();
+
   // Step 2: Attach resolved types to checked_type field.
   auto resolved_expr = Resolver(type_map_, &solver_).VisitExpr(expr);
   CHECK(WellFormed(resolved_expr));
