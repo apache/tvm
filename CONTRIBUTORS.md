@@ -22,6 +22,7 @@ We do encourage everyone to work anything they are interested in.
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
+- [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 
 ## Reviewers
 
