@@ -374,40 +374,85 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const FunctionNode* f) final {
+    // first get blank f type
+    // unify with candidate
+    // generalize
+    Array<Type> incomplete_arg_types;
     for (auto param : f->params) {
-      GetType(param);
+      incomplete_arg_types.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+    }
+    FuncType incompleteFuncType =
+      FuncTypeNode::make(incomplete_arg_types,
+                         IncompleteTypeNode::make(TypeVarNode::Kind::kType),
+                         {}, {});
+
+    Array<Type> candidate_arg_types;
+    for (auto param : f->params) {
+      candidate_arg_types.push_back(GetType(param));
     }
     Type rtype = GetType(f->body);
     if (f->ret_type.defined()) {
       rtype = this->Unify(f->ret_type, rtype, f->span);
     }
+    FuncType candidateFuncType = FuncTypeNode::make(candidate_arg_types,
+                                                    rtype,
+                                                    f->type_params, {});
 
-    // Run solver using the currently known information
     solver_.Solve();
-    // Trying to resolve
-    Array<Type> arg_types;
-    Array<TypeVar> type_params = f->type_params;
-    Generalizer gen;
+    auto unified =
+      GetRef<FuncType>(Unify(incompleteFuncType,
+                             candidateFuncType, f->span)
+                       .as<FuncTypeNode>());
 
-    for (size_t i = 0; i < f->params.size(); ++i) {
-      Type atype = solver_.Resolve(GetType(f->params[i]));
-      // CHECK(atype.as<IncompleteTypeNode>() == nullptr)
-      //     << "Cannot resolve type of " << i
-      //     << "-th parameter of function at" << f->span;
-      Type gen_atype = gen.Generalize(atype, &type_params);
-      atype = this->Unify(atype, gen_atype, f->span);
+    // generalize remaining incomplete types
+    Generalizer gen;
+    Array<Type> arg_types;
+    Array<TypeVar> type_params;
+    for (auto param : unified->type_params) {
+      Type gen_param = gen.Generalize(param, &type_params);
+      Type atype = Unify(param, gen_param, f->span);
       arg_types.push_back(atype);
     }
 
-    rtype = solver_.Resolve(rtype);
-    Type gen_rtype = gen.Generalize(rtype, &type_params);
-    this->Unify(rtype, gen_rtype, f->span);
-    rtype = gen_rtype;
+    Type gen_ret = gen.Generalize(unified->ret_type, &type_params);
+    Type final_ret = Unify(gen_ret, unified->ret_type, f->span);
 
-    // CHECK(rtype.as<IncompleteTypeNode>() == nullptr)
-    //     << "Cannot resolve return type of function at" << f->span;
-    // do not support constraint lifting for now.
-    return FuncTypeNode::make(arg_types, rtype, type_params, {});
+    return FuncTypeNode::make(arg_types, final_ret, type_params, {});
+
+    // for (auto param : f->params) {
+    //   GetType(param);
+    // }
+    // Type rtype = GetType(f->body);
+    // if (f->ret_type.defined()) {
+    //   rtype = this->Unify(f->ret_type, rtype, f->span);
+    // }
+
+    // // Run solver using the currently known information
+    // solver_.Solve();
+    // // Trying to resolve
+    // Array<Type> arg_types;
+    // Array<TypeVar> type_params = f->type_params;
+    // Generalizer gen;
+
+    // for (size_t i = 0; i < f->params.size(); ++i) {
+    //   Type atype = solver_.Resolve(GetType(f->params[i]));
+    //   // CHECK(atype.as<IncompleteTypeNode>() == nullptr)
+    //   //     << "Cannot resolve type of " << i
+    //   //     << "-th parameter of function at" << f->span;
+    //   Type gen_atype = gen.Generalize(atype, &type_params);
+    //   atype = this->Unify(atype, gen_atype, f->span);
+    //   arg_types.push_back(atype);
+    // }
+
+    // rtype = solver_.Resolve(rtype);
+    // Type gen_rtype = gen.Generalize(rtype, &type_params);
+    // this->Unify(rtype, gen_rtype, f->span);
+    // rtype = gen_rtype;
+
+    // // CHECK(rtype.as<IncompleteTypeNode>() == nullptr)
+    // //     << "Cannot resolve return type of function at" << f->span;
+    // // do not support constraint lifting for now.
+    // return FuncTypeNode::make(arg_types, rtype, type_params, {});
   }
 };
 

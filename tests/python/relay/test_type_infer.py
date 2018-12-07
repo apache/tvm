@@ -216,10 +216,11 @@ def test_self_reference():
        }
     """
     a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
     x = relay.var("x", a)
     sb = relay.ScopeBuilder()
 
-    f = relay.Function([x], x)
+    f = relay.Function([x], x, b, [a, b])
     fx = relay.Call(f, [x])
     assert relay.ir_pass.infer_type(x).checked_type == a
     assert relay.ir_pass.infer_type(f).checked_type == relay.FuncType([a], a)
