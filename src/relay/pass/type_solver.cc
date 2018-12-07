@@ -131,13 +131,11 @@ class TypeSolver::Unifier :
 
   // instantiate away all type parameters in a function type
   FuncType InstantiateFuncType(const FuncType& ft) {
-    Map<TypeVar, Type> subst_map;
     for (auto type_param : ft->type_params) {
-      Type hole = InstantiateTypeVar(type_param);
-      subst_map.Set(type_param, hole);
+      InstantiateTypeVar(type_param);
     }
 
-    Type transformed = Bind(ft, subst_map);
+    Type transformed = Bind(ft, tv_map_);
     auto* new_ft = transformed.as<FuncTypeNode>();
     // drop the type param list altogether
     return FuncTypeNode::make(new_ft->arg_types,
