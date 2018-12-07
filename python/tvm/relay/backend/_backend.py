@@ -52,8 +52,9 @@ def build(funcs, target, target_host=None):
 
     Parameters
     ----------
-    funcs : List[tvm.LoweredFunc]
-         The list of lowered functions.
+    funcs : List[tvm.LoweredFunc] or Dict[str, List[tvm.LoweredFunc]]
+         The list of lowered functions or a target to list of lowered
+         functions map.
 
 
     target : tvm.Target

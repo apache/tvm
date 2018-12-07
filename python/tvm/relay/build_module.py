@@ -2,6 +2,7 @@
 Construct the necessary state for the TVM graph runtime
 from a Relay expression.
 """
+from tvm._ffi.runtime_ctypes import TVMContext
 from ..build_module import build as _tvm_build_module
 from .. import nd as _nd, target as _target, autotvm
 from ..contrib import graph_runtime as _graph_rt
@@ -20,6 +21,7 @@ OPT_PASS_LEVEL = {
     "AlterOpLayout": 3,
 }
 
+
 class BuildConfig(object):
     """Configuration scope to set a build config option.
 
@@ -33,12 +35,13 @@ class BuildConfig(object):
         "opt_level": 2,
         "add_pass": None,
     }
+
     def __init__(self, **kwargs):
         self._old_scope = None
         for k, _ in kwargs.items():
             if k not in BuildConfig.defaults:
-                raise ValueError(
-                    "invalid argument %s, candidates are %s" % (k, BuildConfig.defaults.keys()))
+                raise ValueError("invalid argument %s, candidates are %s" %
+                                 (k, BuildConfig.defaults.keys()))
         self._attr = kwargs
 
     def __getattr__(self, name):
@@ -178,10 +181,8 @@ def optimize(func, target, params=None):
     return func
 
 
-def build(func,
-          target=None,
-          target_host=None,
-          params=None):
+def build(func, target=None, target_host=None, params=None,
+          fallback_device=None):
     """Build a function to run on TVM graph runtime.
 
     Parameters
@@ -189,10 +190,12 @@ def build(func,
     func: relay.Function
         The function to build.
 
-    target : str or :any:`tvm.target.Target`, optional
-        The build target
+    target : str, :any:`tvm.target.Target`, or dict of str(i.e. device/context
+    name) to str/tvm.target.Target, optional
+        For heterogeneous compilation, it is a dictionary indicating context to
+        target mapping. For homogeneous compilation, it is a build target.
 
-    target_host : str or :any:`tvm.target.Target` optional
+    target_host : str or :any:`tvm.target.Target`, optional
         Host compilation target, if target is device.
         When TVM compiles device specific program such as CUDA,
         we also need host(CPU) side code to interact with the driver
@@ -204,6 +207,10 @@ def build(func,
     params : dict of str to NDArray
         Input parameters to the graph that do not change
         during inference time. Used for constant folding.
+
+    fallback_device : str or tvm.TVMContext, optional.
+        The fallback device. It is also used as the default device for
+        operators with no specified device.
 
     Returns
     -------
@@ -219,12 +226,21 @@ def build(func,
     target = target if target else _target.current_target()
     if target is None:
         raise ValueError("Target is not set in env or passed as argument.")
-    target = _target.create(target)
+
+    if isinstance(target, dict):
+        target, fallback_device = \
+                _update_heterogeneous_inputs(target, fallback_device)
+    elif not isinstance(target, (str, _target.Target)):
+        raise ValueError("target must be the type of str, tvm.target.Target," +
+                         "or dict of device name to target")
 
     # If current dispatch context is fallback context (the default root context),
     # then load pre-tuned parameters from TopHub
     if isinstance(autotvm.DispatchContext.current, autotvm.FallbackContext):
-        tophub_context = autotvm.tophub.context(target)
+        if isinstance(target, dict):
+            tophub_context = autotvm.tophub.context(list(target.values()))
+        else:
+            tophub_context = autotvm.tophub.context(target)
     else:
         tophub_context = autotvm.util.EmptyContext()
 
@@ -232,6 +248,10 @@ def build(func,
 
     with tophub_context:
         func = optimize(func, target, params)
+        # Annotate the ops for heterogeneous execution.
+        if isinstance(target, dict):
+            func, target = _run_device_annotation_passes(func, target,
+                                                         fallback_device)
         # Fuse ops before running code gen
         func = ir_pass.infer_type(func)
         func = ir_pass.fuse_ops(func, cfg.opt_level)
@@ -239,8 +259,107 @@ def build(func,
         func = ir_pass.infer_type(func)
         graph_gen = _graph_gen.GraphRuntimeCodegen(mod=None, target=target)
         graph_json, lowered_funcs, params = graph_gen.codegen(func)
-        mod = _tvm_build_module(lowered_funcs, target=target, target_host=target_host)
+        mod = _tvm_build_module(
+            lowered_funcs, target=target, target_host=target_host)
     return graph_json, mod, params
+
+
+def _update_heterogeneous_inputs(target, fallback_device=None):
+    """Update the inputs for heterogeneous compilation.
+
+    Parameters
+    ----------
+    target : dict of str(i.e. device/context name) to str/tvm.target.Target.
+        A dict contains context to target pairs.
+
+    fallback_device : str or tvm.TVMContext, optional.
+        The fallback device. It is also used as the default device for
+        operators with no specified device.
+
+    Returns
+    -------
+    device_target : dict of int to str.
+        The updated device id to target dict.
+
+    fallback_device : int
+        The updated fallback device id.
+    """
+    if not isinstance(target, dict):
+        raise ValueError("target must be dict of device name to target for " +
+                         "heterogeneous execution, but received %s."
+                         % type(target))
+
+    if fallback_device is None:
+        # cpu is used as the default fallback device when heterogeneous
+        # execution is needed, but no fallback device is provided.
+        fallback_device = _nd.cpu(0).device_type
+        target[fallback_device] = str(_target.create("llvm"))
+    elif isinstance(fallback_device, str):
+        fallback_device = _nd.context(fallback_device).device_type
+    elif isinstance(fallback_device, TVMContext):
+        fallback_device = fallback_device.device_type
+    else:
+        raise ValueError("fallback_device expects the type of str or" +
+                         "TVMContext, but received %s." % type(fallback_device))
+
+    device_target = {}
+    for dev, tgt in target.items():
+        device_target[_nd.context(dev).device_type] = str(tgt)
+
+    if fallback_device not in device_target:
+        raise ValueError("%s is used as the default device, but the target" +
+                         "is not provided."
+                         % _nd.context(fallback_device).device_name)
+    return device_target, fallback_device
+
+
+def _run_device_annotation_passes(func, target, fallback_device):
+    """Execute the device annotation passes to update the input program and
+    target information.
+
+    Parameters
+    ----------
+    func: tvm.relay.Function
+        The function where annotation passes will be execute at.
+
+    target : Dict[int, tvm.target.Target]
+        A dict contains device_id to target pairs.
+
+    fallback_device : int
+        The fallback device type.
+
+    Returns
+    -------
+    target : Dict[int, tvm.target.Target]
+        The updated device id to target dict.
+
+    func : tvm.relay.Function
+        The updated func.
+    """
+    func = ir_pass.infer_type(func)
+    func = ir_pass.rewrite_annotated_ops(func, fallback_device)
+    device_map = ir_pass.collect_device_info(func)
+    # The expression to device id map will be empty if all or none of
+    # the expressions in the `func` are annotated because this map is
+    # obtained by propagating the device information in the device copy
+    # operator. None of the above cases needs device copy operator.
+    if not device_map:
+        annotation_map = ir_pass.collect_device_annotation_ops(func)
+        # No annotation.
+        if not annotation_map:
+            target = {0: target[fallback_device]}
+        else:
+            dev_id = next(iter(annotation_map.values()))
+            # All annotated with the same device id.
+            if all(val == dev_id for val in annotation_map.values()):
+                target = {0: target[dev_id]}
+            else:
+                raise RuntimeError("Expressions in the function are "
+                                   "annotated with various device ids,"
+                                   "but not device copy operators "
+                                   "found. Please check the "
+                                   "RewriteAnnotation pass.")
+    return func, target
 
 
 class GraphExecutor(_interpreter.Executor):
@@ -259,6 +378,7 @@ class GraphExecutor(_interpreter.Executor):
     target : :py:class:`Target`
         The target option to build the function.
     """
+
     def __init__(self, mod, ctx, target):
         self.mod = mod
         self.ctx = ctx
