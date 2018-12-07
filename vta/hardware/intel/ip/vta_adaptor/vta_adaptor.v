@@ -6,6 +6,8 @@ module vta_adaptor (input                clock_clk,
 						  input        [31:0]  fetch_insn_count_avs_writedata,
 						  output  reg  [31:0]  fetch_insn_count_data,
 						  output  reg  [31:0]  fetch_insn_count_2_data,
+						  output  reg  [31:0]  compute_uops_count_data,
+						  output  reg  [31:0]  compute_biases_count_data,
 						  input                fetch_call_avs_address,
 						  output               fetch_call_avs_waitrequest,
 						  input                fetch_call_avs_write,
@@ -59,16 +61,24 @@ assign compute_biases_avs_waitrequest = 1'b0;
 assign compute_uops_avs_waitrequest = 1'b0;
 assign store_call_avs_waitrequest = 1'b0;
 assign store_outputs_avs_waitrequest = 1'b0;
-						  
+
 assign fetch_call_valid = fetch_call_avs_writedata[0];
 assign fetch_insns_data[31:0] = fetch_insns_avs_writedata[31:0];
 
-always @(posedge clock_clk)
+always @(posedge clock_clk or posedge reset_reset)
 begin
-  if (fetch_insn_count_avs_write)
+  if (reset_reset) begin
+    fetch_insn_count_data[31:0] <= 0;
+	 fetch_insn_count_2_data[31:0] <= 0;
+	 compute_uops_count_data[31:0] <= 0;
+	 compute_biases_count_data[31:0] <= 0;
+  end
+  else if (fetch_insn_count_avs_write)
   begin
     fetch_insn_count_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
 	 fetch_insn_count_2_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
+	 compute_uops_count_data[31:0] <= 32'h80;
+	 compute_biases_count_data[31:0] <= 32'h80;
   end
 end
   
