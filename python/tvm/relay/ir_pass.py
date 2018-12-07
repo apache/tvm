@@ -361,7 +361,7 @@ def alter_op_layout(expr):
 
 def rewrite_annotated_ops(expr, fallback_device):
     """Rewrite the annotated program where annotation operators, e.g.
-    `on_deivce`, are used to denote where an expression should be scheduled to.
+    `on_deivce`, mark which device an expression should be scheduled to.
     This pass helps heterogeneous execution where different operators may need
     to be allocated on various devices.
 
@@ -377,7 +377,7 @@ def rewrite_annotated_ops(expr, fallback_device):
     Returns
     -------
     transformed_expr : tvm.relay.Expr
-        Transformed expression with crossing device data copy operators.
+        Transformed expression with cross device data copy operators.
     """
     return _ir_pass.RewriteDeviceAnnotation(expr, fallback_device)
 
@@ -394,7 +394,7 @@ def collect_device_info(expr):
     Returns
     -------
     ret : Dict[tvm.relay.expr, int]
-        A dictionary of tvm.relay.expr to device id mapping.
+        A dictionary mapping tvm.relay.Expr to device id.
     """
     return _ir_pass.CollectDeviceInfo(expr)
 
@@ -410,7 +410,7 @@ def collect_device_annotation_ops(expr):
     Returns
     -------
     ret : Dict[tvm.relay.expr, int]
-        A dictionary of tvm.relay.expr to device id mapping where the keys are
+        A dictionary mapping tvm.relay.Expr to device id where the keys are
         annotation expressions.
     """
     return _ir_pass.CollectDeviceAnnotationOps(expr)

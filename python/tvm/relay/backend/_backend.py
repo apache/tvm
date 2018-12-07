@@ -53,20 +53,20 @@ def build(funcs, target, target_host=None):
     Parameters
     ----------
     funcs : List[tvm.LoweredFunc] or Dict[str, List[tvm.LoweredFunc]]
-         The list of lowered functions or a target to list of lowered
-         functions map.
+        A list of lowered functions or dictionary mapping from targets to
+        lowered functions.
 
 
     target : tvm.Target
-         The target to run the code on.
+        The target to run the code on.
 
     target_host : tvm.Target
-         The host target.
+        The host target.
 
     Returns
     -------
     module : tvm.Module
-         The runtime module.
+        The runtime module.
     """
     if target_host == "":
         target_host = None

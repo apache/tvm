@@ -621,7 +621,7 @@ def copy(data):
 
 
 def device_copy(data, src_dev, dst_dev):
-    """Copy data from thte source device to the destination device. This
+    """Copy data from the source device to the destination device. This
     operator helps data transferring between difference contexts for
     heterogeneous execution.
 
@@ -630,10 +630,10 @@ def device_copy(data, src_dev, dst_dev):
     data : tvm.relay.Expr
         The tensor to be copied.
 
-    src_dev : Union(:py:class:`TVMContext`, str)
+    src_dev : Union[:py:class:`TVMContext`, str]
         The source device where the data is copied from.
 
-    dst_dev : Union(:py:class:`TVMContext`, str)
+    dst_dev : Union[:py:class:`TVMContext`, str]
         The destination device where the data is copied to.
 
     Returns
@@ -660,15 +660,15 @@ def device_copy(data, src_dev, dst_dev):
 
 
 def on_device(data, device):
-    """Annotate a tensor with device id.
+    """Annotate an expression with device id.
 
     Parameters
     ----------
     data : tvm.relay.Expr
-        The tensor to be annotated.
+        The expression to be annotated.
 
-    device : Union(:py:class:`TVMContext`, str)
-        The device that the tensor is annotated with.
+    device : Union[:py:class:`TVMContext`, str]
+        The device id to annotate.
 
     Returns
     -------

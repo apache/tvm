@@ -168,7 +168,10 @@ def optimize(func, target, params=None):
         func = ir_pass.forward_fold_scale_axis(func)
         func = ir_pass.fold_constant(func)
 
-    if cfg.pass_enabled("AlterOpLayout"):
+    # FIXME(zhiics) Skip AlterOpLayout pass for heterogeneous compilation for
+    # now. We probably need to pass target to this pass as well. Fix it in
+    # a followup PR.
+    if cfg.pass_enabled("AlterOpLayout") and not isinstance(target, dict):
         func = ir_pass.infer_type(func)
         func = ir_pass.canonicalize_ops(func)
         func = ir_pass.infer_type(func)
@@ -265,7 +268,10 @@ def build(func, target=None, target_host=None, params=None,
 
 
 def _update_heterogeneous_inputs(target, fallback_device=None):
-    """Update the inputs for heterogeneous compilation.
+    """Update the target and fallback device required for heterogeneous
+    compilation. CPU is used as the fallback device if it wasn't provided.
+    Meanwhile, a CPU device id and "llvm" pair will be added to the target
+    dictionary in this case.
 
     Parameters
     ----------
