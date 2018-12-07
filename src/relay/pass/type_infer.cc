@@ -56,30 +56,10 @@ bool TupleGetItemRel(const Array<Type>& types,
   return true;
 }
 
-bool MakeTupleRel(const Array<Type>& types,
-                  int num_inputs,
-                  const Attrs& attrs,
-                  const TypeReporter& reporter) {
-  CHECK_EQ(static_cast<size_t>(num_inputs + 1), types.size());
-  for (int i = 0; i < num_inputs; ++i) {
-    if (types[i].as<IncompleteTypeNode>()) return false;
-  }
-  Array<Type> fields;
-  for (int i = 0; i < num_inputs; ++i) {
-    fields.push_back(types[i]);
-  }
-  reporter->Assign(types[num_inputs], TupleTypeNode::make(fields));
-  return true;
-}
-
 TVM_REGISTER_NODE_TYPE(TupleGetItemAttrs);
 TVM_REGISTER_API("tvm.relay.type_relation.TupleGetItem")
 .set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
     TupleGetItemRel);
-
-TVM_REGISTER_API("tvm.relay.type_relation.MakeTuple")
-.set_body_typed<bool(const Array<Type>&, int, const Attrs&, const TypeReporter&)>(
-    MakeTupleRel);
 
 struct ResolvedTypeInfo {
   explicit ResolvedTypeInfo(Type checked_type, Array<Type> type_args)
@@ -90,6 +70,41 @@ struct ResolvedTypeInfo {
   // Only allocated when the expression is a call.
 
   Array<Type> type_args = Array<Type>(NodePtr<Node>(nullptr));
+};
+
+// Converts incomplete types remaining in function signature to type vars
+class Generalizer : public TypeMutator {
+ public:
+  Generalizer() : subst_map_({}), varno_(0) {}
+
+  // turns each distinct incomplete type into a type var and returns
+  // the transformed type with an array of all type vars present
+  Type Generalize(const Type &t, Array<TypeVar>* vars) {
+    vars_ = vars;
+    return VisitType(t);
+  }
+
+  Type VisitType_(const IncompleteTypeNode *op) override {
+    IncompleteType t = GetRef<IncompleteType>(op);
+    auto it = subst_map_.find(t);
+    if (it != subst_map_.end()) {
+      return (*it).second;
+    }
+
+    // generate a new type var, add to list
+    std::stringstream ss;
+    ss << "_var_" << varno_;
+    varno_++;
+    TypeVar new_var = TypeVarNode::make(ss.str(), TypeVarNode::Kind::kType);
+    vars_->push_back(new_var);
+    subst_map_.Set(t, new_var);
+    return new_var;
+  }
+
+ private:
+  tvm::Map<IncompleteType, TypeVar> subst_map_;
+  Array<TypeVar>* vars_;
+  int varno_;
 };
 
 //
@@ -175,19 +190,11 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const TupleNode* op) final {
-    if (!make_tuple_rel_.defined())  {
-      make_tuple_rel_ = TypeRelationFn(
-          EnvFunc::Get("tvm.relay.type_relation.MakeTuple").node_);
-    }
     Array<Type> types;
     for (Expr field : op->fields) {
       types.push_back(GetType(field));
     }
-    Type rtype = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
-    types.push_back(rtype);
-    solver_.AddConstraint(TypeRelationNode::make(
-        make_tuple_rel_, types, op->fields.size(), Attrs()));
-    return rtype;
+    return TupleTypeNode::make(types);
   }
 
   Type VisitExpr_(const TupleGetItemNode* op) final {
@@ -253,14 +260,18 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   // instantiate the function type with fresh
-  FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args) {
+  FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args, const Span& span) {
     tvm::Map<TypeVar, Type> subst_map;
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
-    for (auto ty_param : fn_ty->type_params) {
+    for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
+      auto ty_param = fn_ty->type_params[i];
       IncompleteType fresh = IncompleteTypeNode::make(ty_param->kind);
       subst_map.Set(ty_param, fresh);
+      if (i < ty_args->size()) {
+        this->Unify(fresh, (*ty_args)[i], span);
+      }
       ty_args->push_back(fresh);
     }
 
@@ -296,13 +307,23 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   Type GeneralCall(const CallNode* call, Array<Type> arg_types) {
     Type ftype = GetType(call->op);
     auto* fn_ty_node = ftype.as<FuncTypeNode>();
+    auto* inc_ty_node = ftype.as<IncompleteTypeNode>();
 
-    CHECK(fn_ty_node != nullptr)
-        << "only expressions with function types can be called, found "
-        << ftype << " at " << call->span;
+    CHECK(fn_ty_node != nullptr || inc_ty_node != nullptr)
+      << "only expressions with function types can be called, found "
+      << ftype << " at " << call->span;
 
-    Array<Type> type_args;
-    FuncType fn_ty = Instantiate(fn_ty_node, &type_args);
+    // incomplete type => it must be a function taking the arg types
+    // with an unknown return type
+    if (inc_ty_node != nullptr) {
+      Type ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      Type func_type = FuncTypeNode::make(arg_types, ret_type, {}, {});
+      Type unified = this->Unify(ftype, func_type, call->span);
+      fn_ty_node = unified.as<FuncTypeNode>();
+    }
+
+    Array<Type> type_args = call->type_args;
+    FuncType fn_ty = Instantiate(fn_ty_node, &type_args, call->span);
 
     AddTypeArgs(GetRef<Call>(call), type_args);
 
@@ -357,22 +378,36 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
       GetType(param);
     }
     Type rtype = GetType(f->body);
+    if (f->ret_type.defined()) {
+      rtype = this->Unify(f->ret_type, rtype, f->span);
+    }
+
     // Run solver using the currently known information
     solver_.Solve();
     // Trying to resolve
     Array<Type> arg_types;
+    Array<TypeVar> type_params = f->type_params;
+    Generalizer gen;
+
     for (size_t i = 0; i < f->params.size(); ++i) {
       Type atype = solver_.Resolve(GetType(f->params[i]));
-      CHECK(atype.as<IncompleteTypeNode>() == nullptr)
-          << "Cannot resolve type of " << i
-          << "-th parameter of function at" << f->span;
+      // CHECK(atype.as<IncompleteTypeNode>() == nullptr)
+      //     << "Cannot resolve type of " << i
+      //     << "-th parameter of function at" << f->span;
+      Type gen_atype = gen.Generalize(atype, &type_params);
+      atype = this->Unify(atype, gen_atype, f->span);
       arg_types.push_back(atype);
     }
+
     rtype = solver_.Resolve(rtype);
-    CHECK(rtype.as<IncompleteTypeNode>() == nullptr)
-        << "Cannot resolve return type of function at" << f->span;
+    Type gen_rtype = gen.Generalize(rtype, &type_params);
+    this->Unify(rtype, gen_rtype, f->span);
+    rtype = gen_rtype;
+
+    // CHECK(rtype.as<IncompleteTypeNode>() == nullptr)
+    //     << "Cannot resolve return type of function at" << f->span;
     // do not support constraint lifting for now.
-    return FuncTypeNode::make(arg_types, rtype, f->type_params, {});
+    return FuncTypeNode::make(arg_types, rtype, type_params, {});
   }
 };
 
@@ -380,7 +415,7 @@ class TypeInferencer::Resolver : public ExprMutator {
  public:
   Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap,
            TypeSolver* solver)
-      : tmap_(tmap), solver_(solver) {
+    : tmap_(tmap), solver_(solver) {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
