@@ -58,10 +58,10 @@ class StreamBufferReader {
   /*!
    * \return allows quick read using get char
    */
-  char GetChar() {
+  int GetChar() {
     while (true) {
       if (read_ptr_ < read_len_) {
-        return buffer_[read_ptr_++];
+        return static_cast<int>(buffer_[read_ptr_++]);
       } else {
         read_len_ = stream_->Read(&buffer_[0], buffer_.length());
         if (read_len_ == 0) return EOF;
