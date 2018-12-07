@@ -14,11 +14,11 @@ def test_util():
 def test_ewise():
     m = tvm.var('m')
     l = tvm.var('l')
-    A = tvm.placeholder((m, l), name='A')
 
     shape = (20, 3)
 
-    def test_apply(func, name, f_numpy, low, high):
+    def test_apply(func, name, f_numpy, low, high, dtype=None):
+        A = tvm.placeholder((m, l), name='A', dtype=dtype)
         B = func(A)
         assert tuple(B.shape) == tuple(A.shape)
         assert B.op.body[0].name == name
@@ -54,6 +54,7 @@ def test_ewise():
     test_apply(topi.sigmoid, "sigmoid", lambda x:1/(1+np.exp(-x)), -1, 1)
     test_apply(topi.log, "log", np.log, 0, 100)
     test_apply(topi.sqrt, "sqrt", np.sqrt, 0, 100)
+    test_apply(topi.bitwise_not, "bitwise_not", np.bitwise_not, low=-100, high=100, dtype='int32')
 
 if __name__ == "__main__":
     test_util()

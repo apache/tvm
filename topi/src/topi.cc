@@ -122,8 +122,16 @@ TOPI_REGISTER_BCAST_OP("topi.equal", topi::equal);
 TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_and", topi::bitwise_and);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_or", topi::bitwise_or);
+TOPI_REGISTER_BCAST_OP("topi.bitwise_xor", topi::bitwise_xor);
 
 /* Ops from elemwise.h */
+TVM_REGISTER_GLOBAL("topi.bitwise_not")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = bitwise_not(args[0]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.exp")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = exp(args[0]);

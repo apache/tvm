@@ -848,6 +848,20 @@ def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
 
     return _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
 
+def _bitwise(name):
+    def _impl(inputs, attr, params):
+        if name == 'and':
+            return _sym.bitwise_and(inputs[0], inputs[1])
+        elif name == 'or':
+            return _sym.bitwise_or(inputs[0], inputs[1])
+        elif name == 'xor':
+            return _sym.bitwise_xor(inputs[0], inputs[1])
+        elif name == 'not':
+            return _sym.bitwise_not(inputs[0])
+        else:
+            raise NotImplementedError("Operator {} not implemented.".format(name))
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -862,6 +876,9 @@ _convert_map = {
     'AvgPool'                           : _pooling('avg_pool'),
     'BatchNormWithGlobalNormalization'  : _batch_norm(),
     'BiasAdd'                           : _bias_add(),
+    'BitwiseAnd'                        : _bitwise('and'),
+    'BitwiseOr'                         : _bitwise('or'),
+    'BitwiseXor'                        : _bitwise('xor'),
     'Cast'                              : _cast(),
     'Ceil'                              : AttrCvt('ceil'),
     'CheckNumerics'                     : _check_numerics(),
@@ -873,6 +890,7 @@ _convert_map = {
     'ExpandDims'                        : _expand_dims(),
     'Floor'                             : AttrCvt('floor'),
     'Identity'                          : _identity(),
+    'Invert'                            : _bitwise('not'),
     'MatMul'                            : _matmul(),
     'MaxPool'                           : _pooling('max_pool'),
     'Add'                               : _elemwise('add'),

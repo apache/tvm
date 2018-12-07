@@ -41,6 +41,75 @@ def add(lhs, rhs):
     """
     return _cpp.add(lhs, rhs)
 
+def bitwise_and(lhs, rhs):
+    """Bitwise AND auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The left operand
+    rhs : tvm.Tensor or Expr
+        The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_and(lhs, rhs)
+
+def bitwise_or(lhs, rhs):
+    """Bitwise OR auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The left operand
+    rhs : tvm.Tensor or Expr
+        The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_or(lhs, rhs)
+
+def bitwise_xor(lhs, rhs):
+    """Bitwise XOR auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The left operand
+    rhs : tvm.Tensor or Expr
+        The right operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if both operands are Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_xor(lhs, rhs)
+
+def bitwise_not(lhs):
+    """Bitwise NOT auto-broadcasting
+
+    Parameters
+    ----------
+    lhs : tvm.Tensor or Expr
+        The operand
+
+    Returns
+    -------
+    ret : tvm.Tensor or Expr
+        Returns Expr if lhs is Expr.
+        Otherwise returns Tensor.
+    """
+    return _cpp.bitwise_not(lhs)
 
 def subtract(lhs, rhs):
     """Subtraction with auto-broadcasting

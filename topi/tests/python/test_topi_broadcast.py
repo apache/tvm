@@ -176,9 +176,17 @@ def test_shift():
         (1, 2, 2), (2,), topi.left_shift, np.left_shift,
         dtype="int8", rhs_min=0, rhs_max=32)
 
+def test_bitwise():
+    verify_broadcast_binary_ele(
+        (1, 3, 3, 32), (1, 3, 3, 32), topi.bitwise_and, np.bitwise_and, dtype='int32')
+    verify_broadcast_binary_ele(
+        (1, 3, 3, 32), (1, 3, 3, 32), topi.bitwise_or, np.bitwise_or, dtype='int32')
+    verify_broadcast_binary_ele(
+        (1, 3, 3, 32), (1, 3, 3, 32), topi.bitwise_xor, np.bitwise_xor, dtype='int32')
 
 if __name__ == "__main__":
     test_add()
+    test_bitwise()
     test_shift()
     test_cmp()
     test_mod()
