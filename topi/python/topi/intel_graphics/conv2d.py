@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-else-return, too-many-arguments, too-many-locals, too-many-statements, no-member, too-many-branches, too-many-boolean-expressions
 """conv2d schedule on Intel Graphics"""
 
 from __future__ import absolute_import as _abs
@@ -126,8 +126,8 @@ def schedule_conv2d_NCHWc(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
-           or "1_16" in op.tag:
+        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
+                or "2_14" in op.tag or "1_16" in op.tag:
             _schedule_cl_spatialpack_NCHWc(s, op)
 
         scheduled_ops.append(op)
@@ -176,6 +176,10 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
             conv_tag = "2_14"
             block_h = 2
             block_w = 14
+    elif kernel_h == 7 and padding == 3 and stride == 1:
+        conv_tag = "3_4"
+        block_h = 3
+        block_w = 4
     else:
         conv_tag = "1_16"
         block_h = 1
@@ -238,6 +242,9 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
         OUTPUT_BLOCK_WIDTH = 5
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
+        OUTPUT_BLOCK_WIDTH = 4
+    elif "3_4" in s[conv].op.tag:
+        OUTPUT_BLOCK_HEIGHT = 3
         OUTPUT_BLOCK_WIDTH = 4
 
     # schedule conv
@@ -308,7 +315,7 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
 
 @conv2d.register(["intel_graphics"])
-def decl_conv2d(data, kernel, stride, padding, layout='NCHW', out_dtype='float32'):
+def decl_conv2d(data, kernel, stride, padding, dilation, layout='NCHW', out_dtype='float32'):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
@@ -368,8 +375,8 @@ def schedule_conv2d_nchw(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "2_7" in op.tag or "2_14" in op.tag \
-           or "1_16" in op.tag:
+        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
+                or "2_14" in op.tag or "1_16" in op.tag:
             _schedule_cl_spatialpack(s, op)
 
         scheduled_ops.append(op)
@@ -416,6 +423,10 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
             conv_tag = "2_14"
             block_h = 2
             block_w = 14
+    elif kernel_h == 7 and padding == 3 and stride == 1:
+        conv_tag = "3_4"
+        block_h = 3
+        block_w = 4
     else:
         conv_tag = "1_16"
         block_h = 1
@@ -491,6 +502,9 @@ def _schedule_cl_spatialpack(s, op):
         OUTPUT_BLOCK_WIDTH = 5
     elif "4_4" in s[conv].op.tag:
         OUTPUT_BLOCK_HEIGHT = 4
+        OUTPUT_BLOCK_WIDTH = 4
+    elif "3_4" in s[conv].op.tag:
+        OUTPUT_BLOCK_HEIGHT = 3
         OUTPUT_BLOCK_WIDTH = 4
 
     # schedule conv
