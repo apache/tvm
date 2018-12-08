@@ -116,6 +116,21 @@ def test_unify_vars_under_tuples():
     assert (unified == tup1 or unified == tup2)
 
 
+def test_instantiation_of_typevars():
+    solver = make_solver()
+
+    t1 = relay.ty.IncompleteType()
+    t2 = relay.ty.IncompleteType()
+
+    a = relay.ty.TypeVar('a')
+    b = relay.ty.TypeVar('b')
+
+    ft1 = relay.ty.FuncType([t1], t2)
+    ft2 = relay.ty.FuncType([a], b, [a, b])
+    unified = solver.Unify(ft1, ft2)
+    assert (unified == solver.Resolve(ft1))
+
+
 def test_recursive_backward_solving():
     solver = make_solver()
 
@@ -165,7 +180,6 @@ def test_backward_solving_after_child_update():
     assert solver.Solve()
     assert solver.Resolve(t4) == tup_concrete
     assert solver.Resolve(t5) == tup_concrete
-
 
 @raises(tvm._ffi.base.TVMError)
 def test_incompatible_tuple_unification():
