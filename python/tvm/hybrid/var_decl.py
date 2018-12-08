@@ -15,6 +15,7 @@ class PyVariableUsage(ast.NodeVisitor):
         self.scope_level = []
         self._args = {}
         self.args = args
+        self.aug_assign_ = False
 
 
     def visit_FunctionDef(self, node):
@@ -48,6 +49,12 @@ class PyVariableUsage(ast.NodeVisitor):
             self.visit(elem)
 
 
+    def visit_AugAssign(self, node):
+        self.aug_assign_ = True
+        self.generic_visit(node)
+        self.aug_assign_ = False
+
+
     def visit_Name(self, node):
         # If it is from the argument list or loop variable, we do not worry about it!
         if node.id in self._args.keys():
@@ -61,7 +68,9 @@ class PyVariableUsage(ast.NodeVisitor):
 
         if node.id not in self.status.keys():
             _internal_assert(isinstance(node.ctx, ast.Store), \
-                    'Undeclared variable %s' % node.id)
+                             'Undeclared variable %s' % node.id)
+            if self.aug_assign_:
+                raise ValueError('"First store" cannot be an AugAssign')
             self.status[node.id] = (node, self.scope_level[-1], set())
         else:
             decl, loop, usage = self.status[node.id]
