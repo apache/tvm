@@ -55,6 +55,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
+- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)
