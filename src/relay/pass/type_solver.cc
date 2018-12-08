@@ -120,7 +120,7 @@ class TypeSolver::Unifier :
 
     TypeVar tv = GetRef<TypeVar>(tvn);
     auto it = tv_map_.find(tv);
-    if (tv_map_.find(tv) != tv_map_.end()) {
+    if (it != tv_map_.end()) {
       return (*it).second;
     }
 
@@ -135,7 +135,14 @@ class TypeSolver::Unifier :
       InstantiateTypeVar(type_param);
     }
 
-    Type transformed = Bind(ft, tv_map_);
+    // to avoid error when substituting type vars (TypeMutator
+    // errors out if the type var list in a FuncType contains an
+    // IncompleteType)
+    FuncType strip_tvs = FuncTypeNode::make(ft->arg_types,
+                                            ft->ret_type, {},
+                                            ft->type_constraints);
+    Type transformed = Bind(strip_tvs, tv_map_);
+
     auto* new_ft = transformed.as<FuncTypeNode>();
     // drop the type param list altogether
     return FuncTypeNode::make(new_ft->arg_types,
