@@ -46,6 +46,21 @@ def test_simplify_mod():
         (j + n * 32) % 16, {j: tvm.Range(0, 6)})
     assert index == j
 
+def test_simplify_minmax():
+    x = tvm.var('x')
+    e1 = tvm.max(x, 1) - tvm.max(x, 1)
+    e1s = tvm.ir_pass.CanonicalSimplify(e1)
+    assert e1s.value == 0
+
+    e2 = tvm.min(x, 1) - tvm.min(x, 1)
+    e2s = tvm.ir_pass.CanonicalSimplify(e2)
+    assert e2s.value == 0
+
+def test_mul():
+    x = tvm.var('x')
+    e = x * x - x * x
+    es = tvm.ir_pass.CanonicalSimplify(e)
+    assert es.value == 0
 
 def test_modular():
     rx = tvm.var("rx")
@@ -62,11 +77,9 @@ def test_modular():
     assert tvm.ir_pass.CanonicalSimplify(z1 - (ry + y)).value == 0
     assert tvm.ir_pass.CanonicalSimplify(z2 - (rx + x)).value == 0
 
-
-
-
-
 if __name__ == "__main__":
     test_simplify_mod()
     test_modular()
     test_simplify()
+    test_mul()
+    test_simplify_minmax()
