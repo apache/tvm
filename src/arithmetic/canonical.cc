@@ -236,6 +236,24 @@ class Canonical::Internal : public IRMutator {
   bool EnableOpt(Type t) const {
     return (t.lanes() == 1 && (t.is_int() || t.is_uint()));
   }
+  // Max
+  Expr Mutate_(const Max* op, const Expr& e) final {
+    CacheEntry a = Produce(op->a);
+    CacheEntry b = Produce(op->b);
+    if (a.has_side_effect || b.has_side_effect) {
+      return Binary_(op, e, a.value, b.value);
+    }
+    return Binary(op, e);
+  }
+  // Min
+  Expr Mutate_(const Min* op, const Expr& e) final {
+    CacheEntry a = Produce(op->a);
+    CacheEntry b = Produce(op->b);
+    if (a.has_side_effect || b.has_side_effect) {
+      return Binary_(op, e, a.value, b.value);
+    }
+    return Binary(op, e);
+  }
   // Add
   Expr Mutate_(const Add* op, const Expr& e) final {
     if (!EnableOpt(op->type)) {
@@ -277,7 +295,7 @@ class Canonical::Internal : public IRMutator {
     } else if (is_const(b.value)) {
       return SumMulConst(a.AsSum(), b.value);
     } else {
-      return Binary_(op, e, a.value, b.value);
+      return Binary(op, e);
     }
   }
   // Variable
