@@ -52,7 +52,7 @@ def deserialize_args(args):
 def extract_from_program(func, params, ops, target, target_host=None):
     """ Extract tuning tasks from a relay program.
 
-    This function collects tuning tasks by building the graph
+    This function collects tuning tasks by building the program
     with a "tracing" target and tracing all the calls to topi.
 
     Parameters
@@ -60,11 +60,11 @@ def extract_from_program(func, params, ops, target, target_host=None):
     func: relay.expr.Function
         The func to tune
     params: dict of str to numpy array
-        The associated parameters of the graph
+        The associated parameters of the program
     ops: List of relay op
         List of relay ops to be tuned
     dtype: str or dict of str to str
-        The input types to the graph
+        The input types to the program
     target: tvm.target.Target
         The compilation target
     target_host: tvm.target.Target
@@ -128,14 +128,14 @@ def extract_from_program(func, params, ops, target, target_host=None):
 def extract_from_multiple_program(funcs, params, ops, target, target_host=None):
     """ Extract tuning tasks from multiple relay programs.
 
-    This function is the multiple graph version of extract_from_graph
+    This function is the multiple program version of extract_from_program
 
     Parameters
     ----------
     funcs: List of relay.expr.Function
         The list of functions to tune
     params: List of dict of str to numpy array
-        The input shape to the graph
+        The associated parameters of the programs
     ops: List of relay op
         List of relay ops to be tuned
     target: tvm.target.Target
