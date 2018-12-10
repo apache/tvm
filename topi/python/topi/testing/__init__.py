@@ -14,8 +14,6 @@ from .softmax_python import softmax_python, log_softmax_python
 from .upsampling_python import upsampling_python
 from .bilinear_resize_python import bilinear_resize_python
 from .reorg_python import reorg_python
-from .region_python import region_python
-from .shortcut_python import shortcut_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
 from .gather_nd_python import gather_nd_python

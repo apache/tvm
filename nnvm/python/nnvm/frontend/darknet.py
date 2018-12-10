@@ -302,18 +302,34 @@ def _darknet_reorg(inputs, attrs):
 
 def _darknet_region(inputs, attrs):
     """Process the region operation."""
-    op_name, new_attrs = 'yolo_region', {}
-    if 'n' in attrs:
-        new_attrs['n'] = attrs.get('n', 1)
-    if 'classes' in attrs:
-        new_attrs['classes'] = attrs.get('classes', 1)
-    if 'coords' in attrs:
-        new_attrs['coords'] = attrs.get('coords', 0)
-    if 'background' in attrs:
-        new_attrs['background'] = attrs.get('background', 0)
-    if 'softmax' in attrs:
-        new_attrs['softmax'] = attrs.get('softmax', 0)
-    return _darknet_get_nnvm_op(op_name)(*inputs, **new_attrs), None
+    num = attrs.get('n', 1)
+    classes = attrs.get('classes', 1)
+    coords = attrs.get('coords', 0)
+    background = attrs.get('background', 0)
+    softmax = attrs.get('softmax', True)
+    input_shape = attrs.get('shape')
+
+    split_size = classes + coords + 1
+    intermediate_shape = (input_shape[0], num, split_size, input_shape[2], input_shape[3])
+    data_block = _sym.reshape(inputs[0], shape=intermediate_shape)
+    split_res = _sym.split(data_block, indices_or_sections=split_size, axis=2)
+    splits = []
+    for i in split_res:
+        splits.append(i)
+
+    splits[0] = _sym.sigmoid(splits[0])
+    splits[1] = _sym.sigmoid(splits[1])
+    if not background:
+        splits[coords] = _sym.sigmoid(splits[coords])
+
+    if softmax:
+        offset = coords + int(not background)
+        softmax_input = _sym.concatenate(*splits[offset:], axis=2)
+        softmax_output = _sym.softmax(softmax_input, axis=2)
+        data_block_1 = splits[:offset]
+        splits = data_block_1 + [softmax_output]
+    concat_out = _sym.concatenate(*splits, axis=2)
+    return _sym.reshape(concat_out, shape=input_shape), None
 
 def _darknet_yolo(inputs, attrs):
     """Process the yolo operation."""
@@ -638,6 +654,7 @@ class GraphProto(object):
             attr.update({'coords' : layer.coords})
             attr.update({'background' : layer.background})
             attr.update({'softmax' : layer.softmax})
+            attr.update({'shape' : (1, layer.c, layer.h, layer.w)})
 
         elif LAYERTYPE.YOLO == layer.type:
             attr.update({'n' : layer.n})
