@@ -218,13 +218,17 @@ def test_self_reference():
     a = relay.TypeVar("a")
     b = relay.TypeVar("b")
     x = relay.var("x", a)
+    y = relay.var("y", a)
     sb = relay.ScopeBuilder()
 
     f = relay.Function([x], x, b, [a, b])
-    fx = relay.Call(f, [x])
-    assert relay.ir_pass.infer_type(x).checked_type == a
-    assert relay.ir_pass.infer_type(f).checked_type == relay.FuncType([a], a)
-    assert relay.ir_pass.infer_type(fx).checked_type == a
+    fx = relay.Function([y], relay.Call(f, [y]))
+
+    x_type = relay.ir_pass.infer_type(x).checked_type
+    f_type = relay.ir_pass.infer_type(f).checked_type
+    call_type = relay.ir_pass.infer_type(fx).checked_type
+    assert f_type == relay.FuncType([a], a, [a])
+    assert call_type == relay.FuncType([a], a, [a])
 
 
 def test_global_var_recursion():
