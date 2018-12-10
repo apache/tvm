@@ -2,7 +2,7 @@
 """Conv2D schedule on x86"""
 import tvm
 from tvm import autotvm
-from tvm.autotvm.task.nnvm_integration import deserialize_args
+from tvm.autotvm.task.topi_integration import deserialize_args
 from tvm.autotvm.task import get_config
 from .. import generic, tag
 from .. import nn

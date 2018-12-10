@@ -4,7 +4,7 @@ import tvm
 from tvm import autotvm
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.space import SplitEntity
-from tvm.autotvm.task.nnvm_integration import deserialize_args
+from tvm.autotvm.task.topi_integration import deserialize_args
 from .. import generic, tag
 from ..nn.pad import pad
 from ..util import get_const_tuple
