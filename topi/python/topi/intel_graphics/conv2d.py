@@ -61,7 +61,7 @@ def _alter_conv2d_layout(attrs, inputs, tinfos):
     return sym.contrib.conv2d_NCHWc(*copy_inputs, **new_attrs)
 
 @conv2d_NCHWc.register(["intel_graphics"])
-def _decl_conv2d(data, kernel, stride, padding, layout, out_layout, out_dtype='float32'):
+def _decl_conv2d(data, kernel, stride, padding, dilation, layout, out_layout, out_dtype='float32'):
     """Conv2D operator for Intel Graphics backend.
 
     Parameters
