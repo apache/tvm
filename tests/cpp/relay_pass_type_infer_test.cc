@@ -20,7 +20,7 @@ TEST(Relay, SelfReference) {
 
   auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ type_a }, type_a,
                                             tvm::Array<relay::TypeVar>{type_a} , {});
-  CHECK_EQ(type_fx->checked_type(), expected);
+  CHECK(AlphaEqual(type_fx->checked_type(), expected));
 }
 
 int main(int argc, char ** argv) {
