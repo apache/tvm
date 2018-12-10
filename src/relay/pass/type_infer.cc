@@ -423,7 +423,7 @@ class TypeInferencer::Resolver : public ExprMutator {
  public:
   Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap,
            TypeSolver* solver)
-    : tmap_(tmap), solver_(solver) {
+    : tmap_(tmap), solver_(solver), gen_(Generalizer()) {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
@@ -472,8 +472,7 @@ class TypeInferencer::Resolver : public ExprMutator {
     auto it = tmap_.find(GetRef<Expr>(op));
     CHECK(it != tmap_.end());
     Type checked_type = solver_->Resolve(it->second.checked_type);
-    Generalizer gen;
-    checked_type = gen.Generalize(checked_type);
+    checked_type = gen_.Generalize(checked_type);
     CHECK(checked_type.as<IncompleteTypeNode>() == nullptr)
         << "Cannot resolve type of " << GetRef<Expr>(op)
         << " at " << op->span;
@@ -559,6 +558,7 @@ class TypeInferencer::Resolver : public ExprMutator {
  private:
   const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap_;
   TypeSolver* solver_;
+  Generalizer gen_;
   // whether attach the checked type as type_annotation
   // if original type anntation is missing.
   bool update_missing_type_annotation_{true};
