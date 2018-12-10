@@ -9,10 +9,18 @@ TEST(Relay, SelfReference) {
   auto type_a = relay::TypeVarNode::make("a", relay::TypeVarNode::kType);
   auto type_b = relay::TypeVarNode::make("b", relay::TypeVarNode::kType);
   auto x = relay::VarNode::make("x", type_a);
-  auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, type_b, Array<relay::TypeVar>{});
-  auto fx = relay::CallNode::make(f, Array<relay::Expr>{ x });
+  auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, type_b,
+                                     Array<relay::TypeVar>{type_a, type_b});
+
+  auto y = relay::VarNode::make("y", type_a);
+  auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
+  auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, type_b,
+                                      Array<relay::TypeVar>{type_a, type_b});
   auto type_fx = relay::InferType(fx, relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{}));
-  CHECK_EQ(type_fx->checked_type(), type_a);
+
+  auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ type_a }, type_a,
+                                            relay::Array<relay::TypeVar>{type_a} , {});
+  CHECK_EQ(type_fx->checked_type(), expected);
 }
 
 int main(int argc, char ** argv) {
