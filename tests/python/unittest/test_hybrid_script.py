@@ -237,6 +237,30 @@ def test_if():
 
     run_and_check(if_then_else, [a])
 
+    @script
+    def if_triple_condition(a):
+        b = output_tensor((10, ), 'int32')
+        for i in range(10):
+            if 0 <= i < 5:
+                b[i] = a[i]
+            else:
+                b[i] = a[i] + 1
+        return b
+
+    run_and_check(if_triple_condition, [a])
+
+    @script
+    def if_and(a):
+        b = output_tensor((10, ), 'int32')
+        for i in range(10):
+            if i >= 0 and i < 5:
+                b[i] = a[i]
+            else:
+                b[i] = a[i] + 1
+        return b
+
+    run_and_check(if_and, [a])
+
 
 def test_bind():
     if not tvm.gpu(0).exist:
