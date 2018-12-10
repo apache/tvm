@@ -152,7 +152,7 @@ class BaseGraphTuner(object):
         graph = graph_attr.set_shape_inputs(graph, input_shapes)
         graph = graph.apply("InferShape")
         self._graph = graph
-        self._in_nodes_dict = get_in_nodes(self._graph, "conv2d", input_shapes.keys())
+        self._in_nodes_dict = get_in_nodes(self._graph, self._target_op, input_shapes.keys())
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
         g_dict = json.loads(self._graph.json())
         self._node_list = g_dict["nodes"]
@@ -171,7 +171,6 @@ class BaseGraphTuner(object):
                 current_sch_list = []
                 for j in range(min(self._max_sch_num, len(sch_list))):
                     current_sch_list.append(dict(sch_list[j]))
-                    current_sch_list[-1]["schedule"] = current_sch_list[-1]["schedule"]
                 self._sch_dict[key] = current_sch_list
             else:
                 leftmost_node = get_real_node(self._in_nodes_dict, self._node_list,
@@ -181,7 +180,6 @@ class BaseGraphTuner(object):
                 current_sch_list = []
                 for j in range(min(self._max_sch_num, len(sch_list))):
                     current_sch_list.append(dict(sch_list[j]))
-                    current_sch_list[-1]["schedule"] = current_sch_list[-1]["schedule"]
                 self._sch_dict[key] = current_sch_list
 
         # Record shape of elem-like nodes
@@ -235,8 +233,8 @@ class BaseGraphTuner(object):
         for wkl, sch_dict_val in sch_record_dict.items():
             sch_dict[wkl] = []
             for sch, exec_time in sch_dict_val.values():
-                sch_dict[wkl].append({"schedule": sch, "time": exec_time})
-            sch_dict[wkl] = sorted(sch_dict[wkl], key=lambda item: item["time"])
+                sch_dict[wkl].append({"schedule": sch, "cost": exec_time})
+            sch_dict[wkl] = sorted(sch_dict[wkl], key=lambda item: item["cost"])
 
         return sch_dict
 
@@ -335,12 +333,11 @@ class BaseGraphTuner(object):
         if total_time > 0:
             avg_time = total_time / num_flops
 
-        node_anc_dict = get_in_nodes(self._graph, self._target_op, self._input_shapes.keys())
         g_dict = json.loads(self._graph.json())
         node_list = g_dict["nodes"]
 
         args_list = []
-        for key, val in node_anc_dict.items():
+        for key, val in self._in_nodes_dict.items():
             node = node_list[key]
             target_input_idx = -1
             target_input_pos = -1
@@ -355,36 +352,21 @@ class BaseGraphTuner(object):
                 if is_input_node(node_list, self._input_shapes.keys(), item):
                     continue
 
+                c_idx = item
                 if node["op"] == self._target_op:
-                    c_idx = get_real_node(node_anc_dict, node_list, item, self._target_op)
                     t_idx = key
-                    if is_input_node(
-                            node_list, self._input_shapes.keys(), c_idx
-                    ) or is_input_node(node_list, self._input_shapes.keys(), t_idx):
-                        continue
-                    wkl_c = self._wkl_dict[c_idx]
-                    sch_current_list = self._sch_dict[c_idx]
-                    sch_current = [sch_current_list[j]["schedule"]
-                                   for j in range(min(self._max_sch_num, len(sch_current_list)))]
-                    wkl_t = self._wkl_dict[t_idx]
-                    sch_target_list = self._sch_dict[t_idx]
-                    sch_target = [sch_target_list[j]["schedule"]
-                                  for j in range(min(self._max_sch_num, len(sch_target_list)))]
                 else:
-                    if i <= target_input_pos or is_input_node(node_list, self._input_shapes.keys(),
-                                                              item):
+                    t_idx = target_input_idx
+                    if i <= target_input_pos:
                         continue
-                    c_idx = get_real_node(node_anc_dict, node_list, item, self._target_op)
-                    t_idx = get_real_node(node_anc_dict, node_list, target_input_idx,
-                                          self._target_op)
-                    wkl_c = self._wkl_dict[c_idx]
-                    sch_current_list = self._sch_dict[c_idx]
-                    sch_current = [sch_current_list[j]["schedule"]
-                                   for j in range(min(self._max_sch_num, len(sch_current_list)))]
-                    wkl_t = self._wkl_dict[t_idx]
-                    sch_target_list = self._sch_dict[t_idx]
-                    sch_target = [sch_target_list[j]["schedule"]
-                                  for j in range(min(self._max_sch_num, len(sch_target_list)))]
+                wkl_c = self._wkl_dict[c_idx]
+                sch_current_list = self._sch_dict[c_idx]
+                sch_current = [sch_current_list[j]["schedule"]
+                               for j in range(min(self._max_sch_num, len(sch_current_list)))]
+                wkl_t = self._wkl_dict[t_idx]
+                sch_target_list = self._sch_dict[t_idx]
+                sch_target = [sch_target_list[j]["schedule"]
+                              for j in range(min(self._max_sch_num, len(sch_target_list)))]
 
                 for sch_c in sch_current:
                     for sch_t in sch_target:

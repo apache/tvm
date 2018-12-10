@@ -33,7 +33,7 @@ class DPStage(object):
 
         sch_dict : dict of int to list of dict
             Schedule dictionary maps node index to schedule candidates. Each element
-            in the value list is a dictionary which has "schedule" and "time" entries.
+            in the value list is a dictionary which has "schedule" and "cost" entries.
 
         input_shapes : dict of string to tuple of int
             Input shapes for current graph.
@@ -138,7 +138,7 @@ class DPStage(object):
         """State creation routine for nodes with target_op."""
         input_idx = self._global_in_nodes_dict[self._idx][0]
         if is_input_node(self._global_node_list, self._global_input_shapes.keys(), input_idx):
-            self._full_states = np.array([sch["time"] for sch in self._sch_list])
+            self._full_states = np.array([sch["cost"] for sch in self._sch_list])
             self._states = self._full_states
         else:
             input_stage = self._global_stage_dict[input_idx]
@@ -162,7 +162,7 @@ class DPStage(object):
 
             for i in range(num_schedules):
                 current_sch = self._sch_list[i]["schedule"]
-                current_sch_time = float(self._sch_list[i]["time"])
+                current_sch_time = float(self._sch_list[i]["cost"])
                 for j in range(num_input_states):
                     input_sch_idx = j // dep_multiplier
                     input_sch = input_sch_list[input_sch_idx]["schedule"]
@@ -347,7 +347,7 @@ class DPStage(object):
 
         sch_dict : dict of int to list
             Schedule dictionary maps node index to schedule candidates. Each element
-            in the value list is a dictionary which has "schedule" and "time" entries.
+            in the value list is a dictionary which has "schedule" and "cost" entries.
 
         Returns
         -------
