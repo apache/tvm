@@ -42,7 +42,7 @@ See :py:class:`~tvm.relay.ty.Type` for its definition and documentation.
 Tensor Type
 ~~~~~~~~~~~
 
-A concrete TensorType in Relay.
+A concrete tensor type in Relay.
 
 Tensors are typed according to data type and shape. At present, these use TVM's
 data types and shapes, but in the future, Relay may include a separate AST for

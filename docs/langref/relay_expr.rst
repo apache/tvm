@@ -5,8 +5,8 @@ Expressions in Relay
 The Relay IR is a pure, expression-oriented language with distinct
 dataflow and control flow language fragments.
 The dataflow fragments of a program (i.e., those without
-calls to recursive functions or branching) can be considered
-as a more traditional computation graph when writing and
+calls to recursive functions or branching) can be
+viewed as a traditional computation graph when writing and
 expressing transformations.
 
 The below sections describe the different expressions in Relay
@@ -17,8 +17,8 @@ Variables
 
 Relay allows for local and global variables. Our design is based on
 that of LLVM, which differentiates between identifier types; a writer of
-optimizations can thus determine a lot of information about what a
-variable references simply by knowing the kind of identifier.
+optimizations can thus determine what a variable references
+simply by knowing the kind of identifier.
 
 Global variables are written with `@`, local variables are written
 with `%`, and variables written without a sigil correspond to operator
@@ -27,13 +27,14 @@ names.
 The distinction between global and local identifiers
 makes certain kinds of transformation easier. For example,
 inlining a global definition requires no analysis: simply inlining
-the definitions suffices.
+the definition suffices.
 
 Global Variable
 ~~~~~~~~~~~~~~~~~~
 
 Global identifiers are prefixed by the `@` sigil, such as "`@global`".
-A global identifier always references a globally visibly definition contained in the environment. The names of global identifiers must be unique.
+A global identifier always references a globally visibly definition contained in the environment.
+Global identifiers must be unique.
 
 See :py:class:`~tvm.relay.expr.GlobalVar` for its implementation
 and documentation.
@@ -43,14 +44,14 @@ Local Variable
 
 Local identifiers are prefixed by the :code:`%` sigil,
 such as ":code:`%local`". A local identifier always references
-a function argument or a variable bound in a `let` expression.
+a function argument or a variable bound in a :code:`let` expression.
 A local variable will be scoped to the function where it
-appears or the `let` expression where it is bound, respectively.
+appears or the :code:`let` expression where it is bound, respectively.
 
 Suppose the local variable :code:`%a` has been defined in a scope
-and within that scope, a `let` expression binding to a variable
+and within that scope, a :code:`let` expression binding to a variable
 :code:`%a` appears. This is permitted, as in most functional languages.
-In the scope of the `let` expression (the inner scope),
+In the scope of the :code:`let` expression (the inner scope),
 the name :code:`%a` is "shadowed," meaning all references to
 :code:`%a` in the inner scope refer to the later defintion, while
 references to :code:`%a` in the outer scope continue to refer to
@@ -68,20 +69,21 @@ and documentation.
 Global Functions
 ================
 
-A function is no different from a procedure or function in a
-typical programming language and generalizes the concept of a
-named subgraph.
 A function definition consists of a name, arguments, return type,
 type parameters, and any applicable type relations.
-A function's return type and the types of parameters may be omitted;
+A function's return type and parameter types may be omitted;
 Relay will attempt to infer the most general types where types
 are omitted.
+
+Functions in Relay act similarly to procedures or functions in
+other programming language and serve to generalize the concept
+of a named subgraph.
 
 Functions defined in the manner described in this subsection are
 of global scope; anonymous functions will be discussed later, though
 their mechanics are nearly identical. Note that global functions may be
 recursive; that is, within the function's body, the function's
-identifier refers back to the function unless it is shadowed in a `let`
+identifier refers back to the function unless it is shadowed in a :code:`let`
 expression.
 
 A definition minimally consists of an identifier :code:`@id`, an empty set of
@@ -100,9 +102,9 @@ simple function that invokes the `add` operator:
     def @plus(%x, %y) { add(%x, %y) }
 
 Notice that within the function's body, the parameters are local
-variables, just like those bound in a `let` expression.
+variables, just like those bound in a :code:`let` expression.
 
-It is also possible for us to annotate explicit types on definitions.
+One may also annotate explicit types on definitions.
 For example, we can restrict the above definition to only work
 on certain types:
 
@@ -112,11 +114,8 @@ on certain types:
         %x + %y
     }
 
-A parameter is just a pairing of a :py:class:`~tvm.relay.expr.LocalVar` and optional :py:class:`~tvm.relay.ty.Type`. They represent
-the formal parameters of functions and definitions and are written as :code:`%x : T`.
-
-Parameters may only appear in function literals and definitions
-and have no relation to parameters in the machine learning.
+A parameter is just a local variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally annotated
+with a type. Parameters are written as :code:`%x : T`.
 
 When the type information is omitted, we will attempt to infer the most general type
 for the users. This property is known as generalization: for a definition without
@@ -148,7 +147,7 @@ In the above definition, the types of `%x` and `%y` and the return type
 are subject to the `Broadcast` relation, meaning all three must be tensors
 and their shapes follow the elementwise broadcast relation. As with
 operators, the definitions of relations are not transparent to Relay
-and they are instead implemented externally.
+and they are instead implemented externally in either C++ or Python.
 
 As in the case of `Broadcast`, relations are used to express complicated
 constraints on types (especially tensor shapes).
@@ -162,13 +161,17 @@ See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of
 Operators
 =========
 
-An operator is a primitive operation that is not defined in the Relay
-language but is registered in the global environment in either Python
+An operator is a primitive operation not defined in the Relay
+language. Operators are declaredi n the global operator
+registry in C++. Many common operators are backed by TVM's
+Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
+
+but registered in the global environment in either Python
 or C++. Implementations of operators are typically backed by TVM's TOPI.
 
 An operator requires a user to provide an implementation
 of the operator, its type, and any other desired metadata.
-The operator registry is simply a column-based store where
+The operator registry is a column-based store where
 operators are keys, so any metadata (which might be referenced
 by optimization passes) may be registered as a new column.
 
@@ -184,7 +187,7 @@ is a tensor whose shape depends on those of its arguments.
 Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`)
 when pretty-printing Relay programs.
 Operators are explicitly contained in the program and are uniquely
-identifiable by pointer during a run of the Relay compiler.
+identifiable by pointer.
 
 See :py:class:`~tvm.relay.op.Op` for the definition and documentation
 of operator nodes, demonstrating the infrastructure for registering
@@ -203,7 +206,7 @@ Constants
 ~~~~~~~~~
 
 This node represents a constant tensor value
-(see :py:mod:~tvm.relay.Value for more details).
+(see :py:mod:`~tvm.relay.Value` for more details).
 The constants are represented as :py:class:`~tvm.NDArray`,
 allowing Relay to utilize TVM operators for constant evaluation.
 
@@ -251,14 +254,10 @@ not have a globally unique name.
     fun (%x : Tensor<float32, (10, 10)>, y: Tensor<float32, (10, 10)>
                 -> Tensor<float32, (10, 10)> { add(%x, %y) }
 
-Note that function expressions evaluate to closure values. Closures
-store values for all free variables in their body. A free variable
-is a variable defined outside the scope of the function's body,
-which means that if a function expression references a local variable
-in the outer scope that is not shadowed by the parameters,
-the closure will store the value for that local variable and
-use that value when the function is called, even if original
-local variable has gone out of scope.
+Note that function expressions evaluate to a closure. Closures
+are values that are represented as a pair of a local environment
+(storing the values for all variables defined outside the scope
+of the function's body) and the function itself.
 
 For example, in the below example, :code:`%z` will evaluate to a tensor
 of zero values because the closure for :code:`%f` stores the value of
@@ -277,7 +276,7 @@ of zero values because the closure for :code:`%f` stores the value of
     let %x = Constant(1, float32, (10, 10));
     let %z = %f(%x)
 
-A recursive function expression can be defined using a `let` binding,
+A recursive function expression can be defined using a :code:`let` binding,
 as here:
 
 .. code-block:: python
@@ -296,21 +295,21 @@ See :py:class:`~tvm.relay.expr.Function` for its definition and documentation.
 Let Binding
 ~~~~~~~~~~~
 
-A `let` binding is an immutable local variable binding,
+A :code:`let` binding is an immutable local variable binding,
 allowing the user to bind an expression to a name.
 
-A `let` binding contains a local variable,
+A :code:`let` binding contains a local variable,
 an optional type annotation, a value, and a body expression
 that may reference the bound identifier. If a type annotation
 on the bound variable is omitted, Relay attempts to infer the
 most general type permitted for the variable.
 
-The bound variable in a `let` expression is scoped to the let
+The bound variable in a :code:`let` expression is scoped to the let
 expression's body. Note that the bound variable can only be
 recursively referenced in the value in the case of a function
 expression, as in the above subsection.
 
-The value of a `let` binding is the value of the final expression
+The value of a :code:`let` binding is the value of the final expression
 after evaluating the bindings it depends on. For example, in the
 following example the entire expression evaluates to a tensor
 of shape (10, 10) where all elements are 2:
@@ -320,11 +319,11 @@ of shape (10, 10) where all elements are 2:
    let %x : Tensor<float32, (10, 10)> = Consantt(1, float32, (10, 10));
    add(%x, %x)
 
-A sequence of `let` bindings can be considered as a dataflow graph,
+A sequence of :code:`let` bindings can be considered as a dataflow graph,
 where the bindings are a series of sub-graphs connected
 by bound variables. Since these binding sequences are
 pure, they can be evaluated in any order according to the program
-dataflow. For example, the first and second `let` bindings below
+dataflow. For example, the first and second :code:`let` bindings below
 may be evaluated in either order because neither has a dataflow
 dependency on the other:
 
