@@ -140,7 +140,7 @@ TVM_REGISTER_API("relay.op._Register")
 
 NodePtr<Node> CreateOp(const std::string& name) {
   auto op = Op::Get(name);
-  CHECK(!op.defined()) << "Cannot find op \'" << name << '\'';
+  CHECK(op.defined()) << "Cannot find op \'" << name << '\'';
   return op.node_;
 }
 
