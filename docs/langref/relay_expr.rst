@@ -246,8 +246,7 @@ Function Expressions
 
 Functions are first class in Relay and can be used in any expression
 position. Function expressions are the same as global functions and
-use nearly the same syntax (besides not including a name), but do
-not have a globally unique name.
+use nearly the same syntax, but do not have a globally unique name.
 
 .. code-block:: python
 
