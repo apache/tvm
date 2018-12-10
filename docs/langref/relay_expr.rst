@@ -134,8 +134,6 @@ polymorphic identity function for tensors as follows:
 
 Notice that the return type is omitted and will be inferred.
 
-.. *Note: polymorphism is not yet implemented.*
-
 A function may also be subject to one or more type relations, such as in
 the following:
 
@@ -366,8 +364,6 @@ has a function type:
 A type-polymorphic function can also include type arguments at a call
 site. The type arguments are substituted for type parameters when
 type checking.
-
-.. *Note: polymorphism is not yet implemented.*
 
 Note that all type relations in the function type must hold at each
 call site. Because relations are checked at call sites, this means that

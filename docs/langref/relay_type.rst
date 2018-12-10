@@ -86,8 +86,6 @@ See :py:class:`~tvm.relay.ty.TupleType` for its definition and documentation.
 Type Parameter
 ~~~~~~~~~~~~~~
 
-.. *note*: Type parameters are not yet implemented
-
 Type parameters represent placeholder types used for polymorphism in functions.
 Type parameters are specified according to *kind*: Kinds include general types
 (such as tensor types and tuple types), shapes, and data types. Relay enforces
@@ -108,7 +106,7 @@ be substituted for `(10, 10)` at the call site below:
    plus<(10, 10)>(%a, %b)
     
 
-See :py:class:`~tvm.relay.ty.TypeParam` for its definition and documentation.
+See :py:class:`~tvm.relay.ty.TypeVar` for its definition and documentation.
 
 Type Constraint
 ~~~~~~~~~~~~~~~
