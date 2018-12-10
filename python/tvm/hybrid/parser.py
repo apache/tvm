@@ -297,7 +297,7 @@ class HybridParser(ast.NodeVisitor):
             res.append(HybridParser._binop_maker[type(node.ops[i])](lhs, rhs))
         return _all(*res)
 
-    
+
     def visit_BoolOp(self, node):
         n = len(node.values)
         if n == 1:
@@ -309,8 +309,8 @@ class HybridParser(ast.NodeVisitor):
                              "Binary is supposed to be and/or!")
             values = [self.visit(i) for i in node.values]
             return HybridParser._binop_maker[type(node.op)](*values)
-
-
+        else:
+            raise ValueError("This Bool Op is not supported yet!")
 
 
     def visit_UnaryOp(self, node):
