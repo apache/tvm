@@ -2,6 +2,7 @@
 import tvm
 from tvm import relay
 from tvm.expr import *
+from tvm.relay import op
 from tvm.relay.ir_pass import graph_equal
 
 
@@ -209,6 +210,24 @@ def test_tuple_get_item():
     check_json_roundtrip(get)
 
 
+def test_op():
+    add = op.op.get("add")
+    check_json_roundtrip(add)
+
+
+def test_conv2d_attrs():
+    data = relay.var('data', shape=(1, 3, 224, 224))
+    param = relay.var('param', shape=(64, 3, 7, 7))
+    out = op.nn.conv2d(
+        data,
+        param,
+        strides=(2, 2),
+        padding=(3, 3),
+        channels=64,
+        kernel_size=(7, 7))
+    check_json_roundtrip(out)
+
+
 if __name__ == "__main__":
     test_bad_constructor()
     test_span()
@@ -226,3 +245,5 @@ if __name__ == "__main__":
     test_let()
     test_if()
     test_tuple_get_item()
+    test_op()
+    test_conv2d_attrs()
