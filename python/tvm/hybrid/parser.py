@@ -237,7 +237,7 @@ class HybridParser(ast.NodeVisitor):
         if isinstance(node.value, ast.Name):
             array = node.value.id
             _buf = self._get_buffer_from_id(array)
-            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
+            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, _buf.value_index)
 
         _internal_assert(isinstance(node.value, ast.Attribute), \
                          "Only variable and attribute's subscript supported so far")
