@@ -144,6 +144,7 @@ stage('Build') {
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_cpp_unittest.sh"
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_python_vta.sh"
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_rust.sh"
+          sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_golang.sh"
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_python_unittest.sh"
           sh "${docker_run} tvmai/ci-cpu ./tests/scripts/task_python_integration.sh"
         }
