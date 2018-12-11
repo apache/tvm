@@ -110,25 +110,25 @@ on certain types:
 
 .. code-block:: python
 
-    def @add(%x: Tensor<Float, (10, 10)>, %y: Tensor<Float, (10, 10)>) -> Tensor<Float, (10, 10)> {
-        %x + %y
+    def @plus(%x: Tensor<(10, 10), float32>, %y: Tensor<(10, 10), float32>)
+               -> Tensor<(10, 10), float32> {
+        add(%x, %y)
     }
 
-A parameter is just a local variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally annotated
-with a type. Parameters are written as :code:`%x : T`.
+A function parameter is just a local variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally
+annotated with a type. Parameters are written as :code:`%x : T`.
 
 When the type information is omitted, we will attempt to infer the most general type
 for the users. This property is known as generalization: for a definition without
 explicit annotations, we will attempt to assign the most general type. When the
-return type is omitted, we will infer the return type based on the text of the
-program.
+return type is omitted, we will infer the return type based on the function body.
 
 We can directly construct type-polymorphic definitions by writing down
 a set of type parameters for a definition. For example, one can define a
 polymorphic identity function for tensors as follows:
 
 .. code-block:: python
-    def @id<s: Shape, bt: BaseType>(%x: Tensor<bt, s>) {
+    def @id<s: Shape, bt: BaseType>(%x: Tensor<s, bt>) {
         %x
     }
 
@@ -221,7 +221,7 @@ members.
 
     (a, b, c) : Tuple<A, B, C>
 
-    (add(add(a, b), c), d) : Tuple<Tensor<float32, (10, 10)>, Tensor<float32, (100, 100)>>
+    (add(add(a, b), c), d) : Tuple<Tensor<(10, 10), float32>, Tensor<(100, 100), float32>>
 
 See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
 
@@ -248,8 +248,8 @@ use nearly the same syntax, but do not have a globally unique name.
 
 .. code-block:: python
 
-    fun (%x : Tensor<float32, (10, 10)>, y: Tensor<float32, (10, 10)>
-                -> Tensor<float32, (10, 10)> { add(%x, %y) }
+    fun (%x : Tensor<(10, 10), float32>, y: Tensor<(10, 10), float32>
+                -> Tensor<(10, 10), float32> { add(%x, %y) }
 
 Note that function expressions evaluate to a closure. Closures
 are values that are represented as a pair of a local environment
@@ -263,14 +263,14 @@ of zero values because the closure for :code:`%f` stores the value of
 .. code-block::
 
     let %g = fun () {
-      let %x = Constant(0, float32, (10, 10));
+      let %x = Constant(0, (10, 10), float32);
       # x is a free variable in the below function
       fun (%y) { multiply(%y, %x) }
     };
     # the %x in %g's body is not in scope anymore
-    # %f is a closure where %x maps to Constant(0, float32, (10, 10))
+    # %f is a closure where %x maps to Constant(0, (10, 10), float32)
     let %f = %g();
-    let %x = Constant(1, float32, (10, 10));
+    let %x = Constant(1, (10, 10), float32);
     let %z = %f(%x)
 
 A recursive function expression can be defined using a :code:`let` binding,
@@ -278,11 +278,11 @@ as here:
 
 .. code-block:: python
 
-    let %fact = fun (%x : Tensor<float32, (10, 10)>) -> Tensor<float32, (10, 10)> {
-        if (equal(%x, Constant(1, float32, (10, 10))) {
-            Constant(0, float32, (10, 10))
+    let %fact = fun (%x : Tensor<(10, 10), float32>) -> Tensor<(10, 10), float32> {
+        if (equal(%x, Constant(1, (10, 10), float32)) {
+            Constant(0, (10, 10), float32)
         } else {
-            multiply(%x,  %fact(subtract(%x, Constant(1, float32, (10, 10))))
+            multiply(%x,  %fact(subtract(%x, Constant(1, (10, 10), float32)))
         }
     };
     %fact(10)
@@ -313,7 +313,7 @@ of shape (10, 10) where all elements are 2:
 
 .. code-block:: python
 
-   let %x : Tensor<float32, (10, 10)> = Consantt(1, float32, (10, 10));
+   let %x : Tensor<(10, 10), float32> = Constant(1, (10, 10), float32);
    add(%x, %x)
 
 A sequence of :code:`let` bindings can be considered as a dataflow graph,
@@ -377,14 +377,14 @@ If-Then-Else
 
 Relay has a simple if-then-else expression that allows programs to branch
 on a single value of type :code:`bool`, i.e., a zero-rank
-tensor of booleans (:code:`Tensor<bool, ()>`).
+tensor of booleans (:code:`Tensor<(), bool>`).
 
 .. code-block:: python
 
-    if (sum(equal(t, u))) {
-        return x:
+    if (equal(%t, %u)) {
+        %t
     } else {
-        return y;
+        %u
     }
 
 Since if-then-else branches are expressions, they may appear inline

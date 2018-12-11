@@ -57,7 +57,7 @@ For example, here is a simple concrete tensor type corresponding to a 10-by-10 t
 
 .. code-block:: python
 
-   Tensor<float32, (10, 10)>
+   Tensor<(10, 10), float32>
 
 See :py:class:`~tvm.relay.ty.TensorType` for its definition and documentation.
 
@@ -74,11 +74,11 @@ Because a tuple type is of statically known size, the type of a tuple projection
 is simply the corresponding index into the tuple type.
 
 For example, in the below code, :code:`%t` is of type
-`Tuple<Tensor<float32, (10, 10)>, Tensor<float32, (10, 10)>>`
-and :code:`%c` is of type `Tensor<float32, (10, 10)>`.
+`Tuple<Tensor<(), bool>, Tensor<(10, 10), float32>>`
+and :code:`%c` is of type `Tensor<(10, 10), float32>`.
 
 .. code-block:: python
-   let %t = (Constant(0, bool, (10, 10)), Constant(1, float32, (10, 10)));
+   let %t = (Constant(0, (), bool), Constant(1, (10, 10), float32));
    let %c = %t.1;
    %c
 
@@ -101,7 +101,7 @@ be substituted for `(10, 10)` at the call site below:
 
 .. code-block:: python
 
-   def @plus<s : Shape>(%t1 : Tensor<float32, s>, %t2 : Tensor<float32, s>) {
+   def @plus<s : Shape>(%t1 : Tensor<s, float32>, %t2 : Tensor<s, float32>) {
         add(%t1, %t2)
    }
    plus<(10, 10)>(%a, %b)
