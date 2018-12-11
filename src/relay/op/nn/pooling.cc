@@ -258,8 +258,7 @@ bool GlobalPool2DRel(const Array<Type>& types,
                      const TypeReporter& reporter) {
   CHECK_EQ(types.size(), 2);
   const auto* data = types[0].as<TensorTypeNode>();
-
-  CHECK(data != nullptr);
+  if (data == nullptr) { return false; }
   const auto dshape = data->shape;
   CHECK_NE(dshape.size(), 0);
   CHECK_GE(dshape.size(), 2U)
