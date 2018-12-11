@@ -24,6 +24,7 @@ class FreeTypeVarTVisitor : public TypeVisitor {
     TypeVar var = GetRef<TypeVar>(tp);
     if (bound_vars_->count(var) == 0) {
       free_vars_->push_back(var);
+      bound_vars_->insert(var);
     }
   }
 
