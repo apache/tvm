@@ -128,6 +128,17 @@ tvm::Array<Var> FreeVars(const Expr& expr);
  */
 tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
 
+/*! \brief Get free TypeVars from type t.
+ *
+ * Free type parameters are type parameters that are not bound by a function
+ * type in the context.
+ *
+ * \param expr the expression.
+ *
+ * \return List of free type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> FreeTypeVars(const Type& t);
+
 /*! \brief Remove expressions which does not effect the program result.
  *
  * It will remove let bindings which are not referenced, and branches that will

@@ -75,7 +75,7 @@ struct ResolvedTypeInfo {
 // Converts incomplete types remaining in function signature to type vars
 class Generalizer : public TypeMutator {
  public:
-  Generalizer() : subst_map_({}), vars_({}), varno_(0) {}
+  Generalizer() : subst_map_({}), varno_(0) {}
 
   // turns each distinct incomplete type into a type var and returns
   // the transformed type with an array of all type vars present
@@ -87,8 +87,9 @@ class Generalizer : public TypeMutator {
       return ret;
     }
 
-    // for a func type, we add the type vars to the list at top
-    return FuncTypeNode::make(ftn->arg_types, ftn->ret_type, vars_, ftn->type_constraints);
+    // for a func type, we generalize at the top level
+    Array<TypeVar> free_vars = FreeTypeVars(GetRef<FuncType>(ftn));
+    return FuncTypeNode::make(ftn->arg_types, ftn->ret_type, free_vars, ftn->type_constraints);
   }
 
   Type VisitType_(const IncompleteTypeNode *op) override {
@@ -103,7 +104,6 @@ class Generalizer : public TypeMutator {
     ss << "_var_" << varno_;
     varno_++;
     TypeVar new_var = TypeVarNode::make(ss.str(), TypeVarNode::Kind::kType);
-    vars_.push_back(new_var);
     subst_map_.Set(t, new_var);
     return new_var;
   }
@@ -122,7 +122,6 @@ class Generalizer : public TypeMutator {
 
  private:
   tvm::Map<IncompleteType, TypeVar> subst_map_;
-  Array<TypeVar> vars_;
   int varno_;
 };
 
