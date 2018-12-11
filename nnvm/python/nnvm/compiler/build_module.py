@@ -251,7 +251,7 @@ def build(graph, target=None, shape=None, dtype="float32",
         if not isinstance(shape, dict):
             raise TypeError("require shape to be dict")
         for value in shape.values():
-            if not all(isinstance(x, (int, long)) for x in value):
+            if not all(isinstance(x, tvm._ffi.base.integer_types) for x in value):
                 raise TypeError("shape value must be Integer types iterator")
 
         cfg = BuildConfig.current
