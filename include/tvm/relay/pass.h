@@ -133,7 +133,7 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  * Free type parameters are type parameters that are not bound by a function
  * type in the context.
  *
- * \param expr the expression.
+ * \param t the type.
  *
  * \return List of free type vars, in the PostDFS order visited by type.
  */
