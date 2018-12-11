@@ -1,4 +1,4 @@
-"""External function interface to MPS libraroes."""
+"""External function interface to MPS libraries."""
 from __future__ import absolute_import as _abs
 from .. import api as _api
 from .. import intrin as _intrin
