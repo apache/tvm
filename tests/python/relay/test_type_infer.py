@@ -231,6 +231,56 @@ def test_self_reference():
     assert call_type == relay.FuncType([a], a, [a])
 
 
+def test_nested_recursive_function():
+    """
+    Program:
+       def f(x) {
+         let g = fun(x) { g(x) };
+         g(x)
+       }
+    """
+    x = relay.var("x")
+    y = relay.var("y")
+    g = relay.var("g")
+    f = relay.Function([x],
+                       relay.Let(g,
+                                 relay.Function(
+                                     [y], relay.Call(g, [y])),
+                                 relay.Call(g, [x])))
+
+    a = relay.TypeVar("a")
+    b = relay.TypeVar("b")
+    f_type = relay.ir_pass.infer_type(f).checked_type
+    assert f_type == relay.FuncType([a], b, [a, b])
+
+
+def test_proper_inner_function_generalization():
+    """
+    Program:
+       def f() {
+          let id = fun(x) { x };
+          let unit = id(());
+          let idid = id(id);
+          unit
+       }
+    """
+    x = relay.var("x")
+    unit = relay.var("unit")
+    id1 = relay.var("id")
+    id2 = relay.var("idid")
+    f = relay.Function(
+        [],
+        relay.Let(id1, relay.Function([x], x),
+                  relay.Let(
+                      unit, relay.Call(id1, [relay.Tuple([])]),
+                      relay.Let(
+                          id2, relay.Call(id1, [id1]),
+                          unit))))
+
+    f_type = relay.ir_pass.infer_type(f).checked_type
+    assert f_type == relay.FuncType([], relay.TupleType([]))
+
+
 def test_global_var_recursion():
     mod = relay.Module({})
     gv = relay.GlobalVar("foo")
