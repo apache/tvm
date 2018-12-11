@@ -54,7 +54,7 @@ shows an example of a function calling another function.
 
    def @muladd(%x, %y, %z) {
      %1 = mul(%x, %y)
-     %2 = add(%x, %z)
+     %2 = add(%1, %z)
      %2
    }
    def @myfunc(%x) {
