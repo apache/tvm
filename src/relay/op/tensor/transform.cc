@@ -1099,13 +1099,14 @@ bool BroadCastToRel(const Array<Type>& types,
   return true;
 }
 
- Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
+Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
   static const Op& op = Op::Get("broadcast_to");
   auto attrs = make_node<InitOpAttrs>();
   attrs->shape = std::move(shape);
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
- Array<Tensor> BroadCastToCompute(const Attrs& attrs,
+
+Array<Tensor> BroadCastToCompute(const Attrs& attrs,
                                      const Array<Tensor>& inputs,
                                      const Type& out_type,
                                      const Target& target) {
@@ -1113,11 +1114,13 @@ bool BroadCastToRel(const Array<Type>& types,
   CHECK(ioattrs != nullptr);
   return { topi::broadcast_to(inputs[0], ioattrs->shape) };
 }
- TVM_REGISTER_API("relay.op._make.broadcast_to")
+
+TVM_REGISTER_API("relay.op._make.broadcast_to")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 2>(MakeBroadCastTo, args, rv);
   });
- RELAY_REGISTER_OP("broadcast_to")
+
+RELAY_REGISTER_OP("broadcast_to")
 .describe(R"code(Broadcast the first input to match the shape argument.
 )code" TVM_ADD_FILELINE)
 .set_num_inputs(1)
