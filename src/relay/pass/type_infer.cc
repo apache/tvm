@@ -149,6 +149,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   class Resolver;
   // internal environment
   Module mod_;
+  // Generalizer for handling let nodes
+  Generalizer gen_;
   // map from expression to checked type
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
@@ -234,11 +236,21 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   Type VisitExpr_(const LetNode* op) final {
+    // if the definition is a function literal, permit recursion
+    bool isFunctionLiteral = op->value.as<FunctionNode>() != nullptr;
+    if (isFunctionLiteral) {
+      type_map_[op->var].checked_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    }
+
     Type vtype = GetType(op->value);
+    // need to generalize inner functions immediately (per H-M)
+    if (isFunctionLiteral) {
+      vtype = gen_.Generalize(vtype);
+    }
     if (op->var->type_annotation.defined()) {
       vtype = Unify(vtype, op->var->type_annotation, op->span);
     }
-    CHECK(!type_map_.count(op->var));
+    CHECK(isFunctionLiteral || !type_map_.count(op->var));
     // NOTE: no scoping is necessary because var are unique in program
     type_map_[op->var].checked_type = vtype;
     return GetType(op->body);
