@@ -78,8 +78,9 @@ For example, in the below code, :code:`%t` is of type
 and :code:`%c` is of type `Tensor<float32, (10, 10)>`.
 
 .. code-block:: python
-   let %t = (Constant(0, bool, ()), Constant(1, float32, (10, 10)));
-   let %c = %t.1
+   let %t = (Constant(0, bool, (10, 10)), Constant(1, float32, (10, 10)));
+   let %c = %t.1;
+   %c
 
 See :py:class:`~tvm.relay.ty.TupleType` for its definition and documentation.
 
