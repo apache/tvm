@@ -208,11 +208,11 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     out_layout = attrs.get_str("out_layout")
     out_dtype = attrs.get_str("out_dtype")
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
-    if len(get_const_tuple(inputs[0].shape)) == 5:
-        _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[0].shape)
+    if layout == "NCHW":
+        _, in_channel, _, _ = get_const_tuple(inputs[0].shape)
     else:
-        _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[1].shape)
-    in_channel = in_channel_chunk * in_channel_block
+        _, in_channel_chunk, _, _, in_channel_block = get_const_tuple(inputs[0].shape)
+        in_channel = in_channel_chunk * in_channel_block
     assert dilation == (1, 1), "not support dilate now"
     if groups == 1:
         # pylint: disable=assignment-from-no-return
