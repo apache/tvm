@@ -536,7 +536,6 @@ class GraphPartitioner {
    * \brief Commit fusion operation.
    * \param src The source node.
    * \param sink The termination node.
-   * \tparam group the group to be committed.
    * \note sink must be a post-dominator of src.
    */
   void CommitFuse(IndexedForwardGraph::Node* src,
