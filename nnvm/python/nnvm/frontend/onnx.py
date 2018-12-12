@@ -346,9 +346,9 @@ class ThresholdedRelu(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 0.0))
-        return _sym.relu(inputs[0] - alpha)
-
+        alpha = float(attr.get('alpha', 1.0))
+        alpha_tensor = _sym.full_like(inputs[0], fill_value=float(alpha))
+        return _sym.elemwise_mul(inputs[0], _sym.greater(inputs[0], alpha_tensor))
 
 class ImageScaler(OnnxOpConverter):
 
