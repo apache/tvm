@@ -71,7 +71,7 @@ class TypeVarEVisitor : private ExprVisitor {
 
   Array<TypeVar> CollectAll() {
     Array<TypeVar> ret;
-    for (const auto& v : bound_type_vars_.data) {
+    for (const auto& v : type_vars_.data) {
       ret.push_back(v);
     }
     return ret;
@@ -237,7 +237,7 @@ TVM_REGISTER_API("relay._ir_pass.all_vars")
 TVM_REGISTER_API("relay._ir_pass.free_type_vars")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
     NodeRef x = args[0];
-    if (x.as<TypeNode>()) {
+    if (x.as_derived<TypeNode>()) {
       *ret = FreeTypeVars(Downcast<Type>(x));
     } else {
       *ret = FreeTypeVars(Downcast<Expr>(x));
@@ -247,7 +247,7 @@ TVM_REGISTER_API("relay._ir_pass.free_type_vars")
 TVM_REGISTER_API("relay._ir_pass.bound_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
-      if (x.as<TypeNode>()) {
+      if (x.as_derived<TypeNode>()) {
         *ret = BoundTypeVars(Downcast<Type>(x));
       } else {
         *ret = BoundTypeVars(Downcast<Expr>(x));
@@ -257,7 +257,7 @@ TVM_REGISTER_API("relay._ir_pass.bound_type_vars")
 TVM_REGISTER_API("relay._ir_pass.all_type_vars")
   .set_body([](TVMArgs args, TVMRetValue* ret) {
       NodeRef x = args[0];
-      if (x.as<TypeNode>()) {
+      if (x.as_derived<TypeNode>()) {
         *ret = AllTypeVars(Downcast<Type>(x));
       } else {
         *ret = AllTypeVars(Downcast<Expr>(x));
