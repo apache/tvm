@@ -14,6 +14,15 @@
 namespace tvm {
 namespace ir {
 
+TVM_REGISTER_API("ir_pass.SimplifyCombiner")
+.set_body([](TVMArgs args, TVMRetValue *ret) {
+    if (args.size() > 1) {
+      *ret = SimplifyCombiner(args[0].operator Expr(), args[1]);
+    } else {
+      *ret = SimplifyCombiner(args[0].operator Expr());
+    }
+  });
+
 TVM_REGISTER_API("ir_pass.Simplify")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
     if (args[0].IsNodeType<Stmt>()) {
