@@ -185,19 +185,21 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         out : NDArray
             The output array container
         """
+        ret = None
         if isinstance(node, str):
             output_tensors = self.debug_datum.get_output_tensors()
             try:
-                output_tensors[node]
+                ret = output_tensors[node]
             except:
                 node_list = output_tensors.keys()
                 raise RuntimeError("Node " + node + " not found, available nodes are: "
                                    + str(node_list) + ".")
         elif isinstance(node, int):
             output_tensors = self.debug_datum._output_tensor_list
-            return output_tensors[node]
+            ret = output_tensors[node]
         else:
             raise RuntimeError("Require node index or name only.")
+        return ret
 
     def run(self, **input_dict):
         """Run forward execution of the graph with debug
