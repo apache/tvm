@@ -496,6 +496,8 @@ def test_value_index():
     d = kernel_b(c, b)
     sch = tvm.create_schedule(d.op)
     module = tvm.build(sch, [a, d])
+    # A bug to fix?
+    print(tvm.lower(sch, [a, b], simple_mode=True))
     assert module
 
     np_a = numpy.arange(16).astype('int32')
