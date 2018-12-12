@@ -5,7 +5,7 @@ import operator
 import logging
 import sys
 from .util import make_nop, halide_imm_types, is_docstring, _internal_assert
-from .intrin import LOOP_INTRIN, MATH_INTRIN
+from . import calls
 from .var_decl import determine_variable_usage
 from ..api import thread_axis
 from ..api import all as _all
@@ -119,7 +119,6 @@ class HybridParser(ast.NodeVisitor):
                 self.side_effect.add(self._args[s])
             return self._args[s]
         return self.alloc_buffers[s][0]
-
 
 
     #pylint: disable=invalid-name, missing-docstring
@@ -329,67 +328,72 @@ class HybridParser(ast.NodeVisitor):
         # Yet, no function pointer supported
         _internal_assert(isinstance(node.func, ast.Name), \
                          "Only id-function function call is supported so far!")
+
         func_id = node.func.id
-        n = len(node.args)
-        if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
-            if n == 1:
-                low, ext = _api.const(0, dtype='int32'), self.visit(node.args[0])
-            else:
-                _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
-                low, ext = self.visit(node.args[0]), self.visit(node.args[1])
-            if not _ir_pass.Equal(low, _api.const(0, dtype='int32')):
-                ext = ext - low
-            for_type = LOOP_INTRIN[func_id]
-            iter_var = None
-            return iter_var, low, ext, for_type
-        elif func_id == 'bind':
-            _internal_assert(n == 2, "A loop bind should only have 2 arguments!")
-            _internal_assert(isinstance(node.args[0], ast.Str), \
-                             "A loop bind's first argument should be a string!")
-            _vn = node.args[0].s
-            iter_var = thread_axis(node.args[0].s)
-            low, ext = _api.const(0, dtype='int32'), self.visit(node.args[1])
-            for_type = None
-            return iter_var, low, ext, for_type
-        elif func_id in MATH_INTRIN:
-            return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
-        elif func_id in ['allocate', 'output_tensor']:
-            _internal_assert(isinstance(node.args[0], ast.Tuple), \
-                             "allocate's first argument should be a tuple of shape!")
-            shape = tuple(self.visit(i) for i in node.args[0].elts)
-            if func_id == 'output_tensor':
-                _internal_assert(not self.loops_above, \
-                                 "Are you sure to allocate a output buffer multiple times?")
-            for i in shape:
-                _internal_assert(isinstance(i, _expr.Expr), "The shape should be an expression")
-            if n > 1:
-                if isinstance(node.args[1], ast.Str):
-                    dtype = node.args[1].s
-                else:
-                    _internal_assert(isinstance(node.args[1], ast.Attribute), \
-                                     "Unable to evaluate to get data type")
-                    to_eval = node.args[1]
-                    _internal_assert(isinstance(to_eval.value, ast.Name), \
-                                     "Unable to evaluate the attribute to get data type")
-                    _internal_assert(to_eval.attr == 'dtype', \
-                                     "Only dtype attribute is supported so far")
-                    dtype = self._get_buffer_from_id(to_eval.value.id).dtype
-            else:
-                dtype = 'float32'
-            if n > 2:
-                _internal_assert(isinstance(node.args[2], ast.Str), \
-                                 "The data scope should be an string")
-                _internal_assert(func_id != 'output_tensor', "Output tensor cannot specify scope")
-                scope = node.args[2].s
-            else:
-                scope = 'global' if func_id != 'output_tensor' else 'output'
-            return (shape, dtype, scope)
-        elif func_id == 'max' or func_id == 'min':
-            _internal_assert(n == 2, "Max/Min function should have 2 elements")
-            a, b = self.visit(node.args[0]), self.visit(node.args[1])
-            return getattr(_make, func_id.title())(a, b)
-        else:
-            raise ValueError("Function call not supported yet!")
+        try:
+            return getattr(calls, func_id)(self, func_id, node.args)
+        except Exception as e:
+            raise e
+        #n = len(node.args)
+        #if func_id in LOOP_INTRIN.keys() and func_id != 'bind':
+        #    if n == 1:
+        #        low, ext = _api.const(0, dtype='int32'), self.visit(node.args[0])
+        #    else:
+        #        _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
+        #        low, ext = self.visit(node.args[0]), self.visit(node.args[1])
+        #    if not _ir_pass.Equal(low, _api.const(0, dtype='int32')):
+        #        ext = ext - low
+        #    for_type = LOOP_INTRIN[func_id]
+        #    iter_var = None
+        #    return iter_var, low, ext, for_type
+        #elif func_id == 'bind':
+        #    _internal_assert(n == 2, "A loop bind should only have 2 arguments!")
+        #    _internal_assert(isinstance(node.args[0], ast.Str), \
+        #                     "A loop bind's first argument should be a string!")
+        #    _vn = node.args[0].s
+        #    iter_var = thread_axis(node.args[0].s)
+        #    low, ext = _api.const(0, dtype='int32'), self.visit(node.args[1])
+        #    for_type = None
+        #    return iter_var, low, ext, for_type
+        #elif func_id in MATH_INTRIN:
+        #    return getattr(intrin, func_id)(*[self.visit(arg) for arg in node.args])
+        #elif func_id in ['allocate', 'output_tensor']:
+        #    _internal_assert(isinstance(node.args[0], ast.Tuple), \
+        #                     "allocate's first argument should be a tuple of shape!")
+        #    shape = tuple(self.visit(i) for i in node.args[0].elts)
+        #    if func_id == 'output_tensor':
+        #        _internal_assert(not self.loops_above, \
+        #                         "Are you sure to allocate a output buffer multiple times?")
+        #    for i in shape:
+        #        _internal_assert(isinstance(i, _expr.Expr), "The shape should be an expression")
+        #    if n > 1:
+        #        if isinstance(node.args[1], ast.Str):
+        #            dtype = node.args[1].s
+        #        else:
+        #            _internal_assert(isinstance(node.args[1], ast.Attribute), \
+        #                             "Unable to evaluate to get data type")
+        #            to_eval = node.args[1]
+        #            _internal_assert(isinstance(to_eval.value, ast.Name), \
+        #                             "Unable to evaluate the attribute to get data type")
+        #            _internal_assert(to_eval.attr == 'dtype', \
+        #                             "Only dtype attribute is supported so far")
+        #            dtype = self._get_buffer_from_id(to_eval.value.id).dtype
+        #    else:
+        #        dtype = 'float32'
+        #    if n > 2:
+        #        _internal_assert(isinstance(node.args[2], ast.Str), \
+        #                         "The data scope should be an string")
+        #        _internal_assert(func_id != 'output_tensor', "Output tensor cannot specify scope")
+        #        scope = node.args[2].s
+        #    else:
+        #        scope = 'global' if func_id != 'output_tensor' else 'output'
+        #    return (shape, dtype, scope)
+        #elif func_id == 'max' or func_id == 'min':
+        #    _internal_assert(n == 2, "Max/Min function should have 2 elements")
+        #    a, b = self.visit(node.args[0]), self.visit(node.args[1])
+        #    return getattr(_make, func_id.title())(a, b)
+        #else:
+        #    raise ValueError("Function call not supported yet!")
 
 
     def visit_For(self, node):
