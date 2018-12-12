@@ -1107,9 +1107,9 @@ Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
 }
 
 Array<Tensor> BroadCastToCompute(const Attrs& attrs,
-                                     const Array<Tensor>& inputs,
-                                     const Type& out_type,
-                                     const Target& target) {
+                                 const Array<Tensor>& inputs,
+                                 const Type& out_type,
+                                 const Target& target) {
   auto ioattrs = attrs.as<InitOpAttrs>();
   CHECK(ioattrs != nullptr);
   return { topi::broadcast_to(inputs[0], ioattrs->shape) };

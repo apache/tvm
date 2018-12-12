@@ -268,16 +268,18 @@ def where(condition, x, y):
     return _make.where(condition, x, y)
 
 def broadcast_to(data, shape):
-    """
-    Return an scalar value array with the same type, but with
-    broadcasted to the broadcast shape.
-     Parameters
+    """Return an scalar value array with the same type, broadcast to
+    the provided shape.
+
+    Parameters
     ----------
     data : relay.Expr
         The input tensor.
-     broadcast_shape : shape
+
+    shape : shape
         Provide the shape to broadcast to.
-     Returns
+
+    Returns
     -------
     result : relay.Expr
         The resulting tensor.
