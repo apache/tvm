@@ -1124,8 +1124,8 @@ class GraphProto(object):
                         tensor_value.tensor_shape)]
             elif '_output_shapes' in attr:
                 self._output_shapes[node.name] = \
-                    [tensor_util.TensorShapeProtoToList(shape) \
-                    for shape in attr['_output_shapes']]
+                    [tensor_util.TensorShapeProtoToList(tshape) \
+                    for tshape in attr['_output_shapes']]
             elif shape:
                 # Keep the list indexable to avoid key error.
                 # Actual value will be filled after node creation.
