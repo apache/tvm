@@ -523,5 +523,3 @@ if __name__ == "__main__":
     test_value_index()
     # TODO:
     # test_inplace()
-
-
