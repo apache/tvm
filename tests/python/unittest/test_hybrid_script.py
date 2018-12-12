@@ -479,8 +479,8 @@ def test_value_index():
         b = output_tensor((16, ), 'int32')
         c = output_tensor((4, 4), 'int32')
         for i in range(16):
-            b[i] = a[i] + 1
-            c[i / 4, i % 4] = a[i] + 1
+            b[i] = a[i] + 2
+            c[i // 4, i % 4] = a[i] + 1
         return b, c
 
     @tvm.hybrid.script
@@ -496,6 +496,8 @@ def test_value_index():
     d = kernel_b(c, b)
     sch = tvm.create_schedule(d.op)
     module = tvm.build(sch, [a, d])
+    # A bug to fix?
+    print(tvm.lower(sch, [a, b], simple_mode=True))
     assert module
 
     np_a = numpy.arange(16).astype('int32')
