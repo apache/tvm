@@ -106,6 +106,17 @@ bool AlphaEqual(const Type& t1, const Type& t2);
  */
 bool WellFormed(const Expr& expr);
 
+/*! \brief Get all bound variables from expression expr.
+ *
+ * Bound variables are all variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound vars, in the PostDFS order in the expression.
+ */
+tvm::Array<Var> BoundVars(const Expr& expr);
+
 /*! \brief Get free type parameters from expression expr.
  *
  * Free variables are variables that are not bound by a
@@ -116,6 +127,14 @@ bool WellFormed(const Expr& expr);
  * \return List of free vars, in the PostDFS order in the expression.
  */
 tvm::Array<Var> FreeVars(const Expr& expr);
+
+/*! \brief Get all variables from expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of free vars, in the PostDFS order in the expression.
+ */
+tvm::Array<Var> AllVars(const Expr& expr);
 
 /*! \brief Get free TypeVars from expression expr.
  *
@@ -138,6 +157,44 @@ tvm::Array<TypeVar> FreeTypeVars(const Expr& expr);
  * \return List of free type vars, in the PostDFS order visited by type.
  */
 tvm::Array<TypeVar> FreeTypeVars(const Type& t);
+
+/*! \brief Get all bound type variables from expression expr.
+ *
+ * Bound variables are all type variables that are declared in the expr.
+ * They only have meaning inside that expr, and can only be used in it.
+ *
+ * \param expr the expression.
+ *
+ * \return List of bound type vars, in the PostDFS order in the expression.
+ */
+tvm::Array<TypeVar> BoundTypeVars(const Expr& expr);
+
+/*! \brief Get all bound type variables from type t.
+ *
+ * Bound variables are all type variables that are declared in the type.
+ * They only have meaning inside that type, and can only be used in it.
+ *
+ * \param t the type
+ *
+ * \return List of bound type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> BoundTypeVars(const Type& t);
+
+/*! \brief Get all type variables in expression expr.
+ *
+ * \param expr the expression.
+ *
+ * \return List of type vars, in the PostDFS order in the expression.
+ */
+tvm::Array<TypeVar> AllTypeVars(const Expr& expr);
+
+/*! \brief Get all type variables in type t.
+ *
+ * \param t the type.
+ *
+ * \return List of type vars, in the PostDFS order visited by type.
+ */
+tvm::Array<TypeVar> AllTypeVars(const Type& t);
 
 /*! \brief Remove expressions which does not effect the program result.
  *
