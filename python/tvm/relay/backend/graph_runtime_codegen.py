@@ -24,7 +24,8 @@ import attr
 from . import _backend
 from . import compile_engine
 from ..op import Op
-from ..expr import Function, GlobalVar, ExprFunctor
+from ..expr import Function, GlobalVar
+from ..expr_functor import ExprFunctor
 from ..ty import TupleType, TensorType
 
 

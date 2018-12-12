@@ -1,7 +1,7 @@
 # pylint: disable=no-else-return, unidiomatic-typecheck, invalid-name
 """The expression functor of Relay."""
 
-from .expr import Function, Call, Let, Var, GlobalVar, If, Tuple, TupleGetItem, Constant, Op, RefNew, RefRead, RefWrite
+from .expr import Function, Call, Let, Var, GlobalVar, If, Tuple, TupleGetItem, Constant
 from .op import Op
 
 class ExprFunctor:
