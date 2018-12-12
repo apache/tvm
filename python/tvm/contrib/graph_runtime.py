@@ -206,7 +206,7 @@ class GraphModule(object):
             The output array container
         """
         raise NotImplementedError(
-            "Please use tvm.contrib.debugger.debug_runtime.GraphModuleDebug instead.")
+            "Please use debugger.debug_runtime as graph_runtime instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.
