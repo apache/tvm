@@ -8,6 +8,7 @@ from ..api import register_func
 class InterpreterState(NodeBase):
     pass
 
+# pylint: disable=unused-argument
 def _debugger_init(expr, stack):
     import pdb
     pdb.set_trace()
@@ -21,4 +22,4 @@ def _debug(*args):
     print("  You can manipulate the call stack by the name `stack`.")
     print("--------------")
     print("--------------")
-    _debugger_init(ist.current_expr , ist.stack)
+    _debugger_init(ist.current_expr, ist.stack)
