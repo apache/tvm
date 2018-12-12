@@ -112,10 +112,6 @@ class GraphModule(object):
         self._get_output = module["get_output"]
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
-        try:
-            self._debug_get_output = module["debug_get_output"]
-        except AttributeError:
-            pass
         self._load_params = module["load_params"]
 
     def set_input(self, key=None, value=None, **params):
@@ -209,12 +205,8 @@ class GraphModule(object):
         out : NDArray
             The output array container
         """
-        if hasattr(self, '_debug_get_output'):
-            self._debug_get_output(node, out)
-        else:
-            raise RuntimeError(
-                "Please compile runtime with USE_GRAPH_RUNTIME_DEBUG = 0")
-        return out
+        raise NotImplementedError(
+            "Please use debugger.debug_runtime as graph_runtime instead.")
 
     def load_params(self, params_bytes):
         """Load parameters from serialized byte array of parameter dict.
