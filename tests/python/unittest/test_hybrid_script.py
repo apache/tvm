@@ -336,6 +336,7 @@ def test_non_zero():
                     for dj in range(3):
                         s += a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
+        b[0, 0] += s
         return b
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
@@ -505,6 +506,24 @@ def test_value_index():
     res = tvm.ndarray.array(numpy.zeros((4, 4)).astype('int32'))
     module(tvm.ndarray.array(np_a), res)
     tvm.testing.assert_allclose(res.asnumpy(), ref)
+
+def test_func_call():
+    @tvm.hybrid.script
+    def kernel_a(a):
+        b = output_tensor((16, ), 'int32')
+        c = output_tensor((4, 4), 'int32')
+        for i in range(16):
+            b[i] = a[i] + 2
+            c[i // 4, i % 4] = a[i] + 1
+        return b, c
+
+    @tvm.hybrid.script
+    def kernel_b(b, a):
+        c = output_tensor((4, 4), 'int32')
+        for i in range(4):
+            for j in range(4):
+                c[i, j] = a[i * 4 + j] * b[i, j]
+        return c
 
 
 
