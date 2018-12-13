@@ -8,7 +8,55 @@ import topi.testing
 
 from tvm.contrib.pickle_memoize import memoize
 from topi.util import get_const_tuple
-from topi.vision import ssd, nms
+from topi.vision import ssd, nms, get_valid_counts
+
+
+def verify_get_valid_counts(dshape, score_threshold):
+    dtype = "float32"
+    batch_size, num_anchor, elem_length = dshape
+    np_data = np.random.uniform(size=dshape).astype(dtype)
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=dshape).astype("float32")
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor):
+            score = np_data[i, j, 1]
+            if score >= score_threshold:
+                for k in range(elem_length):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                inter_idx += 1
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+        with tvm.target.create(device):
+            data = tvm.placeholder(dshape, name="data", dtype=dtype)
+            outs = get_valid_counts(data, score_threshold)
+            s = topi.generic.schedule_multibox_prior(outs)
+
+        tvm_input_data = tvm.nd.array(np_data, ctx)
+        tvm_out1 = tvm.nd.array(np.zeros(np_out1.shape, dtype="int32"), ctx)
+        tvm_out2 = tvm.nd.array(np.zeros(np_out2.shape, dtype=dtype), ctx)
+        f = tvm.build(s, [data, outs[0], outs[1]], device)
+        f(tvm_input_data, tvm_out1, tvm_out2)
+        tvm.testing.assert_allclose(tvm_out1.asnumpy(), np_out1, rtol=1e-3)
+        tvm.testing.assert_allclose(tvm_out2.asnumpy(), np_out2, rtol=1e-3)
+
+    for device in ['llvm']:
+        check_device(device)
+
+
+def test_get_valid_counts():
+    verify_get_valid_counts((1, 2500, 6), 0)
+    verify_get_valid_counts((1, 2500, 6), -1)
+    verify_get_valid_counts((3, 1000, 6), 0.15)
+    verify_get_valid_counts((16, 500, 6), 0.95)
+>>>>>>> Add test for get_valid_counts
 
 
 def test_nms():
@@ -274,6 +322,7 @@ def test_proposal():
 
 
 if __name__ == "__main__":
+    test_get_valid_counts()
     test_nms()
     test_multibox_prior()
     test_multibox_detection()

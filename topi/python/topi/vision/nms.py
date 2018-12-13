@@ -1,16 +1,17 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, undefined-variable, too-many-nested-blocks, too-many-branches
 """Non-maximum suppression operator"""
 import tvm
 
 from tvm import api, hybrid
 
 @hybrid.script
-def rearrange_out(input):
-    """Rearrange nms output to move all valid entries to top.
+def hybrid_rearrange_out(data):
+    """Hybrid routine to rearrange nms output to
+    move all valid entries to top.
 
     Parameters
     ----------
-    input : tvm.Tensor or numpy NDArray
+    data : tvm.Tensor or numpy NDArray
         NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
 
@@ -20,32 +21,32 @@ def rearrange_out(input):
         Transformed NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
     """
-    output = output_tensor((input.shape[0],
-                            input.shape[1],
-                            input.shape[2],),
-                           input.dtype)
-    batch_size = input.shape[0]
-    num_anchors = input.shape[1]
-    elem_length = input.shape[2]
-    for i in range(batch_size):
-        for j in range(num_anchors):
-            for k in range(elem_length):
-                output[i, j, k] = -1.0
+    output = output_tensor((data.shape[0],
+                            data.shape[1],
+                            data.shape[2],),
+                           data.dtype)
+    batch_size = data.shape[0]
+    num_anchors = data.shape[1]
+    elem_length = data.shape[2]
 
-    for i in range(batch_size):
+    for i in parallel(batch_size):
         valid_idx = 0
         for j in range(num_anchors):
-            if input[i, j, 0] >= 0:
+            if data[i, j, 0] >= 0:
                 for k in range(elem_length):
-                    output[i, valid_idx, k] = input[i, j, k]
-                valid_idx = valid_idx + 1
+                    output[i, valid_idx, k] = data[i, j, k]
+                valid_idx += 1
+            if j >= valid_idx:
+                for k in range(elem_length):
+                    output[i, j, k] = -1.0
     return output
 
 
 @hybrid.script
-def get_valid_counts(data, score_threshold):
-    """Get valid count of bounding boxes given a score threshlod.
-    Also moves valid boxes to the top of input data.
+def hybrid_get_valid_counts(data, score_threshold):
+    """Hybrid routine to get valid count of bounding boxes
+    given a score threshold. Also moves valid boxes to the
+    top of input data.
 
     Parameters
     ----------
@@ -71,7 +72,7 @@ def get_valid_counts(data, score_threshold):
                                 num_anchors,
                                 box_data_length),
                                data.dtype)
-    for i in range(batch_size):
+    for i in parallel(batch_size):
         valid_count[i] = 0
         inter_idx = 0
         for j in range(num_anchors):
@@ -80,9 +81,32 @@ def get_valid_counts(data, score_threshold):
                 for k in range(box_data_length):
                     out_tensor[i, inter_idx, k] = data[i, j, k]
                 valid_count[i] += 1
-                inter_idx = inter_idx + 1
-
+                inter_idx += 1
     return valid_count, out_tensor
+
+@tvm.target.generic_func
+def get_valid_counts(data, score_threshold=0):
+    """Get valid count of bounding boxes given a score threshold.
+    Also moves valid boxes to the top of input data.
+
+    Parameters
+    ----------
+    data : tvm.Tensor
+        Input data. 3-D tensor with shape [batch_size, num_anchors, 6].
+
+    score_threshold : optional, float
+        Lower limit of score for valid bounding boxes.
+
+    Returns
+    -------
+    out_tensor : tvm.Tensor
+        Rearranged data tensor.
+
+    valid_count : tvm.Tensor
+        1-D tensor for valid number of boxes.
+    """
+    score_threshold_const = tvm.const(score_threshold, "float")
+    return hybrid_get_valid_counts(data, score_threshold_const)
 
 
 @hybrid.script
@@ -129,29 +153,26 @@ def hybrid_nms(data, sorted_index, valid_count,
             if valid_count[i] > 0:
                 # Reorder output
                 nkeep = valid_count[i]
-                if topk > 0:
-                    if topk < valid_count[i]:
-                        nkeep = topk
+                if 0 < topk < nkeep:
+                    nkeep = topk
                 for j in range(nkeep):
                     for k in range(box_data_length):
                         output[i, j, k] = data[i, sorted_index[i, j], k]
-                if topk > 0:
-                    if topk < valid_count[i]:
-                        for j in range(valid_count[i] - nkeep):
-                            for k in range(box_data_length):
-                                output[i, j + nkeep, k] = data[i, j + nkeep, k]
+                if 0 < topk < valid_count[i]:
+                    for j in range(valid_count[i] - nkeep):
+                        for k in range(box_data_length):
+                            output[i, j + nkeep, k] = data[i, j + nkeep, k]
             # Apply nms
             for j in range(valid_count[i]):
                 if output[i, j, 0] >= 0:
                     for k in range(valid_count[i]):
                         check_iou = 0
-                        if k > j:
-                            if output[i, k, 0] >= 0:
-                                if force_suppress:
-                                    check_iou = 1
-                                elif output[i, j, 0] == output[i, k, 0]:
-                                    check_iou = 1
-                        if check_iou:
+                        if k > j and output[i, k, 0] >= 0:
+                            if force_suppress:
+                                check_iou = 1
+                            elif output[i, j, 0] == output[i, k, 0]:
+                                check_iou = 1
+                        if check_iou > 0:
                             batch_idx = i
                             box_a_idx = j
                             box_b_idx = k
@@ -264,77 +285,6 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
                      tvm.const(force_suppress, dtype="bool"),
                      tvm.const(topk, dtype="int32"))
     if do_rearrange:
-        out = rearrange_out(out)
+        out = hybrid_rearrange_out(out)
 
     return out
-
-@tvm.target.generic_func
-def box_nms(data, iou_threshold=0.5, score_threshold=0,
-            force_suppress=True, topk=-1):
-    """Apply non-maximum suppression to input.
-    Comparing to nms, this function takes score_threshold
-    as argument and automatically filters valid anchor boxes.
-
-    Parameters
-    ----------
-    data : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
-        The last dimension should be in format of
-        [class_id, score, box_left, box_top, box_right, box_bottom].
-
-    iou_threshold : optional, float
-        Non-maximum suppression threshold.
-
-    score_threshold : optional, float
-        Lower limit of score for valid bounding boxes.
-
-    force_suppress : optional, boolean
-        Whether to suppress all detections regardless of class_id.
-
-    topk : optional, int
-        Keep maximum top k detections before nms, -1 for no limit.
-
-    Returns
-    -------
-    out : tvm.Tensor
-        3-D tensor with shape [batch_size, num_anchors, 6].
-    """
-    score_threshold_const = tvm.const(score_threshold,
-                                      dtype="float32")
-    valid_count, out = get_valid_counts(data, score_threshold_const)
-    return nms(out, valid_count, iou_threshold,
-               force_suppress, topk, True)
-
-
-if __name__ == '__main__':
-    import tvm
-    import topi
-    import numpy as np
-
-    score_threshold = 0.13
-    overlap_thresh = 0.5
-
-    # This works.
-    # Here we first call get_valid_counts with np data,
-    # then build nms function and feed data into it.
-    np_data = np.random.uniform(size=(1, 5000, 6)).astype("float32")
-    np_valid_count, np_inter_out = topi.vision.get_valid_counts(np_data, score_threshold)
-    data = tvm.placeholder((1, 5000, 6), name="data", dtype="float32")
-    valid_count = tvm.placeholder((1,), name="valid_count", dtype="int32")
-    result = topi.vision.nms(data, valid_count, iou_threshold=overlap_thresh, force_suppress=True, do_rearrange=True)
-    st = tvm.create_schedule(result.op)
-    f = tvm.build(st, [data, valid_count, result], "llvm")
-    ctx = tvm.cpu(0)
-    np_out = np.zeros(np_inter_out.shape)
-    aa = tvm.nd.array(np_inter_out.astype(data.dtype), ctx)
-    bb = tvm.nd.array(np_valid_count.astype(valid_count.dtype), ctx)
-    cc = tvm.nd.array(np_out.astype(result.dtype), ctx)
-    f(aa, bb, cc)
-
-
-    # This will fail
-    # We combine get_valid_counts and nms into box_nms
-    data = tvm.placeholder((1, 5000, 6), name="data", dtype="float32")
-    result = topi.vision.box_nms(data, iou_threshold=overlap_thresh, force_suppress=True, score_threshold=score_threshold)
-    st = tvm.create_schedule(result.op)
-    f = tvm.build(st, [data, result], "llvm")

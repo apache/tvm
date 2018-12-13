@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison
+# pylint: disable=invalid-name, no-member, too-many-locals, too-many-arguments, too-many-statements, singleton-comparison, unused-argument
 """Non-maximum suppression operator"""
 import math
 import tvm
@@ -182,7 +182,8 @@ def nms_ir(data, sort_result, valid_count, out, nms_threshold, force_suppress, n
 
 
 @nms.register(["cuda", "gpu"])
-def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1):
+def nms_gpu(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1,
+            do_rearrange=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
