@@ -124,7 +124,8 @@ def compare_tf_with_tvm(in_data, in_name, out_name, init_global_variables=False,
             if no_gpu and device == 'cuda':
                 continue
 
-            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node, target=device)
+            tvm_output = run_tvm_graph(final_graph_def, in_data, in_node,
+                                       num_output=len(out_node), target=device, out_names=out_name)
             # since the names from tensorflow and nnvm runs are not exactly same, 
             # first len(tf_output) will be compared
             for i in range(len(tf_output)):
@@ -506,14 +507,24 @@ def test_forward_gather():
 # Split
 # -----
 
-def _test_split(in_shape, axis, num_split, dtype):
-    """ One iteration of a Split """
+def _test_split(in_shape, axis, num_or_size_splits, dtype):
+    np_data = np.random.uniform(-5, 5, size=in_shape).astype(dtype)
 
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(dtype, in_shape, name="in_data")
-        tf.split(in_data, num_split, axis)
-        np_data = np.random.uniform(size=in_shape).astype(dtype)
-        compare_tf_with_tvm(np_data, 'in_data:0', 'split:0')
+    """ One iteration of a Split """
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    num_split = len(num_or_size_splits) if isinstance(num_or_size_splits, list) else num_or_size_splits
+    tf.split(in_data, num_or_size_splits, axis=axis)
+
+    compare_tf_with_tvm([np_data], ['in_data:0'], [f'split:{n}' for n in range(num_split)])
+
+    # and now test together with concat
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, in_shape, name="in_data")
+    splitted = tf.split(in_data, num_or_size_splits, axis=axis)
+    tf.concat(splitted, axis)
+
+    compare_tf_with_tvm([np_data], 'in_data:0', 'concat:0')
 
 def test_forward_split():
     '''test split layer'''
@@ -523,11 +534,11 @@ def test_forward_split():
     _test_split((6,), 0, 3, 'float32')
     # rank 2
     _test_split((6, 2), 0, 3, 'float32')
-    _test_split((2, 6), 1, 3, 'float32')
+    _test_split((2, 6), 1, 6, 'float32')
     # rank 3
-    _test_split((6, 2, 4), 0, 3, 'float32')
+    _test_split((6, 2, 4), 0, 2, 'int32')
     _test_split((2, 6, 4), 1, 3, 'float32')
-    _test_split((2, 4, 6), 2, 3, 'float32')
+    _test_split((2, 4, 6), 2, 1, 'float32')
     # rank 4
     _test_split((6, 1, 3, 5), 0, 3, 'float32')
     _test_split((1, 6, 3, 5), 1, 3, 'float32')
@@ -538,45 +549,37 @@ def test_forward_split():
     _test_split((1, 6, 3, 5), -3, 3, 'float32')
     _test_split((1, 3, 6, 5), -2, 3, 'float32')
     _test_split((1, 3, 5, 6), -1, 3, 'float32')
+    # size_splits list
+    _test_split((6,), 0, [1, 2, 3], 'int32')
+    _test_split((3, 6, 4), -2, [1, 4, 1], 'float32')
 
 
 #######################################################################
-# Split followed by concat
-# ------------------------
+# Unstack
+# -------
 
-def _test_split_concat(in_shape, axis, num_split, dtype):
-    """ One iteration of a split_concat pair"""
+def _test_unstack(ip_shape, axis, dtype):
+    np_data = np.random.uniform(-5, 5, size=ip_shape).astype(dtype)
 
-    with tf.Graph().as_default():
-        in_data = tf.placeholder(dtype, in_shape, name="in_data")
-        splitted = tf.split(in_data, num_split, axis)
-        tf.concat(splitted, axis)
-        np_data = np.random.uniform(size=in_shape).astype(dtype)
-        compare_tf_with_tvm(np_data, 'in_data:0', 'concat:0')
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.unstack(in_data, axis=axis)
 
-def test_forward_split_concat():
-    '''test split followed by concat layers'''
-    # rank 1
-    _test_split_concat((3,), 0, 1, 'float32')
-    _test_split_concat((3,), 0, 3, 'float32')
-    _test_split_concat((6,), 0, 3, 'float32')
-    # rank 2
-    _test_split_concat((6, 2), 0, 3, 'float32')
-    _test_split_concat((2, 6), 1, 3, 'float32')
-    # rank 3
-    _test_split_concat((6, 2, 4), 0, 3, 'float32')
-    _test_split_concat((2, 6, 4), 1, 3, 'float32')
-    _test_split_concat((2, 4, 6), 2, 3, 'float32')
-    # rank 4
-    _test_split((6, 1, 3, 5), 0, 3, 'float32')
-    _test_split((1, 6, 3, 5), 1, 3, 'float32')
-    _test_split((1, 3, 6, 5), 2, 3, 'float32')
-    _test_split((1, 3, 5, 6), 3, 3, 'float32')
-    # split along negative axis
-    _test_split((6, 1, 3, 5), -4, 3, 'float32')
-    _test_split((1, 6, 3, 5), -3, 3, 'float32')
-    _test_split((1, 3, 6, 5), -2, 3, 'float32')
-    _test_split((1, 3, 5, 6), -1, 3, 'float32')
+    compare_tf_with_tvm([np_data], ['in_data:0'], [f'unstack:{n}' for n in range(ip_shape[axis])])
+
+    tf.reset_default_graph()
+    in_data = tf.placeholder(dtype, ip_shape, name="in_data")
+    tf.stack(tf.unstack(in_data, axis=axis), axis=axis)
+
+    compare_tf_with_tvm([np_data], ['in_data:0'], 'stack:0')
+
+def test_forward_unstack():
+    '''test unstack layer'''
+    _test_unstack((6,), 0, 'int32')
+    _test_unstack((2,6), 1, 'float64')
+    # negative axis
+    _test_unstack((1,4), -1, 'int32')
+    _test_unstack((3,6,4), -2, 'float32')
 
 
 #######################################################################
@@ -1139,7 +1142,7 @@ if __name__ == '__main__':
     test_forward_gather()
     test_forward_stridedslice()
     test_forward_split()
-    test_forward_split_concat()
+    test_forward_unstack()
 
     # Activations
     test_forward_sigmoid()
