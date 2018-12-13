@@ -1,4 +1,5 @@
-"""Intrinsics of TVM-Python Hybrid Script for Python compilation time"""
+"""Intrinsics of TVM-Python Hybrid Script for Python compilation time
+semantic support."""
 
 import ast
 from .. import api as _api
@@ -7,6 +8,8 @@ from .. import make as _make
 from ..ir_pass import Equal
 from ..stmt import For
 from .util import _internal_assert
+
+#pylint: disable=redefined-builtin
 
 LOOP_INTRIN = {
     'range'    : For.Serial,
@@ -35,6 +38,7 @@ range = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 def bind(visitor, func_id, args):
     """Handling TVM thread binding"""
+    _internal_assert(func_id == "bind", "This function cannot be directly invoked!")
     n = len(args)
     _internal_assert(n == 2, "A loop bind should only have 2 arguments!")
     _internal_assert(isinstance(args[0], ast.Str), \
@@ -50,7 +54,7 @@ def _math_intrin(visitor, func_id, args):
     from .. import intrin
     return getattr(intrin, func_id)(*[visitor.visit(arg) for arg in args])
 
-sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin
+sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin #pylint: disable=invalid-name
 
 def _min_max(self, func_id, args):
     n = len(args)
@@ -58,7 +62,7 @@ def _min_max(self, func_id, args):
     a, b = self.visit(args[0]), self.visit(args[1])
     return getattr(_make, func_id.title())(a, b)
 
-min = max = _min_max
+min = max = _min_max #pylint: disable=invalid-name
 
 def _allocate_tensor(visitor, func_id, args):
     """Handling TVM tensor allocation"""
@@ -94,4 +98,4 @@ def _allocate_tensor(visitor, func_id, args):
         scope = 'global' if func_id != 'output_tensor' else 'output'
     return (shape, dtype, scope)
 
-output_tensor = allocate = _allocate_tensor
+output_tensor = allocate = _allocate_tensor #pylint: disable=invalid-name

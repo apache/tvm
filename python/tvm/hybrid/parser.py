@@ -7,12 +7,10 @@ import sys
 from .util import make_nop, halide_imm_types, is_docstring, _internal_assert
 from . import calls
 from .var_decl import determine_variable_usage
-from ..api import thread_axis
 from ..api import all as _all
 from ..api import any as _any
 from .. import expr as _expr
 from .. import make as _make
-from .. import intrin
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
