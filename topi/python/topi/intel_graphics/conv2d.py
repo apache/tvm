@@ -126,8 +126,7 @@ def schedule_conv2d_NCHWc(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
-                or "2_14" in op.tag or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack_NCHWc(s, op)
 
         scheduled_ops.append(op)
@@ -156,35 +155,30 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
 
-    block_w = 0
-    block_h = 0
+    block_w = 1
+    block_h = 1
     if stride_h == 2:
         if num_filter + kernel_h == 515:
-            conv_tag = "4_4"
             block_h = 4
             block_w = 4
         else:
-            conv_tag = "4_5"
             block_h = 4
             block_w = 5
     elif kernel_h == 3:
         if num_filter == 512:
-            conv_tag = "2_7"
             block_h = 2
             block_w = 7
         else:
-            conv_tag = "2_14"
             block_h = 2
             block_w = 14
     elif kernel_h == 7 and padding == 3 and stride == 1:
-        conv_tag = "3_4"
         block_h = 3
         block_w = 4
     else:
-        conv_tag = "1_16"
         block_h = 1
         block_w = 16
 
+    attrs = {'block_h': block_h, 'block_w' : block_w}
     c_h = out_height
     c_w = out_width
 
@@ -206,13 +200,13 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
           tvm.sum(
               temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
               kernel[ff, rc, ry, rx, vc].astype(out_dtype),
-              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              axis=[rc, ry, rx]), name='conv', attrs=attrs)
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
         conv[nn][ff//nv][yy][xx][ff%nv],
-        name='output_unpack', tag=conv_tag)
+        name='output_unpack', tag='conv2d')
 
     return output
 
@@ -228,24 +222,10 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
     kernel_L = s.cache_read(kernel, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
-    elif "3_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 3
-        OUTPUT_BLOCK_WIDTH = 4
+
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1
@@ -375,8 +355,7 @@ def schedule_conv2d_nchw(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
-                or "2_14" in op.tag or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack(s, op)
 
         scheduled_ops.append(op)
@@ -403,35 +382,30 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
     ry = tvm.reduce_axis((0, kernel_h), name='ry')
     rx = tvm.reduce_axis((0, kernel_w), name='rx')
 
-    block_w = 0
-    block_h = 0
+    block_w = 1
+    block_h = 1
     if stride_h == 2:
         if num_filter + kernel_h == 515:
-            conv_tag = "4_4"
             block_h = 4
             block_w = 4
         else:
-            conv_tag = "4_5"
             block_h = 4
             block_w = 5
     elif kernel_h == 3:
         if num_filter == 512:
-            conv_tag = "2_7"
             block_h = 2
             block_w = 7
         else:
-            conv_tag = "2_14"
             block_h = 2
             block_w = 14
     elif kernel_h == 7 and padding == 3 and stride == 1:
-        conv_tag = "3_4"
         block_h = 3
         block_w = 4
     else:
-        conv_tag = "1_16"
         block_h = 1
         block_w = 16
 
+    attrs = {'block_h': block_h, 'block_w' : block_w}
     c_h = out_height
     c_w = out_width
 
@@ -464,13 +438,13 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
           tvm.sum(
               temp[nn, rc, yy * stride_h + ry, xx * stride_w + rx].astype(out_dtype) *
               kernel_vec[ff, rc, ry, rx, vc].astype(out_dtype),
-              axis=[rc, ry, rx]), tag=conv_tag, name='conv')
+              axis=[rc, ry, rx]), name='conv', attrs=attrs)
 
     output = tvm.compute(
         oshape,
         lambda nn, ff, yy, xx:
         conv[nn][ff//nv][yy][xx][ff%nv],
-        name='output_unpack', tag=conv_tag)
+        name='output_unpack', tag='conv2d')
 
     return output
 
@@ -488,24 +462,9 @@ def _schedule_cl_spatialpack(s, op):
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
 
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
-    elif "3_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 3
-        OUTPUT_BLOCK_WIDTH = 4
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1
