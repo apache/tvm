@@ -35,20 +35,21 @@ class HybridParser(ast.NodeVisitor):
 
 
     _binop_maker = {
-        ast.Add   : operator.add,
-        ast.Sub   : operator.sub,
-        ast.Mult  : operator.mul,
-        ast.Div   : operator.div if sys.version_info[0] == 2 else operator.truediv,
-        ast.Mod   : operator.mod,
-        ast.BitOr : operator.or_,
-        ast.BitAnd: operator.and_,
-        ast.BitXor: operator.xor,
-        ast.Gt    : operator.gt,
-        ast.GtE   : operator.ge,
-        ast.Lt    : operator.lt,
-        ast.LtE   : operator.le,
-        ast.Eq    : operator.eq,
-        ast.NotEq : operator.ne,
+        ast.Add     : operator.add,
+        ast.Sub     : operator.sub,
+        ast.Mult    : operator.mul,
+        ast.Div     : operator.div if sys.version_info[0] == 2 else operator.truediv,
+        ast.FloorDiv: operator.div if sys.version_info[0] == 2 else operator.truediv,
+        ast.Mod     : operator.mod,
+        ast.BitOr   : operator.or_,
+        ast.BitAnd  : operator.and_,
+        ast.BitXor  : operator.xor,
+        ast.Gt      : operator.gt,
+        ast.GtE     : operator.ge,
+        ast.Lt      : operator.lt,
+        ast.LtE     : operator.le,
+        ast.Eq      : operator.eq,
+        ast.NotEq   : operator.ne,
         ast.And   : _all,
         ast.Or    : _any,
     }
@@ -237,7 +238,7 @@ class HybridParser(ast.NodeVisitor):
         if isinstance(node.value, ast.Name):
             array = node.value.id
             _buf = self._get_buffer_from_id(array)
-            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, 0)
+            return _make.Call(_buf.dtype, array, args, _expr.Call.Halide, _buf.op, _buf.value_index)
 
         _internal_assert(isinstance(node.value, ast.Attribute), \
                          "Only variable and attribute's subscript supported so far")
