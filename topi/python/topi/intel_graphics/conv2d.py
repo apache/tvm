@@ -151,8 +151,7 @@ def schedule_conv2d_NCHWc(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
-                or "2_14" in op.tag or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack_NCHWc(s, op)
 
         scheduled_ops.append(op)
@@ -198,7 +197,6 @@ def _decl_cl_spatialpack_NCHWc(data, kernel, stride, padding, out_dtype='float16
             block_h = 2
             block_w = 14
     elif kernel_h == 7 and padding == 3 and stride == 1:
-        conv_tag = "3_4"
         block_h = 3
         block_w = 4
     else:
@@ -249,24 +247,10 @@ def _schedule_cl_spatialpack_NCHWc(s, op):
 
     kernel_L = s.cache_read(kernel, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
-    elif "3_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 3
-        OUTPUT_BLOCK_WIDTH = 4
+
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1
@@ -396,8 +380,7 @@ def schedule_conv2d_nchw(outs):
             for tensor in op.input_tensors:
                 if tensor.op.input_tensors and tensor.op not in scheduled_ops:
                     traverse(tensor.op)
-        if "4_5" in op.tag or "4_4" in op.tag or "3_4" in op.tag or "2_7" in op.tag \
-                or "2_14" in op.tag or "1_16" in op.tag:
+        if 'conv2d' in op.tag:
             _schedule_cl_spatialpack(s, op)
 
         scheduled_ops.append(op)
@@ -441,7 +424,6 @@ def _decl_cl_spatialpack(data, kernel, stride, padding, layout, out_dtype='float
             block_h = 2
             block_w = 14
     elif kernel_h == 7 and padding == 3 and stride == 1:
-        conv_tag = "3_4"
         block_h = 3
         block_w = 4
     else:
@@ -505,24 +487,9 @@ def _schedule_cl_spatialpack(s, op):
     kernel_L = s.cache_read(kernel_vec, "local", [conv_L])
     _, in_channel, temp_h, temp_w = [util.get_const_int(x) for x in temp.shape]
 
-    if "1_16" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 1
-        OUTPUT_BLOCK_WIDTH = 16
-    elif "2_14" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 14
-    elif "2_7" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 2
-        OUTPUT_BLOCK_WIDTH = 7
-    elif "4_5" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 5
-    elif "4_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 4
-        OUTPUT_BLOCK_WIDTH = 4
-    elif "3_4" in s[conv].op.tag:
-        OUTPUT_BLOCK_HEIGHT = 3
-        OUTPUT_BLOCK_WIDTH = 4
+    attrs = s[conv].op.attrs
+    OUTPUT_BLOCK_HEIGHT = attrs['block_h']
+    OUTPUT_BLOCK_WIDTH = attrs['block_w']
 
     # schedule conv
     z_factor = 1
