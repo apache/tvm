@@ -75,6 +75,8 @@ class PyVariableUsage(ast.NodeVisitor):
         else:
             decl, loop, usage = self.status[node.id]
             usage.add(type(node.ctx))
+            _internal_assert(loop in self.scope_level,
+                             "%s is used out of the scope it is defined!" % node.id)
             self.status[node.id] = (decl, loop, usage)
 
 

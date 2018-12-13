@@ -336,7 +336,6 @@ def test_non_zero():
                     for dj in range(3):
                         s += a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
-        b[0, 0] += s
         return b
 
     a = tvm.placeholder((32, 32), 'float32', 'a')
@@ -528,17 +527,17 @@ def test_func_call():
 
 
 if __name__ == "__main__":
-    test_outer_product()
-    test_fanout()
-    test_looptype()
-    test_if()
-    test_bind()
-    test_math_intrin()
+    #test_outer_product()
+    #test_fanout()
+    #test_looptype()
+    #test_if()
+    #test_bind()
+    #test_math_intrin()
     test_non_zero()
-    test_allocate()
-    test_upstream()
-    test_downstream()
-    test_const_param()
-    test_value_index()
+    #test_allocate()
+    #test_upstream()
+    #test_downstream()
+    #test_const_param()
+    #test_value_index()
     # TODO:
     # test_inplace()
