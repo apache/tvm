@@ -270,12 +270,11 @@ class HybridParser(ast.NodeVisitor):
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
         if isinstance(node.value, ast.Name):
-            array = node.value.id
             buf = self.visit(node.value)
             if isinstance(node.ctx, ast.Load):
-                return _make.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
-            else:
-                return buf, args
+                return _make.Call(buf.dtype, buf.name, args, \
+                                  _expr.Call.Halide, buf.op, buf.value_index)
+            return buf, args
 
         shape = self.visit(node.value)
         _internal_assert(len(args) == 1, "For 'shape' access the argument should be only one!")
@@ -360,12 +359,12 @@ class HybridParser(ast.NodeVisitor):
         # Yet, no function pointer supported
         _internal_assert(isinstance(node.func, ast.Name), \
                          "Only id-function function call is supported so far!")
-        
+
         func_id = node.func.id
         args = [self.visit(i) for i in node.args]
         try:
             return getattr(calls, func_id)(func_id, args)
-        except AttributeError as e:
+        except AttributeError:
             _internal_assert(func_id in self.symbols.keys(), \
                              "The function called is not in the context either!")
             outs = self.symbols[func_id](*args)

@@ -90,6 +90,7 @@ def _restore_runtime(func, intersect):
 
 
 def replace_io(body, rmap):
+    """Replacing tensors usage according to the dict given"""
     from .. import ir_pass
 
     def replace(op):
@@ -98,8 +99,8 @@ def replace_io(body, rmap):
             return _make.Provide(buf.op, op.value_index, op.value, op.args)
         elif isinstance(op, _expr.Call) and  op.func in rmap.keys():
             buf = rmap[op.func]
-            return _make.Call(buf.dtype, buf.name, op.args, _expr.Call.Halide, buf.op, buf.value_index)
+            return _make.Call(buf.dtype, buf.name, op.args, \
+                              _expr.Call.Halide, buf.op, buf.value_index)
         return None
 
     return ir_pass.IRTransform(body, None, replace, ['Provide', 'Call'])
-
