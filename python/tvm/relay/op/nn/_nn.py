@@ -107,6 +107,12 @@ def schedule_conv2d(attrs, outs, target):
                 return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
     raise ValueError("No compatible schedule")
 
+
+@reg.register_alter_op_layout("nn.conv2d")
+def alter_op_layout_conv2d(attrs, inputs, tinfos):
+    """Alternate the layout of conv2d"""
+    return None
+
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
