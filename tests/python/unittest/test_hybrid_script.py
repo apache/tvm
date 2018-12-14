@@ -508,36 +508,50 @@ def test_value_index():
 
 def test_func_call():
     @tvm.hybrid.script
-    def kernel_a(a):
-        b = output_tensor((16, ), 'int32')
-        c = output_tensor((4, 4), 'int32')
-        for i in range(16):
-            b[i] = a[i] + 2
-            c[i // 4, i % 4] = a[i] + 1
-        return b, c
+    def foo(a, b):
+        for i in range(10):
+            a[i] = i + 1.0
+        for i in range(10):
+            b[i] = i + 1.0
+        c = outer_product(10, 10, a, b)
+        d = output_tensor(c.shape, c.dtype)
+        for i in range(10):
+            for j in range(10):
+                d[i, j] = c[i, j] + i * j
+        return d
 
+    a = tvm.placeholder((10, ), name='a')
+    b = tvm.placeholder((10, ), name='b')
+    run_and_check(foo, [a, b])
+
+def test_bool():
     @tvm.hybrid.script
-    def kernel_b(b, a):
-        c = output_tensor((4, 4), 'int32')
-        for i in range(4):
-            for j in range(4):
-                c[i, j] = a[i * 4 + j] * b[i, j]
-        return c
-
-
+    def foo(a):
+        b = output_tensor(a.shape, a.dtype)
+        b[0] = 1.2
+        for i in range(1, a.shape[0] - 1):
+            if a[i] * a[i - 1] < a[i] or a[i] * a[i - 1] < a[i - 1]:
+                b[i] = a[i]
+            else:
+                b[i] = 0.0
+        return b
+    a = tvm.placeholder((10, ), name='a')
+    run_and_check(foo, [a])
 
 if __name__ == "__main__":
-    #test_outer_product()
-    #test_fanout()
-    #test_looptype()
-    #test_if()
-    #test_bind()
-    #test_math_intrin()
+    test_outer_product()
+    test_fanout()
+    test_looptype()
+    test_if()
+    test_bind()
+    test_math_intrin()
     test_non_zero()
-    #test_allocate()
-    #test_upstream()
-    #test_downstream()
-    #test_const_param()
-    #test_value_index()
+    test_allocate()
+    test_upstream()
+    test_downstream()
+    test_const_param()
+    test_value_index()
+    test_func_call()
+    test_bool()
     # TODO:
     # test_inplace()
