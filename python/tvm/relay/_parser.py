@@ -430,6 +430,9 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return ty.FuncType(arg_types, ret_type, [], None)
 
+    def visitGraphExpr(self, ctx):
+        import pdb; pdb.set_trace()
+
 def make_parser(data):
     # type: (str) -> RelayParser
     """Construct a RelayParser a given data stream."""

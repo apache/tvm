@@ -32,8 +32,23 @@ def annotate_spans(expr):
     # sn = SourceName("my_expr.relay")
     return fromtext(expr.astext())
 
-def test_var():
+def test_var_span():
     x = relay.var('x')
     func = relay.Function([x], x)
     func = annotate_spans(func)
     check_spans(func)
+
+def test_type_check_call():
+    x = relay.var('x', shape=(10, 10))
+    func = relay.Function([x], x)
+    y = relay.var('x', shape=(10, 11))
+    call = relay.Call(func, [y])
+    func2 = relay.Function([y], call)
+    print(func2.astext())
+    call = annotate_spans(func2)
+    check_spans(func2)
+    relay.ir_pass.infer_type(func2)
+
+if __name__ == "__main__":
+    test_var_span()
+    test_type_check_call()

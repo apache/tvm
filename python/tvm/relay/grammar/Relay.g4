@@ -20,7 +20,7 @@ NE: '!=' ;
 
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' CNAME ;
+LOCAL_VAR: '%' (CNAME | INT);
 
 MUT: 'mut' ;
 
@@ -83,6 +83,7 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
+  | LOCAL_VAR '=' expr                        # graphExpr
   // | expr '.' INT                              # project
   // | 'debug'                                   # debug
   ;
