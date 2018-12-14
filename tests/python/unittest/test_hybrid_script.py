@@ -530,7 +530,7 @@ def test_bool():
         b = output_tensor(a.shape, a.dtype)
         b[0] = 1.2
         for i in range(1, a.shape[0] - 1):
-            if a[i] * a[i - 1] < a[i] or a[i] * a[i - 1] < a[i - 1]:
+            if a[i] * a[i - 1] < a[i] or a[i] * a[i - 1] < a[i - 1] or i * a[i] == a[i]:
                 b[i] = a[i]
             else:
                 b[i] = 0.0

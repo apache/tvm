@@ -335,13 +335,10 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(isinstance(node.op, ast.Not), \
                              "Unary is supposed to be not!")
             return operator.not_(self.visit(node.values[0]))
-        elif n == 2:
-            _internal_assert(isinstance(node.op, (ast.And, ast.Or)), \
-                             "Binary is supposed to be and/or!")
-            values = [self.visit(i) for i in node.values]
-            return HybridParser._binop_maker[type(node.op)](*values)
-        else:
-            raise ValueError("This Bool Op is not supported yet!")
+        _internal_assert(isinstance(node.op, (ast.And, ast.Or)), \
+                         "Binary is supposed to be and/or!")
+        values = [self.visit(i) for i in node.values]
+        return HybridParser._binop_maker[type(node.op)](*values)
 
 
     def visit_UnaryOp(self, node):
