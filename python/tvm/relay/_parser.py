@@ -80,10 +80,10 @@ def lookup(scopes, name):
 
 def spanify(f):
     def _wrapper(*args, **kwargs):
+        sn = args[0].source_name
         ctx = args[1]
         ast = f(*args, **kwargs)
         line, col = ctx.getSourceInterval()
-        sn = SourceName("foo")
         sp = Span(sn, line, col)
         ast.set_span(sp)
         return ast
@@ -94,8 +94,9 @@ def spanify(f):
 class ParseTreeToRelayIR(RelayVisitor):
     """Parse Relay text format into Relay IR."""
 
-    def __init__(self):
+    def __init__(self, source_name):
         # type: () -> None
+        self.source_name = source_name
         self.module = module.Module({})   # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
@@ -103,6 +104,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
 
         super(ParseTreeToRelayIR, self).__init__()
+
 
     def enter_var_scope(self):
         # type: () -> None
@@ -318,10 +320,12 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Function(var_list, body, ret_type, type_params) # type: ignore
 
+    @spanify
     def visitFunc(self, ctx):
         # type: (RelayParser.FuncContext) -> expr.Function
         return self.mk_func(ctx)
 
+    @spanify
     def visitDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
@@ -331,6 +335,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         self.module[ident] = self.mk_func(ctx)
 
+    @spanify
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> expr.Call
         visited_exprs = self.visit_list(ctx.expr())
@@ -340,6 +345,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Call(func, args, None, None)
 
+    @spanify
     def visitIfElse(self, ctx):
         # type: (RelayParser.IfElseContext) -> expr.If
         """Construct a Relay If node. Creates a new scope for each branch."""
@@ -432,8 +438,14 @@ def make_parser(data):
     token_stream = CommonTokenStream(lexer)
     return RelayParser(token_stream)
 
-def fromtext(data):
-    # type: (str) -> Union[expr.Expr, env.Environment]
+__source_name_counter__ = 0
+
+def fromtext(data, source_name=None):
+    # type: (str, str) -> Union[expr.Expr, env.Environment]
     """Parse a Relay program."""
+    global __source_name_counter__
+    if source_name is None:
+        source_name = "source_file{0}".format(__source_name_counter__)
+    source_name = SourceName(source_name)
     tree = make_parser(data).prog()
-    return ParseTreeToRelayIR().visit(tree)
+    return ParseTreeToRelayIR(source_name).visit(tree)
