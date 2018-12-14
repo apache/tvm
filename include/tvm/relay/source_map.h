@@ -7,6 +7,7 @@
 #ifndef TVM_RELAY_SOURCE_MAP_H_
 #define TVM_RELAY_SOURCE_MAP_H_
 
+#include <tvm/relay/base.h>
 #include <tvm/relay/expr.h>
 #include <string>
 #include <vector>

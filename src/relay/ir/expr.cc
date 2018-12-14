@@ -279,12 +279,7 @@ TVM_REGISTER_API("relay._expr.TempExprRealize")
 });
 
 
-TVM_REGISTER_API("relay._expr.set_span")
-.set_body([](TVMArgs args, TVMRetValue* ret) {
-    Expr e = args[0];
-    Span sp = args[1];
-    *ret = temp->Realize();
-});
+
 
 
 }  // namespace relay

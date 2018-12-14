@@ -9,9 +9,11 @@ from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 
 from . import module
+from .base import Span, SourceName
 from . import expr
 from . import ty
 from . import op
+
 
 class ParseError(Exception):
     """Exception type for parse errors."""
@@ -75,6 +77,17 @@ def lookup(scopes, name):
             if key == name:
                 return val
     return None
+
+def spanify(f):
+    def _wrapper(*args, **kwargs):
+        ctx = args[1]
+        ast = f(*args, **kwargs)
+        line, col = ctx.getSourceInterval()
+        sn = SourceName("foo")
+        sp = Span(sn, line, col)
+        ast.set_span(sp)
+        return ast
+    return _wrapper
 
 # TODO(@jmp): Use https://stackoverflow.com/q/13889941
 # to figure out how to get ANTLR4 to be more unhappy about syntax errors
@@ -269,6 +282,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return relay_op(arg0, arg1)
 
+    @spanify
     def visitVar(self, ctx):
         # type: (RelayParser.VarContext) -> expr.Var
         ident = ctx.ident().LOCAL_VAR()

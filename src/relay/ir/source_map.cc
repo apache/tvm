@@ -4,8 +4,8 @@
  * \brief Source maps for Relay.
  */
 
-#include <tvm/relay/logging.h>
 #include <tvm/relay/source_map.h>
+#include <tvm/relay/logging.h>
 #include <iostream>
 
 namespace tvm {
@@ -51,7 +51,7 @@ std::string SourceFragment::SourceAt(Span sp, int max_lines) {
 }
 
 SourceName SourceMap::AddSource(std::string file_name, std::string source) {
-  auto new_id = SourceNameNode::make(file_name);
+  auto new_id = SourceName::Get(file_name);
   SourceFragment sfile(file_name, source);
   this->map_.insert({new_id, sfile});
   return new_id;
