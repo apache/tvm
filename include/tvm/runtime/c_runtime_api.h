@@ -409,6 +409,14 @@ TVM_DLL int TVMArrayAlloc(const tvm_index_t* shape,
 TVM_DLL int TVMArrayFree(TVMArrayHandle handle);
 
 /*!
+ * \brief return the size of data the DLTensor may hold, in term of number of bytes
+ * \param handle the input DLTensor
+ * \param nbytes number of bytes of data in the DLTensor.
+ * \return 0 when success, -1 when failure happens
+ */
+TVM_DLL int TVMArrayDataSize(TVMArrayHandle handle, size_t *nbytes);
+
+/*!
  * \brief Copy array data from CPU byte array.
  * \param handle The array handle.
  * \param data the data pointer

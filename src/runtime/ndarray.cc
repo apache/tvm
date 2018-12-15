@@ -228,6 +228,12 @@ void TVMDLManagedTensorCallDeleter(DLManagedTensor* dltensor) {
   (*(dltensor->deleter))(dltensor);
 }
 
+int TVMArrayDataSize(TVMArrayHandle handle, size_t *nbytes) {
+  API_BEGIN();
+  *nbytes = GetDataSize(*handle);
+  API_END();
+}
+
 int TVMArrayCopyFromBytes(TVMArrayHandle handle,
                           void* data,
                           size_t nbytes) {
