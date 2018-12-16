@@ -83,6 +83,10 @@ reg.register_schedule("strided_slice", _fschedule_injective)
 reg.register_pattern("slice_like", OpPattern.INJECTIVE)
 reg.register_schedule("slice_like", _fschedule_injective)
 
+# slice_axis
+reg.register_pattern("slice_axis", OpPattern.INJECTIVE)
+reg.register_schedule("slice_axis", _fschedule_injective)
+
 # where
 reg.register_pattern("where", OpPattern.INJECTIVE)
 reg.register_schedule("where", _fschedule_injective)

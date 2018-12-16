@@ -74,14 +74,15 @@ def hybrid_get_valid_counts(data, score_threshold):
                                data.dtype)
     for i in parallel(batch_size):
         valid_count[i] = 0
-        inter_idx = 0
         for j in range(num_anchors):
             score = data[i, j, 1]
             if score >= score_threshold:
                 for k in range(box_data_length):
-                    out_tensor[i, inter_idx, k] = data[i, j, k]
+                    out_tensor[i, valid_count[i], k] = data[i, j, k]
                 valid_count[i] += 1
-                inter_idx += 1
+            if j >= valid_count[i]:
+                for k in range(box_data_length):
+                    out_tensor[i, j, k] = -1.0
     return valid_count, out_tensor
 
 @tvm.target.generic_func
@@ -168,9 +169,7 @@ def hybrid_nms(data, sorted_index, valid_count,
                     for k in range(valid_count[i]):
                         check_iou = 0
                         if k > j and output[i, k, 0] >= 0:
-                            if force_suppress:
-                                check_iou = 1
-                            elif output[i, j, 0] == output[i, k, 0]:
+                            if force_suppress or output[i, j, 0] == output[i, k, 0]:
                                 check_iou = 1
                         if check_iou > 0:
                             batch_idx = i

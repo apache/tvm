@@ -60,6 +60,21 @@ def compute_multibox_transform_loc(attrs, inputs, _):
 
 reg.register_pattern("multibox_detection", OpPattern.OPAQUE)
 
+# Get valid number of anchor boxes
+@reg.register_schedule("get_valid_counts")
+def schedule_get_valid_counts(_, outs, target):
+    """Schedule definition of get_valid_counts"""
+    with tvm.target.create(target):
+        return topi.generic.schedule_get_valid_counts(outs)
+
+@reg.register_compute("get_valid_counts")
+def compute_get_valid_counts(attrs, inputs, _):
+    """Compute definition of get_valid_counts"""
+    score_threshold = attrs.get_float("score_threshold")
+    return topi.vision.get_valid_counts(inputs[0], score_threshold)
+
+reg.register_pattern("get_valid_counts", OpPattern.OPAQUE)
+
 # non-maximum suppression
 @reg.register_schedule("nms")
 def schedule_nms(_, outs, target):
@@ -70,11 +85,12 @@ def schedule_nms(_, outs, target):
 @reg.register_compute("nms")
 def compute_nms(attrs, inputs, _):
     """Compute definition of nms"""
-    nms_threshold = attrs.get_float('nms_threshold')
+    iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
-    nms_topk = attrs.get_int('nms_topk')
+    topk = attrs.get_int('topk')
+    do_rearrange = attrs.get_bool('do_rearrange')
 
-    return topi.vision.nms(inputs[0], inputs[1], nms_threshold,
-                           force_suppress, nms_topk)
+    return topi.vision.nms(inputs[0], inputs[1], iou_threshold,
+                           force_suppress, topk, do_rearrange)
 
 reg.register_pattern("nms", OpPattern.OPAQUE)

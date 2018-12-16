@@ -443,17 +443,28 @@ struct MultiBoxTransformLocParam : public dmlc::Parameter<MultiBoxTransformLocPa
   }
 };
 
+struct GetValidCountsParam : public dmlc::Parameter<GetValidCountsParam> {
+  float score_threshold;
+  DMLC_DECLARE_PARAMETER(GetValidCountsParam) {
+    DMLC_DECLARE_FIELD(score_threshold).set_default(0.0)
+      .describe("Lower limit of score for valid bounding boxes.");
+  }
+};
+
 struct NMSParam : public dmlc::Parameter<NMSParam> {
-  float nms_threshold;
+  float iou_threshold;
   bool force_suppress;
-  int nms_topk;
+  int topk;
+  bool do_rearrange;
   DMLC_DECLARE_PARAMETER(NMSParam) {
-    DMLC_DECLARE_FIELD(nms_threshold).set_default(0.5)
+    DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
       .describe("Non-maximum suppression threshold.");
     DMLC_DECLARE_FIELD(force_suppress).set_default(false)
     .describe("Suppress all detections regardless of class_id.");
-    DMLC_DECLARE_FIELD(nms_topk).set_default(-1)
+    DMLC_DECLARE_FIELD(topk).set_default(-1)
     .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(do_rearrange).set_default(false)
+      .describe("Whether to move all valid bounding boxes to the top.");
   }
 };
 

@@ -19,6 +19,59 @@ using compiler::FTVMCompute;
 using tvm::Tensor;
 using tvm::Array;
 
+DMLC_REGISTER_PARAMETER(GetValidCountsParam);
+
+bool GetValidCountsShape(const NodeAttrs& attrs,
+                         std::vector<TShape> *in_attrs,
+                         std::vector<TShape> *out_attrs) {
+  TShape dshape = in_attrs->at(0);
+  TShape vshape = TShape({dshape[0]});
+  CHECK_EQ(dshape.ndim(), 3U) << "Input data should be 3-D.";
+  out_attrs->clear();
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 0, vshape);
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_attrs, 1, dshape);
+  return true;
+}
+
+inline bool GetValidCountsInferType(const NodeAttrs &attrs,
+                                    std::vector<int> *in_attrs,
+                                    std::vector<int> *out_attrs) {
+  DTYPE_ASSIGN(out_attrs->at(0), static_cast<int>(kInt32));
+  DTYPE_ASSIGN(out_attrs->at(1), in_attrs->at(0))
+  return true;
+}
+
+inline bool GetValidCountsInferLayout(const NodeAttrs& attrs,
+                                      std::vector<Layout> *ilayouts,
+                                      const std::vector<Layout> *last_ilayouts,
+                                      std::vector<Layout> *olayouts) {
+  static const Layout kNCHW("NCHW");
+  CHECK_EQ(ilayouts->size(), 1U);
+  CHECK_EQ(olayouts->size(), 2U);
+  NNVM_ASSIGN_LAYOUT(*ilayouts, 0, kNCHW);
+  return true;
+}
+
+NNVM_REGISTER_OP(get_valid_counts)
+.describe(R"doc("Get valid count of bounding boxes given
+a score threshold. Also moves valid boxes to the top of
+input data."
+)doc" NNVM_ADD_FILELINE)
+.set_num_inputs(1)
+.set_num_outputs(2)
+.set_attr_parser(ParamParser<GetValidCountsParam>)
+.set_attr<FGetAttrDict>("FGetAttrDict",
+                         ParamGetAttrDict<GetValidCountsParam>)
+.add_arguments(GetValidCountsParam::__FIELDS__())
+.add_argument("data", "Tensor", "Input data.")
+.set_attr<FListInputNames>("FListInputNames", [](const NodeAttrs& attrs) {
+  return std::vector<std::string>{"data"};
+})
+.set_attr<FInferShape>("FInferShape", GetValidCountsShape)
+.set_attr<FInferType>("FInferType", GetValidCountsInferType)
+.set_attr<FCorrectLayout>("FCorrectLayout", GetValidCountsInferLayout)
+.set_support_level(4);
+
 DMLC_REGISTER_PARAMETER(NMSParam);
 
 bool NMSShape(const NodeAttrs& attrs,

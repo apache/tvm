@@ -573,15 +573,56 @@ def test_multibox_transform_loc():
     out = m.get_output(0, tvm.nd.empty(expected_np_out.shape, dtype))
     tvm.testing.assert_allclose(out.asnumpy(), expected_np_out, atol=1e-5, rtol=1e-5)
 
+def verify_get_valid_counts(dshape, score_threshold):
+    dtype = "float32"
+    batch_size, num_anchor, elem_length = dshape
+    np_data = np.random.uniform(size=dshape).astype(dtype)
+    np_out1 = np.zeros(shape=(batch_size,))
+    np_out2 = np.zeros(shape=dshape).astype(dtype)
+    for i in range(batch_size):
+        np_out1[i] = 0
+        inter_idx = 0
+        for j in range(num_anchor):
+            score = np_data[i, j, 1]
+            if score >= score_threshold:
+                for k in range(elem_length):
+                    np_out2[i, inter_idx, k] = np_data[i, j, k]
+                np_out1[i] += 1
+                inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(elem_length):
+                    np_out2[i, j, k] = -1
+
+    target = "llvm"
+    ctx = tvm.cpu()
+    data = sym.Variable("data", dtype=dtype)
+    valid_counts, inter_data = sym.get_valid_counts(data, score_threshold=score_threshold)
+    out = sym.Group([valid_counts, inter_data])
+    graph, lib, _ = nnvm.compiler.build(out, target, {"data": dshape})
+    m = graph_runtime.create(graph, lib, ctx)
+    m.set_input("data", np_data)
+    m.run()
+    out1 = m.get_output(0, tvm.nd.empty(np_out1.shape, "int32"))
+    out2 = m.get_output(1, tvm.nd.empty(dshape, dtype))
+    tvm.testing.assert_allclose(out1.asnumpy(), np_out1, rtol=1e-3)
+    tvm.testing.assert_allclose(out2.asnumpy(), np_out2, rtol=1e-3)
+
+
+def test_get_valid_counts():
+    verify_get_valid_counts((1, 2500, 6), 0)
+    verify_get_valid_counts((1, 2500, 6), -1)
+    verify_get_valid_counts((3, 1000, 6), 0.55)
+    verify_get_valid_counts((16, 500, 6), 0.95)
+
 def test_nms():
     dshape = (1, 5, 6)
     data = sym.Variable("data")
     valid_count = sym.Variable("valid_count", dtype="int32")
-    nms_threshold = 0.7
+    iou_threshold = 0.7
     force_suppress = True
-    nms_topk = 2
-    out = sym.nms(data=data, valid_count=valid_count, nms_threshold=nms_threshold,
-                  force_suppress=force_suppress, nms_topk=nms_topk)
+    topk = 2
+    out = sym.nms(data=data, valid_count=valid_count, iou_threshold=iou_threshold,
+                  force_suppress=force_suppress, topk=topk)
 
     np_data = np.array([[[0, 0.8, 1, 20, 25, 45], [1, 0.7, 30, 60, 50, 80],
                          [0, 0.4, 4, 21, 19, 40], [2, 0.9, 35, 61, 52, 79],
@@ -656,6 +697,35 @@ def test_slice_like():
     axis = (2, 3)
     verify_slice_like(np_data, np_shape_like, axis)
 
+def verify_slice_axis(dshape, axis, begin, end):
+    data = sym.Variable("data")
+    net = sym.slice_axis(data, axis=axis, begin=begin, end=end)
+    if axis < 0:
+        axis += len(dshape)
+    if begin < 0:
+        begin += dshape[axis]
+    if end <= 0:
+        end += dshape[axis]
+    np_data = np.random.uniform(size=dshape)
+    slc = [slice(None)] * len(dshape)
+    slc[axis] = slice(begin, end)
+    np_out = np_data[slc]
+
+    dtype = "float32"
+    for target, ctx in ctx_list():
+        graph, lib, _ = nnvm.compiler.build(net, target, {"data": dshape}, dtype=dtype)
+        m = graph_runtime.create(graph, lib, ctx)
+        m.set_input("data", np_data)
+        m.run()
+        out = m.get_output(0, tvm.nd.empty(np_out.shape, dtype))
+        tvm.testing.assert_allclose(out.asnumpy(), np_out, atol=1e-5, rtol=1e-5)
+
+def test_slice_axis():
+    verify_slice_axis((1, 2, 3, 4), 3, 0, 2)
+    verify_slice_axis((100, 50), -1, 1, -1)
+    verify_slice_axis((20,), -1, -9, -3)
+    verify_slice_axis((20, 30, 40), 1, 5, 0)
+
 def verify_where(condition, x, y):
     dtype = "float32"
     if len(condition.shape) == 1:
@@ -710,6 +780,7 @@ def test_argmax():
     np.testing.assert_allclose(out.asnumpy(), np_argmax, atol=1e-5, rtol=1e-5)
 
 if __name__ == "__main__":
+    test_get_valid_counts()
     test_reshape()
     test_broadcast()
     test_reduce()
@@ -726,8 +797,10 @@ if __name__ == "__main__":
     test_flip()
     test_multibox_prior()
     test_multibox_transform_loc()
+    test_get_valid_counts()
     test_nms()
     test_slice_like()
+    test_slice_axis()
     test_where()
     test_argmax()
     print(nnvm.compiler.engine.dump())

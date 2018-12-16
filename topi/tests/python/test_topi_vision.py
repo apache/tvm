@@ -16,7 +16,7 @@ def verify_get_valid_counts(dshape, score_threshold):
     batch_size, num_anchor, elem_length = dshape
     np_data = np.random.uniform(size=dshape).astype(dtype)
     np_out1 = np.zeros(shape=(batch_size,))
-    np_out2 = np.zeros(shape=dshape).astype("float32")
+    np_out2 = np.zeros(shape=dshape).astype(dtype)
     for i in range(batch_size):
         np_out1[i] = 0
         inter_idx = 0
@@ -27,6 +27,9 @@ def verify_get_valid_counts(dshape, score_threshold):
                     np_out2[i, inter_idx, k] = np_data[i, j, k]
                 np_out1[i] += 1
                 inter_idx += 1
+            if j >= np_out1[i]:
+                for k in range(elem_length):
+                    np_out2[i, j, k] = -1.0
 
     def check_device(device):
         ctx = tvm.context(device, 0)
@@ -54,7 +57,7 @@ def verify_get_valid_counts(dshape, score_threshold):
 def test_get_valid_counts():
     verify_get_valid_counts((1, 2500, 6), 0)
     verify_get_valid_counts((1, 2500, 6), -1)
-    verify_get_valid_counts((3, 1000, 6), 0.15)
+    verify_get_valid_counts((3, 1000, 6), 0.55)
     verify_get_valid_counts((16, 500, 6), 0.95)
 >>>>>>> Add test for get_valid_counts
 
