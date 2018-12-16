@@ -356,6 +356,15 @@ def _slice_axis(inputs, attrs):
     new_attrs['end'] = 0 if attrs.get('end') == "None" else attrs.get('end')
     return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
 
+def _l2_normalize(inputs, attrs):
+    op_name, new_attrs = 'l2_normalize', {}
+    mode = attrs.get('mode', 'instance')
+    if mode != 'channel':
+        _raise_not_supported('mode: %s' % mode, 'L2Normalization')
+    new_attrs['eps'] = attrs.get('eps', 1e-10)
+    new_attrs['axis'] = 1
+    return _get_nnvm_op(op_name)(inputs[0], **new_attrs)
+
 _identity_list = ['__add_scalar__', '__add_symbol__', '__div_scalar__',
                   '__div_symbol__', '__mul_scalar__', '__mul_symbol__',
                   '__pow_scalar__', '__rdiv_scalar__', '__rpow_scalar__',
@@ -404,6 +413,7 @@ _convert_map = {
     'Flatten'       : _rename('flatten'),
     'FullyConnected': _dense,
     'LeakyReLU'     : _leaky_relu,
+    'L2Normalization' : _l2_normalize,
     'Pooling'       : _pooling,
     'Pooling_v1'    : _pooling,
     'Reshape'       : _reshape,
