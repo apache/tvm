@@ -88,9 +88,11 @@ def compute_nms(attrs, inputs, _):
     iou_threshold = attrs.get_float('iou_threshold')
     force_suppress = attrs.get_bool('force_suppress')
     topk = attrs.get_int('topk')
+    id_index = attrs.get_int('id_index')
     do_rearrange = attrs.get_bool('do_rearrange')
 
     return topi.vision.nms(inputs[0], inputs[1], iou_threshold,
-                           force_suppress, topk, do_rearrange)
+                           force_suppress, topk, id_index,
+                           do_rearrange)
 
 reg.register_pattern("nms", OpPattern.OPAQUE)

@@ -340,7 +340,8 @@ def _contrib_box_nms(inputs, attrs):
     nms_out = _get_nnvm_op('nms')(inter_out, valid_counts,
                                   iou_threshold=overlap_thresh,
                                   force_suppress=force_suppress,
-                                  topk=topk, do_rearrange=True)
+                                  topk=topk, id_index=id_index,
+                                  do_rearrange=True)
     return nms_out
 
 def _slice_like(inputs, attrs):

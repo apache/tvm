@@ -455,6 +455,7 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
   float iou_threshold;
   bool force_suppress;
   int topk;
+  int id_index;
   bool do_rearrange;
   DMLC_DECLARE_PARAMETER(NMSParam) {
     DMLC_DECLARE_FIELD(iou_threshold).set_default(0.5)
@@ -463,6 +464,8 @@ struct NMSParam : public dmlc::Parameter<NMSParam> {
     .describe("Suppress all detections regardless of class_id.");
     DMLC_DECLARE_FIELD(topk).set_default(-1)
     .describe("Keep maximum top k detections before nms, -1 for no limit.");
+    DMLC_DECLARE_FIELD(id_index).set_default(0)
+      .describe("Keep maximum top k detections before nms, -1 for no limit.");
     DMLC_DECLARE_FIELD(do_rearrange).set_default(false)
       .describe("Whether to move all valid bounding boxes to the top.");
   }

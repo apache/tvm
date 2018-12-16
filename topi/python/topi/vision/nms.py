@@ -76,7 +76,7 @@ def hybrid_get_valid_counts(data, score_threshold):
         valid_count[i] = 0
         for j in range(num_anchors):
             score = data[i, j, 1]
-            if score >= score_threshold:
+            if score > score_threshold:
                 for k in range(box_data_length):
                     out_tensor[i, valid_count[i], k] = data[i, j, k]
                 valid_count[i] += 1
@@ -112,7 +112,8 @@ def get_valid_counts(data, score_threshold=0):
 
 @hybrid.script
 def hybrid_nms(data, sorted_index, valid_count,
-               iou_threshold, force_suppress, topk):
+               iou_threshold, force_suppress,
+               topk, id_index):
     """Hybrid routing for non-maximum suppression.
 
     Parameters
@@ -136,6 +137,9 @@ def hybrid_nms(data, sorted_index, valid_count,
 
     topk : tvm.const
         Keep maximum top k detections before nms, -1 for no limit.
+
+    id_index : tvm.const
+        index of the class categories, -1 to disable.
 
     Returns
     -------
@@ -169,7 +173,9 @@ def hybrid_nms(data, sorted_index, valid_count,
                     for k in range(valid_count[i]):
                         check_iou = 0
                         if k > j and output[i, k, 0] >= 0:
-                            if force_suppress or output[i, j, 0] == output[i, k, 0]:
+                            if force_suppress:
+                                check_iou = 1
+                            elif id_index < 0 or output[i, j, 0] == output[i, k, 0]:
                                 check_iou = 1
                         if check_iou > 0:
                             batch_idx = i
@@ -204,7 +210,7 @@ def hybrid_nms(data, sorted_index, valid_count,
 
 @tvm.target.generic_func
 def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
-        topk=-1, do_rearrange=False):
+        topk=-1, id_index=0, do_rearrange=False):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -225,6 +231,9 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
 
     topk : optional, int
         Keep maximum top k detections before nms, -1 for no limit.
+
+    id_index : optional, int
+        index of the class categories, -1 to disable.
 
     do_rearrange : optional, boolean
         Whether to move all valid bounding boxes to the top.
@@ -282,7 +291,8 @@ def nms(data, valid_count, iou_threshold=0.5, force_suppress=False,
     out = hybrid_nms(data, sort_tensor, valid_count,
                      tvm.const(iou_threshold, dtype="float32"),
                      tvm.const(force_suppress, dtype="bool"),
-                     tvm.const(topk, dtype="int32"))
+                     tvm.const(topk, dtype="int32"),
+                     tvm.const(id_index, dtype="int32"))
     if do_rearrange:
         out = hybrid_rearrange_out(out)
 
