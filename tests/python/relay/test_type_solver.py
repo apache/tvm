@@ -116,17 +116,20 @@ def test_unify_vars_under_tuples():
     assert (unified == tup1 or unified == tup2)
 
 
-def test_instantiation_of_typevars():
+def test_unify_functions_with_typevars():
     solver = make_solver()
 
-    t1 = relay.ty.IncompleteType()
-    t2 = relay.ty.IncompleteType()
-
+    x = relay.ty.IncompleteType()
+    
     a = relay.ty.TypeVar('a')
     b = relay.ty.TypeVar('b')
-
-    ft1 = relay.ty.FuncType([t1], t2)
-    ft2 = relay.ty.FuncType([a], b, [a, b])
+    c = relay.ty.TypeVar('c')
+    d = relay.ty.TypeVar('d')
+    e = relay.ty.TypeVar('e')
+    f = relay.ty.TypeVar('f')
+    
+    ft1 = relay.ty.FuncType([a, b], relay.TupleType([b, c]), [a, b, c])
+    ft2 = relay.ty.FuncType([d, e], relay.TupleType([e, x]), [d, e, f])
     unified = solver.Unify(ft1, ft2)
     assert (unified == solver.Resolve(ft1))
 
@@ -180,6 +183,22 @@ def test_backward_solving_after_child_update():
     assert solver.Solve()
     assert solver.Resolve(t4) == tup_concrete
     assert solver.Resolve(t5) == tup_concrete
+
+
+@raises(tvm._ffi.base.TVMError)
+def test_unbound_type_var():
+    solver = make_solver()
+
+    # should not be able to unify because nothing is known about b and d
+    a = relay.ty.TypeVar('a')
+    b = relay.ty.TypeVar('b')
+    c = relay.ty.TypeVar('c')
+    d = relay.ty.TypeVar('d')
+
+    ft1 = relay.ty.FuncType([a], b, [a])
+    ft2 = relay.ty.FuncType([c], d, [c])
+    solver.Unify(ft1, ft2)
+
 
 @raises(tvm._ffi.base.TVMError)
 def test_incompatible_tuple_unification():
