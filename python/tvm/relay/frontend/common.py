@@ -3,6 +3,21 @@ from __future__ import absolute_import as _abs
 from .. import expr as _expr
 
 import logging
+from .. import op as _op
+
+def _get_relay_op(op_name):
+    op = _op
+    try:
+        for path in op_name.split("."):
+            op = getattr(op, path)
+    except AttributeError:
+        for scope in [_op, _op.nn, _op.image]:
+            op = getattr(_op, op_name, None)
+            if op is not None:
+                break
+    if not op:
+        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+    return op
 
 
 class RequiredAttr(object):
