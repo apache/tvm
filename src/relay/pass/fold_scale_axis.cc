@@ -279,11 +279,7 @@ Expr GetForwardScale(const Expr& expr, AxesSet out) {
 
 // Intermediate operators
 Array<AxesSet> ReluForwardPrep(const Call& call, AxesSet out) {
-  Expr scale = GetForwardScale(call->args[0], out);
-  if (IsPositiveConstant(scale)) {
-    return {out};
-  }
-  return {NullValue<AxesSet>()};
+  return {out};
 }
 
 Expr ReluForwardRewrite(const Call& ref_call,
@@ -391,16 +387,21 @@ Expr MultiplyForwardRewrite(const Call& ref_call,
   Expr lhs = new_args[0];
   Expr rhs = new_args[1];
   auto rnode = make_node<ScaledExprNode>();
-  if (MatchBroadcastToLeftAxes(tlhs, trhs, expected_out_axes, &rhs)) {
+  if (MatchBroadcastToLeftAxes(tlhs, trhs, expected_out_axes, &rhs) &&
+      IsAllPositiveConstant(rhs)) {
     rnode->value = lhs;
     rnode->scale = rhs;
     rnode->axes = expected_out_axes;
-  } else if (MatchBroadcastToLeftAxes(trhs, tlhs, expected_out_axes, &lhs)) {
+    return Expr(rnode);
+  } else if (MatchBroadcastToLeftAxes(trhs, tlhs, expected_out_axes, &lhs) &&
+             IsAllPositiveConstant(lhs)) {
     rnode->value = rhs;
     rnode->scale = lhs;
     rnode->axes = expected_out_axes;
+    return Expr(rnode);
+  } else {
+    return Expr();
   }
-  return Expr(rnode);
 }
 
 RELAY_REGISTER_OP("multiply")
@@ -790,22 +791,6 @@ RELAY_REGISTER_OP("subtract")
 RELAY_REGISTER_OP("subtract")
 .set_attr<FBackwardTransform>("FScaleAxisBackwardTransform", AddSubBackwardTransform);
 
-// Find relu in the backward path between multiply and conv2d
-bool FindBackwardRelu(const Expr& expr) {
-  const CallNode* call = expr.as<CallNode>();
-  static const Op& conv2d = Op::Get("nn.conv2d");
-  static const Op& relu = Op::Get("nn.relu");
-
-  if (!call) return false;
-  if (call->op.same_as(relu)) return true;
-  if (call->op.same_as(conv2d)) return false;
-
-  for (size_t i = 0; i < call->args.size(); i++) {
-    if (FindBackwardRelu(call->args[i])) return true;
-  }
-  return false;
-}
-
 // Producer operators
 // Multiply produces the scale-axis pair.
 Expr MultiplyBackwardTransform(const Call& call,
@@ -821,16 +806,16 @@ Expr MultiplyBackwardTransform(const Call& call,
     // NOTE we won't recursively call mutating on scale part.
     // since there  won't be scale chance within scale part.
     Expr rhs = call->args[1];
+    // Only propagate positive scaling.
     if (MatchBroadcastToLeftAxes(tlhs, trhs, lhs_axes, &rhs) &&
-        (!FindBackwardRelu(call->args[0]) ||
-         IsPositiveConstant(call->args[1]))) {
+        IsAllPositiveConstant(rhs)) {
       return transformer->Transform(call->args[0], lhs_axes, rhs);
     }
   } else if (rhs_axes.defined() && rhs_axes.size() != 0) {
+    // Only propagate positive scaling.
     Expr lhs = call->args[0];
     if (MatchBroadcastToLeftAxes(trhs, tlhs, rhs_axes, &lhs) &&
-        (!FindBackwardRelu(call->args[1]) ||
-         IsPositiveConstant(call->args[0]))) {
+        IsAllPositiveConstant(lhs)) {
       return transformer->Transform(call->args[1], rhs_axes, lhs);
     }
   }
