@@ -2,6 +2,8 @@
 from __future__ import absolute_import as _abs
 from .. import expr as _expr
 
+from .. import op as _op
+
 def _get_relay_op(op_name):
     op = _op
     for path in op_name.split("."):
