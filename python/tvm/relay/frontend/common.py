@@ -12,7 +12,7 @@ def _get_relay_op(op_name):
             op = getattr(op, path)
     except AttributeError:
         for scope in [_op, _op.nn, _op.image]:
-            op = getattr(_op, op_name, None)
+            op = getattr(scope, op_name, None)
             if op is not None:
                 break
     if not op:
