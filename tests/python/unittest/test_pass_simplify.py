@@ -1,7 +1,7 @@
 import tvm
 import numpy
 from tvm import comm_reducer
-from tvm.ir_pass import Simplify, CanonicalSimplify, SimplifyCombiner, Equal
+from tvm.ir_pass import Simplify, CanonicalSimplify, Equal
 
 def test_simplify():
     """Not yet working, mock design"""
@@ -56,12 +56,17 @@ def test_canonical():
 
 
 def test_simplify_combiner():
+    dummy = tvm.var('dummy')
+
     prod = comm_reducer(lambda x, y: x*y, lambda t0: tvm.const(1, t0))
 
     sum_and_prod = comm_reducer(lambda x, y: (x[0] + y[0],
                                               x[1]*y[1]),
                                 lambda t0, t1: (tvm.const(0, t0),
                                                 tvm.const(5, t0) - tvm.const(4, t0)))
+
+    sum_or_prod = comm_reducer(lambda x, y: tvm.select(dummy < 0, x + y, x*y),
+                               lambda t0: tvm.select(dummy < 0, tvm.const(0, t0), tvm.const(1, t0)))
 
     sum_and_prod2 = comm_reducer(lambda x, y: (x[0] + y[0],
                                                x[1]*y[1] + 0*x[0] + y[0] - y[0]),
@@ -82,15 +87,18 @@ def test_simplify_combiner():
     k = tvm.reduce_axis((0, 10), name="k")
     A = tvm.placeholder((10,), name='A')
 
-    assert Equal(SimplifyCombiner(sum_and_prod((A[k], A[10-k]), k)[0]), tvm.sum(A[k], k))
-    assert Equal(SimplifyCombiner(sum_and_prod((A[k], A[10-k]), k)[1]), prod(A[10-k], k))
-    assert Equal(SimplifyCombiner(sum_and_prod((A[k], A[10-k]), k)[0], False),
-                 sum_and_prod((A[k], A[10-k]), k)[0])
+    assert Equal(Simplify(sum_and_prod((A[k], A[10-k]), k)[0]), tvm.sum(A[k], k))
+    assert Equal(Simplify(sum_and_prod((A[k], A[10-k]), k)[1]), prod(A[10-k], k))
 
-    assert Equal(SimplifyCombiner(sum_and_prod2((A[k], A[10-k]), k)[0]), tvm.sum(A[k], k))
-    assert Equal(SimplifyCombiner(sum_and_prod2((A[k], A[10-k]), k)[1]), prod(A[10-k], k))
+    vrange = {dummy: tvm.Range(-10, -5)}
+    assert Equal(Simplify(sum_or_prod(A[k], k), vrange), tvm.sum(A[k], k))
+    vrange = {dummy: tvm.Range(5, 10)}
+    assert Equal(Simplify(sum_or_prod(A[k], k), vrange), prod(A[k], k))
 
-    assert [len(SimplifyCombiner(some_reducer1((A[k], A[10-k], A[0], A[k+1], A[k]), k)[j]).source)
+    assert Equal(Simplify(sum_and_prod2((A[k], A[10-k]), k)[0]), tvm.sum(A[k], k))
+    assert Equal(Simplify(sum_and_prod2((A[k], A[10-k]), k)[1]), prod(A[10-k], k))
+
+    assert [len(Simplify(some_reducer1((A[k], A[10-k], A[0], A[k+1], A[k]), k)[j]).source)
             for j in range(5)] == [1, 2, 2, 4, 1]
 
 
