@@ -811,7 +811,7 @@ Expr SimplifyCombiner(const Expr& expr, const Map<Var, Range>& vrange = Map<Var,
   // the index idx
   std::function<void(int)> mark_used;
   mark_used = [&used, &simplified_result, op, &mark_used](size_t idx) {
-    // if the idx-th component was mark as used before, do nothing
+    // if the idx-th component was marked as used before, do nothing
     if (used[idx]) return;
     used[idx] = true;
 
@@ -866,7 +866,10 @@ Expr SimplifyCombiner(const Expr& expr, const Map<Var, Range>& vrange = Map<Var,
 Expr RemoveEmptyReduction(const Expr& e) {
   const Reduce* r = e.as<Reduce>();
   if (r && r->axis.empty()) {
-    // Note that here we assume that the identity element is indeed identity.
+    // Note that here we assume that the identity element is indeed identity. Without this
+    // assumption we would have to perform a single iteration of the loop, i.e. use
+    // `(*r->combiner.get())(r->combiner->identity_element, r->source)[r->value_index]`
+    // instead of `r->source[r->value_index]`. The former may be more difficult to simplify.
     return Select::make(r->condition,
                         r->source[r->value_index],
                         r->combiner->identity_element[r->value_index]);
