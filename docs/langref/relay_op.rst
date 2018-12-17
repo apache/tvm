@@ -124,6 +124,7 @@ This level enables additional math and transform operators.
    tvm.relay.mean
    tvm.relay.prod
    tvm.relay.strided_slice
+   tvm.relay.broadcast_to
 
 
 **Level 5: Vision/Image Operators**
