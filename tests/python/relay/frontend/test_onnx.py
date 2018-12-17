@@ -11,8 +11,6 @@ from onnx import helper, TensorProto
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
-
-    sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
     target = 'llvm'
     if isinstance(input_data, list):
         input_names = {}
@@ -26,7 +24,8 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape, output_dtyp
         input_names = graph_def.graph.input[0].name
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
-
+        
+    sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(sym, target, params=params)
 
