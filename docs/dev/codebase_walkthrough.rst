@@ -11,29 +11,28 @@ Codebase Structure Overview
 At the root of the TVM repository, we have following subdirectories that together comprise a bulk of the codebase.
 
 - ``src`` - C++ code for operator compilation and deployment runtimes.
+- ``src/relay`` - Implementation of Relay, a new IR for deep learning framework superseding ``nnvm`` below.
 - ``python`` - Python frontend that wraps C++ functions and objects implemented in ``src``.
 - ``topi`` - Compute definitions and backend schedules for standard neural network operators.
-- ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. Depends on three directories above.
+- ``nnvm`` - C++ code and Python frontend for graph optimization and compilation. After the introduction of Relay, it remains in the codebase for backward compatibility.
 
-Using standard Deep Learning terminologies, ``nnvm`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructures implemented in ``src`` and ``python``. Operators corresponding to each node are registered in ``nnvm``. Registration can be done via C++ or Python. Implementations for operators are in ``topi``, and they are also coded in either C++ or Python.
+Using standard Deep Learning terminologies, ``src/relay`` is the component that manages a computational graph, and nodes in a graph are compiled and executed using infrastructures implemented in the rest of ``src``. ``python`` provides python bindings for the C++ API and driver code that users can use to execute compilation. Operators corresponding to each node are registered in ``src/relay/op``. Implementations for operators are in ``topi``, and they are coded in either C++ or Python.
 
-When a user invokes graph compilation by ``nnvm.compiler.build(...)``, the following sequence of actions happens for each node in the graph:
+Relay is the new IR for deep networks that is intended to replace NNVM. If you have used NNVM, Relay provides equivalent or better functionalities. In fact, Relay goes beyond a traditional way of thinking deep networks in terms of computational graphs. But for the purpose of this document, we can think of Relay as a traditional computational graph framework. You can read more about Relay `here <https://docs.tvm.ai/dev/relay_intro.html>`_.
+
+When a user invokes graph compilation by ``relay.build(...)`` (or ``nnvm.compiler.build(...)`` for the older API), the following sequence of actions happens for each node in the graph:
 
 - Look up an operator implementation by querying the operator registry
 - Generate a compute expression and a schdule for the operator
 - Compile the operator into object code
 
-One of the interesting aspects of TVM codebase is that interop between C++ and Python is not unidirectional. Typically, all code that do heavy liftings are implemented in C++, and Python bindings are provided for user interface. This is also true in TVM, but in TVM codebase, C++ code also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in nnvm.
-
-At the time of writing (Nov. 30, 2018), there is an ongoing effort to reimplement functionality offered by ``nnvm`` in a new intermediate representation called Relay. New Relay code resides in ``src/relay`` and ``python/tvm/relay``.
-
-This guide focuses on contents in ``src`` and ``python`` subdirectories. We may cover ``topi`` and ``nnvm`` in another documents.
+One of the interesting aspects of TVM codebase is that interop between C++ and Python is not unidirectional. Typically, all code that do heavy liftings are implemented in C++, and Python bindings are provided for user interface. This is also true in TVM, but in TVM codebase, C++ code also call into functions defined in a Python module. For example, the convolution operator is implemented in Python, and its implementation is invoked from C++ code in Relay.
 
 *******************************************
 Vector Add Example
 *******************************************
 
-We use a simple example that does not use topi or nnvm. The example is vector addition, which is covered in detail in `this tutorial <https://docs.tvm.ai/tutorials/get_started.html#sphx-glr-tutorials-get-started-py>`_.
+We use a simple example that uses the low level TVM API directly. The example is vector addition, which is covered in detail in `this tutorial <https://docs.tvm.ai/tutorials/get_started.html#sphx-glr-tutorials-get-started-py>`_.
 
 ::
 
@@ -120,7 +119,7 @@ Lowering is done by ``tvm.lower()`` function, defined in ``python/tvm/build_modu
       stmt = schedule.ScheduleOps(sch, bounds)
       ...
 
-Bound inference is a process where all loop bounds and sizes of intermidiate buffers are inferred. If you target the CUDA backend and you use shared memory, its minimum size is automatically determined here. Bound inference is implemented in ``src/schedule/bound.cc``, ``src/schedule/graph.cc`` and ``src/schedule/message_passing.cc``.
+Bound inference is the process where all loop bounds and sizes of intermidiate buffers are inferred. If you target the CUDA backend and you use shared memory, its required minimum size is automatically determined here. Bound inference is implemented in ``src/schedule/bound.cc``, ``src/schedule/graph.cc`` and ``src/schedule/message_passing.cc``.
 
 ``stmt``, which is the output of ``ScheduleOps()``, represents an initial loop nest structure. If you have applied ``reorder`` or ``split`` primitives to your schedule, then the initial loop nest already reflects that changes. ``ScheduleOps()`` is defined in ``src/schedule/schedule_ops.cc``.
 
@@ -224,4 +223,4 @@ The ``PackedFunc``'s overloaded ``operator()`` will be called, which in turn cal
      }
    };
 
-This concludes an overview of how TVM compiles and executes a function. You are encouraged to dive into the details of the codebase.
+This concludes an overview of how TVM compiles and executes a function. Although we did not detail TOPI or Relay, at the end all neural network operators go through the same compilation process as above. You are encouraged to dive into the details of the rest of the codebase.
