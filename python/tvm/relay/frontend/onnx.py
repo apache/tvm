@@ -2,7 +2,6 @@
 """ONNX: Open Neural Network Exchange frontend for relay."""
 from __future__ import absolute_import as _abs
 
-import logging
 import numpy as np
 from topi.util import get_const_tuple
 import tvm
@@ -10,10 +9,21 @@ from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
-from .common import _get_relay_op
 from .common import AttrCvt
 
 __all__ = ['from_onnx']
+
+def _get_relay_op(op_name):
+    try:
+        op = getattr(_op, op_name)
+    except AttributeError:
+        try:
+            op = getattr(_op.nn, op_name)
+        except AttributeError:
+            op = getattr(_op.image, op_name)
+    if not op:
+        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+    return op
 
 def dimension_picker(prefix, surfix=''):
     def _impl(attr):
