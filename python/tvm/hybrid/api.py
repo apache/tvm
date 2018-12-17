@@ -30,7 +30,7 @@ def script(pyfunc):
             for i in args:
                 if isinstance(i, Tensor):
                     input_tensors.append(i)
-            op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors, \
+            op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
                                          parser.outputs, parser.parsed_body)
             res = [op.output(i) for i in range(len(parser.outputs))]
             return res[0] if len(res) == 1 else res

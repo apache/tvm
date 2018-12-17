@@ -19,7 +19,7 @@ LOOP_INTRIN = {
     'vectorize': For.Vectorized,
 }
 
-def _range(func_id, args):
+def _range(annotation, args):
     """Handling TVM loop types"""
     n = len(args)
     if n == 1:
@@ -29,7 +29,7 @@ def _range(func_id, args):
         low, ext = args[0], args[1]
     if not Equal(low, _api.const(0, dtype='int32')):
         ext = ext - low
-    for_type = LOOP_INTRIN[func_id]
+    for_type = LOOP_INTRIN[annotation]
     iter_var = None
     return iter_var, low, ext, for_type
 
@@ -65,7 +65,8 @@ min = max = _min_max #pylint: disable=invalid-name
 
 
 def _allocate_tensor(func_id, args):
-    """Handling TVM tensor allocation"""
+    """Handling TVM tensor allocation.
+    You may refer hybrid.intrin.allocate for more details."""
     n = len(args)
     _internal_assert(isinstance(_api.convert(args[0]), Array), \
                      "allocate's first argument should be a tuple of shape!")
