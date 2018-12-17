@@ -2,6 +2,14 @@
 from __future__ import absolute_import as _abs
 from .. import expr as _expr
 
+def _get_relay_op(op_name):
+    op = _op
+    for path in op_name.split("."):
+        op = getattr(op, path)
+    if not op:
+        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+    return op
+
 
 class RequiredAttr(object):
     """Dummpy class to represent required attr"""

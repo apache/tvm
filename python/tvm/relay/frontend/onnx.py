@@ -10,7 +10,7 @@ from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
-from .nnvm_common import _get_relay_op
+from .common import _get_relay_op
 from .common import AttrCvt
 
 __all__ = ['from_onnx']
