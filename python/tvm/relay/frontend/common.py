@@ -3,21 +3,10 @@ from __future__ import absolute_import as _abs
 from .. import expr as _expr
 
 import logging
+from topi.util import get_const_tuple
+from .. import expr as _expr
+from .. import ir_pass
 from .. import op as _op
-
-def _get_relay_op(op_name):
-    op = _op
-    try:
-        for path in op_name.split("."):
-            op = getattr(op, path)
-    except AttributeError:
-        for scope in [_op, _op.nn, _op.image]:
-            op = getattr(scope, op_name, None)
-            if op is not None:
-                break
-    if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
-    return op
 
 
 class RequiredAttr(object):
@@ -221,6 +210,23 @@ class StrAttrsDict(object):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
 
+def get_relay_op(op_name):
+    """Get the callable function from relay based on opname:
+    Parameters
+    ----------
+    op_name : str
+        The relay operator name.
+    """
+    try:
+        op = getattr(_op, op_name)
+    except AttributeError:
+        try:
+            op = getattr(_op.nn, op_name)
+        except AttributeError:
+            op = getattr(_op.image, op_name)
+    if not op:
+        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
+    return op
 
 class ExprTable(object):
     """Table storing Relay expressions by names."""
@@ -325,7 +331,7 @@ class AttrCvt(object):
                 new_attrs[k] = attrs[k]
         # add extras
         new_attrs.update(self._extras)
-        return _get_relay_op(op_name)(*inputs, **new_attrs)
+        return get_relay_op(op_name)(*inputs, **new_attrs)
 
     def _parse_default(self, target):
         """Helper function to parse default values."""
@@ -356,3 +362,44 @@ class AttrCvt(object):
         if key not in attr:
             raise AttributeError("Required attribute {} not found.".format(key))
         return attr[key]
+
+def get_name(node):
+    name = ''
+    if hasattr(node, "name_hint"):
+        name = node.name_hint
+    return name
+
+def infer_shape(inputs):
+    """A method to get the output shape of an intermediate node in the graph."""
+    out_type = ir_pass.infer_type(inputs)
+    out_shapes = get_const_tuple(out_type.checked_type.shape)
+    return out_shapes
+
+def infer_channels(inputs, transpose=False):
+    """A hack for getting 'channels' or 'units' since caffe2 don't provide
+    these attributes. We check the shape of weights provided to get the number.
+    """
+    out_type = ir_pass.infer_type(inputs)
+    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
+    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
+    return channels
+
+def new_var(name_hint,
+            type_annotation=None,
+            shape=None,
+            dtype="float32"):
+    return _expr.var(name_hint, type_annotation, shape, dtype)
+
+class Renamer(object):
+    """A simply renamer for operators.
+
+    Parameters
+    ----------
+    new_name : str
+        The new name for the operator
+    """
+    def __init__(self, new_name):
+        self._new_name = new_name
+
+    def __call__(self, inputs, attrs, *args):
+        return get_relay_op(self._new_name)(*inputs, **attrs)

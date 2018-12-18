@@ -4,7 +4,7 @@ from __future__ import absolute_import as _abs
 
 from .. import expr as _expr
 from .. import op as _op
-from .common import _get_relay_op
+from .common import get_relay_op
 
 def _warn_not_used(attr, op='nnvm'):
     import warnings
@@ -14,7 +14,7 @@ def _warn_not_used(attr, op='nnvm'):
 
 def _rename(new_op):
     if isinstance(new_op, str):
-        new_op = _get_relay_op(new_op)
+        new_op = get_relay_op(new_op)
     # attrs are ignored.
     def impl(inputs, _, _dtype='float32'):
         return new_op(*inputs)

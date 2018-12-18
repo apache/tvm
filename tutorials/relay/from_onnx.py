@@ -1,6 +1,8 @@
 """
 Compile ONNX Models
 ===================
+**Author**: `Joshua Z. Zhang <https://zhreshold.github.io/>`_
+
 This article is an introductory tutorial to deploy ONNX models with Relay.
 
 For us to begin with, onnx module is required to be installed.

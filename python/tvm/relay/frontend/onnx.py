@@ -3,14 +3,13 @@
 from __future__ import absolute_import as _abs
 
 import numpy as np
-from topi.util import get_const_tuple
 import tvm
 from tvm import relay
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
-from .common import _get_relay_op
-from .common import AttrCvt
+from .common import AttrCvt, Renamer
+from .common import get_relay_op, new_var, infer_shape, infer_channels, get_name
 
 __all__ = ['from_onnx']
 
@@ -42,42 +41,6 @@ def dimension_constraint():
 
     return _dim_check, "Only 2d kernel supported."
 
-def _get_name(node):
-    name = ''
-    if hasattr(node, "name_hint"):
-        name = node.name_hint
-    return name
-
-def _infer_shapes(inputs):
-    """A method to get the output shape of an intermediate node in the graph."""
-    out_type = ir_pass.infer_type(inputs)
-    out_shapes = get_const_tuple(out_type.checked_type.shape)
-    return out_shapes
-
-def _infer_channels(inputs, transpose=False):
-    """A hack for getting 'channels' or 'units' since caffe2 don't provide
-    these attributes. We check the shape of weights provided to get the number.
-    """
-    out_type = ir_pass.infer_type(inputs)
-    out_shapes = [get_const_tuple(out_type.checked_type.shape)]
-    channels = out_shapes[0][0] if not transpose else out_shapes[0][1]
-    return channels
-
-class Renamer(object):
-    """A simply renamer for operators.
-
-    Parameters
-    ----------
-    new_name : str
-        The new name for the operator
-    """
-    def __init__(self, new_name):
-        self._new_name = new_name
-
-    def __call__(self, inputs, attrs, *args):
-        return _get_relay_op(self._new_name)(*inputs, **attrs)
-
-
 class OnnxOpConverter(object):
     """ A helper class for holding onnx op converters.
     """
@@ -106,7 +69,6 @@ class OnnxOpConverter(object):
 class Elemwise(OnnxOpConverter):
     """ A helper class for elemwise op converters.
     """
-
     name = ''
 
     @classmethod
@@ -114,18 +76,16 @@ class Elemwise(OnnxOpConverter):
         assert len(inputs) == 2, "Math op take 2 inputs, {} given".format(
             len(inputs))
         op_name = cls.name
-        axis = int(attr.get('axis', 0))
         conv_ops = ["conv2d", "conv2d_transpose"]
-        if op_name == 'add' and any(x in str(inputs[0]) for x in conv_ops):
+        if attr.get('broadcast', 0) and any(x in str(inputs[0]) for x in conv_ops):
             # TODO(zhreshold): remove hard coded infershape
+            axis = int(attr.get('axis', 0))
             inputs[1] = _op.expand_dims(inputs[1], axis=axis, num_newaxis=2)
-        return _get_relay_op(op_name)(*inputs)
-
+        return get_relay_op(op_name)(*inputs)
 
 class Pool(OnnxOpConverter):
     """ A helper class for pool op converters.
     """
-
     name = ''
 
     @classmethod
@@ -149,7 +109,7 @@ class Absolute(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return relay.relu(inputs[0]) + relay.relu(relay.negative(inputs[0]))
+        return relay.nn.relu(inputs[0]) + relay.nn.relu(relay.negative(inputs[0]))
 
 
 class Add(Elemwise):
@@ -171,11 +131,11 @@ class BatchNorm(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # TODO(zhreshold): 'spatial' is not properly handled here.
-        return AttrCvt(
+        out = AttrCvt(
             op_name='batch_norm',
-            disables=['momentum'],
-            ignores=['spatial', 'is_test', 'consumed_inputs'])(inputs, attr,
-                                                               params)
+            ignores=['spatial', 'is_test', 'consumed_inputs', 'momentum'])(inputs, attr,
+                                                                           params)
+        return out[0]
 
 
 class Conv(OnnxOpConverter):
@@ -204,11 +164,11 @@ class ConvTranspose(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         # get number of channels
-        channels = _infer_channels(inputs[1], True)
+        channels = infer_channels(inputs[1], True)
         attr['channels'] = channels
         groups = attr.pop('group')
         attr['groups'] = groups
-        return AttrCvt(
+        out = AttrCvt(
             op_name=dimension_picker('conv', '_transpose'),
             transforms={
                 'kernel_shape': 'kernel_size',
@@ -218,10 +178,14 @@ class ConvTranspose(OnnxOpConverter):
             disables=['output_shape'],
             extras={'use_bias': len(inputs) == 3},
             custom_check=dimension_constraint())(inputs, attr, params)
+        use_bias = len(inputs) == 3
+        if use_bias:
+            out = _op.nn.bias_add(out, inputs[2])
+        return out
 
 
 class Div(Elemwise):
-    name = 'div'
+    name = 'divide'
 
 
 class Elu(OnnxOpConverter):
@@ -231,8 +195,8 @@ class Elu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 1.0))
-        return _expr.const(-alpha) * relay.relu(_expr.const(1) - relay.exp(inputs[0])) + \
-                                     relay.relu(inputs[0])
+        return _expr.const(-alpha) * relay.nn.relu(_expr.const(1) - relay.exp(inputs[0])) + \
+                                     relay.nn.relu(inputs[0])
 
 
 class Gemm(OnnxOpConverter):
@@ -249,15 +213,16 @@ class Gemm(OnnxOpConverter):
         transA = int(attr.get('transA', 0))
         transB = int(attr.get('transB', 0))
         # get number of channels
-        channels = _infer_channels(inputs[1], not transB)
+        channels = infer_channels(inputs[1], not transB)
         if transA:
             inputs[0] = relay.transpose(inputs[0], axes=(1, 0))
         if not transB:
             inputs[1] = relay.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = relay.batch_flatten(inputs[0])
-        return relay.dense(
-            alpha * inputs[0], inputs[1], beta * inputs[2], units=channels)
-
+        inputs[0] = relay.nn.batch_flatten(inputs[0])
+        out = relay.nn.dense(_expr.const(alpha) * inputs[0],
+                             inputs[1],
+                             units=channels)
+        return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
 
 class MatMul(OnnxOpConverter):
     """ Operator converter for MatMul.
@@ -274,7 +239,7 @@ class MaxPool(Pool):
 
 
 class Mul(Elemwise):
-    name = 'mul'
+    name = 'multiply'
 
 
 class Pad(OnnxOpConverter):
@@ -324,9 +289,9 @@ class ParametricSoftPlus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        alpha = float(attr.get('alpha', 1.0))
-        beta = float(attr.get('beta', 1.0))
-        return relay.log(_sym.exp(beta * inputs[0]) + 1) * alpha
+        alpha = _expr.const(float(attr.get('alpha', 1.0)))
+        beta = _expr.const(float(attr.get('beta', 1.0)))
+        return relay.log(relay.exp(beta * inputs[0]) + _expr.const(1)) * alpha
 
 
 class Prelu(OnnxOpConverter):
@@ -356,13 +321,21 @@ class Reshape(OnnxOpConverter):
         if 'shape' in attr:
             return relay.reshape(inputs[0], attr['shape'])
 
-        if _get_name(inputs[1]) in params:
+        if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].asnumpy())
             out = relay.reshape(inputs[0], shape)
         else:
             out = relay.reshape_like(inputs[0], inputs[1])
 
         return out
+
+class Concat(OnnxOpConverter):
+    """ Operator converter for Concat.
+    """
+
+    @classmethod
+    def _impl_v1(cls, inputs, args, params):
+        return AttrCvt(op_name='concatenate')((inputs,), args)
 
 class Scale(OnnxOpConverter):
     """ Operator converter for Scale.
@@ -382,8 +355,8 @@ class Selu(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 1.6732))
         gamma = float(attr.get('gamma', 1.0507))
-        return _expr.const(gamma) * (
-            _expr.const(-alpha) * relay.relu(1 - relay.exp(inputs[0])) + relay.relu(inputs[0]))
+        return _expr.const(gamma) * (_expr.const(-alpha) * relay.nn.relu(_expr.const(1) -
+            relay.exp(inputs[0])) + relay.nn.relu(inputs[0]))
 
 
 class ScaledTanh(OnnxOpConverter):
@@ -416,7 +389,7 @@ class Softsign(OnnxOpConverter):
 
 
 class Sub(Elemwise):
-    name = 'sub'
+    name = 'subtract'
 
 
 class Sum(OnnxOpConverter):
@@ -439,7 +412,8 @@ class ThresholdedRelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 0.0))
-        return relay.relu(inputs[0] - _expr.const(alpha))
+        alpha_tensor = relay.full_like(inputs[0], fill_value=float(alpha))
+        return inputs[0] * relay.greater(inputs[0], alpha_tensor)
 
 
 def _broadcast_constraint():
@@ -456,7 +430,7 @@ def _fully_connected(opset):
 
     def _impl(inputs, attr, params):
         # get number of channels
-        channels = _infer_channels(inputs[1], params)
+        channels = infer_channels(inputs[1], params)
         attr['units'] = channels
         return AttrCvt('dense', ignores=['axis', 'axis_w'])(inputs, attr)
 
@@ -662,7 +636,7 @@ class Reduce(OnnxOpConverter):
         if 'axes' in attr:
             axis = attr.get('axes', 0)
         else:
-            axis_len = len(_infer_shapes(inputs[0]))
+            axis_len = len(infer_shape(inputs[0]))
             axis = list(range(axis_len))
         attr = {'axis':axis, 'keepdims':attr.get('keepdims', True)}
         return AttrCvt(cls.name)(inputs, attr)
@@ -733,7 +707,7 @@ class ConstantFill(OnnxOpConverter):
                 raise ImportError(
                     "Either shape attribute or input should be set")
             if 'input_as_shape' in attr and attr['input_as_shape']:
-                shape = params[_get_name(inputs[0])].asnumpy()
+                shape = params[get_name(inputs[0])].asnumpy()
             else:
                 if 'extra_shape' in attr:
                     raise ImportError(
@@ -847,7 +821,7 @@ def _get_convert_map(opset):
         # defs/tensor
         'Cast': Cast.get_converter(opset),
         'Reshape': Reshape.get_converter(opset),
-        'Concat': Renamer('concatenate'),
+        'Concat': Concat.get_converter(opset),
         'Split': Split.get_converter(opset),
         'Slice': Slice.get_converter(opset),
         'Transpose': AttrCvt('transpose', {'perm': 'axes'}),
@@ -914,9 +888,9 @@ class GraphProto(object):
                 # i is a param instead of input
                 self._num_param += 1
                 self._params[i_name] = self._params.pop(i_name)
-                self._nodes[i_name] = _expr.var(i_name,
-                                                shape=self._params[i_name].shape,
-                                                dtype=self._params[i_name].dtype)
+                self._nodes[i_name] = new_var(i_name,
+                                              shape=self._params[i_name].shape,
+                                              dtype=self._params[i_name].dtype)
             else:
                 self._num_input += 1
                 shape = self._shape[i_name] if i_name in self._shape else ()
@@ -924,7 +898,7 @@ class GraphProto(object):
                     dtype = self._dtype[i_name] if i_name in self._dtype else d_type
                 else:
                     dtype = d_type
-                self._nodes[i_name] = _expr.var(i_name, shape=shape, dtype=dtype)
+                self._nodes[i_name] = new_var(i_name, shape=shape, dtype=dtype)
         # construct nodes, nodes are stored as directed acyclic graph
         for node in graph.node:
             op_name = node.op_type
@@ -934,14 +908,14 @@ class GraphProto(object):
                 t_proto = self._parse_attr(node.attribute)["value"]
                 self._num_param += 1
                 self._params[node.output[0]] = self._parse_array(t_proto)
-                self._nodes[node.output[0]] = _expr.var(node.output[0], shape=list(t_proto.dims))
+                self._nodes[node.output[0]] = new_var(node.output[0], shape=list(t_proto.dims))
             else:
                 if op_name == "ConstantFill":
                     fill_value = attr.get('value', 0.0)
                     dtype = attr.get('dtype', b'int32').decode("utf-8")
                     i_name = node.output[0]
                     self._params[i_name] = fill_value
-                    self._nodes[i_name] = _expr.var(node.output[0], shape=(), dtype=dtype)
+                    self._nodes[i_name] = new_var(node.output[0], shape=(), dtype=dtype)
                     inputs.append(self._nodes[i_name])
 
                 op = self._convert_operator(op_name, inputs, attr, opset)
@@ -1048,7 +1022,7 @@ class GraphProto(object):
         """
         convert_map = _get_convert_map(opset)
         if op_name in _identity_list:
-            sym = _get_relay_op(op_name)(*inputs, **attrs)
+            sym = get_relay_op(op_name)(*inputs, **attrs)
         elif op_name in convert_map:
             sym = convert_map[op_name](inputs, attrs, self._params)
         else:
