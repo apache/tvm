@@ -343,7 +343,7 @@ _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
 def _from_mxnet_impl(symbol, shape_dict, dtype_info):
-    """Convert mxnet symbol to nnvm implementation.
+    """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
 
@@ -361,14 +361,13 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
 
     Returns:
     -------
-    nnvm.sym.Symbol
-        Converted symbol
+    func : tvm.relay.Function
+        Converted relay Function
     """
     assert symbol is not None
     jgraph = json.loads(symbol.tojson())
     jnodes = jgraph["nodes"]
     node_map = {}
-
 
     for nid, node in enumerate(jnodes):
         children = [node_map[e[0]][e[1]] for e in node["inputs"]]
@@ -444,8 +443,8 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    sym : nnvm.Symbol
-        Compatible nnvm symbol
+    sym : tvm.relay.Function
+        Compatible relay Function
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm
