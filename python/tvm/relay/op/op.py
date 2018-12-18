@@ -188,6 +188,7 @@ def schedule_injective(attrs, outputs, target):
 __DEBUG_COUNTER__ = 0
 
 def debug(expr, debug_func=None):
+    """The main entry point to the debugger."""
     global __DEBUG_COUNTER__
 
     if debug_func:
