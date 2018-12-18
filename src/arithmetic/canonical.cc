@@ -481,41 +481,62 @@ class Canonical::Internal : public IRMutator {
     }
     return value;
   }
-  // Detect if a = x * coeff + y, where y \in [0, coeff), x >= 0
-  // return true if such detection is successful
-  // return false if it is not.
+  // Detect if a = q * coeff + r, where r \in [0, coeff), coeff > 0
+  // returns pair (q, r) if such detection is successful
+  // returns empty vector otherwise.
+  // Assumes that coeff is a constant integer
   std::vector<ComExpr> TryLinearEquation(const ComExpr& a,
                                          const Expr& coeff) {
     Type type = coeff.type();
     int64_t value = GetConstIntValue(coeff);
     if (value < 0) return {};
-    auto xnode = make_node<ComExprNode>();
-    auto ynode = make_node<ComExprNode>();
+    // Try to separate terms of a into ones that can be proven to be
+    // divisible by coeff and ones that are not
+    // We will build q and r from divisible and non_divisible respectively
+    auto divisible = make_node<ComExprNode>();
+    auto non_divisible = make_node<ComExprNode>();
     if (a->base % value == 0) {
-      xnode->base = a->base;
+      divisible->base = a->base;
     } else {
-      ynode->base = a->base;
+      non_divisible->base = a->base;
     }
     for (const auto& e : a->elem) {
       if (e.scale % value == 0) {
-        xnode->elem.push_back(e);
+        divisible->elem.push_back(e);
       } else {
-        ynode->elem.push_back(e);
+        non_divisible->elem.push_back(e);
       }
     }
-    Expr yres = Sum2Expr(ComExpr(ynode), type);
-    IntSet yset = EvalSet(yres, var_range_);
-    // This relies on the integer division rounds down
-    // Most cases it is good for integer division.
-    if (yset.min().type() == type &&
-        can_prove(yset.min() >= make_zero(type)) &&
-        yset.max().type() == type &&
-        can_prove(yset.max() < coeff)) {
-      xnode->base /= value;
-      for (auto &e : xnode->elem) {
+    bool non_divisible_is_simplified = false;
+    int64_t div_result;
+    Expr non_divisible_res = Sum2Expr(ComExpr(non_divisible), type);
+    // if non_divisible part consists of only an integer, we can simply divide it by coeff
+    if (is_const(non_divisible_res)) {
+      int64_t non_divisible_base = GetConstIntValue(non_divisible_res);
+      non_divisible_is_simplified = true;
+      div_result = non_divisible_base / value;
+    } else {
+      // If we can prove that non_divisible part lies within [0, coeff), then
+      // that will be our r
+      IntSet non_divisible_set = EvalSet(non_divisible_res, var_range_);
+      // This relies on the integer division rounds down
+      // Most cases it is good for integer division.
+      if (non_divisible_set.min().type() == type &&
+          can_prove(non_divisible_set.min() >= make_zero(type)) &&
+          non_divisible_set.max().type() == type &&
+          can_prove(non_divisible_set.max() < coeff)) {
+        non_divisible_is_simplified = true;
+        div_result = 0;
+      }
+    }
+    if (non_divisible_is_simplified) {
+      non_divisible->base -= div_result * value;
+      divisible->base /= value;
+      divisible->base += div_result;
+      for (auto &e : divisible->elem) {
         e.scale /= value;
       }
-      return {ComExpr(xnode), ComExpr(ynode)};
+      return {ComExpr(divisible), ComExpr(non_divisible)};
     } else {
       return {};
     }

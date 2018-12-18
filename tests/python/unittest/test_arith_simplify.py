@@ -29,6 +29,9 @@ def test_simplify():
     #  assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / (-1)),
     #                           tvm.ir_pass.CanonicalSimplify(-n))
 
+def test_simplify_div():
+    x = tvm.var('x')
+    assert tvm.ir_pass.CanonicalSimplify((241+48*x)/16 - (15 + (x*3))).value == 0
 
 def test_simplify_mod():
     """Not yet working, mock design"""
@@ -78,6 +81,7 @@ def test_modular():
     assert tvm.ir_pass.CanonicalSimplify(z2 - (rx + x)).value == 0
 
 if __name__ == "__main__":
+    test_simplify_div()
     test_simplify_mod()
     test_modular()
     test_simplify()
