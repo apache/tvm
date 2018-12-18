@@ -6,7 +6,7 @@ from .. import api as _api
 from .. import expr as _expr
 from .. import make as _make
 from ..container import Array
-from ..ir_pass import Equal
+from .. import ir_pass
 from ..stmt import For
 from .util import _internal_assert
 
@@ -27,7 +27,7 @@ def _range(annotation, args):
     else:
         _internal_assert(n == 2, "A loop intrinsic should only have 1 or 2 arguments!")
         low, ext = args[0], args[1]
-    if not Equal(low, _api.const(0, dtype='int32')):
+    if not ir_pass.Equal(low, _api.const(0, dtype='int32')):
         ext = ext - low
     for_type = LOOP_INTRIN[annotation]
     iter_var = None
