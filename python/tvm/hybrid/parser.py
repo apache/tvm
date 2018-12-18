@@ -378,7 +378,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, _api.const(0, dtype='int32')):
+            if not _ir_pass.Equal(low, _api.const(0)):
                 offset = iter_var + low
             self.loops_above[_name] = offset
         else:
@@ -389,7 +389,7 @@ class HybridParser(ast.NodeVisitor):
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
         else:
-            res = _make.For(iter_var, _api.const(0, dtype='int32'), ext, for_type, 0, _body)
+            res = _make.For(iter_var, _api.const(0), ext, for_type, 0, _body)
         self.loops_above.pop(_name)
         return res
 
