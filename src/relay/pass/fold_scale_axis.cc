@@ -246,37 +246,6 @@ class ForwardPrep : private ExprVisitor {
 // Per operator defs for FScaleAxisForward
 //----------------------------------------------
 
-// Helper functions
-Expr GetForwardScale(const Expr& expr, AxesSet out) {
-  static const Op& multiply = Op::Get("multiply");
-  static const auto& fprep = Op::GetAttr<FForwardPrep>("FScaleAxisForwardPrep");
-
-  const CallNode* call = expr.as<CallNode>();
-  if (!call) return NullValue<Expr>();
-  auto f = fprep.get(call->op, nullptr);
-
-  if (call->op.same_as(multiply)) {
-    const auto* tlhs = call->args[0]->type_as<TensorTypeNode>();
-    const auto* trhs = call->args[1]->type_as<TensorTypeNode>();
-    if (MatchBroadcastToLeftAxes(tlhs, trhs, out)) {
-      return call->args[1];
-    } else if (MatchBroadcastToLeftAxes(trhs, tlhs, out)) {
-      return call->args[0];
-    } else {
-      return NullValue<Expr>();
-    }
-  } else if (f != nullptr) {
-    Array<AxesSet> in_axes = f(GetRef<Call>(call), out);
-    for (size_t i = 0; i < call->args.size(); i++) {
-      auto scale = GetForwardScale(call->args[i], in_axes[i]);
-      if (scale.defined()) {
-        return scale;
-      }
-    }
-  }
-  return NullValue<Expr>();
-}
-
 // Intermediate operators
 Array<AxesSet> ReluForwardPrep(const Call& call, AxesSet out) {
   return {out};
