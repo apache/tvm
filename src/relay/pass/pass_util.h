@@ -22,6 +22,15 @@ namespace relay {
 std::unordered_map<const Node*, size_t>
 GetExprRefCount(const Expr& body);
 
+
+/*!
+ * \brief Check if expr is positive constant.
+ * \param expr The expression to be checked.
+ * \return Whether all elements of expr is positive constant.
+ */
+bool IsAllPositiveConstant(const Expr& expr);
+
+
 /*!
  * \brief Substitute var with subst.
  * \param type The type to be substituted.
