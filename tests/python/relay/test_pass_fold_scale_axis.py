@@ -1,6 +1,9 @@
 from tvm import relay
 import numpy as np
 
+def _get_positive_scale(size):
+    return np.random.uniform(0.5, 1, size=size).astype('float32')
+
 
 def test_fold_fwd_simple():
     """Simple testcase."""
@@ -14,6 +17,7 @@ def test_fold_fwd_simple():
                             channels=channels,
                             kernel_size=(3, 3),
                             padding=(1, 1))
+
         return relay.Function(args, y)
 
     def expected(x, conv_weight, in_bias, in_scale, channels):
@@ -37,14 +41,14 @@ def test_fold_fwd_simple():
         in_channels = shape[1]
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.const(np.random.uniform(size=(in_channels, 1, 1)).astype('float32'))
-
+        in_scale = relay.const(_get_positive_scale((in_channels, 1, 1)))
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         type_dict = {x.name_hint:x.checked_type for x in y1.params}
         weight = relay.var("weight", type_dict["weight"])
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
         y1_expected = expected(x, weight, in_bias, in_scale, channels)
+
         y1_folded = relay.ir_pass.infer_type(y1_folded)
         y1_expected = relay.ir_pass.infer_type(y1_expected)
         assert relay.ir_pass.alpha_equal(y1_folded, y1_expected)
@@ -107,7 +111,7 @@ def test_fold_fwd_dual_path():
         assert in_channels == channels
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.const(np.random.uniform(size=(in_channels,)).astype("float32"))
+        in_scale = relay.const(_get_positive_scale(in_channels,))
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
@@ -141,7 +145,7 @@ def test_fold_fwd_fail():
         assert in_channels == channels
         weight = relay.var("weight")
         in_bias = relay.var("in_bias", shape=(in_channels,))
-        in_scale = relay.const(np.random.uniform(size=(in_channels,)).astype("float32"))
+        in_scale = relay.const(_get_positive_scale(size=(in_channels,)))
         y1 = before(x, weight, in_bias, in_scale, channels)
         y1 = relay.ir_pass.infer_type(y1)
         y1_folded = relay.ir_pass.forward_fold_scale_axis(y1)
