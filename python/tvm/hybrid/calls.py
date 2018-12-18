@@ -41,7 +41,7 @@ def bind(func_id, args):
     """Handling TVM thread binding"""
     _internal_assert(func_id == "bind", "This function cannot be directly invoked!")
     _internal_assert(len(args) == 2, "A loop bind should only have 2 arguments!")
-    _internal_assert(isinstance(args[0], ast.Str), \
+    _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
     iter_var = thread_axis(args[0])
     low, ext = _api.const(0, dtype='int32'), args[1]
