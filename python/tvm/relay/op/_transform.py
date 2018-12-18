@@ -11,6 +11,7 @@ schedule_broadcast = _reg.schedule_injective
 
 
 _reg.register_schedule("collapse_sum_like", _schedule_reduce)
+_reg.register_schedule("broadcast_to", schedule_broadcast)
 _reg.register_schedule("broadcast_to_like", schedule_broadcast)
 _reg.register_schedule("expand_dims", schedule_broadcast)
 _reg.register_schedule("squeeze", schedule_injective)
