@@ -1084,6 +1084,52 @@ RELAY_REGISTER_OP("collapse_sum_like")
 .set_attr<FTVMCompute>("FTVMCompute", CollapseSumLikeCompute)
 .set_attr<TOpPattern>("TOpPattern", kCommReduce);
 
+// BroadCastTo: <A, B> -> B where BroadCast(A, B) = B
+bool BroadCastToRel(const Array<Type>& types,
+                    int num_inputs,
+                    const Attrs& attrs,
+                    const TypeReporter& reporter) {
+  CHECK_EQ(types.size(), 2);
+  auto ioattrs = attrs.as<InitOpAttrs>();
+  CHECK(ioattrs);
+  auto intt = types[0].as<TensorTypeNode>();
+  if (intt == nullptr) { return false; }
+  auto type = TensorTypeNode::make(ioattrs->shape, intt->dtype);
+  reporter->Assign(types[1], type);
+  return true;
+}
+
+Expr MakeBroadCastTo(Expr data, Array<IndexExpr> shape) {
+  static const Op& op = Op::Get("broadcast_to");
+  auto attrs = make_node<InitOpAttrs>();
+  attrs->shape = std::move(shape);
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+Array<Tensor> BroadCastToCompute(const Attrs& attrs,
+                                 const Array<Tensor>& inputs,
+                                 const Type& out_type,
+                                 const Target& target) {
+  auto ioattrs = attrs.as<InitOpAttrs>();
+  CHECK(ioattrs != nullptr);
+  return { topi::broadcast_to(inputs[0], ioattrs->shape) };
+}
+
+TVM_REGISTER_API("relay.op._make.broadcast_to")
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeBroadCastTo, args, rv);
+  });
+
+RELAY_REGISTER_OP("broadcast_to")
+.describe(R"code(Broadcast the first input to match the shape argument.
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(4)
+.add_type_rel("BroadCastTo", BroadCastToRel)
+.set_attr<FTVMCompute>("FTVMCompute", BroadCastToCompute)
+.set_attr<TOpPattern>("TOpPattern", kBroadcast);
+
 // BroadCastToLike: <A, B> -> B where BroadCast(A, B) = B
 bool BroadCastToLikeRel(const Array<Type>& types,
                         int num_inputs,

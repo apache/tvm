@@ -267,6 +267,24 @@ def where(condition, x, y):
     """
     return _make.where(condition, x, y)
 
+def broadcast_to(data, shape):
+    """Return an scalar value array with the same type, broadcast to
+    the provided shape.
+
+    Parameters
+    ----------
+    data : relay.Expr
+        The input tensor.
+
+    shape : shape
+        Provide the shape to broadcast to.
+
+    Returns
+    -------
+    result : relay.Expr
+        The resulting tensor.
+    """
+    return _make.broadcast_to(data, shape)
 
 def broadcast_to_like(data, broadcast_type):
     """Return an scalar value array with the same shape and type as the input array.
