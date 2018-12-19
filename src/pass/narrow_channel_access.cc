@@ -22,6 +22,7 @@ class ChannelAccessBound : public IRVisitor {
  public:
   ChannelAccessBound(const Variable* buf_var, bool read_access)
       : buf_var_(buf_var), read_access_(read_access) {}
+  ~ChannelAccessBound() {}
 
   void Visit_(const Store* op) final {
     if (!read_access_ && buf_var_ == op->buffer_var.get()) {
@@ -70,6 +71,7 @@ class ChannelAccessIndexRewriter : public IRMutator {
                              Expr min,
                              bool read_access)
       : buf_var_(buf_var), min_(min), read_access_(read_access) {}
+  ~ChannelAccessIndexRewriter() {}
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
     op = expr.as<Load>();
