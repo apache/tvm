@@ -47,6 +47,7 @@ class CandidateSelector final : public IRVisitor {
   using VarIsUsed = bool;
   explicit CandidateSelector(bool split_const_loop)
       : split_const_loop_(split_const_loop) {}
+  ~CandidateSelector() {}
 
   void Visit_(const For* op) {
     // partition const loop when sets split_const_loop_
@@ -135,6 +136,7 @@ class PartitionFinder : public IRVisitor {
           out_vars_.insert(kv.first);
         }
       }
+  ~PartitionFinder() {}
 
   void Visit_(const For* op) {
     if (ExprUseVars(op->min, out_vars_) || ExprUseVars(op->extent, out_vars_)) return;
@@ -194,6 +196,7 @@ class ConditionEliminator : public IRMutator {
  public:
   explicit ConditionEliminator(const std::unordered_map<const Node*, Partition>& ps)
     : ps_(ps) {}
+  ~ConditionEliminator() {}
 
   using IRMutator::Mutate;
   Expr Mutate(Expr e) final {
@@ -211,6 +214,7 @@ class ThreadPartitionInserter : public IRMutator {
  public:
   explicit ThreadPartitionInserter(const std::unordered_map<const Node*, Partition>& ps,
     Expr cond) : ps_(ps), cond_(cond), innermost_thread_scope_(false) {}
+  ~ThreadPartitionInserter() {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent) {
@@ -241,6 +245,7 @@ class LoopPartitioner : public IRMutator {
  public:
   explicit LoopPartitioner(bool split_const_loop)
       : selector(CandidateSelector(split_const_loop)) {}
+  ~LoopPartitioner() {}
 
   Stmt VisitAndMutate(const Stmt& stmt) {
     selector.Visit(stmt);
