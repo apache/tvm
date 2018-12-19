@@ -23,6 +23,7 @@ using HalideIR::Internal::Interval;
 class VariablePathFinder: public IRVisitor {
  public:
   explicit VariablePathFinder(Expr target) : target_(target) {}
+  ~VariablePathFinder() {}
 
   void Visit(const NodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
@@ -61,6 +62,7 @@ class BoundDeducer: public IRVisitor {
                const std::unordered_map<const Variable*, IntSet>& hint_map,
                const std::unordered_map<const Variable*, IntSet>& relax_map)
   : target_(target), expr_(expr), hint_map_(hint_map), relax_map_(relax_map) {}
+  ~BoundDeducer() {}
 
   void Deduce();
 
