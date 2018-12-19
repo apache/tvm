@@ -175,6 +175,7 @@ class DeviceTypeBinder: public IRMutator {
  public:
   explicit DeviceTypeBinder(int device_type)
       : device_type_(device_type) {}
+  ~DeviceTypeBinder() {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt &s) final {
     if (op->attr_key == attr::device_context_type) {
