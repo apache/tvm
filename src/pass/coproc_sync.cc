@@ -76,6 +76,7 @@ class CoProcSyncPlanner : public StorageAccessVisitor {
       const std::string& coproc_name)
       : touched_(touched), coproc_name_(coproc_name) {
   }
+  ~CoProcSyncPlanner() {}
 
   void Plan(const Stmt& stmt) {
     this->Visit(stmt);
@@ -199,6 +200,7 @@ class CoProcBarrierDetector : public StorageAccessVisitor {
     read_barrier_name_ = coproc_name + ".coproc_read_barrier";
     write_barrier_name_ = coproc_name + ".coproc_write_barrier";
   }
+  ~CoProcBarrierDetector() {}
 
   void PlanReadBarrier(Stmt stmt) {
     read_barrier_ = true;
@@ -347,6 +349,7 @@ class CoProcInstDepDetector : public IRVisitor {
     sync_push_name_ = coproc_name + ".coproc_dep_push";
     sync_pop_name_ = coproc_name + ".coproc_dep_pop";
   }
+  ~CoProcInstDepDetector() {}
 
   void Plan(Stmt stmt) {
     this->Visit(stmt);
