@@ -107,6 +107,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   explicit TypeInferencer(Module mod)
       : mod_(mod) {
   }
+  ~TypeInferencer() {}
 
   // inference the type of expr.
   Expr Infer(Expr expr);
@@ -382,6 +383,7 @@ class TypeInferencer::Resolver : public ExprMutator {
            TypeSolver* solver)
       : tmap_(tmap), solver_(solver) {
   }
+  ~Resolver() {}
 
   Expr VisitExpr_(const VarNode* op) final {
     return AttachCheckedType(op);
