@@ -66,6 +66,7 @@ class RPCSession::EventHandler : public dmlc::Stream {
       pending_request_bytes_ = sizeof(int32_t);
     }
   }
+  ~EventHandler() {}
   // Bytes needed to fulfill current request
   size_t BytesNeeded() {
     if (reader_->bytes_available() < pending_request_bytes_) {
