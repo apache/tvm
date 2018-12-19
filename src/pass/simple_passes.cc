@@ -41,6 +41,7 @@ class IRSubstitue : public IRMutator {
       const std::unordered_map<const Variable*, Expr>& smap)
       : smap_(smap) {
   }
+  ~IRSubstitue() {}
 
   Expr Mutate_(const Variable* op, const Expr& e) final {
     auto it = smap_.find(op);
@@ -108,6 +109,7 @@ class ExprUseVarVisitor : public VarTouchVisitor {
  public:
   explicit ExprUseVarVisitor(const Variable* var)
       : var_(var) {}
+  ~ExprUseVarVisitor() {}
 
   void Handle(const Variable* var) final {
     if (var == var_) use_var_ = true;
@@ -121,6 +123,7 @@ class ExprUseVSetVisitor : public VarTouchVisitor {
   explicit ExprUseVSetVisitor(
       const std::unordered_set<const Variable*>& vset)
       : vset_(vset) {}
+  ~ExprUseVSetVisitor() {}
 
   void Handle(const Variable* var) final {
     if (vset_.count(var)) use_var_ = true;
