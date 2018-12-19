@@ -21,7 +21,6 @@ namespace relay {
     return {FTOPI(inputs[0], inputs[1])};                  \
   }                                                        \
 
-
 // Addition
 RELAY_REGISTER_BINARY_OP("add")
 .describe("Elementwise add with with broadcasting")
