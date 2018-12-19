@@ -270,7 +270,7 @@ def test_bind():
         return
     @script
     def vec_add(a, b):
-        c = output_tensor((1000, ), dtype='float32')
+        c = output_tensor((1000, ), 'float32')
         for tx in bind('threadIdx.x', 1000):
             c[tx] = a[tx] + b[tx]
         return c
@@ -506,7 +506,37 @@ def test_value_index():
     module(tvm.ndarray.array(np_a), res)
     tvm.testing.assert_allclose(res.asnumpy(), ref)
 
+def test_func_call():
+    @tvm.hybrid.script
+    def foo(a, b):
+        for i in range(10):
+            a[i] = i + 1.0
+        for i in range(10):
+            b[i] = i + 1.0
+        c = outer_product(10, 10, a, b)
+        d = output_tensor(c.shape, c.dtype)
+        for i in range(10):
+            for j in range(10):
+                d[i, j] = c[i, j] + i * j
+        return d
 
+    a = tvm.placeholder((10, ), name='a')
+    b = tvm.placeholder((10, ), name='b')
+    run_and_check(foo, [a, b])
+
+def test_bool():
+    @tvm.hybrid.script
+    def foo(a):
+        b = output_tensor(a.shape, a.dtype)
+        b[0] = 1.2
+        for i in range(1, a.shape[0] - 1):
+            if a[i] * a[i - 1] < a[i] or a[i] * a[i - 1] < a[i - 1] or i * a[i] == a[i]:
+                b[i] = a[i]
+            else:
+                b[i] = 0.0
+        return b
+    a = tvm.placeholder((10, ), name='a')
+    run_and_check(foo, [a])
 
 if __name__ == "__main__":
     test_outer_product()
@@ -521,7 +551,7 @@ if __name__ == "__main__":
     test_downstream()
     test_const_param()
     test_value_index()
+    test_func_call()
+    test_bool()
     # TODO:
     # test_inplace()
-
-
