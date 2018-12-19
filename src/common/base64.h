@@ -47,6 +47,7 @@ class StreamBufferReader {
   explicit StreamBufferReader(size_t buffer_size) {
     buffer_.resize(buffer_size);
   }
+  ~StreamBufferReader() {}
   /*!
    * \brief set input stream
    * \param stream The stream to be set
@@ -93,6 +94,7 @@ class Base64InStream: public dmlc::Stream {
   explicit Base64InStream(dmlc::Stream *fs) : reader_(256) {
     reader_.set_stream(fs);
   }
+  ~Base64InStream() {}
   /*!
    * \brief initialize the stream position to beginning of next base64 stream
    * \note call this function before actually start read
@@ -214,6 +216,7 @@ class Base64OutStream: public dmlc::Stream {
  public:
   explicit Base64OutStream(dmlc::Stream *fp) : fp_(fp) {
   }
+  ~Base64OutStream() {}
   virtual void Write(const void *ptr, size_t size) {
     using base64::EncodeTable;
     size_t tlen = size;
