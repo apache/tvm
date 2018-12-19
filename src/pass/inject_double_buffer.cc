@@ -50,6 +50,7 @@ class DoubleBufferInjector : public IRMutator {
  public:
   explicit DoubleBufferInjector(int split_loop)
       : split_loop_(split_loop) {}
+  ~DoubleBufferInjector() {}
 
   Stmt Inject(const Stmt& stmt) {
     DoubleBufferDetector detector;
