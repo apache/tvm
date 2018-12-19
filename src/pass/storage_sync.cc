@@ -19,6 +19,7 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
  public:
   explicit ThreadSyncPlanner(StorageScope sync_scope)
       : sync_scope_(sync_scope) {}
+  ~ThreadSyncPlanner() {}
 
     // The syncs inserted before each statement
   std::unordered_set<const Node*> syncs_inserted_;
@@ -184,6 +185,7 @@ class ThreadSyncInserter : public IRMutator {
   ThreadSyncInserter(StorageScope sync_scope,
                      const std::unordered_set<const Node*>& syncs)
       : sync_scope_(sync_scope), syncs_(syncs) {}
+  ~ThreadSyncInserter() {}
 
   Stmt Mutate(Stmt stmt) final {
     if (syncs_.size() == 0) return stmt;
