@@ -201,6 +201,7 @@ class TensorReplacer : public ir::IRMutator {
  public:
   explicit TensorReplacer(const std::unordered_map<Tensor, Tensor>& vmap)
       : vmap_(vmap) {}
+  ~TensorReplacer() {}
 
   Expr Mutate_(const ir::Call* op, const Expr& e) {
     if (op->call_type == ir::Call::Halide) {
