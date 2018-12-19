@@ -69,6 +69,7 @@ class StorageAccessVisitor : public IRVisitor {
   StorageAccessVisitor() {
     scope_.push_back(std::vector<StmtEntry>());
   }
+  ~StorageAccessVisitor() {}
   /*! \return number of conditions in the current scope. */
   int condition_counter() const {
     return condition_counter_;
