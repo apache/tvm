@@ -736,6 +736,7 @@ class TextPrinter::AttrPrinter: public AttrVisitor {
  public:
   AttrPrinter(std::ostream& stream, TextPrinter* parent)  // NOLINT(*)
       : stream_(stream), parent_(parent) {}
+  ~AttrPrinter() {}
 
   void Visit(const char* key, double* value) final {
     PrintSep();
