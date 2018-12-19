@@ -23,6 +23,7 @@ class IntrinInjecter : public IRMutator {
     patterns_.push_back("tvm.intrin.rule.default.");
     fma_ = runtime::Registry::Get(patterns_[0] + "fma");
   }
+  ~IntrinInjecter() {}
 
   Expr Mutate_(const Call* op, const Expr& e) final {
     if (op->call_type == Call::Intrinsic ||
