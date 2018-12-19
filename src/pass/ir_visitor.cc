@@ -12,6 +12,7 @@ namespace ir {
 class IRApplyVisit : public IRVisitor {
  public:
   explicit IRApplyVisit(std::function<void(const NodeRef&)> f) : f_(f) {}
+  ~IRApplyVisit() {}
 
   void Visit(const NodeRef& node) final {
     if (visited_.count(node.get()) != 0) return;
