@@ -23,6 +23,7 @@ class ModularEvaluator
       const Variable*, ModularEntry>& mod_map)
       : mod_map_(mod_map) {
   }
+  ~ModularEvaluator() {}
   ModularEntry Eval(const Expr& e) {
     return VisitExpr(e);
   }
