@@ -14,6 +14,7 @@ using namespace ir;
 class ElemWiseDetector : public ir::IRVisitor {
  public:
   explicit ElemWiseDetector(Array<IterVar> axis) : axis_(axis) {}
+  ~ElemWiseDetector() {}
 
   void Visit(const NodeRef& e) final {
     if (!is_elem_wise_) return;
