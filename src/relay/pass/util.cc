@@ -19,6 +19,7 @@ class FreeTypeVarTVisitor : public TypeVisitor {
       Array<TypeVar>* free_vars,
       std::unordered_set<TypeVar, NodeHash, NodeEqual>* bound_vars)
       : free_vars_(free_vars), bound_vars_(bound_vars) { }
+  ~FreeTypeVarTVisitor() {}
 
   void VisitType_(const TypeVarNode* tp) final {
     TypeVar var = GetRef<TypeVar>(tp);
