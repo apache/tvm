@@ -422,6 +422,7 @@ class IntSetEvaluator :
       const std::unordered_map<const Variable*, IntSet>& dom_map,
       bool eval_vec = false)
       : dom_map_(dom_map), eval_vec_(eval_vec) {}
+  ~IntSetEvaluator() {}
   // Evaluate.
   IntSet Eval(const Expr& e) {
     return this->VisitExpr(e, e);
@@ -577,6 +578,7 @@ class SubExprIntSetEvaluator : public IntSetEvaluator {
   explicit SubExprIntSetEvaluator(
       const std::unordered_map<const Variable*, IntSet>& dom_map)
       : IntSetEvaluator(dom_map) {}
+  ~SubExprIntSetEvaluator() {}
 
   IntSet VisitExpr(const Expr& n, const Expr& e) final {
     IntSet ret = IntSetEvaluator::VisitExpr(n, e);
