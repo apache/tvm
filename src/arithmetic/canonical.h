@@ -23,6 +23,7 @@ class Canonical {
  public:
   /*! \brief constructor */
   explicit Canonical(Map<Var, Range> var_range);
+  ~Canonical();
   /*!
    * \brief simplify expression e.
    * \param expr The expression to be simplified.
