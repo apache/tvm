@@ -21,13 +21,13 @@ def hybrid_rearrange_out(data):
         Transformed NMS output. 3-D tensor with shape
         [batch_size, num_anchors, 6].
     """
-    output = output_tensor((data.shape[0],
-                            data.shape[1],
-                            data.shape[2],),
-                           data.dtype)
     batch_size = data.shape[0]
     num_anchors = data.shape[1]
     elem_length = data.shape[2]
+    output = output_tensor((batch_size,
+                            num_anchors,
+                            elem_length),
+                           data.dtype)
 
     for i in parallel(batch_size):
         valid_idx = 0
