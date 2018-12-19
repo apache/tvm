@@ -13,6 +13,7 @@ class TypeSolver::Reporter : public TypeReporterNode {
  public:
   explicit Reporter(TypeSolver* solver)
       : solver_(solver) {}
+  ~Reporter() {}
 
   void Assign(const Type& dst, const Type& src) final {
     solver_->Unify(dst, src);
