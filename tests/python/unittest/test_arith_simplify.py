@@ -31,7 +31,20 @@ def test_simplify():
 
 def test_simplify_div():
     x = tvm.var('x')
-    assert tvm.ir_pass.CanonicalSimplify((241+48*x)/16 - (15 + (x*3))).value == 0
+    assert tvm.ir_pass.CanonicalSimplify((16+48*x)/16 - (1 + (x*3))).value == 0
+    # (17+48*x)/16 is not simplifiable for arbitrary x because when 17+48*x<0
+    # (17+48*x)/16 != 1+3*x
+    r = tvm.ir_pass.CanonicalSimplify((17+48*x)/16)
+    assert r.b.value == 16
+    assert tvm.ir_pass.CanonicalSimplify(r.a - (17 + 48*x)).value == 0
+    # However, when x >= 0, then 17+48*x >= 0 and (17+48*x)/16 can be simplified
+    assert tvm.ir_pass.CanonicalSimplify((17+48*x)/16 - (1 + (x*3)), {x: tvm.Range(0,10)}).value == 0
+
+    # Trying expressions that are not simplifiable for any values of the variables
+    r = tvm.ir_pass.CanonicalSimplify((17+47*x)/16, {x: tvm.Range(0,10)})
+    assert r.b.value == 16
+    assert tvm.ir_pass.CanonicalSimplify(r.a - (17+47*x)).value == 0
+
 
 def test_simplify_mod():
     """Not yet working, mock design"""
@@ -45,8 +58,12 @@ def test_simplify_mod():
     stmt = tvm.ir_pass.CanonicalSimplify(body)
     diff = tvm.ir_pass.CanonicalSimplify(stmt.body.value.index - (1 + i) % 16)
     assert diff.value == 0
+    # if we can't prove that j+n*32 is non-negative, we can't prove that (j+n*32) % 16 is j%16
     index = tvm.ir_pass.CanonicalSimplify(
         (j + n * 32) % 16, {j: tvm.Range(0, 6)})
+    assert index != j
+    index = tvm.ir_pass.CanonicalSimplify(
+        (j + n * 32) % 16, {j: tvm.Range(0, 6), n: tvm.Range(0, 10)})
     assert index == j
 
 def test_simplify_minmax():
