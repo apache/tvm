@@ -29,6 +29,7 @@ class VarReplacer : public ir::IRMutator {
   explicit VarReplacer(
       const std::unordered_map<const Variable*, Expr>& vsub)
       : vsub_(vsub) {}
+  ~VarReplacer() {}
   Expr Mutate_(const Variable* op, const Expr& e) {
     auto it = vsub_.find(op);
     if (it != vsub_.end()) return it->second;
