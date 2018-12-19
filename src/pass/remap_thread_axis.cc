@@ -19,6 +19,7 @@ class ThreadAxisRewriter : private IRMutator {
       const std::unordered_map<std::string, IterVar>& tmap)
       : tmap_(tmap) {
   }
+  ~ThreadAxisRewriter() {}
 
   Stmt Rewrite(Stmt stmt) {
     return Mutate(stmt);
