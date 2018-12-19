@@ -149,6 +149,7 @@ class Canonical::Internal : public IRMutator {
       SetRange(kv.first, kv.second, 0);
     }
   }
+  ~Internal() {}
   // stack entry.
   struct StackEntry {
     int max_level{0};
@@ -675,6 +676,7 @@ using CInternal = Canonical::Internal;
 
 Canonical::Canonical(Map<Var, Range> vrange)
     : ptr_(std::make_shared<Internal>(vrange)) {}
+Canonical::~Canonical() {}
 
 Expr Canonical::Simplify(Expr expr) {
   return ptr_->Mutate(expr);
