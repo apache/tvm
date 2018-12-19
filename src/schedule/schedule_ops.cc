@@ -61,6 +61,7 @@ class InjectAttach : public IRMutator {
                bool debug_keep_trivial_loop)
       : stage_(stage), attach_spec_(attach_spec), dom_map_(dom_map),
         debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
+  ~InjectAttach() {}
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
@@ -106,6 +107,7 @@ class InjectScanStep : public IRMutator {
                  bool debug_keep_trivial_loop)
       : stage_(stage), scan_op_(scan_op),
         dom_map_(dom_map), is_init_(is_init), debug_keep_trivial_loop_(debug_keep_trivial_loop) {}
+  ~InjectScanStep() {}
 
   Stmt Mutate(Stmt stmt) final {
     CHECK(stmt.defined());
