@@ -31,6 +31,7 @@ class LinearEqDetector
  public:
   explicit LinearEqDetector(Var var)
       : var_(var) {}
+  ~LinearEqDetector() {}
 
   bool Detect(const Expr& e, LinearEqEntry* ret) {
     *ret = VisitExpr(e, e);
