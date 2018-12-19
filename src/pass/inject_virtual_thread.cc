@@ -18,6 +18,7 @@ class ExprTouched final : public IRVisitor {
   explicit ExprTouched(const std::unordered_set<const Variable*> &touched,
                        bool check_write)
       : touched_var_(touched), check_write_(check_write) {}
+  ~ExprTouched() {}
   void Visit(const NodeRef& n) final {
     // early stopping
     if (expr_touched_ && !check_write_) return;
@@ -169,6 +170,7 @@ class VTInjector : public IRMutator {
       : var_(var), num_threads_(num_threads),
         touched_var_(touched_var), allow_share_(allow_share) {
   }
+  ~VTInjector() {}
   // Inject VTLoop when needed.
   Stmt Mutate(Stmt stmt) final {
     CHECK(!visit_touched_var_)
