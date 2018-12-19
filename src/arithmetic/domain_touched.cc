@@ -22,6 +22,7 @@ class FuncTouchedDomain final : public IRVisitor {
  public:
   FuncTouchedDomain(const Tensor &tensor, bool consider_calls, bool consider_provides)
     : tensor_(tensor), consider_calls_(consider_calls), consider_provides_(consider_provides)  {}
+  ~FuncTouchedDomain() {}
 
   Domain Find(const Stmt& stmt) {
     this->Visit(stmt);
