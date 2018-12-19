@@ -22,6 +22,7 @@ class RingBuffer {
   static const int kInitCapacity = 4 << 10;
   /*! \brief constructor */
   RingBuffer() : ring_(kInitCapacity) {}
+  ~RingBuffer() {}
   /*! \return number of bytes available in buffer. */
   size_t bytes_available() const {
     return bytes_available_;
