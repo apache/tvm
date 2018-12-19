@@ -26,6 +26,7 @@ class LoopUnroller : public IRMutator {
         auto_max_extent_(auto_max_extent),
         explicit_unroll_(explicit_unroll) {
   }
+  ~LoopUnroller() {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& stmt) final {
     if (op->attr_key == "pragma_auto_unroll_max_step") {
