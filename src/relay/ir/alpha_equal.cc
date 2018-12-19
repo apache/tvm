@@ -21,6 +21,7 @@ class AlphaEqualHandler:
  public:
   explicit AlphaEqualHandler(bool map_free_var)
       : map_free_var_(map_free_var) {}
+  ~AlphaEqualHandler() {}
 
   /*!
    * Check equality of two nodes.
