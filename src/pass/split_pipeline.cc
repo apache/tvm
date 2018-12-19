@@ -22,6 +22,7 @@ class MarkChannelAccess : public IRMutator {
       const std::unordered_map<const Variable*, Channel>& cmap,
       const std::unordered_map<const Variable*, Channel>& fifo_map)
       : cmap_(cmap), fifo_map_(fifo_map) {}
+  ~MarkChannelAccess() {}
   using IRMutator::Mutate;
   Stmt Mutate(Stmt stmt) final {
     Stmt ret = IRMutator::Mutate(stmt);
@@ -145,6 +146,7 @@ class StageSplitter : public IRMutator {
   using IRMutator::Mutate;
   explicit StageSplitter(bool split_load)
       : split_load_(split_load) {}
+  ~StageSplitter() {}
 
   Stmt Mutate(Stmt stmt) final {
     nest_.push_back(stmt);
@@ -264,6 +266,7 @@ class PipelineSplitter : public IRMutator {
  public:
   explicit PipelineSplitter(bool split_load)
       : split_load_(split_load) {}
+  ~PipelineSplitter() {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == ir::attr::pipeline_exec_scope) {
