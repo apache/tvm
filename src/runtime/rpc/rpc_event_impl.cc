@@ -14,6 +14,7 @@ class CallbackChannel final : public RPCChannel {
  public:
   explicit CallbackChannel(PackedFunc fsend)
       : fsend_(fsend) {}
+  ~CallbackChannel() {}
 
   size_t Send(const void* data, size_t size) final {
     TVMByteArray bytes;
