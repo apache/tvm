@@ -46,6 +46,7 @@ class ArgBinder {
       std::unordered_map<const Variable*, Expr>* def_map)
       : def_map_(def_map) {
   }
+  ~ArgBinder() {}
   /*!
    * \brief Try to bind arg to value, generate constraint if necessary.
    * \param arg The argument to be binded.
