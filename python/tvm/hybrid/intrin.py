@@ -1,7 +1,6 @@
-"""Intrinsics of TVM-Python Hybrid Script for Python runtime"""
+"""Intrinsics of TVM-Python Hybrid Script for Python emulation runtime"""
 
 import numpy
-from ..stmt import For
 
 class _range(object):
     """Base class of the loop ranges in hybrid script"""
@@ -102,15 +101,3 @@ HYBRID_GLOBALS = {
     'sigmoid'      : sigmoid,
     'popcount'     : popcount
 }
-
-
-LOOP_INTRIN = {
-    'range'    : For.Serial,
-    'unroll'   : For.Unrolled,
-    'parallel' : For.Parallel,
-    'vectorize': For.Vectorized,
-    'bind'     : None
-}
-
-
-MATH_INTRIN = ['sqrt', 'log', 'exp', 'tanh', 'sigmoid', 'power', 'popcount']
