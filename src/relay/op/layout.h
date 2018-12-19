@@ -55,6 +55,7 @@ class Layout : public NodeRef {
   static constexpr uint32_t kUniqueDim = 26;
 
   explicit Layout(NodePtr<Node> n) : NodeRef(n) {}
+  ~Layout() {}
 
   /*! \brief default constructor */
   Layout() : Layout("__undef__") {} // NOLINT(*)
