@@ -18,6 +18,7 @@ class ThreadAllreduceBuilder final : public IRMutator {
  public:
   explicit ThreadAllreduceBuilder(int warp_size)
       : warp_size_(warp_size) {}
+  ~ThreadAllreduceBuilder() {}
 
   Stmt Mutate_(const AttrStmt *op, const Stmt& s) final {
     if (op->attr_key == attr::thread_extent) {
