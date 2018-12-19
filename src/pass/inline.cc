@@ -16,6 +16,7 @@ class IRInline final : public IRMutator {
  public:
   IRInline(FunctionRef f, Array<Var> args, Expr body)
       : f_(f), args_(args), body_(body) {}
+  ~IRInline() {}
 
   Expr Mutate_(const Call* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
