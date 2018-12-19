@@ -40,6 +40,24 @@ struct MultiBoxPriorAttrs : public tvm::AttrsNode<MultiBoxPriorAttrs> {
   }
 };
 
+struct MultiBoxTransformLocAttrs
+    : public tvm::AttrsNode<MultiBoxTransformLocAttrs> {
+  bool clip;
+  double threshold;
+  Array<IndexExpr> variances;
+
+  TVM_DECLARE_ATTRS(MultiBoxTransformLocAttrs,
+                    "relay.attrs.MultiBoxTransformLocAttrs") {
+    TVM_ATTR_FIELD(clip).set_default(true)
+      .describe("Clip out-of-boundary boxes.");
+    TVM_ATTR_FIELD(threshold).set_default(0.01)
+      .describe("Threshold to be a positive prediction.");
+    TVM_ATTR_FIELD(variances)
+      .set_default(Array<IndexExpr>({0.1f, 0.1f , 0.2f, 0.2f}))
+      .describe("Variances to be decoded from box regression output.");
+  }
+};
+
 /*! \brief Attributes used in non_maximum_suppression operators */
 struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
   double overlap_threshold;
