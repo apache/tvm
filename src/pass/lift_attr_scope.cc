@@ -18,6 +18,7 @@ class AttrScopeLifter : public IRMutator {
  public:
   explicit AttrScopeLifter(std::string attr_key)
       : attr_key_(attr_key) {}
+  ~AttrScopeLifter() {}
 
   Stmt Lift(Stmt stmt) {
     stmt = Mutate(stmt);
