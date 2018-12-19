@@ -4,8 +4,9 @@ import ast
 import operator
 import logging
 import sys
-from .util import make_nop, halide_imm_types, is_docstring, _internal_assert, replace_io
+from .util import _internal_assert
 from . import calls
+from . import util
 from .var_decl import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
@@ -17,10 +18,10 @@ from .. import ir_pass as _ir_pass
 
 def list_to_block(visit, lst):
     """Convert a list of Python IR nodes to HalideIR Block"""
-    lst = [visit(stmt) for stmt in lst if not is_docstring(stmt)]
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, make_nop())]
+    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
     if not lst:
-        return make_nop()
+        return util.make_nop()
     if len(lst) == 1:
         return lst[0]
     body = lst[0]
@@ -212,7 +213,7 @@ class HybridParser(ast.NodeVisitor):
                                  "You should bind a pure name to the tensors")
                 self.alloc_buffers[node.targets[i].id] = (rhs.output(i), 'global')
                 rmap[rhs.outputs[i].op] = rhs.output(i)
-            return replace_io(rhs.body, rmap)
+            return util.replace_io(rhs.body, rmap)
 
         _internal_assert(len(node.targets) == 1, "So far only one-valued assignment is supported!")
         lhs = node.targets[0]
@@ -235,8 +236,8 @@ class HybridParser(ast.NodeVisitor):
                     self.alloc_buffers[lhs] = (ph, scope)
                     if scope == 'output':
                         self.outputs.append(lhs)
-                    return make_nop()
-                if isinstance(rhs, halide_imm_types) and ast.Store not in rw:
+                    return util.make_nop()
+                if isinstance(rhs, util.halide_imm_types) and ast.Store not in rw:
                     self.variables[lhs] = rhs
                 else:
                     ph = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
@@ -245,7 +246,7 @@ class HybridParser(ast.NodeVisitor):
             if lhs is not None:
                 buf, args = lhs
                 return _make.Provide(buf.op, 0, rhs, args)
-            return make_nop()
+            return util.make_nop()
         else:
             lhs, args = self.visit(lhs)
             _internal_assert(isinstance(lhs, Tensor), \
@@ -305,7 +306,7 @@ class HybridParser(ast.NodeVisitor):
         if node.orelse:
             else_body = list_to_block(self.visit, node.orelse)
         else:
-            else_body = make_nop()
+            else_body = util.make_nop()
         return _make.IfThenElse(cond, if_body, else_body)
 
 
@@ -377,7 +378,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, _api.const(0, dtype='int32')):
+            if not _ir_pass.Equal(low, _api.const(0)):
                 offset = iter_var + low
             self.loops_above[_name] = offset
         else:
@@ -388,7 +389,7 @@ class HybridParser(ast.NodeVisitor):
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
         else:
-            res = _make.For(iter_var, _api.const(0, dtype='int32'), ext, for_type, 0, _body)
+            res = _make.For(iter_var, _api.const(0), ext, for_type, 0, _body)
         self.loops_above.pop(_name)
         return res
 
@@ -409,7 +410,7 @@ class HybridParser(ast.NodeVisitor):
             logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
         self.outputs = [self.alloc_buffers[i][0] for i in ids]
         self.returned = True
-        return make_nop()
+        return util.make_nop()
 
 
     def visit_Tuple(self, node):

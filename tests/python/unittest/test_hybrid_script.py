@@ -270,7 +270,7 @@ def test_bind():
         return
     @script
     def vec_add(a, b):
-        c = output_tensor((1000, ), dtype='float32')
+        c = output_tensor((1000, ), 'float32')
         for tx in bind('threadIdx.x', 1000):
             c[tx] = a[tx] + b[tx]
         return c
