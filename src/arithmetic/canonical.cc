@@ -482,6 +482,7 @@ class Canonical::Internal : public IRMutator {
     return value;
   }
   // Detect if a = q * coeff + r, where r \in [0, coeff), coeff > 0
+  // (in Euclidean division)
   // returns pair (q, r) if such detection is successful
   // returns empty vector otherwise.
   // Assumes that coeff is a constant integer
@@ -490,6 +491,11 @@ class Canonical::Internal : public IRMutator {
     Type type = coeff.type();
     int64_t value = GetConstIntValue(coeff);
     if (value < 0) return {};
+    // Given that denominator (value variable) is positive, truncated division
+    // (i.e., TVM's division semantics) is equivalent to Euclidean division if and only if
+    // numerator is non-negative or numerator is divisible by denominator (i.e., value)
+    IntSet numerator_int_set = EvalSet(Sum2Expr(a, type), var_range_);
+    bool numerator_is_non_neg = numerator_int_set.can_prove_non_negative();
     // Try to separate terms of a into ones that can be proven to be
     // divisible by coeff and ones that are not
     // We will build q and r from divisible and non_divisible respectively
@@ -510,23 +516,28 @@ class Canonical::Internal : public IRMutator {
     bool non_divisible_is_simplified = false;
     int64_t div_result;
     Expr non_divisible_res = Sum2Expr(ComExpr(non_divisible), type);
-    // if non_divisible part consists of only an integer, we can simply divide it by coeff
+    // if non_divisible part consists of only an integer and numerator is non-negative,
+    // we can simply divide it by coeff
     if (is_const(non_divisible_res)) {
-      int64_t non_divisible_base = GetConstIntValue(non_divisible_res);
-      non_divisible_is_simplified = true;
-      div_result = non_divisible_base / value;
+      int64_t non_divisible_const = GetConstIntValue(non_divisible_res);
+      if (numerator_is_non_neg || non_divisible_const == 0) {
+        non_divisible_is_simplified = true;
+        div_result = non_divisible_const / value;
+      }
     } else {
       // If we can prove that non_divisible part lies within [0, coeff), then
       // that will be our r
       IntSet non_divisible_set = EvalSet(non_divisible_res, var_range_);
-      // This relies on the integer division rounds down
-      // Most cases it is good for integer division.
       if (non_divisible_set.min().type() == type &&
-          can_prove(non_divisible_set.min() >= make_zero(type)) &&
-          non_divisible_set.max().type() == type &&
-          can_prove(non_divisible_set.max() < coeff)) {
-        non_divisible_is_simplified = true;
-        div_result = 0;
+          non_divisible_set.max().type() == type) {
+        if ( (non_divisible_set.is_single_point() &&
+              can_prove(non_divisible_set.point_value() == 0)) ||
+             (numerator_is_non_neg &&
+              can_prove(non_divisible_set.min() >= make_zero(type)) &&
+              can_prove(non_divisible_set.max() < coeff)) ) {
+          non_divisible_is_simplified = true;
+          div_result = 0;
+        }
       }
     }
     if (non_divisible_is_simplified) {
@@ -547,6 +558,10 @@ class Canonical::Internal : public IRMutator {
     if (pair.size() == 0) {
       int64_t value = GetConstIntValue(v);
       auto n = make_node<ComExprNode>();
+      // TODO(derisavi) : fix this bug. The following can be done only for Euclidean division/mod.
+      //  Therefore, it's only valid when truncated division/mod is equivalent to Euclidean one,
+      //  that is, if and only if a and v are
+      //  both negative or both positive or a is divisible by v.
       n->base = a->base % value;
       for (auto e : a->elem) {
         if (e.scale % value == 0) continue;
