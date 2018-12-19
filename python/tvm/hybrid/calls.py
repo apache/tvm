@@ -1,7 +1,6 @@
 """Intrinsics of TVM-Python Hybrid Script for Python compilation time
 semantic support."""
 
-import ast
 from .. import api as _api
 from .. import expr as _expr
 from .. import make as _make
