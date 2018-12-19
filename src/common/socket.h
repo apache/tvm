@@ -263,6 +263,7 @@ class Socket {
  protected:
   explicit Socket(SockType sockfd) : sockfd(sockfd) {
   }
+  ~Socket() {}
 };
 
 /*!
@@ -278,6 +279,7 @@ class TCPSocket : public Socket {
    */
   explicit TCPSocket(SockType sockfd) : Socket(sockfd) {
   }
+  ~TCPSocket() {}
   /*!
    * \brief enable/disable TCP keepalive
    * \param keepalive whether to set the keep alive option on
