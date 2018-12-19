@@ -64,6 +64,7 @@ class WarpStoreCoeffFinder : private IRVisitor {
                        Var warp_index)
       : buffer_(buffer), warp_index_(warp_index) {
   }
+  ~WarpStoreCoeffFinder() {}
   // find the warp co-efficient in the statement given the warp size
   int Find(const Stmt& stmt) {
     this->Visit(stmt);
@@ -124,6 +125,7 @@ class WarpIndexFinder : private IRVisitor {
   explicit WarpIndexFinder(int warp_size)
       : warp_size_(warp_size) {
   }
+  ~WarpIndexFinder() {}
   // find the warp co-efficient in the statement given the warp size
   IterVar Find(const Stmt& stmt) {
     this->Visit(stmt);
@@ -167,6 +169,7 @@ class WarpAccessRewriter : protected IRMutator {
  public:
   explicit WarpAccessRewriter(int warp_size)
       : warp_size_(warp_size) {}
+  ~WarpAccessRewriter() {}
   // Rewrite the allocate statement which transforms
   // warp memory to local memory.
   Stmt Rewrite(const Allocate* op, const Stmt& stmt) {
@@ -276,6 +279,7 @@ class WarpMemoryRewriter : private IRMutator {
   explicit WarpMemoryRewriter(int warp_size)
       : warp_size_(warp_size) {
   }
+  ~WarpMemoryRewriter() {}
 
   Stmt Rewrite(Stmt stmt) {
     if (warp_size_ == 1) return stmt;
