@@ -99,11 +99,19 @@ def test_simplify_combiner():
     assert Equal(Simplify(sum_and_prod2((A[k], A[10-k]), k)[0]), tvm.sum(A[k], k))
     assert Equal(Simplify(sum_and_prod2((A[k], A[10-k]), k)[1]), prod(A[10-k], k))
 
-    # Here we use the j-th component of the result, so only it and the components it
-    # depends on are left. We then check the number of the remaining components for each j
-    # against the reference value.
-    assert [len(Simplify(some_reducer1((A[k], A[10-k], A[0], A[k+1], A[k]), k)[j]).source)
-            for j in range(5)] == [1, 2, 2, 4, 1]
+    reference_simplified_sources = [[A[0]],
+                                    [A[0], A[1]],
+                                    [A[0], A[2]],
+                                    [A[0], A[1], A[2], A[3]],
+                                    [A[4]]]
+    for j in range(5):
+        # Here we use the j-th component of the result, so only it and the components it
+        # depends on are left.
+        simplified = Simplify(some_reducer1((A[0], A[1], A[2], A[3], A[4]), k)[j])
+
+        # Check that the remaining components are the expected ones.
+        for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
+            assert Equal(lhs, rhs)
 
 
 def test_simplify_reduce():
