@@ -40,6 +40,7 @@ class StorageFlattener : public IRMutator {
     }
     cache_line_size_ = cache_line_size;
   }
+  ~StorageFlattener() {}
 
   Stmt Mutate_(const Store* op, const Stmt& s) final {
     Stmt stmt = IRMutator::Mutate_(op, s);
