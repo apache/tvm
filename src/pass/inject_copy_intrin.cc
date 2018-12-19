@@ -20,6 +20,7 @@ class CopyIntrinInjector : public IRMutator {
       : pragma_key_(attr::pragma_scope_prefix+  pragma_key),
         flower_copy_fromto_(flower_copy_fromto) {
   }
+  ~CopyIntrinInjector() {}
 
   Stmt Mutate_(const AttrStmt* op, const Stmt& s) final {
     if (op->attr_key == attr::storage_scope) {
