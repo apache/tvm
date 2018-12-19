@@ -39,6 +39,7 @@ class VecAllocAccess : public IRMutator {
  public:
   VecAllocAccess(const Variable* buf, Var var, int var_lanes)
       : buf_(buf), var_(var), var_lanes_(var_lanes) {}
+  ~VecAllocAccess() {}
   // Load
   Expr Mutate_(const Load* op, const Expr& e) final {
     Expr expr = IRMutator::Mutate_(op, e);
@@ -80,6 +81,7 @@ class Vectorizer : public IRMutator {
       : var_(var), var_lanes_(var_lanes) {
     ramp_ = Ramp::make(0, 1, var_lanes);
   }
+  ~Vectorizer() {}
   // user mutate from parent.
   using IRMutator::Mutate;
 
