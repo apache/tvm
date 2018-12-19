@@ -88,6 +88,7 @@ class CalcDep : private ExprMutator {
     LetList lets_;
     VarMap var_map_;
     explicit GenLet(const VarMap& var_map) : var_map_(var_map) { }
+    ~GenLet() {}
     friend CalcDep;
 
     void VisitExpr_(const VarNode* vnode) final {
