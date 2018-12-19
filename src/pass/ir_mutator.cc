@@ -19,6 +19,7 @@ class IRTransformer final : public IRMutator {
         f_postorder_(f_postorder),
         only_enable_(only_enable) {
   }
+  ~IRTransformer() {}
   Stmt Mutate(Stmt stmt) final {
     return MutateInternal<Stmt>(stmt);
   }
