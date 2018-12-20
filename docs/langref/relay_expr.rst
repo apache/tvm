@@ -110,8 +110,8 @@ on certain types:
 
 .. code-block:: python
 
-    def @plus(%x: Tensor<(10, 10), float32>, %y: Tensor<(10, 10), float32>)
-               -> Tensor<(10, 10), float32> {
+    def @plus(%x: Tensor[(10, 10), float32], %y: Tensor[(10, 10), float32])
+               -> Tensor[(10, 10), float32] {
         add(%x, %y)
     }
 
@@ -128,7 +128,7 @@ a set of type parameters for a definition. For example, one can define a
 polymorphic identity function for tensors as follows:
 
 .. code-block:: python
-    def @id<s: Shape, bt: BaseType>(%x: Tensor<s, bt>) {
+    def @id<s: Shape, bt: BaseType>(%x: Tensor[s, bt]) {
         %x
     }
 
@@ -219,9 +219,10 @@ members.
 
 .. code-block:: python
 
-    (a, b, c) : Tuple<A, B, C>
+    (a, b, c) : (Tensor[(10, 10), float32], Tensor[(10, 10), float32], Tensor[(10, 10), float32])
+    d : Tensor[(100, 100), float32]
 
-    (add(add(a, b), c), d) : Tuple<Tensor<(10, 10), float32>, Tensor<(100, 100), float32>>
+    (add(add(a, b), c), d) : (Tensor[(10, 10), float32], Tensor[(100, 100), float32])
 
 See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
 
@@ -248,8 +249,8 @@ use nearly the same syntax, but do not have a globally unique name.
 
 .. code-block:: python
 
-    fun (%x : Tensor<(10, 10), float32>, y: Tensor<(10, 10), float32>
-                -> Tensor<(10, 10), float32> { add(%x, %y) }
+    fn (%x : Tensor[(10, 10), float32], y: Tensor[(10, 10), float32]
+                -> Tensor[(10, 10), float32] { add(%x, %y) }
 
 Note that function expressions evaluate to a closure. Closures
 are values that are represented as a pair of a local environment
@@ -262,10 +263,10 @@ of zero values because the closure for :code:`%f` stores the value of
 
 .. code-block::
 
-    let %g = fun () {
+    let %g = fn () {
       let %x = Constant(0, (10, 10), float32);
       # x is a free variable in the below function
-      fun (%y) { multiply(%y, %x) }
+      fn (%y) { multiply(%y, %x) }
     };
     # the %x in %g's body is not in scope anymore
     # %f is a closure where %x maps to Constant(0, (10, 10), float32)
@@ -278,12 +279,11 @@ as here:
 
 .. code-block:: python
 
-    let %fact = fun (%x : Tensor<(10, 10), float32>) -> Tensor<(10, 10), float32> {
-        if (equal(%x, Constant(1, (10, 10), float32)) {
+    let %fact = fun (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
+        if (equal(%x, Constant(1, (10, 10), float32))
             Constant(0, (10, 10), float32)
-        } else {
-            multiply(%x,  %fact(subtract(%x, Constant(1, (10, 10), float32)))
-        }
+        else
+            multiply(%x, %fact(subtract(%x, Constant(1, (10, 10), float32)))
     };
     %fact(10)
 
@@ -313,7 +313,7 @@ of shape (10, 10) where all elements are 2:
 
 .. code-block:: python
 
-   let %x : Tensor<(10, 10), float32> = Constant(1, (10, 10), float32);
+   let %x : Tensor[(10, 10), float32] = Constant(1, (10, 10), float32);
    add(%x, %x)
 
 A sequence of :code:`let` bindings can be considered as a dataflow graph,
@@ -377,15 +377,14 @@ If-Then-Else
 
 Relay has a simple if-then-else expression that allows programs to branch
 on a single value of type :code:`bool`, i.e., a zero-rank
-tensor of booleans (:code:`Tensor<(), bool>`).
+tensor of booleans (:code:`Tensor[(), bool]`).
 
 .. code-block:: python
 
-    if (equal(%t, %u)) {
+    if (equal(%t, %u))
         %t
-    } else {
+    else
         %u
-    }
 
 Since if-then-else branches are expressions, they may appear inline
 wherever any other expression may be expected, like invocations of
