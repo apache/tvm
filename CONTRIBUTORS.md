@@ -22,6 +22,7 @@ We do encourage everyone to work anything they are interested in.
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
+- [Eddie Yan](https://github.com/eqy): @eqy - runtime, autotvm, rpc, topi
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
 
 ## Reviewers
