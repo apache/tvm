@@ -33,7 +33,7 @@ Global Variable
 ~~~~~~~~~~~~~~~~~~
 
 Global identifiers are prefixed by the `@` sigil, such as "`@global`".
-A global identifier always references a globally visibly definition contained in the environment.
+A global identifier always references a globally visible definition contained in the environment.
 Global identifiers must be unique.
 
 See :py:class:`~tvm.relay.expr.GlobalVar` for its implementation
@@ -160,12 +160,9 @@ Operators
 =========
 
 An operator is a primitive operation not defined in the Relay
-language. Operators are declaredi n the global operator
+language. Operators are declared in the global operator
 registry in C++. Many common operators are backed by TVM's
 Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
-
-but registered in the global environment in either Python
-or C++. Implementations of operators are typically backed by TVM's TOPI.
 
 An operator requires a user to provide an implementation
 of the operator, its type, and any other desired metadata.
@@ -368,7 +365,7 @@ type checking.
 Note that all type relations in the function type must hold at each
 call site. Because relations are checked at call sites, this means that
 the relations are checked against the types of the particular arguments
-at that call site, so this is also allows for a form of polymorphism.
+at that call site, so this also allows for a form of polymorphism.
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
 
