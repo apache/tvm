@@ -22,7 +22,7 @@ class BiasAddSimplifier : public ExprMutator {
       CHECK_EQ(call->args.size(), 2);
       const BiasAddAttrs* param = call->attrs.as<BiasAddAttrs>();
 
-      auto ttype = call->args[0]->type_as<TensorTypeNode>();
+      auto ttype = n->args[0]->type_as<TensorTypeNode>();
       size_t n_dim = ttype->shape.size();
       Expr expanded_bias = ExpandBiasToMatchAxis(call->args[1], n_dim, {param->axis});
       Expr ret = Add(call->args[0], expanded_bias);
