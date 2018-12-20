@@ -124,7 +124,7 @@ class Generalizer : public TypeMutator {
   tvm::Map<IncompleteType, TypeVar> subst_map_;
   int varno_;
 };
-
+  
 //
 // The inference algorithm can roughly be devided into three stages:
 // - Populate the constraints by visiting the expression (TypeInferencer.GetType)
@@ -155,16 +155,20 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
 
+  // map from type vars to instantiations
+  tvm::Map<TypeVar, Type> type_env_;
+
   // The solver used by the inferencer.
   TypeSolver solver_;
   // relation function
   TypeRelationFn tuple_getitem_rel_;
-  TypeRelationFn make_tuple_rel_;
   // Unify two types
   Type Unify(const Type& t1, const Type& t2, const Span& span) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
-      return solver_.Unify(t1, t2);
+      Type inst_t1 = Instantiate(t1);
+      Type inst_t2 = Instantiate(t2);
+      return solver_.Unify(inst_t1, inst_t2);
     } catch (const dmlc::Error &e) {
       LOG(FATAL)
           << "Error unifying `"
@@ -182,7 +186,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (it != type_map_.end() && it->second.checked_type.defined()) {
       return it->second.checked_type;
     }
-    Type ret = this->VisitExpr(expr);
+    Type ret = Instantiate(this->VisitExpr(expr));   
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
@@ -289,6 +293,25 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return rtype;
   }
 
+  // instantiates the type in the current type env
+  Type Instantiate(const Type& t) {
+    if (!t.defined()) {
+      return t;
+    }
+    auto* ft = t.as<FuncTypeNode>();
+    if (ft == nullptr) {
+      return Bind(t, type_env_);
+    }
+
+    // strip type params before binding, then restore them
+    auto strip_tvs = FuncTypeNode::make(ft->arg_types, ft->ret_type,
+					{}, ft->type_constraints);
+    auto* bound = Bind(strip_tvs, type_env_).as<FuncTypeNode>();
+    CHECK(bound != nullptr);
+    return FuncTypeNode::make(bound->arg_types, bound->ret_type,
+			      ft->type_params, bound->type_constraints);
+  }
+  
   // instantiate the function type with fresh
   FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args, const Span& span) {
     tvm::Map<TypeVar, Type> subst_map;
@@ -347,7 +370,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     // with an unknown return type
     if (inc_ty_node != nullptr) {
       Type ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
-      Type func_type = FuncTypeNode::make(arg_types, ret_type, {}, {});
+      Array<TypeVar> type_params;
+      for (auto type_arg : call->type_args) {
+	TypeVar tv = TypeVarNode::make("placeholder", TypeVarNode::Kind::kType);
+	type_params.push_back(tv);
+      }
+      Type func_type = FuncTypeNode::make(arg_types, ret_type, type_params, {});
       Type unified = this->Unify(ftype, func_type, call->span);
       fn_ty_node = unified.as<FuncTypeNode>();
     }
@@ -405,15 +433,13 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const FunctionNode* f) final {
     solver_.Solve();
-    Array<Type> incomplete_arg_types;
-    for (auto param : f->params) {
-      incomplete_arg_types.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
-    }
-    FuncType incompleteFuncType =
-      FuncTypeNode::make(incomplete_arg_types,
-                         IncompleteTypeNode::make(TypeVarNode::Kind::kType),
-                         {}, {});
 
+    // instantiate all type vars first, then assemble rest of type
+    for (auto type_param : f->type_params) {
+      auto fresh = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+      type_env_.Set(type_param, fresh);
+    }
+    
     Array<Type> candidate_arg_types;
     for (auto param : f->params) {
       candidate_arg_types.push_back(GetType(param));
@@ -426,7 +452,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
                                                     rtype,
                                                     f->type_params, {});
 
-    return Unify(incompleteFuncType, candidateFuncType, f->span);
+    return candidateFuncType;
   }
 };
 
