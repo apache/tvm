@@ -57,7 +57,7 @@ the name :code:`%a` is "shadowed," meaning all references to
 references to :code:`%a` in the outer scope continue to refer to
 the previous one.
 
-(Note that in Relay's implemetnation, each definition of a local variable
+(Note that in Relay's implementation, each definition of a local variable
 creates a new :py:class:`~tvm.relay.expr.Var`, so a shadowed local variable,
 despite having the same name as one in an outer scope, will be a different
 object. This allows for comparing local variables by pointer identity with the
