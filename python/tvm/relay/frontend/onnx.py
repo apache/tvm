@@ -355,10 +355,9 @@ class Selu(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 1.6732))
         gamma = float(attr.get('gamma', 1.0507))
-        return return _expr.const(gamma) * (_expr.const(-alpha)
-                                            * relay.nn.relu(_expr.const(1)
-                                            - relay.exp(inputs[0]))
-                                            + relay.nn.relu(inputs[0]))
+        return _expr.const(gamma) * (
+            _expr.const(-alpha) * relay.nn.relu(_expr.const(1)
+            - relay.exp(inputs[0])) + relay.nn.relu(inputs[0]))
 
 
 class ScaledTanh(OnnxOpConverter):
