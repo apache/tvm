@@ -102,8 +102,64 @@ def test_nms():
         (n, num_anchors, 6), "float32")
 
 
+def test_multibox_transform_loc():
+    def test_default_value():
+        num_anchors = 5
+        num_classes = 5
+
+        cls_prob = relay.var(
+            "cls_prob",
+            relay.ty.TensorType((1, num_anchors, num_classes), "float32"))
+        loc_pred = relay.var(
+            "loc_pred", relay.ty.TensorType((1, num_anchors * 4), "float32"))
+        anchors = relay.var(
+            "anchors", relay.ty.TensorType((1, num_anchors, 4), "float32"))
+
+        ret = relay.vision.multibox_transform_loc(
+            cls_prob=cls_prob, loc_pred=loc_pred, anchor=anchors)
+        ret = relay.ir_pass.infer_type(ret)
+        ref_type = relay.ty.TupleType(
+            tvm.convert([
+                relay.ty.TensorType((1, num_anchors, 6), "float32"),
+                relay.ty.TensorType((1, ), "int")
+            ]))
+        assert ret.checked_type == ref_type
+
+    def test_threshold():
+        num_anchors = 5
+        num_classes = 5
+        n = tvm.var("n")
+        cls_prob = relay.var(
+            "cls_prob",
+            relay.ty.TensorType((n, num_anchors, num_classes), "float32"))
+        loc_pred = relay.var(
+            "loc_pred", relay.ty.TensorType((n, num_anchors * 4), "float32"))
+        anchors = relay.var(
+            "anchors", relay.ty.TensorType((1, num_anchors, 4), "float32"))
+        threshold = 0.02
+        variance = (0.2, 0.2, 0.3, 0.3)
+
+        ret = relay.vision.multibox_transform_loc(
+            cls_prob=cls_prob,
+            loc_pred=loc_pred,
+            anchor=anchors,
+            threshold=threshold,
+            variance=variance)
+        ret = relay.ir_pass.infer_type(ret)
+        ref_type = relay.ty.TupleType(
+            tvm.convert([
+                relay.ty.TensorType((n, num_anchors, 6), "float32"),
+                relay.ty.TensorType((n, ), "int")
+            ]))
+        assert ret.checked_type == ref_type
+
+    test_default_value()
+    test_threshold()
+
+
 if __name__ == "__main__":
     test_resize_infer_type()
     test_resize()
     test_multibox_prior()
+    test_multibox_transform_loc()
     test_nms()

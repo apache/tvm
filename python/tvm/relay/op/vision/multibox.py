@@ -36,3 +36,39 @@ def multibox_prior(data,
         3-D tensor with shape [1, h_in * w_in * (num_sizes + num_ratios - 1), 4]
     """
     return _make.multibox_prior(data, sizes, ratios, steps, offsets, clip)
+
+
+def multibox_transform_loc(cls_prob,
+                           loc_pred,
+                           anchor,
+                           clip=True,
+                           threshold=0.01,
+                           variance=(0.1, 0.1, 0.2, 0.2)):
+    """Location transformation for multibox detection
+
+    Parameters
+    ----------
+    cls_prob : tvm.relay.Expr
+        Class probabilities.
+
+    loc_pred : tvm.relay.Expr
+        Location regression predictions.
+
+    anchor : tvm.relay.Expr
+        Prior anchor boxes.
+
+    clip : boolean, optional
+        Whether to clip out-of-boundary boxes.
+
+    threshold : double, optional
+        Threshold to be a positive prediction.
+
+    variance : Tuple of float, optional
+        Variances to be decoded from box regression output.
+
+    Returns
+    -------
+    ret : tuple of tvm.relay.Expr
+    """
+    return _make.multibox_transform_loc(cls_prob, loc_pred, anchor, clip,
+                                        threshold, variance)
