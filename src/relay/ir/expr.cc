@@ -136,10 +136,10 @@ FuncType FunctionNode::func_type_annotation() const {
 }
 
 bool FunctionNode::IsPrimitive() const {
-   NodeRef res = FunctionGetAttr(GetRef<Function>(this), "Primitive");
-   const ir::IntImm* pval = res.as<ir::IntImm>();
-     return pval && pval->value != 0;
- }
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), "Primitive");
+  const ir::IntImm* pval = res.as<ir::IntImm>();
+  return pval && pval->value != 0;
+}
 
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
   if (!func->attrs.defined()) { return NodeRef(); }
