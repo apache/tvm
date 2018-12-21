@@ -61,15 +61,18 @@ class TypeSolver::OccursChecker : public TypeVisitor {
   bool found_;
 };
 
-class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
+class TypeSolver::Unifier :
+    public TypeUnifierNode, public TypeFunctor<Type(const Type&, const Type&)> {
  public:
-  explicit Unifier(TypeSolver* solver) : solver_(solver) {}
+  explicit Unifier(TypeSolver* solver) : solver_(solver), tv_map_({}) {}
 
-  Type Unify(const Type& src, const Type& dst) {
+  Type Unify(const Type& src, const Type& dst) final {
     // Known limitation
     // - handle shape pattern matching
-    TypeNode* lhs = solver_->GetTypeNode(dst);
-    TypeNode* rhs = solver_->GetTypeNode(src);
+    Type new_src = InstantiateTypeVar(src);
+    Type new_dst = InstantiateTypeVar(dst);
+    TypeNode* lhs = solver_->GetTypeNode(new_dst);
+    TypeNode* rhs = solver_->GetTypeNode(new_src);
 
     // do occur check so we don't create self-referencing structure
     if (lhs->FindRoot() == rhs->FindRoot()) {
@@ -99,13 +102,52 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     }
   }
 
-  // Checks whether lhs (taken to be a type hole) occurs in t, meaning
+  // Checks whether lhs (taken to be a type var) occurs in t, meaning
   // there is a recursive equality constraint, which should be rejected.
   // N.b.: A tautology like ?a = ?a is okay and should be checked for
   // *before* calling this method
   bool CheckOccurs(TypeNode *lhs, const Type &t) {
     OccursChecker rc(solver_, lhs);
     return rc.Check(t);
+  }
+
+  // if t is a type var, replace with an incomplete type
+  Type InstantiateTypeVar(const Type& t) {
+    auto* tvn = t.as<TypeVarNode>();
+    if (tvn == nullptr) {
+      return t;
+    }
+
+    TypeVar tv = GetRef<TypeVar>(tvn);
+    auto it = tv_map_.find(tv);
+    if (it != tv_map_.end()) {
+      return (*it).second;
+    }
+
+    IncompleteType hole = IncompleteTypeNode::make(tv->kind);
+    tv_map_.Set(tv, hole);
+    return hole;
+  }
+
+  // instantiate away all type parameters in a function type
+  FuncType InstantiateFuncType(const FuncType& ft) {
+    for (auto type_param : ft->type_params) {
+      InstantiateTypeVar(type_param);
+    }
+
+    // to avoid error when substituting type vars (TypeMutator
+    // errors out if the type var list in a FuncType contains an
+    // IncompleteType)
+    FuncType strip_tvs = FuncTypeNode::make(ft->arg_types,
+                                            ft->ret_type, {},
+                                            ft->type_constraints);
+    Type transformed = Bind(strip_tvs, tv_map_);
+
+    auto* new_ft = transformed.as<FuncTypeNode>();
+    // drop the type param list altogether
+    return FuncTypeNode::make(new_ft->arg_types,
+                              new_ft->ret_type, {},
+                              new_ft->type_constraints);
   }
 
   // default: unify only if alpha-equal
@@ -139,51 +181,37 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
-	|| op->type_params.size() != ftn->type_params.size()
         || op->type_constraints.size() != ftn->type_constraints.size()) {
       return Type(nullptr);
     }
 
-    FuncType ft1 = GetRef<FuncType>(op);
-    FuncType ft2 = GetRef<FuncType>(ftn);
-    
-    // saves work if we can avoid remapping, etc.
-    if (AlphaEqual(ft1, ft2)) {
-      return ft1;
-    }
+    FuncType ft1 = InstantiateFuncType(GetRef<FuncType>(op));
+    FuncType ft2 = InstantiateFuncType(GetRef<FuncType>(ftn));
 
-    // remap bound type params so we can compare by equality
-    Map<TypeVar, Type> subst_map;
-    for (size_t i = 0; i < ft1->type_params.size(); i++) {
-      subst_map.Set(ft2->type_params[i], ft1->type_params[i]);
-    }
-
-    auto bound_ft2 = GetRef<FuncType>(Bind(ft2, subst_map).as<FuncTypeNode>());
-
-    // now unify each field of the func types
-    Type ret_type = Unify(ft1->ret_type, bound_ft2->ret_type);
+    Type ret_type = Unify(ft1->ret_type, ft2->ret_type);
 
     std::vector<Type> arg_types;
     for (size_t i = 0; i < ft1->arg_types.size(); i++) {
-      Type arg_type = Unify(ft1->arg_types[i], bound_ft2->arg_types[i]);
+      Type arg_type = Unify(ft1->arg_types[i], ft2->arg_types[i]);
       arg_types.push_back(arg_type);
     }
 
     std::vector<TypeConstraint> type_constraints;
     for (size_t i = 0; i < ft1->type_constraints.size(); i++) {
       Type unified_constraint = Unify(ft1->type_constraints[i],
-                                      bound_ft2->type_constraints[i]);
+                                      ft2->type_constraints[i]);
       const auto* tcn = unified_constraint.as<TypeConstraintNode>();
       CHECK(tcn) << "Two type constraints unified into a non-constraint?"
-                 << ft1->type_constraints[i] << " and " << bound_ft2->type_constraints[i];
+                 << ft1->type_constraints[i] << " and " << ft2->type_constraints[i];
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
-    return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
+    return FuncTypeNode::make(arg_types, ret_type, {}, type_constraints);
   }
 
  private:
   TypeSolver* solver_;
+  Map<TypeVar, Type> tv_map_;
 };
 
 class TypeSolver::Resolver : public TypeMutator {
@@ -265,7 +293,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
 // constructor
 TypeSolver::TypeSolver()
-  : reporter_(make_node<Reporter>(this)) {
+  : reporter_(make_node<Reporter>(this)), unifier_(make_node<Unifier>(this)) {
 }
 
 // destructor
@@ -281,8 +309,7 @@ TypeSolver::~TypeSolver() {
 
 // Add equality constraint
 Type TypeSolver::Unify(const Type& dst, const Type& src) {
-  Unifier unifier(this);
-  return unifier.Unify(dst, src);
+  return unifier_->Unify(dst, src);
 }
 
 // Add type constraint to the solver.
