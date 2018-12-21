@@ -950,7 +950,7 @@ inline TVMType String2TVMType(std::string s) {
   if (*xdelim == 'x') {
     t.lanes = static_cast<uint16_t>(strtoul(xdelim + 1, &endpt, 10));
   }
-  CHECK_EQ(strlen(endpt), 0) << "unknown type " << s;
+  CHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
   return t;
 }
 
