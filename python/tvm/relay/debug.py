@@ -19,7 +19,7 @@ def _debug(*args):
     _, _, _, ist = args
     print("Relay Debugger")
     print("  You can manipulate the expression under evaluation with the name `expr`.")
-    print("  You can manipulate the call stack by the name `stack`.")
+    print("  You can manipulate the call stack with the name `stack`.")
     print("--------------")
     print("--------------")
     _debugger_init(ist.current_expr, ist.stack)
