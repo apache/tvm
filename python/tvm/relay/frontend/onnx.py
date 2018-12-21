@@ -3,8 +3,7 @@
 from __future__ import absolute_import as _abs
 
 import numpy as np
-import tvm
-from tvm import relay
+from ... import nd as _nd
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -109,7 +108,7 @@ class Absolute(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return relay.nn.relu(inputs[0]) + relay.nn.relu(relay.negative(inputs[0]))
+        return _op.nn.relu(inputs[0]) + _op.nn.relu(_op.negative(inputs[0]))
 
 
 class Add(Elemwise):
@@ -195,8 +194,8 @@ class Elu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 1.0))
-        return _expr.const(-alpha) * relay.nn.relu(_expr.const(1) - relay.exp(inputs[0])) + \
-                                     relay.nn.relu(inputs[0])
+        return _expr.const(-alpha) * _op.nn.relu(_expr.const(1.) - _op.exp(inputs[0])) + \
+                                     _op.nn.relu(inputs[0])
 
 
 class Gemm(OnnxOpConverter):
@@ -215,13 +214,12 @@ class Gemm(OnnxOpConverter):
         # get number of channels
         channels = infer_channels(inputs[1], not transB)
         if transA:
-            inputs[0] = relay.transpose(inputs[0], axes=(1, 0))
+            inputs[0] = _op.transpose(inputs[0], axes=(1, 0))
         if not transB:
-            inputs[1] = relay.transpose(inputs[1], axes=(1, 0))
-        inputs[0] = relay.nn.batch_flatten(inputs[0])
-        out = relay.nn.dense(_expr.const(alpha) * inputs[0],
-                             inputs[1],
-                             units=channels)
+            inputs[1] = _op.transpose(inputs[1], axes=(1, 0))
+        inputs[0] = _op.nn.batch_flatten(inputs[0])
+        out = _op.nn.dense(_expr.const(alpha) * inputs[0],
+                           inputs[1], units=channels)
         return _op.nn.bias_add(out, _expr.const(beta) * inputs[2])
 
 class MatMul(OnnxOpConverter):
@@ -232,7 +230,7 @@ class MatMul(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "MatMul op take 2 inputs, {} given".format(len(inputs))
         input_1_t = _op.transpose(inputs[1], axes=(1, 0))
-        return relay.nn.dense(inputs[0], input_1_t)
+        return _op.nn.dense(inputs[0], input_1_t)
 
 class MaxPool(Pool):
     name = 'max_pool'
@@ -256,7 +254,7 @@ class Pad(OnnxOpConverter):
         attr['pad_width'] = pad_width
 
         return AttrCvt(
-            relay.nn.pad,
+            _op.nn.pad,
             transforms={
                 'value': 'pad_value',
             },
@@ -291,7 +289,7 @@ class ParametricSoftPlus(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         alpha = _expr.const(float(attr.get('alpha', 1.0)))
         beta = _expr.const(float(attr.get('beta', 1.0)))
-        return relay.log(relay.exp(beta * inputs[0]) + _expr.const(1)) * alpha
+        return _op.log(_op.exp(beta * inputs[0]) + _expr.const(1.)) * alpha
 
 
 class Prelu(OnnxOpConverter):
@@ -301,7 +299,7 @@ class Prelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         assert len(inputs) == 2, "Prelu need 2 inputs, {} given".format(len(inputs))
-        return relay.prelu(inputs[0], inputs[1])
+        return _op.nn.prelu(inputs[0], inputs[1])
 
 
 class Reciprocal(OnnxOpConverter):
@@ -319,13 +317,13 @@ class Reshape(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         if 'shape' in attr:
-            return relay.reshape(inputs[0], attr['shape'])
+            return _op.reshape(inputs[0], attr['shape'])
 
         if get_name(inputs[1]) in params:
             shape = tuple(params[inputs[1].name_hint].asnumpy())
-            out = relay.reshape(inputs[0], shape)
+            out = _op.reshape(inputs[0], shape)
         else:
-            out = relay.reshape_like(inputs[0], inputs[1])
+            out = _op.reshape_like(inputs[0], inputs[1])
 
         return out
 
@@ -356,8 +354,8 @@ class Selu(OnnxOpConverter):
         alpha = float(attr.get('alpha', 1.6732))
         gamma = float(attr.get('gamma', 1.0507))
         return _expr.const(gamma) * (_expr.const(-alpha) *
-                                     relay.nn.relu(_expr.const(1) - relay.exp(inputs[0])) +
-                                     relay.nn.relu(inputs[0]))
+                                     _op.nn.relu(_expr.const(1) - _op.exp(inputs[0])) +
+                                     _op.nn.relu(inputs[0]))
 
 
 class ScaledTanh(OnnxOpConverter):
@@ -368,7 +366,7 @@ class ScaledTanh(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 1.0))
         beta = float(attr.get('beta', 1.0))
-        return relay.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
+        return _op.tanh(_expr.const(beta) * inputs[0]) * _expr.const(alpha)
 
 
 class SoftPlus(OnnxOpConverter):
@@ -377,7 +375,7 @@ class SoftPlus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return relay.log(relay.exp(inputs[0]) + _expr.const(1))
+        return _op.log(_op.exp(inputs[0]) + _expr.const(1))
 
 
 class Softsign(OnnxOpConverter):
@@ -401,7 +399,7 @@ class Sum(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         # Onnx Sum Operator
         for in_index in range(len(inputs) - 1):
-            inputs[in_index + 1] = relay.add(inputs[in_index], inputs[in_index + 1])
+            inputs[in_index + 1] = _op.add(inputs[in_index], inputs[in_index + 1])
 
         return inputs[len(inputs) - 1]
 
@@ -413,8 +411,9 @@ class ThresholdedRelu(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 0.0))
-        alpha_tensor = relay.full_like(inputs[0], fill_value=float(alpha))
-        return inputs[0] * relay.greater(inputs[0], alpha_tensor)
+        alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
+        mask = _op.greater(inputs[0], alpha_tensor)
+        return inputs[0] * mask
 
 
 def _broadcast_constraint():
@@ -494,7 +493,7 @@ class Unsqueeze(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
         for axes in attr['axes']:
-            inputs[0] = relay.expand_dims(inputs[0], axis=axes, num_newaxis=1)
+            inputs[0] = _op.expand_dims(inputs[0], axis=axes, num_newaxis=1)
         return inputs[0]
 
 
@@ -562,7 +561,7 @@ class Gather(OnnxOpConverter):
         axis = attr.get('axis', 0)
         return AttrCvt('take',
                        extras={'axis':axis})(inputs, {})
-        #return relay.take(inputs[0], inputs[1], axis)
+        #return _op.take(inputs[0], inputs[1], axis)
 
 class LRN(OnnxOpConverter):
     """ Operator converter for Local Response Normalization.
@@ -713,11 +712,11 @@ class ConstantFill(OnnxOpConverter):
                 if 'extra_shape' in attr:
                     raise ImportError(
                         "Extra Shape not supported with fill_like")
-                return relay.full_like(inputs[0], inputs[1])
+                return _op.full_like(inputs[0], inputs[1])
 
         if 'extra_shape' in attr:
             shape = shape + attr.pop('extra_shape')
-        return relay.full(inputs[0], shape)
+        return _op.full(inputs[0], shape)
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
@@ -964,7 +963,7 @@ class GraphProto(object):
             raise ImportError(
                 "Unable to import onnx which is required {}".format(e))
         np_array = to_array(tensor_proto).reshape(tuple(tensor_proto.dims))
-        return tvm.nd.array(np_array)
+        return _nd.array(np_array)
 
     def _parse_attr(self, attr_proto):
         """Convert a list of AttributeProto to a dict, with names as keys."""

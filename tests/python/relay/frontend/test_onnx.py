@@ -24,7 +24,7 @@ def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output
         input_names = graph_def.graph.input[0].name
         shape_dict = {input_names: input_data.shape}
         dtype_dict = {input_names: input_data.dtype}
-        
+
     sym, params = relay.frontend.from_onnx(graph_def, shape_dict)
     with relay.build_config(opt_level=1):
         graph, lib, params = relay.build(sym, target, params=params)
@@ -865,7 +865,7 @@ def test_binary_ops():
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x, y], target, ctx)
-            tvm.testing.assert_allclose(out_np, tvm_out)
+            tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
     y = np.random.uniform(size=in_shape).astype(dtype)
