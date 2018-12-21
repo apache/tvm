@@ -277,10 +277,11 @@ as here:
 .. code-block:: python
 
     let %fact = fun (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
-        if (equal(%x, Constant(1, (10, 10), float32))
+        if (equal(%x, Constant(1, (10, 10), float32)) {
             Constant(0, (10, 10), float32)
-        else
-            multiply(%x, %fact(subtract(%x, Constant(1, (10, 10), float32)))
+        } else {
+            multiply(%x, %fact(subtract(%x, Constant(1, (10, 10), float32))))
+        }
     };
     %fact(10)
 
@@ -378,10 +379,11 @@ tensor of booleans (:code:`Tensor[(), bool]`).
 
 .. code-block:: python
 
-    if (equal(%t, %u))
+    if (equal(%t, %u)) {
         %t
-    else
+    } else {
         %u
+    }
 
 Since if-then-else branches are expressions, they may appear inline
 wherever any other expression may be expected, like invocations of
