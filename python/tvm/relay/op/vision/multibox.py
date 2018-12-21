@@ -1,6 +1,7 @@
 """Multibox operations."""
 from __future__ import absolute_import as _abs
 from . import _make
+from ...expr import TupleWrapper
 
 def multibox_prior(data,
                    sizes=(1.0,),
@@ -43,7 +44,7 @@ def multibox_transform_loc(cls_prob,
                            anchor,
                            clip=True,
                            threshold=0.01,
-                           variance=(0.1, 0.1, 0.2, 0.2)):
+                           variances=(0.1, 0.1, 0.2, 0.2)):
     """Location transformation for multibox detection
 
     Parameters
@@ -63,12 +64,13 @@ def multibox_transform_loc(cls_prob,
     threshold : double, optional
         Threshold to be a positive prediction.
 
-    variance : Tuple of float, optional
-        Variances to be decoded from box regression output.
+    variances : Tuple of float, optional
+        variances to be decoded from box regression output.
 
     Returns
     -------
     ret : tuple of tvm.relay.Expr
     """
-    return _make.multibox_transform_loc(cls_prob, loc_pred, anchor, clip,
-                                        threshold, variance)
+    return TupleWrapper(_make.multibox_transform_loc(cls_prob, loc_pred,
+                                                     anchor, clip, threshold,
+                                                     variances), 2)

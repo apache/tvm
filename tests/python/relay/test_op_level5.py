@@ -137,14 +137,14 @@ def test_multibox_transform_loc():
         anchors = relay.var(
             "anchors", relay.ty.TensorType((1, num_anchors, 4), "float32"))
         threshold = 0.02
-        variance = (0.2, 0.2, 0.3, 0.3)
+        variances = (0.2, 0.2, 0.3, 0.3)
 
         ret = relay.vision.multibox_transform_loc(
             cls_prob=cls_prob,
             loc_pred=loc_pred,
             anchor=anchors,
             threshold=threshold,
-            variance=variance)
+            variances=variances)
         ret = relay.ir_pass.infer_type(ret)
         ref_type = relay.ty.TupleType(
             tvm.convert([
