@@ -257,8 +257,8 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
           << "Cannot allocate memory symbolic tensor shape "
           << ttype->shape;
       CHECK_GE(*pval, 0)
-        << "Cannot allocate memory for tensor with negative shape"
-        << *pval;
+          << "Cannot allocate memory for tensor with negative shape"
+          << *pval;
       size *= static_cast<size_t>(pval[0]);
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
