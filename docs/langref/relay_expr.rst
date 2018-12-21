@@ -330,6 +330,51 @@ dependency on the other:
 
 See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
 
+Graph Bindings
+~~~~~~~~~~~~~~
+
+A :code:`let` binding creates a named variable that is bound to the given value
+and scoped to the subsequent expression. By contrast, a graph binding allows for
+explicitly constructing dataflow graphs in a Relay program by binding an expression
+(graph node) directly to a temporary variable, which is not scoped. This has the
+semantics of substituting the expression wherever the variable appears, even though
+the graph node will only be evaluated once by the compiled program.
+
+These bindings allow for a style of programming that corresponds to that already
+employed by NNVM and other dataflow graph-based input formats. The fact that the variables
+are not scoped offers some flexibility in evaluation order compared to :code:`let`
+bindings, though this can also introduce some ambiguity in programs (`this developer
+page<https://docs.tvm.ai/dev/relay_intro.html>`__ includes more detailed discussion of
+this nuance).
+
+In Relay's text format, a graph binding can be written as below (note the lack of a
+:code:`let` keyword and a semicolon):
+
+.. code-block:: python
+
+   %1 = add(%a, %b)
+   %2 = add(%1, %1)
+   multiply(%2, %2)
+
+Graph bindings are not represented as an AST node in Relay, but rather as meta-variables set
+to reference AST nodes. For example, a program like the above could be constructed in Relay's
+Python front-end by setting *Python variables* equal to the corresponding Relay AST node and
+using the variables repeatedly, as below (a C++ program using the corresponding API bindings
+could accomplish the same thing):
+
+.. code-block:: python
+
+   sum1 = relay.add(a, b)
+   sum2 = relay.add(sum1, sum1)
+   relay.multiply(sum2, sum2)
+
+For development purposes and to enable certain optimizations, Relay includes passes to
+convert between dataflow graphs defined using graph bindings and programs with :code:`let`
+bindings in A-normal form, employed by many compiler optimizations from the functional
+programming community (see `"The Essence of Compiling with Continuations" by
+Flanagan *et al*<https://slang.soe.ucsc.edu/cormac/papers/pldi93.pdf>`__ for a discussion
+of the A-normal form).
+
 =======================
 Control Flow Expression
 =======================
