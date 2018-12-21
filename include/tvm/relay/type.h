@@ -317,6 +317,40 @@ class TypeReporter : public NodeRef {
   using ContainerType = TypeReporterNode;
 };
 
+class TypeUnifier;
+/*!
+ * \brief Data structure that handles type unification.
+ */
+class TypeUnifierNode : public Node {
+ public:
+  /*!
+   * \brief Returns a unified type based on the two arguments.
+   */
+  TVM_DLL virtual Type Unify(const Type& dst, const Type& src) = 0;
+
+  // unifier is not serializable.
+  void VisitAttrs(tvm::AttrVisitor* v) final {}
+
+  static constexpr const char* _type_key = "relay.TypeUnifier";
+  TVM_DECLARE_NODE_TYPE_INFO(TypeUnifierNode, Node);
+};
+
+/*!
+ * \brief Container class of TypeUnifier.
+ * \sa TypeUnifierNode
+ */
+class TypeUnifier : public NodeRef {
+ public:
+  TypeUnifier() {}
+  explicit TypeUnifier(::tvm::NodePtr<::tvm::Node> n) : NodeRef(n) {
+  }
+  TypeUnifierNode* operator->() const {
+    return static_cast<TypeUnifierNode*>(node_.get());
+  }
+  using ContainerType = TypeUnifierNode;
+};
+
+
 /*!
  * \brief User defined type constraint function.
  *
