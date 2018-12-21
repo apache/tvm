@@ -412,10 +412,7 @@ class ThresholdedRelu(OnnxOpConverter):
     def _impl_v1(cls, inputs, attr, params):
         alpha = float(attr.get('alpha', 0.0))
         alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
-        mask = _op.greater(inputs[0], alpha_tensor)
-        print(type(mask))
-        print(mask)
-        print(mask.as_type)
+        mask = _op.greater(inputs[0], alpha_tensor).astype("float32")
         return inputs[0] * mask
 
 

@@ -943,7 +943,6 @@ def test_selu():
                               'Selu',
                               {'alpha': 0.25, 'gamma': 0.3})
 
-@unittest.skip("require cast op")
 def test_ThresholdedRelu():
     def ThresholdedRelu_x(x, alpha):
         out_np = np.clip(x, alpha, np.inf)
