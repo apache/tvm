@@ -4,9 +4,9 @@ from . import _make
 
 def nms(data,
         valid_count,
-        overlap_threshold=0.5,
+        nms_threshold=0.5,
         force_suppress=False,
-        topk=-1):
+        nms_topk=-1):
     """Non-maximum suppression operator for object detection.
 
     Parameters
@@ -19,13 +19,13 @@ def nms(data,
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
 
-    overlap_threshold : float, optional
+    nms_threshold : float, optional
         Non-maximum suppression threshold.
 
     force_suppress : bool, optional
         Suppress all detections regardless of class_id.
 
-    topk : int, optional
+    nms_topk : int, optional
         Keep maximum top k detections before nms, -1 for no limit.
 
     Returns
@@ -33,4 +33,4 @@ def nms(data,
     out : relay.Expr
         3-D tensor with shape [batch_size, num_anchors, 6].
     """
-    return _make.nms(data, valid_count, overlap_threshold, force_suppress, topk)
+    return _make.nms(data, valid_count, nms_threshold, force_suppress, nms_topk)

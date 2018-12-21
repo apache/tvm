@@ -31,13 +31,13 @@ bool NMSRel(const Array<Type>& types,
 
 Expr MakeNMS(Expr data,
              Expr valid_count,
-             double overlap_threshold,
+             double nms_threshold,
              bool force_suppress,
-             int topk) {
+             int nms_topk) {
   auto attrs = make_node<NMSAttrs>();
-  attrs->overlap_threshold = overlap_threshold;
+  attrs->nms_threshold = nms_threshold;
   attrs->force_suppress = force_suppress;
-  attrs->topk = topk;
+  attrs->nms_topk = nms_topk;
   static const Op& op = Op::Get("vision.nms");
   return CallNode::make(op, {data, valid_count}, Attrs(attrs), {});
 }
