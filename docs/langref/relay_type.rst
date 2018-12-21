@@ -5,27 +5,33 @@ Relay's Type System
 We have briefly introduced types while detailing the the expression language
 of Relay, but have not yet described the type system. Relay is
 a statically typed and type-inferred language, allowing programs to
-be typed with a minimal requirement of explicit type information.
+be typed with a minimal requirement of explicit type annotations.
 
 Static types are useful when performing compiler optimizations because they
-communicate properties about the data we manipulate, such as runtime shape,
-data layout, and storage without needing to run the program. Additionally,
-static typing is useful for determining the 
+communicate properties about the data a program manipulates, such as runtime
+shape, data layout, and storage, without needing to run the program.
 
-Relay's type system features a form of depending typing for shapes to
-replace the dynamic shape inference used in NNVM and most other machine
-learning IRs. Treating tensor shapes as types allows Relay to perform
-more powerful reasoning at compile time; in particular, Relay can statically
-reason about operations whose output shapes vary based on the input shapes
-in complex ways. Statically reasoning about shapes in this manner allows
+Relay's type system features a form of dependent typing for shapes. Treating tensor
+shapes as types allows Relay to perform more powerful reasoning at compile time;
+in particular, Relay can statically reason about operations whose output shapes
+vary based on the input shapes in complex ways. Casting shape inference as a type
+inference problem allows Relay to infer the shapes of all tensors at compile time,
+including in programs that use branching and function calls.
+
+Statically reasoning about shapes in this manner allows
 Relay to be ahead-of-time compiled and provides much more information about
-tensors for optimizations furhter in the compilation pipeline.
+tensors for optimizations further in the compilation pipeline. Such optimizations
+can be implemented as passes, which are Relay-to-Relay AST transformations, and
+may use the inferred types (e.g., shape information) for making decisions about
+program transformations. For instance, `src/relay/pass/fuse_ops.cc` gives
+an implementation of a pass that uses inferred tensor shapes to replace invocations
+of operators in a Relay program with fused operator implementations.
 
 Reasoning about tensor types in Relay is encoded using type relations, which means
 that the bulk of type checking in Relay is constraint solving (ensuring that all
 type relations are satisfied at call sites). Type relations offer a flexible and
 relatively simple way of making the power of dependent typing available in Relay
-without greatly increasing the complexity of Relay's type AST.
+without greatly increasing the complexity of Relay's type system.
 
 Types
 =====
@@ -48,10 +54,12 @@ Tensors are typed according to data type and shape. At present, these use TVM's
 data types and shapes, but in the future, Relay may include a separate AST for
 shapes. In particular, data types include `bool`, `float32`, `int8` and various
 other bit widths. Shapes are given as tuples of dimensions (TVM `IndexExpr`),
-such as `(5, 5)`; note, though, that TVM shapes can also include variables and
-arithmetic expressions including variables, so Relay's constraint solving phase
-will attempt to find assignments to all shape variables to ensure all shapes will
-be concrete before running a program.
+such as `(5, 5)`; scalars are also given tuple types and have a shape of `()`.
+
+Note, though, that TVM shapes can also include variables and arithmetic expressions
+including variables, so Relay's constraint solving phase will attempt to find
+assignments to all shape variables to ensure all shapes will be concrete before
+running a program.
 
 For example, here is a simple concrete tensor type corresponding to a 10-by-10 tensor of 32-bit floats:
 
@@ -67,8 +75,7 @@ Tuple Type
 A type of a tuple in Relay.
 
 Just as a tuple is simply a sequence of values of statically known length, the type
-of the tuple consists of a sequence of types corresponding to the type of each member
-of the tuple.
+of the tuple consists of a sequence of the types corresponding to each member of the tuple.
 
 Because a tuple type is of statically known size, the type of a tuple projection
 is simply the corresponding index into the tuple type.
@@ -105,7 +112,7 @@ be substituted for `(10, 10)` at the call site below:
         add(%t1, %t2)
    }
    plus<(10, 10)>(%a, %b)
-    
+
 
 See :py:class:`~tvm.relay.ty.TypeVar` for its definition and documentation.
 
@@ -120,6 +127,7 @@ See :py:class:`~tvm.relay.ty.TypeConstraint` for its definition and documentatio
 
 Function Type
 ~~~~~~~~~~~~~
+
 A function type in Relay, see `tvm/relay/type.h` for more details.
 
 This is the type assigned to functions in Relay. A function type
@@ -127,7 +135,7 @@ consists of a list of type parameters, a set of type constraints,
 a sequence of argument types, and a return type.
 
 We informally write function types as:
-`fun<type_params>(arg_types) -> ret_type where type_constraints`
+`fn<type_params>(arg_types) -> ret_type where type_constraints`
 
 A type parameter in the function type may appear in the argument
 types or the return types. Additionally, each of the type constraints
@@ -149,10 +157,11 @@ in these cases.
 
 A type relation :code:`R` is an n-ary-input, single-output relation over
 types. Namely, :code:`R` specifies a relationship between its argument
-types and outputs either `true` if the relationship holds and `false`
+types and outputs `true` if the relationship holds and `false`
 if it fails to hold. Types given to a relation may be incomplete or
-include shape variables, so it may be possible to assign values to
-incomplete types and shape variables such that a relation can hold.
+include shape variables, so type inference must assign appropriate
+values to incomplete types and shape variables for necessary relations
+to hold, if such values exist.
 
 For example we can define an identity relation to be:
 
