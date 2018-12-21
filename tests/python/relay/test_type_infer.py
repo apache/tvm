@@ -146,41 +146,12 @@ def test_call_with_type_args():
     assert ft.checked_type == relay.FuncType([], unit_type)
 
 
-def test_generalized_call():
-    x = relay.var('x')
-    f = relay.var('f')
-    func = relay.Function([x, f], relay.Call(f, [x]))
-
-    a = relay.TypeVar('a')
-    b = relay.TypeVar('b')
-
-    ft = relay.ir_pass.infer_type(func)
-    assert ft.checked_type == relay.FuncType([a, relay.FuncType([a], b)], b, [a, b])
-
-
 def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)
     res = relay.Tuple([x, x])
     assert (relay.ir_pass.infer_type(res).checked_type ==
             relay.TupleType([tp, tp]))
-
-
-def test_generalized_tuple():
-    x = relay.var('x')
-    y = relay.var('y')
-    z = relay.var('z')
-
-    func = relay.Function([x, y, z], relay.Tuple([x, y, z]))
-
-    a = relay.TypeVar('a')
-    b = relay.TypeVar('b')
-    c = relay.TypeVar('c')
-    ft = relay.ir_pass.infer_type(func)
-    assert ft.checked_type == relay.FuncType(
-        [a, b, c],
-        relay.TupleType([a, b, c]),
-        [a, b, c])
 
 
 def test_free_expr():
@@ -206,79 +177,6 @@ def test_type_args():
     assert sh1[1].value == 10
     assert sh2[0].value == 1
     assert sh2[1].value == 10
-
-
-def test_self_reference():
-    """
-    Program:
-       def f(x) {
-           return x;
-       }
-    """
-    a = relay.TypeVar("a")
-    b = relay.TypeVar("b")
-    x = relay.var("x", a)
-    y = relay.var("y", a)
-    sb = relay.ScopeBuilder()
-
-    f = relay.Function([x], x, b, [a, b])
-    fx = relay.Function([y], relay.Call(f, [y]))
-
-    x_type = relay.ir_pass.infer_type(x).checked_type
-    f_type = relay.ir_pass.infer_type(f).checked_type
-    call_type = relay.ir_pass.infer_type(fx).checked_type
-    assert f_type == relay.FuncType([a], a, [a])
-    assert call_type == relay.FuncType([a], a, [a])
-
-
-def test_nested_recursive_function():
-    """
-    Program:
-       def f(x) {
-         let g = fun(x) { g(x) };
-         g(x)
-       }
-    """
-    x = relay.var("x")
-    y = relay.var("y")
-    g = relay.var("g")
-    f = relay.Function([x],
-                       relay.Let(g,
-                                 relay.Function(
-                                     [y], relay.Call(g, [y])),
-                                 relay.Call(g, [x])))
-
-    a = relay.TypeVar("a")
-    b = relay.TypeVar("b")
-    f_type = relay.ir_pass.infer_type(f).checked_type
-    assert f_type == relay.FuncType([a], b, [a, b])
-
-
-def test_proper_inner_function_generalization():
-    """
-    Program:
-       def f() {
-          let id = fun(x) { x };
-          let unit = id(());
-          let idid = id(id);
-          unit
-       }
-    """
-    x = relay.var("x")
-    unit = relay.var("unit")
-    id1 = relay.var("id")
-    id2 = relay.var("idid")
-    f = relay.Function(
-        [],
-        relay.Let(id1, relay.Function([x], x),
-                  relay.Let(
-                      unit, relay.Call(id1, [relay.Tuple([])]),
-                      relay.Let(
-                          id2, relay.Call(id1, [id1]),
-                          unit))))
-
-    f_type = relay.ir_pass.infer_type(f).checked_type
-    assert f_type == relay.FuncType([], relay.TupleType([]))
 
 
 def test_global_var_recursion():
