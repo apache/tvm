@@ -354,7 +354,7 @@ class Selu(OnnxOpConverter):
         alpha = float(attr.get('alpha', 1.6732))
         gamma = float(attr.get('gamma', 1.0507))
         return _expr.const(gamma) * (_expr.const(-alpha) *
-                                     _op.nn.relu(_expr.const(1) - _op.exp(inputs[0])) +
+                                     _op.nn.relu(_expr.const(1.) - _op.exp(inputs[0])) +
                                      _op.nn.relu(inputs[0]))
 
 
@@ -375,7 +375,7 @@ class SoftPlus(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return _op.log(_op.exp(inputs[0]) + _expr.const(1))
+        return _op.log(_op.exp(inputs[0]) + _expr.const(1.))
 
 
 class Softsign(OnnxOpConverter):
@@ -384,7 +384,7 @@ class Softsign(OnnxOpConverter):
 
     @classmethod
     def _impl_v1(cls, inputs, attr, params):
-        return inputs[0] / (_expr.const(1) + Absolute.get_converter(1)(inputs, attr, params))
+        return inputs[0] / (_expr.const(1.) + Absolute.get_converter(1)(inputs, attr, params))
 
 
 class Sub(Elemwise):
@@ -413,6 +413,9 @@ class ThresholdedRelu(OnnxOpConverter):
         alpha = float(attr.get('alpha', 0.0))
         alpha_tensor = _op.full_like(inputs[0], fill_value=_expr.const(alpha))
         mask = _op.greater(inputs[0], alpha_tensor)
+        print(type(mask))
+        print(mask)
+        print(mask.as_type)
         return inputs[0] * mask
 
 

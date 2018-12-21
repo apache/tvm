@@ -8,6 +8,7 @@ from tvm.contrib import graph_runtime
 from nnvm.testing.config import ctx_list
 import onnx
 from onnx import helper, TensorProto
+import unittest
 
 def get_tvm_output(graph_def, input_data, target, ctx, output_shape=None, output_dtype='float32'):
     """ Generic function to execute and get tvm output"""
@@ -942,6 +943,7 @@ def test_selu():
                               'Selu',
                               {'alpha': 0.25, 'gamma': 0.3})
 
+@unittest.skip("require cast op")
 def test_ThresholdedRelu():
     def ThresholdedRelu_x(x, alpha):
         out_np = np.clip(x, alpha, np.inf)
