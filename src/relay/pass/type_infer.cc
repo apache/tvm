@@ -72,59 +72,6 @@ struct ResolvedTypeInfo {
   Array<Type> type_args = Array<Type>(NodePtr<Node>(nullptr));
 };
 
-// Converts incomplete types remaining in function signature to type vars
-class Generalizer : public TypeMutator {
- public:
-  Generalizer() : subst_map_({}), varno_(0) {}
-
-  // turns each distinct incomplete type into a type var and returns
-  // the transformed type with an array of all type vars present
-  Type Generalize(const Type &t) {
-    Type ret = VisitType(t);
-
-    auto* ftn = ret.as<FuncTypeNode>();
-    if (ftn == nullptr) {
-      return ret;
-    }
-
-    // for a func type, we generalize at the top level
-    Array<TypeVar> free_vars = FreeTypeVars(GetRef<FuncType>(ftn));
-    return FuncTypeNode::make(ftn->arg_types, ftn->ret_type, free_vars, ftn->type_constraints);
-  }
-
-  Type VisitType_(const IncompleteTypeNode *op) override {
-    IncompleteType t = GetRef<IncompleteType>(op);
-    auto it = subst_map_.find(t);
-    if (it != subst_map_.end()) {
-      return (*it).second;
-    }
-
-    // generate a new type var, add to list
-    std::stringstream ss;
-    ss << "_var_" << varno_;
-    varno_++;
-    TypeVar new_var = TypeVarNode::make(ss.str(), TypeVarNode::Kind::kType);
-    subst_map_.Set(t, new_var);
-    return new_var;
-  }
-
-  Type VisitType_(const FuncTypeNode *op) override {
-    // drop type params, only do it at the top level
-    Array<Type> arg_types;
-    for (auto arg_type : op->arg_types) {
-      arg_types.push_back(this->VisitType(arg_type));
-    }
-
-    Type ret_type = this->VisitType(op->ret_type);
-
-    return FuncTypeNode::make(arg_types, ret_type, {}, op->type_constraints);
-  }
-
- private:
-  tvm::Map<IncompleteType, TypeVar> subst_map_;
-  int varno_;
-};
-
 //
 // The inference algorithm can roughly be devided into three stages:
 // - Populate the constraints by visiting the expression (TypeInferencer.GetType)
@@ -149,8 +96,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   class Resolver;
   // internal environment
   Module mod_;
-  // Generalizer for handling let nodes
-  Generalizer gen_;
   // map from expression to checked type
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
@@ -243,10 +188,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
 
     Type vtype = GetType(op->value);
-    // need to generalize inner functions immediately (per H-M)
-    if (isFunctionLiteral) {
-      vtype = gen_.Generalize(vtype);
-    }
     if (op->var->type_annotation.defined()) {
       vtype = Unify(vtype, op->var->type_annotation, op->span);
     }
@@ -434,7 +375,7 @@ class TypeInferencer::Resolver : public ExprMutator {
  public:
   Resolver(const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap,
            TypeSolver* solver)
-    : tmap_(tmap), solver_(solver), gen_(Generalizer()) {
+    : tmap_(tmap), solver_(solver) {
   }
 
   Expr VisitExpr_(const VarNode* op) final {
@@ -483,7 +424,6 @@ class TypeInferencer::Resolver : public ExprMutator {
     auto it = tmap_.find(GetRef<Expr>(op));
     CHECK(it != tmap_.end());
     Type checked_type = solver_->Resolve(it->second.checked_type);
-    checked_type = gen_.Generalize(checked_type);
     CHECK(checked_type.as<IncompleteTypeNode>() == nullptr)
         << "Cannot resolve type of " << GetRef<Expr>(op)
         << " at " << op->span;
@@ -569,7 +509,6 @@ class TypeInferencer::Resolver : public ExprMutator {
  private:
   const std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual>& tmap_;
   TypeSolver* solver_;
-  Generalizer gen_;
   // whether attach the checked type as type_annotation
   // if original type anntation is missing.
   bool update_missing_type_annotation_{true};

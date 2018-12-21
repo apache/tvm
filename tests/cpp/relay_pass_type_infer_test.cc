@@ -6,20 +6,16 @@
 
 TEST(Relay, SelfReference) {
   using namespace tvm;
-  auto type_a = relay::TypeVarNode::make("a", relay::TypeVarNode::kType);
-  auto type_b = relay::TypeVarNode::make("b", relay::TypeVarNode::kType);
-  auto x = relay::VarNode::make("x", type_a);
-  auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, type_b,
-                                     Array<relay::TypeVar>{type_a, type_b});
+  auto tensor_type = relay::TensorTypeNode::make({}, ::tvm::Bool());
+  auto x = relay::VarNode::make("x", relay::Type());
+  auto f = relay::FunctionNode::make(tvm::Array<relay::Var>{ x }, x, relay::Type(), {});
 
-  auto y = relay::VarNode::make("y", type_a);
+  auto y = relay::VarNode::make("y", tensor_type);
   auto call = relay::CallNode::make(f, Array<relay::Expr>{ y });
-  auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, type_b,
-                                      tvm::Array<relay::TypeVar>{type_a, type_b});
+  auto fx = relay::FunctionNode::make(tvm::Array<relay::Var>{ y }, call, relay::Type(), {});
   auto type_fx = relay::InferType(fx, relay::ModuleNode::make(Map<relay::GlobalVar, relay::Function>{}));
 
-  auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ type_a }, type_a,
-                                            tvm::Array<relay::TypeVar>{type_a} , {});
+  auto expected = relay::FuncTypeNode::make(tvm::Array<relay::Type>{ tensor_type }, tensor_type, {}, {});
   CHECK(AlphaEqual(type_fx->checked_type(), expected));
 }
 
