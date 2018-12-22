@@ -150,7 +150,7 @@ def test_multibox_detection():
         f(tvm_cls_prob, tvm_loc_preds, tvm_anchors, tvm_out)
         tvm.testing.assert_allclose(tvm_out.asnumpy(), expected_np_out, rtol=1e-4)
 
-    for device in ['llvm', 'opencl', 'cuda']:
+    for device in ['llvm', 'opencl']:
         check_device(device)
 
 
