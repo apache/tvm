@@ -290,7 +290,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     Array<Type> type_args = call->type_args;
     if (type_args.size() == 0) {
       for (size_t i = 0; i < fn_ty_node->type_params.size(); i++) {
-	type_args.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+        type_args.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
       }
     }
     CHECK(type_args.size() == fn_ty_node->type_params.size())
