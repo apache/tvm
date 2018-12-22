@@ -105,8 +105,8 @@ def nnvm_get_conv2d_NCHWc_AVX_workload(**kwargs):
     data = tvm.placeholder(data_shape, name="data")
     kernel = tvm.placeholder(kernel_shape, name="kernel")
     in_channel = data_shape[1]
-    out_channel = attrs["channels"]
-    groups = attrs["groups"] if "groups" in attrs else 1
+    out_channel = _parse_int(attrs["channels"])
+    groups = _parse_int(attrs["groups"]) if "groups" in attrs else 1
     is_depthwise = groups == in_channel and groups == out_channel
 
     if groups != 1 and not is_depthwise:

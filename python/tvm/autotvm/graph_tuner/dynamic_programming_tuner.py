@@ -6,7 +6,7 @@ import numpy as np
 
 from .base_graph_tuner import BaseGraphTuner
 from .dynamic_programming_stage import DPStage
-from .utils import is_elemlike_op, is_input_node
+from .utils import has_multiple_inputs, is_input_node
 
 if sys.version_info[0] == 3:
     import queue
@@ -42,8 +42,10 @@ class DPTuner(BaseGraphTuner):
         """Forward pass in DP to generate states for all stages.
         """
         self._logger.info("Start forward pass...")
+        input_names = self._input_shapes.keys()
         for node_idx, node in enumerate(self._node_list):
-            if node["op"] == self._target_op or is_elemlike_op(node):
+            if node["op"] == self._target_op or has_multiple_inputs(self._node_list, node_idx,
+                                                                    input_names):
                 stage = DPStage(idx=node_idx, target_op=self._target_op,
                                 **self._global_data_dict)
                 self._check_num_states(stage.full_states.size)
@@ -54,6 +56,7 @@ class DPTuner(BaseGraphTuner):
         """Backward pass in DP to generate optimal solution.
         """
         self._logger.info("Start backward pass...")
+        input_names = self._input_shapes.keys()
         optimal_sch_dict = {}
         # Pick optimal schedule for output nodes
         output_idx_list = []
@@ -97,14 +100,13 @@ class DPTuner(BaseGraphTuner):
         while not bfs_q.empty():
             node_idx = bfs_q.get()
             visited.add(node_idx)
-            if is_input_node(self._global_data_dict["node_list"],
-                             self._input_shapes.keys(), node_idx):
+            if is_input_node(self._node_list, node_idx):
                 continue
             optimal_sch_idx = optimal_sch_dict[node_idx]
             full_states = self._stage_dict[node_idx].full_states
-            if not is_elemlike_op((self._node_list[node_idx])):
+            if not has_multiple_inputs(self._node_list, node_idx, input_names):
                 input_idx = self._in_nodes_dict[node_idx][0]
-                if self._node_list[input_idx]["name"] in self._input_shapes.keys():
+                if is_input_node(self._node_list, input_idx):
                     continue
                 if input_idx not in visited:
                     bfs_q.put(input_idx)

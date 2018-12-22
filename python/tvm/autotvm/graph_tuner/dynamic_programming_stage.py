@@ -6,7 +6,7 @@ import tvm
 
 from tvm import autotvm
 from ._base import INVALID_LAYOUT_TIME
-from .utils import is_elemlike_op, shape2layout, is_input_node
+from .utils import has_multiple_inputs, shape2layout, is_input_node
 
 
 class DPStage(object):
@@ -18,7 +18,7 @@ class DPStage(object):
     In most cases, instance of this class should be created through DPTuner.
     """
     def __init__(self, idx, wkl_dict, sch_dict, input_shapes, node_list,
-                 data_layout, elemlike_shape_dict, counted_nodes_set,
+                 data_layout, counted_nodes_set,
                  layout_time_dict, stage_dict, in_nodes_dict, out_nodes_dict,
                  dep_dict, target_op, infer_layout_shape_func, dtype="float32"):
         """Initialize a stage and create all states.
@@ -43,9 +43,6 @@ class DPStage(object):
 
         data_layout : str
             Data layout for target operator.
-
-        elemlike_shape_dict : dict of int to tuple of int
-            Dictionary maps element-wise like node index to shapes.
 
         counted_nodes_set : set of int
             Global set recording whether the execution time of a node has been counted.
@@ -79,7 +76,6 @@ class DPStage(object):
         self._global_sch_dict = sch_dict
         self._global_input_shapes = input_shapes
         self._global_node_list = node_list
-        self._global_elemlike_shape_dict = elemlike_shape_dict
         self._global_counted_nodes_set = counted_nodes_set
         self._global_layout_time_dict = layout_time_dict
         self._global_stage_dict = stage_dict
@@ -106,12 +102,12 @@ class DPStage(object):
         from workload and schedules. This function can be overridden if
         different formats of workload and schedule are used.
         """
-        node = self._global_node_list[self._idx]
-        if is_elemlike_op(node):
-            elemlike_shape = self._global_elemlike_shape_dict[self._idx]
+        input_names = self._global_input_shapes.keys()
+        if has_multiple_inputs(self._global_node_list, self._idx, input_names):
+            multi_input_node_shape = self._global_node_list[self._idx]["oshape"]
             in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
                                                                           target_sch,
-                                                                          elemlike_shape)
+                                                                          multi_input_node_shape)
         else:
             in_shape, out_shape, is_valid = self._infer_layout_shape_func(workload, current_sch,
                                                                           target_sch)
@@ -132,12 +128,17 @@ class DPStage(object):
         if node["op"] == self._target_op:
             self._create_op_states()
         else:
-            self._create_elemlike_states()
+            self._create_multi_inputs_states()
 
     def _create_op_states(self):
         """State creation routine for nodes with target_op."""
-        input_idx = self._global_in_nodes_dict[self._idx][0]
-        if is_input_node(self._global_node_list, self._global_input_shapes.keys(), input_idx):
+        input_idx = -1
+        for index in self._global_in_nodes_dict[self._idx]:
+            input_idx = index
+            if not is_input_node(self._global_node_list, input_idx):
+                break
+
+        if is_input_node(self._global_node_list, input_idx):
             self._full_states = np.array([sch["cost"] for sch in self._sch_list])
             self._states = self._full_states
         else:
@@ -213,14 +214,13 @@ class DPStage(object):
             for child in self._global_out_nodes_dict[self._idx]:
                 self._global_dep_dict[self._idx].add(child)
 
-    def _create_elemlike_states(self):
-        """State creation routine for element-wise like operator"""
+    def _create_multi_inputs_states(self):
+        """State creation routine for multi_input operator"""
         full_input_node_list = list(self._global_in_nodes_dict[self._idx])
         input_node_list = []
-        # Remove input nodes
+        # Remove input and parameter nodes
         for input_idx in full_input_node_list:
-            if not is_input_node(self._global_node_list,
-                                 self._global_input_shapes.keys(), input_idx):
+            if not is_input_node(self._global_node_list, input_idx):
                 input_node_list.append(input_idx)
 
         # Generate new states
@@ -335,7 +335,7 @@ class DPStage(object):
     def align_states(node_list, stage_dict, sch_dict):
         """Align all input node states shapes to be the same and transpose/reshape properly.
 
-        This is used in creating element-wise like operator states.
+        This is used in creating multi_input operator states.
 
         Parameters
         ----------

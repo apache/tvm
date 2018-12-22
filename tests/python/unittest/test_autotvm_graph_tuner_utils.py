@@ -8,8 +8,9 @@ from tvm import autotvm, relay
 from tvm.relay.testing import resnet
 from tvm.autotvm.task import ConfigEntity
 from tvm.autotvm.graph_tuner.utils import nnvm_get_conv2d_NCHWc_AVX_workload, \
-    relay_get_conv2d_NCHWc_AVX_workload, is_elemlike_op, get_direct_ancestor, \
-    get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, get_real_node, infer_layout_shape_avx
+    relay_get_conv2d_NCHWc_AVX_workload, has_multiple_inputs, get_direct_ancestor, \
+    get_in_nodes, get_out_nodes, shape2layout, get_wkl_map, get_real_node, \
+    infer_layout_shape_avx, expr2graph
 from topi.nn.conv2d import conv2d_NCHWc
 
 
@@ -89,11 +90,12 @@ def test_get_real_node():
     data = sym.Variable("data")
     out1 = data * 2
     out2 = out1 + 4
-    out3 = sym.elemwise_add(out2, data)
-    out = sym.elemwise_add(out3, data)
+    out3 = sym.elemwise_add(out2, data + 2)
+    out = sym.elemwise_add(out3, data - 0.5)
     g = nnvm.graph.create(out)
+    input_names = ["data"]
     op_name = "__mul_scalar__"
-    in_node_dict = get_in_nodes(g, op_name, "data")
+    in_node_dict = get_in_nodes(g, op_name, input_names)
     g_dict = json.loads(g.json())
     real_node = get_real_node(in_node_dict, g_dict["nodes"], 4, op_name)
     expected_out = 1
@@ -142,14 +144,14 @@ def test_infer_layout_shape_avx():
                                   expected_in_shape, expected_out_shape)
 
 
-def verify_is_elemlike_op(node, expected_result):
-    out = is_elemlike_op(node)
+def verify_has_multiple_inputs(node_list, node_idx, input_names, expected_result):
+    out = has_multiple_inputs(node_list, node_idx, input_names)
     if out != expected_result:
         raise RuntimeError("Output mismatch: expecting checking %s to be %s but got %s."
-                           % (node["op"], str(expected_result), str(out)))
+                           % (node_list[node_idx]["op"], str(expected_result), str(out)))
 
 
-def test_is_elemlike_op():
+def test_has_multiple_inputs():
     data = sym.Variable("data")
     out1 = data * 3
     out2 = sym.dense(data, units=10)
@@ -157,24 +159,44 @@ def test_is_elemlike_op():
     g = nnvm.graph.create(out)
     g_dict = json.loads(g.json())
     node_list = g_dict["nodes"]
-    verify_is_elemlike_op(node_list[2], False)
-    verify_is_elemlike_op(node_list[4], False)
-    verify_is_elemlike_op(node_list[5], True)
+    input_names = ["data"]
+    verify_has_multiple_inputs(node_list, 2, input_names, False)
+    verify_has_multiple_inputs(node_list, 4, input_names, False)
+    verify_has_multiple_inputs(node_list, 5, input_names, True)
+
+
+def test_expr2graph():
+    net, _ = resnet.get_workload(num_layers=50, batch_size=1)
+    node_dict = {}
+    node_list = []
+    expected_node_list = []
+    def _count_node(node):
+        if not isinstance(node, (relay.op.op.Op, relay.expr.TupleGetItem,
+                                 relay.expr.Function)):
+            expected_node_list.append(node)
+    relay.ir_pass.post_order_visit(net, _count_node)
+
+    expr2graph(net, node_dict, node_list)
+    for expected_node, node in zip(expected_node_list, node_list):
+        if expected_node != node["node"]:
+            raise RuntimeError("Node mismatch: expecting %s but got %s"
+                               % (str(expected_node), str(node)))
 
 
 def test_get_direct_ancestor():
     data = sym.Variable("data")
     out1 = sym.dense(data, units=10)
-    out2 = sym.elemwise_add(out1, data)
+    out2 = sym.elemwise_add(out1, data * 5)
     out3 = out2 + 2.5
     out = sym.dense(out3, units=20)
     g = nnvm.graph.create(out)
     g_dict = json.loads(g.json())
     node_list = g_dict["nodes"]
     visited_dict = {}
-    out = get_direct_ancestor(node_list, visited_dict, "dense", 8, [0])
-    if len(out) != 1 or out[0] != 4:
-        raise RuntimeError("Output mismatch: expecting [4] but got %s." % str(out))
+    input_names = ["data"]
+    out = get_direct_ancestor(node_list, visited_dict, "dense", 5, input_names)
+    if len(out) != 2 or out != [3, 0]:
+        raise RuntimeError("Output mismatch: expecting [3, 0] but got %s." % str(out))
 
 
 def test_get_in_nodes():
@@ -208,7 +230,8 @@ if __name__ == "__main__":
     test_get_real_node()
     test_shape2layout()
     test_infer_layout_shape_avx()
-    test_is_elemlike_op()
+    test_has_multiple_inputs()
+    test_expr2graph()
     test_get_direct_ancestor()
     test_get_in_nodes()
     test_get_out_nodes()

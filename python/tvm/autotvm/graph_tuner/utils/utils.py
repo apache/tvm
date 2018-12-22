@@ -1,37 +1,47 @@
 # pylint: disable=eval-used,invalid-name,too-many-arguments
 """Utility functions"""
-import json
-
-from .._base import ELEMLIKE_NODE_NAMES
 from tvm import relay
 
 
-def is_elemlike_op(node):
-    """Check whether a node is an element-wise like operator.
-
-    Parameters
-    ----------
-    node : dict of str to object
-        Node entry in nnvm Graph json format.
-    """
-    is_elemlike = False
-    for item_name in ELEMLIKE_NODE_NAMES:
-        if item_name in node["op"]:
-            is_elemlike = True
-            break
-    return is_elemlike
-
-
-def is_input_node(node_list, input_names, node_idx):
-    """Whether a node is an input node.
+def has_multiple_inputs(node_list, node_idx, input_names):
+    """Check whether a node has multiple input nodes
+    except variable nodes.
 
     Parameters
     ----------
     node_list : list of dict of str to object
         List of all nodes in a graph.
 
-    input_names : list of string
-        List of input names.
+    node_idx : int
+        Node index to be checked.
+
+    input_names : list of str
+        List of input names of graph.
+
+    Returns
+    -------
+    out : bool
+        Whether the specified node has multiple input nodes
+    """
+    num_inputs = 0
+    node = node_list[node_idx]
+    for in_idx in node["inputs"]:
+        in_idx = in_idx[0]
+        in_node = node_list[in_idx]
+        # Exclude parameter nodes
+        if in_node["op"] != "null" or ("name" in in_node and
+                                       in_node["name"] in input_names):
+            num_inputs += 1
+    return num_inputs > 1
+
+
+def is_input_node(node_list, node_idx):
+    """Whether a node is an input node.
+
+    Parameters
+    ----------
+    node_list : list of dict of str to object
+        List of all nodes in a graph.
 
     node_idx : int
         Node index to be checked.
@@ -41,8 +51,7 @@ def is_input_node(node_list, input_names, node_idx):
     out : bool
         whether node is a input node.
     """
-    return node_list[node_idx]["name"] in input_names \
-            or node_list[node_idx]["op"] == "null"
+    return node_list[node_idx]["op"] == "null"
 
 
 def shape2layout(shape, layout_template):
@@ -78,15 +87,15 @@ def shape2layout(shape, layout_template):
     return layout
 
 
-def get_wkl_map(graph, workload_list, target_op,
+def get_wkl_map(node_list, workload_list, target_op,
                 graph_wkl_list):
     """Get a dictionary maps node index of a graph to workload
     index in a workload list.
 
     Parameters
     ----------
-    graph : nnvm Graph
-        Input graph.
+    node_list : list of dict
+        List of node entries.
 
     workload_list : list of tuple
         Workload list containing all unique workloads in the input graph.
@@ -106,8 +115,6 @@ def get_wkl_map(graph, workload_list, target_op,
     out : dict of int to int
         Dictionary maps node index of a graph to workload index.
     """
-    g_dict = json.loads(graph.json())
-    node_list = g_dict["nodes"]
     workload_map = {}
     for i, wkl in enumerate(workload_list):
         workload_map[wkl] = i
@@ -181,7 +188,7 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
     updated_input_dict = {}
     for input_name in input_shapes.keys():
         updated_input = relay.var(input_name, shape=input_shapes[input_name],
-                                 dtype=input_dtypes[input_name])
+                                  dtype=input_dtypes[input_name])
         updated_input_dict[input_name] = updated_input
 
     rebind_dict = {}
@@ -191,4 +198,3 @@ def bind_inputs(expr, input_shapes=None, input_dtypes="float32"):
     updated_expr = relay.expr.bind(expr, rebind_dict)
 
     return relay.ir_pass.infer_type(updated_expr)
-

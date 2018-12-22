@@ -1,7 +1,7 @@
 # pylint: disable=too-many-locals
 """Built-in functions to infer layout transformation."""
 
-def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
+def infer_layout_shape_avx(wkl, current_sch, target_sch, multi_input_node_shape=None):
     """Infer actual input and output shapes for layout transformation
     given a workload, input schedule and output schedule.
 
@@ -13,14 +13,13 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
         1. Between two convolution nodes. Data shape before and after
            layout transformation can be determined purely by workload
            and schedules.
-        2. Before element-wise like nodes. Element-wise like nodes
-           are defined in _base module. In this case, shape of the
-           element-wise like node is required as well.
+        2. Before multi_input nodes. In this case, shape of the
+           multi_input node is required as well.
 
     Parameters
     ----------
     wkl : tuple
-        Input workload. If this is an element-wise like node, workload
+        Input workload. If this is a multi_input node, workload
         should come from the leftmost input node.
 
     current_sch : ConfigEntity
@@ -29,9 +28,9 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
     target_sch : ConfigEntity
         Schedule after the layout transformation.
 
-    elemlike_shape : tuple of int, optional
+    multi_input_node_shape : tuple of int, optional
         Shape of node data if layout transformation happens before
-        an element-wise like node.
+        an multi_input node.
         Note: this shape should be inferred with original data layout.
 
     Returns
@@ -50,15 +49,15 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
     if layout == "NCHW":
         batch_size, in_channel, height, width, _ = wkl[1]
         out_channel = wkl[2][0]
-        if elemlike_shape:
-            height = elemlike_shape[2]
-            width = elemlike_shape[3]
+        if multi_input_node_shape:
+            height = multi_input_node_shape[2]
+            width = multi_input_node_shape[3]
     elif layout == "NHWC":
         batch_size, height, width, in_channel, _ = wkl[1]
         out_channel = wkl[2][3]
-        if elemlike_shape:
-            height = elemlike_shape[1]
-            width = elemlike_shape[2]
+        if multi_input_node_shape:
+            height = multi_input_node_shape[1]
+            width = multi_input_node_shape[2]
     else:
         raise RuntimeError("Layout %s is not supported yet." % layout)
 
@@ -69,7 +68,7 @@ def infer_layout_shape_avx(wkl, current_sch, target_sch, elemlike_shape=None):
     oc_bn_t = target_sch["tile_oc"].val if hasattr(target_sch["tile_oc"], "val") \
         else target_sch["tile_oc"].size[-1]
     is_valid = True
-    if elemlike_shape:
+    if multi_input_node_shape:
         if out_channel % oc_bn_t != 0:
             is_valid = False
         in_shape = (batch_size, out_channel // oc_bn_c, height, width, oc_bn_c)

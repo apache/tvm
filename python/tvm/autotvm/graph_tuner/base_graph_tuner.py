@@ -2,19 +2,23 @@
 """Base class for graph tuner."""
 import logging
 import json
-
 from abc import abstractmethod
 
-import topi
-import tvm
+import nnvm
+from nnvm.compiler import graph_attr
 
-from tvm import autotvm
+import topi
+
+import tvm
+from tvm import autotvm, relay
 from tvm.autotvm.task import get_config
 from tvm.autotvm.task.nnvm_integration import deserialize_args
 from tvm.autotvm.record import encode, load_from_file
-from nnvm.compiler import graph_attr
+from tvm.relay.expr import Call, Var
+
 from .utils import get_real_node, is_input_node, shape2layout, \
-    get_in_nodes, get_out_nodes, is_elemlike_op, get_wkl_map
+    get_in_nodes, get_out_nodes, has_multiple_inputs, get_wkl_map, \
+    bind_inputs, expr2graph
 
 
 @autotvm.template
@@ -46,7 +50,7 @@ class BaseGraphTuner(object):
         target_op in the input graph and layout transformation benchmark need to be
         executed before initialization.
 
-        graph : nnvm Graph
+        graph : nnvm Graph or tvm.relay.Expr.Function
             Input graph
 
         input_shapes : dict of str to tuple.
@@ -85,12 +89,11 @@ class BaseGraphTuner(object):
             1. Between two convolution nodes. Data shape before and after
                layout transformation can be determined purely by workload
                and schedules.
-            2. Before element-wise like nodes. Element-wise like nodes
-               are defined in _base module. In this case, shape of the
-               element-wise like node is required as well.
+            2. Before multi_input nodes. In this case, shape of the
+               multi_input_node_shape_dict node is required as well.
 
             Arguments for this function should be (wkl, current_sch, target_sch,
-            batch_size, elemlike_shape), and it should return input_shape,
+            batch_size, multi_input_node_shape), and it should return input_shape,
             output_shape and is_valid. Check utils.infer_layout_shape_avx for reference
             implementation.
 
@@ -109,7 +112,6 @@ class BaseGraphTuner(object):
         self._wkl_dict = {}
         self._sch_dict = {}
         self._layout_transform_dict = {}
-        self._elemlike_shape_dict = {}
         self._stage_dict = {}
         self._dep_dict = {}
         self._counted_nodes_set = set()
@@ -149,17 +151,42 @@ class BaseGraphTuner(object):
             self._logger.propagate = False
 
         # Generate workload and schedule dictionaries.
-        graph = graph_attr.set_shape_inputs(graph, input_shapes)
-        graph = graph.apply("InferShape")
+        if isinstance(graph, nnvm.graph.Graph):
+            graph = graph_attr.set_shape_inputs(graph, input_shapes)
+            graph = graph.apply("InferShape")
+            graph = graph_attr.set_dtype_inputs(graph, dtype)
+            graph = graph.apply("InferType")
+            g_dict = json.loads(graph.json())
+            self._node_list = g_dict["nodes"]
+            shape_list = g_dict['attrs']['shape'][1]
+            node_ptr_map = g_dict["node_row_ptr"]
+            for i, node_entry in enumerate(self._node_list):
+                node_entry["oshape"] = shape_list[node_ptr_map[i]]
+        elif isinstance(graph, relay.expr.Function):
+            self._node_list = []
+            node_dict = {}
+            graph = bind_inputs(graph, input_shapes, dtype)
+            expr2graph(graph, node_dict, self._node_list)
+            for node_entry in self._node_list:
+                node = node_entry["node"]
+                if isinstance(node, Var):
+                    node_entry["oshape"] = node.type_annotation.shape
+                elif isinstance(node, Call):
+                    for i, input_idx in enumerate(node_entry["inputs"]):
+                        input_node = self._node_list[input_idx[0]]
+                        input_node["oshape"] = node.type_args[i].shape
+                else:
+                    raise RuntimeError("Not supported relay node type in graph tuning: %s"
+                                       % str(type(node)))
+
         self._graph = graph
         self._in_nodes_dict = get_in_nodes(self._graph, self._target_op, input_shapes.keys())
         self._out_nodes_dict = get_out_nodes(self._in_nodes_dict)
-        g_dict = json.loads(self._graph.json())
-        self._node_list = g_dict["nodes"]
 
         sch_dict = self._records2dict(layout_related_fields)
         workload_list = list(sch_dict.keys())
-        self._node_map = get_wkl_map(graph, workload_list, target_op, graph_workload_list)
+        self._node_map = get_wkl_map(self._node_list, workload_list, target_op,
+                                     graph_workload_list)
 
         for key, _ in self._in_nodes_dict.items():
             node_name = self._node_list[key]["name"]
@@ -182,16 +209,8 @@ class BaseGraphTuner(object):
                     current_sch_list.append(dict(sch_list[j]))
                 self._sch_dict[key] = current_sch_list
 
-        # Record shape of elem-like nodes
-        shape_list = g_dict['attrs']['shape'][1]
-        node_ptr_map = g_dict["node_row_ptr"]
-        for key, _ in self._in_nodes_dict.items():
-            if self._node_list[key]["op"] != target_op:
-                self._elemlike_shape_dict[key] = shape_list[node_ptr_map[key]]
-
         self._global_data_dict = {
             "wkl_dict": self._wkl_dict, "sch_dict": self._sch_dict,
-            "elemlike_shape_dict": self._elemlike_shape_dict,
             "dtype": self._dtype, "data_layout": self._data_layout,
             "counted_nodes_set": self._counted_nodes_set,
             "stage_dict": self._stage_dict, "in_nodes_dict": self._in_nodes_dict,
@@ -323,7 +342,7 @@ class BaseGraphTuner(object):
             for record in records:
                 ltf_wkl = record[0].task.workload
                 self._layout_transform_dict[ltf_wkl] = record
-                input_shape = ltf_wkl[1][:1]
+                input_shape = ltf_wkl[1][1]
                 flops = 1
                 for i in input_shape:
                     flops *= i
@@ -333,23 +352,21 @@ class BaseGraphTuner(object):
         if total_time > 0:
             avg_time = total_time / num_flops
 
-        g_dict = json.loads(self._graph.json())
-        node_list = g_dict["nodes"]
-
         args_list = []
+        input_names = self._input_shapes.keys()
         for key, val in self._in_nodes_dict.items():
-            node = node_list[key]
+            node = self._node_list[key]
             target_input_idx = -1
             target_input_pos = -1
-            if is_elemlike_op(node):
+            if has_multiple_inputs(self._node_list, key, input_names):
                 for i, item in enumerate(val):
-                    if not is_input_node(node_list, self._input_shapes.keys(), item):
+                    if not is_input_node(self._node_list, item):
                         target_input_idx = item
                         target_input_pos = i
                         break
 
             for i, item in enumerate(val):
-                if is_input_node(node_list, self._input_shapes.keys(), item):
+                if is_input_node(self._node_list, item):
                     continue
 
                 c_idx = item
@@ -370,9 +387,9 @@ class BaseGraphTuner(object):
 
                 for sch_c in sch_current:
                     for sch_t in sch_target:
-                        if is_elemlike_op(node):
+                        if has_multiple_inputs(self._node_list, key, input_names):
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
-                                wkl_c, sch_c, sch_t, self._elemlike_shape_dict[key])
+                                wkl_c, sch_c, sch_t, self._node_list[key]["oshape"])
                         else:
                             in_shape, out_shape, is_valid = self._infer_layout_shape_func(
                                 wkl_t, sch_c, sch_t)
@@ -451,8 +468,9 @@ class BaseGraphTuner(object):
             List of schedules with ascending order of node index in graph.
         """
         sch_list = []
+        input_names = self._input_shapes.keys()
         for key, val in self._optimal_sch_dict.items():
-            if not is_elemlike_op(self._node_list[key]):
+            if not has_multiple_inputs(self._node_list, key, input_names):
                 sch_list.append((key, val))
         ordered_sch_list = sorted(sch_list, key=lambda x: x[0])
         ret = []
@@ -489,7 +507,7 @@ class BaseGraphTuner(object):
                                           self.get_optimal_schedules()):
                 record = record_dict[str((workload, schedule))]
                 out_file.write(encode(record[0], record[1]) + "\n")
-        msg = "Writing optimal schedules to % successful." % record_file
+        msg = "Writing optimal schedules to %s successfully." % record_file
         self._logger.info(msg)
 
     @abstractmethod
