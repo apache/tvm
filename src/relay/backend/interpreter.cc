@@ -128,13 +128,16 @@ struct Stack {
 /*! \brief A representation of the interpreter state which can be passed back to Python. */
 class InterpreterState;
 
-/*! \brief Interpreter state container. */
+/*! \brief A container capturing the state of the interpreter. */
 class InterpreterStateNode : public Node {
  public:
   using Frame = tvm::Map<Var, Value>;
   using Stack = tvm::Array<Frame>;
-  /*! \brief the fields of the tuple */
+
+  /*! \brief The current expression under evaluation. */
   Expr current_expr;
+
+  /*! \brief The call stack of the interpreter. */
   Stack stack;
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
@@ -162,8 +165,8 @@ InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
 //
 // It will run duplicated computations when taking program that
 // contains DAG in dataflow-form.
-// Conversion to ANF is recommended before running the interpretation.
 //
+// Conversion to ANF is recommended before running the interpretation.
 class Interpreter :
       public ExprFunctor<Value(const Expr& n)> {
  public:
@@ -243,22 +246,22 @@ class Interpreter :
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
     auto call_node = func->body.as<CallNode>();
-    if (call_node) {
-      auto debug = Op::Get("debug");
-      if (call_node->op == debug) {
-        auto dattrs = call_node->attrs.as<DebugAttrs>();
-        auto is = this->get_state(call_node->args[0]);
-        if (dattrs->debug_func.defined()) {
-          dattrs->debug_func(is);
-        } else {
-          RELAY_DEBUG(is);
-        }
-        auto kont = FunctionNode::make(
-          func->params,
-          call_node->args[0],
-          Type(), {}, Attrs());
-        return this->Eval(kont);
+    if (call_node && call_node->op == Op::Get("debug")) {
+      auto dattrs = call_node->attrs.as<DebugAttrs>();
+      auto interp_state = this->get_state(call_node->args[0]);
+
+      if (dattrs->debug_func.defined()) {
+        dattrs->debug_func(interp_state);
+      } else {
+        RELAY_DEBUG(interp_state);
       }
+
+      auto kont = FunctionNode::make(
+        func->params,
+        call_node->args[0],
+        Type(), {}, Attrs());
+
+      return this->Eval(kont);
     }
 
     // Marshal the arguments.
