@@ -230,20 +230,14 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return rtype;
   }
 
-  // instantiate the function type with fresh
-  FuncType Instantiate(const FuncTypeNode* fn_ty, Array<Type>* ty_args, const Span& span) {
+  // substitute the type args in the function type
+  FuncType Instantiate(const FuncTypeNode* fn_ty, const Array<Type>& ty_args, const Span& span) {
     tvm::Map<TypeVar, Type> subst_map;
 
     // Build a subsitituion map up from the function type and type arguments.
     // Eventually allow the type vars to be passed in.
     for (size_t i = 0; i < fn_ty->type_params.size(); i++) {
-      auto ty_param = fn_ty->type_params[i];
-      IncompleteType fresh = IncompleteTypeNode::make(ty_param->kind);
-      subst_map.Set(ty_param, fresh);
-      if (i < ty_args->size()) {
-        this->Unify(fresh, (*ty_args)[i], span);
-      }
-      ty_args->push_back(fresh);
+      subst_map.Set(fn_ty->type_params[i], ty_args[i]);
     }
 
     Type ret_type = fn_ty->ret_type;
@@ -294,7 +288,16 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
 
     Array<Type> type_args = call->type_args;
-    FuncType fn_ty = Instantiate(fn_ty_node, &type_args, call->span);
+    if (type_args.size() == 0) {
+      for (size_t i = 0; i < fn_ty_node->type_params.size(); i++) {
+	type_args.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+      }
+    }
+    CHECK(type_args.size() == fn_ty_node->type_params.size())
+      << "Incorrect number of type args in " << call->span << ": "
+      << "Expected " << fn_ty_node->type_params.size()
+      << "but got " << type_args.size();
+    FuncType fn_ty = Instantiate(fn_ty_node, type_args, call->span);
 
     AddTypeArgs(GetRef<Call>(call), type_args);
 

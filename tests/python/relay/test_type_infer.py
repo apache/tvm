@@ -123,29 +123,6 @@ def test_incomplete_call():
     assert ft.checked_type == relay.FuncType([tt, f_type], tt)
 
 
-def test_call_with_type_args():
-    a = relay.TypeVar('a')
-    b = relay.TypeVar('b')
-
-    x = relay.Var('x', a)
-    f = relay.Var('f', relay.FuncType([a], b))
-    func = relay.Function([x, f], relay.Call(f, [x]), b, [a, b])
-
-    unit_type = relay.TupleType([])
-    v = relay.Var('v', unit_type)
-    concrete_func = relay.Function(
-        [],
-        relay.Call(
-            func,
-            [relay.Tuple([]),
-             relay.Function([v], relay.Tuple([]))],
-            type_args=[unit_type, unit_type]),
-        unit_type)
-
-    ft = relay.ir_pass.infer_type(concrete_func)
-    assert ft.checked_type == relay.FuncType([], unit_type)
-
-
 def test_tuple():
     tp = relay.TensorType((10,))
     x = relay.var("x", tp)
