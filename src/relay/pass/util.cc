@@ -156,7 +156,7 @@ class VarVisitor : protected ExprVisitor {
     return ret;
   }
 
-  void Bounded(const Var& v) {
+  void MarkBounded(const Var& v) {
     bound_vars_.Insert(v);
     vars_.Insert(v);
   }
@@ -167,13 +167,13 @@ class VarVisitor : protected ExprVisitor {
 
   void VisitExpr_(const FunctionNode* op) final {
     for (const auto& param : op->params) {
-      Bounded(param);
+      MarkBounded(param);
     }
     VisitExpr(op->body);
   }
 
   void VisitExpr_(const LetNode* op) final {
-    Bounded(op->var);
+    MarkBounded(op->var);
     VisitExpr(op->value);
     VisitExpr(op->body);
   }
