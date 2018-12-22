@@ -278,10 +278,10 @@ def transform_loc_ir(loc_pred, anchor, temp_flag, temp_id, temp_score_in, \
         oy = py * vy * ah + ay
         ow = tvm.exp(pw * vw) * aw / 2.0
         oh = tvm.exp(ph * vh) * ah / 2.0
-        return tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox - ow)), ox - ow), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy - oh)), oy - oh), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, ox + ow)), ox + ow), \
-            tvm.select(clip, tvm.make.Max(0, tvm.make.Min(1, oy + oh)), oy + oh)
+        return tvm.select(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox - ow)), ox - ow), \
+            tvm.select(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy - oh)), oy - oh), \
+            tvm.select(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, ox + ow)), ox + ow), \
+            tvm.select(clip, tvm.make.Max(0.0, tvm.make.Min(1.0, oy + oh)), oy + oh)
 
     max_threads = int(
         tvm.target.current_target(allow_none=False).max_num_threads)
