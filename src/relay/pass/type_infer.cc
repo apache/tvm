@@ -100,6 +100,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
 
+  // used to ensure we don't have free type vars hanging around
+  // (a temporary measure until we have proper generalization implemented)
+  Map<TypeVar, Type> instantiation_map_;
+
   // The solver used by the inferencer.
   TypeSolver solver_;
   // relation function
@@ -120,6 +124,35 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
       return Type();
     }
   }
+
+  // this is a temporary measure to ensure all type vars are
+  // converted into fresh incomplete type vars until
+  // generalization is properly implemented
+  Type InstantiateAwayTypeVars(const Type &t) {
+    if (!t.defined()) {
+      return t;
+    }
+    auto* ft = t.as<FuncTypeNode>();
+    if (ft == nullptr) {
+      return Bind(t, instantiation_map_);
+    }
+
+    for (auto type_param : ft->type_params) {
+      if (instantiation_map_.find(type_param) != instantiation_map_.end()) {
+	continue;
+      }
+      instantiation_map_.Set(type_param, IncompleteTypeNode::make(TypeVarNode::Kind::kType));
+    }
+    
+    Type ret_type = ft->ret_type;
+    if (!ret_type.defined()) {
+      ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
+    }
+    
+    auto strip_tvs = FuncTypeNode::make(ft->arg_types, ret_type, {}, ft->type_constraints);
+    return Bind(strip_tvs, instantiation_map_);
+  }
+  
   // Lazily get type for expr
   // will call visit to deduce it if it is not in the type_map_
   Type GetType(const Expr &expr) {
@@ -127,7 +160,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (it != type_map_.end() && it->second.checked_type.defined()) {
       return it->second.checked_type;
     }
-    Type ret = this->VisitExpr(expr);
+    Type ret = InstantiateAwayTypeVars(this->VisitExpr(expr));
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
