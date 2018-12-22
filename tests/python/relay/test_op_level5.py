@@ -127,7 +127,6 @@ def test_multibox_prior():
     y = relay.var("y", relay.TensorType((tvm.var("n"), 3, 56, 56), "float32"))
     verify_multibox_prior(x, dshape, ref_res, sizes, ratios, steps, offsets,
                           check_size=True, check_type_only=True)
-    
 
     dshape = (1, 24, 32, 32)
     ref_res = get_ref_result(dshape, clip=False)
@@ -156,7 +155,6 @@ def test_nms():
         for target, ctx in ctx_list():
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
-            print(op_res1.asnumpy())
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
             intrp2 = relay.create_executor("debug", ctx=ctx, target=target)
             op_res2 = intrp2.evaluate(func)(x0_data, x1_data)
@@ -179,14 +177,14 @@ def test_nms():
                force_suppress=True, nms_topk=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
-                           [1, 0.7, 30, 60, 50, 80], [0, 0.4, 4, 21, 19, 40],
+                           [1, 0.7, 30, 60, 50, 80], [-1, 0.9, 35, 61, 52, 79],
                            [-1, -1, -1, -1, -1, -1]]])
     dshape = (tvm.var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
                check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               nms_topk=5)
+               nms_topk=3)
 
 
 def test_multibox_transform_loc():
