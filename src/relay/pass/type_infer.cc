@@ -379,28 +379,16 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const FunctionNode* f) final {
     solver_.Solve();
-    Array<Type> incomplete_arg_types;
+    Array<Type> arg_types;
     for (auto param : f->params) {
-      incomplete_arg_types.push_back(IncompleteTypeNode::make(TypeVarNode::Kind::kType));
-    }
-    FuncType incompleteFuncType =
-      FuncTypeNode::make(incomplete_arg_types,
-                         IncompleteTypeNode::make(TypeVarNode::Kind::kType),
-                         {}, {});
-
-    Array<Type> candidate_arg_types;
-    for (auto param : f->params) {
-      candidate_arg_types.push_back(GetType(param));
+      arg_types.push_back(GetType(param));
     }
     Type rtype = GetType(f->body);
     if (f->ret_type.defined()) {
       rtype = this->Unify(f->ret_type, rtype, f->span);
     }
-    FuncType candidateFuncType = FuncTypeNode::make(candidate_arg_types,
-                                                    rtype,
-                                                    f->type_params, {});
-
-    return Unify(incompleteFuncType, candidateFuncType, f->span);
+    auto ret = FuncTypeNode::make(arg_types, rtype, f->type_params, {});
+    return solver_.Resolve(ret);
   }
 };
 
