@@ -21,7 +21,6 @@ class Value(NodeBase):
         return TensorValue(const(value, dtype).data)
 
 
-
 @register_relay_node
 class TupleValue(Value):
     """A tuple value produced by the interpreter."""

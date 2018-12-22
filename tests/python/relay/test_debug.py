@@ -13,5 +13,6 @@ def test_debug():
         global _test_debug_hit
         _test_debug_hit = True
     prog = debug(x, debug_func=did_exec)
-    exec.evaluate(prog, { x: const(1) })
+    result = exec.evaluate(prog, { x: const(1) })
     assert _test_debug_hit
+    assert result.asnumpy() == 1

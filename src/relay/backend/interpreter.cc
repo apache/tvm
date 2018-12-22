@@ -246,6 +246,7 @@ class Interpreter :
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
     auto call_node = func->body.as<CallNode>();
+
     if (call_node && call_node->op == Op::Get("debug")) {
       auto dattrs = call_node->attrs.as<DebugAttrs>();
       auto interp_state = this->get_state(call_node->args[0]);
@@ -256,12 +257,7 @@ class Interpreter :
         RELAY_DEBUG(interp_state);
       }
 
-      auto kont = FunctionNode::make(
-        func->params,
-        call_node->args[0],
-        Type(), {}, Attrs());
-
-      return this->Eval(kont);
+      return args[0];
     }
 
     // Marshal the arguments.
