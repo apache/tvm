@@ -116,7 +116,7 @@ def test_unify_vars_under_tuples():
     assert (unified == tup1 or unified == tup2)
 
 
-def test_instantiation_of_typevars():
+def test_binding_over_typevars():
     solver = make_solver()
 
     t1 = relay.ty.IncompleteType()
@@ -124,8 +124,10 @@ def test_instantiation_of_typevars():
 
     a = relay.ty.TypeVar('a')
     b = relay.ty.TypeVar('b')
+    c = relay.ty.TypeVar('c')
+    d = relay.ty.TypeVar('d')
 
-    ft1 = relay.ty.FuncType([t1], t2)
+    ft1 = relay.ty.FuncType([t1], t2, [c, d])
     ft2 = relay.ty.FuncType([a], b, [a, b])
     unified = solver.Unify(ft1, ft2)
     assert (unified == solver.Resolve(ft1))
