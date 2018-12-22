@@ -248,6 +248,13 @@ class FunctionNode : public ExprNode {
    */
   TVM_DLL FuncType func_type_annotation() const;
 
+  /*!
+   * \brief Check whether the function is a primitive function.
+   *
+   * \return Whether the function is primitive or not.
+   */
+  bool IsPrimitive() const;
+
   TVM_DLL static Function make(tvm::Array<Var> params,
                                Expr body,
                                Type ret_type,

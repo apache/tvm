@@ -292,17 +292,10 @@ class Interpreter :
     }
   }
 
-  // Check if function is a primitive function.
-  bool IsPrimitive(const Function& func) const {
-    NodeRef res = FunctionGetAttr(func, "Primitive");
-    const ir::IntImm* pval = res.as<ir::IntImm>();
-    return pval && pval->value != 0;
-  }
-
   // Invoke the closure
   Value Invoke(const Closure& closure, const tvm::Array<Value>& args) {
     // Get a reference to the function inside the closure.
-    if (IsPrimitive(closure->func)) {
+    if (closure->func->IsPrimitive()) {
       return InvokePrimitiveOp(closure->func, args);
     }
     auto func = closure->func;

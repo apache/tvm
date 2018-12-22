@@ -24,7 +24,8 @@ import attr
 from . import _backend
 from . import compile_engine
 from ..op import Op
-from ..expr import Function, GlobalVar, ExprFunctor
+from ..expr import Function, GlobalVar
+from ..expr_functor import ExprFunctor
 from ..ty import TupleType, TensorType
 
 
@@ -250,6 +251,9 @@ class GraphRuntimeCodegen(ExprFunctor):
         op_node = OpNode(self._get_unique_name(op_name), {},
                          op_name, inputs, {})
         return self.add_node(op_node, call)
+
+    def visit_op(self, _):
+        raise Exception("can not compile op in non-eta expanded form")
 
     def _get_json(self):
         """

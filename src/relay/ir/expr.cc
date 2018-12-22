@@ -135,6 +135,12 @@ FuncType FunctionNode::func_type_annotation() const {
   return FuncTypeNode::make(param_types, this->ret_type, this->type_params, {});
 }
 
+bool FunctionNode::IsPrimitive() const {
+  NodeRef res = FunctionGetAttr(GetRef<Function>(this), "Primitive");
+  const ir::IntImm* pval = res.as<ir::IntImm>();
+  return pval && pval->value != 0;
+}
+
 NodeRef FunctionGetAttr(const Function& func, const std::string& key) {
   if (!func->attrs.defined()) { return NodeRef(); }
 
@@ -172,7 +178,7 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 TVM_REGISTER_API("relay._make.Function")
 .set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = FunctionNode::make(args[0], args[1], args[2], args[3]);
+  *ret = FunctionNode::make(args[0], args[1], args[2], args[3], args[4]);
 });
 
 TVM_STATIC_IR_FUNCTOR_REGISTER(IRPrinter, vtable)
