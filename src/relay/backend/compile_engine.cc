@@ -157,14 +157,14 @@ class ScheduleGetter :
 
     int op_pattern = fpattern[op];
     if (op_pattern >= kCommReduce) {
-      CHECK(!master_op_.defined() || master_op_patetrn_ < kCommReduce)
+      CHECK(!master_op_.defined() || master_op_pattern_ < kCommReduce)
           << "Two complicated op in a primitive function "
           << " master=" << master_op_ << " current=" << op;
     }
-    if (op_pattern >= master_op_patetrn_) {
+    if (op_pattern >= master_op_pattern_) {
       master_op_ = op;
       master_attrs_ = call_node->attrs;
-      master_op_patetrn_ = op_pattern;
+      master_op_pattern_ = op_pattern;
     }
     if (outputs.size() != 1) {
       const auto* tuple_type =
@@ -213,7 +213,7 @@ class ScheduleGetter :
   tvm::Target target_;
   Op master_op_;
   Attrs master_attrs_;
-  int master_op_patetrn_{0};
+  int master_op_pattern_{0};
   std::ostringstream readable_name_stream_;
   std::unordered_map<Expr, Array<Tensor>, NodeHash, NodeEqual> memo_;
 };
