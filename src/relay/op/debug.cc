@@ -38,7 +38,7 @@ Expr MakeDebug(Expr expr, std::string name) {
   if (name.size() > 0) {
     dattrs->debug_func = EnvFunc::Get(name);
   } else {
-      dattrs->debug_func = EnvFunc();
+    dattrs->debug_func = EnvFunc();
   }
   static const Op& op = Op::Get("debug");
   return CallNode::make(op, {expr}, Attrs(dattrs), {});
