@@ -252,6 +252,9 @@ class GraphRuntimeCodegen(ExprFunctor):
                          op_name, inputs, {})
         return self.add_node(op_node, call)
 
+    def visit_op(self):
+        raise Exception("can not compile op in non-eta expanded form")
+
     def _get_json(self):
         """
         Convert the sequence of nodes stored by the compiler into the
