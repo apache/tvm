@@ -6,48 +6,51 @@ framework developers who are familiar with the computational graph representatio
 
 We briefly summarize the design goal here, and will touch upon these points in the later part of the article.
 
-- Support traditional data flow style programming and transformations.
-- Support functional style scoping, let-binding and making it fully featured differentiable language.
+- Support traditional data flow-style programming and transformations.
+- Support functional-style scoping, let-binding and making it a fully featured differentiable language.
 - Being able to allow the user to mix the two programming styles.
 
-Build Computational Graph with Relay
-------------------------------------
+Build a Computational Graph with Relay
+--------------------------------------
 Traditional deep learning frameworks use computational graphs as their intermediate representation.
-A computational graph (or data-flow graph), is a directed acyclic graph (DAG) that represents the computation.
+A computational graph (or dataflow graph), is a directed acyclic graph (DAG) that represents the computation.
+Though dataflow graphs are limited in terms of the computations they are capable of expressing due to
+lacking control flow, their simplicity makes it easier to implement automatic differentiation and
+compile for heterogeneous execution environments (e.g., executing parts of the graph on specialized hardware).
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow.png
     :align: center
     :scale: 70%
 
 
-You can use Relay to build a computational(dataflow) graph. Specifically, the above code shows how to
+You can use Relay to build a computational (dataflow) graph. Specifically, the above code shows how to
 construct a simple two-node graph. You can find that the syntax of the example is not that different from existing
 computational graph IR like NNVMv1, with the only difference in terms of terminology:
 
 - Existing frameworks usually use graph and subgraph
 - Relay uses function e.g. --  ``fn (%x)``, to indicate the graph
 
-Each data-flow node is a CallNode in Relay. The relay python DSL allows you to construct a data-flow quickly.
+Each dataflow node is a CallNode in Relay. The Relay Python DSL allows you to construct a dataflow graph quickly.
 One thing we want to highlight in the above code -- is that we explicitly constructed an Add node with
 both input point to ``%1``.  When a deep learning framework evaluates the above program, it will compute
 the nodes in topological order, and ``%1`` will only be computed once.
 While this fact is very natural to deep learning framework builders, it is something that might
-surprise a PL folk in the first place.  If we implement a simple visitor to print out the result and
+surprise a PL researcher in the first place.  If we implement a simple visitor to print out the result and
 treat the result as nested Call expression, it becomes ``log(%x) + log(%x)``.
 
 Such ambiguity is caused by different interpretation of program semantics when there is a shared node in the DAG.
 In a normal functional programming IR, nested expressions are treated as expression trees, without considering the
 fact that the ``%1`` is actually reused twice in ``%2``.
 
-Relay IR choose to be mindful of this difference. Usually, deep learning framework users build the computational
+The Relay IR is mindful of this difference. Usually, deep learning framework users build the computational
 graph in this fashion, where a DAG node reuse often occur. As a result, when we print out the Relay program in
 the text format, we print one CallNode per line and assign a temporary id ``(%1, %2)`` to each CallNode so each common
 node can be referenced in later parts of the program.
 
-Module: Support Multiple Functions(Graphs)
-------------------------------------------
-So far we have introduced how can we build a data flow graph as a function. One might naturally ask -- can we support multiple
-functions and enable them to call each other. Relay allows grouping multiple functions together in a module, the code below
+Module: Support Multiple Functions (Graphs)
+-------------------------------------------
+So far we have introduced how can we build a dataflow graph as a function. One might naturally ask: Can we support multiple
+functions and enable them to call each other? Relay allows grouping multiple functions together in a module; the code below
 shows an example of a function calling another function.
 
 .. code::
@@ -90,7 +93,7 @@ At this point, we have introduced the basic concepts in Relay. Notably, Relay ha
 
 - Succinct text format that eases debugging of writing passes.
 - First-class support for subgraphs-functions, in a joint module, this enables further chance of joint optimizations such as inlining and calling convention specification.
-- Naive front-end language interop, for example, all the data structure can be visited in python, which allows quick prototyping of optimizations in python and mixing them with c++ code.
+- Naive front-end language interop, for example, all the data structure can be visited in Python, which allows quick prototyping of optimizations in Python and mixing them with C++ code.
 
 
 Let Binding and Scopes
@@ -99,11 +102,11 @@ Let Binding and Scopes
 So far, we have introduced how to build a computational graph in the good old way used in deep learning frameworks.
 This section will talk about a new important construct introduced by Relay -- let bindings.
 
-Let binding is used in every high-level programming languages. In Relay, it is a data structure with three
+Let binding is used in every high-level programming language. In Relay, it is a data structure with three
 fields ``Let(var, value, body)``. When we evaluate a let expression, we first evaluate the value part, assign
 it to the var, then return the evaluated result in the body expression.
 
-You can use a sequence of let bindings to construct a logically equivalent program to a data-flow program.
+You can use a sequence of let bindings to construct a logically equivalent program to a dataflow program.
 The code example below shows one program with two forms side by side.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/dataflow_vs_func.png
@@ -111,9 +114,9 @@ The code example below shows one program with two forms side by side.
     :scale: 70%
 
 
-The nested let-binding is called A-normal form, and it is commonly used as IRs in functional programming languages.
+The nested let binding is called A-normal form, and it is commonly used as IRs in functional programming languages.
 Now, please take a close look at the AST structure. While the two programs are semantically identical
-(so are their textual representations, except that A-normal form has let prefix), their AST structures are different from each other.
+(so are their textual representations, except that A-normal form has let prefix), their AST structures are different.
 
 Since program optimizations take these AST data structures and transform them, the two different structure will
 affect the compiler code we are going to write. For example, if we want to detect a pattern ``add(log(x), y)``:
@@ -122,10 +125,9 @@ affect the compiler code we are going to write. For example, if we want to detec
 - In the A-normal form, we cannot directly do the check anymore, because the first input to add is ``%v1`` -- we will need to keep a map from variable to its bound values and lookup that map, in order to know that ``%v1`` is a log.
 
 Different data structures will impact how you might write transformations, and we need to keep that in mind.
-So now, as a deep learning framework developer, you might ask, why do we need let-binding.
+So now, as a deep learning framework developer, you might ask, Why do we need let bindings?
 Your PL friends will always tell you that let is important -- as PL is a quite established field,
 there must be some wisdom behind that.
-
 
 Why We Might Need Let Binding
 -----------------------------
@@ -164,7 +166,7 @@ to the later passes to decide where to put the evaluation point. As a result, it
 form of the program in the initial phases of optimizations when you find it is convenient.
 Many optimizations in Relay today are written to optimize dataflow programs.
 
-However, when we lower the IR to actual runtime program, we need to be precise about the scope of computation.
+However, when we lower the IR to an actual runtime program, we need to be precise about the scope of computation.
 In particular, we want to explicitly specify where the scope of computation should happen when we are using
 sub-functions and closures. Let-binding can be used to solve this problem in later stage execution specific optimizations.
 
@@ -176,13 +178,13 @@ Hopefully, by now you are familiar with the two kinds of representations.
 Most functional programming languages do their analysis in A-normal form,
 where the analyzer does not need to be mindful that the expressions are DAGs.
 
-Relay choose to support both the data-flow form and let binding. We believe that it is important to let the
+Relay choose to support both the dataflow form and let bindings. We believe that it is important to let the
 framework developer choose the representation they are familiar with.
 This does, however, have some implications on how we write passes:
 
-- If you come from a data-flow background and want to handle let, keep a map of var to the expressions so you can perform lookup when encountering a var. This likely means a minimum change as we already need a map from expr -> transformed expression anyway. Note that this will effectively remove all the let in the program.
-- If you come from a PL background and like A-normal form, we will provide a dataflow -> A-normal form pass.
-- For PL folks, when you are implementing something (like dataflow->ANF transformation), be mindful that the expression can be DAG, and this usually means that we should visit expressions with a ``Map<Expr, Result>`` and only compute the transformed result once, so the result expression keeps the common structure.
+- If you come from a dataflow background and want to handle lets, keep a map of var to the expressions so you can perform lookup when encountering a var. This likely means a minimum change as we already need a map from expressions to transformed expressions anyway. Note that this will effectively remove all the lets in the program.
+- If you come from a PL background and like A-normal form, we will provide a dataflow to A-normal form pass.
+- For PL folks, when you are implementing something (like a dataflow-to-ANF transformation), be mindful that expressions can be DAGs, and this usually means that we should visit expressions with a ``Map<Expr, Result>`` and only compute the transformed result once, so the resulting expression keeps the common structure.
 
 There are additional advanced concepts such as symbolic shape inference, polymorphic functions
-that are not covered by this material, you are more than welcomed to look at other materials.
+that are not covered by this material; you are more than welcome to look at other materials.
