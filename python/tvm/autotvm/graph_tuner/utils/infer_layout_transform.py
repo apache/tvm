@@ -1,9 +1,9 @@
 # pylint: disable=too-many-locals
 """Built-in functions to infer layout transformation."""
 
-def infer_layout_shape_avx(wkl, current_sch, target_sch, multi_input_node_shape=None):
+def infer_conv2d_layout_shape_avx(wkl, current_sch, target_sch, multi_input_node_shape=None):
     """Infer actual input and output shapes for layout transformation
-    given a workload, input schedule and output schedule.
+    given a conv2d workload, input schedule and output schedule.
 
     This function is for Intel AVX schedule template. Re-implement it
     for different workload and schedule templates.
