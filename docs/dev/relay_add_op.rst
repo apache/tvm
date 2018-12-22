@@ -7,10 +7,8 @@ that they will be integrated into Relay's type system.
 
 Registering an operator requires three steps:
 
-- Using the ``RELAY_REGISTER_OP`` macro in C++ to
-register the operator's arity and type information
-- Defining a C++ function to produce a call node for the
-operator and registering a Python API hook for the function
+- Using the ``RELAY_REGISTER_OP`` macro in C++ to register the operator's arity and type information
+- Defining a C++ function to produce a call node for the operator and registering a Python API hook for the function
 - Wrapping the above Python API hook in a neater interface
 
 The file ``src/relay/op/tensor/binary.cc`` provides
@@ -144,8 +142,6 @@ before producing the call node:
 Summary
 -------
 
-- A TVM operator can be registered in Relay using a relation to express
-the appropriate type information.
-- Using an operator in Relay requires a function to produce a
-call node for the operator.
+- A TVM operator can be registered in Relay using a relation to express the appropriate type information.
+- Using an operator in Relay requires a function to produce a call node for the operator.
 - It is best to have a simple Python wrapper for producing the call node.
