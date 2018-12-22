@@ -188,6 +188,10 @@ See :py:class:`~tvm.relay.op.Op` for the definition and documentation
 of operator nodes, demonstrating the infrastructure for registering
 operator metadata. The other files in :py:class:`~tvm.relay.op` give
 handles for generating a call to various pre-registered operators.
+The `tutorial on adding operators to Relay`__ shows how to add further
+operators into the language.
+
+__ `Adding an Operator to Relay`_
 
 Dataflow Fragment
 =================
@@ -336,16 +340,19 @@ Graph Bindings
 A :code:`let` binding creates a named variable that is bound to the given value
 and scoped to the subsequent expression. By contrast, a graph binding allows for
 explicitly constructing dataflow graphs in a Relay program by binding an expression
-(graph node) directly to a temporary variable, which is not scoped. This has the
+(graph node) directly to a temporary variable, which is not scoped. Each reference
+to the variable corresponds to an edge in the dataflow graph. This has the
 semantics of substituting the expression wherever the variable appears, even though
 the graph node will only be evaluated once by the compiled program.
 
 These bindings allow for a style of programming that corresponds to that already
 employed by NNVM and other dataflow graph-based input formats. The fact that the variables
 are not scoped offers some flexibility in evaluation order compared to :code:`let`
-bindings, though this can also introduce some ambiguity in programs (`this developer
-page<https://docs.tvm.ai/dev/relay_intro.html>`__ includes more detailed discussion of
-this nuance).
+bindings, though this can also introduce some ambiguity in programs (the
+`developer introduction to the Relay IR`__ includes more detailed discussion
+of this nuance).
+
+__ `Introduction to Relay IR`_
 
 In Relay's text format, a graph binding can be written as below (note the lack of a
 :code:`let` keyword and a semicolon):
