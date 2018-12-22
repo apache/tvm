@@ -139,7 +139,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
     const auto* ftn = tn.as<FuncTypeNode>();
     if (!ftn
         || op->arg_types.size() != ftn->arg_types.size()
-	|| op->type_params.size() != ftn->type_params.size()
+        || op->type_params.size() != ftn->type_params.size()
         || op->type_constraints.size() != ftn->type_constraints.size()) {
       return Type(nullptr);
     }

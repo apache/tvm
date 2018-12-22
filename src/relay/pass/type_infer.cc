@@ -138,21 +138,18 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
 
     for (auto type_param : ft->type_params) {
-      if (instantiation_map_.find(type_param) != instantiation_map_.end()) {
-	continue;
-      }
       instantiation_map_.Set(type_param, IncompleteTypeNode::make(TypeVarNode::Kind::kType));
     }
-    
+
     Type ret_type = ft->ret_type;
     if (!ret_type.defined()) {
       ret_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
     }
-    
+
     auto strip_tvs = FuncTypeNode::make(ft->arg_types, ret_type, {}, ft->type_constraints);
     return Bind(strip_tvs, instantiation_map_);
   }
-  
+
   // Lazily get type for expr
   // will call visit to deduce it if it is not in the type_map_
   Type GetType(const Expr &expr) {
