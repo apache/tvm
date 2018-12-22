@@ -182,8 +182,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
 
   Type VisitExpr_(const LetNode* op) final {
     // if the definition is a function literal, permit recursion
-    bool isFunctionLiteral = op->value.as<FunctionNode>() != nullptr;
-    if (isFunctionLiteral) {
+    bool is_functional_literal = op->value.as<FunctionNode>() != nullptr;
+    if (is_functional_literal) {
       type_map_[op->var].checked_type = IncompleteTypeNode::make(TypeVarNode::Kind::kType);
     }
 
@@ -191,7 +191,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (op->var->type_annotation.defined()) {
       vtype = Unify(vtype, op->var->type_annotation, op->span);
     }
-    CHECK(isFunctionLiteral || !type_map_.count(op->var));
+    CHECK(is_functional_literal || !type_map_.count(op->var));
     // NOTE: no scoping is necessary because var are unique in program
     type_map_[op->var].checked_type = vtype;
     return GetType(op->body);
