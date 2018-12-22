@@ -145,9 +145,7 @@ class TypeSolver::Unifier :
 
     auto* new_ft = transformed.as<FuncTypeNode>();
     // drop the type param list altogether
-    return FuncTypeNode::make(new_ft->arg_types,
-                              new_ft->ret_type, {},
-                              new_ft->type_constraints);
+    return GetRef<FuncType>(new_ft);
   }
 
   // default: unify only if alpha-equal
