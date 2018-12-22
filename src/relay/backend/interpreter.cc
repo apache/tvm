@@ -449,7 +449,7 @@ class Interpreter :
       InterpreterStateNode::Frame frame = fr.locals;
       stack.push_back(frame);
     }
-    auto state = InterpreterStateNode::make(Expr(), stack);
+    auto state = InterpreterStateNode::make(e, stack);
     return state;
   }
 
