@@ -38,12 +38,12 @@ While this fact is very natural to deep learning framework builders, it is somet
 surprise a PL researcher in the first place.  If we implement a simple visitor to print out the result and
 treat the result as nested Call expression, it becomes ``log(%x) + log(%x)``.
 
-Such ambiguity is caused by different interpretation of program semantics when there is a shared node in the DAG.
+Such ambiguity is caused by different interpretations of program semantics when there is a shared node in the DAG.
 In a normal functional programming IR, nested expressions are treated as expression trees, without considering the
 fact that the ``%1`` is actually reused twice in ``%2``.
 
 The Relay IR is mindful of this difference. Usually, deep learning framework users build the computational
-graph in this fashion, where a DAG node reuse often occur. As a result, when we print out the Relay program in
+graph in this fashion, where a DAG node reuse often occurs. As a result, when we print out the Relay program in
 the text format, we print one CallNode per line and assign a temporary id ``(%1, %2)`` to each CallNode so each common
 node can be referenced in later parts of the program.
 
@@ -118,11 +118,11 @@ The nested let binding is called A-normal form, and it is commonly used as IRs i
 Now, please take a close look at the AST structure. While the two programs are semantically identical
 (so are their textual representations, except that A-normal form has let prefix), their AST structures are different.
 
-Since program optimizations take these AST data structures and transform them, the two different structure will
+Since program optimizations take these AST data structures and transform them, the two different structures will
 affect the compiler code we are going to write. For example, if we want to detect a pattern ``add(log(x), y)``:
 
 - In the data-flow form, we can first access the add node, then directly look at its first argument to see if it is a log
-- In the A-normal form, we cannot directly do the check anymore, because the first input to add is ``%v1`` -- we will need to keep a map from variable to its bound values and lookup that map, in order to know that ``%v1`` is a log.
+- In the A-normal form, we cannot directly do the check anymore, because the first input to add is ``%v1`` -- we will need to keep a map from variable to its bound values and look up that map, in order to know that ``%v1`` is a log.
 
 Different data structures will impact how you might write transformations, and we need to keep that in mind.
 So now, as a deep learning framework developer, you might ask, Why do we need let bindings?
@@ -131,8 +131,8 @@ there must be some wisdom behind that.
 
 Why We Might Need Let Binding
 -----------------------------
-One key usage of let binding is that it specifies the scope of computation. Let us take look at the following example,
-which does not use let binding.
+One key usage of let binding is that it specifies the scope of computation. Let us take a look at the following example,
+which does not use let bindings.
 
 .. image:: https://raw.githubusercontent.com/tvmai/tvmai.github.io/master/images/relay/let_scope.png
     :align: center
@@ -143,7 +143,7 @@ to suggest that we should evaluate node ``%1`` outside the if scope, the AST(as 
 Actually, a dataflow graph never defines its scope of the evaluation. This introduces some ambiguity in the semantics.
 
 This ambiguity becomes more interesting when we have closures. Consider the following program, which returns a closure.
-We don’t know where should we compute ``%1``. It can either be outside the closure, or inside the closure.
+We don’t know where should we compute ``%1``; it can be either inside or outside the closure.
 
 .. code::
 
@@ -155,13 +155,13 @@ We don’t know where should we compute ``%1``. It can either be outside the clo
     %2
   }
 
-Let binding solves this problem, as the computation of the value happens at the let node. In both programs,
+A let binding solves this problem, as the computation of the value happens at the let node. In both programs,
 if we change ``%1 = log(%x)`` to ``let %v1 = log(%x)``, we clearly specify the computation location to
 be outside of the if scope and closure. As you can see let-binding gives a more precise specification of the computation site
-and could be useful when we generate backend code(as such specification is in the IR).
+and could be useful when we generate backend code (as such specification is in the IR).
 
-On the other hand, the data-flow form, which does not specify the scope of computation, does have its own advantages
--- we don’t need to worry about where to put the let when we generate the code. The dataflow form also gives more freedom
+On the other hand, the dataflow form, which does not specify the scope of computation, does have its own advantages
+-- namely, we don’t need to worry about where to put the let when we generate the code. The dataflow form also gives more freedom
 to the later passes to decide where to put the evaluation point. As a result, it might not be a bad idea to use data flow
 form of the program in the initial phases of optimizations when you find it is convenient.
 Many optimizations in Relay today are written to optimize dataflow programs.
