@@ -4,10 +4,9 @@ Expressions in Relay
 
 The Relay IR is a pure, expression-oriented language with distinct
 dataflow and control flow language fragments.
-The dataflow fragments of a program (i.e., those without
-calls to recursive functions or branching) can be
-viewed as a traditional computation graph when writing and
-expressing transformations.
+Each dataflow fragment of a program (i.e., the portions of the
+program without recursive calls or branching) can be viewed as a
+traditional computation graph when writing and expressing transformations.
 
 The below sections describe the different expressions in Relay
 as well as give details of their semantics.
