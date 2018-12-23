@@ -463,6 +463,7 @@ def test_forward_stridedslice():
     _test_stridedslice((3, 4, 5, 4, 5, 6), [1, 2, 0, -3], [4, 5, 3, 3], [2, 2, 1, 1],
                        'float32', shrink_axis_mask=8, new_axis_mask=1, ellipsis_mask=2, begin_mask=5,
                        end_mask=8)
+    _test_stridedslice((1), [0], [1], [1], 'float32', shrink_axis_mask=1)
 
 
 #######################################################################
