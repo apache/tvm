@@ -15,24 +15,19 @@ as well as give details of their semantics.
 Variables
 =========
 
-Relay allows for local and global variables. Our design is based on
-that of LLVM, which differentiates between identifier types; a writer of
-optimizations can thus determine what a variable references
-simply by knowing the kind of identifier.
+Inspired by LLVM, Relay explicitly distinguishes between local and
+global variables both in the AST and in the text format. In the text format,
+global and local variables are distinguished by prefixes, or sigils.
+Global variables are prefixed with :code:`@` and local variables with :code:`%`.
 
-Global variables are written with `@`, local variables are written
-with `%`, and variables written without a sigil correspond to operator
-names.
-
-The distinction between global and local identifiers
-makes certain kinds of transformation easier. For example,
-inlining a global definition requires no analysis: simply inlining
-the definition suffices.
+This explicit distinction makes certain optimizations easier to implement.
+For example, inlining a global definition requires no analysis: simply
+substituting the definition suffices.
 
 Global Variable
 ~~~~~~~~~~~~~~~~~~
 
-Global identifiers are prefixed by the `@` sigil, such as "`@global`".
+Global identifiers are prefixed by the :code:`@` sigil, such as ":code:`@global`".
 A global identifier always references a globally visible definition contained in the environment.
 Global identifiers must be unique.
 
@@ -40,22 +35,27 @@ See :py:class:`~tvm.relay.expr.GlobalVar` for its implementation
 and documentation.
 
 Local Variable
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Local identifiers are prefixed by the :code:`%` sigil,
 such as ":code:`%local`". A local identifier always references
-a function argument or a variable bound in a :code:`let` expression.
-A local variable will be scoped to the function where it
-appears or the :code:`let` expression where it is bound, respectively.
+a function argument or a variable bound in a :code:`let` expression,
+and will be scoped to the function where it appears or the :code:`let`
+expression where it is bound, respectively.
 
-Suppose the local variable :code:`%a` has been defined in a scope
-and within that scope, a :code:`let` expression binding to a variable
-:code:`%a` appears. This is permitted, as in most functional languages.
-In the scope of the :code:`let` expression (the inner scope),
-the name :code:`%a` is "shadowed," meaning all references to
-:code:`%a` in the inner scope refer to the later defintion, while
+In the below code segment, notice that :code:`%a` is defined twice. This is
+permitted, as in most functional languages; in the scope of the second
+:code:`let` expression, the name :code:`%a` is "shadowed," meaning all
+references to :code:`%a` in the inner scope refer to the later defintion, while
 references to :code:`%a` in the outer scope continue to refer to
-the previous one.
+the first one.
+
+.. code-block:: python
+  def @f(%a) {
+    let %b = %a;
+    let %a = add(%a, %a);
+    multiply(%a, %b)
+  }
 
 (Note that in Relay's implementation, each definition of a local variable
 creates a new :py:class:`~tvm.relay.expr.Var`, so a shadowed local variable,
@@ -76,11 +76,11 @@ Relay will attempt to infer the most general types where types
 are omitted.
 
 Functions in Relay act similarly to procedures or functions in
-other programming language and serve to generalize the concept
+other programming languages and serve to generalize the concept
 of a named subgraph.
 
-Functions defined in the manner described in this subsection are
-of global scope; anonymous functions will be discussed later, though
+Functions defined in the manner described in this subsection have
+global scope; anonymous functions will be discussed later, though
 their mechanics are nearly identical. Note that global functions may be
 recursive; that is, within the function's body, the function's
 identifier refers back to the function unless it is shadowed in a :code:`let`
@@ -120,12 +120,27 @@ annotated with a type. Parameters are written as :code:`%x : T`.
 
 When the type information is omitted, we will attempt to infer the most general type
 for the users. This property is known as generalization: for a definition without
-explicit annotations, we will attempt to assign the most general type. When the
-return type is omitted, we will infer the return type based on the function body.
+explicit annotations, we will attempt to assign the most general type to the
+parameters and return type based on the function body and call sites.
 
-We can directly construct type-polymorphic definitions by writing down
-a set of type parameters for a definition. For example, one can define a
-polymorphic identity function for tensors as follows:
+.. *Note: type parameter syntax is not yet supported in the text format.*
+
+A function may also be given a set of type parameters, which can be
+substituted for specific types at call sites. Functions with
+type parameters are *type polymorphic*; their return type or the types
+of arguments they will accept can vary based on the type arguments
+given at call sites.
+
+For example, one can define a polymorphic identity function for
+any Relay type as follows:
+
+.. code-block:: python
+    def @id<t: Type>(%x : t) -> t {
+        %x
+    }
+
+The below definition is also polymorphic, but restricts its
+arguments to tensor types:
 
 .. code-block:: python
     def @id<s: Shape, bt: BaseType>(%x: Tensor[s, bt]) {
@@ -133,6 +148,8 @@ polymorphic identity function for tensors as follows:
     }
 
 Notice that the return type is omitted and will be inferred.
+
+.. *Note: :code:`where` syntax is not yet supported in the text format.*
 
 A function may also be subject to one or more type relations, such as in
 the following:
