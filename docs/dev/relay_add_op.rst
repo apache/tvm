@@ -46,9 +46,7 @@ to specify the following information about an operator in Relay:
 
 - Arity (number of arguments)
 - Names and descriptions for positional arguments
-- Support level (1 indicating an internal intrinsic, higher numbers
-indicating operators that are not as integral to the framework or are
-supported externally)
+- Support level (1 indicates an internal intrinsic; higher numbers indicate less integral or externally supported operators)
 - A type relation for the operator
 
 The below example is from ``binary.cc`` and uses a broadcasting
