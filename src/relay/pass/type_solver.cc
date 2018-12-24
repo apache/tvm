@@ -103,7 +103,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
   // there is a recursive equality constraint, which should be rejected.
   // N.b.: A tautology like ?a = ?a is okay and should be checked for
   // *before* calling this method
-  bool CheckOccurs(TypeNode *lhs, const Type &t) {
+  bool CheckOccurs(TypeNode* lhs, const Type& t) {
     OccursChecker rc(solver_, lhs);
     return rc.Check(t);
   }
