@@ -1,6 +1,6 @@
 """Utility for ROCm backend"""
 import subprocess
-from os.path import join
+from os.path import join, exists
 from . import util
 from .._ffi.base import py_str
 from ..api import register_func, convert
@@ -79,4 +79,5 @@ def callback_rocm_bitcode_path(rocdl_dir="/opt/rocm/lib/"):
         "oclc_unsafe_math_off.amdgcn.bc",
         "oclc_unsafe_math_on.amdgcn.bc"
     ]
-    return convert([join(rocdl_dir, bitcode) for bitcode in bitcode_files])
+    paths = [join(rocdl_dir, bitcode) for bitcode in bitcode_files]
+    return convert([path for path in paths if exists(path)])
