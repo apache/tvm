@@ -60,16 +60,16 @@ struct MultiBoxTransformLocAttrs
 
 /*! \brief Attributes used in non_maximum_suppression operators */
 struct NMSAttrs : public tvm::AttrsNode<NMSAttrs>{
-  double nms_threshold;
+  double overlap_threshold;
   bool force_suppress;
-  int nms_topk;
+  int topk;
 
   TVM_DECLARE_ATTRS(NMSAttrs, "relay.attrs.NMSAttrs") {
-      TVM_ATTR_FIELD(nms_threshold).set_default(0.5)
+      TVM_ATTR_FIELD(overlap_threshold).set_default(0.5)
         .describe("Non-maximum suppression threshold.");
       TVM_ATTR_FIELD(force_suppress).set_default(false)
         .describe("Suppress all detections regardless of class_id.");
-      TVM_ATTR_FIELD(nms_topk).set_default(-1)
+      TVM_ATTR_FIELD(topk).set_default(-1)
         .describe("Keep maximum top k detections before nms, -1 for no limit.");
   }
 };

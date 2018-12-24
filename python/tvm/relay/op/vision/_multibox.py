@@ -65,12 +65,12 @@ def schedule_nms(_, outs, target):
 @reg.register_compute("vision.nms")
 def compute_nms(attrs, inputs, _, target):
     """Compute definition of nms"""
-    nms_threshold = get_const_float(attrs.nms_threshold)
+    overlap_threshold = get_const_float(attrs.overlap_threshold)
     force_suppress = bool(get_const_int(attrs.force_suppress))
-    nms_topk = get_const_int(attrs.nms_topk)
+    topk = get_const_int(attrs.topk)
     return [
-        topi.vision.nms(inputs[0], inputs[1], nms_threshold, force_suppress,
-                        nms_topk)
+        topi.vision.nms(inputs[0], inputs[1], overlap_threshold,
+                        force_suppress, topk)
     ]
 
 

@@ -138,12 +138,12 @@ def test_multibox_prior():
 
 def test_nms():
     def verify_nms(x0_data, x1_data, dshape, ref_res, valid_count,
-                   nms_threshold=0.5, force_suppress=False, nms_topk=-1,
+                   overlap_threshold=0.5, force_suppress=False, topk=-1,
                    check_type_only=False):
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
-        z = relay.vision.nms(x0, x1, nms_threshold, force_suppress, nms_topk)
-        assert "nms_threshold" in z.astext()
+        z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, topk)
+        assert "overlap_threshold" in z.astext()
         zz = relay.ir_pass.infer_type(z)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
 
@@ -171,10 +171,10 @@ def test_nms():
 
     dshape = (tvm.var("n"), num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               force_suppress=True, nms_topk=2, check_type_only=True)
+               force_suppress=True, topk=2, check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               force_suppress=True, nms_topk=2, check_type_only=False)
+               force_suppress=True, topk=2, check_type_only=False)
 
     np_result = np.array([[[2, 0.9, 35, 61, 52, 79], [0, 0.8, 1, 20, 25, 45],
                            [1, 0.7, 30, 60, 50, 80], [-1, 0.9, 35, 61, 52, 79],
@@ -184,7 +184,7 @@ def test_nms():
                check_type_only=True)
     dshape = (1, num_anchors, 6)
     verify_nms(np_data, np_valid_count, dshape, np_result, dshape[0],
-               nms_topk=3)
+               topk=3)
 
 
 def test_multibox_transform_loc():

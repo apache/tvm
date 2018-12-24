@@ -259,9 +259,9 @@ def _mx_multibox_detection(inputs, attrs):
                                                                   0.2, 0.2))
 
     new_attrs1 = {}
-    new_attrs1["nms_threshold"] = attrs.get_float("nms_threshold", 0.5)
+    new_attrs1["overlap_threshold"] = attrs.get_float("nms_threshold", 0.5)
     new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
-    new_attrs1["nms_topk"] = attrs.get_int("nms_topk", -1)
+    new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
 
     ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
                                             inputs[2], **new_attrs0)
