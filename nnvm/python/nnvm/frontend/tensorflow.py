@@ -646,6 +646,9 @@ def _stridedSlice():
                 pass
             else:
                 final_output.append(out_shape[gather_index])
+        # Prevent 0-dim tensors which are not accepted by nnvm
+        if not final_output:
+            final_output.append(1)
         return _sym.reshape(out, shape=tuple(final_output))
     return _impl
 
@@ -1187,8 +1190,8 @@ class GraphProto(object):
                 raise NotImplementedError( \
                     "Please freeze the graph with add_shapes=True")
             self._outputs_are_0d[node.name] = [ \
-                not shape if isinstance(shape, list) else False \
-                for shape in self._output_shapes[node.name]]
+                not tshape if isinstance(tshape, list) else False \
+                for tshape in self._output_shapes[node.name]]
 
             if node.op == "Placeholder":
                 self._nodes[node.name] = _sym.Variable(name=node.name,
