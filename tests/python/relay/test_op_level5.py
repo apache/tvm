@@ -152,7 +152,8 @@ def test_nms():
 
         func = relay.Function([x0, x1], z)
         func = relay.ir_pass.infer_type(func)
-        for target, ctx in ctx_list():
+        ctx_list = [("llvm", tvm.cpu(0))]
+        for target, ctx in ctx_list:
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(x0_data, x1_data)
             tvm.testing.assert_allclose(op_res1.asnumpy(), ref_res, rtol=1e-5)
@@ -229,7 +230,8 @@ def test_multibox_transform_loc():
         nms = relay.vision.nms(mtl[0], mtl[1])
         func = relay.Function([cls_prob, loc_pred, anchors], nms)
         func = relay.ir_pass.infer_type(func)
-        for target, ctx in ctx_list():
+        ctx_list = [("llvm", tvm.cpu(0))]
+        for target, ctx in ctx_list:
             intrp1 = relay.create_executor("graph", ctx=ctx, target=target)
             op_res1 = intrp1.evaluate(func)(np_cls_prob, np_loc_preds,
                                             np_anchors)
