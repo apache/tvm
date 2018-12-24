@@ -125,10 +125,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     }
   }
 
-  // this is a temporary measure to ensure all type vars are
-  // converted into fresh incomplete type vars until
-  // generalization is properly implemented
-  Type InstantiateAwayTypeVars(const Type &t) {
+  // Substitutes every type var in t with a corresponding incomplete type.
+  // This is a temporary measure to ensure type vars behave until
+  // generalization is properly implemented.
+  Type Instantiate(const Type &t) {
     if (!t.defined()) {
       return t;
     }
@@ -157,7 +157,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     if (it != type_map_.end() && it->second.checked_type.defined()) {
       return it->second.checked_type;
     }
-    Type ret = InstantiateAwayTypeVars(this->VisitExpr(expr));
+    Type ret = Instantiate(this->VisitExpr(expr));
     ResolvedTypeInfo& rti = type_map_[expr];
     rti.checked_type = ret;
     return ret;
@@ -261,7 +261,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   }
 
   // substitute the type args in the function type
-  FuncType Instantiate(const FuncTypeNode* fn_ty, const Array<Type>& ty_args, const Span& span) {
+  FuncType InstantiateFuncType(const FuncTypeNode* fn_ty, const Array<Type>& ty_args) {
     tvm::Map<TypeVar, Type> subst_map;
 
     // Build a subsitituion map up from the function type and type arguments.
@@ -327,7 +327,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
       << "Incorrect number of type args in " << call->span << ": "
       << "Expected " << fn_ty_node->type_params.size()
       << "but got " << type_args.size();
-    FuncType fn_ty = Instantiate(fn_ty_node, type_args, call->span);
+    FuncType fn_ty = InstantiateFuncType(fn_ty_node, type_args);
 
     AddTypeArgs(GetRef<Call>(call), type_args);
 
