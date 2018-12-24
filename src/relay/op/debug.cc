@@ -30,7 +30,7 @@ RELAY_REGISTER_OP("debug")
 .add_argument("program", "Tuple", "The program to execute before debugging.")
 .set_support_level(1)
 .add_type_rel("Debug", IdentityRel)
-.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<TOpPattern>("TOpPattern", kOpaque)
 .set_attr<FTVMCompute>("FTVMCompute", DebugCompute);
 
 Expr MakeDebug(Expr expr, std::string name) {
