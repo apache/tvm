@@ -30,6 +30,20 @@ inline bool contains(Array<T> array, T item) {
   return false;
 }
 
+/*!
+ * \brief Returns a positive axis index. Panics if index is out of bounds.
+ *
+ * \param ndim The number of array dimensions.
+ * \param axis The axis; can be negative.
+ *
+ * \return a number in [0, ndim) which identifies the axis.
+ */
+inline size_t getRealAxis(int ndim, int axis) {
+  int realAxis = axis >= 0 ? axis : axis + ndim;
+  CHECK(realAxis >= 0) << "Axis " << axis << " out of bounds for " << ndim << "D array.";
+  return realAxis;
+}
+
 }  // namespace detail
 }  // namespace topi
 #endif  // TOPI_DETAIL_ARRAY_UTILS_H_

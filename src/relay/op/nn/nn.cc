@@ -430,6 +430,33 @@ RELAY_REGISTER_OP("nn.relu")
 });
 
 
+// glu
+TVM_REGISTER_API("relay.op.nn._make.glu")
+.set_body_typed<Expr(Expr)>([](Expr data) {
+    static const Op& op = Op::Get("nn.glu");
+    return CallNode::make(op, {data}, Attrs(), {});
+  });
+
+RELAY_REGISTER_OP("nn.glu")
+.describe(R"code(Returns the gated linear unit function of the input array.
+
+.. math::
+   x \times \sigma(x)
+
+)code" TVM_ADD_FILELINE)
+.set_num_inputs(1)
+.add_argument("data", "Tensor", "The input tensor.")
+.set_support_level(1)
+.add_type_rel("Identity", IdentityRel)
+.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
+                                         const Array<Tensor>& inputs,
+                                         const Type& out_type,
+                                         const Target& target) {
+  return Array<Tensor>{ topi::glu(inputs[0]) };
+});
+
+
 // Positional relay function to create LRN operator used by frontend FFI.
 TVM_REGISTER_NODE_TYPE(LRNAttrs);
 

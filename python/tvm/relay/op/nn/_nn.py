@@ -11,6 +11,10 @@ from ..op import OpPattern, schedule_injective
 reg.register_schedule("nn.relu", schedule_injective)
 reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
+# glu
+reg.register_schedule("nn.glu", schedule_injective)
+reg.register_pattern("nn.glu", OpPattern.ELEMWISE)
+
 # softmax
 @reg.register_schedule("nn.softmax")
 def schedule_softmax(_, outputs, target):

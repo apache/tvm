@@ -9,7 +9,10 @@
 #include <algorithm>
 #include <string>
 
+#include "topi/broadcast.h"
+#include "topi/elemwise.h"
 #include "topi/tags.h"
+#include "topi/detail/array_utils.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/ir.h"
 #include "tvm/ir_pass.h"
@@ -20,7 +23,7 @@ using namespace tvm;
 namespace detail {
 
 template <typename T>
-tvm::Expr Map(const tvm::Array<tvm::Expr>& exprs, T op) {
+tvm::Expr ReduceLeft(const tvm::Array<tvm::Expr>& exprs, T op) {
   CHECK_GE(exprs.size(), 1);
   tvm::Expr res = exprs[0];
   for (size_t i = 1; i < exprs.size(); ++i) {
@@ -115,6 +118,42 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
 }
 
 /*!
+ * \brief Creates an operation that performs a gated linear unit.
+ *
+ * \param t The input tensor
+ * \param axis The axis on which to split the input array into data and gate.
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the glu operation
+ */
+inline tvm::Tensor glu(const tvm::Tensor& x,
+                       const int axis = -1,
+                       std::string name = "tensor",
+                       std::string tag = kInjective) {
+  auto ishape = x->shape;
+  size_t real_axis = topi::detail::getRealAxis(ishape.size(), axis);
+  Array<Expr> oshape;
+  for (size_t i = 0; i < ishape.size(); ++i) {
+    oshape.push_back(ishape[i] / (i == real_axis ? 2 : 1));
+  }
+  return tvm::compute(oshape,
+                     [&](const tvm::Array<tvm::Var> &indices) {
+                        Array<Expr> b_indices;
+                        for (size_t i = 0; i < indices.size(); ++i) {
+                          b_indices.push_back(
+                              indices[i] + (i == real_axis ?  oshape[real_axis] : 0));
+                        }
+                        return x(indices) * tvm::sigmoid(x(b_indices));
+                      },
+                      name,
+                      tag);
+  // someday when GPU backend supports nested tags:
+  // auto a_b = topi::split(x, { oshape[real_axis] }, axis);
+  // return a_b[0] * topi::sigmoid(a_b[1]);)
+}
+
+/*!
  * \brief Creates an operation that performs padding
  *
  * \param t The input tensor
@@ -193,7 +232,7 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
       }
     }
     if (sel.size() != 0) {
-      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+      return tvm::select(detail::ReduceLeft(sel, tvm::ir::And::make), t(indices), pad_value);
     }
     return t(indices);
   };

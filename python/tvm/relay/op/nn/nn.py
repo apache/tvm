@@ -555,6 +555,31 @@ def prelu(data, alpha, axis=1):
     return _make.prelu(data, alpha, axis)
 
 
+def glu(data, axis=-1):
+    """Gated linear unit.
+
+    `Language Modeling with Gated Convolutional Networks <https://arxiv.org/abs/1612.08083>`_
+
+    .. math::
+       a, b = split(x, 2, axis)
+       out = a * sigmoid(b)
+
+    Parameters
+    ----------
+    data : tvm.relay.Expr
+        The input data
+
+    axis : int, optional
+        The axis on which to split `data` into `a` and `b`.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The computed result.
+    """
+    return _make.glu(data, axis)
+
+
 def pad(data,
         pad_width,
         pad_value=0.0):

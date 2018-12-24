@@ -76,3 +76,33 @@ def prelu(x, slope, axis=1):
     def _compute_channelwise(*indices):
         return tvm.select(x(*indices) > 0, x(*indices), x(*indices) * slope(indices[axis]))
     return tvm.compute(x.shape, _compute_channelwise)
+
+@tvm.tag_scope(tag=tag.INJECTIVE)
+def glu(x, axis=-1):
+    """Computes `a * sigmoid(b)` where `a, b = split(x, 2, axis)`.
+
+    `Language Modeling with Gated Convolutional Networks <https://arxiv.org/abs/1612.08083>`_
+
+    Parameters
+    ----------
+    x : tvm.Tensor
+        Input argument.
+
+    axis : int
+        The axis on which to split the input array to form `a` and `b`.
+
+    Returns
+    -------
+    y : tvm.Tensor
+        The result.
+    """
+    real_axis = axis if axis > 0 else axis + len(x.shape)
+    out_shape = list(x.shape)
+    out_shape[real_axis] /= 2
+    def _compute(*indices):
+        a = x(*indices)
+        b_inds = list(indices)
+        b_inds[real_axis] += out_shape[real_axis]
+        b = x(*b_inds)
+        return a * 1/(1 + tvm.exp(-b))
+    return tvm.compute(out_shape, _compute)

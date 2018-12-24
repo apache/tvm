@@ -190,6 +190,11 @@ TVM_REGISTER_GLOBAL("topi.nn.relu")
   *rv = relu<float>(args[0]);
   });
 
+TVM_REGISTER_GLOBAL("topi.nn.glu")
+.set_body([](TVMArgs args, TVMRetValue *rv) {
+  *rv = glu(args[0], args[1]);
+  });
+
 TVM_REGISTER_GLOBAL("topi.nn.leaky_relu")
 .set_body([](TVMArgs args, TVMRetValue *rv) {
   *rv = leaky_relu(args[0], args[1]);
