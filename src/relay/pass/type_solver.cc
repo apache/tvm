@@ -171,7 +171,7 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       type_constraints.push_back(GetRef<TypeConstraint>(tcn));
     }
 
-    return FuncTypeNode::make(arg_types, ret_type, {}, type_constraints);
+    return FuncTypeNode::make(arg_types, ret_type, ft1->type_params, type_constraints);
   }
 
  private:
