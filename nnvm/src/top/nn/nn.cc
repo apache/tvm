@@ -620,7 +620,8 @@ NNVM_REGISTER_OP(pad)
     for (size_t i = 0; i < pad_width.ndim(); ++i) {
       pad_after.push_back(tvm::make_const(tvm::Int(32), pad_width[i][1]));
     }
-    return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after, param.pad_value) };
+    return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
+                          tvm::make_const(inputs[0]->dtype, param.pad_value)) };
 })
 .set_support_level(1);
 
