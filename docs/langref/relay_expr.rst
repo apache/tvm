@@ -5,7 +5,7 @@ Expressions in Relay
 The Relay IR is a pure, expression-oriented language with distinct
 dataflow and control flow language fragments.
 Each dataflow fragment of a program (i.e., the portions of the
-program without recursive calls or branching) can be viewed as a
+program without recursive calls, calls to recursive functions, or branching) can be viewed as a
 traditional computation graph when writing and expressing transformations.
 
 The below sections describe the different expressions in Relay
@@ -50,11 +50,10 @@ references to :code:`%a` in the outer scope continue to refer to
 the first one.
 
 .. code-block:: python
-  def @f(%a) {
-    let %b = %a;
-    let %a = add(%a, %a);
-    multiply(%a, %b)
-  }
+let %a = 1;
+let %b = 2 * %a;  // %b = 2
+let %a = %a + %a; // %a = 2. %a is shadowed
+%a + %b           // has value 2 + 2 = 4
 
 (Note that in Relay's implementation, each definition of a local variable
 creates a new :py:class:`~tvm.relay.expr.Var`, so a shadowed local variable,
@@ -195,10 +194,14 @@ is registered with the :code:`Broadcast` relation, indicating that the
 arguments of :code:`add` must be tensors and that the return type
 is a tensor whose shape depends on those of its arguments.
 
-Operators are rendered without a sigil (e.g :code:`add`, :code:`subtract`)
+Operators are rendered without a sigil (e.g :code:`conv2d`, :code:`flatten`)
 when pretty-printing Relay programs.
 Operators are explicitly contained in the program and are uniquely
 identifiable by pointer.
+
+Note that common arithmetic operators such as :code:`add` and :code:`multiply`
+may be written using the corresponding arithmetic operators in the text format
+(e.g., :code:`+` or :code:`*`) as syntactic sugar.
 
 See :py:class:`~tvm.relay.op.Op` for the definition and documentation
 of operator nodes, demonstrating the infrastructure for registering
@@ -215,7 +218,8 @@ Dataflow Fragment
 This subsection covers the set of Relay expressions that do not involve
 control flow. That is, any portion of a program comprised only of these
 expressions corresponds to a pure computation graph without control flow.
-Note that global and local variables are also part of the dataflow fragment.
+Note that global and local variables are also part of the dataflow fragment,
+as are calls to non-recursive functions and operators.
 
 Constant
 ~~~~~~~~~
@@ -224,6 +228,11 @@ This node represents a constant tensor value
 (see :py:mod:`~tvm.relay.Value` for more details).
 A constant is represented as a :py:class:`~tvm.NDArray`,
 allowing Relay to utilize TVM operators for constant evaluation.
+
+This node can also represent scalar constants, since
+scalars are tensors with a shape of :code:`()`. In the text format, numerical
+and boolean literals are thus syntactic sugar for constants encoding a
+tensor type with a rank-zero shape.
 
 See :py:class:`~tvm.relay.expr.Constant` for its definition and documentation.
 
@@ -236,10 +245,10 @@ members.
 
 .. code-block:: python
 
-    (a, b, c) : (Tensor[(10, 10), float32], Tensor[(10, 10), float32], Tensor[(10, 10), float32])
-    d : Tensor[(100, 100), float32]
-
-    (add(add(a, b), c), d) : (Tensor[(10, 10), float32], Tensor[(100, 100), float32])
+fn (%a : Tensor[(10, 10), float32], %b : float32, %c : Tensor[(100, 100), float32]) {
+    let %tup = (%a, %b);     // type: (Tensor[(10, 10), float32], float32)
+    ((%tup.0 + %tup.1), %c)  // type: (Tensor[(10, 10), float32], Tensor[(100, 100), float32])
+}
 
 See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
 
@@ -278,15 +287,15 @@ For example, in the below example, :code:`%z` will evaluate to a tensor
 of zero values because the closure for :code:`%f` stores the value of
 :code:`%x` at the pointer where :code:`%f` was defined.
 
-.. code-block::
+.. code-block:: python
 
     let %g = fn () {
       let %x = Constant(0, (10, 10), float32);
-      # x is a free variable in the below function
+      // x is a free variable in the below function
       fn (%y) { multiply(%y, %x) }
     };
-    # the %x in %g's body is not in scope anymore
-    # %f is a closure where %x maps to Constant(0, (10, 10), float32)
+    // the %x in %g's body is not in scope anymore
+    // %f is a closure where %x maps to Constant(0, (10, 10), float32)
     let %f = %g();
     let %x = Constant(1, (10, 10), float32);
     %f(%x) // evaluates to `Constant(1, (10, 10), float32)
@@ -296,14 +305,14 @@ as here:
 
 .. code-block:: python
 
-    let %fact = fun (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
-        if (equal(%x, Constant(1, (10, 10), float32)) {
-            Constant(0, (10, 10), float32)
+    let %fact = fn (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
+        if (%x == Constant(0, (10, 10), float32)) {
+            Constant(1, (10, 10), float32)
         } else {
-            multiply(%x, %fact(subtract(%x, Constant(1, (10, 10), float32))))
+            %x * %fact(%x - Constant(1, (10, 10), float32))
         }
     };
-    %fact(10)
+    %fact(Constant(10, (10, 10), float32))
 
 See :py:class:`~tvm.relay.expr.Function` for its definition and documentation.
 
@@ -319,10 +328,11 @@ that may reference the bound identifier. If a type annotation
 on the bound variable is omitted, Relay attempts to infer the
 most general type permitted for the variable.
 
-The bound variable in a :code:`let` expression is scoped to the let
-expression's body. Note that the bound variable can only be
-recursively referenced in the value in the case of a function
-expression, as in the above subsection.
+The bound variable in a :code:let expression is only in scope 
+in its body, except when the variable defines a function expression.
+When a :code:let expression creates a function, the variable is also
+in scope in its value to allow for recursively defined functions 
+(see the previous subsection).
 
 The value of a :code:`let` binding is the value of the final expression
 after evaluating the bindings it depends on. For example, in the
@@ -332,7 +342,7 @@ of shape (10, 10) where all elements are 2:
 .. code-block:: python
 
    let %x : Tensor[(10, 10), float32] = Constant(1, (10, 10), float32);
-   add(%x, %x)
+   %x + %x
 
 A sequence of :code:`let` bindings can be considered as a dataflow graph,
 where the bindings are a series of sub-graphs connected
@@ -344,9 +354,9 @@ dependency on the other:
 
 .. code-block:: python
 
-   let %x = add(%a, %b);
-   let %y = add(%c, %d);
-   multiply(%x, %y)
+   let %x = %a + %b);
+   let %y = %c + %d);
+   %x * %y
 
 See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
 
@@ -375,9 +385,9 @@ In Relay's text format, a graph binding can be written as below (note the lack o
 
 .. code-block:: python
 
-   %1 = add(%a, %b)
-   %2 = add(%1, %1)
-   multiply(%2, %2)
+   %1 = %a + %b)
+   %2 = %1 + %1
+   %2 * %2
 
 Unlike a let binding, a graph binding is not represented as an AST node in Relay, but rather as a meta-variable referencing its AST node value.
 to reference AST nodes. For example, a program like the above could be constructed in Relay's
@@ -394,9 +404,9 @@ could accomplish the same thing):
 For development purposes and to enable certain optimizations, Relay includes passes to
 convert between dataflow graphs defined using graph bindings and programs with :code:`let`
 bindings in A-normal form, employed by many compiler optimizations from the functional
-programming community (see `"The Essence of Compiling with Continuations" by
-Flanagan *et al*<https://slang.soe.ucsc.edu/cormac/papers/pldi93.pdf>`__ for a discussion
-of the A-normal form).
+programming community (see `"A-Normalization: Why and How" by
+Matt Might<http://matt.might.net/articles/a-normalization/>`__ for an introduction
+to the A-normal form).
 
 =======================
 Control Flow Expressions
@@ -427,14 +437,38 @@ has a function type:
 
    %fact(10)
 
+.. *Note: type parameters are not yet supported in the text format.* 
+
 A type-polymorphic function can also include type arguments at a call
 site. The type arguments are substituted for type parameters when
-type checking.
+type checking. If a function is type-polymorphic and type arguments are not
+given, type inference will attempt to infer type arguments if possible.
+The following code gives examples of explicit and inferred type arguments:
+
+.. code-block:: python
+
+    // %f : fn<a : Type, b : Type, c : Type>(a, b) -> c
+    let %x1 = f<Tensor[(), bool], Tensor[(), bool], Tensor[(), bool)]>(True, False);
+    // %x1 is of type Tensor[(), bool]
+    let %x2 : () = f(%x1, %x1)
+    // the type arguments in the second call are inferred to be <Tensor[(), bool], Tensor[(), bool], ()>
 
 Note that all type relations in the function type must hold at each
-call site. Because relations are checked at call sites, this means that
-the relations are checked against the types of the particular arguments
-at that call site, so this also allows for a form of polymorphism.
+call site. Specifically, this means that the relation will be checked
+against the specific types of the arguments at a given call site. This 
+is also a form of polymorphism, since there may be multiple valid
+assignments of argument types and a return type so long as the relation
+is satisfied.
+
+For example, if we have a function :code:`%f` that takes tensor arguments
+and has the :code:`Broadcast` relation, then there are many different
+shapes that the arguments in the below call could have that would satisfy
+the type annotation:
+
+.. code-block:: python
+
+   let %x : Tensor[(100, 100, 100), float32] = %f(%a, %b, $c);
+   %x
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
 
@@ -456,7 +490,7 @@ tensor of booleans (:code:`Tensor[(), bool]`).
 Since if-then-else branches are expressions, they may appear inline
 wherever any other expression may be expected, like invocations of
 the ternary operator in C-like languages. The if-then-else expression
-evaluates to the value of the "then" branch if the condition value is
-`True` and evaluates to the value of the "else" branch otherwise.
+evaluates to the value of the "then" branch if the condition value
+evaluates to `True` and evaluates to the value of the "else" branch otherwise.
 
 See :py:class:`~tvm.relay.expr.If` for its definition and documentation.
