@@ -478,7 +478,7 @@ the type annotation:
 
 .. code-block:: python
 
-   let %x : Tensor[(100, 100, 100), float32] = %f(%a, %b, $c);
+   let %x : Tensor[(100, 100, 100), float32] = %f(%a, %b, %c);
    %x
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
