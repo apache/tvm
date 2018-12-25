@@ -81,8 +81,7 @@ Functions defined in the manner described in this subsection have
 global scope; anonymous functions will be discussed later, though
 their mechanics are nearly identical. Note that global functions may be
 recursive; that is, within the function's body, the function's
-identifier refers back to the function unless it is shadowed in a :code:`let`
-expression.
+identifier refers back to the function.
 
 A definition minimally consists of an identifier :code:`@id`, an empty set of
 parameters, and a body expression (:py:class:`~tvm.relay.expr.Expr`)
@@ -298,7 +297,7 @@ of zero values because the closure for :code:`%f` stores the value of
     // %f is a closure where %x maps to Constant(0, (10, 10), float32)
     let %f = %g();
     let %x = Constant(1, (10, 10), float32);
-    %f(%x) // evaluates to `Constant(1, (10, 10), float32)
+    %f(%x) // evaluates to `Constant(0, (10, 10), float32)
 
 A recursive function expression can be defined using a :code:`let` binding,
 as here:
@@ -354,8 +353,8 @@ dependency on the other:
 
 .. code-block:: python
 
-   let %x = %a + %b);
-   let %y = %c + %d);
+   let %x = %a + %b;
+   let %y = %c + %d;
    %x * %y
 
 See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
@@ -380,17 +379,19 @@ of this nuance).
 
 __ `Introduction to Relay IR`_
 
+.. *Note: Graph bindings are not currently parsed by the text format.*
+
 In Relay's text format, a graph binding can be written as below (note the lack of a
 :code:`let` keyword and a semicolon):
 
 .. code-block:: python
 
-   %1 = %a + %b)
+   %1 = %a + %b
    %2 = %1 + %1
    %2 * %2
 
 Unlike a let binding, a graph binding is not represented as an AST node in Relay, but rather as a meta-variable referencing its AST node value.
-to reference AST nodes. For example, a program like the above could be constructed in Relay's
+For example, a program like the above could be constructed in Relay's
 Python front-end by setting *Python variables* equal to the corresponding Relay AST node and
 using the variables repeatedly, as below (a C++ program using the corresponding API bindings
 could accomplish the same thing):
@@ -423,19 +424,29 @@ meaning that they can be invoked via a function call. These consist of
 any expression that evaluates to a closure (i.e., function expressions
 or global functions) and Relay operators.
 
-When a closure is called, the body is evaluated in the closure's stored
-environment (i.e., using the stored values for free variables) with
-local variable bindings added for each argument; the final value
-obtained by evaluating the body is the call's return value.
-In the case of operators, the implementation is opaque to Relay,
-so the result is left up to the registered TVM implementation.
+In terms of computation graphs, since a function corresponds to a named
+subgraph, a function call effectively inserts the subgraph. Calls to
+Relay operators or non-recursive functions are still dataflow expressions,
+since the graph topology does not change based on their values, but recursive
+calls are indeed control edges.
 
-For example, we can call the previously defined `%fact` because it
-has a function type:
+The syntax of calls follows that used in C-like languages, demonstrated in the
+example below:
 
 .. code-block:: python
 
-   %fact(10)
+   let c = 1;
+   let f = fn(%x : Tensor[(), float32], %y : Tensor[(), float32]) { %x + %y + %c };
+   %f(10, 11)
+
+When a closure is called (see `Function Expressions`_ for a discussion of closures),
+the closure's body is evaluated in the stored environment 
+(i.e., using the stored values for free variables) with
+local variable bindings added for each argument; the final value
+obtained by evaluating the body is the call's return value.
+Thus, in the above example, the call evaluates to 22.
+In the case of operators, the implementation is opaque to Relay,
+so the result is left up to the registered TVM implementation.
 
 .. *Note: type parameters are not yet supported in the text format.* 
 
