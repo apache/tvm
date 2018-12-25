@@ -241,6 +241,33 @@ def _mx_lrn(inputs, attrs):
     return _op.nn.lrn(inputs[0], **new_attrs)
 
 
+def _mx_multibox_prior(inputs, attrs):
+    new_attrs = {}
+    new_attrs["sizes"] = attrs.get_float_tuple("sizes", (1.0, ))
+    new_attrs["steps"] = attrs.get_float_tuple("steps", (-1.0, -1.0))
+    new_attrs["offsets"] = attrs.get_float_tuple("offsets", (0.5, 0.5))
+    new_attrs["ratios"] = attrs.get_float_tuple("ratios", (1.0, ))
+    new_attrs["clip"] = attrs.get_bool("clip", False)
+    return _op.vision.multibox_prior(inputs[0], **new_attrs)
+
+
+def _mx_multibox_detection(inputs, attrs):
+    new_attrs0 = {}
+    new_attrs0["clip"] = attrs.get_bool("clip", True)
+    new_attrs0["threshold"] = attrs.get_float("threshold", 0.01)
+    new_attrs0["variances"] = attrs.get_float_tuple("variances", (0.1, 0.1,
+                                                                  0.2, 0.2))
+
+    new_attrs1 = {}
+    new_attrs1["overlap_threshold"] = attrs.get_float("nms_threshold", 0.5)
+    new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
+    new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
+
+    ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
+                                            inputs[2], **new_attrs0)
+    return _op.vision.nms(ret[0], ret[1], **new_attrs1)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -327,13 +354,14 @@ _convert_map = {
     "LeakyReLU"     : _mx_leaky_relu,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    # vision
+    "_contrib_MultiBoxPrior" : _mx_multibox_prior,
+    "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
     # "gather_nd",
-    # "_contrib_MultiBoxPrior" : _rename("multibox_prior"),
-    # "_contrib_MultiBoxDetection" : _contrib_multibox_detection,
     # "Crop"          : _crop_like,
 
 }

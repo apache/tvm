@@ -106,6 +106,30 @@ class StrAttrsDict(object):
             raise AttributeError("Required attribute {} not found.".format(key))
         return default
 
+    def get_float_tuple(self, key, default=RequiredAttr()):
+        """Get float tuple attribute
+
+        Parameters
+        ----------
+        key : str
+            The attribute key
+
+        default : float
+            The default value.
+
+        Returns
+        -------
+        value : The result
+        """
+
+        if key in self.attrs:
+            tshape = self.attrs[key]
+            return tuple(float(x.strip()) for x in
+                         tshape.strip('()[]').split(','))
+        if isinstance(default, RequiredAttr):
+            raise AttributeError("Required attribute {} not found.".format(key))
+        return default
+
     def get_tuple_tuple_int(self, key, default=RequiredAttr()):
         """Get int list attribute
 
