@@ -5,7 +5,7 @@ Deploy Single Shot Multibox Detector(SSD) model
 
 This article is an introductory tutorial to deploy SSD models with TVM.
 We will use mxnet pretrained SSD model with Resnet50 as body network and
-convert it to NNVM graph.
+convert it to NNVM graph;
 """
 import os
 import zipfile
@@ -16,6 +16,7 @@ import numpy as np
 
 from nnvm import compiler
 from nnvm.frontend import from_mxnet
+from tvm import relay
 from tvm.contrib.download import download
 from tvm.contrib import graph_runtime
 from mxnet.model import load_checkpoint
@@ -58,7 +59,7 @@ image_url = "https://cloud.githubusercontent.com/assets/3307514/20012567/" \
 inference_symbol_folder = "c1904e900848df4548ce5dfb18c719c7-a28c4856c827fe766aa3da0e35bad41d44f0fb26"
 inference_symbol_url = "https://gist.github.com/kevinthesun/c1904e900848df4548ce5dfb18c719c7/" \
                        "archive/a28c4856c827fe766aa3da0e35bad41d44f0fb26.zip"
-            
+
 dir = "ssd_model"
 if not os.path.exists(dir):
     os.makedirs(dir)
@@ -77,13 +78,31 @@ zip_ref.extractall(dir)
 zip_ref.close()
 
 ######################################################################
-# Convert and compile model with NNVM for CPU.
+# Convert and compile model with NNVM or Relay for CPU.
 
 sym = mx.sym.load("%s/%s/ssd_resnet50_inference.json" % (dir, inference_symbol_folder))
 _, arg_params, aux_params = load_checkpoint("%s/%s" % (dir, model_name), 0)
-net, params = from_mxnet(sym, arg_params, aux_params)
-with compiler.build_config(opt_level=3):
-    graph, lib, params = compiler.build(net, target, {"data": dshape}, params=params)
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "-f", "--frontend",
+    help="Frontend for compilation, nnvm or relay",
+    type=str,
+    default="nnvm")
+args = parser.parse_args()
+if args.frontend == "relay":
+    net, params = relay.frontend.from_mxnet(sym, {"data": dshape}, arg_params=arg_params, aux_params=aux_params)
+    with relay.build_config(opt_level=3):
+        graph, lib, params = relay.build(net, target, params=params)
+elif args.frontend == "nnvm":
+    net, params = from_mxnet(sym, arg_params, aux_params)
+    with compiler.build_config(opt_level=3):
+        graph, lib, params = compiler.build(
+            net, target, {"data": dshape}, params=params)
+else:
+    parser.print_help()
+    parser.exit()
 
 ######################################################################
 # Create TVM runtime and do inference
@@ -141,4 +160,3 @@ def display(img, out, thresh=0.5):
 
 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 display(image, tvm_output.asnumpy()[0], thresh=0.45)
-
