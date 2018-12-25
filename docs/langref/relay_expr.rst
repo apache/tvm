@@ -218,7 +218,8 @@ This subsection covers the set of Relay expressions that do not involve
 control flow. That is, any portion of a program comprised only of these
 expressions corresponds to a pure computation graph without control flow.
 Note that global and local variables are also part of the dataflow fragment,
-as are calls to non-recursive functions and operators.
+as are calls to operators and functions whose bodies are also entirely in
+the dataflow fragment.
 
 Constant
 ~~~~~~~~~
@@ -424,11 +425,12 @@ meaning that they can be invoked via a function call. These consist of
 any expression that evaluates to a closure (i.e., function expressions
 or global functions) and Relay operators.
 
-In terms of computation graphs, since a function corresponds to a named
-subgraph, a function call effectively inserts the subgraph. Calls to
-Relay operators or non-recursive functions are still dataflow expressions,
-since the graph topology does not change based on their values, but recursive
-calls are indeed control edges.
+In terms of dataflow graphs, if a function corresponds to a named
+subgraph, a function call inserts the subgraph. This means that if a function's
+body contains control flow, calling that function affects the graph topology based
+on the values of the executed expressions, as does a recursive call. However,
+calls to operators and functions whose bodies do not contain recursive calls
+or control flow are still dataflow expressions.
 
 The syntax of calls follows that used in C-like languages, demonstrated in the
 example below:
