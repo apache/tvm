@@ -13,6 +13,7 @@
 #include <limits>
 
 #include "topi/tags.h"
+#include "topi/detail/array_utils.h"
 #include "topi/detail/ravel_unravel.h"
 #include "topi/detail/constant_utils.h"
 #include "tvm/tvm.h"
@@ -277,11 +278,7 @@ inline Tensor concatenate(const Array<Tensor>& inputs,
     << "concatenate only accepts `axis` in [-ndim, ndim)"
     << ", but got axis = " << axis
     << ", and ndim = " << ndim;
-  if (axis < 0) {
-    axis += ndim;
-  }
-  CHECK_LT(axis, inputs[0]->shape.size()) <<
-    "axis out of bounds";
+  axis = topi::detail::getRealAxis(inputs[0]->shape.size(), axis);
 
   Array<Expr> axis_sizes;
   for (auto t : inputs) {
@@ -339,10 +336,7 @@ inline Array<Tensor> split(const Tensor& x,
                            int axis,
                            std::string name = "tensor",
                            std::string tag = kInjective) {
-  if (axis < 0) {
-    axis += static_cast<int>(x->shape.size());
-  }
-  CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
+  axis = topi::detail::getRealAxis(x->shape.size(), axis);
 
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
   std::vector<int> begin_ids;
@@ -516,10 +510,7 @@ inline Array<Tensor> split_sections(const Tensor& x,
                                     int axis,
                                     std::string name = "tensor",
                                     std::string tag = kInjective) {
-  if (axis < 0) {
-    axis += static_cast<int>(x->shape.size());
-  }
-  CHECK_LT(axis, x->shape.size()) << "axis out of bounds";
+  axis = topi::detail::getRealAxis(x->shape.size(), axis);
 
   auto src_axis_size = static_cast<int>(GetConstInt(x->shape[axis]));
 
@@ -587,10 +578,7 @@ inline Tensor take(const Tensor& a,
                    int axis,
                    std::string name = "tensor",
                    std::string tag = kInjective) {
-  if (axis < 0) {
-    axis += static_cast<int>(a->shape.size());
-  }
-  CHECK_LT(axis, a->shape.size()) << "axis out of bounds";
+  axis = topi::detail::getRealAxis(a->shape.size(), axis);
 
   int indices_len = static_cast<int>(indices->shape.size());
   Array<Expr> out_shape;

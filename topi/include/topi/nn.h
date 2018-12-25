@@ -108,19 +108,18 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
         << "Wrong slope shape received.";
 
   return tvm::compute(x->shape,
-                     [&](const tvm::Array<tvm::Var> &indices) {
-                        return tvm::select(x(indices) > 0,
-                                           x(indices),
-                                           x(indices) * slope(indices[axis]));
-                      },
-                      name,
-                      tag);
+    [&](const tvm::Array<tvm::Var>& indices) {
+      return tvm::select(
+          x(indices) > 0, x(indices), x(indices) * slope(indices[axis]));
+    },
+    name,
+    tag);
 }
 
 /*!
  * \brief Creates an operation that performs a gated linear unit.
  *
- * \param t The input tensor
+ * \param x The input tensor
  * \param axis The axis on which to split the input array into data and gate.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
@@ -138,19 +137,19 @@ inline tvm::Tensor glu(const tvm::Tensor& x,
     oshape.push_back(ishape[i] / (i == real_axis ? 2 : 1));
   }
   return tvm::compute(oshape,
-                     [&](const tvm::Array<tvm::Var> &indices) {
-                        Array<Expr> b_indices;
-                        for (size_t i = 0; i < indices.size(); ++i) {
-                          b_indices.push_back(
-                              indices[i] + (i == real_axis ?  oshape[real_axis] : 0));
-                        }
-                        return x(indices) * tvm::sigmoid(x(b_indices));
-                      },
-                      name,
-                      tag);
+     [&](const tvm::Array<tvm::Var>& indices) {
+        Array<Expr> b_indices;
+        for (size_t i = 0; i < indices.size(); ++i) {
+          b_indices.push_back(
+              indices[i] + (i == real_axis ?  oshape[real_axis] : 0));
+        }
+        return x(indices) * tvm::sigmoid(x(b_indices));
+      },
+      name,
+      tag);
   // someday when GPU backend supports nested tags:
   // auto a_b = topi::split(x, { oshape[real_axis] }, axis);
-  // return a_b[0] * topi::sigmoid(a_b[1]);)
+  // return a_b[0] * topi::sigmoid(a_b[1]);
 }
 
 /*!

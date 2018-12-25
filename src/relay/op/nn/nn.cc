@@ -473,19 +473,21 @@ RELAY_REGISTER_OP("nn.glu")
 .describe(R"code(Returns the gated linear unit function of the input array.
 
 .. math::
-   x \times \sigma(x)
+   a, b = split(x, 2, axis)
+   out = a \times \sigma(b)
 
 )code" TVM_ADD_FILELINE)
 .set_attrs_type_key("relay.attrs.GluAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
-.set_support_level(1)
+.set_support_level(3)
 .add_type_rel("Glu", GluRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Type& out_type,
                                          const Target& target) {
-  return Array<Tensor>{ topi::glu(inputs[0]) };
+  const auto* param = attrs.as<GluAttrs>();
+  return Array<Tensor>{ topi::glu(inputs[0], param->axis)};
 });
 
 
