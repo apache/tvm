@@ -99,6 +99,14 @@ struct PReLUParam : public dmlc::Parameter<PReLUParam> {
   }
 };
 
+struct GluParam : public dmlc::Parameter<GluParam> {
+  int axis;
+  DMLC_DECLARE_PARAMETER(GluParam) {
+    DMLC_DECLARE_FIELD(axis).set_default(1)
+      .describe("The axis on which to split input into data and gate input.");
+  }
+};
+
 struct PadParam : public dmlc::Parameter<PadParam> {
   float pad_value;
   Tuple<Tuple<int> > pad_width;

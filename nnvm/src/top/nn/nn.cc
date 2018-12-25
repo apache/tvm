@@ -18,6 +18,7 @@
 #include "topi/nn/dense.h"
 #include "topi/nn.h"
 #include "topi/nn/softmax.h"
+#include "topi/detail/array_utils.h"
 
 namespace nnvm {
 namespace top {
@@ -569,6 +570,44 @@ where :math:`*` is an channelwise multiplication for each sample in the
 .set_support_level(4);
 
 DMLC_REGISTER_PARAMETER(PadParam);
+
+// glu
+DMLC_REGISTER_PARAMETER(GluParam);
+
+inline bool GluInferShape(const nnvm::NodeAttrs &attrs,
+                          std::vector<TShape> *in_shape,
+                          std::vector<TShape> *out_shape) {
+  TShape dshape = in_shape->at(0);
+  NNVM_ASSIGN_INPUT_SHAPE(attrs, *in_shape, 0, dshape);
+
+  const GluParam &param = nnvm::get<GluParam>(attrs.parsed);
+  size_t axis = topi::detail::getRealAxis(dshape.ndim(), param.axis);
+
+  TShape oshape(dshape);
+  CHECK_EQ(oshape[axis] % 2, 0) << "Dimension of GLU split axis must be even.";
+  oshape[axis] /= 2;
+  NNVM_ASSIGN_OUTPUT_SHAPE(attrs, *out_shape, 0, oshape);
+  return true;
+}
+
+NNVM_REGISTER_OP(glu)
+.describe(R"code(Gated Linear Unit.
+)code" NNVM_ADD_FILELINE)
+.add_argument("data", "Tensor", "Input data.")
+.add_arguments(GluParam::__FIELDS__())
+.set_attr_parser(ParamParser<GluParam>)
+.set_num_inputs(1)
+.set_num_outputs(1)
+.set_attr<FInferShape>("FInferShape", GluInferShape)
+.set_attr<FInferType>("FInferType", ElemwiseType<1, 1>)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+    const GluParam& param = nnvm::get<GluParam>(attrs.parsed);
+    return Array<Tensor>{ topi::glu(inputs[0], param.axis)};
+  })
+.set_support_level(4);
 
 inline bool PadInferShape(const nnvm::NodeAttrs& attrs,
                           std::vector<TShape>* in_shape,
