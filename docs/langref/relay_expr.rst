@@ -507,3 +507,21 @@ evaluates to the value of the "then" branch if the condition value
 evaluates to `True` and evaluates to the value of the "else" branch otherwise.
 
 See :py:class:`~tvm.relay.expr.If` for its definition and documentation.
+
+TempExprs
+=========
+
+Program transformations (passes) in Relay may require inserting temporary 
+state into the program AST to guide further transformations. The
+:code:`TempExpr` node is provided as a utility to developers for this purpose;
+nodes inheriting from :code:`TempExpr` cannot appear directly in user-provided
+code but may be inserted in a pass.  Any :code:`TempExpr`s created in a pass
+should ideally be eliminated before the pass is complete, as 
+:code:`TempExpr`s only store internal state and have no semantics of their own.
+
+For an example of :code:`TempExpr`s being used in a pass, 
+see :code:`src/relay/pass/alter_op_layout.cc`, which uses :code:`TempExpr` nodes
+to store information about operator layouts as the pass tries to rearrange operator
+calls.
+
+See :py:class:`~tvm.relay.expr.TempExpr` for its definition and documentation.
