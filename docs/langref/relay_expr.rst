@@ -2,14 +2,36 @@
 Expressions in Relay
 ====================
 
-The Relay IR is a pure, expression-oriented language with distinct
-dataflow and control flow language fragments.
-Each dataflow fragment of a program (i.e., the portions of the
-program without recursive calls, calls to recursive functions, or branching) can be viewed as a
-traditional computation graph when writing and expressing transformations.
+The Relay IR is a pure, expression-oriented language. The below sections
+describe the different expressions in Relay and give details of their semantics.
 
-The below sections describe the different expressions in Relay
-as well as give details of their semantics.
+Dataflow and Control Fragments
+==============================
+
+For the purposes of comparing Relay to traditional computational graph-based IRs, it
+can be useful to consider Relay exrpessions in terms of dataflow and control fragments.
+Each portion of a Relay program containing expressions that only affect the dataflow can
+be viewed as a traditional comptuation graph when writing and expressing transformations.
+
+The dataflow fragment covers the set of Relay expressions that do not involve
+control flow. That is, any portion of a program containing only the following
+constructs corresponds to a pure computation graph:
+- `Variables`_
+- Tuple `Construction`_ and `Projection`_
+- `Let Bindings`_
+- `Graph Bindings`_
+- Calls to `Operators`_
+
+Control flow expressions allow the graph topology to change
+based on the value of previously executed expressions. The control
+fragment in Relay includes the following constructs:
+- `If-Then-Else`_ Expressions
+- Recursive Calls in Functions
+
+Because a function can be viewed as a subgraph from the point of view of computational graphs,
+a call effectively substitutes in the subgraph. Thus, if a function's body is entirely within
+the dataflow fragment, a call to that function is in the dataflow fragment; conversely, if the
+function's body contains control flow, a call to that function is not part of the dataflow fragment.
 
 Variables
 =========
@@ -64,23 +86,26 @@ knowledge that the same local variable object corresponds to a different binding
 See :py:class:`~tvm.relay.expr.Var` for its implementation
 and documentation.
 
-Global Functions
-================
-
-A function definition consists of a name, arguments, return type,
-type parameters, and any applicable type relations.
-A function's return type and parameter types may be omitted;
-Relay will attempt to infer the most general types where types
-are omitted.
+Functions
+=========
 
 Functions in Relay act similarly to procedures or functions in
 other programming languages and serve to generalize the concept
 of a named subgraph.
 
+See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of function nodes.
+
+Global Functions
+~~~~~~~~~~~~~~~~
+
+A global function definition consists of a name, arguments, return type,
+type parameters, and any applicable type relations.
+A function's return type and parameter types may be omitted;
+Relay will attempt to infer the most general types where types
+are omitted.
+
 Functions defined in the manner described in this subsection have
-global scope; anonymous functions will be discussed later, though
-their mechanics are nearly identical. Note that global functions may be
-recursive; that is, within the function's body, the function's
+global scope and may be recursive; that is, within the function's body, the function's
 identifier refers back to the function.
 
 A definition minimally consists of an identifier :code:`@id`, an empty set of
@@ -168,110 +193,12 @@ type checking is thus treated as a constraint-solving problem.
 For more detail on type relations and their implementations,
 please see the documentation on typing in Relay.
 
-See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of function nodes.
-
-Operators
-=========
-
-An operator is a primitive operation, such as :code:`add` or :code:`conv2d`, not defined in the Relay
-language. Operators are declared in the global operator
-registry in C++. Many common operators are backed by TVM's
-Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
-
-To register an operator a user must provide an implementation
-of the operator, its type, and any other desired metadata.
-The operator registry is a column-based store where
-operators are keys, so any metadata (which might be referenced
-by optimization passes) may be registered as a new column.
-
-From the perspective of Relay's type system, an operator is a function,
-so operators may be called like any other function and have function
-types. In particular, operator types are registered using a single
-type relation (see the above subsection), typically a relation
-specialized to that operator. For example, the :code:`add` operator
-is registered with the :code:`Broadcast` relation, indicating that the
-arguments of :code:`add` must be tensors and that the return type
-is a tensor whose shape depends on those of its arguments.
-
-Operators are rendered without a sigil (e.g :code:`conv2d`, :code:`flatten`)
-when pretty-printing Relay programs.
-Operators are explicitly contained in the program and are uniquely
-identifiable by pointer.
-
-Note that common arithmetic operators such as :code:`add` and :code:`multiply`
-may be written using the corresponding arithmetic operators in the text format
-(e.g., :code:`+` or :code:`*`) as syntactic sugar.
-
-See :py:class:`~tvm.relay.op.Op` for the definition and documentation
-of operator nodes, demonstrating the infrastructure for registering
-operator metadata. The other files in :py:class:`~tvm.relay.op` give
-handles for generating a call to various pre-registered operators.
-The `tutorial on adding operators to Relay`__ shows how to add further
-operators into the language.
-
-__ `Adding an Operator to Relay`_
-
-Dataflow Fragment
-=================
-
-This subsection covers the set of Relay expressions that do not involve
-control flow. That is, any portion of a program comprised only of these
-expressions corresponds to a pure computation graph without control flow.
-Note that global and local variables are also part of the dataflow fragment,
-as are calls to operators and functions whose bodies are also entirely in
-the dataflow fragment.
-
-Constant
-~~~~~~~~~
-
-This node represents a constant tensor value
-(see :py:mod:`~tvm.relay.Value` for more details).
-A constant is represented as a :py:class:`~tvm.NDArray`,
-allowing Relay to utilize TVM operators for constant evaluation.
-
-This node can also represent scalar constants, since
-scalars are tensors with a shape of :code:`()`. In the text format, numerical
-and boolean literals are thus syntactic sugar for constants encoding a
-tensor type with a rank-zero shape.
-
-See :py:class:`~tvm.relay.expr.Constant` for its definition and documentation.
-
-Tuple
-~~~~~
-
-The tuple node builds a finite (that is, of statically known size) sequence of heterogeneous data. 
-These tuples match Python's closely. Their fixed length allows for efficient projection of their
-members.
-
-.. code-block:: python
-
-fn (%a : Tensor[(10, 10), float32], %b : float32, %c : Tensor[(100, 100), float32]) {
-    let %tup = (%a, %b);     // type: (Tensor[(10, 10), float32], float32)
-    ((%tup.0 + %tup.1), %c)  // type: (Tensor[(10, 10), float32], Tensor[(100, 100), float32])
-}
-
-See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
-
-Tuple Projection
-~~~~~~~~~~~~~~~~
-
-A tuple must be indexed by an integer constant in order to extract a
-particular member of the tuple. Projections are 0-indexed.
-
-For example, the below projection evaluates to :code:`%b`:
-
-.. code-block:: python
-
-   (%a, %b, %c).1
-
-See :py:class:`~tvm.relay.expr.TupleGetItem` for its definition and documentation.
-
 Function Expressions
 ~~~~~~~~~~~~~~~~~~~~
 
 Functions are first class in Relay, which means they are expressions just like variables, constants, and tuples.
-Function expressions are the same as global functions and
-use nearly the same syntax, but do not have a globally unique name.
+Function expressions behave identically to global functions and use nearly the same syntax,
+but do not have a globally unique name.
 
 .. code-block:: python
 
@@ -314,123 +241,54 @@ as here:
     };
     %fact(Constant(10, (10, 10), float32))
 
-See :py:class:`~tvm.relay.expr.Function` for its definition and documentation.
+Operators
+=========
 
-Let Binding
-~~~~~~~~~~~
+An operator is a primitive operation, such as :code:`add` or :code:`conv2d`, not defined in the Relay
+language. Operators are declared in the global operator
+registry in C++. Many common operators are backed by TVM's
+Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
 
-A :code:`let` binding is an immutable local variable binding,
-allowing the user to bind an expression to a name.
+To register an operator a user must provide an implementation
+of the operator, its type, and any other desired metadata.
+The operator registry is a column-based store where
+operators are keys, so any metadata (which might be referenced
+by optimization passes) may be registered as a new column.
 
-A :code:`let` binding contains a local variable,
-an optional type annotation, a value, and a body expression
-that may reference the bound identifier. If a type annotation
-on the bound variable is omitted, Relay attempts to infer the
-most general type permitted for the variable.
+From the perspective of Relay's type system, an operator is a function,
+so operators may be called like any other function and have function
+types. In particular, operator types are registered using a single
+type relation (see the above subsection), typically a relation
+specialized to that operator. For example, the :code:`add` operator
+is registered with the :code:`Broadcast` relation, indicating that the
+arguments of :code:`add` must be tensors and that the return type
+is a tensor whose shape depends on those of its arguments.
 
-The bound variable in a :code:let expression is only in scope 
-in its body, except when the variable defines a function expression.
-When a :code:let expression creates a function, the variable is also
-in scope in its value to allow for recursively defined functions 
-(see the previous subsection).
+Operators are rendered without a sigil (e.g :code:`conv2d`, :code:`flatten`)
+when pretty-printing Relay programs.
+Operators are explicitly contained in the program and are uniquely
+identifiable by pointer.
 
-The value of a :code:`let` binding is the value of the final expression
-after evaluating the bindings it depends on. For example, in the
-following example the entire expression evaluates to a tensor
-of shape (10, 10) where all elements are 2:
+Note that common arithmetic operators such as :code:`add` and :code:`multiply`
+may be written using the corresponding arithmetic operators in the text format
+(e.g., :code:`+` or :code:`*`) as syntactic sugar.
 
-.. code-block:: python
+See :py:class:`~tvm.relay.op.Op` for the definition and documentation
+of operator nodes, demonstrating the infrastructure for registering
+operator metadata. The other files in :py:class:`~tvm.relay.op` give
+handles for generating a call to various pre-registered operators.
+The `tutorial on adding operators to Relay`__ shows how to add further
+operators into the language.
 
-   let %x : Tensor[(10, 10), float32] = Constant(1, (10, 10), float32);
-   %x + %x
-
-A sequence of :code:`let` bindings can be considered as a dataflow graph,
-where the bindings are a series of sub-graphs connected
-by bound variables. Since these binding sequences are
-pure, they can be evaluated in any order according to the program
-dataflow. For example, the first and second :code:`let` bindings below
-may be evaluated in either order because neither has a dataflow
-dependency on the other:
-
-.. code-block:: python
-
-   let %x = %a + %b;
-   let %y = %c + %d;
-   %x * %y
-
-See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
-
-Graph Bindings
-~~~~~~~~~~~~~~
-
-A :code:`let` binding creates a named variable that is bound to the given value
-and scoped to the subsequent expression. By contrast, a graph binding allows for
-explicitly constructing dataflow graphs in a Relay program by binding an expression
-(graph node) directly to a temporary variable, which is not scoped. Each reference
-to the variable corresponds to an edge in the dataflow graph. This has the
-semantics of substituting the expression wherever the variable appears, even though
-the graph node will only be evaluated once by the compiled program.
-
-These bindings allow for a style of programming that corresponds to that already
-employed by NNVM and other dataflow graph-based input formats. The fact that the variables
-are not scoped offers some flexibility in evaluation order compared to :code:`let`
-bindings, though this can also introduce some ambiguity in programs (the
-`developer introduction to the Relay IR`__ includes more detailed discussion
-of this nuance).
-
-__ `Introduction to Relay IR`_
-
-.. *Note: Graph bindings are not currently parsed by the text format.*
-
-In Relay's text format, a graph binding can be written as below (note the lack of a
-:code:`let` keyword and a semicolon):
-
-.. code-block:: python
-
-   %1 = %a + %b
-   %2 = %1 + %1
-   %2 * %2
-
-Unlike a let binding, a graph binding is not represented as an AST node in Relay, but rather as a meta-variable referencing its AST node value.
-For example, a program like the above could be constructed in Relay's
-Python front-end by setting *Python variables* equal to the corresponding Relay AST node and
-using the variables repeatedly, as below (a C++ program using the corresponding API bindings
-could accomplish the same thing):
-
-.. code-block:: python
-
-   sum1 = relay.add(a, b)
-   sum2 = relay.add(sum1, sum1)
-   relay.multiply(sum2, sum2)
-
-For development purposes and to enable certain optimizations, Relay includes passes to
-convert between dataflow graphs defined using graph bindings and programs with :code:`let`
-bindings in A-normal form, employed by many compiler optimizations from the functional
-programming community (see `"A-Normalization: Why and How" by
-Matt Might<http://matt.might.net/articles/a-normalization/>`__ for an introduction
-to the A-normal form).
-
-=======================
-Control Flow Expressions
-=======================
-
-Control flow expressions allow the graph topology to change
-based on the value of previously executed expressions.
+__ `Adding an Operator to Relay`_
 
 Call
-~~~~
+====
 
 Expressions with function types in Relay are "callable,"
 meaning that they can be invoked via a function call. These consist of
 any expression that evaluates to a closure (i.e., function expressions
 or global functions) and Relay operators.
-
-In terms of dataflow graphs, if a function corresponds to a named
-subgraph, a function call inserts the subgraph. This means that if a function's
-body contains control flow, calling that function affects the graph topology based
-on the values of the executed expressions, as does a recursive call. However,
-calls to operators and functions whose bodies do not contain recursive calls
-or control flow are still dataflow expressions.
 
 The syntax of calls follows that used in C-like languages, demonstrated in the
 example below:
@@ -485,8 +343,150 @@ the type annotation:
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
 
-If-Then-Else
+Constant
+========
+
+This node represents a constant tensor value
+(see :py:mod:`~tvm.relay.Value` for more details).
+A constant is represented as a :py:class:`~tvm.NDArray`,
+allowing Relay to utilize TVM operators for constant evaluation.
+
+This node can also represent scalar constants, since
+scalars are tensors with a shape of :code:`()`. In the text format, numerical
+and boolean literals are thus syntactic sugar for constants encoding a
+tensor type with a rank-zero shape.
+
+See :py:class:`~tvm.relay.expr.Constant` for its definition and documentation.
+
+Tuples
+======
+
+Construction
 ~~~~~~~~~~~~
+
+The tuple node builds a finite (that is, of statically known size) sequence of heterogeneous data. 
+These tuples match Python's closely. Their fixed length allows for efficient projection of their
+members.
+
+.. code-block:: python
+
+fn (%a : Tensor[(10, 10), float32], %b : float32, %c : Tensor[(100, 100), float32]) {
+    let %tup = (%a, %b);     // type: (Tensor[(10, 10), float32], float32)
+    ((%tup.0 + %tup.1), %c)  // type: (Tensor[(10, 10), float32], Tensor[(100, 100), float32])
+}
+
+See :py:class:`~tvm.relay.expr.Tuple` for its definition and documentation.
+
+Projection
+~~~~~~~~~~
+
+A tuple must be indexed by an integer constant in order to extract a
+particular member of the tuple. Projections are 0-indexed.
+
+For example, the below projection evaluates to :code:`%b`:
+
+.. code-block:: python
+
+   (%a, %b, %c).1
+
+See :py:class:`~tvm.relay.expr.TupleGetItem` for its definition and documentation.
+
+Let Bindings
+============
+
+A :code:`let` binding is an immutable local variable binding,
+allowing the user to bind an expression to a name.
+
+A :code:`let` binding contains a local variable,
+an optional type annotation, a value, and a body expression
+that may reference the bound identifier. If a type annotation
+on the bound variable is omitted, Relay attempts to infer the
+most general type permitted for the variable.
+
+The bound variable in a :code:let expression is only in scope 
+in its body, except when the variable defines a function expression.
+When a :code:let expression creates a function, the variable is also
+in scope in its value to allow for recursively defined functions 
+(see the previous subsection).
+
+The value of a :code:`let` binding is the value of the final expression
+after evaluating the bindings it depends on. For example, in the
+following example the entire expression evaluates to a tensor
+of shape (10, 10) where all elements are 2:
+
+.. code-block:: python
+
+   let %x : Tensor[(10, 10), float32] = Constant(1, (10, 10), float32);
+   %x + %x
+
+A sequence of :code:`let` bindings can be considered as a dataflow graph,
+where the bindings are a series of sub-graphs connected
+by bound variables. Since these binding sequences are
+pure, they can be evaluated in any order according to the program
+dataflow. For example, the first and second :code:`let` bindings below
+may be evaluated in either order because neither has a dataflow
+dependency on the other:
+
+.. code-block:: python
+
+   let %x = %a + %b;
+   let %y = %c + %d;
+   %x * %y
+
+See :py:class:`~tvm.relay.expr.Let` for its definition and documentation.
+
+Graph Bindings
+==============
+
+A :code:`let` binding creates a named variable that is bound to the given value
+and scoped to the subsequent expression. By contrast, a graph binding allows for
+explicitly constructing dataflow graphs in a Relay program by binding an expression
+(graph node) directly to a temporary variable, which is not scoped. Each reference
+to the variable corresponds to an edge in the dataflow graph. This has the
+semantics of substituting the expression wherever the variable appears, even though
+the graph node will only be evaluated once by the compiled program.
+
+These bindings allow for a style of programming that corresponds to that already
+employed by NNVM and other dataflow graph-based input formats. The fact that the variables
+are not scoped offers some flexibility in evaluation order compared to :code:`let`
+bindings, though this can also introduce some ambiguity in programs (the
+`developer introduction to the Relay IR`__ includes more detailed discussion
+of this nuance).
+
+__ `Introduction to Relay IR`_
+
+.. *Note: Graph bindings are not currently parsed by the text format.*
+
+In Relay's text format, a graph binding can be written as below (note the lack of a
+:code:`let` keyword and a semicolon):
+
+.. code-block:: python
+
+   %1 = %a + %b
+   %2 = %1 + %1
+   %2 * %2
+
+Unlike a let binding, a graph binding is not represented as an AST node in Relay, but rather as a meta-variable referencing its AST node value.
+For example, a program like the above could be constructed in Relay's
+Python front-end by setting *Python variables* equal to the corresponding Relay AST node and
+using the variables repeatedly, as below (a C++ program using the corresponding API bindings
+could accomplish the same thing):
+
+.. code-block:: python
+
+   sum1 = relay.add(a, b)
+   sum2 = relay.add(sum1, sum1)
+   relay.multiply(sum2, sum2)
+
+For development purposes and to enable certain optimizations, Relay includes passes to
+convert between dataflow graphs defined using graph bindings and programs with :code:`let`
+bindings in A-normal form, employed by many compiler optimizations from the functional
+programming community (see `"A-Normalization: Why and How" by
+Matt Might<http://matt.might.net/articles/a-normalization/>`__ for an introduction
+to the A-normal form).
+
+If-Then-Else
+============
 
 Relay has a simple if-then-else expression that allows programs to branch
 on a single value of type :code:`bool`, i.e., a zero-rank
