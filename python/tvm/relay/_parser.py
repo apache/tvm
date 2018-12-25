@@ -102,6 +102,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
         self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
+        self.graph_expr = []
 
         super(ParseTreeToRelayIR, self).__init__()
 
@@ -146,6 +147,20 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.type_param_scopes[0].appendleft((name, typ))
         return typ
 
+    def local_lookup(self, name):
+        try:
+            graph_nid = int(name)
+            return self.graph_expr[graph_nid]
+        except ValueError:
+            var = lookup(self.var_scopes, name)
+
+            if var is None:
+                raise ParseError("Couldn't resolve `{}`.".format(name))
+
+            return var
+        except IndexError:
+            raise ParseError("Graph Expr error {}".format(name))
+
     def visitTerminal(self, node):
         # type: (TerminalNode) -> Union[expr.Expr, int, float]
         """Visit lexer tokens that aren't ignored or visited by other functions."""
@@ -157,13 +172,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         if node_type == RelayLexer.GLOBAL_VAR:
             return expr.GlobalVar(node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
-            name = node_text[1:]
-            var = lookup(self.var_scopes, name)
-            if var is None:
-                raise ParseError("Couldn't resolve `{}`.".format(name))
-
-            return var
-
+            # Remove the leading '%' and lookup the name.
+            return self.local_lookup(node_text[1:])
         # data types
         elif node_type == RelayLexer.INT:
             return int(node_text)
@@ -431,7 +441,12 @@ class ParseTreeToRelayIR(RelayVisitor):
         return ty.FuncType(arg_types, ret_type, [], None)
 
     def visitGraphExpr(self, ctx):
-        import pdb; pdb.set_trace()
+        graph_nid = int(ctx.LOCAL_VAR().getText()[1:])
+        value = self.visit(ctx.expr(0))
+        assert graph_nid == len(self.graph_expr)
+        self.graph_expr.append(value)
+        kont = self.visit(ctx.expr(1))
+        return kont
 
 def make_parser(data):
     # type: (str) -> RelayParser

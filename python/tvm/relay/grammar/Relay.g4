@@ -83,9 +83,9 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  | LOCAL_VAR '=' expr                        # graphExpr
-  // | expr '.' INT                              # project
-  // | 'debug'                                   # debug
+  | LOCAL_VAR '=' expr ';' expr               # graphExpr
+  // | expr '.' INT                           # project
+  // | 'debug'                                # debug
   ;
 
 func: 'fn'        varList ('->' type_)? body ;
@@ -132,7 +132,7 @@ identType: CNAME ;
 // Float16, Float32, Float64
 // Bool
 
-body: '{' expr '}' ;
+body: '{' expr ';' '}' ;
 
 scalar
   : FLOAT    # scalarFloat

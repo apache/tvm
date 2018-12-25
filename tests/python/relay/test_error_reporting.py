@@ -1,15 +1,9 @@
 from tvm.relay.parser import fromtext
-from tvm.relay.expr import ExprFunctor
+from tvm.relay.expr_functor import ExprFunctor
 from tvm.relay.op import Op
 from tvm import relay
 
 class SpanChecker(ExprFunctor):
-    def visit(self, expr):
-        if isinstance(expr, Op):
-            return self.visit_op(expr)
-        else:
-            return super().visit(expr)
-
     def visit_var(self, var):
         assert var.span
 
@@ -23,6 +17,9 @@ class SpanChecker(ExprFunctor):
         self.visit(func.body)
 
         assert func.span
+
+    def visit_call(self, call):
+        assert call.span
 
 def check_spans(expr):
     sp_ck = SpanChecker()
@@ -46,8 +43,9 @@ def test_type_check_call():
     func2 = relay.Function([y], call)
     print(func2.astext())
     call = annotate_spans(func2)
-    check_spans(func2)
-    relay.ir_pass.infer_type(func2)
+    check_spans(call)
+    import pdb; pdb.set_trace()
+    relay.ir_pass.infer_type(call)
 
 if __name__ == "__main__":
     test_var_span()
