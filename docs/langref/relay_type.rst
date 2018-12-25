@@ -53,7 +53,7 @@ A concrete tensor type in Relay.
 Tensors are typed according to data type and shape. At present, these use TVM's
 data types and shapes, but in the future, Relay may include a separate AST for
 shapes. In particular, data types include `bool`, `float32`, `int8` and various
-other bit widths. Shapes are given as tuples of dimensions (TVM `IndexExpr`),
+other bit widths and numbers of lanes. Shapes are given as tuples of dimensions (TVM `IndexExpr`),
 such as `(5, 5)`; scalars are also given tuple types and have a shape of `()`.
 
 Note, though, that TVM shapes can also include variables and arithmetic expressions
@@ -95,13 +95,22 @@ Type Parameter
 ~~~~~~~~~~~~~~
 
 Type parameters represent placeholder types used for polymorphism in functions.
-Type parameters are specified according to *kind*: Kinds include general types
-(such as tensor types and tuple types), shapes, and data types. Relay enforces
-that types can only appear where their kind permits them; for instance, a
-shape or data type can only appear inside a tensor type, while only general types
-may appear inside a tensor or for a function's return and argument types.
+Type parameters are specified according to *kind*, corresponding to the types
+those parameters are allowed to replace: 
+
+- :code:`Type`, corresponding to top-level Relay types like tensor types, tuple types, and function types
+- :code:`BaseType`, corresponding to the base type of a tensor (e.g., :code:`float32`, :code:`bool`)
+- :code:`Shape`, corresponding to a tensor shape
+- :code:`ShapeVar`, corresponding to variables within a tensor shape
+
+Relay's type system enforces that type parameters are only allowed to appear where their kind permits them,
+so if type variable :code:`t` is of kind :code:`Type`, :code:`Tensor[t, float32]` is not a valid type.
+
+.. *Note: At present, only type parameters of kind :code:`Type` are supported.*
 
 Like normal parameters, concrete arguments must be given for type parameters at call sites.
+
+.. *Note: type parameter syntax is not yet supported in the text format.*
 
 For example, `s` below is a type parameter of kind `Shape` and it will
 be substituted for `(10, 10)` at the call site below:
@@ -113,13 +122,12 @@ be substituted for `(10, 10)` at the call site below:
    }
    plus<(10, 10)>(%a, %b)
 
-
 See :py:class:`~tvm.relay.ty.TypeVar` for its definition and documentation.
 
 Type Constraint
 ~~~~~~~~~~~~~~~
 
-Abstract class representing a type constraint, to be elaborated
+This is an abstract class representing a type constraint, to be elaborated
 upon in further releases. Currently, type relations are the only
 type constraints provided; they are discussed below.
 
@@ -168,7 +176,10 @@ For example we can define an identity relation to be:
 .. code-block:: prolog
     Identity(I, I) :- true
 
-Or we can define the relation for :code:`flatten`:
+It is usually convenient to type operators
+in Relay by defining a relation specific to that operator that
+encodes all the necessary constraints on the argument types
+and the return type. For example, we can define the relation for :code:`flatten`:
 
 .. code-block:: prolog
     Flatten(Tensor(sh, bt), O) :-
@@ -185,20 +196,22 @@ The inclusion of :code:`Broadcast` above indicates that the argument
 types and the return type must be tensors where the shape of `t3` is
 the broadcast of the shapes of `t1` and `t2`. The type system will
 accept any argument types and return type so long as they fulfill
-:code:`Broadcast`. Hence, it is usually convenient to type operators
-in Relay by defining a relation specific to that operator that
-encodes all the necessary constraints on the argument types
-and the return type.
+:code:`Broadcast`.
 
 Note that the above example relations are written in Prolog-like syntax,
 but currently the relations must be implemented by users in C++
 or Python. More specifically, Relay's type system uses an *ad hoc* solver
 for type relations in which type relations are actually implemented as
 C++ or Python functions that check whether the relation holds and
-imperatively update any shape variables or incomplete types. The
-functions are run as needed (if an input is updated) until one of the following holds:
+imperatively update any shape variables or incomplete types. In the current
+implementation, the functions implementing relations should return :code:`False`
+if the relation fails to hold and :code:`True` if the relation holds or if
+there is not enough information to determine whether it holds or not.
 
-1. All relations hold (typechecking succeeds).
+The functions for all the relations are run as needed (if an input is updated)
+until one of the following conditions holds:
+
+1. All relations hold and no incomplete types remain (typechecking succeeds).
 2. A relation fails to hold (a type error).
 3. A fixpoint is reached where shape variables or incomplete types
 remain (either a type error or more type annotations may be needed).
@@ -217,6 +230,9 @@ This is only used during type inference. Any omitted type annotation is
 replaced by an incomplete type, which will be replaced by another
 type at a later point.
 
-.. note:: Known as a "type variable" in the type checking literature.
+Incomplete types are known as "type variables" or "type holes" in the programming languages
+literature. We use the name "incomplete type" in order to more clearly distinguish them from type
+parameters: Type parameters must be bound to a function and are replaced with concrete type arguments (instantiated)
+at call sites, whereas incomplete types may appear anywhere in the program and are filled in during type inference.
 
 See :py:class:`~tvm.relay.ty.IncompleteType` for its definition and documentation.
