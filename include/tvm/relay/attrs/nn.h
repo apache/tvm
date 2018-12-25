@@ -294,6 +294,17 @@ struct PReluAttrs : public tvm::AttrsNode<PReluAttrs> {
 };
 
 
+/*! \brief Attributes for glu operator */
+struct GluAttrs : public tvm::AttrsNode<GluAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(GluAttrs, "relay.attrs.GluAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(-1)
+        .describe("The axis on which to split input into data and gate input.");
+  }
+};
+
+
 /*! \brief Attributes used in dropout operator */
 struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
   double rate;

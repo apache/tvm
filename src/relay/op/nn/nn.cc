@@ -10,6 +10,7 @@
 #include <topi/nn.h>
 #include <topi/nn/softmax.h>
 #include <topi/nn/flatten.h>
+#include <topi/detail/array_utils.h>
 #include <vector>
 #include "../type_relations.h"
 #include "../../pass/alter_op_layout.h"
@@ -430,11 +431,42 @@ RELAY_REGISTER_OP("nn.relu")
 });
 
 
-// glu
+// relay.glu
+TVM_REGISTER_NODE_TYPE(GluAttrs);
+
+bool GluRel(const Array<Type>& types,
+            int num_inputs,
+            const Attrs& attrs,
+            const TypeReporter& reporter) {
+  // `types` contains: [data, result]
+  CHECK_EQ(types.size(), 2);
+  const auto* data = types[0].as<TensorTypeNode>();
+  if (data == nullptr) return false;
+  CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
+  const auto param = attrs.as<GluAttrs>();
+  CHECK(param != nullptr);
+  auto axis = topi::detail::getRealAxis(data->shape.size(), param->axis);
+
+  CHECK(reporter->Assert(data->shape[axis] % 2 == make_zero(Int(64))))
+        << "data must split evenly along axis " << axis;
+  std::vector<IndexExpr>&& oshape = AsVector(data->shape);
+  oshape[axis] /= int32_t(2);
+  reporter->Assign(types[1], TensorTypeNode::make(oshape, data->dtype));
+  return true;
+}
+
+// Positional relay function to create glu operator used by frontend FFI.
+Expr MakeGlu(Expr data, int axis) {
+  auto attrs = make_node<GluAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("nn.glu");
+  return CallNode::make(op, {data}, Attrs(attrs), {});
+}
+
+
 TVM_REGISTER_API("relay.op.nn._make.glu")
-.set_body_typed<Expr(Expr)>([](Expr data) {
-    static const Op& op = Op::Get("nn.glu");
-    return CallNode::make(op, {data}, Attrs(), {});
+.set_body([](const TVMArgs& args, TVMRetValue* rv) {
+    runtime::detail::unpack_call<Expr, 2>(MakeGlu, args, rv);
   });
 
 RELAY_REGISTER_OP("nn.glu")
@@ -444,11 +476,11 @@ RELAY_REGISTER_OP("nn.glu")
    x \times \sigma(x)
 
 )code" TVM_ADD_FILELINE)
+.set_attrs_type_key("relay.attrs.GluAttrs")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(1)
-.add_type_rel("Identity", IdentityRel)
-.set_attr<FInferCorrectLayout>("FInferCorrectLayout", ElemwiseArbitraryLayout)
+.add_type_rel("Glu", GluRel)
 .set_attr<FTVMCompute>("FTVMCompute", [](const Attrs& attrs,
                                          const Array<Tensor>& inputs,
                                          const Type& out_type,

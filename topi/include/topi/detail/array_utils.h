@@ -39,9 +39,10 @@ inline bool contains(Array<T> array, T item) {
  * \return a number in [0, ndim) which identifies the axis.
  */
 inline size_t getRealAxis(int ndim, int axis) {
-  int realAxis = axis >= 0 ? axis : axis + ndim;
-  CHECK(realAxis >= 0) << "Axis " << axis << " out of bounds for " << ndim << "D array.";
-  return realAxis;
+  int real_axis = axis >= 0 ? axis : axis + ndim;
+  CHECK(real_axis >= 0 && real_axis < ndim)
+    << "Axis " << axis << " out of bounds for " << ndim << "D array.";
+  return real_axis;
 }
 
 }  // namespace detail

@@ -12,6 +12,7 @@
 #include <topi/broadcast.h>
 #include <topi/reduction.h>
 #include <topi/nn.h>
+#include <topi/detail/array_utils.h>
 #include <vector>
 #include "../op_common.h"
 #include "../../../arithmetic/compute_expr.h"
@@ -1352,14 +1353,7 @@ bool SplitRel(const Array<Type>& types,
   CHECK_NE(data->shape.size(), 0) << "Input shape cannot be empty";
   const auto param = attrs.as<SplitAttrs>();
   CHECK(param != nullptr);
-  auto axis = param->axis;
-  if (axis < 0) {
-    axis += data->shape.size();
-  }
-  CHECK_LT(axis, data->shape.size())
-    << "axis should be within the input dimension range.";
-  CHECK_GE(axis, 0)
-    << "axis should be within the input dimension range.";
+  auto axis = topi::detail::getRealAxis(data->shape.size(), param->axis);
 
   if (const IntImm* sections = param->indices_or_sections.as<IntImm>()) {
     CHECK(reporter->Assert(data->shape[axis] %
