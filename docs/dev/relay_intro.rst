@@ -75,7 +75,7 @@ GlobalVar decouples the definition/declaration and enables recursion and delayed
 
 .. code ::
 
-  @def myfunc(%x) {
+  def @myfunc(%x) {
     %1 = equal(%x, 1)
      if (%1) {
         %x
