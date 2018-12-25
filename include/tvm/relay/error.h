@@ -8,11 +8,13 @@
 
 #include <string>
 #include "./base.h"
+#include "./source_map.h"
 
 namespace tvm {
 namespace relay {
 
 struct Error : public dmlc::Error {
+  Span sp;
   explicit Error(const std::string &msg) : dmlc::Error(msg) {}
 };
 
@@ -26,6 +28,18 @@ struct FatalTypeError : public Error {
 
 struct TypecheckerError : public Error {
   explicit TypecheckerError(const std::string &msg) : Error(msg) {}
+};
+
+class ErrorReporter {
+public:
+  SourceMap src_map;
+  std::vector<Error> errors;
+
+  void Report(const Error& err) {
+    this->errors.push_back(err);
+  }
+
+  dmlc::Error Render();
 };
 
 }  // namespace relay

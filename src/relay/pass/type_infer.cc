@@ -104,6 +104,7 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // constructors
   TypeInferencer() {
   }
+
   explicit TypeInferencer(Module mod)
       : mod_(mod) {
   }
@@ -114,8 +115,12 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
  private:
   // type resolver that maps back to type
   class Resolver;
+
   // internal environment
   Module mod_;
+
+  ErrorReporter err_reporter;
+
   // map from expression to checked type
   // type inferencer will populate it up
   std::unordered_map<Expr, ResolvedTypeInfo, NodeHash, NodeEqual> type_map_;
@@ -125,19 +130,28 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // relation function
   TypeRelationFn tuple_getitem_rel_;
   TypeRelationFn make_tuple_rel_;
+
+  [[noreturn]] void FatalError(const Error& err) {
+    this->err_reporter.Report(err);
+    throw this->err_reporter.Render();
+  }
+
   // Unify two types
   Type Unify(const Type& t1, const Type& t2, const Span& span) {
     // TODO(tqchen, jroesch): propagate span to solver
     try {
       return solver_.Unify(t1, t2);
     } catch (const dmlc::Error &e) {
-      LOG(FATAL)
-          << "Error unifying `"
-          << t1
-          << "` and `"
-          << t2
-          << "`: " << e.what();
-      return Type();
+      // LOG(FATAL)
+      Error err("failed to unify");
+      err.sp = span;
+      FatalError(err);
+      //     << "Error unifying `"
+      //     << t1
+      //     << "` and `"
+      //     << t2
+      //     << "`: " << e.what();
+      // return Type();
     }
   }
   // Lazily get type for expr
