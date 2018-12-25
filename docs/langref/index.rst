@@ -22,7 +22,7 @@ Introduction to Relay
 
 Relay is a functional, differentiable programming language
 designed to be an expressive intermediate representation for machine
-learning systems. It supports for closures, control flow, and
+learning systems. It supports closures, control flow, and
 recursion, allowing Relay to directly represent more complex models.
 Relay also includes a form of dependent typing using *type relations*
 in order to handle shape analysis for operators with complex

@@ -157,13 +157,13 @@ the following:
 
     def @plus(%x, %y) where Broadcast { add(%x, %y) }
 
-In the above definition, the types of `%x` and `%y` and the return type
-are subject to the `Broadcast` relation, meaning all three must be tensors
+In the above definition, the types of :code:`%x` and :code:`%y` and the return type
+are subject to the :code:`Broadcast` relation, meaning all three must be tensors
 and their shapes follow the elementwise broadcast relation. As with
 operators, the definitions of relations are not transparent to Relay
 and they are instead implemented externally in either C++ or Python.
 
-As in the case of `Broadcast`, relations are used to express complicated
+As in the case of :code:`Broadcast`, relations are used to express complicated
 constraints on types (especially tensor shapes).
 All function relations must hold at all call sites;
 type checking is thus treated as a constraint-solving problem.
@@ -175,12 +175,12 @@ See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of
 Operators
 =========
 
-An operator is a primitive operation not defined in the Relay
+An operator is a primitive operation, such as :code:`add` or :code:`conv2d`, not defined in the Relay
 language. Operators are declared in the global operator
 registry in C++. Many common operators are backed by TVM's
 Tensor Operator Inventory (`TOPI <https://github.com/dmlc/tvm/tree/master/topi>`__).
 
-An operator requires a user to provide an implementation
+To register an operator a user must provide an implementation
 of the operator, its type, and any other desired metadata.
 The operator registry is a column-based store where
 operators are keys, so any metadata (which might be referenced
@@ -191,7 +191,7 @@ so operators may be called like any other function and have function
 types. In particular, operator types are registered using a single
 type relation (see the above subsection), typically a relation
 specialized to that operator. For example, the :code:`add` operator
-is registered with the `Broadcast` relation, indicating that the
+is registered with the :code:`Broadcast` relation, indicating that the
 arguments of :code:`add` must be tensors and that the return type
 is a tensor whose shape depends on those of its arguments.
 
@@ -217,12 +217,12 @@ control flow. That is, any portion of a program comprised only of these
 expressions corresponds to a pure computation graph without control flow.
 Note that global and local variables are also part of the dataflow fragment.
 
-Constants
+Constant
 ~~~~~~~~~
 
 This node represents a constant tensor value
 (see :py:mod:`~tvm.relay.Value` for more details).
-The constants are represented as :py:class:`~tvm.NDArray`,
+A constant is represented as a :py:class:`~tvm.NDArray`,
 allowing Relay to utilize TVM operators for constant evaluation.
 
 See :py:class:`~tvm.relay.expr.Constant` for its definition and documentation.
@@ -249,24 +249,24 @@ Tuple Projection
 A tuple must be indexed by an integer constant in order to extract a
 particular member of the tuple. Projections are 0-indexed.
 
-For example, the below projection evaluates to :code:`b`:
+For example, the below projection evaluates to :code:`%b`:
 
 .. code-block:: python
 
-   (a, b, c).1
+   (%a, %b, %c).1
 
 See :py:class:`~tvm.relay.expr.TupleGetItem` for its definition and documentation.
 
 Function Expressions
 ~~~~~~~~~~~~~~~~~~~~
 
-Functions are first class in Relay and can be used in any expression
-position. Function expressions are the same as global functions and
+Functions are first class in Relay, which means they are expressions just like variables, constants, and tuples.
+Function expressions are the same as global functions and
 use nearly the same syntax, but do not have a globally unique name.
 
 .. code-block:: python
 
-    fn (%x : Tensor[(10, 10), float32], y: Tensor[(10, 10), float32]
+    fn (%x : Tensor[(10, 10), float32], %y: Tensor[(10, 10), float32]
                 -> Tensor[(10, 10), float32] { add(%x, %y) }
 
 Note that function expressions evaluate to a closure. Closures
@@ -289,7 +289,7 @@ of zero values because the closure for :code:`%f` stores the value of
     # %f is a closure where %x maps to Constant(0, (10, 10), float32)
     let %f = %g();
     let %x = Constant(1, (10, 10), float32);
-    let %z = %f(%x)
+    %f(%x) // evaluates to `Constant(1, (10, 10), float32)
 
 A recursive function expression can be defined using a :code:`let` binding,
 as here:
@@ -379,7 +379,7 @@ In Relay's text format, a graph binding can be written as below (note the lack o
    %2 = add(%1, %1)
    multiply(%2, %2)
 
-Graph bindings are not represented as an AST node in Relay, but rather as meta-variables set
+Unlike a let binding, a graph binding is not represented as an AST node in Relay, but rather as a meta-variable referencing its AST node value.
 to reference AST nodes. For example, a program like the above could be constructed in Relay's
 Python front-end by setting *Python variables* equal to the corresponding Relay AST node and
 using the variables repeatedly, as below (a C++ program using the corresponding API bindings
@@ -399,10 +399,10 @@ Flanagan *et al*<https://slang.soe.ucsc.edu/cormac/papers/pldi93.pdf>`__ for a d
 of the A-normal form).
 
 =======================
-Control Flow Expression
+Control Flow Expressions
 =======================
 
-Control flow expressions allow the network topology to change
+Control flow expressions allow the graph topology to change
 based on the value of previously executed expressions.
 
 Call

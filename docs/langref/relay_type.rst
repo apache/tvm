@@ -2,16 +2,16 @@
 Relay's Type System
 ===================
 
-We have briefly introduced types while detailing the the expression language
-of Relay, but have not yet described the type system. Relay is
+We briefly introduced types while detailing Relay's expression language
+, but have not yet described its type system. Relay is
 a statically typed and type-inferred language, allowing programs to
-be typed with a minimal requirement of explicit type annotations.
+be fully typed while requiring just a few explicit type annotations.
 
 Static types are useful when performing compiler optimizations because they
 communicate properties about the data a program manipulates, such as runtime
 shape, data layout, and storage, without needing to run the program.
 
-Relay's type system features a form of dependent typing for shapes. Treating tensor
+Relay's type system features a form of *dependent typing* for shapes. That is, its type system keeps track of the shapes of tensors in a Relay program. Treating tensor
 shapes as types allows Relay to perform more powerful reasoning at compile time;
 in particular, Relay can statically reason about operations whose output shapes
 vary based on the input shapes in complex ways. Casting shape inference as a type
@@ -27,11 +27,11 @@ program transformations. For instance, `src/relay/pass/fuse_ops.cc` gives
 an implementation of a pass that uses inferred tensor shapes to replace invocations
 of operators in a Relay program with fused operator implementations.
 
-Reasoning about tensor types in Relay is encoded using type relations, which means
+Reasoning about tensor types in Relay is encoded using *type relations*, which means
 that the bulk of type checking in Relay is constraint solving (ensuring that all
 type relations are satisfied at call sites). Type relations offer a flexible and
 relatively simple way of making the power of dependent typing available in Relay
-without greatly increasing the complexity of Relay's type system.
+without greatly increasing the complexity of its type system.
 
 Types
 =====
@@ -75,7 +75,7 @@ Tuple Type
 A type of a tuple in Relay.
 
 Just as a tuple is simply a sequence of values of statically known length, the type
-of the tuple consists of a sequence of the types corresponding to each member of the tuple.
+of a tuple consists of a sequence of the types corresponding to each member of the tuple.
 
 Because a tuple type is of statically known size, the type of a tuple projection
 is simply the corresponding index into the tuple type.
@@ -85,7 +85,7 @@ For example, in the below code, :code:`%t` is of type
 and :code:`%c` is of type `Tensor[(10, 10), float32]`.
 
 .. code-block:: python
-   let %t = (Constant(0, (), bool), Constant(1, (10, 10), float32));
+   let %t = (False, Constant(1, (10, 10), float32));
    let %c = %t.1;
    %c
 
@@ -101,9 +101,9 @@ that types can only appear where their kind permits them; for instance, a
 shape or data type can only appear inside a tensor type, while only general types
 may appear inside a tensor or for a function's return and argument types.
 
-Type parameters will be substituted with a concrete type at call sites.
+Like normal parameters, concrete arguments must be given for type parameters at call sites.
 
-For example, `s` below is a type paramter of kind `Shape` and it will
+For example, `s` below is a type parameter of kind `Shape` and it will
 be substituted for `(10, 10)` at the call site below:
 
 .. code-block:: python
@@ -155,9 +155,9 @@ tensor shapes in complex ways, such as broadcasting operators or
 :code:`flatten`, allowing Relay to statically reason about the shapes
 in these cases.
 
-A type relation :code:`R` is an n-ary-input, single-output relation over
-types. Namely, :code:`R` specifies a relationship between its argument
-types and outputs `true` if the relationship holds and `false`
+A type relation :code:`R` describes a relationship between the inputs and output types of a Relay function.
+Namely, :code:`R` is a function on types that
+outputs `true` if the relationship holds and `false`
 if it fails to hold. Types given to a relation may be incomplete or
 include shape variables, so type inference must assign appropriate
 values to incomplete types and shape variables for necessary relations
@@ -178,7 +178,7 @@ If we have a relation like :code:`Broadcast` it becomes possible
 to type operators like :code:`add`:
 
 .. code-block:: python
-    add : fun<t1 : Type, t2 : Type, t3 : Type>(t1, t2) -> t3
+    add : fn<t1 : Type, t2 : Type, t3 : Type>(t1, t2) -> t3
                 where Broadcast
 
 The inclusion of :code:`Broadcast` above indicates that the argument
@@ -213,7 +213,7 @@ Incomplete Type
 ~~~~~~~~~~~~~~~
 
 A type or portion of a type that is not yet known.
-Only used during type inference: any omitted type annotation is
+This is only used during type inference. Any omitted type annotation is
 replaced by an incomplete type, which will be replaced by another
 type at a later point.
 
