@@ -8,6 +8,7 @@
 #include <tvm/relay/expr_functor.h>
 #include <tvm/relay/interpreter.h>
 #include <tvm/relay/pass.h>
+#include <tvm/relay/attrs/debug.h>
 #include "compile_engine.h"
 
 namespace tvm {
@@ -124,13 +125,48 @@ struct Stack {
   };
 };
 
+/*! \brief A representation of the interpreter state which can be passed back to Python. */
+class InterpreterState;
+
+/*! \brief A container capturing the state of the interpreter. */
+class InterpreterStateNode : public Node {
+ public:
+  using Frame = tvm::Map<Var, Value>;
+  using Stack = tvm::Array<Frame>;
+
+  /*! \brief The current expression under evaluation. */
+  Expr current_expr;
+
+  /*! \brief The call stack of the interpreter. */
+  Stack stack;
+
+  void VisitAttrs(tvm::AttrVisitor* v) final {
+    v->Visit("current_expr", &current_expr);
+    v->Visit("stack", &stack);
+  }
+
+  TVM_DLL static InterpreterState make(Expr current_expr, Stack stack);
+
+  static constexpr const char* _type_key = "relay.InterpreterState";
+  TVM_DECLARE_NODE_TYPE_INFO(InterpreterStateNode, Node);
+};
+
+RELAY_DEFINE_NODE_REF(InterpreterState, InterpreterStateNode, NodeRef);
+
+InterpreterState InterpreterStateNode::make(Expr current_expr, Stack stack) {
+  NodePtr<InterpreterStateNode> n = make_node<InterpreterStateNode>();
+  n->current_expr = std::move(current_expr);
+  n->stack = std::move(stack);
+  return InterpreterState(n);
+}
+
 // NOTE: the current interpreter assumes A-normal form.
 // which is better for execution.
 //
 // It will run duplicated computations when taking program that
 // contains DAG in dataflow-form.
-// Conversion to ANF is recommended before running the interpretation.
 //
+// Conversion to ANF is recommended before running the interpretation.
 class Interpreter :
       public ExprFunctor<Value(const Expr& n)> {
  public:
@@ -209,6 +245,21 @@ class Interpreter :
 
   Value InvokePrimitiveOp(Function func,
                           const Array<Value>& args) {
+    auto call_node = func->body.as<CallNode>();
+
+    if (call_node && call_node->op == Op::Get("debug")) {
+      auto dattrs = call_node->attrs.as<DebugAttrs>();
+      auto interp_state = this->get_state(call_node->args[0]);
+
+      if (dattrs->debug_func.defined()) {
+        dattrs->debug_func(interp_state);
+      } else {
+        RELAY_DEBUG(interp_state);
+      }
+
+      return args[0];
+    }
+
     // Marshal the arguments.
     // Handle tuple input/output by flattening them.
     size_t arg_len = 0;
@@ -379,6 +430,16 @@ class Interpreter :
       LOG(FATAL) << "type error, type system should have caught this";
       return Value();
     }
+  }
+
+  InterpreterState get_state(Expr e = Expr()) const {
+    InterpreterStateNode::Stack stack;
+    for (auto fr : this->stack_.frames) {
+      InterpreterStateNode::Frame frame = fr.locals;
+      stack.push_back(frame);
+    }
+    auto state = InterpreterStateNode::make(e, stack);
+    return state;
   }
 
  private:
