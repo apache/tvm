@@ -28,7 +28,8 @@ def _get_pad_pair(input1d, kernel1d, stride1d):
 
 def _get_elu(inexpr, alpha):
     """A helper method for elu."""
-    return _op.negative(alpha) * _op.nn.relu(_expr.const(1.) - _op.exp(inexpr)) + _op.nn.relu(inexpr)
+    return _op.negative(alpha) * _op.nn.relu(_expr.const(1.) - \
+        _op.exp(inexpr)) + _op.nn.relu(inexpr)
 
 
 def _as_list(arr):
@@ -210,7 +211,8 @@ def _convert_convolution(inexpr, keras_layer, etab):
         if pad_t == pad_b and pad_l == pad_r:
             params['padding'] = (pad_t, pad_l)
         else:
-            inexpr = _op.nn.pad(data=inexpr, pad_width=((0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
+            inexpr = _op.nn.pad(data=inexpr, pad_width=(
+                (0, 0), (0, 0), (pad_t, pad_b), (pad_l, pad_r)))
     else:
         raise TypeError("Unsupported padding type : {}".format(keras_layer.padding))
     if is_deconv:
@@ -316,7 +318,7 @@ def _convert_pooling(inexpr, keras_layer, etab):
         if pool_type == 'MaxPooling2D':
             return _op.nn.max_pool2d(inexpr, **params)
         elif pool_type == 'AveragePooling2D':
-            params['count_include_pad'] = False;
+            params['count_include_pad'] = False
             return _op.nn.avg_pool2d(inexpr, **params)
         else:
             raise TypeError("Unsupported pooling type : {}".format(keras_layer))
@@ -356,8 +358,8 @@ def _convert_cropping(inexpr, keras_layer, _):
     else:
         raise TypeError("Unrecognized cropping type : {}".format(crop_type))
     int32_max = np.iinfo(np.int32).max
-    return _op.strided_slice(inexpr, begin=[0, 0, crop_t, crop_l],
-                              end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
+    return _op.strided_slice(inexpr, begin=[0, 0, crop_t, crop_l], \
+        end=[int32_max, int32_max, in_h-crop_b, in_w-crop_r])
 
 
 def _convert_batchnorm(inexpr, keras_layer, etab):
@@ -692,8 +694,8 @@ def from_keras(model, shape_dict):
     # model._output_coordinates contains out_node(oc[0]), node_index(oc[1]) and tensor_index(oc[2])
     # Get all output nodes in etab using the name made from above values.
     # The out exprs were added to etab in keras_op_to_relay using this name.
-    outexpr = [etab.get_expr(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2]))
-              for oc in model._output_coordinates]
+    outexpr = [etab.get_expr(oc[0].name + ":" + str(oc[1]) + ":" + str(oc[2])) \
+               for oc in model._output_coordinates]
     outexpr = outexpr[0] if len(outexpr) == 1 else _expr.Tuple(outexpr)
     func = _expr.Function(ir_pass.free_vars(outexpr), outexpr)
     params = {k:_nd.array(np.array(v, dtype=np.float32)) for k, v in etab.params.items()}
