@@ -124,10 +124,11 @@ class RPCModuleNode final : public ModuleNode {
   PackedFunc GetTimeEvaluator(const std::string& name,
                               TVMContext ctx,
                               int number,
-                              int repeat) {
+                              int repeat,
+                              int min_repeat_ms) {
     RPCFuncHandle handle = GetFuncHandle(name);
     if (handle == nullptr) return PackedFunc();
-    handle = sess_->GetTimeEvaluator(handle, ctx, number, repeat);
+    handle = sess_->GetTimeEvaluator(handle, ctx, number, repeat, min_repeat_ms);
     return WrapRemote(handle);
   }
 
@@ -203,10 +204,10 @@ TVM_REGISTER_GLOBAL("module._RPCTimeEvaluator")
     ctx.device_id = args[3];
     if (tkey == "rpc") {
       *rv = static_cast<RPCModuleNode*>(m.operator->())
-          ->GetTimeEvaluator(args[1], ctx, args[4], args[5]);
+          ->GetTimeEvaluator(args[1], ctx, args[4], args[5], args[6]);
     } else {
       *rv = WrapTimeEvaluator(
-          m.GetFunction(args[1], false), ctx, args[4], args[5]);
+          m.GetFunction(args[1], false), ctx, args[4], args[5], args[6]);
     }
   });
 

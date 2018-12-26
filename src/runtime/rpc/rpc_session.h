@@ -151,14 +151,26 @@ class RPCSession {
    *
    * \param fhandle The function handle.
    * \param ctx The ctx to run measurement on.
-   * \param number How many steps to run in each time evaluation
-   * \param repeat How many times to repeat the timer
+   * \param number The number of times to run this function for taking average.
+          We call these runs as one `repeat` of measurement.
+   * \param repeat The number of times to repeat the measurement.
+          In total, the function will be invoked (1 + number x repeat) times,
+          where the first one is warm up and will be discarded.
+          The returned result contains `repeat` costs,
+          each of which is an average of `number` costs.
+   * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
+          By default, one `repeat` contains `number` runs. If this parameter is set,
+          the parameters `number` will be dynamically adjusted to meet the
+          minimum duration requirement of one `repeat`.
+          i.e., When the run time of one `repeat` falls below this time,
+          the `number` parameter will be automatically increased.
    * \return A remote timer function
    */
   RPCFuncHandle GetTimeEvaluator(RPCFuncHandle fhandle,
                                  TVMContext ctx,
                                  int number,
-                                 int repeat);
+                                 int repeat,
+                                 int min_repeat_ms);
   /*!
    * \brief Call a remote defined system function with arguments.
    * \param fcode The function code.
@@ -221,13 +233,29 @@ class RPCSession {
 };
 
 /*!
- * \brief Wrap a timer function for a given packed function.
+ * \brief Wrap a timer function to measure the time cost of a given packed function.
  * \param f The function argument.
  * \param ctx The context.
- * \param number Number of steps in the inner iteration
- * \param repeat How many steps to repeat the time evaluation.
+ * \param number The number of times to run this function for taking average.
+          We call these runs as one `repeat` of measurement.
+ * \param repeat The number of times to repeat the measurement.
+          In total, the function will be invoked (1 + number x repeat) times,
+          where the first one is warm up and will be discarded.
+          The returned result contains `repeat` costs,
+          each of which is an average of `number` costs.
+ * \param min_repeat_ms The minimum duration of one `repeat` in milliseconds.
+          By default, one `repeat` contains `number` runs. If this parameter is set,
+          the parameters `number` will be dynamically adjusted to meet the
+          minimum duration requirement of one `repeat`.
+          i.e., When the run time of one `repeat` falls below this time,
+          the `number` parameter will be automatically increased.
+ * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, TVMContext ctx, int number, int repeat);
+PackedFunc WrapTimeEvaluator(PackedFunc f,
+                             TVMContext ctx,
+                             int number,
+                             int repeat,
+                             int min_repeat_ms);
 
 /*!
  * \brief Create a Global RPC module that refers to the session.
