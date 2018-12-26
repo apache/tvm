@@ -46,6 +46,11 @@ def test_cast():
     assert "dtype=" in yy.astext()
     assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
+    x = relay.var("x", relay.TensorType((8, 9, 4), "float32"))
+    y = relay.cast(x, "int32")
+    yy = relay.ir_pass.infer_type(y)
+    assert "dtype=" in yy.astext()
+    assert yy.checked_type == relay.TensorType((8, 9, 4), "int32")
 
 def test_clip():
     a = relay.var("a", relay.TensorType((10, 4), "float32"))
