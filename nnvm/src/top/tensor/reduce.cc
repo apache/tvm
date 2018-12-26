@@ -352,7 +352,7 @@ Example::
 
     Expr count = make_const(inputs[0]->dtype, 1);
     for (auto& i : r_axes) {
-      count *= inputs[0]->shape[i];
+      count *= cast(inputs[0]->dtype, inputs[0]->shape[i]);
     }
 
     return Array<Tensor>{
