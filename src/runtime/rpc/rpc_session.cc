@@ -1197,13 +1197,12 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
-  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) {
+  auto ftimer = [pf, ctx, &number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, &temp);
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
-    int dynamic_number = number;
 
     for (int i = 0; i < repeat; ++i) {
       std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> tbegin, tend;
@@ -1212,7 +1211,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
       do {
         tbegin = std::chrono::high_resolution_clock::now();
         // start timing
-        for (int i = 0; i < dynamic_number; ++i) {
+        for (int i = 0; i < number; ++i) {
           pf.CallPacked(args, &temp);
         }
         DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
@@ -1221,13 +1220,13 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
         duration_ms = std::chrono::duration_cast<std::chrono::duration<double> >
             (tend - tbegin).count() * 1000;
 
-        dynamic_number = static_cast<int>(
-            std::max((min_repeat_ms / (duration_ms / dynamic_number) + 1),
-                     dynamic_number * 1.618));
+        number = static_cast<int>(
+            std::max((min_repeat_ms / (duration_ms / number) + 1),
+                     number * 1.618));
       } while (duration_ms < min_repeat_ms);
 
       double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
-          tend - tbegin).count() / dynamic_number;
+          tend - tbegin).count() / number;
       os.write(reinterpret_cast<char*>(&speed), sizeof(speed));
     }
     std::string blob = os.str();

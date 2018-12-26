@@ -69,29 +69,9 @@ def test_check_correctness():
                callbacks=[_callback_wrong])
 
 
-def test_min_repeat_ms():
-    task, target = get_sample_task()
-
-    measure_option = autotvm.measure_option(
-        builder=autotvm.LocalBuilder(),
-        runner=autotvm.LocalRunner(number=1, min_repeat_ms=100)
-    )
-
-    def _callback(tuner, measure_inputs, measure_results):
-        for inp, res in zip(measure_inputs, measure_results):
-            if res.error_no != 0:
-                continue
-
-            assert 1000 * np.mean(res.costs) * \
-                   measure_option['runner'].cur_number >= 100
-
-    tuner = autotvm.tuner.RandomTuner(task)
-    tuner.tune(n_trial=5, measure_option=measure_option,
-               callbacks=[_callback])
-
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     test_task_tuner_without_measurement()
     test_check_correctness()
-    test_min_repeat_ms()
+
