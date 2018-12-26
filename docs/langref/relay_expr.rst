@@ -93,35 +93,30 @@ Functions in Relay act similarly to procedures or functions in
 other programming languages and serve to generalize the concept
 of a named subgraph.
 
+Functions are first class in Relay, which means they are expressions just like variables, constants, and tuples.
+Additionally, functions in Relay are higher-order, which means that a function can be passed as an argument to a
+function or returned by a function, as function expressions evaluate to closures (see the `Closures`_ subsection),
+which are values like tensors and tuples.
+
 See :py:class:`~tvm.relay.expr.Function` for the definition and documentation of function nodes.
 
-Global Functions
-~~~~~~~~~~~~~~~~
+Syntax
+~~~~~~
 
-A global function definition consists of a name, arguments, return type,
-type parameters, and any applicable type relations.
-A function's return type and parameter types may be omitted;
-Relay will attempt to infer the most general types where types
-are omitted.
-
-Functions defined in the manner described in this subsection have
-global scope and may be recursive; that is, within the function's body, the function's
-identifier refers back to the function.
-
-A definition minimally consists of an identifier :code:`@id`, an empty set of
+A definition minimally consists of the keyword :code:`fn`, an empty set of
 parameters, and a body expression (:py:class:`~tvm.relay.expr.Expr`)
 contained by curly braces.
 
 .. code-block:: python
 
-    def @id() { body }
+    fn() { body }
 
 A definition may contain any number of parameters. For example, a
 simple function that invokes the `add` operator:
 
 .. code-block:: python
 
-    def @plus(%x, %y) { add(%x, %y) }
+    fn(%x, %y) { add(%x, %y) }
 
 Notice that within the function's body, the parameters are local
 variables, just like those bound in a :code:`let` expression.
@@ -132,86 +127,44 @@ on certain types:
 
 .. code-block:: python
 
-    def @plus(%x: Tensor[(10, 10), float32], %y: Tensor[(10, 10), float32])
+    fn(%x: Tensor[(10, 10), float32], %y: Tensor[(10, 10), float32])
                -> Tensor[(10, 10), float32] {
         add(%x, %y)
     }
 
-A function parameter is just a local variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally
-annotated with a type. Parameters are written as :code:`%x : T`.
+The above function only takes arguments of type :code:`Tensor[(10, 10), float32]` and returns a value of
+type :code:`Tensor[(10, 10), float32]`. A function parameter is just a local 
+variable (:py:class:`~tvm.relay.expr.LocalVar`) optionally annotated with a type, written as :code:`%x : T`.
 
-When the type information is omitted, we will attempt to infer the most general type
+When the type information is omitted, Relay attempts to infer the most general type
 for the users. This property is known as generalization: for a definition without
-explicit annotations, we will attempt to assign the most general type to the
+explicit annotations, Relay attempts to assign the most general type to the
 parameters and return type based on the function body and call sites.
 
-.. *Note: type parameter syntax is not yet supported in the text format.*
-
-A function may also be given a set of type parameters, which can be
-substituted for specific types at call sites. Functions with
-type parameters are *type polymorphic*; their return type or the types
-of arguments they will accept can vary based on the type arguments
-given at call sites.
-
-For example, one can define a polymorphic identity function for
-any Relay type as follows:
-
-.. code-block:: python
-    def @id<t: Type>(%x : t) -> t {
-        %x
-    }
-
-The below definition is also polymorphic, but restricts its
-arguments to tensor types:
-
-.. code-block:: python
-    def @id<s: Shape, bt: BaseType>(%x: Tensor[s, bt]) {
-        %x
-    }
-
-Notice that the return type is omitted and will be inferred.
-
-.. *Note: :code:`where` syntax is not yet supported in the text format.*
-
-A function may also be subject to one or more type relations, such as in
-the following:
+A recursive function expression can be defined using a :code:`let` binding,
+as here:
 
 .. code-block:: python
 
-    def @plus(%x, %y) where Broadcast { add(%x, %y) }
+    let %fact = fn (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
+        if (%x == Constant(0, (10, 10), float32)) {
+            Constant(1, (10, 10), float32)
+        } else {
+            %x * %fact(%x - Constant(1, (10, 10), float32))
+        }
+    };
+    %fact(Constant(10, (10, 10), float32))
 
-In the above definition, the types of :code:`%x` and :code:`%y` and the return type
-are subject to the :code:`Broadcast` relation, meaning all three must be tensors
-and their shapes follow the elementwise broadcast relation. As with
-operators, the definitions of relations are not transparent to Relay
-and they are instead implemented externally in either C++ or Python.
+Closures
+~~~~~~~~
 
-As in the case of :code:`Broadcast`, relations are used to express complicated
-constraints on types (especially tensor shapes).
-All function relations must hold at all call sites;
-type checking is thus treated as a constraint-solving problem.
-For more detail on type relations and their implementations,
-please see the documentation on typing in Relay.
-
-Function Expressions
-~~~~~~~~~~~~~~~~~~~~
-
-Functions are first class in Relay, which means they are expressions just like variables, constants, and tuples.
-Function expressions behave identically to global functions and use nearly the same syntax,
-but do not have a globally unique name.
-
-.. code-block:: python
-
-    fn (%x : Tensor[(10, 10), float32], %y: Tensor[(10, 10), float32]
-                -> Tensor[(10, 10), float32] { add(%x, %y) }
-
-Note that function expressions evaluate to a closure. Closures
+Function expressions evaluate to a closure. Closures
 are values that are represented as a pair of a local environment
 (storing the values for all variables defined outside the scope
 of the function's body) and the function itself.
 
-For example, in the below example, :code:`%z` will evaluate to a tensor
-of zero values because the closure for :code:`%f` stores the value of
+For example, in the below example, the final result will be
+a tensor of zero values because the closure for :code:`%f` stores the value of
 :code:`%x` at the pointer where :code:`%f` was defined.
 
 .. code-block:: python
@@ -227,19 +180,56 @@ of zero values because the closure for :code:`%f` stores the value of
     let %x = Constant(1, (10, 10), float32);
     %f(%x) // evaluates to `Constant(0, (10, 10), float32)
 
-A recursive function expression can be defined using a :code:`let` binding,
-as here:
+Polymorphism and Type Relations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. *Note: type parameter syntax is not yet supported in the text format.*
+
+A function may also be given a set of type parameters, which can be
+substituted for specific types at call sites. Functions with
+type parameters are *type polymorphic*; their return type or the types
+of arguments they will accept can vary based on the type arguments
+given at call sites.
+
+For example, one can define a polymorphic identity function for
+any Relay type as follows:
+
+.. code-block:: python
+    fn<t: Type>(%x : t) -> t {
+        %x
+    }
+
+The below definition is also polymorphic, but restricts its
+arguments to tensor types:
+
+.. code-block:: python
+    fn<s: Shape, bt: BaseType>(%x: Tensor[s, bt]) {
+        %x
+    }
+
+Notice that the return type is omitted and will be inferred.
+
+.. *Note: :code:`where` syntax is not yet supported in the text format.*
+
+A function may also be subject to one or more type relations, such as in
+the following:
 
 .. code-block:: python
 
-    let %fact = fn (%x : Tensor[(10, 10), float32]) -> Tensor[(10, 10), float32] {
-        if (%x == Constant(0, (10, 10), float32)) {
-            Constant(1, (10, 10), float32)
-        } else {
-            %x * %fact(%x - Constant(1, (10, 10), float32))
-        }
-    };
-    %fact(Constant(10, (10, 10), float32))
+    fn(%x, %y) where Broadcast { add(%x, %y) }
+
+In the above definition, the types of :code:`%x` and :code:`%y` and the return type
+are subject to the :code:`Broadcast` relation, meaning all three must be tensors
+and their shapes follow the elementwise broadcast relation. As with
+operators, the definitions of relations are not transparent to Relay
+and they are instead implemented externally in either C++ or Python.
+
+As in the case of :code:`Broadcast`, relations are used to express complicated
+constraints on types (especially tensor shapes).
+All function relations must hold at all call sites;
+type checking is thus treated as a constraint-solving problem.
+For more detail on type relations and their implementations,
+please see the documentation on `Relay's Type System`_.
 
 Operators
 =========
@@ -258,7 +248,7 @@ by optimization passes) may be registered as a new column.
 From the perspective of Relay's type system, an operator is a function,
 so operators may be called like any other function and have function
 types. In particular, operator types are registered using a single
-type relation (see the above subsection), typically a relation
+type relation (see `Polymorphism and Type Relations`_), typically a relation
 specialized to that operator. For example, the :code:`add` operator
 is registered with the :code:`Broadcast` relation, indicating that the
 arguments of :code:`add` must be tensors and that the return type
@@ -299,7 +289,7 @@ example below:
    let f = fn(%x : Tensor[(), float32], %y : Tensor[(), float32]) { %x + %y + %c };
    %f(10, 11)
 
-When a closure is called (see `Function Expressions`_ for a discussion of closures),
+When a closure is called (see `Closures`_),
 the closure's body is evaluated in the stored environment 
 (i.e., using the stored values for free variables) with
 local variable bindings added for each argument; the final value
@@ -342,6 +332,41 @@ the type annotation:
    %x
 
 See :py:class:`~tvm.relay.expr.Call` for its definition and documentation.
+
+Module and Global Functions
+===========================
+
+Relay keeps a global data structure known as a "module" (often called an "environment" in other
+functional programming languages) to keep track of the definitions of global functions.
+In particular, the module keeps a globally accessible mapping of global variables to the
+function expressions they denote. The utility of the module is that it allows global functions
+to recursively refer to themselves or any other global function (e.g., as in mutual recursion).
+
+Note Relay's module is analogous to data structures for keeping track of subgraphs in computation
+graph-based IRs.
+
+Global functions in Relay behave identically to the function expressions defined in `Functions`_,
+but have syntactic sugar in the text format to enter their definitions into the module. Namely,
+a global function definition includes a global identifier and is allowed to recursively refer to
+that identifier in the body, as in the following example:
+
+.. code-block:: python
+
+   def @ackermann(%m : Tensor[(), int32], %n : Tensor[(), int32]) -> Tensor[(), int32] {
+       if (%m == 0) {
+           %n + 1
+       } else if (%m > 0 && n == 0) {
+           @ackermann(%m - 1, 1)
+       } else {
+           @ackermann(%m - 1, @ackermann(%m, %n - 1))
+       }
+   }
+
+This definition would result in a module entry mapping the identifier :code:`@ackermann` to a function expression
+with the parameters, return type, and body above. Any reference to the identifier :code:`@ackermann` elsewhere in the
+code could then look up the identifier in the module and replace the function definition as needed.
+
+See :py:class:`~tvm.relay.Module` for the definition and documentation of a module.
 
 Constant
 ========
