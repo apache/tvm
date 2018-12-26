@@ -61,7 +61,7 @@ Expr MakeCast(Expr data,
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_API("relay._make.dtype_cast")
+TVM_REGISTER_API("relay._make.cast")
 .set_body([](const TVMArgs& args, TVMRetValue* rv) {
     runtime::detail::unpack_call<Expr, 2>(MakeCast, args, rv);
 });
