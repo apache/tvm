@@ -299,7 +299,7 @@ struct GluAttrs : public tvm::AttrsNode<GluAttrs> {
   int axis;
 
   TVM_DECLARE_ATTRS(GluAttrs, "relay.attrs.GluAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(-1)
+    TVM_ATTR_FIELD(axis).set_default(1)
         .describe("The axis on which to split input into data and gate input.");
   }
 };
