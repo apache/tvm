@@ -49,7 +49,7 @@ class Expr(RelayNode):
         result : tvm.relay.Expr
             The result expression.
         """
-        return _make.dtype_cast(self, dtype)
+        return _make.cast(self, dtype)
 
     def __add__(self, other):
         if isinstance(other, Expr):
