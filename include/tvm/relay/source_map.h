@@ -26,7 +26,7 @@ struct SourceFragment {
     this->source_lines = sf.source_lines;
   }
 
-  std::string SourceAt(Span sp, int lines);
+  std::vector<std::string> LinesAt(Span sp, int lines);
 };
 
 /*! \brief Maps from FileId's to a SourceFragment.

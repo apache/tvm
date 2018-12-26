@@ -28,9 +28,7 @@ SourceFragment::SourceFragment(const SourceName& name, const std::string& source
   }
 }
 
-std::string SourceFragment::SourceAt(Span sp, int max_lines) {
-  std::stringstream out;
-
+std::vector<std::string> SourceFragment::LinesAt(Span sp, int max_lines) {
   // We need to move from 1 based indexing to zero based indexing.
   int starting_line = sp->lineno;
 
@@ -38,16 +36,17 @@ std::string SourceFragment::SourceAt(Span sp, int max_lines) {
     throw dmlc::Error("SourceFragment: index out of bounds");
   }
 
-  auto lines = std::max(static_cast<size_t>(max_lines), source_lines.size() - starting_line);
+  auto num_of_lines =
+    std::max(static_cast<size_t>(max_lines),
+      source_lines.size() - starting_line);
 
-  for (size_t i = 0; i < lines; i++) {
-    out << std::endl << this->source_lines.at(starting_line + i);
+  std::vector<std::string> lines;
+  for (size_t i = 0; i < num_of_lines; i++) {
+    lines.push_back(this->source_lines.at(starting_line + i));
   }
 
-  auto source_slice = out.str();
-
-  RELAY_LOG(INFO) << "SourceFragment::SourceAt: source_slice=" << source_slice << std::endl;
-  return source_slice;
+  // RELAY_LOG(INFO) << "SourceFragment::SourceAt: source_slice=" << source_slice << std::endl;
+  return lines;
 }
 
 SourceName SourceMap::AddSource(const SourceName& source_name, const std::string& source) {
