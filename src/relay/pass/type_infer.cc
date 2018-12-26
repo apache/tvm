@@ -225,14 +225,14 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
     return op->op_type;
   }
 
-  Type VisitExpr_(const LetNode* op) final {
-    Type vtype = GetType(op->value);
-    if (op->var->type_annotation.defined()) {
-      vtype = Unify(vtype, op->var->type_annotation, op->span);
+  Type VisitExpr_(const LetNode* let) final {
+    Type vtype = GetType(let->value);
+    if (let->var->type_annotation.defined()) {
+      vtype = Unify(vtype, let->var->type_annotation, let->span);
     }
-    CHECK(!type_map_.count(op->var));
+    CHECK(!type_map_.count(let->var));
     // NOTE: no scoping is necessary because var are unique in program
-    type_map_[op->var].checked_type = vtype;
+    type_map_[let->var].checked_type = vtype;
     return GetType(op->body);
   }
 

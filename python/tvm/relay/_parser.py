@@ -469,6 +469,7 @@ def fromtext(data, source_name=None):
     if isinstance(source_name, str):
         source_name = SourceName(source_name)
 
-    tree = make_parser(data).prog()
     import pdb; pdb.set_trace()
+    print(data)
+    tree = make_parser(data).prog()
     return ParseTreeToRelayIR(source_name).visit(tree)
