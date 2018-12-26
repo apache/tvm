@@ -462,8 +462,13 @@ def fromtext(data, source_name=None):
     # type: (str, str) -> Union[expr.Expr, env.Environment]
     """Parse a Relay program."""
     global __source_name_counter__
+
     if source_name is None:
         source_name = "source_file{0}".format(__source_name_counter__)
-    source_name = SourceName(source_name)
+
+    if isinstance(source_name, str):
+        source_name = SourceName(source_name)
+
     tree = make_parser(data).prog()
+    import pdb; pdb.set_trace()
     return ParseTreeToRelayIR(source_name).visit(tree)

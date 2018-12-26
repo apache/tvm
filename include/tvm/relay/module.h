@@ -43,11 +43,16 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
 
+  mutable ErrorReporter err_reporter;
+
+  mutable  GlobalVar entry_func;
+
   ModuleNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
     v->Visit("global_var_map_", &global_var_map_);
+    v->Visit("entry_func", &entry_func);
   }
 
   TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs);
@@ -101,6 +106,12 @@ class ModuleNode : public RelayNode {
    * \param other The other environment.
    */
   void Update(const Module& other);
+
+  /*!
+   * \brief Get the entry point of the module.
+   *
+   */
+  Expr EntryPoint();
 
   static constexpr const char* _type_key = "relay.Module";
   TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);

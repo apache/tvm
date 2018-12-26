@@ -112,6 +112,10 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // inference the type of expr.
   Expr Infer(Expr expr);
 
+  inline ErrorReporter& ErrReporter() {
+    return this->mod_->err_reporter;
+  }
+
  private:
   // type resolver that maps back to type
   class Resolver;
@@ -119,7 +123,6 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   // internal environment
   Module mod_;
 
-  ErrorReporter err_reporter;
 
   // map from expression to checked type
   // type inferencer will populate it up
@@ -132,8 +135,8 @@ class TypeInferencer : private ExprFunctor<Type(const Expr&)> {
   TypeRelationFn make_tuple_rel_;
 
   [[noreturn]] void FatalError(const Error& err) {
-    this->err_reporter.Report(err);
-    throw this->err_reporter.Render();
+    this->ErrReporter().Report(err);
+    throw this->ErrReporter().Render();
   }
 
   // Unify two types
@@ -545,19 +548,55 @@ Expr TypeInferencer::Infer(Expr expr) {
   return resolved_expr;
 }
 
+std::pair<Expr, std::string> AnnotateSpans(const Expr& expr, const SourceName& source_name) {
+  auto text = RelayPrint(expr);
+  auto fromtext = runtime::Registry::Get("relay.fromtext");
+  CHECK(fromtext != nullptr);
+  auto annotated_expr = (*fromtext)(text, source_name);
+  return { annotated_expr, text };
+}
 
-Expr InferType(const Expr& expr, const Module& mod) {
-  auto e = TypeInferencer(mod).Infer(expr);
+Expr InferType(const Expr& expr, const Module& m) {
+  Module mod = m;
+  if (!mod.defined())
+    mod = ModuleNode::make({});
+  CHECK(mod.defined());
+  auto main = GlobalVarNode::make("main");
+  auto source_name = SourceName::Get("main");
+  mod->entry_func = main;
+  auto annotated = AnnotateSpans(expr, source_name);
+  auto spanned_expr = annotated.first;
+  auto text = annotated.second;
+  mod->Add(main, Downcast<Function>(spanned_expr));
+  mod->err_reporter.src_map.AddSource(source_name, text);
+  auto e = TypeInferencer(mod).Infer(main);
   CHECK(WellFormed(e));
-  return e;
+  return mod->Lookup(main);
+}
+
+Expr InferType(const Expr& expr) {
+  auto mod = ModuleNode::make({});
+  return InferType(expr, mod);
 }
 
 Function InferType(const Function& func,
-                   const Module& mod,
+                   const Module& m,
                    const GlobalVar& var) {
   Function func_copy = Function(make_node<FunctionNode>(*func.operator->()));
   func_copy->checked_type_ = func_copy->func_type_annotation();
+
+  // Module mod
+  Module mod = m;
+  if (!mod.defined())
+    mod = ModuleNode::make({});
+
   mod->functions.Set(var, func_copy);
+  CHECK(mod.defined());
+  auto source_name = SourceName::Get(var->name_hint);
+  auto annotated = AnnotateSpans(func, source_name);
+  auto spanned_expr = annotated.first;
+  auto text = annotated.second;
+  mod->err_reporter.src_map.AddSource(source_name, text);
   Expr func_ret = TypeInferencer(mod).Infer(func_copy);
   auto map_node = mod->functions.CopyOnWrite();
   map_node->data.erase(var.node_);

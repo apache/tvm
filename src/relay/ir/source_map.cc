@@ -14,8 +14,8 @@ namespace relay {
 using tvm::IRPrinter;
 using namespace tvm::runtime;
 
-SourceFragment::SourceFragment(std::string file_name, std::string source)
-    : file_name(file_name), source_lines({}) {
+SourceFragment::SourceFragment(const SourceName& name, const std::string& source)
+    : name(name), source_lines({}) {
   RELAY_LOG(INFO)<< "SourceFragment::SourceFragment source=" << source << std::endl;
   std::stringstream source_stream;
   source_stream.str(source.c_str());
@@ -50,11 +50,15 @@ std::string SourceFragment::SourceAt(Span sp, int max_lines) {
   return source_slice;
 }
 
-SourceName SourceMap::AddSource(std::string file_name, std::string source) {
-  auto new_id = SourceName::Get(file_name);
-  SourceFragment sfile(file_name, source);
-  this->map_.insert({new_id, sfile});
-  return new_id;
+SourceName SourceMap::AddSource(const SourceName& source_name, const std::string& source) {
+  SourceFragment sfile(source_name, source);
+  this->map_.insert({source_name, sfile});
+  return source_name;
+}
+
+SourceName SourceMap::AddSource(const std::string& file_name, const std::string& source) {
+  auto source_name = SourceName::Get(file_name);
+  return this->AddSource(source_name, source);
 }
 
 const SourceFragment& SourceMap::GetSource(SourceName id) const {
@@ -62,7 +66,7 @@ const SourceFragment& SourceMap::GetSource(SourceName id) const {
   if (item != map_.end()) {
     return (*item).second;
   } else {
-      throw dmlc::Error("could not find requested source fragment");
+      LOG(FATAL) << "could not find requested source fragment" << id;
   }
 }
 

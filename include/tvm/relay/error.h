@@ -35,6 +35,9 @@ public:
   SourceMap src_map;
   std::vector<Error> errors;
 
+  ErrorReporter() : src_map(), errors() {}
+  ErrorReporter(SourceMap src_map) : errors() {}
+
   void Report(const Error& err) {
     this->errors.push_back(err);
   }

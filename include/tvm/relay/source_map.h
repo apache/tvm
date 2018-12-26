@@ -16,13 +16,13 @@ namespace tvm {
 namespace relay {
 
 struct SourceFragment {
-  std::string file_name;
+  SourceName name;
   std::vector<std::string> source_lines;
 
-  SourceFragment(std::string file_name, std::string source);
+  SourceFragment(const SourceName& file_name, const std::string& source);
 
   SourceFragment(const SourceFragment& sf) {
-    this->file_name = sf.file_name;
+    this->name = sf.name;
     this->source_lines = sf.source_lines;
   }
 
@@ -36,7 +36,8 @@ class SourceMap {
   std::unordered_map<SourceName, SourceFragment, NodeHash> map_;
  public:
   SourceMap() : map_() {}
-  SourceName AddSource(std::string file_name, std::string source);
+  SourceName AddSource(const std::string& file_name, const std::string& source);
+  SourceName AddSource(const SourceName& source_name, const std::string& source);
   const SourceFragment & GetSource(SourceName id) const;
 };
 

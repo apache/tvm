@@ -91,6 +91,10 @@ void ModuleNode::Update(const Module& mod) {
   }
 }
 
+Expr ModuleNode::EntryPoint() {
+  return this->Lookup(this->entry_func);
+}
+
 TVM_REGISTER_NODE_TYPE(ModuleNode);
 
 TVM_REGISTER_API("relay._make.Module")
