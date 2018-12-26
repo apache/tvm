@@ -13,7 +13,7 @@ reg.register_pattern("nn.relu", OpPattern.ELEMWISE)
 
 # glu
 reg.register_schedule("nn.glu", schedule_injective)
-reg.register_pattern("nn.glu", OpPattern.ELEMWISE)
+reg.register_pattern("nn.glu", OpPattern.INJECTIVE)
 
 # softmax
 @reg.register_schedule("nn.softmax")

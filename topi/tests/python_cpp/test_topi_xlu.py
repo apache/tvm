@@ -34,11 +34,11 @@ def _verify_elemwise(shape, dtype, np_func, fn_name, *fn_args):
         check_device(device)
 
 
-def verify_relu(*shape, dtype):
+def verify_relu(shape, dtype):
     return _verify_elemwise(shape, dtype, lambda x: x * (x > 0), 'relu')
 
 
-def verify_glu(*shape, dtype, axis):
+def verify_glu(shape, dtype, axis):
     def _glu(x):
         a, b = np.split(x, 2, axis=axis)
         return a * 1/(1 + np.exp(-b))
@@ -76,12 +76,12 @@ def verify_prelu(x, w, axis, weight_reshape):
 
 def test_relu():
     for dtype in ['float32', 'float64', 'int32', 'int16', 'int8', 'int64']:
-        verify_relu(10, 128, dtype=dtype)
+        verify_relu((10, 128), dtype=dtype)
 
 def test_glu():
     for i, dtype in enumerate(['float32', 'float64']):
-        verify_glu(10, 128, dtype=dtype, axis=0)
-        verify_glu(10, 128, dtype=dtype, axis=-1)
+        verify_glu((10, 128), dtype=dtype, axis=0)
+        verify_glu((10, 128), dtype=dtype, axis=-1)
 
 def test_leaky_relu():
     verify_leaky_relu(100, 0.5)
