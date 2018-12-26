@@ -21,7 +21,7 @@ def cast(data, dtype):
         The casted result.
     """
     from .. import _make as _relay_make
-    return _relay_make.dtype_cast(data, dtype)
+    return _relay_make.cast(data, dtype)
 
 
 def expand_dims(data, axis, num_newaxis=1):
