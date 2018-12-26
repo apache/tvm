@@ -1,21 +1,7 @@
 Language Reference
 ==================
 This document provides references to
-embedded languages in the TVM stack.
-
-Hybrid Script
--------------
-
-The below page describes the TVM hybrid script front-end,
-which uses software emulation to support some constructs not
-officially supported in TVM.
-
-.. toctree::
-   :maxdepth: 2
-
-   hybrid_script
-
-
+embedded languages and IRs in the TVM stack.
 
 Introduction to Relay
 ---------------------
@@ -41,3 +27,15 @@ The below pages describe the grammar, type system, and operators in Relay, respe
    relay_expr
    relay_type
    relay_op
+
+Hybrid Script
+-------------
+
+The below page describes the TVM hybrid script front-end,
+which uses software emulation to support some constructs not
+officially supported in TVM.
+
+.. toctree::
+   :maxdepth: 2
+
+   hybrid_script
