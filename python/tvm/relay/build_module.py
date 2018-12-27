@@ -150,13 +150,14 @@ def optimize(func, params=None):
         func = ir_pass.infer_type(func)
         func = ir_pass.combine_parallel_conv2d(func)
 
+    if cfg.pass_enabled("FoldConstant"):
+        func = ir_pass.fold_constant(func)
+
     if cfg.pass_enabled("FoldScaleAxis"):
         func = ir_pass.infer_type(func)
         func = ir_pass.backward_fold_scale_axis(func)
         func = ir_pass.infer_type(func)
         func = ir_pass.forward_fold_scale_axis(func)
-
-    if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
 
     if cfg.pass_enabled("AlterOpLayout"):
@@ -240,13 +241,13 @@ class GraphExecutor(_interpreter.Executor):
 
     Parameters
     ----------
-    mod : tvm.relay.Module
+    mod : :py:class:`~tvm.relay.module.Module`
         The module to support the execution.
 
-    ctx : tvm.TVMContext
+    ctx : :py:class:`TVMContext`
         The runtime context to run the code on.
 
-    target : tvm.Target
+    target : :py:class:`Target`
         The target option to build the function.
     """
     def __init__(self, mod, ctx, target):
@@ -282,13 +283,13 @@ def create_executor(kind="debug",
     kind : str
         The type of executor
 
-    mod : tvm.relay.Module
+    mod : :py:class:`~tvm.relay.module.Module`
         The Relay module containing collection of functions
 
-    ctx : tvm.TVMContext
+    ctx : :py:class:`tvm.TVMContext`
         The context to execute the code.
 
-    target : tvm.Target
+    target : :py:class:`tvm.Target`
         The corresponding context
     """
     if ctx is not None:

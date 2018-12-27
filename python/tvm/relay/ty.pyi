@@ -121,7 +121,7 @@ class FuncType(Type):
 
     This is the type assigned to functions in Relay. They consist of
     a list of type parameters which enable the definition of generic
-    fucntions, a set of type constraints which we omit for the time
+    functions, a set of type constraints which we omit for the time
     being, a sequence of argument types, and a return type.
 
     We informally write them as:
@@ -156,7 +156,7 @@ class FuncType(Type):
 class IncompleteType(Type):
     """An incomplete type."""
 
-    def __init__(self, kind):
+    def __init__(self, kind=Kind.Type):
         self.__init_handle_by_constructor__(_make.IncompleteType, kind)
 
 @register_relay_node

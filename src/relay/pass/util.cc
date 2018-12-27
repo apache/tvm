@@ -146,5 +146,67 @@ GetExprRefCount(const Expr& body) {
   return ExprRefCounter().Get(body);
 }
 
+template <typename T>
+bool IsNDArrayAllGreaterEqual(const runtime::NDArray& tensor, T value) {
+  CHECK_EQ(tensor->ctx.device_type, kDLCPU);
+  CHECK(tensor->strides == nullptr);
+  CHECK_EQ(tensor->byte_offset, 0);
+  const T* data = static_cast<const T*>(tensor->data);
+  int64_t num_elems = 1;
+  for (int i = 0; i < tensor->ndim; ++i) {
+    num_elems *= tensor->shape[i];
+  }
+
+  for (int64_t i = 0; i < num_elems; i++) {
+    if (*data < value) {
+      return false;
+    }
+    data++;
+  }
+  return true;
+}
+
+bool IsAllPositiveConstant(const Expr& expr) {
+  // peel through a few common transform ops.
+  static const auto& expand_dims = Op::Get("expand_dims");
+  static const auto& reshape = Op::Get("reshape");
+  static const auto& transpose = Op::Get("transpose");
+  static const auto& squeeze = Op::Get("squeeze");
+
+  if (const auto* constant = expr.as<ConstantNode>()) {
+    const auto& tensor = constant->data;
+    const auto& dtype = tensor->dtype;
+    if (dtype.lanes != 1) {
+      return false;
+    } else if (dtype.code == kDLFloat && dtype.bits == 32) {
+      return IsNDArrayAllGreaterEqual<float>(tensor, 0);
+    } else if (dtype.code == kDLFloat && dtype.bits == 64) {
+      return IsNDArrayAllGreaterEqual<double>(tensor, 0);
+    } else if (dtype.code == kDLInt && dtype.bits == 8) {
+      return IsNDArrayAllGreaterEqual<int8_t>(tensor, 0);
+    } else if (dtype.code == kDLInt && dtype.bits == 32) {
+      return IsNDArrayAllGreaterEqual<int32_t>(tensor, 0);
+    } else if (dtype.code == kDLUInt && dtype.bits == 8) {
+      return IsNDArrayAllGreaterEqual<uint8_t>(tensor, 0);
+    } else if (dtype.code == kDLUInt && dtype.bits == 32) {
+      return IsNDArrayAllGreaterEqual<uint32_t>(tensor, 0);
+    } else {
+      return false;
+    }
+  } else if (const auto* op = expr.as<CallNode>()) {
+    // tail recursion.
+    if (op->op.same_as(expand_dims) ||
+        op->op.same_as(reshape) ||
+        op->op.same_as(transpose) ||
+        op->op.same_as(squeeze)) {
+      return IsAllPositiveConstant(op->args[0]);
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
 }  // namespace relay
 }  // namespace tvm

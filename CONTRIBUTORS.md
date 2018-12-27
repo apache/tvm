@@ -14,13 +14,16 @@ We do encourage everyone to work anything they are interested in.
 - [Aditya Atluri](https://github.com/adityaatluri): @adityaatluri - rocm
 - [Tianqi Chen](https://github.com/tqchen) (PMC): @tqchen - topi, compiler, relay, docs
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
-- [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
 - [Ziheng Jiang](https://github.com/ZihengJiang) (PMC): @ZihengJiang - relay, compiler
+- [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
+- [Masahiro Masuda](https://github.com/masahi): @masahi - topi, relay
 - [Thierry Moreau](https://github.com/tmoreau89) (PMC): @tmoreau89 - vta
+- [Siva](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Haichen Shen](https://github.com/icemelon9) (PMC): @icemelon9 - relay, topi
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
 - [Leyuan Wang](https://github.com/Laurawly): @Laurawly: - topi
-- [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
+- [Eddie Yan](https://github.com/eqy): @eqy - runtime, autotvm, rpc, topi
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy - autotvm, topi
 
 ## Reviewers
@@ -54,6 +57,7 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy): @eqy
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
+- [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 
 ## List of Contributors
 - [Full List of Contributors](https://github.com/dmlc/tvm/graphs/contributors)

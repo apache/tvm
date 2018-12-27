@@ -423,7 +423,7 @@ class AnnotateSpace(TransformSpace):
         elif policy == 'locate_cache':
             self.num_axis = len(axes)
             num_anchor = kwargs["num_anchor"]
-            self.anns = list(itertools.combinations(np.arange(self.num_axis), num_anchor))
+            self.anns = list(itertools.combinations(range(self.num_axis), num_anchor))
             self.entities = [AnnotateEntity(x) for x in self.anns]
         else:  # none, vec, unroll, try_vec, try_unroll, try_vec_unroll, ...
             anns = policy.replace('try', 'none').split('_')

@@ -1,4 +1,4 @@
-import tvm, inspect, sys, traceback, numpy, nose
+import tvm, inspect, sys, traceback, numpy, nose, types
 from tvm.hybrid import script
 from tvm.hybrid.intrin import HYBRID_GLOBALS
 
@@ -11,6 +11,10 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
         return val.value
 
     ctx = tvm.context(target, 0)
+    op = None
+
+    outs = func(*args)
+    op = outs[0].op if isinstance(outs, list) else outs.op
 
     emu_args = []
     nd_args = []
@@ -24,8 +28,6 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
 
-    outs = func(*args)
-    op = outs[0].op if isinstance(outs, list) else outs.op
     sch = tvm.create_schedule(op)
     module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]), target=target)
     assert module
@@ -115,7 +117,7 @@ def test_fanout():
         for i in range(a.shape[0] - 3):
             sigma = 0.0
             for j in range(3):
-                sigma = sigma + a[i + j]
+                sigma += a[i + j]
             sigma = sigma / three
             b[i] = sigma
         return b
@@ -237,6 +239,30 @@ def test_if():
 
     run_and_check(if_then_else, [a])
 
+    @script
+    def if_triple_condition(a):
+        b = output_tensor((10, ), 'int32')
+        for i in range(10):
+            if 0 <= i < 5:
+                b[i] = a[i]
+            else:
+                b[i] = a[i] + 1
+        return b
+
+    run_and_check(if_triple_condition, [a])
+
+    @script
+    def if_and(a):
+        b = output_tensor((10, ), 'int32')
+        for i in range(10):
+            if i >= 0 and i < 5:
+                b[i] = a[i]
+            else:
+                b[i] = a[i] + 1
+        return b
+
+    run_and_check(if_and, [a])
+
 
 def test_bind():
     if not tvm.gpu(0).exist:
@@ -244,9 +270,9 @@ def test_bind():
         return
     @script
     def vec_add(a, b):
-        c = output_tensor((1000, ), dtype='float32')
+        c = output_tensor((1000, ), 'float32')
         for tx in bind('threadIdx.x', 1000):
-            c[tx] = b[tx] + c[tx]
+            c[tx] = a[tx] + b[tx]
         return c
 
     a = tvm.placeholder((1000, ), dtype='float32', name='a')
@@ -308,7 +334,7 @@ def test_non_zero():
                 s = 0.0
                 for di in range(3):
                     for dj in range(3):
-                        s = s + a[i-di, j-dj]
+                        s += a[i-di, j-dj]
                 b[i-2, j-2] = s / 9.0
         return b
 
@@ -401,10 +427,12 @@ def test_downstream():
         for i in range(20):
             b[i] = a[i] * i
         return b
+
     
     a = tvm.placeholder((20, ), 'float32')
     b = downstream(a)
     c = tvm.compute((20, ), lambda x: b[x] + 1.0)
+
     sch = tvm.create_schedule(c.op)
     module = tvm.build(sch, [a, c])
     assert module
@@ -419,6 +447,96 @@ def test_downstream():
     module(tvm_a, tvm_c)
     tvm.testing.assert_allclose(tvm_c.asnumpy(), ref, 1e-5, 1e-5)
 
+def test_const_param():
+    @tvm.hybrid.script
+    def add_something(a, b):
+        c = output_tensor((11, ), 'int32')
+        for i in range(11):
+            c[i] = a[i] + b
+        return c
+
+    a = tvm.placeholder((11, ), dtype='int32', name='a')
+    b = tvm.const(11, 'int32')
+    c = add_something(a, b)
+    sch = tvm.create_schedule(c.op)
+    module = tvm.build(sch, [a, c], 'llvm')
+    assert(module)
+
+    np_a = numpy.arange(11).astype('int32')
+    np_b = 11
+    np_c = numpy.zeros((11, )).astype('int32')
+
+    nd_a = tvm.ndarray.array(np_a)
+    nd_c = tvm.ndarray.array(numpy.zeros((11, )).astype('int32'))
+    module(nd_a, nd_c)
+    ref = add_something(np_a, 11)
+
+    tvm.testing.assert_allclose(nd_c.asnumpy(), ref, 1e-5, 1e-5)
+
+def test_value_index():
+    @tvm.hybrid.script
+    def kernel_a(a):
+        b = output_tensor((16, ), 'int32')
+        c = output_tensor((4, 4), 'int32')
+        for i in range(16):
+            b[i] = a[i] + 2
+            c[i // 4, i % 4] = a[i] + 1
+        return b, c
+
+    @tvm.hybrid.script
+    def kernel_b(b, a):
+        c = output_tensor((4, 4), 'int32')
+        for i in range(4):
+            for j in range(4):
+                c[i, j] = a[i * 4 + j] * b[i, j]
+        return c
+
+    a = tvm.placeholder((16, ), 'int32')
+    b, c = kernel_a(a)
+    d = kernel_b(c, b)
+    sch = tvm.create_schedule(d.op)
+    module = tvm.build(sch, [a, d])
+    assert module
+
+    np_a = numpy.arange(16).astype('int32')
+    np_b, np_c = kernel_a(np_a)
+    ref = kernel_b(np_c, np_b)
+
+    res = tvm.ndarray.array(numpy.zeros((4, 4)).astype('int32'))
+    module(tvm.ndarray.array(np_a), res)
+    tvm.testing.assert_allclose(res.asnumpy(), ref)
+
+def test_func_call():
+    @tvm.hybrid.script
+    def foo(a, b):
+        for i in range(10):
+            a[i] = i + 1.0
+        for i in range(10):
+            b[i] = i + 1.0
+        c = outer_product(10, 10, a, b)
+        d = output_tensor(c.shape, c.dtype)
+        for i in range(10):
+            for j in range(10):
+                d[i, j] = c[i, j] + i * j
+        return d
+
+    a = tvm.placeholder((10, ), name='a')
+    b = tvm.placeholder((10, ), name='b')
+    run_and_check(foo, [a, b])
+
+def test_bool():
+    @tvm.hybrid.script
+    def foo(a):
+        b = output_tensor(a.shape, a.dtype)
+        b[0] = 1.2
+        for i in range(1, a.shape[0] - 1):
+            if a[i] * a[i - 1] < a[i] or a[i] * a[i - 1] < a[i - 1] or i * a[i] == a[i]:
+                b[i] = a[i]
+            else:
+                b[i] = 0.0
+        return b
+    a = tvm.placeholder((10, ), name='a')
+    run_and_check(foo, [a])
 
 if __name__ == "__main__":
     test_outer_product()
@@ -429,8 +547,11 @@ if __name__ == "__main__":
     test_math_intrin()
     test_non_zero()
     test_allocate()
-    #test_inplace()
     test_upstream()
     test_downstream()
-
-
+    test_const_param()
+    test_value_index()
+    test_func_call()
+    test_bool()
+    # TODO:
+    # test_inplace()

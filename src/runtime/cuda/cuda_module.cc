@@ -141,7 +141,7 @@ class CUDAModuleNode : public runtime::ModuleNode {
   std::mutex mutex_;
 };
 
-// a wrapped function class to get packed fucn.
+// a wrapped function class to get packed func.
 class CUDAWrappedFunc {
  public:
   // initialize the CUDA function.

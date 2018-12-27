@@ -24,3 +24,4 @@ Python API
    vta/index
    nnvm/index
    hybrid
+   relay/index

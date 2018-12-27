@@ -8,137 +8,13 @@ from .. import expr as _expr
 from .. import op as _op
 from ... import nd as _nd
 from .common import StrAttrsDict
+from .nnvm_common import _rename, _binop_scalar, _rbinop_scalar, _reduce
+from .nnvm_common import _arg_reduce, _init_op, _softmax_op, _cast
+from .nnvm_common import _clip, _transpose, _upsampling
+from .nnvm_common import _elemwise_sum, _reshape
+from .nnvm_common import _warn_not_used
 
 __all__ = ['from_mxnet']
-
-
-def _get_relay_op(op_name):
-    op = getattr(_op, op_name)
-    if not op:
-        raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
-    return op
-
-
-def _warn_not_used(attr, op='nnvm'):
-    import warnings
-    err = "{} is ignored in {}.".format(attr, op)
-    warnings.warn(err)
-
-
-def _rename(new_op):
-    if isinstance(new_op, str):
-        new_op = _get_relay_op(new_op)
-    # attrs are ignored.
-    def impl(inputs, _):
-        return new_op(*inputs)
-    return impl
-
-
-def _reshape(inputs, attrs):
-    if attrs.get_bool("reverse", False):
-        raise RuntimeError("reshape do not support option reverse")
-    shape = attrs.get_int_tuple("shape")
-    return _op.reshape(inputs[0], newshape=shape)
-
-
-def _init_op(new_op):
-    """Init ops like zeros/ones"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 0
-        shape = attrs.get_int_tuple("shape")
-        dtype = attrs.get_str("dtype", "float32")
-        return new_op(shape=shape, dtype=dtype)
-    return _impl
-
-
-def _softmax_op(new_op):
-    """softmax/log_softmax"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int("axis", -1)
-        return new_op(inputs[0], axis=axis)
-    return _impl
-
-
-def _reduce(new_op):
-    """Reduction ops like sum/min/max"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int_tuple("axis", [])
-        keepdims = attrs.get_bool("keepdims", False)
-        # use None for reduce over all axis.
-        axis = None if len(axis) == 0 else axis
-        return new_op(inputs[0], axis=axis, keepdims=keepdims)
-    return _impl
-
-
-def _arg_reduce(new_op):
-    """Arg Reduction ops like argmin/argmax"""
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        axis = attrs.get_int("axis", None)
-        keepdims = attrs.get_bool("keepdims", False)
-        res = new_op(inputs[0], axis=[axis], keepdims=keepdims)
-        # cast to dtype.
-        res = res.astype("float32")
-        return res
-    return _impl
-
-
-def _cast(inputs, attrs):
-    """Type cast"""
-    dtype = attrs.get_str("dtype")
-    return _op.cast(inputs[0], dtype=dtype)
-
-
-def _clip(inputs, attrs):
-    a_min = attrs.get_float("a_min")
-    a_max = attrs.get_float("a_max")
-    return _op.clip(inputs[0], a_min=a_min, a_max=a_max)
-
-
-def _transpose(inputs, attrs):
-    axes = attrs.get_int_tuple("axes", None)
-    # translate default case
-    axes = None if len(axes) == 0 else axes
-    return _op.transpose(inputs[0], axes=axes)
-
-
-def _upsampling(inputs, attrs):
-    scale = attrs.get_int("scale")
-    return _op.nn.upsampling(inputs[0], scale=scale)
-
-
-def _elemwise_sum(inputs, _):
-    assert len(inputs) > 0
-    res = inputs[0]
-    for x in inputs[1:]:
-        res = _op.add(res, x)
-    return res
-
-
-def _binop_scalar(new_op):
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
-        return new_op(inputs[0], scalar)
-    return _impl
-
-
-def _rbinop_scalar(new_op):
-    def _impl(inputs, attrs):
-        assert len(inputs) == 1
-        scalar = attrs.get_float("scalar")
-        # Note: binary scalar only works for float op for now
-        scalar = _expr.const(scalar, dtype="float32")
-        return new_op(scalar, inputs[0])
-    return _impl
-
-# All the functions with _mx prefix specific to MXNet.
-# The functions without _mx prefix can be reused for
-# NNVMv1 conversion to _op.
 
 def _mx_fully_connected(inputs, attrs):
     import mxnet as mx
@@ -365,6 +241,33 @@ def _mx_lrn(inputs, attrs):
     return _op.nn.lrn(inputs[0], **new_attrs)
 
 
+def _mx_multibox_prior(inputs, attrs):
+    new_attrs = {}
+    new_attrs["sizes"] = attrs.get_float_tuple("sizes", (1.0, ))
+    new_attrs["steps"] = attrs.get_float_tuple("steps", (-1.0, -1.0))
+    new_attrs["offsets"] = attrs.get_float_tuple("offsets", (0.5, 0.5))
+    new_attrs["ratios"] = attrs.get_float_tuple("ratios", (1.0, ))
+    new_attrs["clip"] = attrs.get_bool("clip", False)
+    return _op.vision.multibox_prior(inputs[0], **new_attrs)
+
+
+def _mx_multibox_detection(inputs, attrs):
+    new_attrs0 = {}
+    new_attrs0["clip"] = attrs.get_bool("clip", True)
+    new_attrs0["threshold"] = attrs.get_float("threshold", 0.01)
+    new_attrs0["variances"] = attrs.get_float_tuple("variances", (0.1, 0.1,
+                                                                  0.2, 0.2))
+
+    new_attrs1 = {}
+    new_attrs1["overlap_threshold"] = attrs.get_float("nms_threshold", 0.5)
+    new_attrs1["force_suppress"] = attrs.get_bool("force_suppress", False)
+    new_attrs1["topk"] = attrs.get_int("nms_topk", -1)
+
+    ret = _op.vision.multibox_transform_loc(inputs[0], inputs[1],
+                                            inputs[2], **new_attrs0)
+    return _op.vision.nms(ret[0], ret[1], **new_attrs1)
+
+
 # Note: due to attribute conversion constraint
 # ops in the identity set must be attribute free
 _identity_list = [
@@ -451,13 +354,14 @@ _convert_map = {
     "LeakyReLU"     : _mx_leaky_relu,
     "SoftmaxOutput" : _mx_softmax_output,
     "SoftmaxActivation" : _mx_softmax_activation,
+    # vision
+    "_contrib_MultiBoxPrior" : _mx_multibox_prior,
+    "_contrib_MultiBoxDetection" : _mx_multibox_detection,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
     # "broadcast_to",
     # "gather_nd",
-    # "_contrib_MultiBoxPrior" : _rename("multibox_prior"),
-    # "_contrib_MultiBoxDetection" : _contrib_multibox_detection,
     # "Crop"          : _crop_like,
 
 }
@@ -467,7 +371,7 @@ _convert_map.update({k : _rename(k) for k in _identity_list})
 
 
 def _from_mxnet_impl(symbol, shape_dict, dtype_info):
-    """Convert mxnet symbol to nnvm implementation.
+    """Convert mxnet symbol to compatible relay Function.
 
     Reconstruct a relay Function by traversing the mxnet symbol.
 
@@ -485,8 +389,8 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
 
     Returns:
     -------
-    nnvm.sym.Symbol
-        Converted symbol
+    func : tvm.relay.Function
+        Converted relay Function
     """
     assert symbol is not None
     jgraph = json.loads(symbol.tojson())
@@ -501,7 +405,7 @@ def _from_mxnet_impl(symbol, shape_dict, dtype_info):
         if op_name == "null":
             shape = shape_dict[node_name] if node_name in shape_dict else None
             if isinstance(dtype_info, dict):
-                dtype = dtype_info[node_name] if node_name in dtype_dict else "float32"
+                dtype = dtype_info[node_name] if node_name in dtype_info else "float32"
             else:
                 dtype = dtype_info
             node_map[nid] = [_expr.var(node_name, shape=shape, dtype=dtype)]
@@ -567,8 +471,8 @@ def from_mxnet(symbol,
 
     Returns
     -------
-    sym : nnvm.Symbol
-        Compatible nnvm symbol
+    sym : tvm.relay.Function
+        Compatible relay Function
 
     params : dict of str to tvm.NDArray
         The parameter dict to be used by nnvm

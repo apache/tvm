@@ -10,13 +10,19 @@ from .._ffi.base import numeric_types
 from .. import api as _api
 from .. import make as _make
 from .. import expr as _expr
+from .. import stmt as _stmt
 from ..tensor import Tensor
 
 
 #pylint: disable=invalid-name
 np_arg_types = tuple(list(numeric_types) + [numpy.ndarray])
-tvm_arg_types = (Tensor, _expr.Var)
+tvm_arg_types = (Tensor, _expr.Var, _expr.ConstExpr)
 halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
+
+def _internal_assert(cond, err):
+    """Simplify the code segment like if not XXX then raise an error"""
+    if not cond:
+        raise ValueError(err)
 
 
 # Useful constants. In avoid of runtime dependences, we use function calls to return them.
@@ -50,14 +56,16 @@ def _is_tvm_arg_types(args):
     If neither is true, raise a value error."""
     if isinstance(args[0], tvm_arg_types):
         for elem in args[1:]:
-            if not isinstance(elem, tvm_arg_types):
-                raise ValueError("Expect a Var or Tensor instance but % get!" % str(type(elem)))
+            _internal_assert(isinstance(elem, tvm_arg_types),
+                             "Expecting a Var, Tensor or ConstExpr instance but %s get!" \
+                             % str(type(elem)))
         return True
-    if not isinstance(args[0], np_arg_types):
-        raise ValueError("Expect a numpy type but % get!" % str(type(args[0])))
+
+    _internal_assert(isinstance(args[0], np_arg_types), \
+                     "Expect a numpy type but %s get!" % str(type(args[0])))
     for elem in args[1:]:
-        if not isinstance(elem, np_arg_types):
-            raise ValueError("Expect a numpy type but % get!" % str(type(elem)))
+        _internal_assert(isinstance(elem, np_arg_types), \
+                         "Expect a numpy type but %s get!" % str(type(elem)))
     return False
 
 
@@ -80,11 +88,19 @@ def _restore_runtime(func, intersect):
     for k, v in intersect:
         _globals[k] = v
 
-def _internal_assert(cond, err):
-    """Simplify the code segment like if not XXX then raise an error"""
-    if not cond:
-        raise ValueError(err)
 
-# Almost the same functionality as the one above, but in this case,
-# the error is caused by users inproper usage.
-_user_assert = _internal_assert
+def replace_io(body, rmap):
+    """Replacing tensors usage according to the dict given"""
+    from .. import ir_pass
+
+    def replace(op):
+        if isinstance(op, _stmt.Provide) and op.func in rmap.keys():
+            buf = rmap[op.func]
+            return _make.Provide(buf.op, op.value_index, op.value, op.args)
+        elif isinstance(op, _expr.Call) and  op.func in rmap.keys():
+            buf = rmap[op.func]
+            return _make.Call(buf.dtype, buf.name, op.args, \
+                              _expr.Call.Halide, buf.op, buf.value_index)
+        return None
+
+    return ir_pass.IRTransform(body, None, replace, ['Provide', 'Call'])

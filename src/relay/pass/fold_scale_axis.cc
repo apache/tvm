@@ -356,16 +356,21 @@ Expr MultiplyForwardRewrite(const Call& ref_call,
   Expr lhs = new_args[0];
   Expr rhs = new_args[1];
   auto rnode = make_node<ScaledExprNode>();
-  if (MatchBroadcastToLeftAxes(tlhs, trhs, expected_out_axes, &rhs)) {
+  if (MatchBroadcastToLeftAxes(tlhs, trhs, expected_out_axes, &rhs) &&
+      IsAllPositiveConstant(rhs)) {
     rnode->value = lhs;
     rnode->scale = rhs;
     rnode->axes = expected_out_axes;
-  } else if (MatchBroadcastToLeftAxes(trhs, tlhs, expected_out_axes, &lhs)) {
+    return Expr(rnode);
+  } else if (MatchBroadcastToLeftAxes(trhs, tlhs, expected_out_axes, &lhs) &&
+             IsAllPositiveConstant(lhs)) {
     rnode->value = rhs;
     rnode->scale = lhs;
     rnode->axes = expected_out_axes;
+    return Expr(rnode);
+  } else {
+    return Expr();
   }
-  return Expr(rnode);
 }
 
 RELAY_REGISTER_OP("multiply")
@@ -556,9 +561,7 @@ class BackwardTransformerNode :
    * \return The result of transformation.
    */
   Expr Transform(const Expr& expr, AxesSet axes, Expr scale) {
-    // NOTE: the result of Transform is not memoized.
-    // However, in the current rule, Transform will
-    // only be called to expr that is referred once.
+    // NOTE: the result of Transform is memoized.
     if (const CallNode* call_node = expr.as<CallNode>()) {
       return Transform(call_node, axes, scale);
     } else {
@@ -572,7 +575,14 @@ class BackwardTransformerNode :
    * \return the result of the call Mutation.
    */
   Expr NormalCallTransform(const CallNode* call_node) {
-    return ExprMutator::VisitExpr_(call_node);
+    const Call call = GetRef<Call>(call_node);
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    Expr new_expr = ExprMutator::VisitExpr_(call_node);
+    memo_[call] = new_expr;
+    return new_expr;
   }
   /*!
    * \brief Get the expected axes on expr.
@@ -620,10 +630,17 @@ Expr BackwardTransformerNode::Transform(
       Op::GetAttr<FBackwardTransform>("FScaleAxisBackwardTransform");
   auto f = ftransform.get(call_node->op, nullptr);
   if (f != nullptr) {
-    return f(GetRef<Call>(call_node),
-             axes,
-             scale,
-             GetRef<BackwardTransformer>(this));
+    const Call call = GetRef<Call>(call_node);
+    const auto it = memo_.find(call);
+    if (it != memo_.end()) {
+      return it->second;
+    }
+    Expr new_expr = f(GetRef<Call>(call_node),
+                      axes,
+                      scale,
+                      GetRef<BackwardTransformer>(this));
+    memo_[call] = new_expr;
+    return new_expr;
   } else {
     CHECK(!axes.defined()) << "outstanding scale";
     return NormalCallTransform(call_node);
@@ -758,12 +775,16 @@ Expr MultiplyBackwardTransform(const Call& call,
     // NOTE we won't recursively call mutating on scale part.
     // since there  won't be scale chance within scale part.
     Expr rhs = call->args[1];
-    if (MatchBroadcastToLeftAxes(tlhs, trhs, lhs_axes, &rhs)) {
+    // Only propagate positive scaling.
+    if (MatchBroadcastToLeftAxes(tlhs, trhs, lhs_axes, &rhs) &&
+        IsAllPositiveConstant(rhs)) {
       return transformer->Transform(call->args[0], lhs_axes, rhs);
     }
   } else if (rhs_axes.defined() && rhs_axes.size() != 0) {
+    // Only propagate positive scaling.
     Expr lhs = call->args[0];
-    if (MatchBroadcastToLeftAxes(trhs, tlhs, rhs_axes, &lhs)) {
+    if (MatchBroadcastToLeftAxes(trhs, tlhs, rhs_axes, &lhs) &&
+        IsAllPositiveConstant(lhs)) {
       return transformer->Transform(call->args[1], rhs_axes, lhs);
     }
   }

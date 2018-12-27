@@ -107,6 +107,12 @@ def schedule_conv2d(attrs, outs, target):
                 return topi.generic.schedule_depthwise_conv2d_nhwc(outs)
     raise ValueError("No compatible schedule")
 
+
+@reg.register_alter_op_layout("nn.conv2d")
+def alter_op_layout_conv2d(attrs, inputs, tinfos):
+    """Alternate the layout of conv2d"""
+    return None
+
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
 
@@ -243,11 +249,11 @@ def schedule_l2_normalize(attrs, outs, target):
 
 reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
 
-
-@reg.register_schedule("nn.upsampling")
+# Upsampling
+reg.register_schedule("nn.upsampling", reg.schedule_injective)
 def schedule_upsampling(_, outs, target):
     """Schedule definition of upsampling"""
     with target:
         return topi.generic.schedule_injective(outs)
-
-reg.register_pattern("nn.upsampling", OpPattern.INJECTIVE)
+# pad
+reg.register_schedule("nn.pad", schedule_broadcast)

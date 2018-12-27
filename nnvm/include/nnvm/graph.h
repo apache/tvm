@@ -229,7 +229,7 @@ inline const T& Graph::GetAttr(const std::string& attr_name) const {
   auto it = attrs.find(attr_name);
   CHECK(it != attrs.end())
       << "Cannot find attribute " << attr_name << " in the graph";
-  return nnvm::get<T>(*it->second);
+  return nnvm::unsafe_get<T>(*it->second);
 }
 
 inline bool Graph::HasAttr(const std::string& attr_name) const {

@@ -123,7 +123,7 @@ class ROCMModuleNode : public runtime::ModuleNode {
   std::mutex mutex_;
 };
 
-// a wrapped function class to get packed fucn.
+// a wrapped function class to get packed func.
 class ROCMWrappedFunc {
  public:
   // initialize the ROCM function.

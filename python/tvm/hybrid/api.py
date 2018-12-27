@@ -24,17 +24,15 @@ def script(pyfunc):
         from .util import _enter_hybrid_runtime, _restore_runtime, _is_tvm_arg_types
         if _is_tvm_arg_types(args):
             src = _pruned_source(func)
-            parser = parse_python(src, args)
+            parser = parse_python(src, func.__globals__, args)
 
             input_tensors = []
             for i in args:
                 if isinstance(i, Tensor):
                     input_tensors.append(i)
-
             op = _tvm_internal._HybridOp(parser.func_name, "HybridOp", None, input_tensors,
                                          parser.outputs, parser.parsed_body)
             res = [op.output(i) for i in range(len(parser.outputs))]
-
             return res[0] if len(res) == 1 else res
 
         intersect = _enter_hybrid_runtime(func)

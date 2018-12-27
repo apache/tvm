@@ -36,7 +36,7 @@ def compile_vhls(kernel_info, device_name):
         platform = os.environ.get("XCL_PLATFORM", os.environ.get("AWS_PLATFORM"))
 
     if platform is None:
-        raise RuntimeError("No Xlinx device specified.")
+        raise RuntimeError("No Xilinx device specified.")
 
     tmp_xo_files = []
     for funcname, code  in kernel_info:

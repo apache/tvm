@@ -49,7 +49,7 @@ TVM_REGISTER_API("_context_test")
     *ret = ctx;
   });
 
-// internal fucntion used for debug and testing purposes
+// internal function used for debug and testing purposes
 TVM_REGISTER_API("_ndarray_use_count")
 .set_body([](TVMArgs args,  TVMRetValue *ret) {
     runtime::NDArray nd = args[0];

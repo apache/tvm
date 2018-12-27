@@ -211,7 +211,7 @@ def run_opencl():
     opencl_device_host = '10.77.1.145'
     opencl_device_port = 9090
 
-    # create scheule for the above "add one" compute decleration
+    # create schedule for the above "add one" compute declaration
     s = tvm.create_schedule(B.op)
     xo, xi = s[B].split(B.op.axis[0], factor=32)
     s[B].bind(xo, tvm.thread_axis("blockIdx.x"))

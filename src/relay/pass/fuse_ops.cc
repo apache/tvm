@@ -536,7 +536,6 @@ class GraphPartitioner {
    * \brief Commit fusion operation.
    * \param src The source node.
    * \param sink The termination node.
-   * \tparam group the group to be committed.
    * \note sink must be a post-dominator of src.
    */
   void CommitFuse(IndexedForwardGraph::Node* src,
@@ -700,9 +699,7 @@ class FuseMutator : private ExprMutator {
   std::unordered_map<GraphPartitioner::Group*, GroupInfo> ginfo_;
   // Skip primitive function.
   Expr VisitExpr_(const FunctionNode* fn_node) {
-    NodeRef res = FunctionGetAttr(GetRef<Function>(fn_node), "Primitive");
-    const ir::IntImm* pval = res.as<ir::IntImm>();
-    if (pval && pval->value != 0) {
+    if (fn_node->IsPrimitive()) {
       return GetRef<Expr>(fn_node);
     } else {
       return ExprMutator::VisitExpr_(fn_node);

@@ -6,8 +6,10 @@
 #include <tvm/ir_operator.h>
 #include <tvm/relay/op.h>
 #include <tvm/relay/attrs/nn.h>
+#include <topi/nn.h>
 #include <vector>
 #include "../layout.h"
+#include "../op_common.h"
 
 namespace tvm {
 namespace relay {
@@ -60,6 +62,30 @@ bool PadRel(const Array<Type>& types,
   return true;
 }
 
+Array<Tensor> PadCompute(const Attrs& attrs,
+                         const Array<Tensor>& inputs,
+                         const Type& out_type,
+                         const Target& target) {
+  const auto* param = attrs.as<PadAttrs>();
+  CHECK(param != nullptr);
+
+  auto pad_width = param->pad_width;
+  CHECK(pad_width.size() == inputs[0].ndim() &&
+    pad_width[0].size() == 2)
+    << "Illegal pad_width";
+  Array<IndexExpr> pad_before;
+  for (size_t i = 0; i < pad_width.size(); ++i) {
+    pad_before.push_back(pad_width[i][0]);
+  }
+  Array<IndexExpr> pad_after;
+  for (size_t i = 0; i < pad_width.size(); ++i) {
+    pad_after.push_back(pad_width[i][1]);
+  }
+  const auto* out_ttype = out_type.as<TensorTypeNode>();
+  return Array<Tensor>{ topi::pad(inputs[0], pad_before, pad_after,
+                                  tvm::make_const(out_ttype->dtype, param->pad_value)) };
+}
+
 // Handler to create a call to the padding op used by front-end FFI
 Expr MakePad(Expr data, Array<Array<IndexExpr> > pad_width, double pad_value) {
   auto attrs = make_node<PadAttrs>();
@@ -82,7 +108,9 @@ RELAY_REGISTER_OP("nn.pad")
 .set_num_inputs(1)
 .add_argument("data", "Tensor", "The input tensor.")
 .set_support_level(2)
-.add_type_rel("Pad", PadRel);
+.add_type_rel("Pad", PadRel)
+.set_attr<TOpPattern>("TOpPattern", kInjective)
+.set_attr<FTVMCompute>("FTVMCompute", PadCompute);
 
 }  // namespace relay
 }  // namespace tvm

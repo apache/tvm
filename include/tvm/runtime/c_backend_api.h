@@ -118,7 +118,7 @@ TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
 
 
 /*!
- * \brief Simple static initialization fucntion.
+ * \brief Simple static initialization function.
  *  Run f once and set handle to be not null.
  *  This function is mainly used for test purpose.
  *

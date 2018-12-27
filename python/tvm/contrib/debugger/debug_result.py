@@ -93,6 +93,21 @@ class DebugResult(object):
         """
         return self._dtype_list
 
+    def get_output_tensors(self):
+        """Dump the outputs to a temporary folder, the tensors are in numpy format
+        """
+        eid = 0
+        order = 0
+        output_tensors = {}
+        for node, time in zip(self._nodes_list, self._time_list):
+            num_outputs = self.get_graph_node_output_num(node)
+            for j in range(num_outputs):
+                order += time[0]
+                key = node['name'] + "_" + str(j)
+                output_tensors[key] = self._output_tensor_list[eid]
+                eid += 1
+        return output_tensors
+
     def dump_output_tensor(self):
         """Dump the outputs to a temporary folder, the tensors are in numpy format
         """
@@ -140,6 +155,7 @@ class DebugResult(object):
             for j in range(num_outputs):
                 op = node['op']
                 if node['op'] == 'param':
+                    eid += 1
                     continue
                 name = node['name']
                 shape = str(self._output_tensor_list[eid].shape)
