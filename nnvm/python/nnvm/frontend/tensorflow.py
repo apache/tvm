@@ -867,6 +867,11 @@ def _expand_dims_0d_aware(data, attr, axis, num_newaxis=1):
 
     return _sym.expand_dims(data, axis=axis, num_newaxis=num_newaxis)
 
+def _sign():
+    def _impl(inputs, attr, params):
+        return _sym.sign(inputs[0])
+    return _impl
+
 # compatible operators that do NOT require any conversion.
 _identity_list = []
 
@@ -900,6 +905,7 @@ _convert_map = {
     'RealDiv'                           : _elemwise('div'),
     'Maximum'                           : _elemwise('max'),
     'Minimum'                           : _elemwise('min'),
+    'Sign'                              : _sign(),
     'Sum'                               : _sum(),
     'Square'                            : _square(),
     'Pack'                              : _pack(),

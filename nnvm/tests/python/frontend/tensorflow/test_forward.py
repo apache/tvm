@@ -1052,6 +1052,19 @@ def test_forward_transpose():
     _test_forward_transpose((2, 3, 4), (0, 1, 2))
     _test_forward_transpose((2, 3, 4, 5), (3, 0, 1, 2))
 
+#######################################################################
+# Sign
+# --------------------
+def _test_sign(in_shape):
+    in_data = np.random.uniform(-10.0, 10.0, in_shape).astype('float32')
+    with tf.Graph().as_default():
+        in1 = tf.placeholder(tf.float32, shape=in_shape, name='in1')
+        tf.sign(in1)
+        compare_tf_with_tvm(in_data, 'in1:0', 'Sign:0')
+
+def test_forward_sign():
+    _test_sign((2,4,4,3))
+    _test_sign((1,20,20,3))
 
 def test_forward_ceil():
     ishape = (1, 3, 10, 10)
@@ -1205,3 +1218,4 @@ if __name__ == '__main__':
 
     # Relational ops
     test_forward_rel_ops()
+    test_forward_sign()

@@ -57,6 +57,18 @@ NNVM_REGISTER_ELEMWISE_UNARY_OP(ceil)
       return Array<Tensor>{ topi::ceil(inputs[0]) };
 });
 
+// sign
+NNVM_REGISTER_ELEMWISE_UNARY_OP(sign)
+.describe(R"code(Return the sign of the input.
+)code" NNVM_ADD_FILELINE)
+.set_support_level(3)
+.set_attr<FTVMCompute>(
+  "FTVMCompute", [](const NodeAttrs& attrs,
+                    const Array<Tensor>& inputs,
+                    const Array<Tensor>& out_info) {
+      return Array<Tensor>{ topi::sign(inputs[0]) };
+});
+
 // trunc
 NNVM_REGISTER_ELEMWISE_UNARY_OP(trunc)
 .describe(R"code(Take truncated value of the input, element-wise.

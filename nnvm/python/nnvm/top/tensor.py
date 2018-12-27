@@ -64,6 +64,10 @@ reg.register_schedule("floor", _fschedule_broadcast)
 reg.register_pattern("ceil", OpPattern.ELEMWISE)
 reg.register_schedule("ceil", _fschedule_broadcast)
 
+# sign
+reg.register_pattern("sign", OpPattern.ELEMWISE)
+reg.register_schedule("sign", _fschedule_broadcast)
+
 # round
 reg.register_pattern("round", OpPattern.ELEMWISE)
 reg.register_schedule("round", _fschedule_broadcast)
