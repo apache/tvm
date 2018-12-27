@@ -215,7 +215,7 @@ stage('Unit Test') {
 stage('Integration Test') {
   parallel 'topi: GPU': {
     node('GPU') {
-      ws('workspace/tvm/it-python-gpu') {
+      ws('workspace/tvm/topi-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
@@ -227,7 +227,7 @@ stage('Integration Test') {
   },
   'frontend: GPU': {
     node('GPU') {
-      ws('workspace/tvm/it-python-gpu') {
+      ws('workspace/tvm/frontend-python-gpu') {
         init_git()
         unpack_lib('gpu', tvm_multilib)
         timeout(time: max_time, unit: 'MINUTES') {
