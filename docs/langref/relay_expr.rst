@@ -49,8 +49,11 @@ Global Variable
 ~~~~~~~~~~~~~~~~~~
 
 Global identifiers are prefixed by the :code:`@` sigil, such as ":code:`@global`".
-A global identifier always references a globally visible definition contained in the environment.
+A global identifier always references a globally visible definition contained in the
+globally visible environment, known as the `module`__.
 Global identifiers must be unique.
+
+__ `Module and Global Functions`_
 
 See :py:class:`~tvm.relay.expr.GlobalVar` for its implementation
 and documentation.
@@ -191,6 +194,14 @@ type parameters are *type polymorphic*; their return type or the types
 of arguments they will accept can vary based on the type arguments
 given at call sites.
 
+Type parameters are classified by *kind* and can
+only appear in parts of the type signature where their kind is appropriate
+(e.g., type parameters of kind :code:`Shape` can only appear where a shape
+would be expected in a tensor type); for a full discussion, 
+see `the documentation on type parameters`__.
+
+__ `Type Parameter`_
+
 For example, one can define a polymorphic identity function for
 any Relay type as follows:
 
@@ -248,11 +259,13 @@ by optimization passes) may be registered as a new column.
 From the perspective of Relay's type system, an operator is a function,
 so operators may be called like any other function and have function
 types. In particular, operator types are registered using a single
-type relation (see `Polymorphism and Type Relations`_), typically a relation
+type relation (see `the documentation on type relations`__), typically a relation
 specialized to that operator. For example, the :code:`add` operator
 is registered with the :code:`Broadcast` relation, indicating that the
 arguments of :code:`add` must be tensors and that the return type
 is a tensor whose shape depends on those of its arguments.
+
+__ `Type Relation`_
 
 Operators are rendered without a sigil (e.g :code:`conv2d`, :code:`flatten`)
 when pretty-printing Relay programs.
