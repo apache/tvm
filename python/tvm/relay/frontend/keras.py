@@ -600,7 +600,7 @@ def _check_unsupported_layers(model):
 
 
 def keras_op_to_relay(inexpr, keras_layer, outname, etab):
-    """Convert a Keras layer to a Relay expression and update the expression table."""
+    """Convert a Keras layer to a Relay expression and update the expression table.
 
     Parameters
     ----------
@@ -631,18 +631,18 @@ def from_keras(model, shape_dict):
     Parameters
     ----------
     model : keras.engine.training.Model
-        The keras model to be converted
+        The keras model to be converted.
 
     shape_dict : dict of str to int list/tuple
-        Input shapes of the model
+        Input shapes of the model.
 
     Returns
     -------
     func : tvm.relay.Function
-        Compatible relay Function
+        Compatible relay Function.
 
     params : dict of str to tvm.NDArray
-        The parameter dict to be used by relay
+        The parameter dict to be used by relay.
     """
     try:
         import keras

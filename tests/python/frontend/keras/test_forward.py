@@ -45,7 +45,6 @@ def verify_keras_frontend(keras_model, need_transpose=True):
     xs = [np.random.uniform(size=shape, low=-1.0, high=1.0) for shape in in_shapes]
     keras_out = get_keras_output(xs)
     keras_out = keras_out if isinstance(keras_out, list) else [keras_out]
-
     for target, ctx in ctx_list():
         inputs = [to_channels_first(x) for x in xs] if need_transpose else xs
         tvm_out = get_tvm_output(inputs, target, ctx)
@@ -254,7 +253,6 @@ if __name__ == '__main__':
     test_forward_multi_outputs()
     test_forward_reuse_layers()
     test_forward_rnn()
-
     test_forward_vgg16()
     test_forward_xception()
     test_forward_resnet50()
