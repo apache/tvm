@@ -1197,7 +1197,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
                              int number,
                              int repeat,
                              int min_repeat_ms) {
-  auto ftimer = [pf, ctx, &number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) {
+  auto ftimer = [pf, ctx, number, repeat, min_repeat_ms](TVMArgs args, TVMRetValue *rv) mutable {
     TVMRetValue temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
@@ -1206,9 +1206,15 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
 
     for (int i = 0; i < repeat; ++i) {
       std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> tbegin, tend;
-      double duration_ms;
+      double duration_ms = 0.0;
 
       do {
+        if (duration_ms > 0.0) {
+          number = static_cast<int>(
+              std::max((min_repeat_ms / (duration_ms / number) + 1),
+                       number * 1.618));   // 1.618 is chosen by random
+        }
+
         tbegin = std::chrono::high_resolution_clock::now();
         // start timing
         for (int i = 0; i < number; ++i) {
@@ -1219,10 +1225,6 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
 
         duration_ms = std::chrono::duration_cast<std::chrono::duration<double> >
             (tend - tbegin).count() * 1000;
-
-        number = static_cast<int>(
-            std::max((min_repeat_ms / (duration_ms / number) + 1),
-                     number * 1.618));
       } while (duration_ms < min_repeat_ms);
 
       double speed = std::chrono::duration_cast<std::chrono::duration<double> >(
