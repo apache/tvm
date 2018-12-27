@@ -206,7 +206,7 @@ class StrAttrsDict(object):
 
 
 class ExprTable(object):
-    """Table storing relay exprs by names."""
+    """Table storing Relay expressions by names."""
     def __init__(self):
         self.exprs = {}
         self.params = {}

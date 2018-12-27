@@ -600,21 +600,21 @@ def _check_unsupported_layers(model):
 
 
 def keras_op_to_relay(inexpr, keras_layer, outname, etab):
-    """Convert keras layer to relay expr, and update etab.
+    """Convert a Keras layer to a Relay expression and update the expression table."""
 
     Parameters
     ----------
     inexpr : relay.expr.Expr or a list of it
-        The input relay expr(s)
+        The input Relay expression(s).
 
     keras_layer : keras.layers
-        The keras layer to be converted
+        The Keras layer to be converted.
 
     outname : str
-        Name of the output relay expr
+        Name of the output Relay expression.
 
     etab : relay.frontend.common.ExprTable
-        The global expr table to be updated
+        The global expression table to be updated.
     """
     if type(keras_layer).__name__ not in _convert_map:
         raise NotImplementedError("{} is not supported".format((type(keras_layer).__name__)))
