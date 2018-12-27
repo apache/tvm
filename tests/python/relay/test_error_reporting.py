@@ -26,13 +26,6 @@ def check_spans(expr):
     sp_ck = SpanChecker()
     sp_ck.visit(expr)
 
-@tvm.register_func("annotate_spans")
-def annotate_spans(expr, source_name):
-    text = expr.astext()
-    expr = fromtext(text, source_name)
-    check_spans(expr)
-    return expr, text
-
 def test_var_span():
     x = relay.var('x')
     func = relay.Function([x], x)
