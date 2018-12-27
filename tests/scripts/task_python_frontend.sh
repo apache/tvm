@@ -13,7 +13,6 @@ python -m nose -v nnvm/tests/python/unittest || exit -1
 python3 -m nose -v nnvm/tests/python/unittest || exit -1
 
 echo "Running compiler test..."
-python -m nose -v nnvm/tests/python/compiler || exit -1
 python3 -m nose -v nnvm/tests/python/compiler || exit -1
 
 echo "Running ONNX frontend test..."
