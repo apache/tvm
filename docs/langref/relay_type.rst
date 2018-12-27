@@ -23,7 +23,7 @@ Relay to be ahead-of-time compiled and provides much more information about
 tensors for optimizations further in the compilation pipeline. Such optimizations
 can be implemented as passes, which are Relay-to-Relay AST transformations, and
 may use the inferred types (e.g., shape information) for making decisions about
-program transformations. For instance, `src/relay/pass/fuse_ops.cc` gives
+program transformations. For instance, :code:`src/relay/pass/fuse_ops.cc` gives
 an implementation of a pass that uses inferred tensor shapes to replace invocations
 of operators in a Relay program with fused operator implementations.
 
@@ -52,9 +52,9 @@ A concrete tensor type in Relay.
 
 Tensors are typed according to data type and shape. At present, these use TVM's
 data types and shapes, but in the future, Relay may include a separate AST for
-shapes. In particular, data types include `bool`, `float32`, `int8` and various
-other bit widths and numbers of lanes. Shapes are given as tuples of dimensions (TVM `IndexExpr`),
-such as `(5, 5)`; scalars are also given tuple types and have a shape of `()`.
+shapes. In particular, data types include :code:`bool`, :code:`float32`, :code:`int8` and various
+other bit widths and numbers of lanes. Shapes are given as tuples of dimensions (TVM :code:`IndexExpr`),
+such as :code:`(5, 5)`; scalars are also given tuple types and have a shape of :code:`()`.
 
 Note, though, that TVM shapes can also include variables and arithmetic expressions
 including variables, so Relay's constraint solving phase will attempt to find
@@ -112,8 +112,8 @@ Like normal parameters, concrete arguments must be given for type parameters at 
 
 .. *Note: type parameter syntax is not yet supported in the text format.*
 
-For example, `s` below is a type parameter of kind `Shape` and it will
-be substituted for `(10, 10)` at the call site below:
+For example, :code:`s` below is a type parameter of kind :code:`Shape` and it will
+be substituted with :code:`(10, 10)` at the call site below:
 
 .. code-block:: python
 
@@ -143,7 +143,7 @@ consists of a list of type parameters, a set of type constraints,
 a sequence of argument types, and a return type.
 
 We informally write function types as:
-`fn<type_params>(arg_types) -> ret_type where type_constraints`
+:code:`fn<type_params>(arg_types) -> ret_type where type_constraints`
 
 A type parameter in the function type may appear in the argument
 types or the return types. Additionally, each of the type constraints
@@ -163,7 +163,7 @@ tensor shapes in complex ways, such as broadcasting operators or
 :code:`flatten`, allowing Relay to statically reason about the shapes
 in these cases.
 
-A type relation :code:`R` describes a relationship between the inputs and output types of a Relay function.
+A type relation :code:`R` describes a relationship between the input and output types of a Relay function.
 Namely, :code:`R` is a function on types that
 outputs `true` if the relationship holds and `false`
 if it fails to hold. Types given to a relation may be incomplete or
@@ -225,7 +225,7 @@ See :py:class:`~tvm.relay.ty.TypeRelation` for its definition and documentation.
 Incomplete Type
 ~~~~~~~~~~~~~~~
 
-A type or portion of a type that is not yet known.
+An incomplete type is a type or portion of a type that is not yet known.
 This is only used during type inference. Any omitted type annotation is
 replaced by an incomplete type, which will be replaced by another
 type at a later point.
