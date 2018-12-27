@@ -87,7 +87,7 @@ bool IntSet::can_prove_negative() const {
 bool IntSet::can_prove_non_positive() const {
   if (const IntervalSet* s_int = (*this).as<IntervalSet>()) {
     auto max = ir::Simplify(s_int->i.max);
-    return is_zero(max) || is_positive_const(max);
+    return is_zero(max) || is_negative_const(max);
   }
   return false;
 }
