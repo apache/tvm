@@ -203,27 +203,30 @@ class TypeSolver::Resolver : public TypeMutator {
 // most of the overrides.
 class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
  public:
-  explicit Propagator(TypeSolver* solver, RelationNode* rel) : solver_(solver), rel_(rel) {}
+  explicit Propagator(TypeSolver* solver, const std::unordered_set<RelationNode*>* rels)
+    : solver_(solver), rels_(rels) {}
 
   // adds the relation node to t and all child types of t
   void Propagate(const Type& t) {
     VisitType(t);
   }
 
-  void AddRelToList(const Type& t) {
+  void UpdateRelSet(const Type& t) {
     TypeNode* tnode = solver_->GetTypeNode(t);
-    tnode->rel_set.insert(rel_);
+    for (auto* rel : *rels_) {
+      tnode->rel_set.insert(rel);
+    }
   }
 
   void VisitTypeDefault_(const Node* op) override {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
-    AddRelToList(t);
+    UpdateRelSet(t);
   }
 
   void VisitType_(const TupleTypeNode* op) override {
     TupleType tt = GetRef<TupleType>(op);
-    AddRelToList(tt);
+    UpdateRelSet(tt);
 
     for (const Type& t : tt->fields) {
       Propagate(t);
@@ -232,7 +235,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
   void VisitType_(const FuncTypeNode* op) override {
     FuncType ft = GetRef<FuncType>(op);
-    AddRelToList(ft);
+    UpdateRelSet(ft);
 
     Propagate(ft->ret_type);
     for (auto arg_type : ft->arg_types) {
@@ -250,7 +253,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
  private:
   TypeSolver* solver_;
-  RelationNode* rel_;
+  const std::unordered_set<RelationNode*>* rels_;
 };
 
 // similarly, we use TypeFunctor<void(const Type&)> so we can use
@@ -268,12 +271,10 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
     // set parent at the end so later calls to GetTypeNode go back to src
     src->parent = dst;
 
-    // now propagate any relations to child nodes, since change to
+    // now propagate relations to child nodes, since change to
     // a child node should update parent too
-    for (auto* rel : dst->rel_set) {
-      Propagator prop(solver_, rel);
-      prop.Propagate(dst->resolved_type);
-    }
+    Propagator prop(solver_, &dst->rel_set);
+    prop.Propagate(dst->resolved_type);
   }
 
   // Transfers any relations linked to t to the stored dst.
@@ -370,7 +371,8 @@ void TypeSolver::AddConstraint(const TypeConstraint& constraint) {
       tlink->value = tnode;
       rnode->type_list.Push(tlink);
       // insert type->relation node
-      Propagator prop(this, rnode);
+      std::unordered_set<RelationNode*> singleton { rnode };
+      Propagator prop(this, &singleton);
       prop.Propagate(tnode->resolved_type);
     }
     // add the relation to the working queue.
