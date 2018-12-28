@@ -92,9 +92,6 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       CHECK(resolved.defined())
         << "Unable to unify parent types: "
         << lhs->resolved_type << " and " << rhs->resolved_type;
-      TypeNode* top = solver_->GetTypeNode(resolved);
-      solver_->MergeFromTo(lhs, top);
-      solver_->MergeFromTo(rhs, top);
       return resolved;
     }
   }
@@ -255,6 +252,77 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
   RelationNode* rel_;
 };
 
+// similarly, we use TypeFunctor<void(const Type&)> so we can use
+// the default visitor case to avoid more overrides
+class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
+ public:
+  explicit Merger(TypeSolver* solver) : solver_(solver) {}
+
+  // Merges src node to dst, ensures *all* type relations of all
+  // child nodes of src are transferred to dst.
+  void Merge(TypeNode* src, TypeNode* dst) {
+    if (src == dst) return;
+    dst_ = dst;
+    VisitType(src->resolved_type);
+    // set parent at the end so later calls to GetTypeNode go back to src
+    src->parent = dst;
+  }
+
+  // Transfers any relations linked to t to the stored dst.
+  // Any unresolved relations are added back to the queue, since
+  // there is now new information
+  void TransferLinks(const Type& t) {
+    TypeNode* src = solver_->GetTypeNode(t);
+    // move the link to the to dst
+    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
+      // store next pointer first before rlink get moved
+      auto* next = rlink->next;
+      // if the relation is not yet resolved
+      // send the relation to the queue
+      if (!rlink->value->resolved) {
+        solver_->AddToQueue(rlink->value);
+        dst_->rel_list.Push(rlink);
+      }
+      rlink = next;
+    }
+  }
+
+  void VisitTypeDefault_(const Node* op) override {
+    NodeRef nr = GetRef<NodeRef>(op);
+    Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
+    TransferLinks(t);
+  }
+
+  void VisitType_(const TupleTypeNode* ttn) override {
+    auto tup = GetRef<TupleType>(ttn);
+    TransferLinks(tup);
+
+    for (auto field : tup->fields) {
+      VisitType(field);
+    }
+  }
+
+  void VisitType_(const FuncTypeNode* ftn) override {
+    auto func = GetRef<FuncType>(ftn);
+    TransferLinks(func);
+
+    VisitType(func->ret_type);
+    for (auto arg : func->arg_types) {
+      VisitType(arg);
+    }
+    for (auto param : func->type_params) {
+      VisitType(param);
+    }
+    for (auto constraint : func->type_constraints) {
+      VisitType(constraint);
+    }
+  }
+
+ private:
+  TypeSolver* solver_;
+  TypeNode* dst_;
+};
+
 // constructor
 TypeSolver::TypeSolver()
   : reporter_(make_node<Reporter>(this)) {
@@ -269,6 +337,12 @@ TypeSolver::~TypeSolver() {
   for (RelationNode* ptr : rel_nodes_) {
     ptr->~RelationNode();
   }
+}
+
+// merge src type node to dst
+void TypeSolver::MergeFromTo(TypeNode* src, TypeNode* dst) {
+  Merger merger(this);
+  merger.Merge(src, dst);
 }
 
 // Add equality constraint

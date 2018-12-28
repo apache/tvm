@@ -70,6 +70,7 @@ class TypeSolver {
   class Unifier;
   class Resolver;
   class Propagator;
+  class Merger;
   class Reporter;
   struct TypeNode;
   struct RelationNode;
@@ -168,22 +169,7 @@ class TypeSolver {
    * \param src The source operand
    * \param dst The dst operand.
    */
-  void MergeFromTo(TypeNode* src, TypeNode* dst) {
-    if (src == dst) return;
-    src->parent = dst;
-    // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
-      // store next pointer first before rlink get moved
-      auto* next = rlink->next;
-      // if the relation is not yet resolved
-      // send the relation to the queue
-      if (!rlink->value->resolved) {
-        this->AddToQueue(rlink->value);
-        dst->rel_list.Push(rlink);
-      }
-      rlink = next;
-    }
-  }
+  void MergeFromTo(TypeNode* src, TypeNode* dst);
 };
 
 }  // namespace relay
