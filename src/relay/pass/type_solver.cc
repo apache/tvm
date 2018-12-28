@@ -92,6 +92,9 @@ class TypeSolver::Unifier : public TypeFunctor<Type(const Type&, const Type&)> {
       CHECK(resolved.defined())
         << "Unable to unify parent types: "
         << lhs->resolved_type << " and " << rhs->resolved_type;
+      TypeNode* top = solver_->GetTypeNode(resolved);
+      solver_->MergeFromTo(lhs, top);
+      solver_->MergeFromTo(rhs, top);
       return resolved;
     }
   }
@@ -268,34 +271,35 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
     src->parent = dst;
   }
 
-  // Transfers any relations linked to t to the stored dst.
+  // Copies any relations linked to t to the stored dst.
   // Any unresolved relations are added back to the queue, since
   // there is now new information
-  void TransferLinks(const Type& t) {
+  void CopyLinks(const Type& t) {
     TypeNode* src = solver_->GetTypeNode(t);
+    if (src == dst_) return;
     // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr;) {
-      // store next pointer first before rlink get moved
-      auto* next = rlink->next;
+    for (auto* rlink = src->rel_list.head; rlink != nullptr; rlink = rlink->next) {
       // if the relation is not yet resolved
       // send the relation to the queue
       if (!rlink->value->resolved) {
         solver_->AddToQueue(rlink->value);
-        dst_->rel_list.Push(rlink);
+        // copy link to avoid introducing circular references
+        auto* new_rlink = solver_->arena_.make<LinkNode<RelationNode*> >();
+        new_rlink->value = rlink->value;
+        dst_->rel_list.Push(new_rlink);
       }
-      rlink = next;
     }
   }
 
   void VisitTypeDefault_(const Node* op) override {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
-    TransferLinks(t);
+    CopyLinks(t);
   }
 
   void VisitType_(const TupleTypeNode* ttn) override {
     auto tup = GetRef<TupleType>(ttn);
-    TransferLinks(tup);
+    CopyLinks(tup);
 
     for (auto field : tup->fields) {
       VisitType(field);
@@ -304,7 +308,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 
   void VisitType_(const FuncTypeNode* ftn) override {
     auto func = GetRef<FuncType>(ftn);
-    TransferLinks(func);
+    CopyLinks(func);
 
     VisitType(func->ret_type);
     for (auto arg : func->arg_types) {
