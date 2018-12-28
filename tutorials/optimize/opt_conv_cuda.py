@@ -46,7 +46,7 @@ Apad = tvm.compute(
     lambda yy, xx, cc, nn: tvm.select(
         tvm.all(yy >= pad, yy - pad < in_size,
                 xx >= pad, xx - pad < in_size),
-        A[yy - pad, xx - pad, cc, nn], tvm.const(0.)),
+        A[yy - pad, xx - pad, cc, nn], tvm.const(0., "float32")),
     name='Apad')
 # Create reduction variables
 rc = tvm.reduce_axis((0, in_channel), name='rc')
@@ -64,7 +64,7 @@ B = tvm.compute(
 ###############################################################################
 # Memory Hierarchy
 # ----------------
-# 
+#
 # We first specify the memory hierarchy for buffers. The figure below shows the
 # GPU memory hierarchy. One important difference from CPU memory hierarchy is
 # that GPU provides a cache buffer called shared memory, which is managed by
