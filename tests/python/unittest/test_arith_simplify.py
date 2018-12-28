@@ -21,8 +21,8 @@ def test_simplify():
     assert zz.a == x and zz.b.value == 4
 
     n = tvm.var('n')
-    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % (-1)), tvm.const(0))
-    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % 1), tvm.const(0))
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % (-1)), tvm.const(0, "int32"))
+    assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n % 1), tvm.const(0, "int32"))
     assert tvm.ir_pass.Equal(tvm.ir_pass.CanonicalSimplify(n / 1), n)
     tvm.ir_pass.CanonicalSimplify(n / (-1))
     # This is not true in the current implementation
@@ -67,10 +67,11 @@ def test_modular():
     ry = tvm.var("ry")
     y = tvm.var("y")
     x = tvm.var("x")
-    vmap = {rx: tvm.Range(tvm.const(0), tvm.const(3)),
-            ry: tvm.Range(tvm.const(0), tvm.const(3)),
-            y: tvm.Range(tvm.const(0), tvm.const(2)),
-            x: tvm.Range(tvm.const(0), tvm.const(14))}
+    i32_const = lambda x: tvm.const(x, "int32")
+    vmap = {rx: tvm.Range(i32_const(0), i32_const(3)),
+            ry: tvm.Range(i32_const(0), i32_const(3)),
+            y: tvm.Range(i32_const(0), i32_const(2)),
+            x: tvm.Range(i32_const(0), i32_const(14))}
     idx = ry * 16 + rx + y * 16 + x
     z1 = tvm.ir_pass.CanonicalSimplify(idx // 16, vmap)
     z2 = tvm.ir_pass.CanonicalSimplify(idx % 16, vmap)

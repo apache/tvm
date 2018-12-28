@@ -320,7 +320,7 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
 
             element = data(*idx)
             for b in range(bits):
-                extracted_bit = ((element & tvm.const(masks[b])) >> b).astype(pack_type)
+                extracted_bit = ((element & tvm.const(masks[b], "int32")) >> b).astype(pack_type)
                 packed_data[b] = (packed_data[b] | extracted_bit)
                 if k < data_width - 1:
                     packed_data[b] = packed_data[b] << 1

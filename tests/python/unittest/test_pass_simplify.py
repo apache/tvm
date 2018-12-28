@@ -29,13 +29,13 @@ def test_basic():
 
 def test_bound():
     m = tvm.var('m')
-    vrange = tvm.convert({m: tvm.Range(tvm.const(0), tvm.const(10))})
+    vrange = tvm.convert({m: tvm.Range(tvm.const(0, "int32"), tvm.const(10, "int32"))})
     ret = tvm.ir_pass.Simplify(m % 10, vrange)
     assert ret == m
 
 def test_canonical():
     x = tvm.var("x")
-    z = tvm.const(3)
+    z = tvm.const(3, "int32")
     ret = tvm.ir_pass.CanonicalSimplify(x / (z*z) - x / (z*z))
     assert(tvm.ir_pass.Equal(ret, 0))
 

@@ -26,22 +26,53 @@ handle = "handle"
 
 
 def min_value(dtype):
-    """minimum value of dtype"""
+    """minimum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The minimum value of dtype.
+    """
     return _api_internal._min_value(dtype)
 
 
 def max_value(dtype):
-    """maximum value of dtype"""
+    """maximum value of dtype
+
+    Parameters
+    ----------
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    value : tvm.Expr
+        The maximum value of dtype.
+    """
     return _api_internal._max_value(dtype)
 
 
-def const(value, dtype=None):
-    """construct a constant"""
-    if dtype is None:
-        if isinstance(value, _Integral):
-            dtype = 'int32'
-        else:
-            dtype = 'float32'
+def const(value, dtype):
+    """construct a constant
+
+    Parameters
+    ----------
+    value : number
+        The content of the constant number.
+
+    dtype : str
+        The data type.
+
+    Returns
+    -------
+    const_val: tvm.Expr
+        The result expression.
+    """
     return _api_internal._const(value, dtype)
 
 

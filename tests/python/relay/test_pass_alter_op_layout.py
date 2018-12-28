@@ -20,13 +20,13 @@ def test_alter_op():
     @register_alter_op_layout("nn.conv2d", level=100)
     def alter_conv2d(attrs, inputs, tinfos):
         data, weight = inputs
-        weight = relay.multiply(weight, relay.const(2.0))
+        weight = relay.multiply(weight, relay.const(2.0, "float32"))
         return relay.nn.conv2d(data, weight, **attrs)
 
     def expected():
         x = relay.var("x", shape=(1, 64, 56, 56))
         weight = relay.var('weight', shape=(64, 64, 3, 3))
-        y = relay.nn.conv2d(x, relay.multiply(weight, relay.const(2.0)),
+        y = relay.nn.conv2d(x, relay.multiply(weight, relay.const(2.0, "float32")),
                             channels=64,
                             kernel_size=(3, 3),
                             padding=(1, 1))
@@ -313,4 +313,3 @@ if __name__ == "__main__":
     test_alter_layout_dual_path()
     test_alter_layout_resnet()
     test_alter_layout_broadcast_op()
-

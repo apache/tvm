@@ -43,7 +43,7 @@ def bind(func_id, args):
     _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
     iter_var = _api.thread_axis(args[0])
-    low, ext = _api.const(0), args[1]
+    low, ext = _api.const(0, "int32"), args[1]
     for_type = None
     return iter_var, low, ext, for_type
 
