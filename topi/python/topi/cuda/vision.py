@@ -5,6 +5,7 @@ import tvm
 from .. import generic
 from .. import cpp
 from .. import tag
+from .pooling import schedule_pool
 
 def _default_schedule(outs):
     """Default schedule for gpu."""
@@ -146,3 +147,7 @@ def schedule_multibox_detection(outs):
         The computation schedule for multibox_detection.
     """
     return _default_schedule(outs)
+
+@generic.schedule_roi_align.register(["cuda", "gpu"])
+def schedule_roi_align(outs):
+    return schedule_pool(outs, 'NCHW')
