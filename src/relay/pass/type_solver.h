@@ -83,15 +83,15 @@ class TypeSolver {
    *  that can unifies the same types to the name resolved_type.
    *
    *  It also contains collection of links to related Relations,
-   *  which is stored in rel_list.
+   *  which is stored in rel_set.
    */
   struct TypeNode {
     /*! \brief The final resolved type */
     Type resolved_type;
     /*! \brief type node in the union find algorithm */
     TypeNode* parent{nullptr};
-    /*! \brief list of relations that is related to this type node */
-    LinkedList<RelationNode*> rel_list;
+    /*! \brief set of relations that is related to this type node */
+    std::unordered_set<RelationNode*> rel_set;
     /*!
      * \brief Find the root type node, perform path compression
      * \return The root type node.
@@ -131,7 +131,7 @@ class TypeSolver {
   size_t num_resolved_rels_{0};
   /*! \brief map from type node to types. */
   std::unordered_map<Type, TypeNode*, NodeHash, NodeEqual> tmap_;
-  /*! \breif Internal queue to update the relation */
+  /*! \brief Internal queue to update the relation */
   std::queue<RelationNode*> update_queue_;
   /*! \brief allocator of all the internal node obhect*/
   common::Arena arena_;
