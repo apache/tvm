@@ -212,9 +212,7 @@ class TypeSolver::Propagator : public TypeFunctor<void(const Type&)> {
 
   void AddRelToList(const Type& t) {
     TypeNode* tnode = solver_->GetTypeNode(t);
-    LinkNode<RelationNode*>* rlink = solver_->arena_.make<LinkNode<RelationNode*> >();
-    rlink->value = rel_;
-    tnode->rel_list.Push(rlink);
+    tnode->rel_set.insert(rel_);
   }
 
   void VisitTypeDefault_(const Node* op) override {
@@ -269,24 +267,26 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
     VisitType(src->resolved_type);
     // set parent at the end so later calls to GetTypeNode go back to src
     src->parent = dst;
+
+    // now propagate any relations to child nodes, since change to
+    // a child node should update parent too
+    for (auto* rel : dst->rel_set) {
+      Propagator prop(solver_, rel);
+      prop.Propagate(dst->resolved_type);
+    }
   }
 
-  // Copies any relations linked to t to the stored dst.
+  // Transfers any relations linked to t to the stored dst.
   // Any unresolved relations are added back to the queue, since
   // there is now new information
-  void CopyLinks(const Type& t) {
+  void TransferLinks(const Type& t) {
     TypeNode* src = solver_->GetTypeNode(t);
     if (src == dst_) return;
-    // move the link to the to dst
-    for (auto* rlink = src->rel_list.head; rlink != nullptr; rlink = rlink->next) {
-      // if the relation is not yet resolved
-      // send the relation to the queue
-      if (!rlink->value->resolved) {
-        solver_->AddToQueue(rlink->value);
-        // copy link to avoid introducing circular references
-        auto* new_rlink = solver_->arena_.make<LinkNode<RelationNode*> >();
-        new_rlink->value = rlink->value;
-        dst_->rel_list.Push(new_rlink);
+    for (auto* rel : src->rel_set) {
+      // if the relation is not yet resolved, add to queue
+      if (!rel->resolved) {
+        solver_->AddToQueue(rel);
+        dst_->rel_set.insert(rel);
       }
     }
   }
@@ -294,12 +294,12 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
   void VisitTypeDefault_(const Node* op) override {
     NodeRef nr = GetRef<NodeRef>(op);
     Type t = GetRef<Type>(nr.as_derived<tvm::relay::TypeNode>());
-    CopyLinks(t);
+    TransferLinks(t);
   }
 
   void VisitType_(const TupleTypeNode* ttn) override {
     auto tup = GetRef<TupleType>(ttn);
-    CopyLinks(tup);
+    TransferLinks(tup);
 
     for (auto field : tup->fields) {
       VisitType(field);
@@ -308,7 +308,7 @@ class TypeSolver::Merger : public TypeFunctor<void(const Type&)> {
 
   void VisitType_(const FuncTypeNode* ftn) override {
     auto func = GetRef<FuncType>(ftn);
-    CopyLinks(func);
+    TransferLinks(func);
 
     VisitType(func->ret_type);
     for (auto arg : func->arg_types) {
