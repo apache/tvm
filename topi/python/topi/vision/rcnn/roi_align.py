@@ -2,6 +2,8 @@
 """Roi align operator"""
 import tvm
 from ...util import get_const_tuple
+from ...cpp.image import bilinear_sample_nchw
+
 
 @tvm.target.generic_func
 def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
@@ -44,15 +46,7 @@ def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
         outside = tvm.any(y < -1.0, x < -1.0, y > height, x > width)
         y = tvm.max(y, 0.0)
         x = tvm.max(x, 0.0)
-        y_low = y.astype('int32')
-        x_low = x.astype('int32')
-        y_high = tvm.min(y_low + 1, height - 1)
-        x_high = tvm.min(x_low + 1, width - 1)
-        y_lerp = y - y_low
-        x_lerp = x - x_low
-        bottom = x_lerp * data[i, c, y_high, x_high] + (1 - x_lerp) * data[i, c, y_high, x_low]
-        top = x_lerp * data[i, c, y_low, x_high] + (1 - x_lerp) * data[i, c, y_low, x_low]
-        val = y_lerp * bottom + (1 - y_lerp) * top
+        val = bilinear_sample_nchw(data, (i, c, y, x), height - 1, width - 1)
         return tvm.select(outside, 0.0, val)
 
     def _sample(i, c, ph, pw):

@@ -156,5 +156,4 @@ def schedule_roi_align(outs):
     s: Schedule
       The computation schedule for the op.
     """
-    print(outs.op.input_tensors)
     return _default_schedule(outs, False)
