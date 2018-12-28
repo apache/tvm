@@ -62,6 +62,15 @@ class ModuleNode : public RelayNode {
   void Add(const GlobalVar& var, const Function& func, bool update = false);
 
   /*!
+   * \brief Add a function to the global environment.
+   * \param var The name of the global function.
+   * \param func The function.
+   *
+   * It does not do type inference as Add does.
+   */
+  void AddUnchecked(const GlobalVar& var, const Function& func);
+
+  /*!
    * \brief Update a function in the global environment.
    * \param var The name of the global function to update.
    * \param func The new function.
