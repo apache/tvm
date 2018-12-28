@@ -6,7 +6,7 @@ from ...cpp.image import bilinear_sample_nchw
 
 
 @tvm.target.generic_func
-def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
+def roi_align_nchw(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
     """ROI align operator in NCHW layout.
 
     Parameters
@@ -82,4 +82,4 @@ def roi_align(data, rois, pooled_size, spatial_scale, sample_ratio=-1):
                        axis=[rh, rw])
 
     return tvm.compute((num_roi, channel, pooled_size_h, pooled_size_w), _sample,
-                       tag='pool,roi_align')
+                       tag='pool,roi_align_nchw')

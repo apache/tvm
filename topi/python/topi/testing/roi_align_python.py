@@ -3,7 +3,7 @@
 import math
 import numpy as np
 
-def roi_align_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
+def roi_align_nchw_python(a_np, rois_np, pooled_size, spatial_scale, sample_ratio):
     """Roi align in python"""
     _, channel, height, width = a_np.shape
     num_roi = rois_np.shape[0]

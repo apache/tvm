@@ -169,9 +169,9 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         a_np = np.random.uniform(size=a_shape).astype('float32')
         rois_np = np.random.uniform(size=rois_shape).astype('float32') * in_size
         rois_np[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
-        b_np = topi.testing.roi_align_python(a_np, rois_np, pooled_size=pooled_size,
-                                             spatial_scale=spatial_scale,
-                                             sample_ratio=sample_ratio)
+        b_np = topi.testing.roi_align_nchw_python(a_np, rois_np, pooled_size=pooled_size,
+                                                  spatial_scale=spatial_scale,
+                                                  sample_ratio=sample_ratio)
 
         return a_np, rois_np, b_np
 
@@ -185,9 +185,9 @@ def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_s
         print("Running on target: %s" % device)
 
         with tvm.target.create(device):
-            b = topi.vision.rcnn.roi_align(a, rois, pooled_size=pooled_size,
-                                           spatial_scale=spatial_scale,
-                                           sample_ratio=sample_ratio)
+            b = topi.vision.rcnn.roi_align_nchw(a, rois, pooled_size=pooled_size,
+                                                spatial_scale=spatial_scale,
+                                                sample_ratio=sample_ratio)
             s = topi.generic.schedule_roi_align(b)
 
         tvm_a = tvm.nd.array(a_np, ctx)
