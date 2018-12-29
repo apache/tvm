@@ -140,3 +140,20 @@ def schedule_multibox_detection(outs):
       The computation schedule for the op.
     """
     return _default_schedule(outs, False)
+
+@tvm.target.generic_func
+def schedule_roi_align(outs):
+    """Schedule for roi_align
+
+    Parameters
+    ----------
+    outs: Array of Tensor
+      The computation graph description of roi_align
+      in the format of an array of tensors.
+
+    Returns
+    -------
+    s: Schedule
+      The computation schedule for the op.
+    """
+    return _default_schedule(outs, False)
