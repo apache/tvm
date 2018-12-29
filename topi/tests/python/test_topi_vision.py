@@ -1,9 +1,12 @@
 """Test code for vision package"""
+import math
 import numpy as np
 import tvm
 import topi
-import math
+import topi.testing
 
+from tvm.contrib.pickle_memoize import memoize
+from topi.util import get_const_tuple
 from topi.vision import ssd, nms
 
 
@@ -154,7 +157,57 @@ def test_multibox_detection():
         check_device(device)
 
 
+def verify_roi_align(batch, in_channel, in_size, num_roi, pooled_size, spatial_scale, sample_ratio):
+    a_shape = (batch, in_channel, in_size, in_size)
+    rois_shape = (num_roi, 5)
+
+    a = tvm.placeholder(a_shape)
+    rois = tvm.placeholder(rois_shape)
+
+    @memoize("topi.tests.test_topi_vision.verify_roi_align")
+    def get_ref_data():
+        a_np = np.random.uniform(size=a_shape).astype('float32')
+        rois_np = np.random.uniform(size=rois_shape).astype('float32') * in_size
+        rois_np[:, 0] = np.random.randint(low = 0, high = batch, size = num_roi)
+        b_np = topi.testing.roi_align_nchw_python(a_np, rois_np, pooled_size=pooled_size,
+                                                  spatial_scale=spatial_scale,
+                                                  sample_ratio=sample_ratio)
+
+        return a_np, rois_np, b_np
+
+    a_np, rois_np, b_np = get_ref_data()
+
+    def check_device(device):
+        ctx = tvm.context(device, 0)
+        if not ctx.exist:
+            print("Skip because %s is not enabled" % device)
+            return
+        print("Running on target: %s" % device)
+
+        with tvm.target.create(device):
+            b = topi.vision.rcnn.roi_align_nchw(a, rois, pooled_size=pooled_size,
+                                                spatial_scale=spatial_scale,
+                                                sample_ratio=sample_ratio)
+            s = topi.generic.schedule_roi_align(b)
+
+        tvm_a = tvm.nd.array(a_np, ctx)
+        tvm_rois = tvm.nd.array(rois_np, ctx)
+        tvm_b = tvm.nd.array(np.zeros(get_const_tuple(b.shape), dtype=b.dtype), ctx=ctx)
+        f = tvm.build(s, [a, rois, b], device)
+        f(tvm_a, tvm_rois, tvm_b)
+        tvm.testing.assert_allclose(tvm_b.asnumpy(), b_np, rtol=1e-3)
+
+    for device in ['llvm', 'cuda']:
+        check_device(device)
+
+
+def test_roi_align():
+    verify_roi_align(1, 16, 32, 64, 7, 1.0, -1)
+    verify_roi_align(4, 16, 32, 64, 7, 0.5, 2)
+
+
 if __name__ == "__main__":
     test_nms()
     test_multibox_prior()
     test_multibox_detection()
+    test_roi_align()

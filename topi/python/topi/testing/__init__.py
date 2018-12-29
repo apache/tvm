@@ -15,6 +15,7 @@ from .upsampling_python import upsampling_python
 from .bilinear_resize_python import bilinear_resize_python
 from .reorg_python import reorg_python
 from .region_python import region_python
+from .roi_align_python import roi_align_nchw_python
 from .shortcut_python import shortcut_python
 from .lrn_python import lrn_python
 from .l2_normalize_python import l2_normalize_python
