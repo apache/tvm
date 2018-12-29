@@ -34,7 +34,7 @@ import numpy as np
 # our customized lowering pass to manipulate the IR directly instead of using schedule premitives.
 #
 
-n = tvm.const(128)
+n = tvm.const(128, "int32")
 a = tvm.placeholder((n, ), name="a")
 b = tvm.placeholder((n, ), name="b")
 c = tvm.compute((n, ), lambda i: a[i] + b[i], name='c')

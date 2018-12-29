@@ -24,7 +24,7 @@ def test_unroll_loop():
     assert ret.for_type == tvm.stmt.For.Unrolled
 
     ib = tvm.ir_builder.create()
-    ib.scope_attr(tvm.const(0), "pragma_auto_unroll_max_step", 16)
+    ib.scope_attr(tvm.const(0, "int32"), "pragma_auto_unroll_max_step", 16)
     ib.emit(stmt)
     wrapped = ib.get()
     wrapped = tvm.make.Block(wrapped, stmt)

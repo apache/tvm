@@ -272,7 +272,8 @@ def test_schedule_cache_relayout4():
 
 def test_schedule_bound_condition():
    A = tvm.placeholder((64,), name='A', dtype="float32")
-   Apad = tvm.compute((66,), lambda i: tvm.select(tvm.all(i>0, i < 65), A[i-1], tvm.const(0.)), name='Apad')
+   Apad = tvm.compute((66,), lambda i: tvm.select(
+       tvm.all(i>0, i < 65), A[i-1], tvm.const(0., "float32")), name='Apad')
    Apad2 = tvm.compute((66,), lambda i: Apad[i]*2, name='Apad2')
    s = tvm.create_schedule(Apad2.op)
    AL1 = s.cache_read(A,"local",[Apad])

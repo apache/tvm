@@ -465,12 +465,6 @@ def const(value, dtype=None):
     """
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
-        # convert default to int32 and float32
-        if dtype is None:
-            if value.dtype == "float64":
-                value = value.astype("float32")
-            elif value.dtype == "int64":
-                value = value.astype("int32")
     if isinstance(value, (_np.ndarray, _np.generic)):
         value = _nd.array(value)
 
