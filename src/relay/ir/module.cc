@@ -79,9 +79,7 @@ void ModuleNode::Remove(const GlobalVar& var) {
 }
 
 Function ModuleNode::Lookup(const GlobalVar& var) {
-  // since global variables are unique, use name_hint to find the first occurence
-  auto v = this->GetGlobalVar(var->name_hint);
-  auto it = functions.find(v);
+  auto it = functions.find(var);
   CHECK(it != functions.end())
       << "There is no definition of " << var->name_hint;
   return (*it).second;
