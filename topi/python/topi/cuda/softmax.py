@@ -2,6 +2,7 @@
 """Schedule for softmax operator"""
 import tvm
 from .. import generic
+from .injective import _schedule_injective
 
 @generic.schedule_softmax.register(["cuda", "gpu"])
 def schedule_softmax(outs):
@@ -24,21 +25,24 @@ def schedule_softmax(outs):
     max_elem = softmax.op.input_tensors[1]
     expsum = softmax.op.input_tensors[2]
 
-    num_thread = 64
-    block_x = tvm.thread_axis("blockIdx.x")
-    thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
+    if len(softmax.shape) > 2:
+        for op in [max_elem.op, expsum.op, softmax.op]:
+            s = _schedule_injective(op, s)
+    else:
+        num_thread = 64
+        block_x = tvm.thread_axis("blockIdx.x")
+        thread_x = tvm.thread_axis((0, num_thread), "threadIdx.x")
 
-    s[max_elem].bind(max_elem.op.axis[0], block_x)
-
-    k = expsum.op.reduce_axis[0]
-    ko, ki = s[expsum].split(k, factor=num_thread)
-    EF = s.rfactor(expsum, ki)
-    s[expsum].bind(s[expsum].op.axis[0], block_x)
-    s[expsum].bind(s[expsum].op.reduce_axis[0], thread_x)
-    s[EF].compute_at(s[expsum], s[expsum].op.reduce_axis[0])
-    s[expsum].set_store_predicate(thread_x.var.equal(0))
-    tx, xi = s[softmax].split(softmax.op.axis[1], nparts=num_thread)
-    s[softmax].bind(softmax.op.axis[0], block_x)
-    s[softmax].bind(tx, thread_x)
+        s[max_elem].bind(max_elem.op.axis[0], block_x)
+        k = expsum.op.reduce_axis[0]
+        ko, ki = s[expsum].split(k, factor=num_thread)
+        EF = s.rfactor(expsum, ki)
+        s[expsum].bind(s[expsum].op.axis[0], block_x)
+        s[expsum].bind(s[expsum].op.reduce_axis[0], thread_x)
+        s[EF].compute_at(s[expsum], s[expsum].op.reduce_axis[0])
+        s[expsum].set_store_predicate(thread_x.var.equal(0))
+        tx, xi = s[softmax].split(softmax.op.axis[1], nparts=num_thread)
+        s[softmax].bind(softmax.op.axis[0], block_x)
+        s[softmax].bind(tx, thread_x)
 
     return s
