@@ -1,20 +1,20 @@
 import tvm
 
 def test_const():
-    x = tvm.const(1)
+    x = tvm.const(1, "int32")
     print(x.dtype)
     assert x.dtype == tvm.int32
     assert isinstance(x, tvm.expr.IntImm)
 
 def test_make():
-    x = tvm.const(1)
+    x = tvm.const(1, "int32")
     y = tvm.var("x")
     z = x + y
     assert isinstance(tvm.max(x, y), tvm.expr.Max)
     assert isinstance(tvm.min(x, y), tvm.expr.Min)
 
 def test_ir():
-    x = tvm.const(1)
+    x = tvm.const(1, "int32")
     y = tvm.make.IntImm('int32', 1)
     z = x + y
     stmt = tvm.make.Evaluate(z)
