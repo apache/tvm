@@ -4,6 +4,8 @@ import ast
 import operator
 import logging
 import sys
+from numbers import Integral
+
 from .util import _internal_assert
 from . import calls
 from . import util
@@ -137,6 +139,15 @@ class HybridParser(ast.NodeVisitor):
             return self._args[s]
         return self.alloc_buffers[s][0]
 
+    def _const(self, value, dtype=None):
+        if dtype is None:
+            if isinstance(value, bool):
+                dtype = "bool"
+            elif isinstance(value, Integral):
+                dtype = "int32"
+            else:
+                dtype = "float32"
+        return _api.const(value, dtype)
 
     #pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
@@ -172,9 +183,9 @@ class HybridParser(ast.NodeVisitor):
             if isinstance(res, tuple):
                 buf = res[0]
                 if isinstance(node.ctx, ast.Load):
-                    return _make.Call(buf.dtype, buf.name, [_api.const(0)], \
+                    return _make.Call(buf.dtype, buf.name, [self._const(0)], \
                                       _expr.Call.Halide, buf.op, buf.value_index)
-                return buf, [_api.const(0)]
+                return buf, [self._const(0)]
             if isinstance(node.ctx, ast.Load):
                 return res
             return None
@@ -183,7 +194,7 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_Num(self, node):
-        return _api.const(node.n)
+        return self._const(node.n)
 
 
     def visit_AugAssign(self, node):
@@ -193,7 +204,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(buf) == 2, "LHS is supposed to be (buf, args)!")
             buf, args = buf
         else:
-            args = [_api.const(0)]
+            args = [self._const(0)]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
         read = _make.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
@@ -378,7 +389,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, _api.const(0)):
+            if not _ir_pass.Equal(low, self._const(0)):
                 offset = iter_var + low
             self.loops_above[_name] = offset
         else:
@@ -389,7 +400,7 @@ class HybridParser(ast.NodeVisitor):
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
         else:
-            res = _make.For(iter_var, _api.const(0), ext, for_type, 0, _body)
+            res = _make.For(iter_var, self._const(0), ext, for_type, 0, _body)
         self.loops_above.pop(_name)
         return res
 

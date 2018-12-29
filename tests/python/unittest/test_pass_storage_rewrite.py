@@ -238,7 +238,8 @@ def test_parallel_alloc():
     n = tvm.var("n")
     with ib.for_range(0, n, name="t") as i:
         ib.scope_attr(
-            tvm.const(1) , "pragma_scope", tvm.make.StringImm("parallel_launch_point"))
+            tvm.const(1, "int32") , "pragma_scope",
+            tvm.make.StringImm("parallel_launch_point"))
         with ib.for_range(0, n, name="i", for_type="parallel") as i:
             with ib.for_range(0, 10, name="j") as j:
                 A = ib.allocate("float32", n, name="A", scope="global")

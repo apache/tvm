@@ -700,7 +700,7 @@ def inject_alu_intrin(stmt_in):
             elif isinstance(loop_body.value, tvm.expr.Load):
                 alu_opcode = env.dev.ALU_OPCODE_SHR
                 lhs = loop_body.value
-                rhs = tvm.const(0)
+                rhs = tvm.const(0, "int32")
             else:
                 raise RuntimeError(
                     "Expression not recognized %s, %s, %s" % (
