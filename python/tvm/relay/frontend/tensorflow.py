@@ -202,7 +202,7 @@ def _infer_channels(inputs, params, transpose=False):
 
 def _rsqrt():
     def _impl(inputs, attr, *args):
-        inputs.append(tvm.relay.const(-0.5))
+        inputs.append(tvm.relay.const(-0.5, attr['T'].name))
         return AttrCvt(op_name="power")(inputs, attr)
     return _impl
 
@@ -648,7 +648,7 @@ def _gather_v2():
         new_input.append(inputs.pop(0))
         new_input.append(inputs.pop(0))
         return  AttrCvt(op_name="take",
-                        extras={'axis': tvm.const(axis)},
+                        extras={'axis': tvm.const(axis, 'int32')},
                         ignores=['Tindices', 'Tparams', 'validate_indices', \
                                  'Taxis', '_class'])(new_input, attr)
     return _impl
@@ -826,8 +826,8 @@ def _elu():
 
 def _selu():
     def _impl(inputs, attr, params):
-        alpha = tvm.relay.const(-1.6732632423543772848170429916717)
-        gamma = tvm.relay.const(1.0507009873554804934193349852946)
+        alpha = tvm.relay.const(-1.6732632423543772848170429916717, attr['T'].name)
+        gamma = tvm.relay.const(1.0507009873554804934193349852946, attr['T'].name)
         return gamma * (alpha * _op.nn.relu(tvm.relay.const(1, attr['T'].name) \
                                             - _op.exp(inputs[0])) + _op.nn.relu(inputs[0]))
     return _impl
