@@ -217,13 +217,20 @@ def get_relay_op(op_name):
     op_name : str
         The relay operator name.
     """
-    try:
-        op = getattr(_op, op_name)
-    except AttributeError:
+    if '.' in op_name:
+        # explicit hierachical modules
+        op = _op
         try:
-            op = getattr(_op.nn, op_name)
+            for opn in op_name.split('.'):
+                op = getattr(op, opn)
         except AttributeError:
-            op = getattr(_op.image, op_name)
+            op = None
+    else:
+        # try search op in various modules
+        for candidate in (_op, _op.nn, _op.image):
+            op = getattr(candidate, op_name, None)
+            if op is not None:
+                break
     if not op:
         raise RuntimeError("Unable to map op_name {} to relay".format(op_name))
     return op
