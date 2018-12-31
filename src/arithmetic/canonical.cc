@@ -526,7 +526,7 @@ class Canonical::Internal : public IRMutator {
       }
     } else {
       // If we can prove that non_divisible part lies within [0, coeff), then
-      // that will be our r
+      // non_divisible itself will be our r
       IntSet non_divisible_set = EvalSet(non_divisible_res, var_range_);
       if (non_divisible_set.min().type() == type &&
           non_divisible_set.max().type() == type) {
@@ -544,7 +544,7 @@ class Canonical::Internal : public IRMutator {
       non_divisible->base -= div_result * value;
       divisible->base /= value;
       divisible->base += div_result;
-      for (auto &e : divisible->elem) {
+      for (auto& e : divisible->elem) {
         e.scale /= value;
       }
       return {ComExpr(divisible), ComExpr(non_divisible)};
@@ -558,10 +558,12 @@ class Canonical::Internal : public IRMutator {
     if (pair.size() == 0) {
       int64_t value = GetConstIntValue(v);
       auto n = make_node<ComExprNode>();
-      // TODO(derisavi) : fix this bug. The following can be done only for Euclidean division/mod.
+      // TODO(derisavi) : The following can be done only for Euclidean division/mod.
       //  Therefore, it's only valid when truncated division/mod is equivalent to Euclidean one,
       //  that is, if and only if a and v are
       //  both negative or both positive or a is divisible by v.
+      //  Extend the code to handle cases where the above condition is not satisfied, i.e.,
+      //  a and v are of different signs and a is not divisible by v.
       n->base = a->base % value;
       for (auto e : a->elem) {
         if (e.scale % value == 0) continue;
