@@ -281,8 +281,10 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
 
 
 @conv2d_alter_layout.register("cpu")
-def _alter_conv2d_layout(attrs, inputs, tinfo):
+def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     import nnvm.symbol as sym
+    assert F == sym, "Only support alter layout in NNVM now"
+
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
     data, kernel = tinfo[0], tinfo[1]

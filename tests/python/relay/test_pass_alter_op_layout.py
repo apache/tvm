@@ -91,7 +91,7 @@ def test_alter_layout():
         data, weight = inputs
         new_attrs = dict(attrs)
         new_attrs['data_layout'] = 'NCHW16c'
-        new_attrs['weight_layout'] = 'OIHW16i'
+        new_attrs['kernel_layout'] = 'OIHW16i'
         return relay.nn.conv2d(data, weight, **new_attrs)
 
     def expected():
@@ -105,7 +105,7 @@ def test_alter_layout():
                             channels=64,
                             kernel_size=(3, 3),
                             padding=(1, 1),
-                            weight_layout="OIHW16i",
+                            kernel_layout="OIHW16i",
                             data_layout="NCHW16c")
         b = relay.expand_dims(bias, axis=1, num_newaxis=2)
         b = relay.layout_transform(b, "CHW", "CHW16c")

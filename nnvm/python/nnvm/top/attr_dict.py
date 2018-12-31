@@ -138,7 +138,7 @@ class AttrDict(object):
         else:
             raise ValueError("Wrong bool format for key %s" % key)
 
-    def get_string(self, key):
+    def get_str(self, key):
         """Get string from attr dict
 
         Parameters
