@@ -55,8 +55,7 @@ def run_tvm_graph(graph_def, input_data, input_node, num_output=1, target='llvm'
                                                  layout=layout,
                                                  shape=shape_dict,
                                                  outputs=out_names)
-    #with relay.build_config(opt_level=3):
-    with relay.build_config(opt_level=2):
+    with relay.build_config(opt_level=3):
             graph, lib, params = relay.build(sym, target, params=params)
 
     ctx = tvm.context(target, 0)
