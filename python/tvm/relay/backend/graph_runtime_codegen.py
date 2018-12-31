@@ -21,6 +21,7 @@ contrib.graph_runtime or any other TVM runtime comptatible system.
 from __future__ import absolute_import
 import json
 import attr
+import tvm
 from . import _backend
 from . import compile_engine
 from ..op import Op
@@ -88,9 +89,18 @@ class OpNode(Node):
         }
 
 
-def shape_to_json(shape):
-    """Convert symbolic shape to json compatible forma."""
-    return [sh.value for sh in shape]
+def shape_to_json(shape, var_bound_dict, bound_hint):
+    """Convert symbolic shape to json compatible format."""
+    ret = []
+    for sh in shape:
+        if var_bound_dict is None:
+            ret.append(sh.value)
+        else:
+            ret.append(str(sh))
+        if isinstance(sh, tvm.expr.Var):
+            var_bound_dict[str(sh)] = bound_hint[sh]
+    return ret
+
 
 
 class GraphRuntimeCodegen(ExprFunctor):
@@ -98,7 +108,7 @@ class GraphRuntimeCodegen(ExprFunctor):
     nodes = attr.ib()
     var_map = attr.ib()
 
-    def __init__(self, mod, target):
+    def __init__(self, mod, target, shape_var_bounds={}):
         ExprFunctor.__init__(self)
         self.mod = mod
         self.target = target
@@ -106,9 +116,11 @@ class GraphRuntimeCodegen(ExprFunctor):
         self.var_map = {}
         self.params = {}
         self.storage_map = None
+        self.with_sym_shape_param = False
         self.compile_engine = compile_engine.get()
         self.lowered_funcs = set()
         self._name_map = {}
+        self.shape_var_bounds = shape_var_bounds
 
     def add_node(self, node, expr):
         """
@@ -130,9 +142,19 @@ class GraphRuntimeCodegen(ExprFunctor):
         checked_type = expr.checked_type
         # setup storage ids
         assert expr in self.storage_map
+        storage_ids = self.storage_map[expr][0]
+        max_bytes = self.storage_map[expr][1]
         node.attrs["storage_id"] = [
-            x.value for x in self.storage_map[expr]
+            x.value for x in storage_ids
         ]
+        node.attrs["max_bytes"] = [
+            x.value for x in max_bytes
+        ]
+
+        if self.with_sym_shape_param:
+            var_bound_dict = {}
+        else:
+            var_bound_dict = None
 
         node_id = len(self.nodes)
         self.nodes.append(node)
@@ -145,7 +167,9 @@ class GraphRuntimeCodegen(ExprFunctor):
                 if not isinstance(typ, TensorType):
                     raise RuntimeError("type %s not supported" % typ)
                 ret.append(NodeRef(node_id, i))
-                shape.append(shape_to_json(typ.shape))
+                shape.append(shape_to_json(typ.shape,
+                                           var_bound_dict,
+                                           self.shape_var_bounds))
                 dtype.append(typ.dtype)
             node.attrs["shape"] = shape
             node.attrs["dtype"] = dtype
@@ -155,8 +179,12 @@ class GraphRuntimeCodegen(ExprFunctor):
         # Normal tensor return type
         if not isinstance(checked_type, TensorType):
             raise RuntimeError("type %s not supported" % checked_type)
-        node.attrs["shape"] = [shape_to_json(checked_type.shape)]
+        node.attrs["shape"] = [shape_to_json(checked_type.shape,
+                                             var_bound_dict,
+                                             self.shape_var_bounds)]
         node.attrs["dtype"] = [checked_type.dtype]
+        if self.with_sym_shape_param:
+            node.attrs["var_upper_bound"] = var_bound_dict.items()
         node.num_outputs = 1
         return NodeRef(node_id, 0)
 
@@ -284,28 +312,38 @@ class GraphRuntimeCodegen(ExprFunctor):
         num_entry = 0
         shapes = []
         storage_ids = []
+        max_bytes = []
         dltypes = []
+        var_upper_bound = []
         node_row_ptr = [0]
+
         for node in self.nodes:
             assert node.num_outputs == len(node.attrs["shape"])
             shapes += node.attrs["shape"]
             dltypes += node.attrs["dtype"]
             storage_ids += node.attrs["storage_id"]
+            max_bytes += node.attrs["max_bytes"]
             num_entry += node.num_outputs
             node_row_ptr.append(num_entry)
+            if self.with_sym_shape_param:
+                var_upper_bound += node.attrs["var_upper_bound"]
 
         # Compute "attrs" field.
         attrs = {}
+        attrs["symbolic_shape"] = 1 if self.with_sym_shape_param else 0
         attrs["shape"] = ["list_shape", shapes]
         attrs["storage_id"] = ["list_int", storage_ids]
+        attrs["max_bytes"] = ["list_int", max_bytes]
         attrs["dltype"] = ["list_str", dltypes]
+        if self.with_sym_shape_param:
+            attrs["var_upper_bound"] = dict(var_upper_bound)
 
         json_dict = {
             "nodes": nodes,
             "arg_nodes": arg_nodes,
             "heads": heads,
             "attrs": attrs,
-            "node_row_ptr":  node_row_ptr
+            "node_row_ptr":  node_row_ptr,
         }
 
         return json.dumps(json_dict, indent=2)
@@ -337,13 +375,19 @@ class GraphRuntimeCodegen(ExprFunctor):
         params : Dict[str, tvm.nd.NDArray]
             Additional constant parameters.
         """
-        self.storage_map = _backend.GraphPlanMemory(func)
+        
+        self.storage_map = _backend.GraphPlanMemory(func,
+                                                    self.shape_var_bounds)
         # First we convert all the parameters into input nodes.
+        for param in func.params:
+            for dim in param._checked_type_.shape:
+                if isinstance(dim, tvm.expr.Var):
+                    self.with_sym_shape_param = True
         for param in func.params:
             node = InputNode(param.name_hint, {})
             self.var_map[param] = self.add_node(
                 node, param)
-
+            
         # Then we compile the body into a graph which can depend
         # on input variables.
         self.heads = self.visit(func.body)

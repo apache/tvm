@@ -4,6 +4,8 @@
  * \brief Memory index assignment pass for executing
  *   the program in the graph runtime.
  */
+#include <tvm/ir.h>
+#include <tvm/arithmetic.h>
 #include <tvm/relay/expr.h>
 #include <tvm/relay/expr_functor.h>
 #include "../../common/arena.h"
@@ -165,7 +167,7 @@ class StorageAllocaInit : protected StorageAllocaBaseVisitor {
 class StorageAllocator : public StorageAllocaBaseVisitor {
  public:
   /*!
-   * \return totoal number of bytes allocated
+   * \return total number of bytes allocated
    */
   size_t TotalAllocBytes() const {
     size_t total = 0;
@@ -175,18 +177,26 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     return total;
   }
 
+  // init variable upper bound hint
+  void InitSymbolicShapeBound(const std::unordered_map<size_t, int64_t> &var_upper_bound) {
+    shape_evaluator_.input_upper_bounds = var_upper_bound;
+  }
   // Run storage allocation for a function.
-  Map<Expr, Array<Integer> > Plan(const Function& func) {
+  Map<Expr, Array<Array<Integer> > > Plan(const Function& func) {
     prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func);
     this->Run(func);
 
-    Map<Expr, Array<Integer> > smap;
-
+    Map<Expr, Array<Array<Integer> > > smap;
     for (const auto& kv : token_map_) {
-      Array<Integer> vec;
+      Array<Array<Integer> > vec;
+      Array<Integer> storage_ids;
+      Array<Integer> max_bytes;
       for (StorageToken* tok : kv.second) {
-        vec.push_back(tok->storage_id);
+        storage_ids.push_back(tok->storage_id);
+        max_bytes.push_back(tok->max_bytes);
       }
+      vec.push_back(std::move(storage_ids));
+      vec.push_back(std::move(max_bytes));
       smap.Set(GetRef<Expr>(kv.first), vec);
     }
     return smap;
@@ -252,14 +262,12 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     CHECK(ttype != nullptr);
     size_t size = 1;
     for (IndexExpr dim : ttype->shape) {
-      const int64_t* pval = as_const_int(dim);
-      CHECK(pval != nullptr)
-          << "Cannot allocate memory symbolic tensor shape "
-          << ttype->shape;
-      CHECK_GE(*pval, 0)
+      // symbolic expr
+      const int64_t pval = shape_evaluator_.EvalDim(dim);
+      CHECK_GE(pval, 0)
           << "Cannot allocate memory for tensor with negative shape"
-          << *pval;
-      size *= static_cast<size_t>(pval[0]);
+          << pval;
+      size *= static_cast<size_t>(pval);
     }
     size *= DivRoundUp(ttype->dtype.bits() * ttype->dtype.lanes(), 8);
     return size;
@@ -331,6 +339,34 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   }
 
  private:
+  struct SymbolicShapeEvaluator {
+    int32_t EvalDim(const IndexExpr& expr) {
+      const Variable* vptr = expr.as<Variable>();
+      int32_t ret = -1;
+      if (vptr != nullptr) {
+        auto hash_key = expr.hash();
+        CHECK_GT(input_upper_bounds.count(hash_key), 0)
+          << "Input var " << vptr->name_hint << " upper bound missing";
+        ret = input_upper_bounds.at(hash_key);
+        CHECK_GT(ret, 0) << "Cannot allocate memory for pure symbolic tensor shape";
+        if (var_upper_bound.count(vptr) == 0) {
+          var_upper_bound[vptr] = tvm::arith::IntSet::single_point(ret);
+        }
+      } else {
+        const tvm::IntImm* ret_ptr = tvm::arith::EvalSet(expr, var_upper_bound)\
+          .point_value().as<IntImm>();
+        if (ret_ptr == nullptr) {
+          LOG(FATAL) << "Symbolic shape evaluation fail";
+        }
+        ret = ret_ptr->value;
+      }
+      return ret;
+    }
+    std::unordered_map<size_t, int64_t> input_upper_bounds;
+    std::unordered_map<const Variable*, tvm::arith::IntSet> var_upper_bound;
+  };
+
+ private:
   // allocator
   common::Arena arena_;
   // scale used for rough match
@@ -341,15 +377,29 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
   std::vector<StorageToken*> data_;
   /*! \brief internal prototype token map */
   std::unordered_map<const ExprNode*, std::vector<StorageToken*> > prototype_;
+  /*! \brief symbolic shape evaluator */
+  SymbolicShapeEvaluator shape_evaluator_;
 };
 
 
-Map<Expr, Array<Integer> > GraphPlanMemory(const Function& func) {
-  return StorageAllocator().Plan(func);
+Map<Expr, Array<Array<Integer> > > GraphPlanMemory(const Function& func,
+                                                   const Map<tvm::Var, Integer> shape_var_bound) {
+  std::unordered_map<size_t, int64_t> var_bounds;
+  if (shape_var_bound.size()) {
+    for (const auto &kv : shape_var_bound) {
+      auto& k = kv.first;
+      auto& v = kv.second;
+      var_bounds[k.hash()] = v->value;
+    }
+  }
+  auto allocator = StorageAllocator();
+  allocator.InitSymbolicShapeBound(var_bounds);
+  return allocator.Plan(func);
 }
 
 TVM_REGISTER_GLOBAL("relay.backend.GraphPlanMemory")
-.set_body_typed<Map<Expr, Array<Integer> >(const Function&)>(GraphPlanMemory);
+.set_body_typed<Map<Expr, Array<Array<Integer> > > \
+  (const Function&, Map<tvm::Var, Integer>)>(GraphPlanMemory);
 
 }  // namespace relay
 }  // namespace tvm
