@@ -628,7 +628,7 @@ def _test_lstm_cell(batch_size, num_hidden, num_layers, forget_bias, dtype):
     tvm_out = [out, out_state_c, out_state_h]
     tvm.testing.assert_allclose(tf_out[0], tvm_out[0], rtol=1e-3, atol=1e-3)
 
-def test_forward_lstm():
+def _test_forward_lstm():
     '''test LSTM block cell'''
     _test_lstm_cell(1, 2, 1, 0.0, 'float32')
 
