@@ -52,7 +52,7 @@ void ModuleNode::AddUnchecked(const GlobalVar& var,
 void ModuleNode::Add(const GlobalVar& var,
                      const Function& func,
                      bool update) {
-  // Type check the item before we add it to the environment.
+  // Type check the item before we add it to the module.
   auto mod = GetRef<Module>(this);
   Function checked_func = InferType(func, mod, var);
   auto type = checked_func->checked_type();

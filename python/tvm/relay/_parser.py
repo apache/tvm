@@ -87,7 +87,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
-        self.global_var_scope = [] # type: list[(str, expr.GlobalVar)]
+        self.global_var_scope = deque() # type: Scope[expr.GlobalVar]
         self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
 
         super(ParseTreeToRelayIR, self).__init__()
@@ -113,7 +113,7 @@ class ParseTreeToRelayIR(RelayVisitor):
         return var
 
     def mk_global_var(self, name):
-        # type: str -> expr.GlobalVar
+        # type: (str) -> expr.GlobalVar
         """Create a new GlobalVar and add it to the GlobalVar scope."""
 
         var = expr.GlobalVar(name)
