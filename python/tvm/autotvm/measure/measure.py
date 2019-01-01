@@ -187,8 +187,10 @@ def measure_option(builder, runner):
     Note
     ----
     To make measurement results accurate, you should pick the correct value for the argument
-    `number` and `repeat` in Runner(). Using `min_repeat_ms` can dynamically adjusts `number`,
-    so it is recommended. The typical value for NVIDIA GPU is 100 ms.
+    `number` and `repeat` in Runner(). Some devices need a certain minimum running time to
+    "warm up," such as GPUs that need time to reach a performance power state.
+    Using `min_repeat_ms` can dynamically adjusts `number`, so it is recommended.
+    The typical value for NVIDIA GPU is 150 ms.
     """
     from .measure_methods import LocalBuilder, LocalRunner
 
