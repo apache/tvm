@@ -542,7 +542,8 @@ Since if-then-else branches are expressions, they may appear inline
 wherever any other expression may be expected, like invocations of
 the ternary operator in C-like languages. The if-then-else expression
 evaluates to the value of the "then" branch if the condition value
-evaluates to `True` and evaluates to the value of the "else" branch otherwise.
+evaluates to :code:`True` and evaluates to the value of the "else" branch if the
+condition value evaluates to :code:`False`.
 
 See :py:class:`~tvm.relay.expr.If` for its definition and documentation.
 
