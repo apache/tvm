@@ -460,8 +460,8 @@ of shape :code:`(10, 10)` where all elements are 2:
 A sequence of :code:`let` bindings can be considered as a dataflow graph,
 where the bindings are a series of sub-graphs connected
 by bound variables. Since these binding sequences are
-pure, they can be evaluated in any order according to the program
-dataflow. For example, the first and second :code:`let` bindings below
+pure, a pair of bindings where neither depends on the other can be safely reordered.
+For example, the first and second :code:`let` bindings below
 may be evaluated in either order because neither has a dataflow
 dependency on the other:
 
