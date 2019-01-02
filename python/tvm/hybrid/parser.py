@@ -4,7 +4,10 @@ import ast
 import operator
 import logging
 import sys
-from numbers import Integral
+import numbers
+import types
+
+from enum import Enum
 
 from .util import _internal_assert
 from . import calls
@@ -30,6 +33,18 @@ def list_to_block(visit, lst):
     for i in lst[1:]:
         body = _make.Block(body, i)
     return body
+
+
+class Symbol(Enum):
+    Callable = 0
+    Input = 1
+    Output = 2
+    GlobalBuffer = 3
+    LocalBuffer = 4
+    SharedBuffer = 5
+    ConstVar = 6
+    BufferVar = 7
+    LoopVar = 8
 
 
 class HybridParser(ast.NodeVisitor):
@@ -63,6 +78,7 @@ class HybridParser(ast.NodeVisitor):
         ast.Not    : operator.not_
     }
 
+    
 
     def __init__(self, args, usage, symbols, func_name=None):
         """
@@ -82,7 +98,12 @@ class HybridParser(ast.NodeVisitor):
         """
         self.args = list(args)
         self.usage = usage.copy()
-        self._args = {} # Dict maps arg name to actual arg instance (either a var or a buffer)
+
+        self.symbols = {} # Symbol table
+        for k, v in symbols.items():
+            if isinstance(v, types.FunctionType):
+                self.symbols[k] = Symbol.Callable, v
+
         self.alloc_buffers = {} # Buffers formed by explicit allocate instructions
         self.loops_above = {} # State variable that indicates loop levels above the current node
         self.variables = {} # The status of defined variables
@@ -91,7 +112,7 @@ class HybridParser(ast.NodeVisitor):
         self.side_effect = set() # Tensors with side effects
         self.parsed_body = None # The parsed HalideIR body
         self.returned = False # If this function has a valid return
-        self.symbols = symbols # The global context
+
 
 
     def wrap_up_realize(self, node, body):
@@ -102,8 +123,10 @@ class HybridParser(ast.NodeVisitor):
             _, level, _ = val
             if level != node:
                 continue
-            if key in self._args.keys():
-                continue
+            if key in self.symbols.keys():
+                ty, entry = self.symbols[key]
+                if ty == Symbol.Input:
+                    continue
             if key in self.alloc_buffers.keys():
                 _buf, _scope = self.alloc_buffers[key]
                 if _scope == 'output':
@@ -130,29 +153,23 @@ class HybridParser(ast.NodeVisitor):
 
 
     def _get_buffer_from_id(self, s, for_provide=False):
-        _internal_assert((s in self._args.keys()) + (s in self.alloc_buffers.keys()) == 1,
+        _internal_assert((s in self.symbols.keys()) + (s in self.alloc_buffers.keys()) == 1,
                          "This %s is expected to be in either \
                           argument list or allocated buffer!" % s)
-        if s in self._args.keys():
+        if s in self.symbols.keys():
+            ty, entry = self.symbols[s]
+            _internal_assert(ty == Symbol.Input,
+                             "Suppose to be an input argument for now")
             if for_provide:
-                self.side_effect.add(self._args[s])
-            return self._args[s]
+                self.side_effect.add(entry)
+            return entry
         return self.alloc_buffers[s][0]
 
-    def _const(self, value, dtype=None):
-        if dtype is None:
-            if isinstance(value, bool):
-                dtype = "bool"
-            elif isinstance(value, Integral):
-                dtype = "int32"
-            else:
-                dtype = "float32"
-        return _api.const(value, dtype)
 
     #pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
         _internal_assert(len(node.body) == 1, \
-                         "Only one-function source code can be fed to this parser!")
+                         "Only one-function source code will be fed to this parser!")
         return self.visit(node.body[0])
 
 
@@ -164,7 +181,7 @@ class HybridParser(ast.NodeVisitor):
             self.func_name = node.name
         for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
-            self._args[getattr(arg, _attr)] = self.args[idx]
+            self.symbols[getattr(arg, _attr)] = (Symbol.Input, self.args[idx])
         res = list_to_block(self.visit, node.body)
         res = self.wrap_up_realize(node, res)
         return res
@@ -183,9 +200,9 @@ class HybridParser(ast.NodeVisitor):
             if isinstance(res, tuple):
                 buf = res[0]
                 if isinstance(node.ctx, ast.Load):
-                    return _make.Call(buf.dtype, buf.name, [self._const(0)], \
+                    return _make.Call(buf.dtype, buf.name, [_api.const(0, 'int32')], \
                                       _expr.Call.Halide, buf.op, buf.value_index)
-                return buf, [self._const(0)]
+                return buf, [_api.const(0, 'int32')]
             if isinstance(node.ctx, ast.Load):
                 return res
             return None
@@ -194,7 +211,16 @@ class HybridParser(ast.NodeVisitor):
 
 
     def visit_Num(self, node):
-        return self._const(node.n)
+        value = node.n
+        if isinstance(value, numbers.Integral):
+            dtype = "int32"
+        elif isinstance(value, numbers.Real):
+            dtype = "float32"
+        else:
+            _internal_assert(isinstance(value, bool),
+                             "The data type should be one of (int, float, bool)")
+            dtype = "bool"
+        return _api.const(value, dtype)
 
 
     def visit_AugAssign(self, node):
@@ -204,7 +230,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(buf) == 2, "LHS is supposed to be (buf, args)!")
             buf, args = buf
         else:
-            args = [self._const(0)]
+            args = [_api.const(0, 'int32')]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
         read = _make.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
@@ -376,7 +402,10 @@ class HybridParser(ast.NodeVisitor):
         except AttributeError:
             _internal_assert(func_id in self.symbols.keys(), \
                              "The function called is not in the context either!")
-            outs = self.symbols[func_id](*args)
+            ty, entry = self.symbols[func_id]
+            _internal_assert(ty == Symbol.Callable, \
+                             "Are you sure what you call is a function?!")
+            outs = entry(*args)
             op = outs.op if isinstance(outs, Tensor) else outs[0].op
             return op
 
@@ -389,7 +418,7 @@ class HybridParser(ast.NodeVisitor):
         if iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, self._const(0)):
+            if not _ir_pass.Equal(low, _api.const(0, 'int32')):
                 offset = iter_var + low
             self.loops_above[_name] = offset
         else:
@@ -400,7 +429,7 @@ class HybridParser(ast.NodeVisitor):
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
         else:
-            res = _make.For(iter_var, self._const(0), ext, for_type, 0, _body)
+            res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
         self.loops_above.pop(_name)
         return res
 
