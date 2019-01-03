@@ -910,7 +910,7 @@ def test_single_ops():
         model = helper.make_model(graph, producer_name='_test')
         for target, ctx in ctx_list():
             tvm_out = get_tvm_output(model, [x], target, ctx)
-            tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+            tvm.testing.assert_allclose(out_np, tvm_out, rtol=rtol, atol=atol)
 
     x = np.random.uniform(size=in_shape).astype(dtype)
     verify_single_ops("Neg",x, -x)
@@ -918,13 +918,13 @@ def test_single_ops():
     verify_single_ops("Reciprocal",x, 1/x, rtol=1e-5, atol=1e-5)
     verify_single_ops("Sqrt",x, np.sqrt(x), rtol=1e-5, atol=1e-5)
     verify_single_ops("Relu",x, np.maximum(x, 0))
-    verify_single_ops("Exp",x, np.exp(x))
-    verify_single_ops("Log",x, np.log(x))
-    verify_single_ops("Log",x, np.log(x))
-    verify_single_ops("Tanh",x, np.tanh(x))
-    verify_single_ops("Sigmoid",x, 1 / (1 + np.exp(-x)))
-    verify_single_ops("Softsign",x, x / (1 + np.abs(x)))
-    verify_single_ops("SoftPlus",x, np.log(1 + np.exp(x)))
+    verify_single_ops("Exp",x, np.exp(x), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Log",x, np.log(x), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Log",x, np.log(x), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Tanh",x, np.tanh(x), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Sigmoid",x, 1 / (1 + np.exp(-x)), rtol=1e-5, atol=1e-5)
+    verify_single_ops("Softsign",x, x / (1 + np.abs(x)), rtol=1e-5, atol=1e-5)
+    verify_single_ops("SoftPlus",x, np.log(1 + np.exp(x)), rtol=1e-5, atol=1e-5)
 
 def test_leaky_relu():
     def leaky_relu_x(x, alpha):

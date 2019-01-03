@@ -150,7 +150,7 @@ class Conv(OnnxOpConverter):
                           'dilations': ('dilation', (0, 0)),
                           'pads': ('padding', (0, 0), revert_caffe2_pad),
                           'group': ('groups', 1)},
-                      custom_check=dimension_constraint())(inputs, attr, params)
+                      custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -175,8 +175,7 @@ class ConvTranspose(OnnxOpConverter):
                 'pads': ('padding', (0, 0), revert_caffe2_pad)
             },
             disables=['output_shape'],
-            extras={'use_bias': len(inputs) == 3},
-            custom_check=dimension_constraint())(inputs, attr, params)
+            custom_check=dimension_constraint())(inputs[:2], attr, params)
         use_bias = len(inputs) == 3
         if use_bias:
             out = _op.nn.bias_add(out, inputs[2])
@@ -808,7 +807,6 @@ def _get_convert_map(opset):
         'LRN': LRN.get_converter(opset),
 
         # defs/reduction
-        #'ReduceMax': AttrCvt('max', transforms={'axes': 'axis'}),
         'ReduceMax': ReduceMax.get_converter(opset),
         'ReduceMin': ReduceMin.get_converter(opset),
         'ReduceSum': ReduceSum.get_converter(opset),
@@ -829,7 +827,8 @@ def _get_convert_map(opset):
         'Squeeze': AttrCvt('squeeze', {'axes': 'axis'}),
         'Unsqueeze': Unsqueeze.get_converter(opset),
         'Pad': Pad.get_converter(opset),
-        'Shape': Shape.get_converter(opset),
+        # TODO(zhreshold) Shape op is implemented as bypass op in relay
+        # 'Shape': Shape.get_converter(opset),
     }
 
 
