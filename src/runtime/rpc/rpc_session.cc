@@ -1205,7 +1205,8 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf,
     DeviceAPI::Get(ctx)->StreamSync(ctx, nullptr);
 
     for (int i = 0; i < repeat; ++i) {
-      std::chrono::time_point<std::chrono::system_clock, std::chrono::nanoseconds> tbegin, tend;
+      std::chrono::time_point<
+        std::chrono::high_resolution_clock, std::chrono::nanoseconds> tbegin, tend;
       double duration_ms = 0.0;
 
       do {
