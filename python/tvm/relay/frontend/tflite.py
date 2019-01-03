@@ -12,13 +12,14 @@ from .common import ExprTable
 __all__ = ['from_tflite']
 
 class TensorWrapper(object):
+    """Tensor wrapper for TFLite Tensor"""
     def __init__(self, tensor_idx, tensor, buffer):
         self.tensor_idx = tensor_idx
         self.tensor = tensor
         self.buffer = buffer
 
 class OperatorConverter(object):
-
+    """Operator Converted for converting TFLite ops to Relay ops"""
     def __init__(self, model, subgraph, exp_tab):
 
         try:
@@ -141,7 +142,6 @@ class OperatorConverter(object):
 
     def convert_conv2d(self, op):
         try:
-            from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.TensorType import TensorType
@@ -171,7 +171,7 @@ class OperatorConverter(object):
         fused_activation_fn = conv2d_options.FusedActivationFunction()
 
         _, input_h, input_w, _ = input_tensor.tensor.ShapeAsNumpy()
-        output_channels, kernel_h, kernel_w, input_channels = weight_tensor.tensor.ShapeAsNumpy()
+        output_channels, kernel_h, kernel_w, _ = weight_tensor.tensor.ShapeAsNumpy()
 
         dilated_kernel_h = dilation_h * (kernel_h - 1) + 1
         dilated_kernel_w = dilation_w * (kernel_w - 1) + 1
@@ -180,8 +180,7 @@ class OperatorConverter(object):
                   'kernel_size': [kernel_h, kernel_w],
                   'strides': [stride_h, stride_w],
                   'dilation': [dilation_h, dilation_w],
-                  'padding': [0, 0],
-                  }
+                  'padding': [0, 0]}
 
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
@@ -226,7 +225,6 @@ class OperatorConverter(object):
 
     def convert_depthwise_conv2d(self, op):
         try:
-            from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
             from tflite.TensorType import TensorType
@@ -238,7 +236,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) >=2, "input tensors length should >= 2"
+        assert len(input_tensors) >= 2, "input tensors length should >= 2"
 
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
@@ -271,8 +269,7 @@ class OperatorConverter(object):
                   'strides': [stride_h, stride_w],
                   'dilation': [dilation_h, dilation_w],
                   'padding': [0, 0],
-                  'groups': in_channels
-                  }
+                  'groups': in_channels}
         # weight tensor type should be UINT8 (quantization) or FLOAT32
         weight_tensor_type = weight_tensor.tensor.Type()
         assert weight_tensor_type == TensorType.UINT8 or weight_tensor_type == TensorType.FLOAT32
@@ -322,9 +319,7 @@ class OperatorConverter(object):
 
     def convert_reshape(self, op):
         try:
-            from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.TensorType import TensorType
             from tflite.Operator import Operator
             from tflite.ReshapeOptions import ReshapeOptions
         except ImportError:
@@ -332,7 +327,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2 , "input tensors length should be 2"
+        assert len(input_tensors) == 2,"input tensors length should be 2"
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 
@@ -384,13 +379,12 @@ class OperatorConverter(object):
     def convert_softmax(self, op):
         try:
             from tflite.Operator import Operator
-            from tflite.TensorType import TensorType
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1 , "input tensors length should be 1"
+        assert len(input_tensors) == 1,"input tensors length should be 1"
 
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
@@ -402,9 +396,7 @@ class OperatorConverter(object):
 
     def convert_squeeze(self, op):
         try:
-            from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
-            from tflite.TensorType import TensorType
             from tflite.Operator import Operator
             from tflite.SqueezeOptions import SqueezeOptions
         except ImportError:
@@ -486,10 +478,8 @@ class OperatorConverter(object):
 
     def convert_pool2d(self, op, pool_type):
         try:
-            from tflite.BuiltinOperator import BuiltinOperator
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
-            from tflite.TensorType import TensorType
             from tflite.Operator import Operator
             from tflite.Pool2DOptions import Pool2DOptions
             from tflite.Padding import Padding
