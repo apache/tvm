@@ -14,9 +14,9 @@ from .util import _internal_assert
 LOOP_INTRIN = {
     'range'       : For.Serial,
     'unroll'      : For.Unrolled,
-    'const_range' : For.Unrolled,
     'parallel'    : For.Parallel,
     'vectorize'   : For.Vectorized,
+    'const_range' : (For.Unrolled, ),
 }
 
 

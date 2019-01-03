@@ -15,24 +15,30 @@ from . import util
 from .var_decl import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
+from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import expr as _expr
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
-def list_to_block(visit, lst):
-    """Convert a list of Python IR nodes to HalideIR Block"""
-    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
-    if not lst:
-        return util.make_nop()
+
+def pack_list_to_block(lst):
     if len(lst) == 1:
         return lst[0]
     body = lst[0]
     for i in lst[1:]:
         body = _make.Block(body, i)
     return body
+
+
+def visit_list_to_block(visit, lst):
+    """Convert a list of Python IR nodes to HalideIR Block"""
+    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
+    if not lst:
+        return util.make_nop()
+    return pack_list_to_block(lst)
 
 
 class Symbol(Enum):
@@ -45,6 +51,7 @@ class Symbol(Enum):
     ConstVar = 6
     BufferVar = 7
     LoopVar = 8
+    ConstLoopVar = 9
 
 
 class HybridParser(ast.NodeVisitor):
@@ -160,7 +167,7 @@ class HybridParser(ast.NodeVisitor):
         for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
             self.symbols[getattr(arg, _attr)] = (Symbol.Input, self.args[idx])
-        res = list_to_block(self.visit, node.body)
+        res = visit_list_to_block(self.visit, node.body)
         res = self.wrap_up_realize(node, res)
         return res
 
@@ -173,7 +180,7 @@ class HybridParser(ast.NodeVisitor):
         name = node.id
         ty, entry = self.symbols[name]
         _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
-        if ty in [Symbol.LoopVar, Symbol.Input]:
+        if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
             return entry
         elif ty is Symbol.ConstVar:
             return entry if isinstance(node.ctx, ast.Load) else None
@@ -284,10 +291,20 @@ class HybridParser(ast.NodeVisitor):
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
         if isinstance(node.value, ast.Name):
+
             buf = self.visit(node.value)
+            if isinstance(buf, Array):
+                _internal_assert(all(isinstance(i, numbers.Integral) for i in args),
+                                 "All the indices are supposed to be constants")
+                for i in args:
+                    buf = buf[i]
+                _internal_assert(isinstance(buf, _expr.Expr), "An expression is expected")
+                return buf
+
             if isinstance(node.ctx, ast.Load):
                 return _make.Call(buf.dtype, buf.name, args, \
                                   _expr.Call.Halide, buf.op, buf.value_index)
+
             return buf, args
 
         shape = self.visit(node.value)
@@ -310,14 +327,14 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(isinstance(context, ast.Call), "The object must be a Python func call!")
         _internal_assert(isinstance(option, ast.Name), "The object after 'as' must be an id!")
         self.annotation[option.id] = context.func.id
-        return list_to_block(self.visit, node.body)
+        return visit_list_to_block(self.visit, node.body)
 
 
     def visit_If(self, node):
         cond = self.visit(node.test)
-        if_body = list_to_block(self.visit, node.body)
+        if_body = visit_list_to_block(self.visit, node.body)
         if node.orelse:
-            else_body = list_to_block(self.visit, node.orelse)
+            else_body = visit_list_to_block(self.visit, node.orelse)
         else:
             else_body = util.make_nop()
         return _make.IfThenElse(cond, if_body, else_body)
@@ -390,21 +407,45 @@ class HybridParser(ast.NodeVisitor):
         iter_var, low, ext, for_type = self.visit(node.iter)
         _internal_assert(isinstance(node.target, ast.Name), \
                          "The loop iterator should be a variable!")
+
         _name = node.target.id
-        if iter_var is None:
+
+        if isinstance(for_type, tuple):
+            low = _ir_pass.Simplify(low)
+            ext = _ir_pass.Simplify(ext)
+            _internal_assert(isinstance(low, _expr.ConstExpr) and
+                             isinstance(ext, _expr.ConstExpr), \
+                             "Const range should start from a const" + \
+                             "and iterate const times")
+
+            low, ext = low.value, ext.value
+            if ext > 114514:
+                logging.log(logging.CRITICAL, \
+                            '[Warning] Are you sure to unroll a %d-large loop?' % ext)
+
+            bodies = []
+            for i in range(low, low + ext):
+                self.symbols[_name] = Symbol.ConstLoopVar, i
+                bodies.append(visit_list_to_block(self.visit, node.body))
+            return pack_list_to_block(bodies)
+
+        elif iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
             if not _ir_pass.Equal(low, _api.const(0, 'int32')):
                 offset = iter_var + low
             self.symbols[_name] = Symbol.LoopVar, offset
+            _body = visit_list_to_block(self.visit, node.body)
         else:
             _internal_assert(for_type is None, "The loop iterating function parse error!")
             self.symbols[name] = Symbol.LoopVar, iter_var.var
-        _body = list_to_block(self.visit, node.body)
+            _body = visit_list_to_block(self.visit, node.body)
+
         _body = self.wrap_up_realize(node, _body)
+
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
-        else:
+        elif not isinstance(for_type, tuple):
             res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
         self.symbols.pop(_name)
         return res

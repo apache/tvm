@@ -23,13 +23,18 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
             nd_args.append(tvm.nd.array(emu_args[-1], ctx))
-        else:
-            assert isinstance(i, tvm.expr.Var)
+        elif isinstance(i, tvm.expr.Var):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
+        else:
+            emu_args.append(numpy.array(i))
+            assert isinstance(i, tvm.container.Array)
 
     sch = tvm.create_schedule(op)
-    module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]), target=target)
+    module = tvm.build(sch,
+                       [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))] + \
+                       (outs if isinstance(outs, list) else [outs]),
+                       target=target)
     assert module
     
     out_tensors = []
@@ -538,6 +543,19 @@ def test_bool():
     a = tvm.placeholder((10, ), name='a')
     run_and_check(foo, [a])
 
+def test_const_range():
+    @tvm.hybrid.script
+    def foo(a, b):
+        c = output_tensor(a.shape, a.dtype)
+        for i in const_range(2):
+            for j in const_range(5):
+                c[i, j] = a[i, j] + b[i, j]
+        return c
+
+    a = tvm.placeholder((2, 5), name='a', dtype='int32')
+    b = tvm.convert([[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]])
+    run_and_check(foo, [a, b])
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
@@ -553,5 +571,6 @@ if __name__ == "__main__":
     test_value_index()
     test_func_call()
     test_bool()
+    test_const_range()
     # TODO:
     # test_inplace()
