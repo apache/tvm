@@ -92,7 +92,7 @@ class OpPattern(object):
     BROADCAST = 1
     # Injective mapping
     INJECTIVE = 2
-    # Comunication
+    # Communication
     COMM_REDUCE = 3
     # Complex op, can still fuse ewise into it
     OUT_ELEMWISE_FUSABLE = 4
