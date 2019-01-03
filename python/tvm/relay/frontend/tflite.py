@@ -230,7 +230,7 @@ class OperatorConverter(object):
         return out
 
     def convert_depthwise_conv2d(self, op):
-        """convert TFLite depthwise conv2d"""
+        """Convert TFLite depthwise conv2d"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
@@ -319,15 +319,15 @@ class OperatorConverter(object):
         return out
 
     def convert_average_pool2d(self, op):
-        """convert TFLite average pool2d"""
+        """Convert TFLite average pool2d"""
         return self.convert_pool2d(op, "average")
 
     def convert_max_pool2d(self, op):
-        """convert TFLite max pool2d"""
+        """Convert TFLite max pool2d"""
         return self.convert_pool2d(op, "max")
 
     def convert_reshape(self, op):
-        """convert TFLite reshape"""
+        """Convert TFLite reshape"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.Operator import Operator
@@ -387,7 +387,7 @@ class OperatorConverter(object):
         return out
 
     def convert_softmax(self, op):
-        """convert TFLite softmax"""
+        """Convert TFLite softmax"""
         try:
             from tflite.Operator import Operator
         except ImportError:
@@ -406,7 +406,7 @@ class OperatorConverter(object):
         return out
 
     def convert_squeeze(self, op):
-        """convert TFLite squeeze"""
+        """Convert TFLite squeeze"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.Operator import Operator
@@ -470,7 +470,7 @@ class OperatorConverter(object):
         return out
 
     def convert_fused_activation_function(self, in_expr, fused_activation_fn):
-        """convert TFLite fused activation function"""
+        """Convert TFLite fused activation function"""
         try:
             from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
