@@ -42,6 +42,7 @@ def visit_list_to_block(visit, lst):
 
 
 class Symbol(Enum):
+    """Enumerates types in the symbol table"""
     Callable = 0
     Input = 1
     OutputBuffer = 2
@@ -85,7 +86,6 @@ class HybridParser(ast.NodeVisitor):
         ast.Not    : operator.not_
     }
 
-    
 
     def __init__(self, args, usage, symbols, func_name=None):
         """
@@ -121,21 +121,20 @@ class HybridParser(ast.NodeVisitor):
 
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
-        pop_buf = []
-        pop_var = []
+        to_pop = []
         for key, val in self.usage.items():
             _, level, _ = val
             if level != node:
                 continue
             _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
 
-            ty, entry = self.symbols[key]
-            if ty is Symbol.Input:
+            ty, entry = self.symbols[key] #pylint: disable=invalid-name
+            if ty in [Symbol.Input, Symbol.OutputBuffer]:
                 continue
-            elif ty in [Symbol.LocalBuffer, Symbol.GlobalBuffer, Symbol.SharedBuffer, Symbol.BufferVar]:
+            elif 'Buffer' in ty.name:
                 _buf = entry
                 _scope = ty.name[:-6].lower() if ty is not Symbol.BufferVar else 'global'
-                pop_var.append(key)
+                to_pop.append(key)
             else:
                 continue
 
@@ -145,7 +144,7 @@ class HybridParser(ast.NodeVisitor):
             body = _make.Realize(_buf.op, 0, _dtype, _domain, _true, body)
             body = _make.AttrStmt(_buf.op, 'realize_scope', _api.convert(_scope), body)
 
-        for elem in pop_var:
+        for elem in to_pop:
             self.symbols.pop(elem)
 
         return body
@@ -421,7 +420,7 @@ class HybridParser(ast.NodeVisitor):
             low, ext = low.value, ext.value
             if ext > 114514:
                 logging.log(logging.CRITICAL, \
-                            '[Warning] Are you sure to unroll a %d-large loop?' % ext)
+                            '[Warning] Are you sure to unroll a large loop in Python?')
 
             bodies = []
             for i in range(low, low + ext):
