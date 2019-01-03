@@ -4,8 +4,8 @@ import ast
 import operator
 import logging
 import sys
-import numbers
 import types
+import numbers
 
 from enum import Enum
 
@@ -195,7 +195,7 @@ class HybridParser(ast.NodeVisitor):
     def visit_Num(self, node):
         if isinstance(node.n, numbers.Integral):
             dtype = "int32"
-        elif isinstance(node.n, numbers.Real):
+        elif isinstance(node.n, float):
             dtype = "float32"
         else:
             _internal_assert(isinstance(node.n, bool),
@@ -293,11 +293,14 @@ class HybridParser(ast.NodeVisitor):
 
             buf = self.visit(node.value)
             if isinstance(buf, Array):
-                _internal_assert(all(isinstance(i, numbers.Integral) for i in args),
-                                 "All the indices are supposed to be constants")
                 for i in args:
-                    buf = buf[i]
-                _internal_assert(isinstance(buf, _expr.Expr), "An expression is expected")
+                    if isinstance(i, numbers.Integral):
+                        buf = buf[i]
+                    else:
+                        _internal_assert(isinstance(i, (_expr.IntImm, _expr.UIntImm)), \
+                                         "All indices are supposed to be constants")
+                        buf = buf[i.value]
+
                 return buf
 
             if isinstance(node.ctx, ast.Load):
@@ -455,13 +458,13 @@ class HybridParser(ast.NodeVisitor):
                          "Return should not be in a loop body!")
         ids = []
         if isinstance(node.value, ast.Name):
-            ids.append(node.value.id)
+            ids = [node.value.id]
         else:
             _internal_assert(isinstance(node.value, ast.Tuple), \
                              "You should return either a single tensor or a tuple")
-            for i in node.value.elts:
-                _internal_assert(isinstance(i, ast.Name), "What do you return?")
-                ids.append(i.id)
+            _internal_assert(all(isinstance(i, ast.Name) for i in node.value.elts), \
+                             "What do you return?")
+            ids = [i.id for i in node.value.elts]
         _internal_assert(len(set(ids)) == len(ids), "Duplicated tensors in the return tuples")
         if len(ids) < len(self.outputs):
             logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')

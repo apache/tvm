@@ -514,9 +514,9 @@ def test_value_index():
 def test_func_call():
     @tvm.hybrid.script
     def foo(a, b):
-        for i in range(10):
+        for i in range(len(a)):
             a[i] = i + 1.0
-        for i in range(10):
+        for i in range(len(a)):
             b[i] = i + 1.0
         c = outer_product(10, 10, a, b)
         d = output_tensor(c.shape, c.dtype)
@@ -547,10 +547,17 @@ def test_const_range():
     @tvm.hybrid.script
     def foo(a, b):
         c = output_tensor(a.shape, a.dtype)
+        d = output_tensor(a.shape, a.dtype)
+
         for i in const_range(2):
             for j in const_range(5):
                 c[i, j] = a[i, j] + b[i, j]
-        return c
+
+        for i in const_range(len(b)):
+            for j in const_range(len(b[0])):
+                d[i, j] = a[i, j] + b[i, j]
+
+        return c, d
 
     a = tvm.placeholder((2, 5), name='a', dtype='int32')
     b = tvm.convert([[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]])

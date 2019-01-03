@@ -73,6 +73,7 @@ def sigmoid(x):
 
 
 HYBRID_GLOBALS = {
+    'len'          : len,
     'unroll'       : range,
     'vectorize'    : range,
     'parallel'     : range,
@@ -86,5 +87,5 @@ HYBRID_GLOBALS = {
     'power'        : numpy.power,
     'exp'          : numpy.exp,
     'sigmoid'      : sigmoid,
-    'popcount'     : popcount
+    'popcount'     : popcount,
 }
