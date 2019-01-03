@@ -561,7 +561,7 @@ class Canonical::Internal : public IRMutator {
     if (pair.size() == 0) {
       int64_t value = GetConstIntValue(v);
       auto n = make_node<ComExprNode>();
-      // TODO(derisavi) : The following can be done only for Euclidean division/mod.
+      // FIXME(derisavi) : The following can be done only for Euclidean division/mod.
       //  Therefore, it's only valid when truncated division/mod is equivalent to Euclidean one,
       //  that is, if and only if a and v are
       //  both negative or both positive or a is divisible by v.
