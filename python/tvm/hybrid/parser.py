@@ -425,7 +425,7 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(len(set(ids)) == len(ids), "Duplicated tensors in the return tuples")
         if len(ids) < len(self.outputs):
             logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
-        self.outputs = [v[1] for _, v in self.symbols.items() if v[0] is Symbol.OutputBuffer]
+        self.outputs = [self.symbols[i][1] for i in ids]
         self.returned = True
         return util.make_nop()
 

@@ -192,20 +192,20 @@ def test_fanout():
 def test_looptype():
     @script
     def looptype(a, b, c):
-        d = output_tensor((8, ), 'int32')
-        e = output_tensor((8, ), 'int32')
-        f = output_tensor((8, ), 'int32')
-        for i in parallel(8):
+        d = output_tensor((16, ), 'int32')
+        e = output_tensor((16, ), 'int32')
+        f = output_tensor((16, ), 'int32')
+        for i in parallel(16):
             d[i] = a[i]
-        for j in vectorize(8):
+        for j in vectorize(16):
             e[j] = b[j]
-        for k in unroll(8):
+        for k in unroll(16):
             f[k] = c[k]
         return d, e, f
 
-    a = tvm.placeholder((8, ), name='a', dtype='int32')
-    b = tvm.placeholder((8, ), name='b', dtype='int32')
-    c = tvm.placeholder((8, ), name='c', dtype='int32')
+    a = tvm.placeholder((16, ), name='a', dtype='int32')
+    b = tvm.placeholder((16, ), name='b', dtype='int32')
+    c = tvm.placeholder((16, ), name='c', dtype='int32')
     try:
         d, e, f = looptype(a, b, c)
         ir = d.op.body
