@@ -66,6 +66,21 @@ int GraphRuntime::GetInputIndex(const std::string& name) {
   return -1;
 }
 /*!
+ * \brief Get the graph input index given the name of input.
+ * \param name The name of the input.
+ * \return The index of graph input.
+ */
+int GraphRuntime::GetGraphInputIndex(const std::string& name) {
+  for (size_t i = 0; i< graph_input_nodes_.size(); ++i) {
+    uint32_t nid = graph_input_nodes_[i];
+    if (nodes_[nid].name == name) {
+      return static_cast<int>(i);
+    }
+  }
+  LOG(WARNING) << "Warning: cannot find \"" << name << "\" among input";
+  return -1;
+}
+/*!
  * \brief set index-th input to the graph.
  * \param index The input index.
  * \param data_in The input data.
@@ -84,6 +99,33 @@ int GraphRuntime::NumOutputs() const {
   return outputs_.size();
 }
 /*!
+ * \brief Get the number of graph inputs
+ *
+ * \return The number of inputs to graph.
+ */
+int GraphRuntime::NumInputs() const {
+  return graph_input_nodes_.size();
+}
+
+/*!
+ * \brief Return name_hint of NDArray for given input/output index.
+ * \param type 0 - input 1 - output.
+ * \param index index of input/output.
+ *
+ * \return string of name_hint
+ */
+std::string GraphRuntime::GetNameHint(int type, int index) const {
+  if (type == 0) {
+    CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
+    uint32_t eid = this->entry_id(graph_input_nodes_[index], 0);
+    return data_entry_[eid].name_hint;
+  } else {
+    CHECK_LT(static_cast<size_t>(index), graph_input_nodes_.size());
+    uint32_t eid = this->entry_id(outputs_[index]);
+    return data_entry_[eid].name_hint;
+  }
+}
+/*!
  * \brief Return NDArray for given input index.
  * \param index The input index.
  *
@@ -92,6 +134,17 @@ int GraphRuntime::NumOutputs() const {
 NDArray GraphRuntime::GetInput(int index) const {
   CHECK_LT(static_cast<size_t>(index), input_nodes_.size());
   uint32_t eid = this->entry_id(input_nodes_[index], 0);
+  return data_entry_[eid];
+}
+/*!
+ * \brief Return NDArray for given graph input index.
+ * \param index The input index.
+ *
+ * \return NDArray corresponding to given graph input node index.
+ */
+NDArray GraphRuntime::GetGraphInput(int index) const {
+  CHECK_LT(static_cast<size_t>(index), graph_input_nodes_.size());
+  uint32_t eid = this->entry_id(graph_input_nodes_[index], 0);
   return data_entry_[eid];
 }
 /*!
@@ -150,6 +203,9 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
   size_t size = static_cast<size_t>(sz);
   CHECK(size == names.size())
       << "Invalid parameters file format";
+  // Copy inputs to graph_inputs to extract actual inputs (inputs - params).
+  copy(input_nodes_.begin(), input_nodes_.end(),
+       back_inserter(graph_input_nodes_));
   for (size_t i = 0; i < size; ++i) {
     int in_idx = GetInputIndex(names[i]);
     CHECK_GE(in_idx, 0) << "Found param for non-existent input: " << names[i];
@@ -160,6 +216,10 @@ void GraphRuntime::LoadParams(dmlc::Stream* strm) {
     NDArray temp;
     temp.Load(strm);
     data_entry_[eid].CopyFrom(temp);
+    graph_input_nodes_.erase(std::remove(graph_input_nodes_.begin(),
+                                         graph_input_nodes_.end(),
+                                         input_nodes_[in_idx]),
+                             graph_input_nodes_.end());
   }
 }
 
@@ -226,6 +286,7 @@ void GraphRuntime::SetupStorage() {
     CHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
     data_entry_[i] =
         storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+    data_entry_[i].name_hint = this->GetNodeName(i);
   }
 }
 
@@ -339,9 +400,29 @@ PackedFunc GraphRuntime::GetFunction(
         CHECK_GE(in_idx, 0);
         *rv = this->GetInput(in_idx);
       });
+  } else if (name == "get_graph_input") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        int in_idx = 0;
+        if (args[0].type_code() == kStr) {
+          in_idx = this->GetGraphInputIndex(args[0]);
+        } else {
+          in_idx = args[0];
+        }
+        CHECK_GE(in_idx, 0);
+        *rv = this->GetGraphInput(in_idx);
+      });
   } else if (name == "get_num_outputs") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
         *rv = this->NumOutputs();
+      });
+  } else if (name == "get_num_inputs") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        *rv = this->NumInputs();
+      });
+  } else if (name == "get_name_hint") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        // args[0] : 0/1 (input/output) and args[1] : index
+        *rv = this->GetNameHint(args[0], args[1]);
       });
   } else if (name == "run") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {

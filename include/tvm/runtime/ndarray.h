@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <vector>
+#include <string>
 #include <utility>
 #include "c_runtime_api.h"
 #include "serializer.h"
@@ -173,6 +174,7 @@ class NDArray {
 
   // internal namespace
   struct Internal;
+  std::string name_hint;
  private:
   /*! \brief Internal Data content */
   Container* data_{nullptr};
