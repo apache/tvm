@@ -291,7 +291,7 @@ class CompileEngineImpl : public CompileEngineNode {
     auto spair = CreateSchedule(key->source_func, key->target);
     auto cache_node = make_node<CachedFuncNode>(
         *(spair.second.operator->()));
-    cache_node->func_name = GetUniqeName(cache_node->func_name);
+    cache_node->func_name = GetUniqueName(cache_node->func_name);
     // NOTE: array will copy on write.
     Array<Tensor> all_args = cache_node->inputs;
     for (Tensor arg : cache_node->outputs) {
@@ -302,7 +302,7 @@ class CompileEngineImpl : public CompileEngineNode {
       cache_node->funcs = (*f)(
           spair.first, all_args, cache_node->func_name, key->source_func);
     } else {
-      LOG(FATAL) << "relay.backend._lower is not registred";
+      LOG(FATAL) << "relay.backend.lower is not registred";
     }
     value->cached_func = CachedFunc(cache_node);
     return value;
@@ -312,7 +312,7 @@ class CompileEngineImpl : public CompileEngineNode {
    * \param name The orginal name.
    * \return Updated name which is unique.
    */
-  std::string GetUniqeName(std::string name) {
+  std::string GetUniqueName(std::string name) {
     for (size_t i = 0; i < name.length(); ++i) {
       if (name[i] == '.') name[i] = '_';
     }
