@@ -799,11 +799,8 @@ RELAY_REGISTER_OP("multiply")
 AxesSet Conv2DBackwardPrep(const Call& call, const Array<AxesSet>& in_axes) {
   const auto* param = call->attrs.as<Conv2DAttrs>();
   CHECK(param != nullptr);
-  Layout out_layout(param->out_layout);
-  if (!out_layout.defined()) {
-    out_layout = Layout(param->data_layout);
-  }
   Layout kernel_layout(param->kernel_layout);
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   int c_big_axis = out_layout.Indexof('C');
   int c_small_axis = out_layout.Indexof('c');
 
@@ -836,11 +833,8 @@ Expr Conv2DBackwardTransform(const Call& call,
   }
   const auto* param = call->attrs.as<Conv2DAttrs>();
   CHECK(param != nullptr);
-  Layout out_layout(param->out_layout);
-  if (!out_layout.defined()) {
-    out_layout = Layout(param->data_layout);
-  }
   Layout kernel_layout(param->kernel_layout);
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   int c_big_axis = out_layout.Indexof('C');
   CHECK_GE(c_big_axis, 0);
   // For now, we only support simple pattern (no folded weight/data)

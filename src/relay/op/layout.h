@@ -60,7 +60,7 @@ class Layout : public NodeRef {
   Layout() : Layout("__undef__") {} // NOLINT(*)
 
   /*! \brief construct from a string */
-  Layout(const char* str) : Layout(std::string(str)) {} // NOLINT(*)
+  Layout(const char* name) : Layout(std::string(name)) {} // NOLINT(*)
 
   /*!
    * \brief construct from a string.
@@ -70,11 +70,64 @@ class Layout : public NodeRef {
    *        indicates the split dimension.
    *        return undefined layout if "__undef__" is passed.
    */
-  Layout(const std::string& layout) { // NOLINT(*)
-    if (layout.length() != 0) {
-      Parse(layout);
-    } else {
-      Parse("__undef__");
+  Layout(const std::string& name) { // NOLINT(*)
+    node_ = make_node<LayoutNode>();
+
+    std::vector<uint32_t> superdim_pos(kUniqueDim, -1);
+    std::vector<uint32_t> subdim_pos(kUniqueDim, -1);
+    std::vector<uint32_t> subdim_size(kUniqueDim, -1);
+    std::vector<char> layout_simplified;
+
+    if (name != "__undef__") {  // parse layout string
+      int32_t factor = 0;
+      uint32_t curr = 0;
+      for (size_t i = 0; i < name.size(); ++i) {
+        const LayoutDim c = name.at(i);
+        if (IsSuperdim(c)) {
+          int pos = c - 'A';
+          CHECK_EQ(factor, 0) << "Invalid layout " << name
+                              << ": invalid factor size " << factor
+                              << " before dimension " << c;
+          CHECK_EQ(superdim_pos[pos], -1) << "Invalid layout " << name
+                                          << ": duplicate dimension " << c;
+          superdim_pos[pos] = curr++;
+          layout_simplified.push_back(c);
+        } else if (IsSubdim(c)) {
+          int pos = c - 'a';
+          CHECK_GT(factor, 0) << "Invalid layout " << name << ": invalid factor size "
+                              << factor << " for dimension " << c;
+          CHECK_EQ(subdim_pos[pos], -1) << "Invalid layout " << name
+                                        << ": duplicate dimension " << c;
+          CHECK_EQ(subdim_size[pos], -1) << "Invalid layout " << name
+                                         << ": duplicate dimension " << c;
+          subdim_pos[pos] = curr++;
+          subdim_size[pos] = factor;
+          layout_simplified.push_back(c);
+          factor = 0;
+        } else if (c >= '0' && c <= '9') {
+          CHECK(factor >= 0) << "Invalid layout " << name << ": _ is adjacent to a number.";
+          factor = factor * 10 + c - '0';
+        } else {
+          LOG(FATAL) << "Invalid layout " << name;
+        }
+      }
+      for (LayoutDim dim : layout_simplified) {
+        CHECK(IsSuperdim(dim) || superdim_pos[dim-'a'] >= 0)
+          << "Invalid layout " << name << ": missing axis "
+          << static_cast<char>(dim - 'a' + 'A');
+      }
+    }
+
+    LayoutNode *node = operator->();
+    node->name = name;
+
+    for (uint32_t i = 0; i < kUniqueDim; ++i) {
+      node->superdim_pos.push_back(superdim_pos[i]);
+      node->subdim_pos.push_back(subdim_pos[i]);
+      node->subdim_size.push_back(subdim_size[i]);
+    }
+    for (LayoutDim dim : layout_simplified) {
+      node->layout_simplified.push_back(dim);
     }
   }
 
@@ -177,7 +230,6 @@ class Layout : public NodeRef {
     const Array<Integer>& layout_simplified = operator->()->layout_simplified;
     if (pos > ndim()) return Layout::Undef();
     if (pos + len > ndim()) len = ndim() - pos;
-    if (len == 0) return Layout::Undef();
     std::ostringstream new_layout;
     for (size_t i = pos; i < pos + len; ++i) {
       if (IsSubdim(layout_simplified[i]->value)) {
@@ -349,69 +401,6 @@ class Layout : public NodeRef {
   }
 
   using ContainerType = LayoutNode;
-
- private:
-  void Parse(const std::string &layout) {
-    node_ = make_node<LayoutNode>();
-
-    std::vector<uint32_t> superdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_pos(kUniqueDim, -1);
-    std::vector<uint32_t> subdim_size(kUniqueDim, -1);
-    std::vector<char> layout_simplified;
-
-    if (layout != "__undef__") {  // parse layout string
-      int32_t factor = 0;
-      uint32_t curr = 0;
-      for (size_t i = 0; i < layout.size(); ++i) {
-        const LayoutDim c = layout.at(i);
-        if (IsSuperdim(c)) {
-          int pos = c - 'A';
-          CHECK_EQ(factor, 0) << "Invalid layout " << layout
-                              << ": invalid factor size " << factor
-                              << " before dimension " << c;
-          CHECK_EQ(superdim_pos[pos], -1) << "Invalid layout " << layout
-                                          << ": duplicate dimension " << c;
-          superdim_pos[pos] = curr++;
-          layout_simplified.push_back(c);
-        } else if (IsSubdim(c)) {
-          int pos = c - 'a';
-          CHECK_GT(factor, 0) << "Invalid layout " << layout << ": invalid factor size "
-                              << factor << " for dimension " << c;
-          CHECK_EQ(subdim_pos[pos], -1) << "Invalid layout " << layout
-                                        << ": duplicate dimension " << c;
-          CHECK_EQ(subdim_size[pos], -1) << "Invalid layout " << layout
-                                         << ": duplicate dimension " << c;
-          subdim_pos[pos] = curr++;
-          subdim_size[pos] = factor;
-          layout_simplified.push_back(c);
-          factor = 0;
-        } else if (c >= '0' && c <= '9') {
-          CHECK(factor >= 0) << "Invalid layout " << layout << ": _ is adjacent to a number.";
-          factor = factor * 10 + c - '0';
-        } else {
-          LOG(FATAL) << "Invalid layout " << layout;
-        }
-      }
-      CHECK(!layout_simplified.empty()) << "Invalid layout " << layout;
-      for (LayoutDim dim : layout_simplified) {
-        CHECK(IsSuperdim(dim) || superdim_pos[dim-'a'] >= 0)
-          << "Invalid layout " << layout << ": missing axis "
-          << static_cast<char>(dim - 'a' + 'A');
-      }
-    }
-
-    LayoutNode *node = operator->();
-    node->name = layout;
-
-    for (uint32_t i = 0; i < kUniqueDim; ++i) {
-      node->superdim_pos.push_back(superdim_pos[i]);
-      node->subdim_pos.push_back(subdim_pos[i]);
-      node->subdim_size.push_back(subdim_size[i]);
-    }
-    for (LayoutDim dim : layout_simplified) {
-      node->layout_simplified.push_back(dim);
-    }
-  }
 };
 
 /*!

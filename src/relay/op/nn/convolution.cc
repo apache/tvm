@@ -38,8 +38,7 @@ bool Conv2DRel(const Array<Type>& types,
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
-  Layout out_layout(param->out_layout);
-  if (!out_layout.defined()) out_layout = in_layout;
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   CHECK(out_layout.Convertible(kNCHW))
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
@@ -110,12 +109,12 @@ Array<Array<Layout> > Conv2DInferCorrectLayout(
     const Array<Layout>& old_in_layouts,
     const Array<Array<IndexExpr>> &old_in_shapes) {
   const T* params = attrs.as<T>();
-  Layout out_layout(params->out_layout);
 
   // We always make other operators to fit the layouts of convolution layers
   // So this inference ignores all inputs
   return Array<Array<Layout> >{{params->data_layout, params->kernel_layout},
-                               {out_layout.defined() ? out_layout : params->data_layout}};
+                               {params->out_layout == "" ?
+                                   params->data_layout : params->out_layout}};
 }
 
 // Positional relay function to create conv2d operator
@@ -202,8 +201,7 @@ bool Conv2DTransposeRel(const Array<Type>& types,
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
-  Layout out_layout(param->out_layout);
-  if (!out_layout.defined()) out_layout = in_layout;
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   CHECK(out_layout.Convertible(kNCHW))
     << "Conv only support output layouts that are convertible from NCHW."
     << " But got " << out_layout;
@@ -359,8 +357,7 @@ bool Conv2DWinogradRel(const Array<Type>& types,
     << "Conv only support kernel layouts that are convertible from OIHW."
     << " But got "<< kernel_layout;
 
-  Layout out_layout(param->out_layout);
-  if (!out_layout.defined()) out_layout = in_layout;
+  Layout out_layout(param->out_layout == "" ? param->data_layout : param->out_layout);
   CHECK(out_layout.Convertible(kNCHW))
       << "Conv only support output layouts that are convertible from NCHW."
       << " But got " << out_layout;
