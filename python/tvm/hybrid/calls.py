@@ -12,11 +12,13 @@ from .util import _internal_assert
 #pylint: disable=redefined-builtin
 
 LOOP_INTRIN = {
-    'range'    : For.Serial,
-    'unroll'   : For.Unrolled,
-    'parallel' : For.Parallel,
-    'vectorize': For.Vectorized,
+    'range'       : For.Serial,
+    'unroll'      : For.Unrolled,
+    'const_range' : For.Unrolled,
+    'parallel'    : For.Parallel,
+    'vectorize'   : For.Vectorized,
 }
+
 
 def _range(annotation, args):
     """Handling TVM loop types"""
@@ -33,7 +35,7 @@ def _range(annotation, args):
     return iter_var, low, ext, for_type
 
 
-range = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
+range = unroll = vectorize = parallel = const_range = _range #pylint: disable=invalid-name
 
 
 def bind(func_id, args):
