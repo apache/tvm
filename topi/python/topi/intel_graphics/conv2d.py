@@ -39,7 +39,7 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     import nnvm.symbol as sym
-    assert F == sym, "Only support alter layout in NNVM now"
+    assert F == sym, "Only support alter layout for intel graphics in NNVM now"
 
     copy_inputs = [s for s in inputs]
 

@@ -151,8 +151,7 @@ def optimize(func, params=None):
         func = ir_pass.combine_parallel_conv2d(func)
 
     if cfg.pass_enabled("FoldConstant"):
-        with _target.create("llvm"):
-            func = ir_pass.fold_constant(func)
+        func = ir_pass.fold_constant(func)
 
     if cfg.pass_enabled("FoldScaleAxis"):
         func = ir_pass.infer_type(func)
@@ -168,8 +167,7 @@ def optimize(func, params=None):
         func = ir_pass.alter_op_layout(func)
 
     if cfg.pass_enabled("FoldConstant"):
-        with _target.create("llvm"):
-            func = ir_pass.fold_constant(func)
+        func = ir_pass.fold_constant(func)
 
     return func
 

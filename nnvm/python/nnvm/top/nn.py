@@ -153,6 +153,7 @@ def schedule_conv2d(attrs, outs, target):
 
 @reg.register_alter_op_layout("conv2d")
 def alter_conv2d_layout(attrs, inputs, tinfos):
+    """Replace conv2d op with other layouts or algorithms"""
     import nnvm.symbol as sym
 
     # map relay op names to nnvm op names
