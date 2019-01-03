@@ -1,8 +1,8 @@
 # pylint: disable=invalid-name, unused-argument
 """Tensorflow lite frontend."""
 from __future__ import absolute_import as _abs
-import numpy as np
 import math
+import numpy as np
 from .. import ir_pass
 from .. import expr as _expr
 from .. import op as _op
@@ -633,7 +633,9 @@ def from_tflite(model, shape_dict, dtype_dict):
         The parameter dict to be used by relay
     """
     try:
-        import tflite.Model, tflite.SubGraph, tflite.BuiltinOperator
+        import tflite.Model
+        import tflite.SubGraph
+        import tflite.BuiltinOperator
     except ImportError:
         raise ImportError("The tflite package must be installed")
     assert isinstance(model, tflite.Model.Model)
