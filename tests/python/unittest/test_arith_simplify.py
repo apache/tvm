@@ -45,6 +45,8 @@ def test_simplify_div():
     assert r.b.value == 16
     assert tvm.ir_pass.CanonicalSimplify(r.a - (17+47*x)).value == 0
 
+    r = tvm.ir_pass.CanonicalSimplify((8*x - 17)/8, {x : tvm.Range(4,10)})
+    assert tvm.ir_pass.CanonicalSimplify(r - (x-3)).value == 0
 
 def test_simplify_mod():
     """Not yet working, mock design"""

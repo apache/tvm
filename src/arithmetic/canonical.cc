@@ -490,6 +490,7 @@ class Canonical::Internal : public IRMutator {
                                          const Expr& coeff) {
     Type type = coeff.type();
     int64_t value = GetConstIntValue(coeff);
+    CHECK_NE(value, 0);
     if (value < 0) return {};
     // Given that denominator (value variable) is positive, truncated division
     // (i.e., TVM's division semantics) is equivalent to Euclidean division if and only if
@@ -522,7 +523,9 @@ class Canonical::Internal : public IRMutator {
       int64_t non_divisible_const = GetConstIntValue(non_divisible_res);
       if (numerator_is_non_neg || non_divisible_const == 0) {
         non_divisible_is_simplified = true;
-        div_result = non_divisible_const / value;
+        // We need to do an Euclidean division here because (a*b + c)/b == a + c/b
+        // holds true only if division is Euclidean
+        div_result = HalideIR::Internal::div_imp(non_divisible_const , value);
       }
     } else {
       // If we can prove that non_divisible part lies within [0, coeff), then
