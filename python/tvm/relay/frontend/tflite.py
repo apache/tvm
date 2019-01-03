@@ -54,6 +54,7 @@ class OperatorConverter(object):
                 raise NotImplementedError("Not support op: '{}' currently.".format(op_code_str))
 
     def convert_op_to_relay(self):
+        """Convert TFLite ops to relay ops"""
         for op_idx in range(self.subgraph.OperatorsLength()):
             op = self.subgraph.Operators(op_idx)
             op_code_str = self.get_op_code_str(op)
@@ -70,6 +71,7 @@ class OperatorConverter(object):
                                           ret[idx])
 
     def get_op_code_str(self, op):
+        """Get TFLite ops string representation"""
         try:
             from tflite.BuiltinOperator import BuiltinOperator
         except ImportError:
@@ -91,9 +93,10 @@ class OperatorConverter(object):
         operator_outputs = op.OutputsAsNumpy()
         return self.get_tensors(operator_outputs)
 
-    def get_tensors(self, tensors_idx):
+    def get_tensors(self, tensors_idx_list):
+        """Get tensor wrapper list from given TFLite tensor index list"""
         return_list = list()
-        for tensor_idx in tensors_idx:
+        for tensor_idx in tensors_idx_list:
             if tensor_idx < 0:
                 return_list.append(TensorWrapper(tensor_idx, 0, 0))
                 continue
@@ -105,6 +108,7 @@ class OperatorConverter(object):
         return return_list
 
     def get_tensor_value(self, tensor_wrapper):
+        """Get tensor buffer value from given tensor wrapper"""
         assert isinstance(tensor_wrapper, TensorWrapper)
 
         try:
@@ -126,6 +130,7 @@ class OperatorConverter(object):
                                       .format(str(tensor_wrapper.tensor.Type())))
 
     def get_tensor_type_str(self, tensor_type):
+        """Get tensor type string representation when given TFLite tensor type"""
         try:
             from tflite.TensorType import TensorType
         except ImportError:
@@ -141,6 +146,7 @@ class OperatorConverter(object):
             raise NotImplementedError("Not support tensor type {}".format(str(tensor_type)))
 
     def convert_conv2d(self, op):
+        """Convert TFLite conv2d"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
@@ -224,6 +230,7 @@ class OperatorConverter(object):
         return out
 
     def convert_depthwise_conv2d(self, op):
+        """convert TFLite depthwise conv2d"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
@@ -312,12 +319,15 @@ class OperatorConverter(object):
         return out
 
     def convert_average_pool2d(self, op):
+        """convert TFLite average pool2d"""
         return self.convert_pool2d(op, "average")
 
     def convert_max_pool2d(self, op):
+        """convert TFLite max pool2d"""
         return self.convert_pool2d(op, "max")
 
     def convert_reshape(self, op):
+        """convert TFLite reshape"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.Operator import Operator
@@ -327,7 +337,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 2,"input tensors length should be 2"
+        assert len(input_tensors) == 2, "input tensors length should be 2"
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
 
@@ -377,6 +387,7 @@ class OperatorConverter(object):
         return out
 
     def convert_softmax(self, op):
+        """convert TFLite softmax"""
         try:
             from tflite.Operator import Operator
         except ImportError:
@@ -384,7 +395,7 @@ class OperatorConverter(object):
 
         assert isinstance(op, Operator)
         input_tensors = self.get_input_tensors(op)
-        assert len(input_tensors) == 1,"input tensors length should be 1"
+        assert len(input_tensors) == 1, "input tensors length should be 1"
 
         input_tensor = input_tensors[0]
         input_tensor_idx = input_tensor.tensor_idx
@@ -395,6 +406,7 @@ class OperatorConverter(object):
         return out
 
     def convert_squeeze(self, op):
+        """convert TFLite squeeze"""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.Operator import Operator
@@ -458,6 +470,7 @@ class OperatorConverter(object):
         return out
 
     def convert_fused_activation_function(self, in_expr, fused_activation_fn):
+        """convert TFLite fused activation function"""
         try:
             from tflite.ActivationFunctionType import ActivationFunctionType
         except ImportError:
@@ -477,6 +490,7 @@ class OperatorConverter(object):
                                       .format(fused_activation_fn_str))
 
     def convert_pool2d(self, op, pool_type):
+        """pool2d implementation."""
         try:
             from tflite.BuiltinOptions import BuiltinOptions
             from tflite.ActivationFunctionType import ActivationFunctionType
