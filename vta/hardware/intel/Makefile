@@ -7,6 +7,7 @@ SRC_DIR = $(ROOTDIR)/src
 SIM_DIR = $(ROOTDIR)/sim
 TEST_DIR = $(ROOTDIR)/../../tests/hardware/common
 INCLUDE_DIR = $(ROOTDIR)/../../include
+MODELSIM_DIR = /usr/local/intelFPGA_lite/18.0/modelsim_ase
 
 # Executables
 CXX = i++
@@ -14,7 +15,7 @@ TCLSH = quartus_sh
 HSI = hsi
 
 # HLS mode, options: skip_sim, sim
-MODE = skip_sim
+MODE = sim
 # Debug flag
 DEBUG = false
 # SLURM
@@ -32,7 +33,9 @@ else
 endif
 
 # Add header files into cxx flags
-HLS_CXX_FLAGS = -I/usr/include/c++/4.8.5 -I/usr/include/x86_64-linux-gnu/c++/4.8 -I$(INCLUDE_DIR)
+HLS_CXX_FLAGS = -I$(MODELSIM_DIR)/gcc-4.3.3-linux/include/c++/4.3.3 \
+                -I$(MODELSIM_DIR)/gcc-4.3.3-linux/include/c++/4.3.3/i686-pc-linux-gnu \
+                -I$(INCLUDE_DIR)
 
 # Process VTA JSON config
 VTA_CONFIG = python $(CURDIR)/../../config/vta_config.py

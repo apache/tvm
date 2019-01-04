@@ -6,7 +6,7 @@
 #ifndef VTA_VTA_H_
 #define VTA_VTA_H_
 
-#include <HLS/hls.h>
+#include "hls_custom.h"
 #include <HLS/ac_int.h>
 #include <assert.h>
 
