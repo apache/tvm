@@ -10,7 +10,8 @@ from ..util import simplify
 
 
 @tvm.target.generic_func
-def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
+def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype,
+                          _filter_shape=None, tag="conv2d_transpose_nchw"):
     """Transposed 2D convolution nchw forward operator.
 
     Parameters
@@ -35,8 +36,9 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     Output : tvm.Tensor
         4-D with shape [batch, out_channel, out_height, out_width]
     """
+    assert (Filter is None) ^ (_filter_shape is None), "must specify Filter or filter_shape"
     batch, in_c, in_h, in_w = Input.shape
-    _, out_c, filter_h, filter_w = Filter.shape
+    _, out_c, filter_h, filter_w = Filter.shape if Filter else _filter_shape
     stride_h, stride_w = strides
     # dilate stage
     DilatedInput = dilate(Input, [1, 1, stride_h, stride_w], name='DilatedInput')
@@ -58,11 +60,14 @@ def conv2d_transpose_nchw(Input, Filter, strides, padding, out_dtype):
     dh = tvm.reduce_axis((0, filter_h), name='dh')
     dw = tvm.reduce_axis((0, filter_w), name='dw')
 
+    def _filt(*inds):
+        return Filter(*inds).astype(out_dtype) if Filter else 1 / (filter_h * filter_w)
+
     Output = tvm.compute(
         (batch, out_c, out_h, out_w),
         lambda b, c, h, w: tvm.sum(
             PaddedInput[b, dc, h+dh, w+dw].astype(out_dtype) *
-            Filter[dc, c, filter_h-1-dh, filter_w-1-dw].astype(out_dtype),
-            axis=[dc, dh, dw]), tag="conv2d_transpose_nchw")
+            _filt(dc, c, filter_h-1-dh, filter_w-1-dw),
+            axis=[dc, dh, dw]), tag=tag)
 
     return Output
