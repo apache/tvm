@@ -440,7 +440,7 @@ class HybridParser(ast.NodeVisitor):
             _body = visit_list_to_block(self.visit, node.body)
         else:
             _internal_assert(for_type is None, "The loop iterating function parse error!")
-            self.symbols[name] = Symbol.LoopVar, iter_var.var
+            self.symbols[_name] = Symbol.LoopVar, iter_var.var
             _body = visit_list_to_block(self.visit, node.body)
 
         _body = self.wrap_up_realize(node, _body)
