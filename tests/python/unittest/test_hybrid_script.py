@@ -13,7 +13,7 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     ctx = tvm.context(target, 0)
     op = None
 
-    outs = func(*args)
+    outs = func(*tuple(tvm.convert(i) if isinstance(i, list) else i for i in args))
     op = outs[0].op if isinstance(outs, list) else outs.op
 
     emu_args = []
@@ -27,8 +27,8 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
         else:
+            assert isinstance(i, list)
             emu_args.append(numpy.array(i))
-            assert isinstance(i, tvm.container.Array)
 
     sch = tvm.create_schedule(op)
     module = tvm.build(sch,
@@ -560,7 +560,7 @@ def test_const_range():
         return c, d
 
     a = tvm.placeholder((2, 5), name='a', dtype='int32')
-    b = tvm.convert([[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]])
+    b = [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]]
     run_and_check(foo, [a, b])
 
 if __name__ == "__main__":
