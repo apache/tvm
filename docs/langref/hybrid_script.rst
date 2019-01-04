@@ -68,7 +68,7 @@ to LLVM module.
 Tuning
 ~~~~~~
 
-**Under construction, no supported yet.**
+**Under construction, not supported yet.**
 
 Follow up the example above, you can use some tvm like interfaces to tune the code: 
 
@@ -93,6 +93,16 @@ Besides all the loop types supported in Halide, ``const_range`` is supported for
 Sometimes, ``tvm.container.Array`` is desired to pass as an argument, but in TVM-HalideIR, there is no
 such support that converts ``tvm.container.Array`` to an ``Expr``. Thus, a limited feature is supported.
 Users can access containers by either constants or constants loops annotated.
+
+.. code-block:: python
+
+   @tvm.hybrid.script
+   def foo(a, b): # b is a tvm.container.Array
+       c = output_tensor(a.shape, a.dtype)
+       for i in const_range(len(a)): # because you have b access, i should be explicitly annotated as const_range
+           c[i] = a[i] + b[i]
+       return c
+
 
 Variables
 ~~~~~~~~~
