@@ -77,8 +77,8 @@ begin
   begin
     fetch_insn_count_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
 	 fetch_insn_count_2_data[31:0] <= fetch_insn_count_avs_writedata[31:0];
-	 compute_uops_count_data[31:0] <= 32'h80;
-	 compute_biases_count_data[31:0] <= 32'h80;
+	 compute_uops_count_data[31:0] <= 32'h10;
+	 compute_biases_count_data[31:0] <= 32'h40;
   end
 end
   

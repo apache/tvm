@@ -42,7 +42,6 @@ end
 always @(posedge clk or posedge reset) begin
   if (reset) begin
     snk_ready <= 0;
-	 src_data <= 0;
 	 src_valid <= 0;
 	 counter <= 0;
   end

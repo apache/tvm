@@ -2,7 +2,7 @@ CC ?= g++
 CFLAGS = -Wall -g -O0 -std=c++11 -I/usr/include
 LDFLAGS = -L/usr/lib
 LIBS = -lstdc++
-INCLUDE_DIR = -I../../../include
+INCLUDE_DIR = -I../../../include -I/usr/local/intelFPGA_lite/18.0/embedded/ip/altera/hps/altera_hps/hwlib/include
 DRIVER_DIR = ../../../src/de10-nano
 TESTLIB_DIR = ../common
 VPATH = $(DRIVER_DIR):$(TESTLIB_DIR)
@@ -17,7 +17,7 @@ LDFLAGS += `${VTA_CONFIG} --ldflags`
 VTA_TARGET := $(shell ${VTA_CONFIG} --target)
 
 # Define flags
-CFLAGS += $(INCLUDE_DIR) -DNO_SIM -DVTA_DEBUG=0 -DVTA_TARGET_DE10_NANO
+CFLAGS += $(INCLUDE_DIR) -DNO_SIM -DVTA_DEBUG=1 -DVTA_TARGET_DE10_NANO
 
 # All Target
 all: $(EXECUTABLE)

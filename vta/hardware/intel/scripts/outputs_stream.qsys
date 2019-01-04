@@ -17,156 +17,156 @@
          type = "int";
       }
    }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element acp_to_avst_dma_128
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
    element clk_0
    {
       datum _sortIndex
       {
          value = "0";
          type = "int";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
-      }
-   }
-   element insns_stream
-   {
-      datum _originalDeviceFamily
-      {
-         value = "Cyclone V";
-         type = "String";
       }
    }
    element msgdma_0
@@ -223,11 +223,6 @@
  <parameter name="useTestBenchNamingPattern" value="false" />
  <instanceScript></instanceScript>
  <interface
-   name="avst_source"
-   internal="msgdma_to_hls_avst_0.avst_source"
-   type="avalon_streaming"
-   dir="start" />
- <interface
    name="axi_master"
    internal="AXI_cache_secruity_bridge_0.axi_master"
    type="axi"
@@ -245,6 +240,11 @@
    type="avalon"
    dir="end" />
  <interface name="insns_length" internal="stream_acp_adaptor_0.insns_length" />
+ <interface
+   name="msgdma_to_hls_avst_0_avst_sink"
+   internal="msgdma_to_hls_avst_0.avst_sink"
+   type="avalon_streaming"
+   dir="end" />
  <interface name="reset" internal="clk_0.clk_in_reset" type="reset" dir="end" />
  <interface name="uops_length" internal="stream_acp_adaptor_0.uops_length" />
  <module
@@ -275,8 +275,8 @@
   <parameter name="AUTO_DEVICE" value="5CSEBA6U23I7" />
   <parameter name="AUTO_DEVICE_FAMILY" value="Cyclone V" />
   <parameter name="AUTO_DEVICE_SPEEDGRADE" value="7" />
-  <parameter name="AUTO_MM_READ_ADDRESS_MAP"><![CDATA[<address-map><slave name='AXI_cache_secruity_bridge_0.axi_slave' start='0x0' end='0x100000000' /></address-map>]]></parameter>
-  <parameter name="AUTO_MM_READ_ADDRESS_WIDTH" value="AddressWidth = 32" />
+  <parameter name="AUTO_MM_READ_ADDRESS_MAP" value="" />
+  <parameter name="AUTO_MM_READ_ADDRESS_WIDTH" value="AddressWidth = -1" />
   <parameter name="AUTO_MM_WRITE_ADDRESS_MAP" value="" />
   <parameter name="AUTO_MM_WRITE_ADDRESS_WIDTH" value="AddressWidth = -1" />
   <parameter name="BURST_ENABLE" value="0" />
@@ -284,7 +284,7 @@
   <parameter name="CHANNEL_ENABLE" value="0" />
   <parameter name="CHANNEL_WIDTH" value="8" />
   <parameter name="DATA_FIFO_DEPTH" value="128" />
-  <parameter name="DATA_WIDTH" value="128" />
+  <parameter name="DATA_WIDTH" value="512" />
   <parameter name="DESCRIPTOR_FIFO_DEPTH" value="16" />
   <parameter name="ENHANCED_FEATURES" value="0" />
   <parameter name="ERROR_ENABLE" value="0" />
@@ -294,7 +294,7 @@
   <parameter name="MAX_BURST_COUNT" value="2" />
   <parameter name="MAX_BYTE" value="1024" />
   <parameter name="MAX_STRIDE" value="1" />
-  <parameter name="MODE" value="1" />
+  <parameter name="MODE" value="2" />
   <parameter name="PACKET_ENABLE" value="0" />
   <parameter name="PREFETCHER_DATA_WIDTH" value="128" />
   <parameter name="PREFETCHER_ENABLE" value="0" />
@@ -311,7 +311,7 @@
    kind="msgdma_to_hls_avst"
    version="1.0"
    enabled="1">
-  <parameter name="LENGTH" value="128" />
+  <parameter name="LENGTH" value="512" />
  </module>
  <module
    name="stream_acp_adaptor_0"
@@ -346,19 +346,10 @@
   <parameter name="defaultConnection" value="false" />
  </connection>
  <connection
-   kind="avalon"
-   version="18.0"
-   start="msgdma_0.mm_read"
-   end="AXI_cache_secruity_bridge_0.axi_slave">
-  <parameter name="arbitrationPriority" value="1" />
-  <parameter name="baseAddress" value="0x0000" />
-  <parameter name="defaultConnection" value="false" />
- </connection>
- <connection
    kind="avalon_streaming"
    version="18.0"
-   start="msgdma_0.st_source"
-   end="msgdma_to_hls_avst_0.avst_sink" />
+   start="msgdma_to_hls_avst_0.avst_source"
+   end="msgdma_0.st_sink" />
  <connection
    kind="clock"
    version="18.0"

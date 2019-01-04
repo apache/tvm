@@ -193,6 +193,38 @@
          type = "String";
       }
    }
+   element biases_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element biases_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element biases_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
+   element biases_stream
+   {
+      datum _originalDeviceFamily
+      {
+         value = "Cyclone V";
+         type = "String";
+      }
+   }
    element clk_0
    {
       datum _sortIndex
@@ -315,7 +347,7 @@
   <parameter name="BURST_WRAPPING_SUPPORT" value="0" />
   <parameter name="CHANNEL_ENABLE" value="0" />
   <parameter name="CHANNEL_WIDTH" value="8" />
-  <parameter name="DATA_FIFO_DEPTH" value="128" />
+  <parameter name="DATA_FIFO_DEPTH" value="64" />
   <parameter name="DATA_WIDTH" value="128" />
   <parameter name="DESCRIPTOR_FIFO_DEPTH" value="16" />
   <parameter name="ENHANCED_FEATURES" value="0" />
@@ -328,7 +360,7 @@
   <parameter name="MAX_STRIDE" value="1" />
   <parameter name="MODE" value="1" />
   <parameter name="PACKET_ENABLE" value="0" />
-  <parameter name="PREFETCHER_DATA_WIDTH" value="128" />
+  <parameter name="PREFETCHER_DATA_WIDTH" value="32" />
   <parameter name="PREFETCHER_ENABLE" value="0" />
   <parameter name="PREFETCHER_MAX_READ_BURST_COUNT" value="2" />
   <parameter name="PREFETCHER_READ_BURST_ENABLE" value="0" />
@@ -343,7 +375,7 @@
    kind="msgdma_to_hls_avst"
    version="1.0"
    enabled="1">
-  <parameter name="LENGTH" value="128" />
+  <parameter name="DATA_WIDTH" value="128" />
  </module>
  <module
    name="stream_acp_adaptor_0"
