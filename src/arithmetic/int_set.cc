@@ -84,6 +84,25 @@ bool IntSet::can_prove_negative() const {
   return (s_int && is_negative_const(ir::Simplify(s_int->i.max)));
 }
 
+bool IntSet::can_prove_non_positive() const {
+  if (const IntervalSet* s_int = (*this).as<IntervalSet>()) {
+    auto max = ir::Simplify(s_int->i.max);
+    return is_zero(max) || is_negative_const(max);
+  }
+  return false;
+}
+
+bool IntSet::can_prove_non_negative() const {
+  if (const IntervalSet* s_int = (*this).as<IntervalSet>()) {
+    // Any reason why we should or should not use can_prove() to implement
+    // these functions?
+    auto min = ir::Simplify(s_int->i.min);
+    return is_zero(min) || is_positive_const(min);
+  }
+  return false;
+}
+
+
 SignType IntSet::sign_type() const {
   if (can_prove_positive()) {
     return kPositive;
