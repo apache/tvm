@@ -11,12 +11,13 @@ from .. import api as _api
 from .. import make as _make
 from .. import expr as _expr
 from .. import stmt as _stmt
+from ..container import Array
 from ..tensor import Tensor
 
 
 #pylint: disable=invalid-name
 np_arg_types = tuple(list(numeric_types) + [numpy.ndarray])
-tvm_arg_types = (Tensor, _expr.Var, _expr.ConstExpr)
+tvm_arg_types = (Tensor, Array, _expr.Var, _expr.ConstExpr)
 halide_imm_types = (_expr.IntImm, _expr.FloatImm, _expr.UIntImm)
 
 def _internal_assert(cond, err):

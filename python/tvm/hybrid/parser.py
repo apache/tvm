@@ -4,7 +4,10 @@ import ast
 import operator
 import logging
 import sys
-from numbers import Integral
+import types
+import numbers
+
+from enum import Enum
 
 from .util import _internal_assert
 from . import calls
@@ -12,24 +15,44 @@ from . import util
 from .var_decl import determine_variable_usage
 from ..api import all as _all
 from ..api import any as _any
+from ..container import Array
 from ..tensor import Tensor, Operation
 from .. import expr as _expr
 from .. import make as _make
 from .. import api  as _api
 from .. import ir_pass as _ir_pass
 
-def list_to_block(visit, lst):
-    """Convert a list of Python IR nodes to HalideIR Block"""
-    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
-    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
-    if not lst:
-        return util.make_nop()
+
+def pack_list_to_block(lst):
     if len(lst) == 1:
         return lst[0]
     body = lst[0]
     for i in lst[1:]:
         body = _make.Block(body, i)
     return body
+
+
+def visit_list_to_block(visit, lst):
+    """Convert a list of Python IR nodes to HalideIR Block"""
+    lst = [visit(stmt) for stmt in lst if not util.is_docstring(stmt)]
+    lst = [stmt for stmt in lst if not _ir_pass.Equal(stmt, util.make_nop())]
+    if not lst:
+        return util.make_nop()
+    return pack_list_to_block(lst)
+
+
+class Symbol(Enum):
+    """Enumerates types in the symbol table"""
+    Callable = 0
+    Input = 1
+    OutputBuffer = 2
+    GlobalBuffer = 3
+    LocalBuffer = 4
+    SharedBuffer = 5
+    ConstVar = 6
+    BufferVar = 7
+    LoopVar = 8
+    ConstLoopVar = 9
 
 
 class HybridParser(ast.NodeVisitor):
@@ -82,77 +105,55 @@ class HybridParser(ast.NodeVisitor):
         """
         self.args = list(args)
         self.usage = usage.copy()
-        self._args = {} # Dict maps arg name to actual arg instance (either a var or a buffer)
-        self.alloc_buffers = {} # Buffers formed by explicit allocate instructions
-        self.loops_above = {} # State variable that indicates loop levels above the current node
-        self.variables = {} # The status of defined variables
+
+        self.symbols = {} # Symbol table
+        for k, v in symbols.items():
+            if isinstance(v, types.FunctionType):
+                self.symbols[k] = Symbol.Callable, v
+
         self.func_name = func_name # The name of the function to be lowered
         self.outputs = [] # Output tensors' name
         self.side_effect = set() # Tensors with side effects
         self.parsed_body = None # The parsed HalideIR body
         self.returned = False # If this function has a valid return
-        self.symbols = symbols # The global context
+
 
 
     def wrap_up_realize(self, node, body):
         """Wrap up all the variables which will no longer be used"""
-        pop_buf = []
-        pop_var = []
+        to_pop = []
         for key, val in self.usage.items():
             _, level, _ = val
             if level != node:
                 continue
-            if key in self._args.keys():
+            _internal_assert(key in self.symbols.keys(), "Unknown symbol %s!" % key)
+
+            ty, entry = self.symbols[key] #pylint: disable=invalid-name
+            if ty in [Symbol.Input, Symbol.OutputBuffer]:
                 continue
-            if key in self.alloc_buffers.keys():
-                _buf, _scope = self.alloc_buffers[key]
-                if _scope == 'output':
-                    continue
-                pop_buf.append(key)
+            elif 'Buffer' in ty.name:
+                _buf = entry
+                _scope = ty.name[:-6].lower() if ty is not Symbol.BufferVar else 'global'
+                to_pop.append(key)
             else:
-                _internal_assert(key in self.variables.keys(),
-                                 "Key should be either in one of args, buffers, and vars")
-                if not isinstance(self.variables[key], tuple):
-                    continue
-                _buf, _scope = self.variables[key]
-                pop_var.append(key)
+                continue
+
             _domain = [_make.range_by_min_extent(0, i) for i in _buf.shape]
             _dtype = _buf.dtype
             _true = _api.convert(True)
             body = _make.Realize(_buf.op, 0, _dtype, _domain, _true, body)
             body = _make.AttrStmt(_buf.op, 'realize_scope', _api.convert(_scope), body)
 
-        for elem in pop_buf:
-            self.alloc_buffers.pop(elem)
-        for elem in pop_var:
-            self.variables.pop(elem)
+        for elem in to_pop:
+            self.symbols.pop(elem)
+
         return body
 
-
-    def _get_buffer_from_id(self, s, for_provide=False):
-        _internal_assert((s in self._args.keys()) + (s in self.alloc_buffers.keys()) == 1,
-                         "This %s is expected to be in either \
-                          argument list or allocated buffer!" % s)
-        if s in self._args.keys():
-            if for_provide:
-                self.side_effect.add(self._args[s])
-            return self._args[s]
-        return self.alloc_buffers[s][0]
-
-    def _const(self, value, dtype=None):
-        if dtype is None:
-            if isinstance(value, bool):
-                dtype = "bool"
-            elif isinstance(value, Integral):
-                dtype = "int32"
-            else:
-                dtype = "float32"
-        return _api.const(value, dtype)
 
     #pylint: disable=invalid-name, missing-docstring
     def visit_Module(self, node):
         _internal_assert(len(node.body) == 1, \
-                         "Only one-function source code can be fed to this parser!")
+                         "Only one-function source code will be fed to this parser!")
         return self.visit(node.body[0])
 
 
@@ -164,8 +165,8 @@ class HybridParser(ast.NodeVisitor):
             self.func_name = node.name
         for idx, arg in enumerate(node.args.args):
             _attr = 'id' if sys.version_info[0] < 3 else 'arg' # To make py2 and 3 compatible
-            self._args[getattr(arg, _attr)] = self.args[idx]
-        res = list_to_block(self.visit, node.body)
+            self.symbols[getattr(arg, _attr)] = (Symbol.Input, self.args[idx])
+        res = visit_list_to_block(self.visit, node.body)
         res = self.wrap_up_realize(node, res)
         return res
 
@@ -176,25 +177,31 @@ class HybridParser(ast.NodeVisitor):
 
     def visit_Name(self, node):
         name = node.id
-        if name in self.loops_above.keys():
-            return self.loops_above[name]
-        elif name in self.variables.keys():
-            res = self.variables[name]
-            if isinstance(res, tuple):
-                buf = res[0]
-                if isinstance(node.ctx, ast.Load):
-                    return _make.Call(buf.dtype, buf.name, [self._const(0)], \
-                                      _expr.Call.Halide, buf.op, buf.value_index)
-                return buf, [self._const(0)]
+        ty, entry = self.symbols[name]
+        _internal_assert(name in self.symbols, "Unknown symbol %s!" % name)
+        if ty in [Symbol.LoopVar, Symbol.Input, Symbol.ConstLoopVar]:
+            return entry
+        elif ty is Symbol.ConstVar:
+            return entry if isinstance(node.ctx, ast.Load) else None
+        elif ty is Symbol.BufferVar:
             if isinstance(node.ctx, ast.Load):
-                return res
-            return None
-        buf = self._get_buffer_from_id(name)
-        return buf
+                return _make.Call(entry.dtype, entry.name, [_api.const(0, 'int32')], \
+                                  _expr.Call.Halide, entry.op, entry.value_index)
+            return entry, [_api.const(0, 'int32')]
+        # Do I need any assertion here?
+        return entry
 
 
     def visit_Num(self, node):
-        return self._const(node.n)
+        if isinstance(node.n, numbers.Integral):
+            dtype = "int32"
+        elif isinstance(node.n, float):
+            dtype = "float32"
+        else:
+            _internal_assert(isinstance(node.n, bool),
+                             "The data type should be one of (int, float, bool)")
+            dtype = "bool"
+        return _api.const(node.n, dtype)
 
 
     def visit_AugAssign(self, node):
@@ -204,7 +211,7 @@ class HybridParser(ast.NodeVisitor):
             _internal_assert(len(buf) == 2, "LHS is supposed to be (buf, args)!")
             buf, args = buf
         else:
-            args = [self._const(0)]
+            args = [_api.const(0, 'int32')]
         _internal_assert(isinstance(buf, Tensor), "LHS is supposed to be Tensor!")
 
         read = _make.Call(buf.dtype, buf.name, args, _expr.Call.Halide, buf.op, buf.value_index)
@@ -222,7 +229,7 @@ class HybridParser(ast.NodeVisitor):
             for i in range(rhs.num_outputs):
                 _internal_assert(isinstance(node.targets[i], ast.Name),
                                  "You should bind a pure name to the tensors")
-                self.alloc_buffers[node.targets[i].id] = (rhs.output(i), 'global')
+                self.symbols[node.targets[i].id] = Symbol.GlobalBuffer, rhs.output(i)
                 rmap[rhs.outputs[i].op] = rhs.output(i)
             return util.replace_io(rhs.body, rmap)
 
@@ -234,25 +241,26 @@ class HybridParser(ast.NodeVisitor):
             #TODO: support defined intermediate buffer later
             lhs_ = lhs
             lhs = lhs.id
-            _internal_assert(lhs not in self.loops_above.keys(), \
-                             "Loop variable cannot be overwritten!")
+            if lhs in self.symbols.keys():
+                ty, _ = self.symbols[lhs]
+                _internal_assert(ty != Symbol.LoopVar, \
+                                 "Loop variable cannot be overwritten!")
             decl, _, rw = self.usage[lhs]
             if decl == lhs_:
-                _internal_assert(lhs not in self.variables.keys() and
-                                 lhs not in self.alloc_buffers.keys(), \
+                _internal_assert(lhs not in self.symbols.keys(),
                                  "This value should not be defined before this point!")
                 if isinstance(rhs, tuple):
                     shape, dtype, scope = rhs
                     ph = _api.placeholder(shape, dtype=dtype, name=lhs)
-                    self.alloc_buffers[lhs] = (ph, scope)
+                    self.symbols[lhs] = getattr(Symbol, scope.title() + "Buffer"), ph
                     if scope == 'output':
                         self.outputs.append(lhs)
                     return util.make_nop()
                 if isinstance(rhs, util.halide_imm_types) and ast.Store not in rw:
-                    self.variables[lhs] = rhs
+                    self.symbols[lhs] = Symbol.ConstVar, rhs
                 else:
                     ph = _api.placeholder((1, ), dtype=rhs.dtype, name=lhs)
-                    self.variables[lhs] = (ph, 'global')
+                    self.symbols[lhs] = Symbol.BufferVar, ph
             lhs = self.visit(lhs_)
             if lhs is not None:
                 buf, args = lhs
@@ -275,17 +283,30 @@ class HybridParser(ast.NodeVisitor):
     def visit_Attribute(self, node):
         _internal_assert(isinstance(node.value, ast.Name), \
                          "For atrribute access, only both names are supported so far!")
-        buf = self._get_buffer_from_id(node.value.id)
+        buf = self.visit(node.value)
         return getattr(buf, node.attr)
 
 
     def visit_Subscript(self, node):
         args = self.visit(node.slice)
         if isinstance(node.value, ast.Name):
+
             buf = self.visit(node.value)
+            if isinstance(buf, Array):
+                for i in args:
+                    if isinstance(i, numbers.Integral):
+                        buf = buf[i]
+                    else:
+                        _internal_assert(isinstance(i, (_expr.IntImm, _expr.UIntImm)), \
+                                         "All indices are supposed to be constants")
+                        buf = buf[i.value]
+
+                return buf
+
             if isinstance(node.ctx, ast.Load):
                 return _make.Call(buf.dtype, buf.name, args, \
                                   _expr.Call.Halide, buf.op, buf.value_index)
+
             return buf, args
 
         shape = self.visit(node.value)
@@ -308,14 +329,14 @@ class HybridParser(ast.NodeVisitor):
         _internal_assert(isinstance(context, ast.Call), "The object must be a Python func call!")
         _internal_assert(isinstance(option, ast.Name), "The object after 'as' must be an id!")
         self.annotation[option.id] = context.func.id
-        return list_to_block(self.visit, node.body)
+        return visit_list_to_block(self.visit, node.body)
 
 
     def visit_If(self, node):
         cond = self.visit(node.test)
-        if_body = list_to_block(self.visit, node.body)
+        if_body = visit_list_to_block(self.visit, node.body)
         if node.orelse:
-            else_body = list_to_block(self.visit, node.orelse)
+            else_body = visit_list_to_block(self.visit, node.orelse)
         else:
             else_body = util.make_nop()
         return _make.IfThenElse(cond, if_body, else_body)
@@ -376,7 +397,10 @@ class HybridParser(ast.NodeVisitor):
         except AttributeError:
             _internal_assert(func_id in self.symbols.keys(), \
                              "The function called is not in the context either!")
-            outs = self.symbols[func_id](*args)
+            ty, entry = self.symbols[func_id]
+            _internal_assert(ty is Symbol.Callable, \
+                             "Are you sure what you call is a function?!")
+            outs = entry(*args)
             op = outs.op if isinstance(outs, Tensor) else outs[0].op
             return op
 
@@ -385,41 +409,66 @@ class HybridParser(ast.NodeVisitor):
         iter_var, low, ext, for_type = self.visit(node.iter)
         _internal_assert(isinstance(node.target, ast.Name), \
                          "The loop iterator should be a variable!")
+
         _name = node.target.id
-        if iter_var is None:
+
+        if isinstance(for_type, tuple):
+            low = _ir_pass.Simplify(low)
+            ext = _ir_pass.Simplify(ext)
+            _internal_assert(isinstance(low, _expr.ConstExpr) and
+                             isinstance(ext, _expr.ConstExpr), \
+                             "Const range should start from a const" + \
+                             "and iterate const times")
+
+            low, ext = low.value, ext.value
+            if ext > 114514:
+                logging.log(logging.CRITICAL, \
+                            '[Warning] Are you sure to unroll a large loop in Python?')
+
+            bodies = []
+            for i in range(low, low + ext):
+                self.symbols[_name] = Symbol.ConstLoopVar, i
+                bodies.append(visit_list_to_block(self.visit, node.body))
+            return pack_list_to_block(bodies)
+
+        elif iter_var is None:
             _internal_assert(for_type is not None, "The loop bind function parse error!")
             offset = iter_var = _api.var(_name)
-            if not _ir_pass.Equal(low, self._const(0)):
+            if not _ir_pass.Equal(low, _api.const(0, 'int32')):
                 offset = iter_var + low
-            self.loops_above[_name] = offset
+            self.symbols[_name] = Symbol.LoopVar, offset
+            _body = visit_list_to_block(self.visit, node.body)
         else:
             _internal_assert(for_type is None, "The loop iterating function parse error!")
-            self.loops_above[_name] = iter_var.var
-        _body = list_to_block(self.visit, node.body)
+            self.symbols[_name] = Symbol.LoopVar, iter_var.var
+            _body = visit_list_to_block(self.visit, node.body)
+
         _body = self.wrap_up_realize(node, _body)
+
         if for_type is None:
             res = _make.AttrStmt(iter_var, 'thread_extent', ext, _body)
-        else:
-            res = _make.For(iter_var, self._const(0), ext, for_type, 0, _body)
-        self.loops_above.pop(_name)
+        elif not isinstance(for_type, tuple):
+            res = _make.For(iter_var, _api.const(0, 'int32'), ext, for_type, 0, _body)
+        self.symbols.pop(_name)
         return res
 
 
     def visit_Return(self, node):
-        _internal_assert(not self.loops_above, "Return should not be in a loop body!")
+        _internal_assert(all(ty != Symbol.LoopVar for ty, _ in self.symbols.values()), \
+                         "Return should not be in a loop body!")
         ids = []
         if isinstance(node.value, ast.Name):
-            ids.append(node.value.id)
+            ids = [node.value.id]
         else:
             _internal_assert(isinstance(node.value, ast.Tuple), \
                              "You should return either a single tensor or a tuple")
-            for i in node.value.elts:
-                _internal_assert(isinstance(i, ast.Name), "What do you return?")
-                ids.append(i.id)
+            _internal_assert(all(isinstance(i, ast.Name) for i in node.value.elts), \
+                             "What do you return?")
+            ids = [i.id for i in node.value.elts]
         _internal_assert(len(set(ids)) == len(ids), "Duplicated tensors in the return tuples")
         if len(ids) < len(self.outputs):
             logging.log(logging.CRITICAL, '[Warning] Not all the output buffers returned!')
-        self.outputs = [self.alloc_buffers[i][0] for i in ids]
+        self.outputs = [self.symbols[i][1] for i in ids]
         self.returned = True
         return util.make_nop()
 

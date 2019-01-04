@@ -12,15 +12,17 @@ from .util import _internal_assert
 #pylint: disable=redefined-builtin
 
 LOOP_INTRIN = {
-    'range'    : For.Serial,
-    'unroll'   : For.Unrolled,
-    'parallel' : For.Parallel,
-    'vectorize': For.Vectorized,
+    'range'       : For.Serial,
+    'unroll'      : For.Unrolled,
+    'parallel'    : For.Parallel,
+    'vectorize'   : For.Vectorized,
+    'const_range' : (For.Unrolled, ),
 }
+
 
 def _range(annotation, args):
     """Handling TVM loop types"""
-    n = len(args)
+    n = args.__len__()
     if n == 1:
         low, ext = _api.const(0, dtype='int32'), args[0]
     else:
@@ -33,13 +35,13 @@ def _range(annotation, args):
     return iter_var, low, ext, for_type
 
 
-range = unroll = vectorize = parallel = _range #pylint: disable=invalid-name
+range = unroll = vectorize = parallel = const_range = _range #pylint: disable=invalid-name
 
 
 def bind(func_id, args):
     """Handling TVM thread binding"""
     _internal_assert(func_id == "bind", "This function cannot be directly invoked!")
-    _internal_assert(len(args) == 2, "A loop bind should only have 2 arguments!")
+    _internal_assert(args.__len__() == 2, "A loop bind should only have 2 arguments!")
     _internal_assert(isinstance(args[0], str), \
                      "A loop bind's first argument should be a string!")
     iter_var = _api.thread_axis(args[0])
@@ -56,7 +58,7 @@ sqrt = log = exp = tanh = sigmoid = power = popcount = _math_intrin #pylint: dis
 
 
 def _min_max(func_id, args):
-    _internal_assert(len(args) == 2, "Max/Min function should have 2 elements")
+    _internal_assert(args.__len__() == 2, "Max/Min function should have 2 elements")
     return getattr(_make, func_id.title())(args[0], args[1])
 
 
@@ -66,7 +68,7 @@ min = max = _min_max #pylint: disable=invalid-name
 def _allocate_tensor(func_id, args):
     """Handling TVM tensor allocation.
     You may refer hybrid.intrin.allocate for more details."""
-    n = len(args)
+    n = args.__len__()
     _internal_assert(isinstance(_api.convert(args[0]), Array), \
                      "allocate's first argument should be a tuple of shape!")
     shape = args[0]
@@ -89,4 +91,16 @@ def _allocate_tensor(func_id, args):
         scope = 'global' if func_id != 'output_tensor' else 'output'
     return (shape, dtype, scope)
 
+
 output_tensor = allocate = _allocate_tensor #pylint: disable=invalid-name
+
+
+def len(func_id, args):
+    """Iterpret the len function"""
+    _internal_assert(args.__len__() == 1, "Only 1 argument is expected!")
+    _internal_assert(func_id == "len", "This function cannot be directly invoked!")
+    try:
+        return _api.convert(args[0].__len__())
+    except: #pylint: disable=bare-except
+        _internal_assert(args[0].shape.__len__() == 1, "Only one-dimension array can get len")
+        return _api.convert(args[0].shape[0])

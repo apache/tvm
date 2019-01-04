@@ -2,30 +2,17 @@
 
 import numpy
 
-class _range(object):
-    """Base class of the loop ranges in hybrid script"""
-    def __init__(self, a, b=None):
-        if b is None:
-            self.low = 0
-            self.ext = a
-        else:
-            self.low = a
-            self.ext = b
+
+class bind(object): #pylint: disable=invalid-name
+    """GPU bind software emulataion runtime."""
+    def __init__(self, _, ext):
+        self.ext = ext
 
     def __iter__(self):
         i = 0
         while i < self.ext:
-            yield i + self.low
+            yield i
             i += 1
-
-
-class bind(_range): #pylint: disable=invalid-name
-    def __init__(self, tag, ext):
-        super(bind, self).__init__(ext)
-        self.tag = tag
-
-
-unroll = vectorize = parallel = _range #pylint: disable=invalid-name
 
 
 def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-argument
@@ -47,7 +34,6 @@ def allocate(shape, dtype='float32', scope='global'): #pylint: disable=unused-ar
     """
     return numpy.zeros(shape).astype(dtype)
 
-output_tensor = allocate #pylint: disable=invalid-name
 
 def popcount(x):
     """
@@ -87,17 +73,19 @@ def sigmoid(x):
 
 
 HYBRID_GLOBALS = {
-    'unroll'       : unroll,
-    'vectorize'    : vectorize,
-    'parallel'     : parallel,
-    'allocate'     : allocate,
-    'output_tensor': output_tensor,
+    'len'          : len,
+    'unroll'       : range,
+    'vectorize'    : range,
+    'parallel'     : range,
+    'const_range'  : range,
     'bind'         : bind,
+    'allocate'     : allocate,
+    'output_tensor': allocate,
     'sqrt'         : numpy.sqrt,
     'log'          : numpy.log,
     'tanh'         : numpy.tanh,
     'power'        : numpy.power,
     'exp'          : numpy.exp,
     'sigmoid'      : sigmoid,
-    'popcount'     : popcount
+    'popcount'     : popcount,
 }

@@ -52,7 +52,8 @@ The current parse interface looks like:
    parser = tvm.hybrid.parse(outer_product, [a, b]) # return the parser of this function
 
 
-If we pass these tvm tensors to this function, it returns a op node:
+If we pass these tvm data structures, like ``Tensor``, ``Var``, ``Expr.*Imm``,
+or ``tvm.container.Array``, to this function, it returns a op node:
 
 .. code-block:: python
 
@@ -60,12 +61,14 @@ If we pass these tvm tensors to this function, it returns a op node:
    b = tvm.placeholder((99, ), name='b')
    c = outer_product(a, b, c) # return the output tensor(s) of the operator
 
-**Under construction, we are still deciding what kind of node should be returned.**
+You can use any methods that can be applied on a TVM ``OpNode``, like create_schedule, although
+so far, the functionality of schedule is as limited as ``ExternOpNode``. At least, it can be built
+to LLVM module.
 
 Tuning
 ~~~~~~
 
-**Under construction, not truly supported yet.**
+**Under construction, not supported yet.**
 
 Follow up the example above, you can use some tvm like interfaces to tune the code: 
 
@@ -85,6 +88,21 @@ In HalideIR, loops have in total 4 types: ``serial``, ``unrolled``, ``parallel``
 Here we use ``range`` aka ``serial``, ``unroll``, ``parallel``, and ``vectorize``,
 these **4** keywords to annotate the corresponding types of for loops.
 The the usage is roughly the same as Python standard ``range``.
+
+Besides all the loop types supported in Halide, ``const_range`` is supported for some specific conditions.
+Sometimes, ``tvm.container.Array`` is desired to pass as an argument, but in TVM-HalideIR, there is no
+such support that converts ``tvm.container.Array`` to an ``Expr``. Thus, a limited feature is supported.
+Users can access containers by either constants or constants loops annotated.
+
+.. code-block:: python
+
+   @tvm.hybrid.script
+   def foo(a, b): # b is a tvm.container.Array
+       c = output_tensor(a.shape, a.dtype)
+       for i in const_range(len(a)): # because you have b access, i should be explicitly annotated as const_range
+           c[i] = a[i] + b[i]
+       return c
+
 
 Variables
 ~~~~~~~~~
@@ -111,14 +129,14 @@ It regards the first store of a variable as its declaration.
      	  s += a[i, j] # do something with sum
        b[i] = sum # you can still use sum in this level
    a[0] = s # you CANNOT use s here, even though it is allowed in conventional Python
-   b = (1, 2) # this has NOT been supported yet!
 
 
 Attributes
 ~~~~~~~~~~
 
-So far, ONLY tensors' ``shape`` attribute is supported! The ``shape`` atrribute is essentailly a
-tuple, so you MUST access it as an array. Also, currently, only constant-indexed access is supported.
+So far, ONLY tensors' ``shape`` and ``dtype`` attribute are supported!
+The ``shape`` atrribute is essentailly a tuple, so you MUST access it as an array.
+Currently, only constant-indexed access is supported.
 
 .. code-block:: python
 
@@ -133,8 +151,11 @@ Conditional Statement and Expression
 
 .. code-block:: python
 
-   if condition:
-        # do something
+   if condition1 and condition2 and condition3:
+       # do something
+   else:
+       # do something else
+   # Select
    a = b if condition else c
 
 However, NO ``True`` and ``False`` keyword supported yet.
@@ -153,7 +174,9 @@ Array Allocation
 **Under construction, this function will be supported later!**
 
 Use a function call ``allocation(shape, type, share/local)`` to declare an array buffer.
-The basic usage is roughly the same as a normal array.
+The basic usage is roughly the same as a normal ``numpy.array``, and you should access
+high-dim array in ``a[i, j, k]`` fashion instead of ``a[i][j][k]``,
+even for ``tvm.container.Array`` for compilation.
 
 
 Thread Bind
@@ -170,5 +193,5 @@ You can also do loop-thread bind by writing code like this:
 
 Keywords
 ~~~~~~~~
-- For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``
+- For keywords: ``serial``, ``range``, ``unroll``, ``parallel``, ``vectorize``, ``bind``, ``const_expr``
 - Math keywords: ``log``, ``exp``, ``sigmoid``, ``tanh``, ``power``, ``popcount``

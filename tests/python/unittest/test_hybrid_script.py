@@ -13,7 +13,7 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
     ctx = tvm.context(target, 0)
     op = None
 
-    outs = func(*args)
+    outs = func(*tuple(tvm.convert(i) if isinstance(i, list) else i for i in args))
     op = outs[0].op if isinstance(outs, list) else outs.op
 
     emu_args = []
@@ -23,13 +23,18 @@ def run_and_check(func, args, var_dict={}, target='llvm'):
             shape = [tvm_val_2_py_val(j) for j in i.shape]
             emu_args.append(numpy.random.randn(*shape).astype(i.dtype))
             nd_args.append(tvm.nd.array(emu_args[-1], ctx))
-        else:
-            assert isinstance(i, tvm.expr.Var)
+        elif isinstance(i, tvm.expr.Var):
             emu_args.append(tvm_val_2_py_val(i))
             nd_args.append(emu_args[-1])
+        else:
+            assert isinstance(i, list)
+            emu_args.append(numpy.array(i))
 
     sch = tvm.create_schedule(op)
-    module = tvm.build(sch, args + (outs if isinstance(outs, list) else [outs]), target=target)
+    module = tvm.build(sch,
+                       [i for i in args if isinstance(i, (tvm.tensor.Tensor, tvm.expr.Var))] + \
+                       (outs if isinstance(outs, list) else [outs]),
+                       target=target)
     assert module
     
     out_tensors = []
@@ -192,20 +197,20 @@ def test_fanout():
 def test_looptype():
     @script
     def looptype(a, b, c):
-        d = output_tensor((8, ), 'int32')
-        e = output_tensor((8, ), 'int32')
-        f = output_tensor((8, ), 'int32')
-        for i in parallel(8):
+        d = output_tensor((16, ), 'int32')
+        e = output_tensor((16, ), 'int32')
+        f = output_tensor((16, ), 'int32')
+        for i in parallel(16):
             d[i] = a[i]
-        for j in vectorize(8):
+        for j in vectorize(16):
             e[j] = b[j]
-        for k in unroll(8):
+        for k in unroll(16):
             f[k] = c[k]
         return d, e, f
 
-    a = tvm.placeholder((8, ), name='a', dtype='int32')
-    b = tvm.placeholder((8, ), name='b', dtype='int32')
-    c = tvm.placeholder((8, ), name='c', dtype='int32')
+    a = tvm.placeholder((16, ), name='a', dtype='int32')
+    b = tvm.placeholder((16, ), name='b', dtype='int32')
+    c = tvm.placeholder((16, ), name='c', dtype='int32')
     try:
         d, e, f = looptype(a, b, c)
         ir = d.op.body
@@ -509,9 +514,9 @@ def test_value_index():
 def test_func_call():
     @tvm.hybrid.script
     def foo(a, b):
-        for i in range(10):
+        for i in range(len(a)):
             a[i] = i + 1.0
-        for i in range(10):
+        for i in range(len(a)):
             b[i] = i + 1.0
         c = outer_product(10, 10, a, b)
         d = output_tensor(c.shape, c.dtype)
@@ -538,6 +543,26 @@ def test_bool():
     a = tvm.placeholder((10, ), name='a')
     run_and_check(foo, [a])
 
+def test_const_range():
+    @tvm.hybrid.script
+    def foo(a, b):
+        c = output_tensor(a.shape, a.dtype)
+        d = output_tensor(a.shape, a.dtype)
+
+        for i in const_range(2):
+            for j in const_range(5):
+                c[i, j] = a[i, j] + b[i, j]
+
+        for i in const_range(len(b)):
+            for j in const_range(len(b[0])):
+                d[i, j] = a[i, j] + b[i, j]
+
+        return c, d
+
+    a = tvm.placeholder((2, 5), name='a', dtype='int32')
+    b = [[1, 2, 3, 4, 5], [5, 4, 3, 2, 1]]
+    run_and_check(foo, [a, b])
+
 if __name__ == "__main__":
     test_outer_product()
     test_fanout()
@@ -553,5 +578,6 @@ if __name__ == "__main__":
     test_value_index()
     test_func_call()
     test_bool()
+    test_const_range()
     # TODO:
     # test_inplace()
