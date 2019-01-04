@@ -11,16 +11,6 @@
 
 #include "vta.h"
 
-void _memcpy(
-  unsigned char * __dst, 
-  const unsigned char * __src, 
-  size_t __n) {
-#pragma unroll 4
-  for (int i = 0; i < __n; ++i) {
-    __dst[i] = __src[i];
-  }
-}
-
 void stream_copy(
   ihc::stream_out<bool> &__src,
   ihc::stream_in<bool> &__dst) {
@@ -35,7 +25,7 @@ component void fetch(
   ihc::stream_out<insn_T> &load_queue,
   ihc::stream_out<insn_T> &gemm_queue,
   ihc::stream_out<insn_T> &store_queue) {
-  for (int pc = 0; pc < insn_count; pc++) {
+  for (uint16 pc = 0; pc < insn_count; pc++) {
     // Read instruction fields
     insn_T insn = insns.read();
     // Do some partial decoding
@@ -59,8 +49,10 @@ component void load(
   ihc::stream_in<insn_T> &load_queue,
   ihc::stream_in<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &l2g_dep_queue,
-  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
+  // inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT]
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_ELEM_BYTES>, ihc::awidth<32> > & inp_mem,
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_ELEM_BYTES>, ihc::awidth<32> > & wgt_mem
   ) {
   // Pop load instruction
   insn_T insn = load_queue.read();
@@ -99,7 +91,7 @@ component void load(
   sram_idx += y_offset;
 
   // Perform data transfer from DRAM
-  for (int y = 0; y < y_size; y++) {
+  for (uint16 y = 0; y < y_size; y++) {
     // Skip padding along x dimension
     sram_idx += x_pad_0;
     // Perform data transfer
@@ -107,15 +99,15 @@ component void load(
       // _memcpy((unsigned char*)&inp_mem[sram_idx][0],
       //        (const unsigned char*)&inputs[dram_idx * VTA_BATCH],
       //        x_size * VTA_INP_ELEM_BYTES);
-      for (int x = 0; x < x_size; x++) {
-        inp_mem[sram_idx][0] = inputs.read();
+      for (uint16 x = 0; x < x_size; x++) {
+        inp_mem[sram_idx][x] = inputs.read();
       }
     } else {
       // _memcpy((unsigned char*)&wgt_mem[sram_idx][0],
       //        (const unsigned char*) &weights[dram_idx * VTA_BLOCK_OUT],
       //        x_size * VTA_WGT_ELEM_BYTES);
-      for (int x = 0; x < x_size; x++) {
-        wgt_mem[sram_idx][0] = weights.read();
+      for (uint16 x = 0; x < x_size; x++) {
+        wgt_mem[sram_idx][x] = weights.read();
       }
     }
     sram_idx += x_size;
@@ -127,44 +119,44 @@ component void load(
   // Reset SRAM index
   sram_idx = sram_base;
   // Pad x/y edges with zeros
-  for (int y = 0; y < y_size_total; y++) {
+  for (uint16 y = 0; y < y_size_total; y++) {
     if (y < y_pad_0 || y >= y_pad_0 + y_size) {
-      for (int x = 0; x < x_size_total; x++) {
+      for (uint16 x = 0; x < x_size_total; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
-          for (int i = 0; i < VTA_BATCH; i++) {
+          for (uint16 i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
 #pragma unroll 4
-          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
+          for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
         sram_idx++;
       }
     } else {
-      for (int x = 0; x < x_pad_0; x++) {
+      for (uint16 x = 0; x < x_pad_0; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
-          for (int i = 0; i < VTA_BATCH; i++) {
+          for (uint16 i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
 #pragma unroll 4
-          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
+          for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
         sram_idx++;
       }
       sram_idx += x_size;
-      for (int x = 0; x < x_pad_1; x++) {
+      for (uint16 x = 0; x < x_pad_1; x++) {
         if (memory_type == VTA_MEM_ID_INP) {
-          for (int i = 0; i < VTA_BATCH; i++) {
+          for (uint16 i = 0; i < VTA_BATCH; i++) {
             inp_mem[sram_idx][i] = 0;
           }
         } else {
 #pragma unroll 4
-          for (int i = 0; i < VTA_BLOCK_OUT; i++) {
+          for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
             wgt_mem[sram_idx][i] = 0;
           }
         }
@@ -188,15 +180,19 @@ component void compute(
   ihc::stream_in<bool> &s2g_dep_queue,
   ihc::stream_out<bool> &g2l_dep_queue,
   ihc::stream_out<bool> &g2s_dep_queue,
-  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
-  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
-  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+  // inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH],
+  // wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT],
+  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_ELEM_BYTES>, ihc::awidth<32> > & inp_mem,
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_ELEM_BYTES>, ihc::awidth<32> > & wgt_mem,
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_ACC_ELEM_BYTES>, ihc::awidth<32> > & out_mem
   ) {
   // Micro-op storage
   static uop_T uop_mem[VTA_UOP_BUFF_DEPTH];
 
   // Accumulator storage
-  static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
+  // static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
+  static acc_vec_T acc_mem[VTA_ACC_BUFF_DEPTH * VTA_BATCH];
 
   // Pop GEMM instruction
   insn_T insn = gemm_queue.read();
@@ -250,22 +246,22 @@ component void compute(
       // _memcpy((unsigned char*)&uop_mem[sram_base],
       //        (const unsigned char*) &uops[dram_base],
       //        x_size * VTA_UOP_ELEM_BYTES);
-      for (int x = 0; x < x_size; x++) {
-        uop_mem[sram_base] = uops.read();
+      for (uint16 x = 0; x < x_size; x++) {
+        uop_mem[sram_base+x] = uops.read();
       }
     } else {
       // Skip vertical padding
       sram_idx += y_offset;
       // Perform data transfer from DRAM
-      for (int y = 0; y < y_size; y++) {
+      for (uint16 y = 0; y < y_size; y++) {
         // Skip padding along x dimension
         sram_idx += x_pad_0;
         // Perform data transfer
         // _memcpy((unsigned char*) &acc_mem[sram_idx][0],
         //        (const unsigned char*) &biases[dram_idx * VTA_BATCH],
         //        x_size*VTA_ACC_ELEM_BYTES);
-        for (int x = 0; x < x_size; x++) {
-          acc_mem[sram_idx][0] = biases.read();
+        for (uint16 x = 0; x < x_size; x++) {
+          acc_mem[sram_idx * VTA_BATCH + x] = biases.read();
         }
         sram_idx += x_size;
         dram_idx += x_stride;
@@ -301,18 +297,18 @@ component void compute(
     wgt_idx_T wgt_offset_out = 0;
 
     // Outer Loop
-#pragma ivdep array(acc_mem)
-    for (int it_out = 0; it_out < iter_out; it_out++) {
+// #pragma ivdep array(acc_mem)
+    for (uint16 it_out = 0; it_out < iter_out; it_out++) {
       acc_idx_T dst_offset_in = dst_offset_out;
       inp_idx_T src_offset_in = src_offset_out;
       wgt_idx_T wgt_offset_in = wgt_offset_out;
 
       // Inner Loop
-      for (int it_in = 0; it_in < iter_in; it_in++) {
+      for (uint16 it_in = 0; it_in < iter_in; it_in++) {
         // Perform appropriate computation based on opcode
         if (opcode == VTA_OPCODE_GEMM) {
           // Iterate over micro op
-          for (int upc = uop_bgn; upc < uop_end; upc++) {
+          for (uint16 upc = uop_bgn; upc < uop_end; upc++) {
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
@@ -327,24 +323,24 @@ component void compute(
             // Read weight matrix
             wgt_vec_T w_matrix[VTA_BLOCK_OUT];
 #pragma unroll
-            for (int i = 0; i < VTA_BLOCK_OUT; i++) {
-              w_matrix[i] = wgt_mem[wgt_idx][i];
+            for (uint16 i = 0; i < VTA_BLOCK_OUT; i++) {
+              w_matrix[i] = wgt_mem[wgt_idx * VTA_BLOCK_OUT + i];
             }
             // Read input matrix and accum matrix
             acc_vec_T o_matrix[VTA_BATCH];
             inp_vec_T i_matrix[VTA_BATCH];
-            for (int i = 0; i < VTA_BATCH; i++) {
-              o_matrix[i] = acc_mem[dst_idx][i];
-              i_matrix[i] = inp_mem[src_idx][i];
+            for (uint16 i = 0; i < VTA_BATCH; i++) {
+              o_matrix[i] = acc_mem[dst_idx * VTA_BATCH + i];
+              i_matrix[i] = inp_mem[src_idx * VTA_BATCH + i];
             }
             // Result matrices
             acc_vec_T acc_mem_val[VTA_BATCH];
             out_vec_T st_buf_val[VTA_BATCH];
 
             // Inner GEMM loop
-            for (int i = 0; i < VTA_BATCH; i++) {
+            for (uint16 i = 0; i < VTA_BATCH; i++) {
 #pragma unroll 8
-              for (int b = 0; b < VTA_BLOCK_OUT; b++) {
+              for (uint16 b = 0; b < VTA_BLOCK_OUT; b++) {
                 // Initialize the accumulator values
                 acc_T accum =
                   o_matrix[i].slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH);
@@ -352,7 +348,7 @@ component void compute(
                 sum_T tmp = 0;
                 // Inner matrix multiplication loop (input channel/feature)
 #pragma unroll
-                for (int k = 0; k < VTA_BLOCK_IN; k++) {
+                for (uint16 k = 0; k < VTA_BLOCK_IN; k++) {
                   wgt_T w_elem =
                     w_matrix[b].slc<VTA_WGT_WIDTH>(k * VTA_WGT_WIDTH);
                   inp_T i_elem =
@@ -369,15 +365,16 @@ component void compute(
                                                      (out_T) accum.slc<VTA_OUT_WIDTH>(0));
               }
               // Write to buffers
-              acc_mem[dst_idx][i] = acc_mem_val[i];
-              out_mem[dst_idx][i] = st_buf_val[i];
+              acc_mem[dst_idx * VTA_BATCH + i] = acc_mem_val[i];
+              out_mem[dst_idx * VTA_BATCH + i] = st_buf_val[i];
             }
           }
         }
+        else 
 #ifndef NO_ALU
-        else if (opcode == VTA_OPCODE_ALU) {
+        if (opcode == VTA_OPCODE_ALU) {
           // Iterate over micro op
-          for (int upc = uop_bgn; upc < uop_end; upc++) {
+          for (uint16 upc = uop_bgn; upc < uop_end; upc++) {
             // Read micro-op fields
             uop_T uop = uop_mem[upc];
 
@@ -388,10 +385,11 @@ component void compute(
               uop.slc<VTA_UOP_ALU_1_1-VTA_UOP_ALU_1_0+1>(VTA_UOP_ALU_1_0) + src_offset_in;
 
             // Perform ALU op over matrix elements
-            for (int i = 0; i < VTA_BATCH; i++) {
+            for (uint16 i = 0; i < VTA_BATCH; i++) 
+            {
               // Read input matrix and accum matrix
-              acc_vec_T dst_vector = acc_mem[dst_idx][i];
-              acc_vec_T src_vector = acc_mem[src_idx][i];
+              acc_vec_T dst_vector = acc_mem[dst_idx * VTA_BATCH + i];
+              acc_vec_T src_vector = acc_mem[src_idx * VTA_BATCH + i];
               // Result matrices
               acc_vec_T cmp_res;
               acc_vec_T add_res;
@@ -402,7 +400,7 @@ component void compute(
               // Results vector
               acc_vec_T res_vec = 0;
 #pragma ii 1
-              for (int b = 0; b < VTA_BLOCK_OUT; b++) {
+              for (uint16 b = 0; b < VTA_BLOCK_OUT; b++) {
                 // Read in operands
                 acc_T src_0 = dst_vector.slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH);
                 acc_T src_1 = use_imm ? (acc_T) imm : (acc_T) src_vector.slc<VTA_ACC_WIDTH>(b * VTA_ACC_WIDTH);
@@ -423,17 +421,17 @@ component void compute(
               }
 
               // Store to accum memory/store buffer
-              // if (alu_opcode == VTA_ALU_OPCODE_MIN ||
-              //     alu_opcode == VTA_ALU_OPCODE_MAX) {
-              //   acc_mem[dst_idx][i] = cmp_res;
-              //   out_mem[dst_idx][i] = short_cmp_res;
-              // } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
-              //   acc_mem[dst_idx][i] = add_res;
-              //   out_mem[dst_idx][i] = short_add_res;
-              // } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
-              //   acc_mem[dst_idx][i] = shr_res;
-              //   out_mem[dst_idx][i] = short_shr_res;
-              // }
+              if (alu_opcode == VTA_ALU_OPCODE_MIN ||
+                  alu_opcode == VTA_ALU_OPCODE_MAX) {
+                acc_mem[dst_idx * VTA_BATCH + i] = cmp_res;
+                out_mem[dst_idx * VTA_BATCH + i] = short_cmp_res;
+              } else if (alu_opcode == VTA_ALU_OPCODE_ADD) {
+                acc_mem[dst_idx * VTA_BATCH + i] = add_res;
+                out_mem[dst_idx * VTA_BATCH + i] = short_add_res;
+              } else if (alu_opcode == VTA_ALU_OPCODE_SHR) {
+                acc_mem[dst_idx * VTA_BATCH + i] = shr_res;
+                out_mem[dst_idx * VTA_BATCH + i] = short_shr_res;
+              }
             }
           }
         }
@@ -469,7 +467,8 @@ component void store(
   ihc::stream_in<insn_T> &store_queue,
   ihc::stream_in<bool> &g2s_dep_queue,
   ihc::stream_out<bool> &s2g_dep_queue,
-  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+  // out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH]
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_ACC_ELEM_BYTES>, ihc::awidth<32> > & out_mem
   ) {
   // Load buffer
   insn_T insn = store_queue.read();
@@ -506,7 +505,7 @@ component void store(
 #pragma HLS RESOURCE variable = y_offset core = Mul_LUT
 
   // Copy along y dimension
-  for (int y = 0; y < y_size; y++) {
+  for (uint16 y = 0; y < y_size; y++) {
 #pragma HLS PIPELINE rewind
     // Skip padding along x dimension
     sram_idx += x_pad_0;
@@ -514,8 +513,8 @@ component void store(
     // _memcpy((unsigned char*)(&outputs[dram_idx*VTA_BATCH]),
     //         (const unsigned char*) &out_mem[sram_idx][0],
     //   x_size * VTA_INP_ELEM_BYTES);
-    for (int x = 0; x < x_size; x++) {
-      outputs.write(out_mem[sram_idx][0]);
+    for (uint16 x = 0; x < x_size; x++) {
+      outputs.write(out_mem[sram_idx * VTA_BATCH + x]);
     }
     sram_idx += x_size;
     dram_idx += x_stride;
@@ -559,9 +558,12 @@ void vta(
   ihc::stream_out<bool> g2s_dep_queue_cmp;
 
   // Instantiate memories
-  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH][VTA_BATCH];
-  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH][VTA_BLOCK_OUT];
-  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH][VTA_BATCH];
+  inp_vec_T inp_mem[VTA_INP_BUFF_DEPTH * VTA_BATCH];
+  wgt_vec_T wgt_mem[VTA_WGT_BUFF_DEPTH * VTA_BLOCK_OUT];
+  out_vec_T out_mem[VTA_ACC_BUFF_DEPTH * VTA_BATCH];
+  ihc::mm_master<inp_vec_T, ihc::aspace<1>, ihc::dwidth<VTA_INP_ELEM_BYTES>, ihc::awidth<32> > inp_mm_master(inp_mem);
+  ihc::mm_master<wgt_vec_T, ihc::aspace<2>, ihc::dwidth<VTA_WGT_ELEM_BYTES>, ihc::awidth<32> > wgt_mm_master(wgt_mem);
+  ihc::mm_master<out_vec_T, ihc::aspace<3>, ihc::dwidth<VTA_ACC_ELEM_BYTES>, ihc::awidth<32> > out_mm_master(out_mem);
 
   ihc::stream_in<insn_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > insns_stream;
   ihc::stream_in<inp_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > inputs_stream;
@@ -569,20 +571,24 @@ void vta(
   ihc::stream_in<uop_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > uops_stream;
   ihc::stream_in<acc_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > biases_stream;
   ihc::stream_out<out_vec_T, ihc::usesPackets<false>, ihc::bitsPerSymbol<8> > outputs_stream;
-  for (int i = 0; i < insn_count; i++) {
-    insns_stream.write(insns);
+  for (uint16 i = 0; i < insn_count; i++) {
+    insns_stream.write(insns[i]);
   }
-  for (int i = 0; i < VTA_INP_BUFF_DEPTH*VTA_BATCH; i++) {
-    inputs_stream.write(insns);
+  if (inputs){
+    for (uint16 i = 0; i < VTA_INP_BUFF_DEPTH*VTA_BATCH; i++) {
+      inputs_stream.write(inputs[i]);
+    }
   }
-  for (int i = 0; i < VTA_WGT_BUFF_DEPTH*VTA_BLOCK_OUT; i++) {
-    weights_stream.write(insns);
+  if (weights) {
+    for (uint16 i = 0; i < VTA_WGT_BUFF_DEPTH*VTA_BLOCK_OUT; i++) {
+      weights_stream.write(weights[i]);
+    }
   }
-  for (int i = 0; i < VTA_UOP_BUFF_DEPTH; i++) {
-    uops_stream.write(uops);
+  for (uint16 i = 0; i < VTA_UOP_BUFF_DEPTH; i++) {
+    uops_stream.write(uops[i]);
   }
-  for (int i = 0; i < VTA_ACC_BUFF_DEPTH*VTA_BATCH; i++) {
-    biases_stream.write(biases);
+  for (uint16 i = 0; i < VTA_ACC_BUFF_DEPTH*VTA_BATCH; i++) {
+    biases_stream.write(biases[i]);
   }
 
   // Push all instructions into the queues
@@ -618,7 +624,7 @@ void vta(
         // Push the instruction in the load queue
         load_queue.write(tmp_load);
         tmp_load_popped = false;
-        load(inputs_stream, weights_stream, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mem, wgt_mem);
+        load(inputs_stream, weights_stream, load_queue, g2l_dep_queue, l2g_dep_queue, inp_mm_master, wgt_mm_master);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -649,7 +655,7 @@ void vta(
         stream_copy(l2g_dep_queue, l2g_dep_queue_cmp);
         stream_copy(s2g_dep_queue, s2g_dep_queue_cmp);
         compute(&done, uops_stream, biases_stream, gemm_queue, l2g_dep_queue_cmp, s2g_dep_queue_cmp,
-                g2l_dep_queue_cmp, g2s_dep_queue_cmp, inp_mem, wgt_mem, out_mem);
+                g2l_dep_queue_cmp, g2s_dep_queue_cmp, inp_mm_master, wgt_mm_master, out_mm_master);
         stream_copy(g2l_dep_queue_cmp, g2l_dep_queue);
         stream_copy(g2s_dep_queue_cmp, g2s_dep_queue);
       } else {
@@ -672,7 +678,7 @@ void vta(
         // Push the instruction in the load queue
         store_queue.write(tmp_store);
         tmp_store_popped = false;
-        store(outputs_stream, store_queue, g2s_dep_queue, s2g_dep_queue, out_mem);
+        store(outputs_stream, store_queue, g2s_dep_queue, s2g_dep_queue, out_mm_master);
       } else {
         // Execution of load stage pending on completion of other stages, so break here...
         break;
@@ -680,6 +686,9 @@ void vta(
     }
     // Check if we get a signal that we are done
     if (done) {
+      for (uint16 i = 0; (i < VTA_ACC_BUFF_DEPTH*VTA_BATCH) && (!outputs_stream.empty()); i++) {
+        outputs[i] = outputs_stream.read();
+      }
       break;
     }
     exit_counter++;
