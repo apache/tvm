@@ -426,6 +426,26 @@ inline Tensor argmin(const Tensor& data,
 }
 
 /*!
+* \brief Creates a function that returns the argmax as (index, value)
+* \return The argmax reducer function
+*/
+inline FCommReduce MakeArgmaxReducer() {
+  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
+    Array<Expr> result;
+    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
+    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
+    return result;
+  };
+  auto fidentity = [](std::vector<Type> types) {
+    Array<Expr> result;
+    result.push_back(tvm::make_const(types[0], -1));  // idx
+    result.push_back(types[1].min());  // val
+    return result;
+  };
+  return MakeCommReducer(fcombine, fidentity, "argmax");
+}
+
+/*!
 * \brief Creates an operation that finds the indices of the maximum
 * values over a given axis.
 *
@@ -443,20 +463,7 @@ inline Tensor argmax(const Tensor& data,
                      const Array<Integer>& axis,
                      bool keepdims = false,
                      bool atleast1d = false) {
-  auto fcombine = [](Array<Var> lhs, Array<Var> rhs) {
-    Array<Expr> result;
-    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[0], rhs[0]));  // idx
-    result.push_back(tvm::select(lhs[1] >= rhs[1], lhs[1], rhs[1]));  // val
-    return result;
-  };
-  auto fidentity = [](std::vector<Type> types) {
-    Array<Expr> result;
-    result.push_back(tvm::make_const(types[0], -1));  // idx
-    result.push_back(types[1].min());  // val
-    return result;
-  };
-  auto func = MakeCommReducer(fcombine, fidentity, "argmax");
-  return CommReduceIdx(data, axis, func, keepdims, atleast1d);
+  return CommReduceIdx(data, axis, MakeArgmaxReducer(), keepdims, atleast1d);
 }
 
 /*!

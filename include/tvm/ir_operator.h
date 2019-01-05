@@ -50,15 +50,16 @@ inline Expr const_false(int lanes = 1) {
 /*!
  * \brief Get x as constant int expression.
  * \param x The expression
+ * \param default_ Pointer to the default value. Defaults to nullptr.
  * \return the address to the int expression,
- *         return nullptr, if x is not IntImm.
+ *         return default_, if x is not IntImm.
  */
-inline const int64_t* as_const_int(const Expr& x) {
-  if (!x.defined()) return nullptr;
+inline const int64_t* as_const_int(const Expr& x, const int64_t* default_ = nullptr) {
+  if (!x.defined()) return default_;
   if (const ir::IntImm* op = x.as<ir::IntImm>()) {
     return &(op->value);
   } else {
-    return nullptr;
+    return default_;
   }
 }
 

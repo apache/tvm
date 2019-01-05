@@ -158,7 +158,9 @@ def pool_grad(grads,
         n-D in the same layout
     """
     if pool_type == "max":
-        pass
+        return cpp.nn.pool_grad(grads, data, kernel,
+                                stride, padding, POOL_TYPE_CODE[pool_type],
+                                ceil_mode, layout, count_include_pad)
     else:
         assert layout == 'NCHW', 'avg_pool2d_grad does not yet support %s layout' % layout
         return conv2d_transpose_nchw(grads, None, stride, padding, data.dtype,
