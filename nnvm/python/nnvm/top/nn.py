@@ -165,11 +165,10 @@ def alter_conv2d_layout(attrs, inputs, tinfos):
 
     # map relay argument names to nnvm argument names
     raw_reshape = sym.reshape
-    def _reshape(x, shape=None, newshape=None):
-        if shape:
-            return raw_reshape(x, shape=shape)
-        else:
-            return raw_reshape(x, shape=newshape)
+    def _reshape(*args, **kwargs):
+        if "newshape" in kwargs:
+            kwargs['shape'] = kwargs.pop('newshape')
+        return raw_reshape(*args, **kwargs)
     sym.reshape = _reshape
 
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
