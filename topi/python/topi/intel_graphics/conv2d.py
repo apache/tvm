@@ -3,6 +3,7 @@
 
 from __future__ import absolute_import as _abs
 
+import warnings
 import tvm
 
 from .. import generic
@@ -39,7 +40,10 @@ def tile_and_bind3d(s, tensor, z, y, x, z_factor=2, y_factor=None, x_factor=None
 @conv2d_alter_layout.register(["intel_graphics"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
     import nnvm.symbol as sym
-    assert F == sym, "Only support alter layout for intel graphics in NNVM now"
+    if F != sym:
+        warnings.warn("Only support alter layout for intel graphics in NNVM now. "
+                      "This pass is ignored in relay.")
+        return None
 
     copy_inputs = [s for s in inputs]
 
