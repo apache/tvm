@@ -380,7 +380,7 @@ bool Conv2DWinogradRel(const Array<Type>& types,
   // NOTE: Do not check weight shape here!
   // Different backend requires different layout to compute
   // the batch gemm stage in winograd efficiently, but we want to
-  // make this NNVM symbol work for all backends.
+  // make this op work for all backends.
   // So we accept all weight shapes, and assume the TOPI developers
   // can handle this correctly in alter_op_layout.
 

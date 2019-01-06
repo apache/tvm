@@ -331,7 +331,24 @@ def schedule_conv2d_winograd_without_weight_transform_cuda(cfg, outs):
 ##### REGISTER ALTER OP LAYOUT #####
 @nn.conv2d_alter_layout.register(["cuda", "gpu"])
 def _alter_conv2d_layout(attrs, inputs, tinfos, F):
-    """Alter op layout for pre-computing kernel transformation"""
+    """Alter op layout for pre-computing kernel transformation
+
+    Parameters
+    ----------
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
+        Attributes of current convolution
+    inputs : nnvm.symbol or tvm.relay.Expr
+        Grouped input symbols
+    tinfos : list
+        Input shape and dtype
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
+    """
     if 'cudnn' in tvm.target.current_target().libs or 'miopen' in tvm.target.current_target().libs:
         return None
 
