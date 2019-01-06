@@ -88,8 +88,8 @@ def _convert_activation(inexpr, keras_layer, _):
     elif act_type == 'softsign':
         return inexpr / (_expr.const(1., dtype='float32') + _op.abs(inexpr))
     elif act_type == 'hard_sigmoid':
-        transformX = (_expr.const(0.2, dtype='float32') * inexpr) + _expr.const(0.5, dtype='float32')
-        return _op.clip(transformX, a_min=0., a_max=1.)
+        x = (_expr.const(0.2, dtype='float32') * inexpr) + _expr.const(0.5, dtype='float32')
+        return _op.clip(x, a_min=0., a_max=1.)
     else:
         raise TypeError("Unsupported activation type : {}".format(act_type))
 
