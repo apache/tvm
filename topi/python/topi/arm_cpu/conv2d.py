@@ -600,7 +600,7 @@ def _alter_conv2d_layout_arm(attrs, inputs, tinfos, F):
 
         weight = F.nn.contrib_conv2d_winograd_weight_transform(copy_inputs[1], tile_size=tile_size)
         weight = F.reshape(weight,
-                           (KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
+                           newshape=(KH + tile_size - 1, KW + tile_size - 1, CO // VC, VC, CI))
         weight = F.transpose(weight, axes=[0, 1, 2, 4, 3])
 
         copy_inputs[1] = weight

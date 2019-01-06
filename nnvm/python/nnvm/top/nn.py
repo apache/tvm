@@ -163,6 +163,15 @@ def alter_conv2d_layout(attrs, inputs, tinfos):
             sym.contrib.conv2d_winograd_weight_transform
     sym.nn = sym
 
+    # map relay argument names to nnvm argument names
+    raw_reshape = sym.reshape
+    def _reshape(x, shape=None, newshape=None):
+        if shape:
+            return raw_reshape(x, shape=shape)
+        else:
+            return raw_reshape(x, shape=newshape)
+    sym.reshape = _reshape
+
     return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
