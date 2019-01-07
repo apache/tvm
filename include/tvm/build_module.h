@@ -239,7 +239,7 @@ class BuildConfigNode : public Node {
     v->Visit("partition_const_loop", &partition_const_loop);
     v->Visit("dump_pass_ir", &dump_pass_ir);
     v->Visit("instrument_bound_checkers", &instrument_bound_checkers);
-	v->Visit("disable_select_rewriting", &disable_select_rewriting);
+    v->Visit("disable_select_rewriting", &disable_select_rewriting);
   }
 
   static constexpr const char* _type_key = "BuildConfig";
