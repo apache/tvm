@@ -536,8 +536,8 @@ TVM_STATIC_IR_FUNCTOR(IRPrinter, vtable)
   p->stream << "restricted_func=" << op->restricted_func << ", ";
   p->stream << "detect_global_barrier=" << op->detect_global_barrier << ", ";
   p->stream << "partition_const_loop=" << op->partition_const_loop << ", ";
-  p->stream << "dump_pass_ir=" << op->dump_pass_ir;
-  p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers;
+  p->stream << "dump_pass_ir=" << op->dump_pass_ir << ", ";
+  p->stream << "instrument_bound_checkers=" << op->instrument_bound_checkers << ", ";
   p->stream << "disable_select_rewriting=" << op->disable_select_rewriting;
   p->stream << ")";
 });
