@@ -11,4 +11,6 @@ from . import inception_v3
 from . import squeezenet
 from . import vgg
 from . import densenet
+
 from .config import ctx_list
+from .init import create_workload

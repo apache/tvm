@@ -72,9 +72,9 @@ def _mx_conv2d(inputs, attrs):
     channel_axis = _get_channel_axis(data_layout, "conv2d")
 
     if "kernel_layout" in attrs.attrs:
-        weight_layout = attrs.get_str("kernel_layout")
+        kernel_layout = attrs.get_str("kernel_layout")
     else:
-        weight_layout = "HWIO" if data_layout == "NHWC" else "OIHW"
+        kernel_layout = "HWIO" if data_layout == "NHWC" else "OIHW"
 
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")
@@ -84,7 +84,7 @@ def _mx_conv2d(inputs, attrs):
     new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1))
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
-    new_attrs["weight_layout"] = weight_layout
+    new_attrs["kernel_layout"] = kernel_layout
     use_bias = not attrs.get_bool("no_bias", False)
     res = _op.nn.conv2d(inputs[0], inputs[1], **new_attrs)
     if use_bias:
@@ -103,9 +103,9 @@ def _mx_conv2d_transpose(inputs, attrs):
     channel_axis = _get_channel_axis(data_layout, "conv2d_transpose")
 
     if "kernel_layout" in attrs.attrs:
-        weight_layout = attrs.get_str("kernel_layout")
+        kernel_layout = attrs.get_str("kernel_layout")
     else:
-        weight_layout = "HWIO" if data_layout == "NHWC" else "OIHW"
+        kernel_layout = "HWIO" if data_layout == "NHWC" else "OIHW"
 
     new_attrs = {}
     new_attrs["channels"] = attrs.get_int("num_filter")
@@ -116,7 +116,7 @@ def _mx_conv2d_transpose(inputs, attrs):
     new_attrs["dilation"] = attrs.get_int_tuple("dilate", (1, 1))
     new_attrs["groups"] = attrs.get_int("num_group", 1)
     new_attrs["data_layout"] = data_layout
-    new_attrs["weight_layout"] = weight_layout
+    new_attrs["kernel_layout"] = kernel_layout
     use_bias = not attrs.get_bool("no_bias", False)
     res = _op.nn.conv2d_transpose(inputs[0], inputs[1], **new_attrs)
 

@@ -112,11 +112,11 @@ inline Expr ExpandBiasToMatchAxis(Expr bias,
  */
 inline bool IsDepthwiseConv2D(const Call& call,
                               const Conv2DAttrs* param,
-                              const Layout& weight_layout) {
+                              const Layout& kernel_layout) {
   static const Layout kOIHW("OIHW");
   auto wshape = ConvertLayout(
       call->args[1]->type_as<TensorTypeNode>()->shape,
-      weight_layout, kOIHW);
+      kernel_layout, kOIHW);
   return is_const_int(wshape[0], param->groups) &&
       is_const_int(wshape[1], 1);
 }
@@ -129,7 +129,7 @@ inline bool IsDepthwiseConv2D(const Call& call,
 inline int64_t GetConv2DSuperChannelsDim(const CallNode* call) {
     auto param = call->attrs.as<Conv2DAttrs>();
     auto tweight = call->args[1]->type_as<TensorTypeNode>();
-    auto index = param->weight_layout.find('O');
+    auto index = param->kernel_layout.find('O');
     CHECK_NE(index, std::string::npos);
     auto channels = as_const_int(tweight->shape[index]);
     return *channels;

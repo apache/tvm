@@ -41,7 +41,7 @@ def test_conv2d_infer_type():
                         padding=(1, 1),
                         channels=16,
                         data_layout="NCHW4n4c",
-                        weight_layout="OIHW4o4i",
+                        kernel_layout="OIHW4o4i",
                         out_dtype="int32")
     yy = relay.ir_pass.infer_type(y)
     assert yy.checked_type ==  relay.TensorType(

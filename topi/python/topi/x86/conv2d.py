@@ -1,5 +1,7 @@
 # pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Conv2D schedule on x86"""
+import warnings
+
 import tvm
 from tvm import autotvm
 from tvm.autotvm.task.topi_integration import deserialize_args
@@ -281,8 +283,13 @@ def _topi_nn_conv2d_NCHWc(*args, **kwargs):
 
 
 @conv2d_alter_layout.register("cpu")
-def _alter_conv2d_layout(attrs, inputs, tinfo):
+def _alter_conv2d_layout(attrs, inputs, tinfo, F):
     import nnvm.symbol as sym
+    if F != sym:
+        warnings.warn("Only support alter layout for x86 in NNVM now. "
+                      "This pass is ignored in relay.")
+        return None
+
     copy_inputs = [s for s in inputs]
     new_attrs = {k : attrs[k] for k in attrs.keys()}
     data, kernel = tinfo[0], tinfo[1]

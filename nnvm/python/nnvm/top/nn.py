@@ -154,8 +154,25 @@ def schedule_conv2d(attrs, outs, target):
 
 @reg.register_alter_op_layout("conv2d")
 def alter_conv2d_layout(attrs, inputs, tinfos):
-    with tvm.target.create(attrs.get_string("target")):
-        return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos)
+    """Replace conv2d op with other layouts or algorithms"""
+    import nnvm.symbol as sym
+
+    # map relay op names to nnvm op names
+    sym.contrib_conv2d_winograd_without_weight_transform = \
+            sym.contrib.conv2d_winograd_without_weight_transform
+    sym.contrib_conv2d_winograd_weight_transform = \
+            sym.contrib.conv2d_winograd_weight_transform
+    sym.nn = sym
+
+    # map relay argument names to nnvm argument names
+    raw_reshape = sym.reshape
+    def _reshape(*args, **kwargs):
+        if "newshape" in kwargs:
+            kwargs['shape'] = kwargs.pop('newshape')
+        return raw_reshape(*args, **kwargs)
+    sym.reshape = _reshape
+
+    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, sym)
 
 reg.register_pattern("conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -168,9 +185,9 @@ def compute_contrib_conv2d_NCHWc(attrs, inputs, _):
     dilation = attrs.get_int_tuple("dilation")
     out_channel = attrs.get_int("channels")
     groups = attrs.get_int("groups")
-    layout = attrs.get_string("layout")
-    out_layout = attrs.get_string("out_layout")
-    out_dtype = attrs.get_string("out_dtype")
+    layout = attrs.get_str("layout")
+    out_layout = attrs.get_str("out_layout")
+    out_dtype = attrs.get_str("out_dtype")
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
     if layout == "NCHW":
         _, in_channel, _, _ = get_const_tuple(inputs[0].shape)
@@ -231,8 +248,8 @@ def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, _):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
-    layout = attrs.get_string("layout")
-    out_dtype = attrs.get_string("out_dtype")
+    layout = attrs.get_str("layout")
+    out_dtype = attrs.get_str("out_dtype")
     tile_size = attrs.get_int("tile_size")
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
     assert dilation == (1, 1), "Do not support dilate now"
@@ -266,7 +283,7 @@ def compute_conv2d_transpose(attrs, inputs, _):
     strides = attrs.get_int_tuple("strides")
     dilation = attrs.get_int_tuple("dilation")
     groups = attrs.get_int("groups")
-    out_dtype = attrs.get_string("out_dtype")
+    out_dtype = attrs.get_str("out_dtype")
     layout = attrs["layout"]
     out_dtype = inputs[0].dtype if out_dtype == "same" else out_dtype
 
