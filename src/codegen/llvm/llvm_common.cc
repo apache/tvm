@@ -13,7 +13,7 @@ namespace codegen {
 
 struct LLVMEnv {
   std::mutex mu;
-  bool all_initialized{false};
+  volatile bool all_initialized{false};
 
   static LLVMEnv* Global() {
     static LLVMEnv inst;
@@ -26,12 +26,12 @@ void InitializeLLVM() {
   if (!e->all_initialized) {
     std::lock_guard<std::mutex> lock(e->mu);
     if (!e->all_initialized) {
-      e->all_initialized = true;
       llvm::InitializeAllTargetInfos();
       llvm::InitializeAllTargets();
       llvm::InitializeAllTargetMCs();
       llvm::InitializeAllAsmParsers();
       llvm::InitializeAllAsmPrinters();
+      e->all_initialized = true;
     }
   }
 }
