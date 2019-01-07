@@ -381,7 +381,7 @@ Stmt BuildStmt(Schedule sch,
   stmt = ir::Simplify(stmt);
   stmt = ir::LowerStorageAccessInfo(stmt);
   stmt = ir::RemoveNoOp(stmt);
-  
+
   if (!(config->disable_select_rewriting))
     stmt = ir::RewriteUnsafeSelect(stmt);
 

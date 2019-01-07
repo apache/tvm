@@ -222,7 +222,7 @@ class BuildConfigNode : public Node {
 
   /*! \brief Whether to instrument loads and stores with check for out of the bounds. */
   bool instrument_bound_checkers = false;
-  
+
   /*! \brief Whether to disable select rewriting. */
   bool disable_select_rewriting = false;
 
