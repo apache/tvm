@@ -145,8 +145,8 @@ def nms(data, valid_count, nms_threshold=0.5, force_suppress=False, nms_topk=-1)
         force_suppress = True
         nms_topk = -1
         out = nms(data, valid_count, nms_threshold, force_suppress, nms_topk)
-        np_data = np.random.uniform(dshape)
-        np_valid_count = np.array([4])
+        np_data = np.random.uniform(size=dshape).astype("float32")
+        np_valid_count = np.array([4]).astype("int32")
         s = topi.generic.schedule_nms(out)
         f = tvm.build(s, [data, valid_count, out], "llvm")
         ctx = tvm.cpu()
