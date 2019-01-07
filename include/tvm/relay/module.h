@@ -43,11 +43,15 @@ class ModuleNode : public RelayNode {
   /*! \brief A map from ids to all global functions. */
   tvm::Map<GlobalVar, Function> functions;
 
+  /*! \brief The entry function (i.e. "main"). */
+  GlobalVar entry_func;
+
   ModuleNode() {}
 
   void VisitAttrs(tvm::AttrVisitor* v) final {
     v->Visit("functions", &functions);
     v->Visit("global_var_map_", &global_var_map_);
+    v->Visit("entry_func", &entry_func);
   }
 
   TVM_DLL static Module make(tvm::Map<GlobalVar, Function> global_funcs);
@@ -111,6 +115,27 @@ class ModuleNode : public RelayNode {
    */
   void Update(const Module& other);
 
+  /*!
+   * \brief Get the entry point of the module.
+   *
+   * \returns The entry point function, (i.e. main).
+   */
+  Expr EntryPoint();
+
+  /*! \brief Construct a module from a standalone expression.
+   *
+   * Allows one to optionally pass a global function map as
+   * well.
+   *
+   * \param expr The expression to set as the entry point to the module.
+   * \param global_funcs The global function map.
+   *
+   * \returns A module with expr set as the entry point.
+   */
+  static Module FromExpr(
+    const Expr& expr,
+    const tvm::Map<GlobalVar, Function>& global_funcs = {});
+
   static constexpr const char* _type_key = "relay.Module";
   TVM_DECLARE_NODE_TYPE_INFO(ModuleNode, Node);
 
@@ -131,6 +156,7 @@ struct Module : public NodeRef {
 
   using ContainerType = ModuleNode;
 };
+
 
 }  // namespace relay
 }  // namespace tvm

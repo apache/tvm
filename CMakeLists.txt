@@ -53,6 +53,7 @@ tvm_option(USE_ANTLR "Build with ANTLR for Relay parsing" OFF)
 include_directories("include")
 include_directories("3rdparty/dlpack/include")
 include_directories("3rdparty/dmlc-core/include")
+include_directories("3rdparty/rang/include")
 include_directories("3rdparty/compiler-rt")
 
 # initial variables

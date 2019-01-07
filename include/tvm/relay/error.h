@@ -7,13 +7,40 @@
 #define TVM_RELAY_ERROR_H_
 
 #include <string>
+#include <vector>
+#include <sstream>
 #include "./base.h"
 
 namespace tvm {
 namespace relay {
 
+/*! \brief A wrapper around std::stringstream.
+ *
+ * This is designed to avoid platform specific
+ * issues compiling and using std::stringstream
+ * for error reporting.
+ */
+struct StringStream {
+  std::stringstream ss;
+
+  template<typename T>
+  StringStream& operator<<(const T& t) {
+    ss << t;
+    return *this;
+  }
+
+  std::string str() const {
+    return ss.str();
+  }
+};
+
+#define RELAY_ERROR(msg) (StringStream() << msg)
+
 struct Error : public dmlc::Error {
-  explicit Error(const std::string &msg) : dmlc::Error(msg) {}
+  Span sp;
+  explicit Error(const std::string &msg) : dmlc::Error(msg), sp() {}
+  Error(const std::stringstream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
+  Error(const StringStream& msg) : dmlc::Error(msg.str()), sp() {} // NOLINT(*)
 };
 
 struct InternalError : public Error {
