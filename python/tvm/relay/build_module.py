@@ -130,8 +130,10 @@ def optimize(func, target, params=None):
     func : tvm.relay.Function
         The input to optimization.
 
-    target: :any:`tvm.target.Target`
-        The optimization target. Some optimization passes are target specific.
+    target : Optional[:any:`tvm.target.Target`, Dict[int, str]]
+        The optimization target. For heterogeneous compilation, it is a
+        dictionary mapping device id to compilation target. For homogeneous
+        compilation, it is a build target.
 
     params : Optional[Dict[str, tvm.nd.NDArray]]
         Input parameters to the graph that do not change
@@ -233,7 +235,9 @@ def build(func, target=None, target_host=None, params=None,
     if isinstance(target, dict):
         target, fallback_device = \
                 _update_heterogeneous_inputs(target, fallback_device)
-    elif not isinstance(target, (str, _target.Target)):
+    elif isinstance(target, (str, _target.Target)):
+        target = _target.create(target)
+    else:
         raise ValueError("target must be the type of str, tvm.target.Target," +
                          "or dict of device name to target")
 
