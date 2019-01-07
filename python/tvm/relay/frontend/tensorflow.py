@@ -543,7 +543,7 @@ def _squeeze():
 def _fused_batch_norm():
     def _impl(inputs, attr, params):
         # Tensorflow: (data, gamma, beta, moving_mean, moving_variance)
-        # NNVM:       (data, gamma, beta, moving_mean, moving_varience)
+        # Relay:       (data, gamma, beta, moving_mean, moving_varience)
         axis = 3
         need_cast = False
 
@@ -654,7 +654,7 @@ def _gather_v2():
     return _impl
 
 def _infer_out_shapes(inputs, params):
-    """A method to get the output shape of an intermediate node in the NNVM graph."""
+    """A method to get the output shape of an intermediate node in the relay graph."""
     out_type = ir_pass.infer_type(inputs)
     out_shapes = [get_const_tuple(out_type.checked_type.shape)]
     return out_shapes
@@ -930,11 +930,11 @@ def _LSTMBlockCell():
 
         Parameters
         ----------
-        inputs : nnvm.Symbol
+        inputs : relay.Expr
             Input data
-        in_state_c: list of nnvm.Symbol
+        in_state_c: list of relay.Expr
             Cell state input values for all the layers
-        in_state_h: list of nnvm.Symbol
+        in_state_h: list of relay.Expr
             Hidden state input values for all the layers
         attrs : dict
             Dict of operator attributes
@@ -943,9 +943,9 @@ def _LSTMBlockCell():
 
         Returns
         -------
-        sym : nnvm.Symbol
-            Converted nnvm Symbol
-        output: nnvm.Symbol
+        sym : relay.Expr
+            Converted relay.Expr
+        output: relay.Expr
             Output state value.
         """
         in_data = inputs[0]
@@ -1007,7 +1007,7 @@ class RecurrentNetworks(object):
 
     convert_map : dict
         Dict of name : callable, where name is the op's name that
-        require conversion to nnvm, callable are functions which
+        require conversion to relay, callable are functions which
         take attrs and return (new_op_name, new_attrs)
     """
     def __init__(self, nodes, out_rnn, graph, convert_map):
@@ -1032,7 +1032,7 @@ class RecurrentNetworks(object):
         layer_name : str list
             Layer name is used for creating the state input placeholder.
 
-        inputs : nnvm.Symbol
+        inputs : relay.Expr
             Input data
 
         attrs : dict
@@ -1046,8 +1046,8 @@ class RecurrentNetworks(object):
 
         Returns
         -------
-        sym : nnvm.sym.Symbol
-            The returned nnvm symbol
+        sym : relay.Expr
+            The returned relay Expr
         """
         def _impl(op_name, layer_name, inputs, attrs, params, num_layers):
             in_state_c_name = layer_name+'_c'
@@ -1126,7 +1126,7 @@ class RecurrentNetworks(object):
         op_name : str
             Operator name, such as LSTMBlockCell
 
-        inputs : nnvm.Symbol
+        inputs : relay.Expr
             Input data
 
         attrs : dict
@@ -1137,8 +1137,8 @@ class RecurrentNetworks(object):
 
         Returns
         -------
-        sym : nnvm.sym.Symbol
-            The returned nnvm symbol
+        sym : relay.Expr
+            Returns relay.Expr
         """
         def _get_abs_layer_name(node):
             """Identify the layer name is already handled. Return the absolute name
@@ -1182,7 +1182,7 @@ class GraphProto(object):
     def from_tensorflow(self, graph, layout="NHWC", shape=None, outputs=None):
         """Construct relay nodes from tensorflow  graph definition - GraphDef.
 
-        Follow the tensorflow graph definition to parse and convert it to NNVM.
+        Follow the tensorflow graph definition to parse and convert it to Relay.
         Some of the assumptions listed below.
 
             -> All Placeholders are considered as graph input.
@@ -1226,10 +1226,10 @@ class GraphProto(object):
             raise NotImplementedError( \
                 "The following operators are not implemented: {}".format(missing_operators))
 
-        # Parse the nodes to re-create TF graph using Symbol API of NNVM
+        # Parse the nodes to re-create TF graph using Relay operators.
         for node in graph.node:
             # Tensorflow doesn't have seperate list for params extraction.
-            # Operator name 'Const' is treated as a parameter to build NNVM params dict.
+            # Operator name 'Const' is treated as a parameter to build params dict.
 
             input_shapes = {}
             attr = self._parse_attr(node.attr)
@@ -1326,7 +1326,7 @@ class GraphProto(object):
         else:
             out = [self._nodes[out_name][0] for out_name in outputs]
 
-        #Add the RNN outputs also with 'head' nodes of the nnvm graph
+        #Add the RNN outputs also with 'head' nodes of the relay graph
         if self._num_rnn_layer:
             out_rnn = _op.concatenate(self._out_rnn, axis=0)
             out.append(out_rnn)
@@ -1442,7 +1442,7 @@ class GraphProto(object):
 
     def _convert_rnn_operator(self, op_name, inputs,
                               attrs, params, graph, convert_map):
-        """Convert RNN and its variant operators to NNVM operators.
+        """Convert RNN and its variant operators to Relay operators.
         This converter read the input states of each layers and
         also maintain the output states of each layer in a list.
 
@@ -1450,7 +1450,7 @@ class GraphProto(object):
         ----------
         op_name : str
             Operator name, such as LSTMBlockCell
-        inputs : list of nnvm.Symbol
+        inputs : list of relay.Expr
             List of input symbols.
         attrs : dict
             Dict of operator attributes
@@ -1461,13 +1461,13 @@ class GraphProto(object):
             calculate the number of layers.
         convert_map : dict
             Dict of name : callable, where name is the op's name that
-            require conversion to nnvm, callable are functions which
+            require conversion to relay, callable are functions which
             take attrs and return (new_op_name, new_attrs)
 
         Returns
         -------
-        sym : nnvm.Symbol
-            Converted nnvm Symbol
+        sym : relay.Expr
+            Converted relay.Expr
         """
         if not self._num_rnn_layer:
             self._out_rnn = []
