@@ -166,7 +166,7 @@ Call CallAlter(const Call& ref_call,
   }
   if (!modified) {
     new_e = CallNode::make(ref_call->op, new_args,
-                           ref_call->attrs, ref_call->type_args);
+                           ref_call->attrs);
   }
 
   const CallNode *new_call = new_e.as<CallNode>();
@@ -184,30 +184,35 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   // NOTE: discard the "const" qualifier
   TransformMemorizer memorizer = Downcast<TransformMemorizer>(ctx);
 
-  // fill incomplete state and expand tuple
-  for (auto new_arg : new_args) {
-    auto push_back_one_arg = [&](Expr arg) {
-      // We always expect LayoutAlternatedExpr.
-      // This is used to convert the normal Expr to LayoutAlternatedExpr.
-      if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
-        inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
-        normal_new_args.push_back(inp->value);
-      } else {
-        auto inode = make_node<LayoutAlternatedExprNode>();
-        inode->value = arg;
-        inode->memorizer = memorizer;
-        inputs.push_back(LayoutAlternatedExpr(inode));
-        normal_new_args.push_back(arg);
-      }
-    };
+  // fill incomplete state and flatten tuple
+  auto push_back_one_arg = [&inputs, memorizer](Expr arg) {
+    // We always expect LayoutAlternatedExpr.
+    // This is used to convert the normal Expr to LayoutAlternatedExpr.
+    if (const LayoutAlternatedExprNode *inp = arg.as<LayoutAlternatedExprNode>()) {
+      inputs.push_back(GetRef<LayoutAlternatedExpr>(inp));
+      return inp->value;
+    } else {
+      auto inode = make_node<LayoutAlternatedExprNode>();
+      inode->value = arg;
+      inode->memorizer = memorizer;
+      inputs.push_back(LayoutAlternatedExpr(inode));
+      return arg;
+    }
+  };
 
+  for (auto new_arg : new_args) {
+    // NOTE: do not support nested tuple
     if (new_arg->is_type<TupleNode>()) {
       Tuple tuple_new_arg = Downcast<Tuple>(new_arg);
+      std::vector<Expr> fields;
       for (auto x : tuple_new_arg->fields) {
-        push_back_one_arg(x);
+        Expr tmp = push_back_one_arg(x);
+        fields.push_back(tmp);
       }
+      normal_new_args.push_back(TupleNode::make(fields));
     } else {
-      push_back_one_arg(new_arg);
+      Expr tmp = push_back_one_arg(new_arg);
+      normal_new_args.push_back(tmp);
     }
   }
 
@@ -219,7 +224,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   }
 
   for (auto arg : ref_call->args) {
-    if (arg->is_type<TupleNode>()) {  // expand tuple
+    if (arg->is_type<TupleNode>()) {  // flatten tuple
       Tuple tuple_arg = Downcast<Tuple>(arg);
       for (auto x : tuple_arg->fields) {
         input_shapes.push_back(x->type_as<TensorTypeNode>()->shape);
@@ -263,17 +268,30 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
 
   // if (new_in != new_in2): insert transform (new_in -> new_in2)
   Array<Expr> transformed_args;
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    transformed_args.push_back(memorizer.Transform(new_call->args[i], new_in[i], new_in2[i]));
+  size_t pt = 0;
+  for (auto arg : new_call->args) {
+    if (arg->is_type<TupleNode>()) {  // unflatten tuple
+      Tuple tuple_arg = Downcast<Tuple>(arg);
+      std::vector<Expr> transformed_tuple_arg;
+      for (auto arg_item : tuple_arg->fields) {
+          transformed_tuple_arg.push_back(
+                  memorizer.Transform(arg_item, new_in[pt], new_in2[pt]));
+          pt++;
+      }
+      transformed_args.push_back(TupleNode::make(transformed_tuple_arg));
+    } else {
+      transformed_args.push_back(
+              memorizer.Transform(arg, new_in[pt], new_in2[pt]));
+      pt++;
+    }
   }
+  CHECK_EQ(pt, inputs.size());
 
   // state[node] = (old_out, new_out)
-  CHECK(ref_call->checked_type_.defined())
-    << "Call infer_type pass before alter_op_layout pass";
-
+  // (handle tuple output)
   if (ref_call->checked_type()->is_type<TupleTypeNode>()) {
     Expr tuple_output = CallNode::make(new_call->op, transformed_args,
-                                       new_call->attrs, new_call->type_args);
+                                       new_call->attrs);
     Array<Expr> fields;
     for (size_t i = 0; i < new_out.size(); ++i) {
       auto rnode = make_node<LayoutAlternatedExprNode>();
@@ -288,7 +306,7 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
     auto rnode = make_node<LayoutAlternatedExprNode>();
     CHECK_EQ(new_out.size(), 1);
     rnode->value = CallNode::make(new_call->op, transformed_args,
-                                  new_call->attrs, new_call->type_args);
+                                  new_call->attrs);
     rnode->old_layout = old_out[0];
     rnode->new_layout = new_out[0];
     rnode->memorizer = memorizer;
@@ -296,6 +314,9 @@ Expr AlterOpLayoutRewrite(const Call &ref_call,
   }
 }
 
+// Limiations:
+// 1. the altered op should have the same number of arguments as the previous one
+// 2. do not support nested tuple arguments
 TVM_REGISTER_API("relay._ir_pass.AlterOpLayout")
 .set_body([](TVMArgs args, TVMRetValue *ret) {
   TransformMemorizer transformMemorizer(make_node<TransformMemorizerNode>());

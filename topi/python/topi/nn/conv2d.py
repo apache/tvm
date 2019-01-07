@@ -57,17 +57,24 @@ def conv2d(input, filter, strides, padding, dilation, layout='NCHW', out_dtype=N
 
 
 @tvm.target.generic_func
-def conv2d_alter_layout(attrs, inputs, tinfos):
+def conv2d_alter_layout(attrs, inputs, tinfos, F):
     """Change Conv2D layout.
 
     Parameters
     ----------
-    attrs : nnvm.top.AttrDict
+    attrs : nnvm.top.AttrDict or tvm.attrs.Attrs
         Attributes of current convolution
-    inputs : nnvm.symbol
+    inputs : nnvm.symbol or tvm.relay.Expr
         Grouped input symbols
     tinfos : list
         Input shape and dtype
+    F: symbol
+        The context, can be either nnvm.sym or relay.op
+
+    Note
+    ----
+    Unlike other TOPI functions, this function operates on both graph level and operator level,
+    so we have to pass 'F' to make it support our two versions of graph IR, NNVM and Relay.
     """
     # not to change by default
     return None

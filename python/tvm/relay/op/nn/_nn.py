@@ -55,7 +55,7 @@ def compute_conv2d(attrs, inputs, out_type, target):
     dilation = get_const_tuple(attrs.dilation)
     groups = attrs.groups
     layout = attrs.data_layout
-    weight_layout = attrs.weight_layout
+    kernel_layout = attrs.kernel_layout
     out_dtype = attrs.out_dtype
     out_dtype = (inputs[0].dtype if (out_dtype == "same" or out_dtype == "")
                  else out_dtype)
@@ -70,13 +70,13 @@ def compute_conv2d(attrs, inputs, out_type, target):
             inputs[0], inputs[1], strides, padding,
             dilation, layout, out_dtype=out_dtype)
     elif layout == "NCHW" and \
-         weight_layout == "OIHW" and \
+         kernel_layout == "OIHW" and \
          get_const_int(inputs[1].shape[0]) == groups and \
          get_const_int(inputs[1].shape[1]) == 1:
         out = topi.nn.depthwise_conv2d_nchw(
             inputs[0], inputs[1], strides, padding, dilation, out_dtype=out_dtype)
     elif layout == "NHWC" and \
-         weight_layout == "HWOI" and\
+         kernel_layout == "HWOI" and\
          get_const_int(inputs[1].shape[2]) == groups and \
          get_const_int(inputs[1].shape[3]) == 1:
         out = topi.nn.depthwise_conv2d_nhwc(
@@ -91,7 +91,7 @@ def schedule_conv2d(attrs, outs, target):
     """Schedule definition of conv2d"""
     groups = attrs.groups
     layout = attrs.data_layout
-    kernel_layout = attrs.weight_layout
+    kernel_layout = attrs.kernel_layout
     with target:
         if groups == 1 and layout == "NCHW":
             return topi.generic.schedule_conv2d_nchw(outs)
@@ -111,7 +111,8 @@ def schedule_conv2d(attrs, outs, target):
 @reg.register_alter_op_layout("nn.conv2d")
 def alter_op_layout_conv2d(attrs, inputs, tinfos):
     """Alternate the layout of conv2d"""
-    return None
+    from ... import op
+    return topi.nn.conv2d_alter_layout(attrs, inputs, tinfos, op)
 
 reg.register_pattern("nn.conv2d", OpPattern.OUT_ELEMWISE_FUSABLE)
 
@@ -249,7 +250,7 @@ def schedule_l2_normalize(attrs, outs, target):
 
 reg.register_pattern("nn.l2_normalize", OpPattern.OUT_ELEMWISE_FUSABLE)
 
-# Upsampling
+# upsampling
 reg.register_schedule("nn.upsampling", reg.schedule_injective)
 def schedule_upsampling(_, outs, target):
     """Schedule definition of upsampling"""
@@ -257,3 +258,50 @@ def schedule_upsampling(_, outs, target):
         return topi.generic.schedule_injective(outs)
 # pad
 reg.register_schedule("nn.pad", schedule_broadcast)
+
+# winograd related operators
+@reg.register_compute("nn.contrib_conv2d_winograd_without_weight_transform")
+def compute_contrib_conv2d_winograd_without_weight_transform(attrs, inputs, out_dtype, target):
+    """Compute definition of conv2d_winograd_without_weight_transform"""
+    # pylint: disable=assignment-from-no-return
+    padding = attrs.get_int_tuple("padding")
+    strides = attrs.get_int_tuple("strides")
+    dilation = attrs.get_int_tuple("dilation")
+    groups = attrs.get_int("groups")
+    data_layout = attrs.get_str("data_layout")
+    out_dtype = attrs.get_str("out_dtype")
+    tile_size = attrs.get_int("tile_size")
+    out_dtype = inputs[0].dtype if out_dtype == "" else out_dtype
+    assert dilation == (1, 1), "Do not support dilate now"
+    assert groups == 1, "Do not supoort arbitrary group number"
+
+    out = topi.nn.conv2d_winograd_without_weight_transform(
+        inputs[0], inputs[1], strides, padding, dilation, data_layout,
+        out_dtype, tile_size)
+
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_without_weight_transform")
+def schedule_contrib_conv2d_winograd_without_weight_transform(attrs, outs, target):
+    """Schedule definition of conv2d_winograd_without_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_without_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_without_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)
+
+
+@reg.register_compute("nn.contrib_conv2d_winograd_weight_transform")
+def compute_contrib_conv2d_winograd_weight_transform(attrs, inputs, out_dtype, target):
+    """Compute definition of contrib_conv2d_winograd_weight_transform"""
+    out = topi.nn.conv2d_winograd_weight_transform(inputs[0], attrs.get_int('tile_size'))
+    return [out]
+
+@reg.register_schedule("nn.contrib_conv2d_winograd_weight_transform")
+def schedule_contrib_conv2d_winograd_weight_transform(attrs, outs, target):
+    """Schedule definition of contrib_conv2d_winograd_weight_transform"""
+    with target:
+        return topi.generic.schedule_conv2d_winograd_weight_transform(outs)
+
+reg.register_pattern("nn.contrib_conv2d_winograd_weight_transform",
+                     OpPattern.OUT_ELEMWISE_FUSABLE)

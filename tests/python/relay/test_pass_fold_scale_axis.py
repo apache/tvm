@@ -67,14 +67,14 @@ def test_fold_fwd_dual_path():
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
-                             weight_layout="HWIO",
+                             kernel_layout="HWIO",
                              groups=channels,
                              padding=(1, 1))
         y2 = relay.nn.conv2d(x, conv_weight,
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
-                             weight_layout="HWIO",
+                             kernel_layout="HWIO",
                              groups=channels,
                              padding=(1, 1))
         z = relay.add(y1, y2)
@@ -90,7 +90,7 @@ def test_fold_fwd_dual_path():
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
-                             weight_layout="HWIO",
+                             kernel_layout="HWIO",
                              groups=channels,
                              padding=(1, 1))
         y2 = relay.nn.conv2d(x,
@@ -98,7 +98,7 @@ def test_fold_fwd_dual_path():
                              channels=channels,
                              kernel_size=(3, 3),
                              data_layout="NHWC",
-                             weight_layout="HWIO",
+                             kernel_layout="HWIO",
                              groups=channels,
                              padding=(1, 1))
         z = relay.add(y1, y2)
