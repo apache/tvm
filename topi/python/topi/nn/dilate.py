@@ -44,7 +44,7 @@ def dilate(data, strides, name="DilatedInput"):
                 index_tuple.append(indices[i])
         if not_zero:
             not_zero = tvm.all(*not_zero)
-            return tvm.select(not_zero, data(*index_tuple), tvm.const(0.0, data.dtype))
+            return tvm.if_then_else(not_zero, data(*index_tuple), tvm.const(0.0, data.dtype))
         return data(*index_tuple)
 
     return tvm.compute(out_shape, _dilate, name=name)

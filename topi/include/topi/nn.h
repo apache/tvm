@@ -75,7 +75,7 @@ inline tvm::Tensor leaky_relu(const tvm::Tensor& t,
     [&](const tvm::Array<tvm::Var>& i) {
       auto value = t(i);
       auto calpha = tvm::make_const(value.type(), alpha);
-      return tvm::select(value > 0, value, value * calpha);
+      return tvm::ir::Select::make(value > 0, value, value * calpha);
     },
     name,
     tag);
@@ -106,9 +106,11 @@ inline tvm::Tensor prelu(const tvm::Tensor &x,
 
   return tvm::compute(x->shape,
                      [&](const tvm::Array<tvm::Var> &indices) {
-                        return tvm::select(x(indices) > 0,
-                                           x(indices),
-                                           x(indices) * slope(indices[axis]));
+                        auto xval = x(indices);
+                        return tvm::ir::Select::make(
+                            xval > 0,
+                            xval,
+                            xval * slope(indices[axis]));
                       },
                       name,
                       tag);
@@ -193,7 +195,8 @@ inline tvm::Tensor pad(const tvm::Tensor& t,
       }
     }
     if (sel.size() != 0) {
-      return tvm::select(detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
+      return tvm::if_then_else(
+          detail::Map(sel, tvm::ir::And::make), t(indices), pad_value);
     }
     return t(indices);
   };
