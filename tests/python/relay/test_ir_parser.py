@@ -2,6 +2,7 @@ import tvm
 from tvm import relay
 from tvm.relay.parser import enabled
 from tvm.relay.ir_pass import alpha_equal
+from nose import SkipTest
 from nose.tools import nottest, raises
 from numpy import isclose
 from typing import Union
@@ -67,7 +68,7 @@ def if_parser_enabled(func):
     @wraps(func)
     def wrapper():
         if not enabled():
-            return
+            raise SkipTest("ANTLR is not installed!")
         func()
     return wrapper
 
