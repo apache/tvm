@@ -20,7 +20,7 @@ NE: '!=' ;
 
 opIdent: CNAME ;
 GLOBAL_VAR: '@' CNAME ;
-LOCAL_VAR: '%' CNAME ;
+LOCAL_VAR: '%' (CNAME | INT);
 
 MUT: 'mut' ;
 
@@ -84,8 +84,9 @@ expr
 
   | ident                                     # identExpr
   | scalar                                    # scalarExpr
-  // | expr '.' INT                              # project
-  // | 'debug'                                   # debug
+  | LOCAL_VAR '=' expr ';' expr               # graphExpr
+  // | expr '.' INT                           # project
+  // | 'debug'                                # debug
   ;
 
 func: 'fn'        varList ('->' type_)? body ;
@@ -132,7 +133,7 @@ identType: CNAME ;
 // Float16, Float32, Float64
 // Bool
 
-body: '{' expr '}' ;
+body: '{' expr ';' '}' ;
 
 scalar
   : FLOAT    # scalarFloat

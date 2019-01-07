@@ -9,9 +9,11 @@ from collections import deque
 from typing import TypeVar, Deque, Tuple, Optional, Union, NamedTuple, List, Callable, Any
 
 from . import module
+from .base import Span, SourceName
 from . import expr
 from . import ty
 from . import op
+
 
 class ParseError(Exception):
     """Exception type for parse errors."""
@@ -76,21 +78,35 @@ def lookup(scopes, name):
                 return val
     return None
 
+def spanify(f):
+    def _wrapper(*args, **kwargs):
+        sn = args[0].source_name
+        ctx = args[1]
+        ast = f(*args, **kwargs)
+        line, col = ctx.getSourceInterval()
+        sp = Span(sn, line, col)
+        ast.set_span(sp)
+        return ast
+    return _wrapper
+
 # TODO(@jmp): Use https://stackoverflow.com/q/13889941
 # to figure out how to get ANTLR4 to be more unhappy about syntax errors
 class ParseTreeToRelayIR(RelayVisitor):
     """Parse Relay text format into Relay IR."""
 
-    def __init__(self):
+    def __init__(self, source_name):
         # type: () -> None
+        self.source_name = source_name
         self.module = module.Module({})   # type: module.Module
 
         # Adding an empty scope allows naked lets without pain.
         self.var_scopes = deque([deque()]) # type: Scopes[expr.Var]
         self.global_var_scope = deque() # type: Scope[expr.GlobalVar]
         self.type_param_scopes = deque([deque()]) # type: Scopes[ty.TypeVar]
+        self.graph_expr = []
 
         super(ParseTreeToRelayIR, self).__init__()
+
 
     def enter_var_scope(self):
         # type: () -> None
@@ -140,6 +156,20 @@ class ParseTreeToRelayIR(RelayVisitor):
         self.type_param_scopes[0].appendleft((name, typ))
         return typ
 
+    def local_lookup(self, name):
+        try:
+            graph_nid = int(name)
+            return self.graph_expr[graph_nid]
+        except ValueError:
+            var = lookup(self.var_scopes, name)
+
+            if var is None:
+                raise ParseError("Couldn't resolve `{}`.".format(name))
+
+            return var
+        except IndexError:
+            raise ParseError("Graph Expr error {}".format(name))
+
     def visitTerminal(self, node):
         # type: (TerminalNode) -> Union[expr.Expr, int, float]
         """Visit lexer tokens that aren't ignored or visited by other functions."""
@@ -151,13 +181,8 @@ class ParseTreeToRelayIR(RelayVisitor):
         if node_type == RelayLexer.GLOBAL_VAR:
             return lookup([self.global_var_scope], node_text[1:])
         elif node_type == RelayLexer.LOCAL_VAR:
-            name = node_text[1:]
-            var = lookup(self.var_scopes, name)
-            if var is None:
-                raise ParseError("Couldn't resolve `{}`.".format(name))
-
-            return var
-
+            # Remove the leading '%' and lookup the name.
+            return self.local_lookup(node_text[1:])
         # data types
         elif node_type == RelayLexer.INT:
             return int(node_text)
@@ -278,6 +303,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return relay_op(arg0, arg1)
 
+    @spanify
     def visitVar(self, ctx):
         # type: (RelayParser.VarContext) -> expr.Var
         ident = ctx.ident().LOCAL_VAR()
@@ -313,10 +339,12 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Function(var_list, body, ret_type, type_params) # type: ignore
 
+    @spanify
     def visitFunc(self, ctx):
         # type: (RelayParser.FuncContext) -> expr.Function
         return self.mk_func(ctx)
 
+    @spanify
     def visitDefn(self, ctx):
         # type: (RelayParser.DefnContext) -> None
         ident = ctx.ident().GLOBAL_VAR()
@@ -327,6 +355,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         self.module[ident] = self.mk_func(ctx)
 
+    @spanify
     def visitCall(self, ctx):
         # type: (RelayParser.CallContext) -> expr.Call
         visited_exprs = self.visit_list(ctx.expr())
@@ -336,6 +365,7 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return expr.Call(func, args, None, None)
 
+    @spanify
     def visitIfElse(self, ctx):
         # type: (RelayParser.IfElseContext) -> expr.If
         """Construct a Relay If node. Creates a new scope for each branch."""
@@ -420,6 +450,14 @@ class ParseTreeToRelayIR(RelayVisitor):
 
         return ty.FuncType(arg_types, ret_type, [], None)
 
+    def visitGraphExpr(self, ctx):
+        graph_nid = int(ctx.LOCAL_VAR().getText()[1:])
+        value = self.visit(ctx.expr(0))
+        assert graph_nid == len(self.graph_expr)
+        self.graph_expr.append(value)
+        kont = self.visit(ctx.expr(1))
+        return kont
+
 def make_parser(data):
     # type: (str) -> RelayParser
     """Construct a RelayParser a given data stream."""
@@ -428,8 +466,20 @@ def make_parser(data):
     token_stream = CommonTokenStream(lexer)
     return RelayParser(token_stream)
 
-def fromtext(data):
-    # type: (str) -> Union[expr.Expr, env.Environment]
+__source_name_counter__ = 0
+
+def fromtext(data, source_name=None):
+    # type: (str, str) -> Union[expr.Expr, env.Environment]
     """Parse a Relay program."""
+    global __source_name_counter__
+
+    if source_name is None:
+        source_name = "source_file{0}".format(__source_name_counter__)
+
+    if isinstance(source_name, str):
+        source_name = SourceName(source_name)
+
+    import pdb; pdb.set_trace()
+    print(data)
     tree = make_parser(data).prog()
-    return ParseTreeToRelayIR().visit(tree)
+    return ParseTreeToRelayIR(source_name).visit(tree)
