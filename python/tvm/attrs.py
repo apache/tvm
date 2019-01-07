@@ -33,6 +33,45 @@ class Attrs(NodeBase):
         for field in fields:
             yield field.name
 
+    def get_int_tuple(self, key):
+        """Get a python int tuple of a key
+
+        Parameters
+        ----------
+        key: str
+
+        Returns
+        -------
+        value: Tuple of int
+        """
+        return tuple(x.value for x in self.__getattr__(key))
+
+    def get_int(self, key):
+        """Get a python int value of a key
+
+        Parameters
+        ----------
+        key: str
+
+        Returns
+        -------
+        value: int
+        """
+        return self.__getattr__(key)
+
+    def get_str(self, key):
+        """Get a python int value of a key
+
+        Parameters
+        ----------
+        key: str
+
+        Returns
+        -------
+        value: int
+        """
+        return self.__getattr__(key)
+
     def __getitem__(self, item):
         return self.__getattr__(item)
 
