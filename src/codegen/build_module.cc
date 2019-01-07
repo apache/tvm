@@ -383,7 +383,7 @@ Stmt BuildStmt(Schedule sch,
   stmt = ir::RemoveNoOp(stmt);
   
   if (!(config->disable_select_rewriting))
-	stmt = ir::RewriteUnsafeSelect(stmt);
+    stmt = ir::RewriteUnsafeSelect(stmt);
 
   if (config->instrument_bound_checkers)
     stmt = ir::InstrumentBoundCheckers(stmt);
