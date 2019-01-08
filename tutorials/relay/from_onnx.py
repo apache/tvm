@@ -5,7 +5,7 @@ Compile ONNX Models
 
 This article is an introductory tutorial to deploy ONNX models with Relay.
 
-For us to begin with, onnx module is required to be installed.
+For us to begin with, ONNX package must be installed.
 
 A quick solution is to install protobuf compiler, and
 
@@ -70,6 +70,7 @@ shape_dict = {input_name: x.shape}
 sym, params = relay.frontend.from_onnx(onnx_model, shape_dict)
 
 with relay.build_config(opt_level=1):
+    # exec = relay.build_module.create_executor('graph', sym, tvm.cpu(0), target)
     graph, lib, params = relay.build(sym, target, params=params)
 
 ######################################################################

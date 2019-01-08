@@ -211,11 +211,11 @@ class StrAttrsDict(object):
         return default
 
 def get_relay_op(op_name):
-    """Get the callable function from relay based on opname:
+    """Get the callable function from Relay based on operator name.
     Parameters
     ----------
     op_name : str
-        The relay operator name.
+        The Relay operator name.
     """
     if '.' in op_name:
         # explicit hierachical modules
@@ -383,7 +383,7 @@ def infer_shape(inputs):
     return out_shapes
 
 def infer_channels(inputs, transpose=False):
-    """A hack for getting 'channels' or 'units' since caffe2 don't provide
+    """A hack for getting 'channels' or 'units' since caffe2 does not provide
     these attributes. We check the shape of weights provided to get the number.
     """
     out_type = ir_pass.infer_type(inputs)

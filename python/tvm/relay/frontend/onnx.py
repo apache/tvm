@@ -1,5 +1,5 @@
 # pylint: disable=invalid-name, import-self, len-as-condition, unused-argument, too-many-lines
-"""ONNX: Open Neural Network Exchange frontend for relay."""
+"""ONNX: Open Neural Network Exchange frontend for Relay."""
 from __future__ import absolute_import as _abs
 
 import numpy as np
@@ -23,7 +23,7 @@ def dimension_picker(prefix, surfix=''):
     return _impl
 
 def revert_caffe2_pad(pads):
-    """Caffe2 require two times the normal padding."""
+    """Caffe2 requires two times the normal padding."""
     if len(pads) == 4:
         pads = pads[:2]
     elif len(pads) == 2:
@@ -48,8 +48,14 @@ class OnnxOpConverter(object):
     def get_converter(cls, opset):
         """ Get converter matches given opset.
 
-        :param opset: opset from model.
-        :return: converter, which should be `_impl_vx`. Number x is the biggest
+        Parameters
+        ----------
+        opset: int
+            opset from model.
+
+        Returns
+        -------
+        converter, which should be `_impl_vx`. Number x is the biggest
             number smaller than or equal to opset belongs to all support versions.
         """
         versions = [
@@ -833,7 +839,7 @@ def _get_convert_map(opset):
 
 
 class GraphProto(object):
-    """A helper class for handling relay graph copying from pb2.GraphProto.
+    """A helper class for handling Relay expression copying from pb2.GraphProto.
     Definition: https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
 
         Parameters
@@ -855,8 +861,12 @@ class GraphProto(object):
         self._dtype = dtype
 
     def from_onnx(self, graph, opset):
-        """Construct relay nodes from onnx graph.
-        The inputs from onnx graph is vague, only providing "1", "2"...
+        """Construct Relay expression from ONNX graph.
+
+        Onnx graph is a python protobuf object.
+        The companion parameters will be handled automatically.
+        However, the input names from onnx graph is vague, mixing inputs and
+        network weights/bias such as "1", "2"...
         For convenience, we rename the `real` input names to "input_0",
         "input_1"... And renaming parameters to "param_0", "param_1"...
 
@@ -999,7 +1009,7 @@ class GraphProto(object):
                           inputs,
                           attrs,
                           opset):
-        """Convert from onnx operator to relay operator.
+        """Convert ONNX operator into a Relay operator.
         The converter must specify conversions explicity for incompatible name, and
         apply handlers to operator attributes.
 
@@ -1043,10 +1053,14 @@ class GraphProto(object):
 def from_onnx(model,
               shape=None,
               dtype="float32"):
-    """Convert from ONNX"s model into compatible relay Function.
-    Onnx graph is a python protobuf object. The companion parameters will be handled automatically.
-    The inputs from onnx graph is vague, only providing "1", "2"... For convenience, we rename the
-    `real` input names to "input_0", "input_1"... And renaming parameters to "param_0", "param_1"..
+    """Convert a ONNX model into an equivalent Relay Function.
+
+    ONNX graphs are represented as Python Protobuf objects.
+    The companion parameters will be handled automatically.
+    However, the input names from onnx graph is vague, mixing inputs and
+    network weights/bias such as "1", "2"...
+    For convenience, we rename the `real` input names to "input_0",
+    "input_1"... And renaming parameters to "param_0", "param_1"...
 
     Parameters
     ----------
