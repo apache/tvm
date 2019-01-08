@@ -1,13 +1,14 @@
-# pylint: disable=invalid-name,too-many-locals
+# pylint: disable=invalid-name,too-many-locals,unused-variable
 """x86 nn operators"""
 from __future__ import absolute_import as _abs
 import tvm
 from tvm import autotvm
+from tvm.autotvm.task.space import SplitEntity
+
 from .. import generic, tag
 from ..util import traverse_inline, get_const_tuple
 from .. import nn
 from .util import get_fp32_len
-from tvm.autotvm.task.space import SplitEntity, ReorderEntity, OtherOptionEntity
 
 @generic.schedule_softmax.register(["cpu"])
 def schedule_softmax(outs):
@@ -39,8 +40,7 @@ def schedule_softmax(outs):
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None):
-    batch, in_dim = get_const_tuple(data.shape)
-    out_dim, _ = get_const_tuple(weight.shape)
+    batch, _ = get_const_tuple(data.shape)
 
     # For small batch sizes, don't pack weight into cache-friendly layout
     # because of overhead in packing and limited reuse from batch dimension
@@ -68,7 +68,9 @@ def _declaration_gemm_pack(cfg, data, weight, bias=None):
 
     k = tvm.reduce_axis((0, in_dim), name="k")
     C = tvm.compute((batch, out_dim),
-                    lambda y, x: tvm.sum(data[y, k] * packw[x // packw_bn, k, x % packw_bn], axis=k),
+                    lambda y, x: tvm.sum(
+                        data[y, k] * packw[x // packw_bn, k, x % packw_bn],
+                        axis=k),
                     tag="gemm_pack")
     if bias is not None:
         C = tvm.compute((batch, out_dim), lambda i, j: C[i, j] + bias[j],
@@ -90,7 +92,8 @@ def _declaration_gemm_nopack(cfg, data, weight, bias=None):
     vec = cfg["tile_k"].size[-1]
     k = tvm.reduce_axis((0, in_dim // vec), "k")
     CC = tvm.compute((batch, out_dim, vec),
-                     lambda z, y, x: tvm.sum(data[z, k * vec + x] * weight[y, k * vec + x], axis=k))
+                     lambda z, y, x: tvm.sum(
+                         data[z, k * vec + x] * weight[y, k * vec + x], axis=k))
 
     kk = tvm.reduce_axis((0, vec), "kk")
     C = tvm.compute((batch, out_dim),
