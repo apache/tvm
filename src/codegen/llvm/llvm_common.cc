@@ -12,7 +12,6 @@
 namespace tvm {
 namespace codegen {
 
-
 struct LLVMEnv {
   std::mutex mu;
   std::atomic<bool> all_initialized{false};
