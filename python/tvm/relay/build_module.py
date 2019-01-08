@@ -153,6 +153,8 @@ def optimize(func, target, params=None):
         func = ir_pass.infer_type(func)
         func = ir_pass.combine_parallel_conv2d(func)
 
+    # The constant folding pass is necessary because FoldScaleAxis pass needs
+    # to check the constantness and positiveness of scales.
     if cfg.pass_enabled("FoldConstant"):
         func = ir_pass.fold_constant(func)
 
