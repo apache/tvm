@@ -654,6 +654,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const Call* op) {
   } else if (op->is_intrinsic(intrinsic::tvm_handle_is_null)) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
   } else if (op->is_intrinsic(intrinsic::tvm_if_then_else)) {
+    CHECK_EQ(op->args[0].type().lanes(), 1)
+        << "if_then_else can only take scalar condition";
     using llvm::BasicBlock;
     BasicBlock* then_block = BasicBlock::Create(
         *ctx_, "if_then", function_);
