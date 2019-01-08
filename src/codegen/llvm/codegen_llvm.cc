@@ -235,6 +235,16 @@ void CodeGenLLVM::InitPassManagerBuilder(llvm::PassManagerBuilder* builder) {
 }
 
 void CodeGenLLVM::Optimize() {
+  // pass manager
+  FPassManager fpass(module_.get());
+  MPassManager mpass;
+  mpass.add(llvm::createTargetTransformInfoWrapperPass(
+              target_machine_ ? target_machine_->getTargetIRAnalysis() :
+                                llvm::TargetIRAnalysis()));
+  fpass.add(llvm::createTargetTransformInfoWrapperPass(
+              target_machine_ ? target_machine_->getTargetIRAnalysis() :
+              llvm::TargetIRAnalysis()));
+
   // place optimization pass
   llvm::PassManagerBuilder builder;
   builder.OptLevel = 3;
@@ -252,9 +262,6 @@ void CodeGenLLVM::Optimize() {
   target_machine_->adjustPassManager(builder);
 #endif
 
-  // pass manager
-  FPassManager fpass(module_.get());
-  MPassManager mpass;
   builder.populateFunctionPassManager(fpass);
   builder.populateModulePassManager(mpass);
 
