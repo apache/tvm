@@ -40,6 +40,7 @@ List of operators
    topi.nn.global_pool
    topi.nn.upsampling
    topi.nn.softmax
+   topi.nn.dense
    topi.nn.log_softmax
    topi.nn.conv2d_nchw
    topi.nn.conv2d_hwcn
@@ -132,6 +133,7 @@ topi.nn
 .. autofunction:: topi.nn.global_pool
 .. autofunction:: topi.nn.upsampling
 .. autofunction:: topi.nn.softmax
+.. autofunction:: topi.nn.dense
 .. autofunction:: topi.nn.log_softmax
 .. autofunction:: topi.nn.conv2d_nchw
 .. autofunction:: topi.nn.conv2d_hwcn

@@ -9,6 +9,33 @@ from .. import nn
 from .util import get_fp32_len
 from tvm.autotvm.task.space import SplitEntity, ReorderEntity, OtherOptionEntity
 
+@generic.schedule_softmax.register(["cpu"])
+def schedule_softmax(outs):
+    """Schedule for softmax
+    Parameters
+    ----------
+    outs: Array of Tensor
+          The computation graph description of softmax
+          in the format of an array of tensors.
+    Returns
+    -------
+    sch: Schedule
+        The computation schedule for the op.
+    """
+    outs = [outs] if isinstance(outs, tvm.tensor.Tensor) else outs
+    x = outs[0]
+    s = tvm.create_schedule([x.op for x in outs])
+    tvm.schedule.AutoInlineInjective(s)
+    if len(s[x].op.axis) >= 5:
+        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1], s[x].op.axis[2])
+        s[x].parallel(fused)
+    elif len(s[x].op.axis) >= 3:
+        fused = s[x].fuse(s[x].op.axis[0], s[x].op.axis[1])
+        s[x].parallel(fused)
+    else:
+        s[x].parallel(s[x].op.axis[0])
+    return s
+
 
 @autotvm.register_topi_compute(nn.dense, "cpu", "direct")
 def _declaration_dense(cfg, data, weight, bias=None):
@@ -84,7 +111,7 @@ def _schedule_dense(cfg, outs):
     def _callback(op):
         if "gemm_pack" in op.tag:
             _schedule_gemm_pack_template(cfg, s, op.output(0))
-        else:
+        elif 'gemm_nopack' in op.tag:
             _schedule_gemm_nopack_template(cfg, s, op.output(0))
     traverse_inline(s, outs[0].op, _callback)
     return s
@@ -123,6 +150,7 @@ def _schedule_gemm_pack_template(cfg, s, C):
 
 
 def _schedule_gemm_nopack_template(cfg, s, C):
+    print(C)
     y, x = s[C].op.axis
     kk, = s[C].op.reduce_axis
     yo, yi = cfg["tile_y"].apply(s, C, y)
