@@ -488,6 +488,42 @@ def _rule_float_direct(op):
         return call_pure_extern(op.dtype, op.name, *op.args)
     return None
 
+@_register_func("tvm.default_trace_action")
+def _tvm_default_trace_action(*args):
+    print(list(args))
+
+def trace(args, trace_action="tvm.default_trace_action"):
+    """Trace tensor data at the runtime.
+
+    The trace function allows to trace specific tensor at the
+    runtime. The tracing value should come as last argument.
+    The trace action should be specified, by default
+    tvm.default_trace_action is used.
+
+    Parameters
+    ----------
+    args : list of Expr or Buffers.
+        Positional arguments.
+
+    trace_action : str.
+        The name of the trace action.
+
+    Returns
+    -------
+    call : Expr
+        The call expression.
+
+    See Also
+    --------
+    tvm.call_packed : Creates packed function.
+    """
+    if not isinstance(args, list):
+        raise Exception("tvm.trace consumes the args as list type")
+    call_args = [_pack_buffer(x) if isinstance(x, _Buffer) else x for x in args]
+    call_args.insert(0, trace_action)
+    return _make.Call(
+        args[-1].dtype, "tvm_call_trace_packed", call_args, _Call.Intrinsic, None, 0)
+
 # opencl pattern for exp
 register_intrin_rule("opencl", "exp", _rule_float_direct, override=True)
 # default pattern for exp
