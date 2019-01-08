@@ -142,7 +142,7 @@ def test_nms():
         x0 = relay.var("x0", relay.ty.TensorType(dshape, "float32"))
         x1 = relay.var("x1", relay.ty.TensorType((dshape[0],), "int"))
         z = relay.vision.nms(x0, x1, overlap_threshold, force_suppress, topk)
-        assert "overlap_threshold" in z.astext()
+        assert "iou_threshold" in z.astext()
         zz = relay.ir_pass.infer_type(z)
         assert zz.checked_type == relay.ty.TensorType(dshape, "float32")
 

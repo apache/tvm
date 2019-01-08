@@ -1,6 +1,7 @@
 """Non-maximum suppression operations."""
 from __future__ import absolute_import as _abs
 from . import _make
+from ...expr import TupleWrapper
 
 def get_valid_counts(data,
                      score_threshold):
@@ -17,13 +18,13 @@ def get_valid_counts(data,
 
     Returns
     -------
-    out_tensor : relay.Expr
-        Rearranged data tensor.
-
     valid_count : relay.Expr
         1-D tensor for valid number of boxes.
+
+    out_tensor : relay.Expr
+        Rearranged data tensor.
     """
-    return _make.get_valid_counts(data, score_threshold)
+    return TupleWrapper(_make.get_valid_counts(data, score_threshold), 2)
 
 
 def nms(data,

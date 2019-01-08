@@ -260,3 +260,4 @@ if __name__ == "__main__":
     test_binary_int_broadcast()
     test_where()
     test_reduce_functions()
+    test_slice_axis()

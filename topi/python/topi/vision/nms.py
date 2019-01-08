@@ -166,7 +166,7 @@ def hybrid_nms(data, sorted_index, valid_count,
                 if 0 < topk < valid_count[i]:
                     for j in range(valid_count[i] - nkeep):
                         for k in range(box_data_length):
-                            output[i, j + nkeep, k] = data[i, j + nkeep, k]
+                            output[i, j + nkeep, k] = -1.0
             # Apply nms
             for j in range(valid_count[i]):
                 if output[i, j, 0] >= 0:

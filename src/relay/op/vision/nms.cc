@@ -22,8 +22,8 @@ bool GetValidCountRel(const Array<Type>& types,
 
   std::vector<IndexExpr> oshape({data->shape[0]});
   std::vector<Type> fields;
-  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
   fields.push_back(TensorTypeNode::make(oshape, Int(32)));
+  fields.push_back(TensorTypeNode::make(data->shape, data->dtype));
 
   // assign output type
   reporter->Assign(types[1], TupleTypeNode::make(Array<Type>(fields)));
@@ -34,7 +34,7 @@ Expr MakeGetValidCounts(Expr data,
                         double score_threshold) {
   auto attrs = make_node<GetValidCountsAttrs>();
   attrs->score_threshold = score_threshold;
-  static const Op& op = Op::Get("vision.nms");
+  static const Op& op = Op::Get("vision.get_valid_counts");
   return CallNode::make(op, {data}, Attrs(attrs), {});
 }
 

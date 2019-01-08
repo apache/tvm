@@ -401,9 +401,8 @@ def _mx_box_nms(inputs, attrs):
     if out_format != 'corner':
         raise RuntimeError('out_format %s is not supported.' % out_format)
 
-    valid_counts, inter_out = \
-        _op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
-    nms_out = _op.vision.nms(inter_out, valid_counts,
+    ret =_op.vision.get_valid_counts(inputs[0], score_threshold=valid_thresh)
+    nms_out = _op.vision.nms(ret[1], ret[0],
                              iou_threshold=overlap_thresh,
                              force_suppress=force_suppress,
                              topk=topk, id_index=id_index,
@@ -522,9 +521,8 @@ _convert_map = {
     "slice"         : _mx_slice,
     "slice_like"    : _mx_slice_like,
     "slice_axis"    : _mx_slice_axis,
-    "L2Normalization"  : _mx_l2_normalize,∂
+    "L2Normalization"  : _mx_l2_normalize,
     "SliceChannel"  : _mx_split,
-    "slice_axis"    : _mx_slice_axis,
     "split"         : _mx_split,
     "expand_dims"   : _mx_expand_dims,
     "Concat"        : _mx_concat,
@@ -541,6 +539,7 @@ _convert_map = {
     "_contrib_ROIAlign" : _mx_roi_align,
     "_contrib_Proposal" : _mx_proposal,
     "_contrib_MultiProposal" : _mx_proposal,
+    "_contrib_box_nms" : _mx_box_nms,
     # List of missing operators that are present in NNVMv1
     # TODO(tvm-tvm): support all operators.
     #
